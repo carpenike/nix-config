@@ -86,6 +86,4 @@
   # It is ok to leave this unchanged for compatibility purposes
   system.stateVersion = "23.11";
 
-  news.display = "silent";
-
 }
