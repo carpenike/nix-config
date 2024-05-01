@@ -49,7 +49,7 @@ outputs = inputs@{ self, ... }:
                 pkgs-stable
               else
                 pkgs-stable
-                }));
+                );
 
       pkgs-stable = import inputs.nixpkgs-stable {
         system = systemSettings.system;
