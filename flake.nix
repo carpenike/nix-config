@@ -67,11 +67,7 @@ outputs = inputs@{ self, ... }:
       # configure lib
       # use nixpkgs if running a server (homelab or worklab profile)
       # otherwise use patched nixos-unstable nixpkgs
-      lib = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab") || (systemSettings.profile == "services"))
-             then
-               pkgs-stable.lib
-             else
-               pkgs.lib);
+      lib = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab") || (systemSettings.profile =="services"))
              then
                inputs.nixpkgs-stable.lib
              else
