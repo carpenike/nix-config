@@ -1,0 +1,62 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  hostname: $HOSTNAME
+  host: '{{ or .host .hostname }}'
+
+tasks:
+  apply-darwin:
+    desc: Build and apply nix-darwin configuration
+    silent: true
+    requires:
+      vars:
+        - host
+    cmds:
+      - task: build-darwin
+        vars:
+          host: "{{ .host }}"
+      - task: .prompt_to_continue
+      - darwin-rebuild switch --flake "{{.ROOT_DIR}}/#{{.host}}"
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+      - sh: which darwin-rebuild
+        msg: "darwin-rebuild not found"
+
+  build-darwin:
+    desc: Build nix-darwin configuration
+    silent: true
+    requires:
+      vars:
+        - host
+    cmds:
+      - darwin-rebuild build --flake "{{.ROOT_DIR}}/#{{.host}}"
+      - nvd diff /run/current-system result
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+      - sh: which darwin-rebuild
+        msg: "darwin-rebuild not found"
+
+  deploy-nixos:
+    desc: Build and deploy nixos configuration using deploy-rs
+    silent: true
+    summary: |
+      Args:
+        host: Host to build and deploy to (required)
+    requires:
+      vars:
+        - host
+    cmds:
+      - deploy "{{.ROOT_DIR}}/#{{.host}}" --interactive --skip-checks
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+      - sh: which deploy
+        msg: "deploy-rs not found"
+
+  .prompt_to_continue:
+    internal: true
+    prompt: Do you want to continue applying this configuration?
