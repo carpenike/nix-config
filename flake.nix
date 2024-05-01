@@ -48,12 +48,7 @@ outputs = inputs@{ self, ... }:
               then
                 pkgs-stable
               else
-                (import nixpkgs-patched {
-                  system = systemSettings.system;
-                  config = {
-                    allowUnfree = true;
-                    allowUnfreePredicate = (_: true);
-                  };
+                pkgs-stable
                 }));
 
       pkgs-stable = import inputs.nixpkgs-stable {
