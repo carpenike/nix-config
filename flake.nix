@@ -87,20 +87,20 @@ outputs = inputs@{ self, ... }:
         forAllSystems (system: import inputs.nixpkgs { inherit system; });
 
     in {
-      homeConfigurations = {
-        user = home-manager.lib.homeManagerConfiguration {
-          inherit pkgs;
-          modules = [
-            (./. + "/profiles" + ("/" + systemSettings.profile) + "/home.nix") # load home.nix from selected PROFILE
-          ];
-          extraSpecialArgs = {
-            # pass config variables from above
-            inherit systemSettings;
-            inherit userSettings;
-            inherit inputs;
-          };
-        };
-      };
+      # homeConfigurations = {
+      #   user = home-manager.lib.homeManagerConfiguration {
+      #     inherit pkgs;
+      #     modules = [
+      #       (./. + "/profiles" + ("/" + systemSettings.profile) + "/home.nix") # load home.nix from selected PROFILE
+      #     ];
+      #     extraSpecialArgs = {
+      #       # pass config variables from above
+      #       inherit systemSettings;
+      #       inherit userSettings;
+      #       inherit inputs;
+      #     };
+      #   };
+      # };
       nixosConfigurations = {
         system = lib.nixosSystem {
           system = systemSettings.system;
@@ -118,26 +118,26 @@ outputs = inputs@{ self, ... }:
         };
       };
 
-      # packages = forAllSystems (system:
-      #   let pkgs = nixpkgsFor.${system};
-      #   in {
-      #     default = self.packages.${system}.install;
+      packages = forAllSystems (system:
+        let pkgs = nixpkgsFor.${system};
+        in {
+          default = self.packages.${system}.install;
 
-      #     install = pkgs.writeShellApplication {
-      #       name = "install";
-      #       runtimeInputs = with pkgs; [ git ]; # I could make this fancier by adding other deps
-      #       text = ''${./install.sh} "$@"'';
-      #     };
-      #   });
+          install = pkgs.writeShellApplication {
+            name = "install";
+            runtimeInputs = with pkgs; [ git ]; # I could make this fancier by adding other deps
+            text = ''${./install.sh} "$@"'';
+          };
+        });
 
-      # apps = forAllSystems (system: {
-      #   default = self.apps.${system}.install;
+      apps = forAllSystems (system: {
+        default = self.apps.${system}.install;
 
-      #   install = {
-      #     type = "app";
-      #     program = "${self.packages.${system}.install}/bin/install";
-      #   };
-      # });
+        install = {
+          type = "app";
+          program = "${self.packages.${system}.install}/bin/install";
+        };
+      });
     };
 
   inputs = {
