@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 let
 
   # My shell aliases
@@ -33,6 +33,6 @@ in
   ];
 
   programs.direnv.enable = true;
-  programs.direnv.enableFishIntegration =  mkDefault true;
+  programs.direnv.enableFishIntegration =  lib.mkDefault true;
   programs.direnv.nix-direnv.enable = true;
 }
