@@ -27,12 +27,7 @@ outputs = inputs@{ self, ... }:
       # configure pkgs
       # use nixpkgs if running a server (homelab or worklab profile)
       # otherwise use patched nixos-unstable nixpkgs
-      pkgs = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab") || (systemSettings.profile == "services"))
-              then
-                pkgs-stable
-              else
-                pkgs-stable
-                );
+      pkgs = pkgs-stable;
 
       pkgs-stable = import inputs.nixpkgs-stable {
         system = systemSettings.system;
@@ -45,19 +40,11 @@ outputs = inputs@{ self, ... }:
       # configure lib
       # use nixpkgs if running a server (homelab or worklab profile)
       # otherwise use patched nixos-unstable nixpkgs
-      lib = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab") || (systemSettings.profile =="services"))
-             then
-               inputs.nixpkgs-stable.lib
-             else
-               inputs.nixpkgs.lib);
+      lib = inputs.nixpkgs-stable.lib;
 
       # use home-manager-stable if running a server (homelab or worklab profile)
       # otherwise use home-manager-unstable
-      home-manager = (if ((systemSettings.profile == "homelab") || (systemSettings.profile == "worklab") || (systemSettings.profile == "services"))
-             then
-               inputs.home-manager-stable
-             else
-               inputs.home-manager-unstable);
+      home-manager = inputs.home-manager-stable;
 
       # Systems that can run tests:
       supportedSystems = [ "aarch64-linux" "i686-linux" "x86_64-linux" ];
@@ -84,22 +71,22 @@ outputs = inputs@{ self, ... }:
           };
         };
       };
-      # nixosConfigurations = {
-      #   system = lib.nixosSystem {
-      #     system = systemSettings.system;
-      #     modules = [
-      #       (./. + "/profiles" + ("/" + systemSettings.profile) + "/configuration.nix")
-      #       ./system/bin/phoenix.nix
-      #     ]; # load configuration.nix from selected PROFILE
-      #     specialArgs = {
-      #       # pass config variables from above
-      #       inherit pkgs-stable;
-      #       inherit systemSettings;
-      #       inherit userSettings;
-      #       inherit inputs;
-      #     };
-      #   };
-      # };
+      nixosConfigurations = {
+        system = lib.nixosSystem {
+          system = systemSettings.system;
+          modules = [
+            (./. + "/profiles" + ("/" + systemSettings.profile) + "/configuration.nix")
+            ./system/bin/phoenix.nix
+          ]; # load configuration.nix from selected PROFILE
+          specialArgs = {
+            # pass config variables from above
+            inherit pkgs-stable;
+            inherit systemSettings;
+            inherit userSettings;
+            inherit inputs;
+          };
+        };
+      };
 
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
