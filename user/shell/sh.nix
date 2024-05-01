@@ -33,6 +33,6 @@ in
   ];
 
   programs.direnv.enable = true;
-  programs.direnv.enableFishIntegration = true;
+  programs.direnv.enableFishIntegration =  lib.mkDefault true;
   programs.direnv.nix-direnv.enable = true;
 }
