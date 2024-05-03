@@ -87,10 +87,6 @@ outputs = inputs@{ self, ... }:
         };
       };
 
-    darwinConfigurations = {
-      rybook = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rybook" overlays flake-packages;
-    };
-
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in {
