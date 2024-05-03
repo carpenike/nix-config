@@ -8,7 +8,7 @@
       ../../system/security/doas.nix
       ../../system/security/gpg.nix
       # ../../system/service/bind/bind.nix
-      # ./secrets.nix
+      ./secrets.nix
       ( import ../../system/app/docker.nix {storageDriver = null; inherit pkgs userSettings lib;} )
     ];
 
