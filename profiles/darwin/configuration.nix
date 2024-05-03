@@ -1,15 +1,30 @@
-{ lib, pkgs, systemSettings, userSettings, ... }:
+# Edit this configuration file to define what should be installed on
+# your system.  Help is available in the configuration.nix(5) man page
+# and in the NixOS manual (accessible by running ‘nixos-help’).
 
+{ pkgs, lib, systemSettings, userSettings, ... }:
 {
   imports =
     [ ../../system/hardware-configuration.nix
-      # ../../system/hardware/time.nix # Network time sync
-      ../../system/security/firewall.nix
+      ../../system/hardware/systemd.nix # systemd config
+      ../../system/hardware/kernel.nix # Kernel config
+      ../../system/hardware/power.nix # Power management
+      ../../system/hardware/time.nix # Network time sync
+      ../../system/hardware/opengl.nix
+      ../../system/hardware/printing.nix
+      ../../system/hardware/bluetooth.nix
+      (./. + "../../../system/wm"+("/"+userSettings.wm)+".nix") # My window manager
+      #../../system/app/flatpak.nix
+      ../../system/app/virtualization.nix
+      ( import ../../system/app/docker.nix {storageDriver = null; inherit pkgs userSettings lib;} )
       ../../system/security/doas.nix
       ../../system/security/gpg.nix
-      ../../system/service/bind/bind.nix
-      ./secrets.nix
-      ( import ../../system/app/docker.nix {storageDriver = null; inherit pkgs userSettings lib;} )
+      ../../system/security/blocklist.nix
+      ../../system/security/firewall.nix
+      ../../system/security/firejail.nix
+      ../../system/security/openvpn.nix
+      ../../system/security/automount.nix
+      ../../system/style/stylix.nix
     ];
 
   # Fix nix path
@@ -28,7 +43,7 @@
   nixpkgs.config.allowUnfree = true;
 
   # Kernel modules
-  # boot.kernelModules = [ "i2c-dev" "i2c-piix4" ];
+  boot.kernelModules = [ "i2c-dev" "i2c-piix4" "cpufreq_powersave" ];
 
   # Bootloader
   # Use systemd-boot if uefi, default to grub otherwise
@@ -41,6 +56,7 @@
   # Networking
   networking.hostName = systemSettings.hostname; # Define your hostname.
   networking.networkmanager.enable = true; # Use networkmanager
+  networking.networkmanager.wifi.backend = "iwd"; # wpa_supplicant broken :(
 
   # Timezone and locale
   time.timeZone = systemSettings.timezone; # time zone
@@ -62,7 +78,7 @@
     isNormalUser = true;
     description = userSettings.name;
     extraGroups = [ "wheel" ];
-    packages = with pkgs; [];
+    packages = [];
     uid = 1000;
   };
 
@@ -70,20 +86,17 @@
   environment.systemPackages = with pkgs; [
     vim
     wget
-    zsh
+    fish
     git
-    rclone
-    rdiff-backup
-    rsnapshot
-    cryptsetup
-    gocryptfs
-  ];
+    home-manager
 
-  services.haveged.enable = true;
+  ];
 
   environment.shells = with pkgs; [ fish ];
   users.defaultUserShell = pkgs.fish;
   programs.fish.enable = true;
+
+  fonts.fontDir.enable = true;
 
   # It is ok to leave this unchanged for compatibility purposes
   system.stateVersion = "23.11";

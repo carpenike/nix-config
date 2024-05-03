@@ -47,7 +47,7 @@ outputs = inputs@{ self, ... }:
       home-manager = inputs.home-manager-stable;
 
       # Systems that can run tests:
-      supportedSystems = [ "aarch64-linux" "i686-linux" "x86_64-linux" ];
+      supportedSystems = [ "aarch64-linux" "x86_64-linux" "aarch64-darwin" ];
 
       # Function to generate a set based on supported systems:
       forAllSystems = inputs.nixpkgs.lib.genAttrs supportedSystems;
@@ -76,7 +76,6 @@ outputs = inputs@{ self, ... }:
           system = systemSettings.system;
           modules = [
             (./. + "/profiles" + ("/" + systemSettings.profile) + "/configuration.nix")
-            ./system/bin/phoenix.nix
           ]; # load configuration.nix from selected PROFILE
           specialArgs = {
             # pass config variables from above
@@ -87,6 +86,10 @@ outputs = inputs@{ self, ... }:
           };
         };
       };
+
+    darwinConfigurations = {
+      rybook = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rybook" overlays flake-packages;
+    };
 
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
@@ -119,6 +122,18 @@ outputs = inputs@{ self, ... }:
 
     home-manager-stable.url = "github:nix-community/home-manager/release-23.11";
     home-manager-stable.inputs.nixpkgs.follows = "nixpkgs-stable";
+
+    # nix-darwin
+    nix-darwin.url = "github:LnL7/nix-darwin";
+    nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+
+    # sops-nix
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # VSCode community extensions
+    nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
+    nix-vscode-extensions.inputs.nixpkgs.follows = "nixpkgs";
 
   };
 }
