@@ -1,4 +1,8 @@
-{ pkgs, config, ... }:
+{
+  pkgs,
+  config,
+  ...
+}:
 {
   config = {
     environment.systemPackages = [
@@ -19,23 +23,19 @@
         "networking/cloudflare/ddns/records" = {};
         "networking/bind/rndc-key" = {
           restartUnits = [ "bind.service" ];
-          #owner = config.users.users.named.name;
-        };
-        "networking/bind/ddnsupdate-key" = {
-          restartUnits = [ "bind.service" ];
-          #owner = config.users.users.named.name;
+          owner = config.users.users.named.name;
         };
         "networking/bind/externaldns-key" = {
           restartUnits = [ "bind.service" ];
-          #owner = config.users.users.named.name;
+          owner = config.users.users.named.name;
         };
         "networking/bind/zones/holthome.net" = {
           restartUnits = [ "bind.service" ];
-          #owner = config.users.users.named.name;
+          owner = config.users.users.named.name;
         };
         "networking/bind/zones/10.in-addr.arpa" = {
           restartUnits = [ "bind.service" ];
-          #owner = config.users.users.named.name;
+          owner = config.users.users.named.name;
         };
       };
     };
