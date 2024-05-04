@@ -64,10 +64,10 @@ in
         chrony = {
           enable = true;
           servers = [
-            "0.nl.pool.ntp.org"
-            "1.nl.pool.ntp.org"
-            "2.nl.pool.ntp.org"
-            "3.nl.pool.ntp.org"
+            "0.us.pool.ntp.org"
+            "1.us.pool.ntp.org"
+            "2.us.pool.ntp.org"
+            "3.us.pool.ntp.org"
           ];
         };
 
