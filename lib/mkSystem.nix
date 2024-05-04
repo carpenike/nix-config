@@ -37,8 +37,8 @@
             users.bjw-s = ../. + "/homes/bjw-s";
           };
         }
-        ../hosts/_modules/common
-        ../hosts/_modules/nixos
+        # ../hosts/_modules/common
+        # ../hosts/_modules/nixos
         ../hosts/${hostname}
       ];
       specialArgs = {
