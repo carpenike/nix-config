@@ -40,15 +40,15 @@
   outputs = { self, nixpkgs, home-manager, sops-nix, ... } @ inputs:
   let
     inherit (self) outputs;
-    forAllSystems = nixpkgs.lib.genAttrs [
-      "x86_64-linux"
-      "aarch64-darwin"
-      "aarch64-linux"
-    ];
+    supportedSystems = ["x86_64-linux" "aarch64-darwin" "aarch64-linux"];
+    forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
     inherit (nixpkgs) lib;
     configVars = import ./vars { inherit inputs lib; };
     configLib = import ./lib { inherit lib; };
+    overlays = import ./overlays {inherit inputs;};
     specialArgs = { inherit inputs outputs configVars configLib nixpkgs; };
+    mkSystemLib = import ./lib/mkSystem.nix {inherit inputs;};
+    flake-packages = self.packages;
   in
   {
     # Custom modules to enable special functionality for nixos or home-manager oriented configs.
@@ -93,15 +93,7 @@
       };
     in {
       # Parallels devlab
-      rydev = lib.nixosSystem {
-        inherit specialArgs;
-        modules = [
-          home-manager.nixosModules.home-manager{
-            home-manager.extraSpecialArgs = specialArgs;
-          }
-          ./hosts/rydev
-        ];
-      };
+      rydev =  mkSystemLib.mkNixosSystem "x86_64-linux" "gladius" overlays flake-packages;
       # Ryan Macbook Pro M1 Max
       rymac = lib.nixosSystem {
         inherit specialArgs;
