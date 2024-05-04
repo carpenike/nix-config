@@ -1,42 +1,107 @@
-#############################################################
-#
-#  Rydev - Remote Installation Test Lab
-#  NixOS running on Parallels VM
-#
-###############################################################
-
-{ pkgs, lib, config, hostname, configLib, ... }: {
+{
+  pkgs,
+  lib,
+  config,
+  hostname,
+  ...
+}:
+let
+  ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
+in
+{
   imports = [
-    #################### Required Configs ####################
     ./hardware-configuration.nix
     ./secrets.nix
-    (configLib.relativeToRoot "hosts/common/core")
-
-    #################### Optional Configs ####################
-    (configLib.relativeToRoot "hosts/common/optional/services/openssh.nix")
-
-    #################### Users to Create ####################
-    (configLib.relativeToRoot "hosts/common/users/ryan")
-
   ];
 
-  #autoLogin.enable = true;
-  #autoLogin.username = "ryan";
+  config = {
+    networking = {
+      hostName = hostname;
+      hostId = "9fe3ff83";
+      useDHCP = true;
+      firewall.enable = false;
+    };
 
-  networking = {
-    hostName = "rydev";
-    #networkmanager.enable = true;
-    enableIPv6 = true;
-  };
+    users.users.ryan = {
+      uid = 1000;
+      name = "ryan";
+      home = "/home/ryan";
+      group = "ryan";
+      shell = pkgs.fish;
+      openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../home/ryan/config/ssh/ssh.pub);
+      isNormalUser = true;
+      extraGroups =
+        [
+          "wheel"
+          "users"
+        ]
+        ++ ifGroupsExist [
+          "network"
+        ];
+    };
+    users.groups.bjw-s = {
+      gid = 1000;
+    };
 
-  boot = {
-    loader = {
+    system.activationScripts.postActivation.text = ''
+      # Must match what is in /etc/shells
+      chsh -s /run/current-system/sw/bin/fish ryan
+    '';
+
+    modules = {
+      services = {
+        # bind = {
+        #   enable = true;
+        #   config = import ./config/bind.nix {inherit config;};
+        # };
+
+        # blocky = {
+        #   enable = true;
+        #   package = pkgs.unstable.blocky;
+        #   config = import ./config/blocky.nix;
+        # };
+
+        chrony = {
+          enable = true;
+          servers = [
+            "0.nl.pool.ntp.org"
+            "1.nl.pool.ntp.org"
+            "2.nl.pool.ntp.org"
+            "3.nl.pool.ntp.org"
+          ];
+        };
+
+        # dnsdist = {
+        #   enable = true;
+        #   config = builtins.readFile ./config/dnsdist.conf;
+        # };
+
+        node-exporter.enable = true;
+
+        # onepassword-connect = {
+        #   enable = true;
+        #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
+        # };
+
+        openssh.enable = true;
+      };
+
+      users = {
+        groups = {
+          admins = {
+            gid = 991;
+            members = [
+              "ryan"
+            ];
+          };
+        };
+      };
+    };
+
+    # Use the systemd-boot EFI boot loader.
+    boot.loader = {
       systemd-boot.enable = true;
       efi.canTouchEfiVariables = true;
-      timeout = 3;
     };
   };
-
-  # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
-  system.stateVersion = "23.11";
 }
