@@ -93,7 +93,7 @@
       };
     in {
       # Parallels devlab
-      rydev =  mkSystemLib.mkNixosSystem "x86_64-aarch" "rydev" overlays flake-packages;
+      rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev" overlays flake-packages;
       # Ryan Macbook Pro M1 Max
       rymac = lib.nixosSystem {
         inherit specialArgs;
