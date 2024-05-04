@@ -69,7 +69,6 @@
     ...
   } @inputs:
   let
-    inherit (self) outputs;
     supportedSystems = ["x86_64-linux" "aarch64-darwin" "aarch64-linux"];
     forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
     overlays = import ./overlays {inherit inputs;};
