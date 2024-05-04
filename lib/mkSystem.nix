@@ -29,12 +29,11 @@
             useGlobalPkgs = true;
             sharedModules = [
               inputs.sops-nix.homeManagerModules.sops
-              inputs.catppuccin.homeManagerModules.catppuccin
             ];
             extraSpecialArgs = {
               inherit inputs hostname flake-packages;
             };
-            users.bjw-s = ../. + "/homes/bjw-s";
+            users.ryan = ../. + "/homes/ryan";
           };
         }
         # ../hosts/_modules/common
@@ -77,11 +76,11 @@
             extraSpecialArgs = {
               inherit inputs hostname flake-packages;
             };
-            users.bjw-s = ../. + "/homes/bjw-s";
+            users.ryan = ../. + "/homes/ryan";
           };
         }
-        ../hosts/_modules/common
-        ../hosts/_modules/darwin
+        # ../hosts/_modules/common
+        # ../hosts/_modules/darwin
         ../hosts/${hostname}
       ];
       specialArgs = {
