@@ -5,7 +5,7 @@
 #
 ###############################################################
 
-{ inputs, configLib, ... }: {
+{ pkgs, lib, config, hostname, configLib, ... }: {
   imports = [
     #################### Required Configs ####################
     ./hardware-configuration.nix
