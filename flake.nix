@@ -1,5 +1,5 @@
 {
-  description = "Carpenike's Nix-Config";
+  description = "carpenike's Nix-Config";
 
   inputs = {
     #################### Official NixOS and HM Package Sources ####################
