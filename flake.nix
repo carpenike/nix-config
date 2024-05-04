@@ -34,6 +34,25 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Rust toolchain overlay
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+    };
+
+    # nix-darwin
+    nix-darwin = {
+      url = "github:LnL7/nix-darwin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # deploy-rs
+    deploy-rs = {
+      url = "github:serokell/deploy-rs";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
     nix-inspect.url = "github:bluskript/nix-inspect";
 
     #################### Personal Repositories ####################
