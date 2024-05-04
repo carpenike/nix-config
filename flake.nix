@@ -113,5 +113,17 @@
       # Parallels devlab
       rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev" overlays flake-packages;
     };
-  };
+    # Convenience output that aggregates the outputs for home, nixos.
+    # Also used in ci to build targets generally.
+    ciSystems =
+      let
+        nixos = nixpkgs.lib.genAttrs
+          (builtins.attrNames inputs.self.nixosConfigurations)
+          (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
+        darwin = nixpkgs.lib.genAttrs
+          (builtins.attrNames inputs.self.darwinConfigurations)
+          (attr: inputs.self.darwinConfigurations.${attr}.system);
+      in
+        nixos // darwin;
+  } // import ./deploy.nix inputs;
 }
