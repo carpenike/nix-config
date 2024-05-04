@@ -3,7 +3,7 @@ let
   cfg = config.modules.services.bind;
 in
 {
-  environment.systemPackages = with pkgs; [ bind ];
+ # environment.systemPackages = with pkgs; [ bind ];
   options.modules.services.bind = {
     enable = lib.mkEnableOption "bind";
     package = lib.mkPackageOption pkgs "bind" { };
