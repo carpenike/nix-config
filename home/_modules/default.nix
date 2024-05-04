@@ -6,6 +6,7 @@
   imports = [
     ./mutability.nix
 
+    ./deployment
   ];
 
   config = {
