@@ -23,7 +23,7 @@ let
 in
 {
   deploy.nodes = {
-    rydev = deployConfig "rydev" "x86_64-linux" {sshUser = "carpenike"; remoteBuild = true;};
+    rydev = deployConfig "rydev" "aarch64-linux" {sshUser = "ryan"; remoteBuild = true;};
   };
   checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
 }
