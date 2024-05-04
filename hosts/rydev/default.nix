@@ -48,55 +48,48 @@ in
       chsh -s /run/current-system/sw/bin/fish ryan
     '';
 
-    modules = {
-      services = {
-        # bind = {
-        #   enable = true;
-        #   config = import ./config/bind.nix {inherit config;};
-        # };
 
-        # blocky = {
-        #   enable = true;
-        #   package = pkgs.unstable.blocky;
-        #   config = import ./config/blocky.nix;
-        # };
-
-        chrony = {
-          enable = true;
-          servers = [
-            "0.nl.pool.ntp.org"
-            "1.nl.pool.ntp.org"
-            "2.nl.pool.ntp.org"
-            "3.nl.pool.ntp.org"
-          ];
-        };
-
-        # dnsdist = {
-        #   enable = true;
-        #   config = builtins.readFile ./config/dnsdist.conf;
-        # };
-
-        node-exporter.enable = true;
-
-        # onepassword-connect = {
-        #   enable = true;
-        #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
-        # };
-
-        openssh.enable = true;
+    services = {
+      # bind = {
+      #   enable = true;
+      #   config = import ./config/bind.nix {inherit config;};
+      # };
+      # blocky = {
+      #   enable = true;
+      #   package = pkgs.unstable.blocky;
+      #   config = import ./config/blocky.nix;
+      # };
+      chrony = {
+        enable = true;
+        servers = [
+          "0.nl.pool.ntp.org"
+          "1.nl.pool.ntp.org"
+          "2.nl.pool.ntp.org"
+          "3.nl.pool.ntp.org"
+        ];
       };
-
-      users = {
-        groups = {
-          admins = {
-            gid = 991;
-            members = [
-              "ryan"
-            ];
-          };
+      # dnsdist = {
+      #   enable = true;
+      #   config = builtins.readFile ./config/dnsdist.conf;
+      # };
+      node-exporter.enable = true;
+      # onepassword-connect = {
+      #   enable = true;
+      #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
+      # };
+      openssh.enable = true;
+    };
+    users = {
+      groups = {
+        admins = {
+          gid = 991;
+          members = [
+            "ryan"
+          ];
         };
       };
     };
+
 
     # Use the systemd-boot EFI boot loader.
     boot.loader = {
