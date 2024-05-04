@@ -1,9 +1,4 @@
-# hosts level sops. see home/[user]/common/optional/sops.nix for home/user level
-
-{ inputs, config, pkgs, ... }:
-let
-  secretsDirectory = builtins.toString inputs.nix-secrets;
-in
+{ pkgs, config, ... }:
 {
   config = {
     environment.systemPackages = [
