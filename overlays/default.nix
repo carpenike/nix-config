@@ -1,25 +1,28 @@
-#
-# This file defines overlays/custom modifications to upstream packages
-#
+{
+  inputs,
+  ...
+}:
+{
+  additions = final: prev: {
+    # flake = import ../pkgs {
+    #   pkgs = prev;
+    #   inherit inputs;
+    # };
+  };
 
-{ inputs, ... }: {
-  # This one brings our custom packages from the 'pkgs' directory
-  additions = final: _prev: import ../pkgs { pkgs = final; };
-
-  # This one contains whatever you want to overlay
-  # You can change versions, add patches, set compilation flags, anything really.
-  # https://nixos.wiki/wiki/Overlays
   modifications = final: prev: {
-    # example = prev.example.overrideAttrs (oldAttrs: let ... in {
-    # ...
+    # kubecm = prev.kubecm.overrideAttrs (_: prev: {
+    #   meta = prev.meta // {
+    #     mainProgram = "kubecm";
+    #   };
     # });
   };
 
-  # When applied, the unstable nixpkgs set (declared in the flake inputs) will
+  # The unstable nixpkgs set (declared in the flake inputs) will
   # be accessible through 'pkgs.unstable'
   unstable-packages = final: _prev: {
     unstable = import inputs.nixpkgs-unstable {
-      system = final.system;
+      inherit (final) system;
       config.allowUnfree = true;
     };
   };
