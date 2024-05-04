@@ -13,6 +13,7 @@
 
     #################### Optional Configs ####################
     (configLib.relativeToRoot "hosts/common/optional/services/openssh.nix")
+    (configLib.relativeToRoot "hosts/common/optional/services/bind.nix")
 
     #################### Users to Create ####################
     (configLib.relativeToRoot "hosts/common/users/ryan")
