@@ -9,6 +9,7 @@
   imports = [
     #################### Required Configs ####################
     ./hardware-configuration.nix
+    ./secrets.nix
     (configLib.relativeToRoot "hosts/common/core")
 
     #################### Optional Configs ####################
