@@ -33,7 +33,7 @@
             extraSpecialArgs = {
               inherit inputs hostname flake-packages;
             };
-            users.ryan = ../. + "/homes/ryan";
+            users.ryan = ../. + "/home/ryan";
           };
         }
         # ../hosts/_modules/common
@@ -71,12 +71,11 @@
             sharedModules = [
               inputs.sops-nix.homeManagerModules.sops
               inputs.nixvim.homeManagerModules.nixvim
-              inputs.catppuccin.homeManagerModules.catppuccin
             ];
             extraSpecialArgs = {
               inherit inputs hostname flake-packages;
             };
-            users.ryan = ../. + "/homes/ryan";
+            users.ryan = ../. + "/home/ryan";
           };
         }
         # ../hosts/_modules/common
