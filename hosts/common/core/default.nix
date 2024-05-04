@@ -3,7 +3,6 @@
     inputs.home-manager.nixosModules.home-manager
     ./locale.nix # localization settings
     ./nix.nix # nix settings and garbage collection
-    ./sops.nix # secrets management
     ./fish.nix # load a basic shell just in case we need it without home-manager
 
     ./services/auto-upgrade.nix # auto-upgrade service
