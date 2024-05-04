@@ -37,7 +37,7 @@
     #################### Personal Repositories ####################
   };
 
-  outputs = { self, nixpkgs, home-manager, ... } @ inputs:
+  outputs = { self, nixpkgs, home-manager, sops-nix, ... } @ inputs:
   let
     inherit (self) outputs;
     forAllSystems = nixpkgs.lib.genAttrs [
