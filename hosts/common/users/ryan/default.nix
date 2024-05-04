@@ -12,7 +12,6 @@ in
 #??     packages = [ pkgs.home-manager ];
     home-manager.users.${configVars.username} = import (configLib.relativeToRoot "home/${configVars.username}/${config.networking.hostName}.nix");
   } // {
-    users.mutableUsers = false; # Required for password to be set via sops during system activation!
     users.users.${configVars.username} = {
       isNormalUser = true;
       extraGroups = [
