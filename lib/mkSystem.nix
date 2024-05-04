@@ -36,8 +36,8 @@
             users.ryan = ../. + "/home/ryan";
           };
         }
-        # ../hosts/_modules/common
-        # ../hosts/_modules/nixos
+        ../hosts/_modules/common
+        ../hosts/_modules/nixos
         ../hosts/${hostname}
       ];
       specialArgs = {
