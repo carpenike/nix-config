@@ -42,7 +42,8 @@
     inherit (self) outputs;
     forAllSystems = nixpkgs.lib.genAttrs [
       "x86_64-linux"
-      #"aarch64-darwin"
+      "aarch64-darwin"
+      "aarch64-linux"
     ];
     inherit (nixpkgs) lib;
     configVars = import ./vars { inherit inputs lib; };
