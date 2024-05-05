@@ -39,7 +39,7 @@ in
           "network"
         ];
     };
-    users.groups.bjw-s = {
+    users.groups.ryan = {
       gid = 1000;
     };
 
