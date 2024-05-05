@@ -86,17 +86,17 @@ in
     #     openssh.enable = true;
     #   };
 
-      users = {
-        groups = {
-          admins = {
-            gid = 991;
-            members = [
-              "ryan"
-            ];
-          };
-        };
-      };
-    };
+    #   users = {
+    #     groups = {
+    #       admins = {
+    #         gid = 991;
+    #         members = [
+    #           "ryan"
+    #         ];
+    #       };
+    #     };
+    #   };
+    # };
 
     # Use the systemd-boot EFI boot loader.
     boot.loader = {
