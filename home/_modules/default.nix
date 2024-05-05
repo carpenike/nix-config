@@ -7,6 +7,7 @@
     ./mutability.nix
 
     ./deployment
+    ./security
   ];
 
   config = {
