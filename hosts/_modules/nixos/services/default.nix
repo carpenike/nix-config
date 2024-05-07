@@ -12,9 +12,9 @@
     # ./minio
     # ./nginx
     # ./nfs
-    # ./node-exporter
+    ./node-exporter
     # ./onepassword-connect
-    # ./openssh
+    ./openssh
     # ./podman
     # ./samba
     # ./smartd
