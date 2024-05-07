@@ -50,10 +50,10 @@ in
 
     modules = {
       services = {
-        # bind = {
-        #   enable = true;
-        #   config = import ./config/bind.nix {inherit config;};
-        # };
+        bind = {
+          enable = true;
+          config = import ./config/bind.nix {inherit config;};
+        };
 
         # blocky = {
         #   enable = true;
