@@ -42,47 +42,60 @@ in
     users.groups.ryan = {
       gid = 1000;
     };
-    users.groups.admins = {
-      gid = 991;
-      members = [
-        "ryan"
-      ];
-    };
 
     system.activationScripts.postActivation.text = ''
       # Must match what is in /etc/shells
       chsh -s /run/current-system/sw/bin/fish ryan
     '';
 
-    services = {
-      # bind = {
-      #   enable = true;
-      #   config = import ./config/bind.nix {inherit config;};
-      # };
-      # blocky = {
-      #   enable = true;
-      #   package = pkgs.unstable.blocky;
-      #   config = import ./config/blocky.nix;
-      # };
-      chrony = {
-        enable = true;
-        servers = [
-          "0.us.pool.ntp.org"
-          "1.us.pool.ntp.org"
-          "2.us.pool.ntp.org"
-          "3.us.pool.ntp.org"
-        ];
+    modules = {
+      services = {
+        # bind = {
+        #   enable = true;
+        #   config = import ./config/bind.nix {inherit config;};
+        # };
+
+        # blocky = {
+        #   enable = true;
+        #   package = pkgs.unstable.blocky;
+        #   config = import ./config/blocky.nix;
+        # };
+
+        chrony = {
+          enable = true;
+          servers = [
+            "0.us.pool.ntp.org"
+            "1.us.pool.ntp.org"
+            "2.us.pool.ntp.org"
+            "3.us.pool.ntp.org"
+          ];
+        };
+
+        # dnsdist = {
+        #   enable = true;
+        #   config = builtins.readFile ./config/dnsdist.conf;
+        # };
+
+        node-exporter.enable = true;
+
+        # onepassword-connect = {
+        #   enable = true;
+        #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
+        # };
+
+        openssh.enable = true;
       };
-      # dnsdist = {
-      #   enable = true;
-      #   config = builtins.readFile ./config/dnsdist.conf;
-      # };
-      node-exporter.enable = true;
-      # onepassword-connect = {
-      #   enable = true;
-      #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
-      # };
-      openssh.enable = true;
+
+      users = {
+        groups = {
+          admins = {
+            gid = 991;
+            members = [
+              "ryan"
+            ];
+          };
+        };
+      };
     };
 
     # Use the systemd-boot EFI boot loader.
