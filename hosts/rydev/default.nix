@@ -27,7 +27,7 @@ in
       name = "ryan";
       home = "/home/ryan";
       group = "ryan";
-      shell = pkgs.fish;
+      # shell = pkgs.fish;
       openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../home/ryan/config/ssh/ssh.pub);
       isNormalUser = true;
       extraGroups =
