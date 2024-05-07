@@ -3,7 +3,7 @@
 }:
 {
   imports = [
-    # ./bind
+    ./bind
     # ./blocky
     # ./cfdyndns
     ./chrony
