@@ -49,42 +49,42 @@ in
     '';
 
     modules = {
-      # services = {
-      #   # bind = {
-      #   #   enable = true;
-      #   #   config = import ./config/bind.nix {inherit config;};
-      #   # };
+      services = {
+        # bind = {
+        #   enable = true;
+        #   config = import ./config/bind.nix {inherit config;};
+        # };
 
-      #   # blocky = {
-      #   #   enable = true;
-      #   #   package = pkgs.unstable.blocky;
-      #   #   config = import ./config/blocky.nix;
-      #   # };
+        # blocky = {
+        #   enable = true;
+        #   package = pkgs.unstable.blocky;
+        #   config = import ./config/blocky.nix;
+        # };
 
-      #   chrony = {
-      #     enable = true;
-      #     servers = [
-      #       "0.us.pool.ntp.org"
-      #       "1.us.pool.ntp.org"
-      #       "2.us.pool.ntp.org"
-      #       "3.us.pool.ntp.org"
-      #     ];
-      #   };
+        chrony = {
+          enable = true;
+          servers = [
+            "0.us.pool.ntp.org"
+            "1.us.pool.ntp.org"
+            "2.us.pool.ntp.org"
+            "3.us.pool.ntp.org"
+          ];
+        };
 
-      #   # dnsdist = {
-      #   #   enable = true;
-      #   #   config = builtins.readFile ./config/dnsdist.conf;
-      #   # };
+        # dnsdist = {
+        #   enable = true;
+        #   config = builtins.readFile ./config/dnsdist.conf;
+        # };
 
-      #   node-exporter.enable = true;
+        node-exporter.enable = true;
 
-      #   # onepassword-connect = {
-      #   #   enable = true;
-      #   #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
-      #   # };
+        # onepassword-connect = {
+        #   enable = true;
+        #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
+        # };
 
-      #   openssh.enable = true;
-      # };
+        openssh.enable = true;
+      };
 
       users = {
         groups = {
