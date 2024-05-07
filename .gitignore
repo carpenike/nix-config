@@ -1,4 +1,4 @@
 .direnv
 tmp
 result
-.decrypted-secrets.sops.yaml
+.decrypted~secrets.sops.yaml
