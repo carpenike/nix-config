@@ -6,7 +6,7 @@
     # ./bind
     # ./blocky
     # ./cfdyndns
-    # ./chrony
+    ./chrony
     # ./dnsdist
     # ./k3s
     # ./minio
