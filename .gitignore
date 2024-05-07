@@ -1,3 +1,4 @@
 .direnv
 tmp
 result
+.decrypted-secrets.sops.yaml
