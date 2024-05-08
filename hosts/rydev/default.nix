@@ -120,6 +120,41 @@ in
                  };
               in
                 lib.imap1 buildList urls;
+            
+
+            clients = {
+              Caydan = {
+                safe_search = {
+                  enabled = true;
+                  bing = true;
+                  duckduckgo = true;
+                  google = true;
+                  pixabay = true;
+                  yandex = true;
+                  youtube = true;
+                };
+                ids = [
+                  "10.30.50.252"
+                ];
+                tags = [
+                  "device_tablet"
+                  "os_ios"
+                  "user_child"
+                ];
+                upstreams = [
+                  "https://1.1.1.3/dns-query"
+                ];
+                use_global_settings = false;
+                filtering_enabled = true;
+                parental_enabled = true;
+                safebrowsing_enabled = true;
+                use_global_blocked_services = false;
+                ignore_querylog = false;
+                ignore_statistics = false;
+
+              };
+
+            };
           };
         };
 
