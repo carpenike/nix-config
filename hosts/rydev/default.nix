@@ -209,7 +209,7 @@ in
                       "mastodon"
                       # "mercado_libre"
                       "minecraft"
-                      "nebula"
+                      # "nebula"
                       "netflix"
                       "nintendo"
                       "ok"
