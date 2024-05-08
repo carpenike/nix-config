@@ -21,7 +21,6 @@ in
     services.adguardhome = {
       inherit (cfg) servers;
       enable = true;
-      package = cfg.package;
     };
   };
 }
