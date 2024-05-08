@@ -226,7 +226,7 @@
         use_global_blocked_services = false;
         ignore_querylog = false;
         ignore_statistics = false;
-      };
+      }
       {
         name = "Taylor";
         safe_search = {
