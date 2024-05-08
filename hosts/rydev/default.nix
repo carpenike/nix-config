@@ -63,7 +63,7 @@ in
             bind_port = 3000;
             dns = {
               bind_host = "127.0.0.1";
-              bind_port = 5390;
+              port = 5390;
               bootstrap_dns = [
                 "1.1.1.1"
               ];
