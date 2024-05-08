@@ -147,7 +147,7 @@ in
                       time_zone = "UTC";
                     };
                     ids = [
-                      "4chan"
+                      # "4chan"
                       "500px"
                       "9gag"
                       "activision_blizzard"
