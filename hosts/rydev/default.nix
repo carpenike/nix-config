@@ -77,7 +77,7 @@ in
 
         haproxy = {
           enable = true;
-          package = "pkgs.haproxy";
+          # package = "pkgs.haproxy";
           config = builtins.readFile ./config/haproxy.conf;
         };
 
