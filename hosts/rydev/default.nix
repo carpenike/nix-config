@@ -222,7 +222,7 @@ in
                       # "plenty_of_fish"
                       # "plex"
                       # "pluto_tv"
-                      "privacy"
+                      # "privacy"
                       "qq"
                       "rakuten_viki"
                       "reddit"
