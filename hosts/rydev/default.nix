@@ -160,7 +160,7 @@ in
                       # "betano"
                       # "betfair"
                       # "betway"
-                      "bigo_live"
+                      # "bigo_live"
                       "bilibili"
                       "blaze"
                       "blizzard_entertainment"
