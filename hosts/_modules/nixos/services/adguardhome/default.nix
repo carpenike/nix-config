@@ -24,6 +24,12 @@ in
       mutableSettings = false;
       inherit (cfg) settings;
     };
+    # add user, needed to access the secret
+    users.users.${adguardUser} = {
+      isSystemUser = true;
+      group = adguardUser;
+    };
+    users.groups.${adguardUser} = { };
     # insert password before service starts
     # password in sops is unencrypted, so we bcrypt it
     # and insert it as per config requirements
