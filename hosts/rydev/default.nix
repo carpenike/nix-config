@@ -176,7 +176,7 @@ in
                       "deezer"
                       # "directvgo"
                       "discord"
-                      "discoveryplus"
+                      # "discoveryplus"
                       "disneyplus"
                       "douban"
                       "dropbox"
