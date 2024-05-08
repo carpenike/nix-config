@@ -154,7 +154,7 @@ in
                       "aliexpress"
                       "amazon"
                       # "amazon_streaming"
-                      "amino"
+                      # "amino"
                       "apple_streaming"
                       "battle_net"
                       "betano"
