@@ -123,6 +123,13 @@ in
             
 
             clients = {
+              runtime_sources = {
+                whois = true;
+                arp = true;
+                rdns = true;
+                dhcp = true;
+                hosts = true;
+              };
               persistent = [ 
                 {
                   name = "Caydan";
