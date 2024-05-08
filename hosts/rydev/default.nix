@@ -75,6 +75,11 @@ in
           config = builtins.readFile ./config/dnsdist.conf;
         };
 
+        haproxy = {
+          enable = true;
+          config = builtins.readFile ./config/haproxy.conf;
+        };
+
         node-exporter.enable = true;
 
         onepassword-connect = {

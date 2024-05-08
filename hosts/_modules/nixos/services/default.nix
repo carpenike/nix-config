@@ -9,6 +9,7 @@
     # ./cfdyndns
     ./chrony
     ./dnsdist
+    ./haproxy
     # ./k3s
     # ./minio
     ./nginx
