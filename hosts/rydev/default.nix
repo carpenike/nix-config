@@ -165,7 +165,7 @@ in
                       # "blaze"
                       "blizzard_entertainment"
                       # "bluesky"
-                      "box"
+                      # "box"
                       "canaisglobo"
                       "claro"
                       "cloudflare"
