@@ -1,3 +1,8 @@
+{
+  config,
+  ...
+}:
+''
 settings = {
   bind_host = "0.0.0.0";
   bind_port = 3000;
@@ -228,3 +233,4 @@ settings = {
     ];
   };
 };
+''
