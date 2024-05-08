@@ -22,15 +22,15 @@
       };
     };
 
-    # shell = {
-    #   fish.enable = true;
+    shell = {
+      fish.enable = true;
 
-    #   git = {
-    #     enable = true;
-    #     username = "Ryan Holt";
-    #     email = "ryan@ryanholt.net";
-    #   };
-    # };
+      git = {
+        enable = true;
+        username = "Ryan Holt";
+        email = "ryan@ryanholt.net";
+      };
+    };
 
   };
 }
