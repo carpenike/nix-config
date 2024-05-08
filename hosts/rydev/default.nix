@@ -123,8 +123,9 @@ in
             
 
             clients = {
-              persistent = [ {
-                Caydan = {
+              persistent = [ 
+                {
+                  name = "Caydan";
                   safe_search = {
                     enabled = true;
                     bing = true;
@@ -153,8 +154,8 @@ in
                   ignore_querylog = false;
                   ignore_statistics = false;
   
-                };
-              } ];
+                }
+              ];
             };
           };
         };
