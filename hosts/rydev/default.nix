@@ -212,6 +212,7 @@ in
                       # "nebula"
                       "netflix"
                       "nintendo"
+                      "nvidia"
                       "ok"
                       # "olvid"
                       "onlyfans"
