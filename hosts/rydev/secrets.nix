@@ -21,7 +21,7 @@
         };
         "networking/adguardhome/password" = {
           restartUnits = ["adguardhome.service"];
-          owner = config.users.users.adguardhome.name;
+          owner = config.users.users.adguardHome.name;
         };
         "networking/cloudflare/ddns/apiToken" = {};
         "networking/cloudflare/ddns/records" = {};
