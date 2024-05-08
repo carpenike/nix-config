@@ -58,6 +58,9 @@ in
         adguardhome = {
           enable = true;
           package = pkgs.adguardhome;
+          settings = {
+            bind_host = "0.0.0.0";
+            bind_port = "3000";
         };
 
         chrony = {
