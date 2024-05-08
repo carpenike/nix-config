@@ -11,16 +11,16 @@ in
   options.modules.services.adguardhome = {
     enable = lib.mkEnableOption "adguardhome";
     package = lib.mkPackageOption pkgs "adguardhome" { };
-    config = lib.mkOption {
-      type = lib.types.str;
-      default = "";
+    settings = lib.mkOption {
+      default = config.services.adguardhome.settings;
+      type = lib.types.listOf lib.type.str;
     };
   };
 
   config = lib.mkIf cfg.enable {
     services.adguardhome = {
       enable = true;
-      # inherit (cfg) settings;
+      inherit (cfg) settings;
     };
   };
 }
