@@ -10,7 +10,6 @@
   security.doas.extraRules = [{
     users = [ "ryan" ];
     keepEnv = true;
-    persist = true;
     noPass = true;
   }];
 
