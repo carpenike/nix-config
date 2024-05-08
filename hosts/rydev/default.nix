@@ -229,7 +229,7 @@ in
                       "riot_games"
                       "roblox"
                       "rockstar_games"
-                      "samsung_tv_plus"
+                      # "samsung_tv_plus"
                       "shein"
                       "shopee"
                       "signal"
