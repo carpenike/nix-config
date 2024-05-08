@@ -204,7 +204,7 @@ in
                       "line"
                       "linkedin"
                       # "lionsgateplus"
-                      "looke"
+                      # "looke"
                       "mail_ru"
                       "mastodon"
                       "mercado_libre"
