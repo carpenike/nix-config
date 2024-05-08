@@ -144,7 +144,7 @@ in
                   };
                   blocked_services = {
                     schedule = {
-                      time_zone = "America/New_York";
+                      "time_zone" = "America/New_York";
                     };
                     ids = [
                       "9gag"
