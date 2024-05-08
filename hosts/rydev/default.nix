@@ -232,7 +232,7 @@ in
                       # "samsung_tv_plus"
                       # "shein"
                       "shopee"
-                      "signal"
+                      # "signal"
                       "skype"
                       "snapchat"
                       "soundcloud"
