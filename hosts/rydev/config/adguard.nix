@@ -1,8 +1,3 @@
-{
-  config,
-  ...
-}:
-''
 settings = {
   bind_host = "0.0.0.0";
   bind_port = 3000;
@@ -14,7 +9,8 @@ settings = {
       "9.9.9.10"
       "149.112.112.10"
       "2620:fe::10"
-      "2620:fe::f
+      "2620:fe::fe:10"
+
       # cloudflare
       "1.1.1.1"
       "2606:4700:4700::1111"
@@ -31,37 +27,41 @@ settings = {
       "https://dns.cloudflare.com/dns-query"
     ];
     local_ptr_upstreams = [ "127.0.0.1:5390" ];
-    use_private_ptr_resolvers = 
+    use_private_ptr_resolvers = true;
+
     # security
-    enable_dnsseec = 
+    enable_dnsseec = true;
+
     # local cache settings
     cache_size = 100000000;
     cache_ttl_min = 60;
-    cache_optimistic = 
+    cache_optimistic = true;
+
     theme = "auto";
   };
   filters = 
     let
-      urls = [
-        { name = "AdGuard DNS filter"; url = "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"; }
-        { name = "AdAway Default Blocklist"; url = "https://adaway.org/hosts.txt"; }
-        { name = "Big OSID"; url = "https://big.oisd.nl"; }
-        { name = "1Hosts Lite"; url = "https://o0.pages.dev/Lite/adblock.txt"; }
-        { name = "hagezi multi pro"; url = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt"; }
-        { name = "osint"; url = "https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt"; }
-        { name = "phishing army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
-        { name = "notrack malware"; url = "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt"; }
-        { name = "EasyPrivacy"; url = "https://v.firebog.net/hosts/Easyprivacy.txt"; }
-      ];
-      buildList = id: url: {
-         enabled = true;
-         inherit id;
-         inherit (url) name;
-         inherit (url) url;
-       };
+    urls = [
+      { name = "AdGuard DNS filter"; url = "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"; }
+      { name = "AdAway Default Blocklist"; url = "https://adaway.org/hosts.txt"; }
+      { name = "Big OSID"; url = "https://big.oisd.nl"; }
+      { name = "1Hosts Lite"; url = "https://o0.pages.dev/Lite/adblock.txt"; }
+      { name = "hagezi multi pro"; url = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt"; }
+      { name = "osint"; url = "https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt"; }
+      { name = "phishing army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
+      { name = "notrack malware"; url = "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt"; }
+      { name = "EasyPrivacy"; url = "https://v.firebog.net/hosts/Easyprivacy.txt"; }
+    ];
+    buildList = id: url: {
+      enabled = true;
+      inherit id;
+      inherit (url) name;
+      inherit (url) url;
+    };
     in
-      lib.imap1 buildList urls;
-  
+    lib.imap1 buildList urls;
+            
+
   clients = {
     runtime_sources = {
       whois = true;
@@ -223,8 +223,8 @@ settings = {
         use_global_blocked_services = false;
         ignore_querylog = false;
         ignore_statistics = false;
+  
       }
     ];
   };
 };
-''
