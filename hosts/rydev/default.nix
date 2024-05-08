@@ -258,7 +258,7 @@ in
                       "whatsapp"
                       # "wizz"
                       "xboxlive"
-                      "xiaohongshu"
+                      # "xiaohongshu"
                       "youtube"
                       "yy"
                       "zhihu"
