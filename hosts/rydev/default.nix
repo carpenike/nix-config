@@ -142,6 +142,18 @@ in
                     yandex = true;
                     youtube = true;
                   };
+                  blocked_services = {
+                    schedule = {
+                      time_zone = "America/New_York";
+                    };
+                    ids = [
+                      "9gag"
+                      "cloudflare"
+                      "dailymotion"
+                      "discord"
+                      "disneyplus"
+                    ];
+                  };
                   ids = [
                     "10.30.50.252"
                   ];
