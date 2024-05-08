@@ -7,6 +7,10 @@
   bind_host = "0.0.0.0";
   bind_port = 3000;
   theme = "auto";
+  users = [{
+    name = "ryan";
+    password = "ADGUARDPASS";
+  }];
   dns = {
     bind_host = "127.0.0.1";
     port = 5390;
