@@ -13,7 +13,7 @@ in
     package = lib.mkPackageOption pkgs "adguardhome" { };
     settings = lib.mkOption {
       default = config.services.adguardhome.settings;
-      type = lib.types.listOf lib.type.str;
+      type = lib.type.str;
     };
   };
 
