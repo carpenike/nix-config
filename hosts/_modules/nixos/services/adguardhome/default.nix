@@ -19,7 +19,6 @@ in
 
   config = lib.mkIf cfg.enable {
     services.adguardhome = {
-      inherit (cfg) servers;
       enable = true;
     };
   };
