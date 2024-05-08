@@ -256,7 +256,7 @@ in
                       "wechat"
                       "weibo"
                       "whatsapp"
-                      "wizz"
+                      # "wizz"
                       "xboxlive"
                       "xiaohongshu"
                       "youtube"
