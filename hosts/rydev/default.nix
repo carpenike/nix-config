@@ -192,7 +192,7 @@ in
                       "hbomax"
                       "hulu"
                       "icloud_private_relay"
-                      "iheartradio"
+                      # "iheartradio"
                       "imgur"
                       "instagram"
                       "iqiyi"
