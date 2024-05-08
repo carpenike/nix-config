@@ -6,6 +6,7 @@
 }:
 let
   cfg = config.modules.services.adguardhome;
+  adguardUser = "adguardhome";
 in
 {
   options.modules.services.adguardhome = {
@@ -32,6 +33,7 @@ in
         ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
       '';
     };
+    serviceConfig.User = adguardUser;
   };
 
 }
