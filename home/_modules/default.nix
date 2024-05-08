@@ -9,6 +9,7 @@
     ./deployment
     ./security
     ./shell
+    ./utilities
   ];
 
   config = {
