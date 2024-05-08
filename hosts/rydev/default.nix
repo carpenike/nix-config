@@ -166,7 +166,7 @@ in
                       "blizzard_entertainment"
                       # "bluesky"
                       # "box"
-                      "canaisglobo"
+                      # "canaisglobo"
                       "claro"
                       "cloudflare"
                       "clubhouse"
