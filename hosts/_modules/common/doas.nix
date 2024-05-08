@@ -11,7 +11,7 @@
     users = [ "ryan" ];
     keepEnv = true;
     persist = true;
-    nopass = true;
+    noPass = true;
   }];
 
   environment.systemPackages = [
