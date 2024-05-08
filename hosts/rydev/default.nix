@@ -195,7 +195,7 @@ in
                       "iheartradio"
                       "imgur"
                       "instagram"
-                      "iqiyi"
+                      # "iqiyi"
                       # "kakaotalk"
                       # "kik"
                       # "kook"
