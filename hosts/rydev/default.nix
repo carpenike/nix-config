@@ -122,8 +122,8 @@ in
                 lib.imap1 buildList urls;
             
 
-            persistent = {
-              clients = {
+            clients = {
+              persistent = {
                 Caydan = {
                   safe_search = {
                     enabled = true;
@@ -154,7 +154,6 @@ in
                   ignore_statistics = false;
   
                 };
-  
               };
             };
           };
