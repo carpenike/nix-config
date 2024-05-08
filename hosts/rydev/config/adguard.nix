@@ -9,7 +9,7 @@
   theme = "auto";
   users = [{
     name = "ryan";
-    password = "ADGUARDPASS";
+    password = "${config.sops.secrets."networking/adguardhome/password".path}";
   }];
   dns = {
     bind_host = "127.0.0.1";

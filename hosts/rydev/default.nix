@@ -57,7 +57,7 @@ in
 
         adguardhome = {
           enable = true;
-          settings = import ./config/adguard.nix {inherit lib;};
+          settings = import ./config/adguard.nix {inherit config lib;};
         };
 
         chrony = {
