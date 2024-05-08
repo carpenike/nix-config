@@ -157,7 +157,7 @@ in
                       # "amino"
                       "apple_streaming"
                       "battle_net"
-                      "betano"
+                      # "betano"
                       "betfair"
                       "betway"
                       "bigo_live"
