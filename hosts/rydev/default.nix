@@ -216,7 +216,7 @@ in
                       # "olvid"
                       "onlyfans"
                       "origin"
-                      "paramountplus"
+                      # "paramountplus"
                       "pinterest"
                       "playstation"
                       "plenty_of_fish"
