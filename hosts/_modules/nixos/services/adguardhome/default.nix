@@ -20,6 +20,7 @@ in
   config = lib.mkIf cfg.enable {
     services.adguardhome = {
       enable = true;
+      mutableSettings = true;
       inherit (cfg) settings;
     };
   };
