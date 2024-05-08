@@ -113,7 +113,7 @@ in
                   { name = "EasyPrivacy"; url = "https://v.firebog.net/hosts/Easyprivacy.txt"; }
                 ];
                 buildList = id: url: {
-                   enabled = false;
+                   enabled = true;
                    inherit id;
                    inherit (url) name;
                    inherit (url) url;
