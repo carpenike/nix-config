@@ -230,7 +230,7 @@ in
                       "roblox"
                       "rockstar_games"
                       # "samsung_tv_plus"
-                      "shein"
+                      # "shein"
                       "shopee"
                       "signal"
                       "skype"
