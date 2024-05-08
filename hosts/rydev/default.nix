@@ -220,7 +220,7 @@ in
                       "pinterest"
                       "playstation"
                       # "plenty_of_fish"
-                      "plex"
+                      # "plex"
                       "pluto_tv"
                       "privacy"
                       "qq"
