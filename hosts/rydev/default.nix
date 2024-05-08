@@ -159,7 +159,7 @@ in
                       "battle_net"
                       # "betano"
                       # "betfair"
-                      "betway"
+                      # "betway"
                       "bigo_live"
                       "bilibili"
                       "blaze"
