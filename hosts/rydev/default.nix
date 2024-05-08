@@ -260,7 +260,7 @@ in
                       "xboxlive"
                       # "xiaohongshu"
                       "youtube"
-                      "yy"
+                      # "yy"
                       "zhihu"
                     ];
                   };
