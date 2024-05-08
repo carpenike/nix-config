@@ -203,7 +203,7 @@ in
                       "leagueoflegends"
                       "line"
                       "linkedin"
-                      "lionsgateplus"
+                      # "lionsgateplus"
                       "looke"
                       "mail_ru"
                       "mastodon"
