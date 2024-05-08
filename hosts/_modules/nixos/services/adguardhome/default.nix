@@ -12,7 +12,7 @@ in
     enable = lib.mkEnableOption "adguardhome";
     package = lib.mkPackageOption pkgs "adguardhome" { };
     settings = lib.mkOption {
-      default = null;
+      default = {};
       type = lib.types.attrs;
     };
   };
