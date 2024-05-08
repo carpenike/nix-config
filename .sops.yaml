@@ -10,7 +10,7 @@
 
 keys:
   - &ryan DA8002060402EC39B195451D5CED80362B5A4EF2
-  - &nixos age1snl5lqud4pncqnw3kemm4y400f7guef88r3f0kum26scwl6yucsqxt9vwt
+  - &rydev age19g543y5ykg8qvtgecdpskt0902l9rtq6pg4z7323k8xfwxquzv2qnlncaq
 
 creation_rules:
   - path_regex: .*\.sops\.yaml$
@@ -18,4 +18,4 @@ creation_rules:
       - pgp:
           - *ryan
         age:
-          - *nixos
+          - *rydev
