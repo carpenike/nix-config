@@ -61,6 +61,7 @@ in
           settings = {
             bind_host = "0.0.0.0";
             bind_port = 3000;
+            bootstrap_dns = "1.1.1.1";
           };
         };
 
