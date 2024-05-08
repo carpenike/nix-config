@@ -170,7 +170,7 @@ in
                       "claro"
                       "cloudflare"
                       "clubhouse"
-                      "coolapk"
+                      # "coolapk"
                       "crunchyroll"
                       "dailymotion"
                       "deezer"
