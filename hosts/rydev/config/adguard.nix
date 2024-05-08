@@ -3,8 +3,10 @@
   ...
 }:
 {
+  schema_version = 27;
   bind_host = "0.0.0.0";
   bind_port = 3000;
+  theme = "auto";
   dns = {
     bind_host = "127.0.0.1";
     port = 5390;
@@ -40,8 +42,6 @@
     cache_size = 100000000;
     cache_ttl_min = 60;
     cache_optimistic = true;
-
-    theme = "auto";
   };
   filters = 
     let
@@ -64,6 +64,11 @@
     };
     in
     lib.imap1 buildList urls;
+
+  filtering = {
+    parental_block_host =  "family-block.dns.adguard.com";
+    safebrowsing_block_host = "standard-block.dns.adguard.com";
+  };
 
   clients = {
     runtime_sources = {
@@ -362,7 +367,7 @@
           ];
         };
         ids = [
-          "10.30.50.253"
+          "10.30.50.255"
         ];
         tags = [
           "device_tablet"
