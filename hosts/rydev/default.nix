@@ -106,4 +106,4 @@ in
       efi.canTouchEfiVariables = true;
     };
   };
-}
+};
