@@ -239,7 +239,7 @@ in
                       "spotify"
                       "steam"
                       "telegram"
-                      "temu"
+                      # "temu"
                       "tidal"
                       "tiktok"
                       "tinder"
