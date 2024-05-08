@@ -187,7 +187,7 @@ in
                       "facebook"
                       # "fifa"
                       "flickr"
-                      "globoplay"
+                      # "globoplay"
                       "gog"
                       "hbomax"
                       "hulu"
