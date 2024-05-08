@@ -158,7 +158,7 @@ in
                       "apple_streaming"
                       "battle_net"
                       # "betano"
-                      "betfair"
+                      # "betfair"
                       "betway"
                       "bigo_live"
                       "bilibili"
