@@ -123,7 +123,7 @@ in
             
 
             clients = {
-              persistent = {
+              persistent = [ {
                 Caydan = {
                   # safe_search = {
                   #   enabled = true;
@@ -154,7 +154,7 @@ in
                   ignore_statistics = false;
   
                 };
-              };
+              } ];
             };
           };
         };
