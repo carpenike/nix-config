@@ -6,7 +6,6 @@
 }:
 let
   cfg = config.modules.services.adguardhome;
-  adguardUser = "adguardhome";
 in
 {
   options.modules.services.adguardhome = {
@@ -24,21 +23,5 @@ in
       mutableSettings = false;
       inherit (cfg) settings;
     };
-  };
-  # add user, needed to access the secret
-  users.users.${adguardUser} = {
-    isSystemUser = true;
-    group = adguardUser;
-  };
-  users.groups.${adguardUser} = { };
-  # insert password before service starts
-  # password in sops is unencrypted, so we bcrypt it
-  # and insert it as per config requirements
-  systemd.services.adguardhome = {
-    preStart = lib.mkAfter ''
-      HASH=$(cat ${config.sops.secrets."networking/adguardhome/password".path} | ${pkgs.apacheHttpd}/bin/htpasswd -niB "" | cut -c 2-)
-      ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
-    '';
-    serviceConfig.User = adguardUser;
   };
 }
