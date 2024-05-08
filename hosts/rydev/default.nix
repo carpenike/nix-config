@@ -243,7 +243,7 @@ in
                       "tidal"
                       "tiktok"
                       "tinder"
-                      "tumblr"
+                      # "tumblr"
                       "twitch"
                       "twitter"
                       "ubisoft"
