@@ -13,7 +13,7 @@
     password = "ADGUARDPASS";
   }];
   dns = {
-    bind_host = "127.0.0.1";
+    bind_hosts = ["127.0.0.1"];
     port = 5390;
     bootstrap_dns = [
       # quad9
