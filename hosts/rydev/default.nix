@@ -162,7 +162,7 @@ in
                       # "betway"
                       # "bigo_live"
                       "bilibili"
-                      "blaze"
+                      # "blaze"
                       "blizzard_entertainment"
                       "bluesky"
                       "box"
