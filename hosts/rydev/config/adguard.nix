@@ -22,17 +22,17 @@
       "2606:4700:4700::1111"
     ];
     upstream_dns = [
-      "[/holthome.net/]127.0.0.1:5390"
-      "[/ryho.lt/]127.0.0.1:5390"
-      "[/in-addr.arpa/]127.0.0.1:5390"
-      "[/ip6.arpa/]127.0.0.1:5390"
+      "[/holthome.net/]127.0.0.1:5391"
+      "[/ryho.lt/]127.0.0.1:5391"
+      "[/in-addr.arpa/]127.0.0.1:5391"
+      "[/ip6.arpa/]127.0.0.1:5391"
       "https://1.1.1.1/dns-query"
     ];
     upstream_mode = "load_balance";
     fallback_dns = [
       "https://dns.cloudflare.com/dns-query"
     ];
-    local_ptr_upstreams = [ "127.0.0.1:5390" ];
+    local_ptr_upstreams = [ "127.0.0.1:5391" ];
     use_private_ptr_resolvers = true;
 
     # security
