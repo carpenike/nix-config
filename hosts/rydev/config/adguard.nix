@@ -226,7 +226,159 @@
         use_global_blocked_services = false;
         ignore_querylog = false;
         ignore_statistics = false;
-  
+      };
+      {
+        name = "Taylor";
+        safe_search = {
+          enabled = true;
+          bing = true;
+          duckduckgo = true;
+          google = true;
+          pixabay = true;
+          yandex = true;
+          youtube = true;
+        };
+        blocked_services = {
+          schedule = {
+            time_zone = "UTC";
+          };
+          ids = [
+            # "4chan"
+            "500px"
+            "9gag"
+            "activision_blizzard"
+            "aliexpress"
+            "amazon"
+            # "amazon_streaming"
+            # "amino"
+            "apple_streaming"
+            "battle_net"
+            # "betano"
+            # "betfair"
+            # "betway"
+            # "bigo_live"
+            "bilibili"
+            # "blaze"
+            "blizzard_entertainment"
+            # "bluesky"
+            # "box"
+            # "canaisglobo"
+            "claro"
+            "cloudflare"
+            "clubhouse"
+            # "coolapk"
+            "crunchyroll"
+            "dailymotion"
+            "deezer"
+            # "directvgo"
+            "discord"
+            # "discoveryplus"
+            "disneyplus"
+            "douban"
+            # "dropbox"
+            "ebay"
+            "electronic_arts"
+            "epic_games"
+            # "espn"
+            "facebook"
+            # "fifa"
+            "flickr"
+            # "globoplay"
+            "gog"
+            "hbomax"
+            "hulu"
+            "icloud_private_relay"
+            # "iheartradio"
+            "imgur"
+            "instagram"
+            "iqiyi"
+            "kakaotalk"
+            "kik"
+            # "kook"
+            "lazada"
+            "leagueoflegends"
+            "line"
+            "linkedin"
+            # "lionsgateplus"
+            # "looke"
+            "mail_ru"
+            "mastodon"
+            # "mercado_libre"
+            "minecraft"
+            # "nebula"
+            "netflix"
+            "nintendo"
+            "nvidia"
+            "ok"
+            # "olvid"
+            "onlyfans"
+            "origin"
+            # "paramountplus"
+            "pinterest"
+            "playstation"
+            # "plenty_of_fish"
+            # "plex"
+            # "pluto_tv"
+            # "privacy"
+            "qq"
+            "rakuten_viki"
+            "reddit"
+            "riot_games"
+            "roblox"
+            "rockstar_games"
+            # "samsung_tv_plus"
+            # "shein"
+            "shopee"
+            # "signal"
+            "skype"
+            "snapchat"
+            "soundcloud"
+            "spotify"
+            "steam"
+            "telegram"
+            # "temu"
+            "tidal"
+            "tiktok"
+            "tinder"
+            # "tumblr"
+            "twitch"
+            "twitter"
+            "ubisoft"
+            "valorant"
+            "viber"
+            "vimeo"
+            "vk"
+            "voot"
+            "wargaming"
+            "wechat"
+            "weibo"
+            "whatsapp"
+            # "wizz"
+            "xboxlive"
+            # "xiaohongshu"
+            "youtube"
+            # "yy"
+            "zhihu"
+          ];
+        };
+        ids = [
+          "10.30.50.253"
+        ];
+        tags = [
+          "device_tablet"
+          "os_ios"
+          "user_child"
+        ];
+        upstreams = [
+          "https://1.1.1.3/dns-query"
+        ];
+        use_global_settings = false;
+        filtering_enabled = true;
+        parental_enabled = true;
+        safebrowsing_enabled = true;
+        use_global_blocked_services = false;
+        ignore_querylog = false;
+        ignore_statistics = false;
       }
     ];
   };
