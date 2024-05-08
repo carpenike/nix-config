@@ -32,8 +32,8 @@ in
         HASH=$(cat ${config.sops.secrets."networking/adguardhome/password".path} | ${pkgs.apacheHttpd}/bin/htpasswd -binBC 12 "" | cut -c 2-)
         ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
       '';
+      serviceConfig.User = adguardUser;
     };
-    serviceConfig.User = adguardUser;
   };
 
 }
