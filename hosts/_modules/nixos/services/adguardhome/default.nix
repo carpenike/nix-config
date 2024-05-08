@@ -21,7 +21,7 @@ in
     services.adguardhome = {
       enable = true;
       mutableSettings = false;
-      settings = cfg.settings;
+      inherit (cfg) settings;
     };
   };
 }
