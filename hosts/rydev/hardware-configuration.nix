@@ -12,12 +12,12 @@
   boot.extraModulePackages = [ ];
 
   fileSystems."/" =
-    { device = "/dev/disk/by-uuid/b39d979b-afd5-4e5e-bfb6-86285f18e9c9";
+    { device = "/dev/disk/by-label/NIXROOT";
       fsType = "ext4";
     };
 
   fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/9A5D-E1AE";
+    { device = "/dev/disk/by-label/NIXBOOT";
       fsType = "vfat";
       options = [ "fmask=0022" "dmask=0022" ];
     };
@@ -35,5 +35,5 @@
 
   nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";
   hardware.parallels.enable = true;
-  # nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "prl-tools" ];
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "prl-tools" ];
 }
