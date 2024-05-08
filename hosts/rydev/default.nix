@@ -125,15 +125,15 @@ in
             clients = {
               persistent = [ {
                 Caydan = {
-                  # safe_search = {
-                  #   enabled = true;
-                  #   bing = true;
-                  #   duckduckgo = true;
-                  #   google = true;
-                  #   pixabay = true;
-                  #   yandex = true;
-                  #   youtube = true;
-                  # };
+                  safe_search = {
+                    enabled = true;
+                    bing = true;
+                    duckduckgo = true;
+                    google = true;
+                    pixabay = true;
+                    yandex = true;
+                    youtube = true;
+                  };
                   ids = [
                     "10.30.50.252"
                   ];
