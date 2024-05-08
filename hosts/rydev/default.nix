@@ -147,8 +147,8 @@ in
                       time_zone = "UTC";
                     };
                     ids = [
-                      "4chan"
-                      "500px"
+                      # "4chan"
+                      # "500px"
                       # "9gag"
                       # "activision_blizzard"
                       # "aliexpress"
@@ -180,7 +180,7 @@ in
                       # "disneyplus"
                       # "douban"
                       # "dropbox"
-                      # "ebay"
+                      "ebay"
                       # "electronic_arts"
                       # "epic_games"
                       # "espn"
