@@ -99,27 +99,27 @@ in
 
               theme = "auto";
             };
-            filters = 
-              let
-                urls = [
-                  { name = "AdGuard DNS filter"; url = "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"; }
-                  { name = "AdAway Default Blocklist"; url = "https://adaway.org/hosts.txt"; }
-                  { name = "Big OSID"; url = "https://big.oisd.nl"; }
-                  { name = "1Hosts Lite"; url = "https://o0.pages.dev/Lite/adblock.txt"; }
-                  { name = "hagezi multi pro"; url = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt"; }
-                  { name = "osint"; url = "https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt"; }
-                  { name = "phishing army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
-                  { name = "notrack malware"; url = "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt"; }
-                  { name = "EasyPrivacy"; url = "https://v.firebog.net/hosts/Easyprivacy.txt"; }
-                ];
-                buildList = id: url: {
-                   enabled = true;
-                   inherit id;
-                   inherit (url) name;
-                   inherit (url) url;
-                 };
-              in
-                lib.imap1 buildList urls;
+            # filters = 
+            #   let
+            #     urls = [
+            #       { name = "AdGuard DNS filter"; url = "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"; }
+            #       { name = "AdAway Default Blocklist"; url = "https://adaway.org/hosts.txt"; }
+            #       { name = "Big OSID"; url = "https://big.oisd.nl"; }
+            #       { name = "1Hosts Lite"; url = "https://o0.pages.dev/Lite/adblock.txt"; }
+            #       { name = "hagezi multi pro"; url = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt"; }
+            #       { name = "osint"; url = "https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt"; }
+            #       { name = "phishing army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
+            #       { name = "notrack malware"; url = "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt"; }
+            #       { name = "EasyPrivacy"; url = "https://v.firebog.net/hosts/Easyprivacy.txt"; }
+            #     ];
+            #     buildList = id: url: {
+            #        enabled = true;
+            #        inherit id;
+            #        inherit (url) name;
+            #        inherit (url) url;
+            #      };
+            #   in
+            #     lib.imap1 buildList urls;
           };
         };
 
