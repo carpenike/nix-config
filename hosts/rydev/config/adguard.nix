@@ -1,9 +1,4 @@
 {
-  config,
-  ...
-}:
-''
-settings = {
   bind_host = "0.0.0.0";
   bind_port = 3000;
   dns = {
@@ -65,7 +60,6 @@ settings = {
     };
     in
     lib.imap1 buildList urls;
-            
 
   clients = {
     runtime_sources = {
@@ -232,5 +226,4 @@ settings = {
       }
     ];
   };
-};
-''
+}
