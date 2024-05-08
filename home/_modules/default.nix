@@ -8,6 +8,7 @@
 
     ./deployment
     ./security
+    ./shell
   ];
 
   config = {
