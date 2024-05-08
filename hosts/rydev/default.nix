@@ -77,10 +77,10 @@ in
 
         node-exporter.enable = true;
 
-        # onepassword-connect = {
-        #   enable = true;
-        #   credentialsFile = config.sops.secrets.onepassword-credentials.path;
-        # };
+        onepassword-connect = {
+          enable = true;
+          credentialsFile = config.sops.secrets.onepassword-credentials.path;
+        };
 
         openssh.enable = true;
       };

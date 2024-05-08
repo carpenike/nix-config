@@ -11,12 +11,12 @@
     ./dnsdist
     # ./k3s
     # ./minio
-    # ./nginx
+    ./nginx
     # ./nfs
     ./node-exporter
-    # ./onepassword-connect
+    ./onepassword-connect
     ./openssh
-    # ./podman
+    ./podman
     # ./samba
     # ./smartd
     # ./smartctl-exporter
