@@ -221,7 +221,7 @@ in
                       "playstation"
                       # "plenty_of_fish"
                       # "plex"
-                      "pluto_tv"
+                      # "pluto_tv"
                       "privacy"
                       "qq"
                       "rakuten_viki"
