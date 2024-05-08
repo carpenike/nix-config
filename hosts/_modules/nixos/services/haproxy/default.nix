@@ -19,4 +19,5 @@ in
     services.haproxy.enable = true;
     services.haproxy.package = cfg.package;
     services.haproxy.extraConfig = cfg.config;
+  };
 }
