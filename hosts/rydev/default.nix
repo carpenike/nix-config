@@ -185,7 +185,7 @@ in
                       "epic_games"
                       # "espn"
                       "facebook"
-                      "fifa"
+                      # "fifa"
                       "flickr"
                       "globoplay"
                       "gog"
