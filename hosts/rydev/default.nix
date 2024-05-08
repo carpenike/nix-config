@@ -55,11 +55,10 @@ in
           config = import ./config/bind.nix {inherit config;};
         };
 
-        # blocky = {
-        #   enable = true;
-        #   package = pkgs.unstable.blocky;
-        #   config = import ./config/blocky.nix;
-        # };
+        adguardhome = {
+          enable = true;
+          package = pkgs.adguardhome;
+        };
 
         chrony = {
           enable = true;
