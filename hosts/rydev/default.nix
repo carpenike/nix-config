@@ -58,7 +58,7 @@ in
         adguardhome = {
           enable = true;
           package = pkgs.adguardhome;
-          imports ./config/adguard.nix;
+          settings = builtins.readFile ./config/adguard.nix;
         };
 
         chrony = {
