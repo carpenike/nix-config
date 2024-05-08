@@ -179,7 +179,7 @@ in
                       # "discoveryplus"
                       "disneyplus"
                       "douban"
-                      "dropbox"
+                      # "dropbox"
                       "ebay"
                       "electronic_arts"
                       "epic_games"
