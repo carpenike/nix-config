@@ -28,7 +28,7 @@ in
     # and insert it as per config requirements
     systemd.services.adguardhome = {
       preStart = lib.mkAfter ''
-        HASH=$(cat ${config.sops.secrets."networking/adguardhome/password".path} | ${pkgs.apacheHttpd}/bin/htpasswd -binBC 10 "" | cut -c 2-)
+        HASH=$(cat ${config.sops.secrets."networking/adguardhome/password".path} | ${pkgs.apacheHttpd}/bin/htpasswd -binBC 12 "" | cut -c 2-)
         ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
       '';
     };
