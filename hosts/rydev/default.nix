@@ -174,7 +174,7 @@ in
                       "crunchyroll"
                       "dailymotion"
                       "deezer"
-                      "directvgo"
+                      # "directvgo"
                       "discord"
                       "discoveryplus"
                       "disneyplus"
