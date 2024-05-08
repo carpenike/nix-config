@@ -198,7 +198,7 @@ in
                       "iqiyi"
                       "kakaotalk"
                       "kik"
-                      "kook"
+                      # "kook"
                       "lazada"
                       "leagueoflegends"
                       "line"
