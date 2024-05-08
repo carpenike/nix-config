@@ -72,10 +72,10 @@ in {
           # Python virtualenvs
           ".venv"
         ];
-        signing = {
-          signByDefault = true;
-          key = cfg.signingKey;
-        };
+        # signing = {
+        #   signByDefault = true;
+        #   key = cfg.signingKey;
+        # };
       };
 
       home.packages = [
