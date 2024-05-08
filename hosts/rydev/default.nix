@@ -153,7 +153,7 @@ in
                       "activision_blizzard"
                       "aliexpress"
                       "amazon"
-                      "amazon_streaming"
+                      # "amazon_streaming"
                       "amino"
                       "apple_streaming"
                       "battle_net"
