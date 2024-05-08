@@ -17,7 +17,6 @@ in
 
   config = lib.mkIf cfg.enable {
     services.haproxy.enable = true;
-    services.haproxy.package = cfg.package;
     services.haproxy.config = cfg.config;
   };
 }
