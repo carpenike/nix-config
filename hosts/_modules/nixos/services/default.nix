@@ -3,6 +3,7 @@
 }:
 {
   imports = [
+    ./adguardhome
     ./bind
     # ./blocky
     # ./cfdyndns
