@@ -7,7 +7,7 @@
     # ./blocky
     # ./cfdyndns
     ./chrony
-    # ./dnsdist
+    ./dnsdist
     # ./k3s
     # ./minio
     # ./nginx
