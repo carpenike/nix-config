@@ -207,7 +207,7 @@ in
                       # "looke"
                       "mail_ru"
                       "mastodon"
-                      "mercado_libre"
+                      # "mercado_libre"
                       "minecraft"
                       "nebula"
                       "netflix"
