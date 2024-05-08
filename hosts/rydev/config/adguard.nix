@@ -3,7 +3,7 @@
   ...
 }:
 {
-  schema_version = 27;
+  schema_version = 24;
   bind_host = "0.0.0.0";
   bind_port = 3000;
   theme = "auto";
