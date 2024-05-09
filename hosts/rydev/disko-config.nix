@@ -21,9 +21,7 @@
               };
             };
             zfs = {
-              name = "zfs";
-              start = "500M";
-              end = "100%";
+              size = "100%";
               content = {
                 type = "zfs";
                 pool = "rpool";

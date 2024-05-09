@@ -21,8 +21,7 @@
               };
             };
             zfs = {
-              type = "BF00";
-              end = "100%";
+              size = "100%";
               content = {
                 type = "zfs";
                 pool = "rpool";
