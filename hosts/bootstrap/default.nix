@@ -26,6 +26,10 @@
   users.groups.ryan = {
     gid = 1000;
   };
-
+  modules = {
+    services = {
+      openssh.enable = true;
+    };
+  };
   system.stateVersion = "23.11";
 }
