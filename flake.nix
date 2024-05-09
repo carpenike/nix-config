@@ -115,11 +115,11 @@
         system = "aarch64-linux";
         specialArgs.inputs = inputs;
         modules = [
-          disko.nixosModules.disko
-          ./hosts/bootstrap/disko-config.nix
-          {
-            _module.args.disks = [ "/dev/sda" ];
-          }
+          # disko.nixosModules.disko
+          # ./hosts/bootstrap/disko-config.nix
+          # {
+          #   _module.args.disks = [ "/dev/sda" ];
+          # }
           ./hosts/_modules/common
           ./hosts/_modules/nixos
           ./hosts/bootstrap
