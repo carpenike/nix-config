@@ -8,10 +8,9 @@
           type = "gpt";
           partitions = {
             ESP = {
-              name = "ESP";
+              type = "EF00";
               start = "1M";
               end = "500M";
-              bootable = true;
               content = {
                 type = "filesystem";
                 format = "vfat";
