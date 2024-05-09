@@ -21,6 +21,6 @@ in
       enable = true;
       inherit (cfg) port;
     };
-  };
   networking.firewall.allowedTCPPorts = [ cfg.port ];
+  };
 }
