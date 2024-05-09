@@ -120,8 +120,8 @@
           {
             _module.args.disks = [ "/dev/sda" ];
           }
-          # ./hosts/_modules/common
-          # ./hosts/_modules/nixos
+          ./hosts/_modules/common
+          ./hosts/_modules/nixos
           ./hosts/bootstrap
         ];
       };
