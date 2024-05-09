@@ -12,10 +12,27 @@
   boot.extraModulePackages = [ ];
 
   fileSystems."/" =
-    { device = "/dev/disk/by-label/NIXROOT";
-      fsType = "ext4";
+    {
+      device = "rpool/local/root";
+      fsType = "zfs";
     };
-
+  fileSystems."/nix" =
+    {
+      device = "rpool/local/nix";
+      fsType = "zfs";
+    };
+  fileSystems."/persist" =
+    {
+      device = "rpool/safe/persist";
+      fsType = "zfs";
+      neededForBoot = true; # for impermanence
+    };
+  fileSystems."/home" =
+    {
+      device = "rpool/safe/home";
+      fsType = "zfs";
+      neededForBoot = true; # for impermanence
+    };
   fileSystems."/boot" =
     { device = "/dev/disk/by-label/NIXBOOT";
       fsType = "vfat";
