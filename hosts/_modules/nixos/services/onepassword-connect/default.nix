@@ -33,7 +33,7 @@ in
       onepassword-connect-api = {
         image = "docker.io/1password/connect-api:1.7.2";
         autoStart = true;
-        ports = [ "8080:8080" ];
+        ports = [ "8000:8080" ];
         volumes = [
           "${cfg.credentialsFile}:/home/opuser/.op/1password-credentials.json"
           "${cfg.dataDir}:/home/opuser/.op/data"
@@ -43,7 +43,6 @@ in
       onepassword-connect-sync = {
         image = "docker.io/1password/connect-sync:1.7.2";
         autoStart = true;
-        ports = [ "8081:8080" ];
         volumes = [
           "${cfg.credentialsFile}:/home/opuser/.op/1password-credentials.json"
           "${cfg.dataDir}:/home/opuser/.op/data"
