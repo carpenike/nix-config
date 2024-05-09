@@ -6,8 +6,7 @@
 }:
 let
   cfg = config.modules.services.onepassword-connect;
-  apiPort = 8080;
-  syncPort = 8081;
+  apiPort = 8000;
 in
 {
   options.modules.services.onepassword-connect = {
@@ -49,6 +48,6 @@ in
         ];
       };
     };
-    networking.firewall.allowedTCPPorts = [ apiPort syncPort ];
+    networking.firewall.allowedTCPPorts = [ apiPort ];
   };
 }
