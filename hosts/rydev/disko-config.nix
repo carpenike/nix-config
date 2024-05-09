@@ -20,7 +20,7 @@
                 ];
               };
             };
-            ZFS = {
+            zfs = {
               name = "zfs";
               start = "500M";
               end = "100%";
