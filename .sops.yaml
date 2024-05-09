@@ -10,7 +10,7 @@
 
 keys:
   - &ryan DA8002060402EC39B195451D5CED80362B5A4EF2
-  - &rydev age19g543y5ykg8qvtgecdpskt0902l9rtq6pg4z7323k8xfwxquzv2qnlncaq
+  - &rydev age1pkkf0h60asljrdszfxx33xtjucu4pz3z2g8mzav2l0z4l5zaqsdsugrs3m
 
 creation_rules:
   - path_regex: .*\.sops\.yaml$
