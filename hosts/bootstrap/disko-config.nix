@@ -1,4 +1,4 @@
-{ disko, ... }: {
+{ disks, ... }: {
 
     disk = {
       vdb = {
