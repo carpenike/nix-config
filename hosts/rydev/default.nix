@@ -108,6 +108,9 @@ in
     boot.loader = {
       systemd-boot.enable = true;
       efi.canTouchEfiVariables = true;
+    boot.initrd.postDeviceCommands = lib.mkAfter ''
+      zfs rollback -r rpool/local/root@blank
+    '';
     };
   };
 }
