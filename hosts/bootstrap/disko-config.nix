@@ -5,13 +5,12 @@
         device = builtins.elemAt disks 0;
         type = "disk";
         content = {
-          format = "gpt";
-          partitions = [
-            {
-              name = "ESP";
+          type = "gpt";
+          partitions = {
+            ESP = {
+              type = "EF00";
               start = "1M";
               end = "500M";
-              bootable = true;
               content = {
                 type = "filesystem";
                 format = "vfat";
@@ -20,8 +19,8 @@
                   "defaults"
                 ];
               };
-            }
-            {
+            };
+            ZFS = {
               name = "zfs";
               start = "500M";
               end = "100%";
@@ -29,8 +28,8 @@
                 type = "zfs";
                 pool = "rpool";
               };
-            }
-          ];
+            };
+          };
         };
       };
     };
