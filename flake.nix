@@ -120,7 +120,9 @@
           {
             _module.args.disks = [ "/dev/sda" ];
           }
-          ./hosts/bootstrap/configuration.nix
+          ./hosts/_modules/common
+          ./hosts/_modules/nixos
+          ./hosts/bootstrap
         ];
       };
       # Parallels devlab
