@@ -22,12 +22,11 @@
         [
           "wheel"
           "users"
-        ]
+        ];
     };
     users.groups.ryan = {
       gid = 1000;
     };
-
   };
 
   system.stateVersion = "23.11";
