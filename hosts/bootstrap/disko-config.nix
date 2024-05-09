@@ -45,19 +45,19 @@
         postCreateHook = "zfs list -t snapshot -H -o name | grep -E '^rpool@blank$' || zfs snapshot rpool@blank";
 
         datasets = {
-          "rpool/local/root" = {
+          "local/root" = {
             type = "zfs_fs";
             options.mountpoint = "legacy";
           };
-          "rpool/local/nix" = {
+          "local/nix" = {
             type = "zfs_fs";
             options.mountpoint = "/nix";
           };
-          "rpool/safe/home" = {
+          "safe/home" = {
             type = "zfs_fs";
             options.mountpoint = "/home";
           };
-          "rpool/safe/persist" = {
+          "safe/persist" = {
             type = "zfs_fs";
             options.mountpoint = "/persist";
           };
