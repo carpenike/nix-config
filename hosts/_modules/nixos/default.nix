@@ -2,6 +2,7 @@
   ...
 }: {
   imports = [
+    ./impermanence.nix
     ./nix.nix
     ./users.nix
     ./filesystems
