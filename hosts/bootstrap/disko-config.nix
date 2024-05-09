@@ -39,22 +39,48 @@
       rpool = {
         type = "zpool";
         rootFsOptions = {
-          compression = "zstd";
+          acltype = "posixacl";
+          dnodesize = "auto";
+          canmount = "off";
+          xattr = "sa";
+          relatime = "on";
+          normalization = "formD";
+          mountpoint = "none";
+          compression = "lz4";
+          "com.sun:auto-sanpshot" = "false";
         };
-        postCreateHook = "zfs list -t snapshot -H -o name | grep -E '^rpool@blank$' || zfs snapshot rpool@blank";
+
+        options = {
+          ashift = "12";
+          autotrim = "on";
+        };
 
         datasets = {
           "local" = {
             type = "zfs_fs";
-            options.mountpoint = "none";
+            options = {
+              mountpoint = "none";
+            };
           };
           "local/root" = {
             type = "zfs_fs";
-            options.mountpoint = "legacy";
+            mountpoint = "/";
+            options = {
+              mountpoint = "legacy";
+            };
+            postCreateHook = ''
+              zfs snapshot rpool/local/root@blank
+            '';
           };
           "local/nix" = {
             type = "zfs_fs";
-            options.mountpoint = "/nix";
+            mountpoint = "/nix";
+            options {
+              atime = "off";
+              canmount = "on";
+              mountpoint = "legacy";
+              "com.sun:auto-snapshot" = "true";
+            };
           };
           "safe" = {
             type = "zfs_fs";
@@ -62,11 +88,17 @@
           };
           "safe/home" = {
             type = "zfs_fs";
-            options.mountpoint = "/home";
+            mountpoint = "/home";
+            options = {
+              mountpoint = "legacy";
+              "com.sun:auto-snapshot" = "true";
           };
           "safe/persist" = {
             type = "zfs_fs";
-            options.mountpoint = "/persist";
+            mountpoint = "/persist";
+            options = {
+              mountpoint = "legacy";
+              "com.sun:auto-snapshot" = "true";
           };
         };
       };
