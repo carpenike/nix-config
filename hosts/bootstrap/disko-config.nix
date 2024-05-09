@@ -92,6 +92,7 @@
             options = {
               mountpoint = "legacy";
               "com.sun:auto-snapshot" = "true";
+            };
           };
           "safe/persist" = {
             type = "zfs_fs";
@@ -105,4 +106,4 @@
       };
     };
   };
-};
+}
