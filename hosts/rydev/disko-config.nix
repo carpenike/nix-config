@@ -6,8 +6,8 @@
         type = "disk";
         content = {
           type = "gpt";
-          partitions = [
-            {
+          partitions = {
+            ESP = {
               name = "ESP";
               start = "1M";
               end = "500M";
@@ -20,8 +20,8 @@
                   "defaults"
                 ];
               };
-            }
-            {
+            };
+            ZFS = {
               name = "zfs";
               start = "500M";
               end = "100%";
@@ -29,8 +29,8 @@
                 type = "zfs";
                 pool = "rpool";
               };
-            }
-          ];
+            };
+          };
         };
       };
     };
