@@ -116,7 +116,7 @@
         specialArgs.inputs = inputs;
         modules = [
           disko.nixosModules.disko
-          ./disko-config.nix
+          ./hosts/bootstrap/disko-config.nix
           {
             _module.args.disks = [ "/dev/sda" ];
           }
