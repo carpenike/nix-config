@@ -5,7 +5,7 @@
         device = builtins.elemAt disks 0;
         type = "disk";
         content = {
-          format = "gpt";
+          type = "gpt";
           partitions = [
             {
               name = "ESP";
