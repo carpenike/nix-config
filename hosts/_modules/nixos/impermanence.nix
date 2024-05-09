@@ -44,6 +44,8 @@ with lib;
           "/var/log" # persist logs between reboots for debugging
           "/var/lib/cache" # cache files (restic, nginx, contaienrs)
           "/var/lib/nixos" # nixos state
+          "/var/lib/omada" # omada controller data
+          "/var/lib/unifi" # unifi controller data"
 
         ];
       files = [
