@@ -5,7 +5,6 @@
         device = builtins.elemAt disks 0;
         type = "disk";
         content = {
-          type = "table";
           format = "gpt";
           partitions = [
             {
