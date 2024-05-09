@@ -1,5 +1,5 @@
 { disks ? [ "/dev/sda" ], ... }: {
-  devices = {
+{
     disk = {
       vdb = {
         device = builtins.elemAt disks 0;
