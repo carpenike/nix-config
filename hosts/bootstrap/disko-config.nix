@@ -25,7 +25,7 @@
               size = "100%";
               content = {
                 type = "zfs";
-                pool = "zroot";
+                pool = "rpool";
               };
             };
         };
