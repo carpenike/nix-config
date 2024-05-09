@@ -75,7 +75,7 @@
           "local/nix" = {
             type = "zfs_fs";
             mountpoint = "/nix";
-            options {
+            options = {
               atime = "off";
               canmount = "on";
               mountpoint = "legacy";
@@ -99,6 +99,7 @@
             options = {
               mountpoint = "legacy";
               "com.sun:auto-snapshot" = "true";
+            };
           };
         };
       };
