@@ -29,4 +29,6 @@ in
     services.dnsdist.listenPort = cfg.listenPort;
     services.dnsdist.extraConfig = cfg.config;
   };
+  networking.firewall.allowedTCPPorts = [ cfg.listenPort ];
+  networking.firewall.allowedUDPPorts = [ cfg.listenPort ];
 }
