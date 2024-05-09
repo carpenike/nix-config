@@ -7,6 +7,7 @@
 let
   cfg = config.modules.services.adguardhome;
   adguardUser = "adguardhome";
+  webPort = 3000;
 in
 {
   options.modules.services.adguardhome = {
@@ -40,6 +41,8 @@ in
       '';
       serviceConfig.User = adguardUser;
     };
+    networking.firewall.allowedTCPPorts = [ webPort ];
+    networking.firewall.allowedUDPPorts = [ webPort ];
   };
 
 }
