@@ -21,7 +21,6 @@
               };
             };
             zfs = {
-              name = "zfs";
               start = "500MiB";
               end = "100%";
               content = {
