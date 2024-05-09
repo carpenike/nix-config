@@ -28,7 +28,7 @@
                 type = "zfs";
                 pool = "rpool";
               };
-            };
+            }
           ];
         };
       };
