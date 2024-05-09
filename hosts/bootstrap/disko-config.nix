@@ -7,8 +7,8 @@
         content = {
           type = "table";
           format = "gpt";
-          partitions = {
-            ESP = {
+          partitions = [
+            {
               name = "ESP";
               size = "500M";
               type = "EF00";
@@ -21,14 +21,15 @@
                 ];
               };
             };
-            zfs = {
+            {
+              name = "zfs";
               size = "100%";
               content = {
                 type = "zfs";
                 pool = "rpool";
               };
             };
-        };
+          ];
         };
       };
     };
