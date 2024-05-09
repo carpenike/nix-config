@@ -55,6 +55,8 @@
 
     nix-inspect.url = "github:bluskript/nix-inspect";
 
+    impermanence.url = "github:nix-community/impermanence";
+
     #################### Personal Repositories ####################
   };
 
@@ -67,6 +69,7 @@
     nix-inspect,
     sops-nix,
     disko,
+    impermanence,
     ...
   } @inputs:
   let
