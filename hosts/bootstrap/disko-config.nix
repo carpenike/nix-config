@@ -41,7 +41,7 @@
         rootFsOptions = {
           compression = "zstd";
         };
-        mountpoint = "/";
+        mountpoint = "none";
         postCreateHook = "zfs list -t snapshot -H -o name | grep -E '^rpool@blank$' || zfs snapshot rpool@blank";
 
         datasets = {
