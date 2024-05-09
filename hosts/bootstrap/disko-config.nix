@@ -10,13 +10,15 @@
           partitions = {
             ESP = {
               name = "ESP";
-              start = "1MiB";
-              end = "500MiB";
-              bootable = true;
+              size = "500M";
+              type = "EF00";
               content = {
                 type = "filesystem";
                 format = "vfat";
                 mountpoint = "/boot";
+                mountOptions = [
+                  "defaults"
+                ];
               };
             };
             zfs = {
