@@ -42,7 +42,6 @@ in
       serviceConfig.User = adguardUser;
     };
     networking.firewall.allowedTCPPorts = [ webPort ];
-    networking.firewall.allowedUDPPorts = [ webPort ];
   };
 
 }
