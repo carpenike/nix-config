@@ -35,6 +35,7 @@
       services = {
         openssh.enable = true;
       };
+      system.impermanence.enable = true;
     };
     system.stateVersion = "23.11";
   };
