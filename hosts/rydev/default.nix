@@ -90,6 +90,8 @@ in
         };
 
         openssh.enable = true;
+
+        unifi.enable = true;
       };
 
       system.impermanence.enable = true;

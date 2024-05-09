@@ -21,5 +21,6 @@
     # ./samba
     # ./smartd
     # ./smartctl-exporter
+    ./unifi
   ];
 }
