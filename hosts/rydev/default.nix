@@ -3,6 +3,7 @@
   lib,
   config,
   hostname,
+  disko,
   ...
 }:
 let
