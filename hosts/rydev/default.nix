@@ -92,7 +92,7 @@ in
         openssh.enable = true;
       };
 
-      system.impermanence = true;
+      system.impermanence.enable = true;
 
       users = {
         groups = {
