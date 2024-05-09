@@ -20,7 +20,7 @@
                   "defaults"
                 ];
               };
-            };
+            }
             {
               name = "zfs";
               size = "100%";
