@@ -2,7 +2,7 @@
 {
   imports =  [
     ./hardware-configuration.nix
-    (import ./disko-config.nix {disks = [ "/dev/sda"]; })
+    # (import ./disko-config.nix {disks = [ "/dev/sda"]; })
   ];
 
   config = {
