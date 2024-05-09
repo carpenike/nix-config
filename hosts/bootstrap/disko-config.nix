@@ -10,7 +10,9 @@
           partitions = [
             {
               name = "ESP";
-              size = "500M";
+              start = "1M";
+              end = "500M";
+              bootable = true;
               type = "EF00";
               content = {
                 type = "filesystem";
@@ -23,7 +25,8 @@
             }
             {
               name = "zfs";
-              size = "100%";
+              start = "500M";
+              end = "100%";
               content = {
                 type = "zfs";
                 pool = "rpool";
