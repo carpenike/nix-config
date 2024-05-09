@@ -10,7 +10,6 @@ let
 in
 {
   imports = [
-    ./disko-config.nix
     ./hardware-configuration.nix
     ./secrets.nix
   ];
