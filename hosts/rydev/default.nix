@@ -92,6 +92,8 @@ in
         openssh.enable = true;
 
         unifi.enable = true;
+
+        omada.enable = true;
       };
 
       system.impermanence.enable = true;

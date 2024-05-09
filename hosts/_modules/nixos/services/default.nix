@@ -17,6 +17,7 @@
     ./node-exporter
     ./onepassword-connect
     ./openssh
+    ./omada
     ./podman
     # ./samba
     # ./smartd
