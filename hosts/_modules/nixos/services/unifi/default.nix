@@ -37,6 +37,7 @@ in
         };
         autoStart = true;
         ports = [ "8080:8080" "8443:8443" "3478:3478/udp" ];
+        macvlans = [ "services" ];
         volumes = [
           "${cfg.dataDir}:/unifi"
         ];

@@ -21,5 +21,7 @@ in
       };
       oci-containers.backend = "podman";
     };
+    # Create bridge for services to use
+    networking.bridges.services.interfaces = [ "enp0s5" ];
   };
 }
