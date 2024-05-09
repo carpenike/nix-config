@@ -37,7 +37,7 @@
     };
     zpool = {
       zroot = {
-        type = "rpool";
+        type = "zpool";
         rootFsOptions = {
           compression = "zstd";
         };
