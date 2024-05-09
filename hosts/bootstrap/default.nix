@@ -1,6 +1,9 @@
-{ lib, config, pkgs, ... }:
+{ lib, config, pkgs, inputs, ... }:
 {
-  imports =  [ ./hardware-configuration.nix ];
+  imports =  [
+    ./hardware-configuration.nix
+    (import ./disko-config.nix {disks = [ "/dev/sda"]; })
+  ];
 
   config = {
     networking.hostName = "nixos-bootstrap";
