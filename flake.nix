@@ -115,7 +115,7 @@
         system = "aarch64-linux";
         specialArgs.inputs = inputs;
         modules = [
-          # disko.nixosModules.disko
+          disko.nixosModules.disko
           # ./hosts/bootstrap/disko-config.nix
           # {
           #   _module.args.disks = [ "/dev/sda" ];
