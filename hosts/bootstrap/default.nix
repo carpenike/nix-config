@@ -9,24 +9,22 @@
     git
     vim
   ];
-  config = {
-    users.users.ryan = {
-      uid = 1000;
-      name = "ryan";
-      home = "/home/ryan";
-      group = "ryan";
-      shell = pkgs.fish;
-      openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../home/ryan/config/ssh/ssh.pub);
-      isNormalUser = true;
-      extraGroups =
-        [
-          "wheel"
-          "users"
-        ];
-    };
-    users.groups.ryan = {
-      gid = 1000;
-    };
+  users.users.ryan = {
+    uid = 1000;
+    name = "ryan";
+    home = "/home/ryan";
+    group = "ryan";
+    shell = pkgs.fish;
+    openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../home/ryan/config/ssh/ssh.pub);
+    isNormalUser = true;
+    extraGroups =
+      [
+        "wheel"
+        "users"
+      ];
+  };
+  users.groups.ryan = {
+    gid = 1000;
   };
 
   system.stateVersion = "23.11";
