@@ -66,6 +66,7 @@
     nix-darwin,
     nix-inspect,
     sops-nix,
+    disko,
     ...
   } @inputs:
   let
@@ -109,8 +110,22 @@
     # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
 
     nixosConfigurations = {
+      # Bootstrap deployment
+      nixos-bootstrap = inputs.nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs.inputs = inputs;
+        modules = [
+          disko.nixosModules.disko
+          ./disko-config.nix
+          {
+            _module.args.disks = [ "/dev/sda" ];
+          }
+          ./hosts/bootstrap/configuration.nix
+        ];
+      };
       # Parallels devlab
       rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev" overlays flake-packages;
+      
     };
     # Convenience output that aggregates the outputs for home, nixos.
     # Also used in ci to build targets generally.
