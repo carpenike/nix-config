@@ -9,8 +9,8 @@
           partitions = {
             ESP = {
               type = "EF00";
-              start = "1M";
-              end = "500M";
+              start = "1MiB";
+              end = "500MiB";
               content = {
                 type = "filesystem";
                 format = "vfat";
@@ -22,7 +22,7 @@
             };
             zfs = {
               name = "zfs";
-              start = "500M";
+              start = "500MiB";
               end = "100%";
               content = {
                 type = "zfs";
