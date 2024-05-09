@@ -11,6 +11,7 @@ in
 {
   imports = [
     ./hardware-configuration.nix
+    (import ./disko-config.nix {disks = [ "/dev/sda"]; })
     ./secrets.nix
   ];
 
