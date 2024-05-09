@@ -6,7 +6,7 @@
 }:
 let
   cfg = config.modules.services.omada;
-  omadaTcpPorts = [ 8843 29814 ];
+  omadaTcpPorts = [ 8043 8843 29814 ];
   omadaUdpPorts = [ 29810  ];
 in
 {
@@ -44,7 +44,7 @@ in
           "TZ" = "America/New_York";
         };
         autoStart = true;
-        ports = [ "8843:8843" "29814:29814" "29810:29810/udp"  ];
+        ports = [ "8043:8043" "8843:8843" "29814:29814" "29810:29810/udp"  ];
         volumes = [
           "${cfg.dataDir}:/opt/tplink/EAPController/data"
           "${cfg.logDir}:/opt/tplink/EAPController/logs"
