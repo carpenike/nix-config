@@ -10,7 +10,7 @@
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
-  disko.devices = import ./disko-config.nix {  
+  disko.devices = import ./disko-config.nix {inherit disks;} {  
    disks = [ "/dev/sda" ];  
   };
 
