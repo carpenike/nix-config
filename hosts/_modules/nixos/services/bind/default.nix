@@ -6,6 +6,7 @@
 }:
 let
   cfg = config.modules.services.bind;
+  listenPort = 53;
 in
 {
   options.modules.services.bind = {
@@ -33,5 +34,7 @@ in
       ipv4Only = true;
       configFile = pkgs.writeText "bind.cfg" cfg.config;
     };
+    networking.firewall.allowedTCPPorts = [ listenPort ];
+    networking.firewall.allowedUDPPorts = [ listenPort ];
   };
 }
