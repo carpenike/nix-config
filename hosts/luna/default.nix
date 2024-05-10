@@ -56,11 +56,6 @@ in
           config = import ./config/bind.nix {inherit config;};
         };
 
-        adguardhome = {
-          enable = false;
-          settings = import ./config/adguard.nix {inherit config lib;};
-        };
-
         blocky = {
           enable = true;
           package = pkgs.unstable.blocky;
