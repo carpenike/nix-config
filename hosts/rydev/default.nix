@@ -51,7 +51,10 @@ in
 
     modules = {
       services = {
-
+        dnsdist = {
+          enable = true;
+          config = builtins.readFile ./config/dnsdist.conf;
+        };
         chrony = {
           enable = true;
           servers = [
