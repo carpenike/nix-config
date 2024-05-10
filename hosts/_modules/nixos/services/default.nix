@@ -5,7 +5,7 @@
   imports = [
     ./adguardhome
     ./bind
-    # ./blocky
+    ./blocky
     # ./cfdyndns
     ./chrony
     ./dnsdist

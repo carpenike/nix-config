@@ -57,8 +57,14 @@ in
         };
 
         adguardhome = {
-          enable = true;
+          enable = false;
           settings = import ./config/adguard.nix {inherit config lib;};
+        };
+
+        blocky = {
+          enable = true;
+          package = pkgs.unstable.blocky;
+          config = import ./config/blocky.nix;
         };
 
         chrony = {
