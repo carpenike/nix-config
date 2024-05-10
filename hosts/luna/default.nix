@@ -20,7 +20,7 @@ in
       hostName = hostname;
       hostId = "506a4dd5";
       useDHCP = true;
-      firewall.enable = true;
+      firewall.enable = false;
     };
 
     users.users.ryan = {
