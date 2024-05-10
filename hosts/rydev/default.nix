@@ -66,7 +66,7 @@ in
 
         openssh.enable = true;
 
-        unifi.enable = true;
+        # unifi.enable = true;
 
         omada.enable = true;
       };
