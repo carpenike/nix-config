@@ -114,9 +114,11 @@
 
     nixosConfigurations = {
       # Bootstrap deployment
-      nixos-bootstrap = mkSystemLib.mkNixosSystem "aarch64-linux" "nixos-bootstrap" overlays flake-packages;
+      nixos-bootstrap = mkSystemLib.mkNixosSystem "x86_64-linux" "nixos-bootstrap" overlays flake-packages;
       # Parallels devlab
       rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev" overlays flake-packages;
+      # Luna
+      luna =  mkSystemLib.mkNixosSystem "x86_64-linux" "rydev" overlays flake-packages;
       
     };
     # Convenience output that aggregates the outputs for home, nixos.
