@@ -51,15 +51,6 @@ in
 
     modules = {
       services = {
-        bind = {
-          enable = true;
-          config = import ./config/bind.nix {inherit config;};
-        };
-
-        adguardhome = {
-          enable = true;
-          settings = import ./config/adguard.nix {inherit config lib;};
-        };
 
         chrony = {
           enable = true;
@@ -71,23 +62,7 @@ in
           ];
         };
 
-        dnsdist = {
-          enable = true;
-          config = builtins.readFile ./config/dnsdist.conf;
-        };
-
-        haproxy = {
-          enable = true;
-          # package = "pkgs.haproxy";
-          config = builtins.readFile ./config/haproxy.conf;
-        };
-
         node-exporter.enable = true;
-
-        onepassword-connect = {
-          enable = true;
-          credentialsFile = config.sops.secrets.onepassword-credentials.path;
-        };
 
         openssh.enable = true;
 
