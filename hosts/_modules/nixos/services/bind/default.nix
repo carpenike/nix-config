@@ -6,7 +6,7 @@
 }:
 let
   cfg = config.modules.services.bind;
-  listenPort = 53;
+  listenPort = 5391;
 in
 {
   options.modules.services.bind = {
