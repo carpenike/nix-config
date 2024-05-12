@@ -36,7 +36,7 @@ in
       gambling = [
         "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-only/hosts"
       ];
-      youtube = [ 
+      youtube = |
         "googlevideo.com"
         "youtu.be"
         "youtube"
@@ -55,7 +55,6 @@ in
         "youtubekids.com"
         "yt3.ggpht.com"
         "ytimg.com"
-      ];
     };
 
     whiteLists = {
