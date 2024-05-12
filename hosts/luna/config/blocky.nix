@@ -38,24 +38,24 @@ in
       ];
       youtube = [ 
         |
-        googlevideo.com
-        youtu.be
-        youtube
-        youtube-nocookie.com
-        youtube.be
-        youtube.co.uk
-        youtube.com
-        youtube.de
-        youtube.fr
-        youtube.googleapis.com
-        youtube.nl
-        youtube.pl
-        youtubeeducation.com
-        youtubegaming.com
-        youtubei.googleapis.com
-        youtubekids.com
-        yt3.ggpht.com
-        ytimg.com
+        "googlevideo.com"
+        "youtu.be"
+        "youtube"
+        "youtube-nocookie.com"
+        "youtube.be"
+        "youtube.co.uk"
+        "youtube.com"
+        "youtube.de"
+        "youtube.fr"
+        "youtube.googleapis.com"
+        "youtube.nl"
+        "youtube.pl"
+        "youtubeeducation.com"
+        "youtubegaming.com"
+        "youtubei.googleapis.com"
+        "youtubekids.com"
+        "yt3.ggpht.com"
+        "ytimg.com"
       ];
     };
 
