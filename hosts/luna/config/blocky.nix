@@ -43,7 +43,7 @@ in
         "youtube-nocookie.com"
         "youtube.be"
         "youtube.co.uk"
-        "youtube.com"
+        "0.0.0.0 youtube.com"
         "youtube.de"
         "youtube.fr"
         "youtube.googleapis.com"
