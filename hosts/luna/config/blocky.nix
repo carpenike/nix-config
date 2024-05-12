@@ -37,7 +37,6 @@ in
         "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-only/hosts"
       ];
       youtube = [ 
-        |
         "googlevideo.com"
         "youtu.be"
         "youtube"
