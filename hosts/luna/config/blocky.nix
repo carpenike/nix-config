@@ -36,27 +36,7 @@ in
       gambling = [
         "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-only/hosts"
       ];
-      youtube =
-        ''
-        "googlevideo.com"
-        "youtu.be"
-        "youtube"
-        "youtube-nocookie.com"
-        "youtube.be"
-        "youtube.co.uk"
-        "0.0.0.0 youtube.com"
-        "youtube.de"
-        "youtube.fr"
-        "youtube.googleapis.com"
-        "youtube.nl"
-        "youtube.pl"
-        "youtubeeducation.com"
-        "youtubegaming.com"
-        "youtubei.googleapis.com"
-        "youtubekids.com"
-        "yt3.ggpht.com"
-        "ytimg.com"
-        ''
+      youtube = { };
     };
 
     whiteLists = {
@@ -70,7 +50,6 @@ in
         "ads"
         "fakenews"
         "gambling"
-        "youtube"
       ];
     };
   };
