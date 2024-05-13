@@ -79,6 +79,12 @@ in
         "gambling"
         "youtube"
       ];
+      ryans-iphone = [
+        "ads"
+        "fakenews"
+        "gambling"
+        "youtube"
+      ];
     };
   };
 }
