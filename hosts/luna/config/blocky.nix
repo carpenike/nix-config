@@ -2,6 +2,9 @@ let
   ads-whitelist = builtins.toFile "ads-whitelist" ''
     rabobank.nl
   '';
+  youtube = builtins.toFile "youtube" ''
+    youtube.com
+  '';
 in
 {
   ports = {
@@ -36,6 +39,8 @@ in
       gambling = [
         "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-only/hosts"
       ];
+      youtube = [
+        "file://${youtube}"]
     };
 
     whiteLists = {
@@ -49,6 +54,7 @@ in
         "ads"
         "fakenews"
         "gambling"
+        "youtube"
       ];
     };
   };
