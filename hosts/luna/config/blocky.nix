@@ -1,6 +1,6 @@
 let
   ads-whitelist = builtins.toFile "ads-whitelist" ''
-    rabobank.nl
+    google.com
   '';
   youtube = builtins.toFile "youtube" ''
     googlevideo.com
@@ -67,8 +67,22 @@ in
       ];
     };
 
+    clientLookup = {
+      clients = {        
+        name = "caydanDevices";
+        ip = [ "10.30.50.255" ];
+        mapping = [ "kids" ];
+      };
+
+    };
+
     clientGroupsBlock = {
       default = [
+        "ads"
+        "fakenews"
+        "gambling"
+      ];
+      kids = [
         "ads"
         "fakenews"
         "gambling"
