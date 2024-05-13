@@ -44,15 +44,15 @@ in
     path = "/metrics";
   };
 
-  # clientLookup = {
-  #   clients = [
-  #     {     
-  #       name = "caydanDevices";
-  #       ip = [ "10.30.50.255" ];
-  #       mapping = [ "kids" ];
-  #     }
-  #   ];
-  # };
+  clientLookup = {
+    clients = [
+      {
+        name = "caydanDevices";
+        ip = [ "10.30.50.255" ];
+        mapping = [ "kids" ];
+      }
+    ];
+  };
 
   blocking = {
     loading.downloads.timeout = "4m";
