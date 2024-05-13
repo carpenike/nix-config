@@ -127,7 +127,6 @@ in
         "ads"
         "fakenews"
         "gambling"
-        "youtube"
       ];
     };
   };
