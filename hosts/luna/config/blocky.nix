@@ -45,11 +45,13 @@ in
   };
 
   clientLookup = {
-    clients = {        
-      name = "caydanDevices";
-      ip = [ "10.30.50.255" ];
-      mapping = [ "kids" ];
-    };
+    clients = [
+      {     
+        name = "caydanDevices";
+        ip = [ "10.30.50.255" ];
+        mapping = [ "kids" ];
+      }
+    ];
   };
 
   blocking = {
