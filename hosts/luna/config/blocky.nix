@@ -73,7 +73,7 @@ in
         "fakenews"
         "gambling"
       ];
-      caydans-ipad.holthome.net = [
+      caydans-ipad = [
         "ads"
         "fakenews"
         "gambling"
