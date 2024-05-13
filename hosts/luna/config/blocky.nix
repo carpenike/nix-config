@@ -79,7 +79,7 @@ in
         "gambling"
         "youtube"
       ];
-      ryans-iphone.holthome.net = [
+      ryans-iphone = [
         "ads"
         "fakenews"
         "gambling"
