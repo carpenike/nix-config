@@ -66,7 +66,7 @@ let
     ||yt.be^
     ||ytimg.com^
   '';
-  facebook = builtins.readFile ./services/facebook.txt;
+  facebook = builtins.import ./services/facebook.txt;
 in
 {
   ports = {
