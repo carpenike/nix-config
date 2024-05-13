@@ -66,7 +66,7 @@ let
     ||yt.be^
     ||ytimg.com^
   '';
-  facebook = builtins.import ./services/facebook.nix;
+  facebook = builtins.toFile "facebook" (builtins.readFile ./services/facebook.nix);
 in
 {
   ports = {
