@@ -123,6 +123,12 @@ in
         "gambling"
         "youtube"
       ];
+      "taylors-ipad.holthome.net" = [
+        "ads"
+        "fakenews"
+        "gambling"
+        "youtube"
+      ];
       "ryans-iphone.holthome.net" = [
         "ads"
         "fakenews"
