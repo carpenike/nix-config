@@ -510,7 +510,7 @@ let
     ||zuckerberg.com^
     ||zuckerberg.net^
     |fbcdn-a.akamaihd.net^
-  ''
+  '';
 in
 {
   ports = {
