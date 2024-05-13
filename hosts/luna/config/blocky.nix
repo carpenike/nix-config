@@ -139,6 +139,7 @@ in
         "ads"
         "fakenews"
         "gambling"
+        "facebook"
       ];
     };
   };
