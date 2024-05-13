@@ -49,7 +49,7 @@ in
       {
         name = "caydanDevices";
         ip = [ "10.30.50.255" ];
-        mapping = [ "kids" ];
+        # mapping = [ "kids" ];
       };
   };
 
