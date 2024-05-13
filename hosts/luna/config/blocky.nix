@@ -73,12 +73,12 @@ in
         "fakenews"
         "gambling"
       ];
-      caydans-ipad.holthome.net = [
-        "ads"
-        "fakenews"
-        "gambling"
-        "youtube"
-      ];
+      # caydans-ipad.holthome.net = [
+      #   "ads"
+      #   "fakenews"
+      #   "gambling"
+      #   "youtube"
+      # ];
     };
   };
 }
