@@ -73,13 +73,13 @@ in
         "fakenews"
         "gambling"
       ];
-      caydans-ipad = [
+      "caydans-ipad.holthome.net" = [
         "ads"
         "fakenews"
         "gambling"
         "youtube"
       ];
-      ryans-iphone = [
+      "ryans-iphone.holthome.net" = [
         "ads"
         "fakenews"
         "gambling"
