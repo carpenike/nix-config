@@ -44,15 +44,6 @@ in
     path = "/metrics";
   };
 
-  clientLookup = {
-    clients = {
-      caydanDevices = {
-        ip = [ "10.30.50.255" ];
-        mapping = [ "kids" ];
-      };
-    };
-  };
-
   blocking = {
     loading.downloads.timeout = "4m";
     blackLists = {
@@ -82,7 +73,7 @@ in
         "fakenews"
         "gambling"
       ];
-      kids = [
+      caydans-ipad.holthome.net = [
         "ads"
         "fakenews"
         "gambling"
