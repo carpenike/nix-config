@@ -441,3 +441,4 @@
 ||zuckerberg.com^
 ||zuckerberg.net^
 ||fbcdn-a.akamaihd.net^
+||m.facebook.com^
