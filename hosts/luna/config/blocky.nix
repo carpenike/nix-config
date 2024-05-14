@@ -105,7 +105,7 @@ in
         "file://${youtube}"
       ];
       facebook = [
-        "file://${facebook}"
+        "https://raw.githubusercontent.com/anudeepND/blacklist/master/facebook.txt"
       ];
     };
 
