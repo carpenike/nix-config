@@ -105,7 +105,7 @@ in
         "file://${youtube}"
       ];
       facebook = [
-        "https://raw.githubusercontent.com/anudeepND/blacklist/master/facebook.txt"
+        "https://raw.githubusercontent.com/jmdugan/blocklists/master/corporations/facebook/all"
       ];
     };
 
