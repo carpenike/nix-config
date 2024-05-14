@@ -107,6 +107,17 @@ in
       facebook = [
         "https://raw.githubusercontent.com/jmdugan/blocklists/master/corporations/facebook/all"
       ];
+      twitter = [
+        "https://raw.githubusercontent.com/jmdugan/blocklists/master/corporations/twitter/all"
+      ];
+      # Temporary till https://github.com/jmdugan/blocklists/pull/97 is merged
+      tiktok = [
+        "https://raw.githubusercontent.com/drduh/blocklists/wip-tiktok/corporations/tiktok/all"
+      ];
+      # Temporary till https://github.com/jmdugan/blocklists/pull/89 is merged
+      reddit = [
+        "https://raw.githubusercontent.com/shff/blocklists/block-reddit/corporations/reddit/all"
+      ];
     };
 
     whiteLists = {
@@ -127,6 +138,9 @@ in
         "gambling"
         "youtube"
         "facebook"
+        "twitter"
+        "tiktok"
+        "reddit"
       ];
       "taylors-ipad.holthome.net" = [
         "ads"
@@ -134,6 +148,9 @@ in
         "gambling"
         "youtube"
         "facebook"
+        "twitter"
+        "tiktok"
+        "reddit"
       ];
       "ryans-iphone.holthome.net" = [
         "ads"
