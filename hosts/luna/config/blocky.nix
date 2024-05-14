@@ -106,6 +106,8 @@ in
       ];
       facebook = [
         "https://raw.githubusercontent.com/jmdugan/blocklists/master/corporations/facebook/all"
+        "https://www.github.developerdan.com/hosts/lists/facebook-extended.txt"
+        "https://raw.githubusercontent.com/anudeepND/blacklist/master/facebook.txt"
       ];
       twitter = [
         "https://raw.githubusercontent.com/jmdugan/blocklists/master/corporations/twitter/all"
