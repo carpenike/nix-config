@@ -1,0 +1,115 @@
+name: Build and diff Nix systems
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/**
+      - "**.nix"
+      - "flake.lock"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nix-build:
+    if: github.event.pull_request.draft == false
+    permissions:
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: luna
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v13
+      - name: Set up Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v15
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        with:
+          name: carpenike
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      - name: Garbage collect build dependencies
+        run: nix-collect-garbage
+
+      - name: Build previous ${{ matrix.system }} system
+        run: |
+          nix build \
+            "github:bjw-s/nix-config#ciSystems.${{ matrix.system }}" \
+            -v \
+            --log-format raw \
+            --profile ./profile
+
+      - name: Build new ${{ matrix.system }} system
+        run: |
+          set -o pipefail
+          nix build \
+            ".#ciSystems.${{ matrix.system }}" \
+            --profile ./profile \
+            --fallback \
+            -v \
+            --log-format raw \
+             > >(tee stdout.log) 2> >(tee /tmp/nix-build-err.log >&2)
+
+      - name: Output build failure
+        if: failure()
+        run: |
+          drv=$(grep "For full logs, run" /tmp/nix-build-err.log | grep -oE "/nix/store/.*.drv")
+          if [ -n $drv ]; then
+            nix log $drv
+            echo $drv
+          fi
+          exit 1
+
+      - name: Diff profile
+        id: diff
+        run: |
+          nix profile diff-closures --profile ./profile
+          delimiter="$(openssl rand -hex 16)"
+          echo "diff<<${delimiter}" >> "${GITHUB_OUTPUT}"
+          nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' >> "${GITHUB_OUTPUT}"
+          echo "${delimiter}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.LAB_ASSISTANT_APP_ID }}
+          private-key: ${{ secrets.LAB_ASSISTANT_APP_KEY }}
+
+      - name: Comment report in pr
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          GITHUB_TOKEN: "${{ steps.app-token.outputs.token }}"
+          header: ".#ciSystems.${{ matrix.system }}"
+          message: |
+            ### Report for `${{ matrix.system }}`
+
+            <summary> Version changes </summary> <br>
+            <pre> ${{ steps.diff.outputs.diff }} </pre>
+
+  nix-build-success:
+    if: ${{ always() }}
+    needs:
+      - nix-build
+    name: Nix Build Successful
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        name: Check matrix status
+        run: exit 1
