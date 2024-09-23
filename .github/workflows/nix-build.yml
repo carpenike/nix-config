@@ -89,8 +89,8 @@ jobs:
         uses: actions/create-github-app-token@v1
         id: app-token
         with:
-          app-id: ${{ secrets.LAB_ASSISTANT_APP_ID }}
-          private-key: ${{ secrets.LAB_ASSISTANT_APP_KEY }}
+          app-id: ${{ secrets.CARPENIKE_APP_ID }}
+          private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
 
       - name: Comment report in pr
         uses: marocchino/sticky-pull-request-comment@v2
