@@ -50,7 +50,7 @@ jobs:
       - name: Build previous ${{ matrix.system }} system
         run: |
           nix build \
-            "github:bjw-s/nix-config#ciSystems.${{ matrix.system }}" \
+            "github:carpenike/nix-config#ciSystems.${{ matrix.system }}" \
             -v \
             --log-format raw \
             --profile ./profile
