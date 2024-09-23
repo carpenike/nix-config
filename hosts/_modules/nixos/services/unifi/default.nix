@@ -31,7 +31,7 @@ in
 
     virtualisation.oci-containers.containers = {
       unifi = {
-        image = "ghcr.io/jacobalberty/unifi-docker:v7.5.174";
+        image = "ghcr.io/jacobalberty/unifi-docker:v8.4.62";
         environment = {
           "TZ" = "America/New_York";
         };

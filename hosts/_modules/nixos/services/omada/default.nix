@@ -39,7 +39,7 @@ in
 
     virtualisation.oci-containers.containers = {
       omada = {
-        image = "docker.io/mbentley/omada-controller:5.13";
+        image = "docker.io/mbentley/omada-controller:5.14";
         environment = {
           "TZ" = "America/New_York";
         };
