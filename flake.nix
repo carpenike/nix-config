@@ -128,10 +128,10 @@
         nixos = nixpkgs.lib.genAttrs
           (builtins.attrNames inputs.self.nixosConfigurations)
           (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
-        darwin = nixpkgs.lib.genAttrs
-          (builtins.attrNames inputs.self.darwinConfigurations)
-          (attr: inputs.self.darwinConfigurations.${attr}.system);
+        # darwin = nixpkgs.lib.genAttrs
+        #   (builtins.attrNames inputs.self.darwinConfigurations)
+        #   (attr: inputs.self.darwinConfigurations.${attr}.system);
       in
-        nixos // darwin;
+        nixos; #// darwin;
   } // import ./deploy.nix inputs;
 }
