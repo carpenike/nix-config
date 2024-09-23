@@ -9,28 +9,9 @@ includes:
   nix:
     taskfile: ".taskfiles/nix"
     dir: "{{.ROOT_DIR}}"
-  # pre:
-  #   taskfile: ".taskfiles/pre-commit"
-  #   dir: "{{.ROOT_DOR}}"
 
 tasks:
   default:
     silent: true
     cmds:
       - task -l
-
-  # lint:
-  #   desc: Run statix lint
-  #   cmds:
-  #     - statix check .
-
-  # check:
-  #   desc: Check project files
-  #   cmds:
-  #     - task: lint
-  #     - task: pc-run
-
-  # format:
-  #   desc: Check project files
-  #   cmds:
-  #     - nixpkgs-fmt {{.ROOT_DIR}}
