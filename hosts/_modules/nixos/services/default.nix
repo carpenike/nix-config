@@ -6,7 +6,7 @@
     ./adguardhome
     ./bind
     ./blocky
-    # ./cfdyndns
+    ./cfdyndns
     ./chrony
     ./dnsdist
     ./haproxy
