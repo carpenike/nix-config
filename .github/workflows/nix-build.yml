@@ -27,15 +27,42 @@ jobs:
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Create nix mount point
+        if: contains(matrix.os, 'ubuntu')
+        run: sudo mkdir /nix
+
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
+        if: contains(matrix.os, 'ubuntu')
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          build-mount-path: "/nix"
+          remove-dotnet: true
+          remove-android: true
+          remove-haskell: true
+          remove-docker-images: true
+          remove-codeql: true
+          overprovision-lvm: true
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v14
+      - name: Install nix
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-platforms = aarch64-linux
+
       - name: Set up Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Register binfmt
+        run: |
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
       - name: Set up Cachix
         uses: cachix/cachix-action@v15
@@ -85,12 +112,12 @@ jobs:
           nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' >> "${GITHUB_OUTPUT}"
           echo "${delimiter}" >> "${GITHUB_OUTPUT}"
 
-      - name: Generate Token
-        uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.CARPENIKE_APP_ID }}
-          private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
+      # - name: Generate Token
+      #   uses: actions/create-github-app-token@v1
+      #   id: app-token
+      #   with:
+      #     app-id: ${{ secrets.CARPENIKE_APP_ID }}
+      #     private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
 
       - name: Scan for security issues
         id: security
