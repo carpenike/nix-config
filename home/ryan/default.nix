@@ -3,7 +3,6 @@
   lib,
   inputs,
   hostname,
-  flake-packages,
   ...
 }:
 {
