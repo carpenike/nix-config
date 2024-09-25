@@ -133,5 +133,5 @@ in
         in
           nixos // darwin;
     };
-  } // import ./deploy.nix inputs;
+  };
 }
