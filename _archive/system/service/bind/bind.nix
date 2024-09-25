@@ -12,7 +12,7 @@ in
       default = "";
     };
   };
-  
+
   config = lib.mkIf cfg.enable {
     networking.resolvconf.useLocalResolver = lib.mkForce false;
     # Clean up journal files

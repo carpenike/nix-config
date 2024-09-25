@@ -48,7 +48,7 @@
     cache_ttl_min = 60;
     cache_optimistic = true;
   };
-  filters = 
+  filters =
     let
     urls = [
       { name = "AdGuard DNS filter"; url = "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"; }
@@ -83,7 +83,7 @@
       dhcp = true;
       hosts = true;
     };
-    persistent = [ 
+    persistent = [
       {
         name = "Caydan";
         safe_search = {
