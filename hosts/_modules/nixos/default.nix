@@ -2,6 +2,7 @@
   ...
 }: {
   imports = [
+    ./doas.nix
     ./impermanence.nix
     ./nix.nix
     ./users.nix
