@@ -39,6 +39,12 @@
       url = "github:oxalica/rust-overlay";
     };
 
+    # Catppuccin - Soothing pastel theme for Nix
+    # https://github.com/catppuccin/nix
+    catppuccin = {
+      url = "github:catppuccin/nix/v1.0.2";
+    };
+
     # nix-darwin - nix modules for darwin (MacOS)
     # https://github.com/LnL7/nix-darwin
     nix-darwin = {
