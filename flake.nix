@@ -39,7 +39,8 @@
       url = "github:oxalica/rust-overlay";
     };
 
-    # nix-darwin
+    # nix-darwin - nix modules for darwin (MacOS)
+    # https://github.com/LnL7/nix-darwin
     nix-darwin = {
       url = "github:LnL7/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
