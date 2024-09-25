@@ -97,12 +97,12 @@ in
     ];
     imports = [];
     flake = {
-      # Shell configured with packages that are typically only needed when working on or with nix-config.
-      devShells = forAllSystems
-        (system:
-          let pkgs = nixpkgs.legacyPackages.${system};
-          in import ./shell.nix { inherit pkgs; }
-        );
+      # Shell configured with packages that are typically only needed when working on or with nix-config. -- NEEDS TO BE FIXED MAYBE
+      # devShells = forAllSystems
+      #   (system:
+      #     let pkgs = nixpkgs.legacyPackages.${system};
+      #     in import ./shell.nix { inherit pkgs; }
+      #   );
       #################### NixOS Configurations ####################
       #
       # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
