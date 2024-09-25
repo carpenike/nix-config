@@ -3,7 +3,7 @@
 }:
 {
   imports = [
-    # ./gnugpg
+    ./gnugpg
     ./ssh
   ];
 }
