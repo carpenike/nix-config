@@ -1,18 +1,49 @@
 {
+    "[nix]": {
+        "editor.defaultFormatter": "jnoortheen.nix-ide"
+    },
+    "editor": {
+      "bracketPairColorization": {
+        "enabled": true
+      },
+      "defaultFormatter": "esbenp.prettier-vscode",
+      "fontFamily": "'Monaspace Krypton','Font Awesome 6 Free Solid'",
+      "fontLigatures": "'calt', 'liga', 'dlig', 'ss01', 'ss02', 'ss03', 'ss06'",
+      "guides": {
+        "bracketPairs": true,
+        "bracketPairsHorizontal": true,
+        "highlightActiveBracketPair": true
+      },
+      "stickyScroll": {
+        "enabled": true
+      },
+      "tabSize": 2
+    },
+    "explorer": {
+        "compactFolders": false,
+        "confirmDelete": false,
+        "confirmDragAndDrop": false
+    },
     "git.autofetch": true,
     "git.enableSmartCommit": true,
     "git.confirmSync": false,
     "git.pullTags": false,
-    "terminal.integrated.shell.windows": "C:\\windows\\System32\\wsl.exe",
     "diffEditor.ignoreTrimWhitespace": false,
     "git.enableCommitSigning": true,
     "files.eol": "\n",
-    "editor.fontLigatures": true,
-    "editor.fontFamily": "CaskaydiaCove NF",
-    "remote.SSH.remotePlatform": {
-        "pki.holthome.net": "linux",
-        "sm-0.holthome.net": "linux"
+
+    "nix": {
+        "enableLanguageServer": true,
+        "serverPath": "nixd",
+        "serverSettings": {
+          "nixd": {
+            "formatting": {
+                "command": "nixfmt"
+            }
+          }
+        }
     },
+
     "[yaml]": {
 
         "editor.insertSpaces": true,
@@ -44,6 +75,10 @@
     "[python]": {
         "editor.formatOnType": true
     },
+    "update": {
+        "mode": "manual",
+        "showReleaseNotes": false
+    },
     "editor.inlineSuggest.enabled": true,
     "vscode-kubernetes.helm-path.mac": "/opt/homebrew/bin/helm",
     "vscode-kubernetes.kubectl-path.mac": "/opt/homebrew/bin//kubectl",
@@ -52,5 +87,16 @@
     "github.copilot.editor.enableAutoCompletions": true,
     "githubPullRequests.createOnPublishBranch": "never",
     "github.copilot.preferredAccount": "carpenike",
-    "github.copilot.advanced": {}
+    "github.copilot.advanced": {},
+    "workbench": {
+        "colorTheme": "Catppuccin Macchiato",
+        "iconTheme": "catppuccin-perfect-macchiato",
+        "sideBar": {
+          "location": "left"
+        },
+        "startupEditor": "newUntitledFile",
+        "tree": {
+          "renderIndentGuides": "none"
+        },
+      }
 }
