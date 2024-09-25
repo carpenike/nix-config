@@ -1,9 +1,10 @@
 {
   inputs,
+  overlays,
   ...
 }:
 {
-  mkNixosSystem = system: hostname: overlays: flake-packages:
+  mkNixosSystem = system: hostname:
     inputs.nixpkgs.lib.nixosSystem {
       inherit system;
       pkgs = import inputs.nixpkgs {
@@ -18,7 +19,7 @@
         {
           nixpkgs.hostPlatform = system;
           _module.args = {
-            inherit inputs flake-packages;
+            inherit inputs system;
           };
         }
         inputs.disko.nixosModules.disko
@@ -31,9 +32,10 @@
             useGlobalPkgs = true;
             sharedModules = [
               inputs.sops-nix.homeManagerModules.sops
+              inputs.catppuccin.homeManagerModules.catppuccin
             ];
             extraSpecialArgs = {
-              inherit inputs hostname flake-packages;
+              inherit inputs hostname system;
             };
             users.ryan = ../. + "/home/ryan";
           };
@@ -47,7 +49,7 @@
       };
     };
 
-  mkDarwinSystem = system: hostname: overlays: flake-packages:
+  mkDarwinSystem = system: hostname:
     inputs.nix-darwin.lib.darwinSystem {
       inherit system;
       pkgs = import inputs.nixpkgs {
@@ -62,7 +64,7 @@
         {
           nixpkgs.hostPlatform = system;
           _module.args = {
-            inherit inputs flake-packages;
+            inherit inputs;
           };
         }
         inputs.home-manager.darwinModules.home-manager
@@ -73,9 +75,10 @@
             sharedModules = [
               inputs.sops-nix.homeManagerModules.sops
               inputs.nixvim.homeManagerModules.nixvim
+              inputs.catppuccin.homeManagerModules.catppuccin
             ];
             extraSpecialArgs = {
-              inherit inputs hostname flake-packages;
+              inherit inputs hostname system;
             };
             users.ryan = ../. + "/home/ryan";
           };
