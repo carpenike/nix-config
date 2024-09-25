@@ -1,13 +1,8 @@
 {
-  lib,
   ...
 }:
 {
   imports = [
-    ./utilities
+    ./nix
   ];
-
-  options.modules.development = {
-    enable = lib.mkEnableOption "development";
-  };
 }
