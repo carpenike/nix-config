@@ -16,7 +16,7 @@
       name = "ryan";
       home = "/Users/ryan";
       shell = pkgs.fish;
-      openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../homes/ryan/config/ssh/ssh.pub);
+      openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../home/ryan/config/ssh/ssh.pub);
     };
 
     system.activationScripts.postActivation.text = ''
