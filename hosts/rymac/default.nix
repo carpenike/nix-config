@@ -40,7 +40,7 @@
         "tableplus"
         "transmit"
         "microsoft-edge"
-        "pinentry"
+        "gpg-suite-pinentry"
       ];
       masApps = {
       };
