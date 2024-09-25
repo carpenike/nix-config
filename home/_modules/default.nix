@@ -8,6 +8,7 @@
 
     ./deployment
     ./editor
+    ./kubernetes
     ./security
     ./shell
     ./utilities
