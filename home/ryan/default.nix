@@ -28,6 +28,7 @@
         enable = true;
         username = "Ryan Holt";
         email = "ryan@ryanholt.net";
+        signingKey = "2CEA90502F6F3637";
       };
     };
 
