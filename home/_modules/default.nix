@@ -1,20 +1,32 @@
 {
+  pkgs,
   ...
 }:
 {
   imports = [
-    # ./atuin
-    # ./bat
-    # ./bash
-    # ./btop
-    # ./doggo
-    # ./eza
-    ./fish
-    ./git
-    # ./go-task
-    # ./mise
-    ./starship
-    ./utilities
-    # ./zoxide
+    ./mutability.nix
+
+    ./deployment
+    ./development
+    ./editor
+    ./kubernetes
+    ./security
+    ./shell
+    ./themes
+    # ./virtualisation
   ];
+
+  config = {
+    home.stateVersion = "23.11";
+
+    programs = {
+      home-manager.enable = true;
+    };
+
+    xdg.enable = true;
+
+    home.packages = [
+      pkgs.home-manager
+    ];
+  };
 }
