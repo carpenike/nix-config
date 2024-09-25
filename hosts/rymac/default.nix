@@ -39,6 +39,7 @@
         "plex"
         "tableplus"
         "transmit"
+        "microsoft-edge"
         "gpg-suite-pinentry"
       ];
       masApps = {
