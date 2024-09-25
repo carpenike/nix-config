@@ -112,12 +112,12 @@ jobs:
           nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' >> "${GITHUB_OUTPUT}"
           echo "${delimiter}" >> "${GITHUB_OUTPUT}"
 
-      # - name: Generate Token
-      #   uses: actions/create-github-app-token@v1
-      #   id: app-token
-      #   with:
-      #     app-id: ${{ secrets.CARPENIKE_APP_ID }}
-      #     private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
+      - name: Generate Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.CARPENIKE_APP_ID }}
+          private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
 
       - name: Scan for security issues
         id: security
