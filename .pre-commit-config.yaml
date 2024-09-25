@@ -1,33 +1,38 @@
-minimum_pre_commit_version: "2.9.0"
-ci:
-  autoupdate_schedule: monthly
+---
+fail_fast: false
+
 repos:
-  - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.5
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
     hooks:
-      - id: forbid-crlf
+      - args:
+          - --config-file
+          - .github/lint/.yamllint.yaml
+        id: yamllint
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-      - id: check-added-large-files
-      - id: check-case-conflict
-      - id: check-executables-have-shebangs
-      - id: check-merge-conflict
-      - id: check-shebang-scripts-are-executable
-      - id: destroyed-symlinks
-      - id: detect-private-key
+      - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: fix-byte-order-marker
-      - id: forbid-submodules
       - id: mixed-line-ending
-      - id: trailing-whitespace
-  # disabled because it keeps causing barfing on my zsh module
-  # for no good reason that I can tell
-  #  - repo: https://github.com/nix-community/nixpkgs-fmt
-  #    rev: f3fac47d6509e6b23c6103bb833353db348c634f
-  #    hooks:
-  #      - id: nixpkgs-fmt
-  - repo: https://github.com/scop/pre-commit-shfmt
-    rev: v3.7.0-1
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
     hooks:
-      - id: shfmt
+      - id: remove-crlf
+      - id: remove-tabs
+        exclude: (Makefile)
+  - repo: https://github.com/zricethezav/gitleaks
+    rev: v8.19.2
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/yuvipanda/pre-commit-hook-ensure-sops
+    rev: v1.1
+    hooks:
+      - id: sops-encryption
+        # Uncomment to exclude all markdown files from encryption
+        # exclude: *.\.md
