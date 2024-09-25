@@ -124,7 +124,7 @@
     };
 
     darwinConfigurations = {
-      rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac";
+      rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac" overlays flake-packages;
     };
 
     # Convenience output that aggregates the outputs for home, nixos.
