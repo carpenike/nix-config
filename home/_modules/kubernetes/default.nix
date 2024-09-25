@@ -62,7 +62,7 @@ in
     programs.k9s = {
       enable = true;
       package = pkgs.unstable.k9s;
-      catppuccin.enable = true;
+      # catppuccin.enable = true;
 
       aliases = {
         aliases = {
