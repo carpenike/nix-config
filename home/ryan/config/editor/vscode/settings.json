@@ -1,0 +1,56 @@
+{
+    "git.autofetch": true,
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "git.pullTags": false,
+    "terminal.integrated.shell.windows": "C:\\windows\\System32\\wsl.exe",
+    "diffEditor.ignoreTrimWhitespace": false,
+    "git.enableCommitSigning": true,
+    "files.eol": "\n",
+    "editor.fontLigatures": true,
+    "editor.fontFamily": "CaskaydiaCove NF",
+    "remote.SSH.remotePlatform": {
+        "pki.holthome.net": "linux",
+        "sm-0.holthome.net": "linux"
+    },
+    "[yaml]": {
+
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "full",
+        "editor.quickSuggestions": {
+            "other": true,
+            "comments": false,
+            "strings": true
+        },
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "vs-kubernetes": {
+        "vs-kubernetes.crd-code-completion": "enabled",
+        "vscode-kubernetes.minikube-path.mac": "/Users/ryan/.vs-kubernetes/tools/minikube/darwin-arm64/minikube",
+        "vscode-kubernetes.kubectl-path.mac": "/Users/ryan/.vs-kubernetes/tools/kubectl/kubectl",
+        "vscode-kubernetes.helm-path.mac": "/Users/ryan/.vs-kubernetes/tools/helm/darwin-arm64/helm",
+        "vs-kubernetes.knownKubeconfigs": [
+            "/Users/ryan/kubeconfig"
+        ],
+        "vs-kubernetes.kubeconfig": "/Users/ryan/kubeconfig"
+    },
+    "explorer.confirmDelete": false,
+    "redhat.telemetry.enabled": false,
+    "terminal.external.osxExec": "warp.app",
+    "[python]": {
+        "editor.formatOnType": true
+    },
+    "editor.inlineSuggest.enabled": true,
+    "vscode-kubernetes.helm-path.mac": "/opt/homebrew/bin/helm",
+    "vscode-kubernetes.kubectl-path.mac": "/opt/homebrew/bin//kubectl",
+    "vscode-kubernetes.helm-path": "",
+    "vscode-kubernetes.kubectl-path": "",
+    "github.copilot.editor.enableAutoCompletions": true,
+    "githubPullRequests.createOnPublishBranch": "never",
+    "github.copilot.preferredAccount": "carpenike",
+    "github.copilot.advanced": {}
+}
