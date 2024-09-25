@@ -88,55 +88,48 @@
   let
     overlays = import ./overlays {inherit inputs;};
     mkSystemLib = import ./lib/mkSystem.nix {inherit inputs overlays;};
-  in
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      systems = [
-        "aarch64-darwin"
-        "x86_64-linux"
-        "aarch64-linux"
-      ];
-
-      imports = [];
-
-      flake = {
-        # Shell configured with packages that are typically only needed when working on or with nix-config.
-        devShells = forAllSystems
-          (system:
-            let pkgs = nixpkgs.legacyPackages.${system};
-            in import ./shell.nix { inherit pkgs; }
-          );
-
-        #################### NixOS Configurations ####################
-        #
-        # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
-
-        nixosConfigurations = {
-          # Bootstrap deployment
-          nixos-bootstrap = mkSystemLib.mkNixosSystem "x86_64-linux" "nixos-bootstrap";# overlays flake-packages;
-          # Parallels devlab
-          rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev";# overlays flake-packages;
-          # Luna
-          luna =  mkSystemLib.mkNixosSystem "x86_64-linux" "luna";# overlays flake-packages;
-
-        };
-
-        darwinConfigurations = {
-          rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac";# overlays flake-packages;
-        };
-
-        # Convenience output that aggregates the outputs for home, nixos.
-        # Also used in ci to build targets generally.
-        ciSystems =
-          let
-            nixos = nixpkgs.lib.genAttrs
-              (builtins.attrNames inputs.self.nixosConfigurations)
-              (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
-            darwin = nixpkgs.lib.genAttrs
-              (builtins.attrNames inputs.self.darwinConfigurations)
-              (attr: inputs.self.darwinConfigurations.${attr}.system);
-          in
-            nixos // darwin;
+in
+  flake-parts.lib.mkFlake {inherit inputs;} {
+    systems = [
+      "aarch64-darwin"
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
+    imports = [];
+    flake = {
+      # Shell configured with packages that are typically only needed when working on or with nix-config.
+      devShells = forAllSystems
+        (system:
+          let pkgs = nixpkgs.legacyPackages.${system};
+          in import ./shell.nix { inherit pkgs; }
+        );
+      #################### NixOS Configurations ####################
+      #
+      # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
+      nixosConfigurations = {
+        # Bootstrap deployment
+        nixos-bootstrap = mkSystemLib.mkNixosSystem "x86_64-linux" "nixos-bootstrap";# overlays flake-packages;
+        # Parallels devlab
+        rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev";# overlays flake-packages;
+        # Luna
+        luna =  mkSystemLib.mkNixosSystem "x86_64-linux" "luna";# overlays flake-packages;
       };
+
+      darwinConfigurations = {
+        rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac";# overlays flake-packages;
+      };
+      # Convenience output that aggregates the outputs for home, nixos.
+      # Also used in ci to build targets generally.
+      ciSystems =
+        let
+          nixos = nixpkgs.lib.genAttrs
+            (builtins.attrNames inputs.self.nixosConfigurations)
+            (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
+          darwin = nixpkgs.lib.genAttrs
+            (builtins.attrNames inputs.self.darwinConfigurations)
+            (attr: inputs.self.darwinConfigurations.${attr}.system);
+        in
+          nixos // darwin;
     };
   } // import ./deploy.nix inputs;
 }
