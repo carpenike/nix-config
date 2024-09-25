@@ -7,6 +7,7 @@
     ./mutability.nix
 
     ./deployment
+    ./editor
     ./security
     ./shell
     ./utilities
