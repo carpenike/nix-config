@@ -23,6 +23,10 @@ in {
       type = lib.types.attrs;
       default = {};
     };
+    includes = lib.mkOption {
+      type = lib.types.listOf lib.types.attrs;
+      default = [];
+    };
   };
 
   config = lib.mkMerge [
@@ -54,6 +58,8 @@ in {
           cfg.config
         ];
 
+        includes = cfg.includes;
+
         aliases = {
           co = "checkout";
         };
@@ -62,10 +68,6 @@ in {
           ".DS_Store"
           # Windows files
           "Thumbs.db"
-          # asdf
-          ".tool-versions"
-          # mise
-          ".mise.toml"
           # Sops
           ".decrypted~*"
           "*.decrypted.*"

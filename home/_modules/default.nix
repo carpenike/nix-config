@@ -1,31 +1,20 @@
 {
-  pkgs,
   ...
 }:
 {
   imports = [
-    ./mutability.nix
-
-    ./deployment
-    ./editor
-    ./kubernetes
-    ./security
-    ./shell
-    ./themes
-    # ./utilities
+    # ./atuin
+    # ./bat
+    # ./bash
+    # ./btop
+    # ./doggo
+    # ./eza
+    ./fish
+    ./git
+    # ./go-task
+    # ./mise
+    ./starship
+    ./utilities
+    # ./zoxide
   ];
-
-  config = {
-    home.stateVersion = "23.11";
-
-    programs = {
-      home-manager.enable = true;
-    };
-
-    xdg.enable = true;
-
-    home.packages = [
-      pkgs.home-manager
-    ];
-  };
 }

@@ -12,7 +12,7 @@
     ./git
     # ./go-task
     # ./mise
-    # ./starship
+    ./starship
     # ./utilities
     # ./zoxide
   ];

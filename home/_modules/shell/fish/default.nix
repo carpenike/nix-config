@@ -8,6 +8,9 @@ let
   inherit (pkgs.stdenv.hostPlatform) isDarwin;
   inherit (config.home) username homeDirectory;
   cfg = config.modules.shell.fish;
+  hasPackage = pname:
+     lib.any (p: p ? pname && p.pname == pname) config.home.packages;
+   hasAnyNixShell = hasPackage "any-nix-shell";
 in {
   options.modules.shell.fish = {
     enable = lib.mkEnableOption "fish";
@@ -17,6 +20,7 @@ in {
     (lib.mkIf cfg.enable {
       programs.fish = {
         enable = true;
+        catppuccin.enable = true;
 
         plugins = [
           { name = "done"; inherit (pkgs.fishPlugins.done) src; }
@@ -40,16 +44,20 @@ in {
 
           # Paths are in reverse priority order
           update_path /opt/homebrew/bin
-          update_path ${homeDirectory}/.krew/bin
           update_path /nix/var/nix/profiles/default/bin
           update_path /run/current-system/sw/bin
           update_path /etc/profiles/per-user/${username}/bin
           update_path /run/wrappers/bin
-          update_path ${homeDirectory}/.nix-profile/bin
           update_path ${homeDirectory}/go/bin
           update_path ${homeDirectory}/.cargo/bin
           update_path ${homeDirectory}/.local/bin
-        '';
+        '' + (
+          if hasAnyNixShell
+          then ''
+            any-nix-shell fish --info-right | source
+          ''
+          else ""
+        );
       };
 
       home.sessionVariables.fish_greeting = "";
