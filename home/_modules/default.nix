@@ -11,6 +11,7 @@
     ./kubernetes
     ./security
     ./shell
+    ./themes
     # ./utilities
   ];
 
