@@ -121,6 +121,11 @@
       luna =  mkSystemLib.mkNixosSystem "x86_64-linux" "luna" overlays flake-packages;
 
     };
+
+    darwinConfigurations = {
+      rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac";
+    };
+
     # Convenience output that aggregates the outputs for home, nixos.
     # Also used in ci to build targets generally.
     ciSystems =
