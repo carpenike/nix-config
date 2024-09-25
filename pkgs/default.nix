@@ -14,6 +14,6 @@
   kubectl-pgo = pkgs.callPackage ./kubectl-pgo.nix {};
   nvim = pkgs.callPackage ./nvim.nix _inputs;
   shcopy = pkgs.callPackage ./shcopy.nix {};
-  talhelper = inputs.talhelper.packages.${pkgs.system}.default;
+  # talhelper = inputs.talhelper.packages.${pkgs.system}.default;
   usage = pkgs.callPackage ./usage.nix {};
 }

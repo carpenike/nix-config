@@ -35,7 +35,7 @@ in
       kubectl-klock
       kubectl-netshoot
       kubectl-pgo
-      talhelper
+      # talhelper
     ]) ++
     (with pkgs.unstable; [
       fluxcd
