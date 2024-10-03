@@ -24,6 +24,7 @@ _:
       "keyboard-maestro"
       "raycast"
       "shottr"
+      "slack"
     ];
     masApps = {
       "Caffeinated" = 1362171212;
