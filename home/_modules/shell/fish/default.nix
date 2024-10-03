@@ -51,6 +51,11 @@ in {
           update_path ${homeDirectory}/go/bin
           update_path ${homeDirectory}/.cargo/bin
           update_path ${homeDirectory}/.local/bin
+
+          # Set SSH_AUTH_SOCK for Fish shell
+          set -Ux SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket)
+
+          gpg-connect-agent /bye
         '' + (
           if hasAnyNixShell
           then ''
