@@ -20,8 +20,6 @@ _:
       "gifox"
       "iterm2"
       "jordanbaird-ice"
-      "karabiner-elements"
-      "keyboard-maestro"
       "raycast"
       "shottr"
       "slack"
