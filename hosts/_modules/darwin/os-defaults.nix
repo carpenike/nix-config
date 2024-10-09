@@ -6,7 +6,7 @@ _:
     defaults = {
       NSGlobalDomain = {
         # Whether to automatically switch between light and dark mode.
-        AppleInterfaceStyleSwitchesAutomatically = true;
+        AppleInterfaceStyleSwitchesAutomatically = false;
         # Configures the keyboard control behavior.  Mode 3 enables full keyboard control
         AppleKeyboardUIMode = 3;
         # Whether to show all file extensions in Finder
