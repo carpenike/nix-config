@@ -59,13 +59,13 @@
   };
   kubectl-pgo = {
     pname = "kubectl-pgo";
-    version = "v0.4.2";
+    version = "v0.5.0";
     src = fetchFromGitHub {
       owner = "CrunchyData";
       repo = "postgres-operator-client";
-      rev = "v0.4.2";
+      rev = "v0.5.0";
       fetchSubmodules = false;
-      sha256 = "sha256-m1USG4Po+H9trrx4+Zw8SDCpXecEipawdwCYBLsuxd8=";
+      sha256 = "sha256-JX+V8xYtvvzfsxjxWMB8YgF+2QgALdedHwxQ5J+a1+c=";
     };
   };
   shcopy = {
@@ -81,13 +81,13 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v0.8.4";
+    version = "v1.1.1";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v0.8.4";
+      rev = "v1.1.1";
       fetchSubmodules = false;
-      sha256 = "sha256-vHZ5CZiFvbG5Xx0nOIpcKgi10Hk6DieMIXRFjke2tOY=";
+      sha256 = "sha256-WYdloWoepXWEwqOblw2+8JRRuGLYaGVqv+j8akG7q+Q=";
     };
   };
 }
