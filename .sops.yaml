@@ -11,7 +11,7 @@
 keys:
   - &ryan DA8002060402EC39B195451D5CED80362B5A4EF2
   - &rydev age13vnanqugxuvk08s4qr4zsv5e8lt3tqynu5swf4svep3ec45d65lsuqmptu
-  - &luna age125dhdaw3alzhnq9fzcm7qdfpvklm0ps8a36uzhep6velv5r3jc2sxcdyxg
+  - &luna age1f744unm6fqh0r0njray0jxf7c405vjjls6f4lvkt35f8js73hv7qv6eg8f
 
 creation_rules:
   - path_regex: .*\.sops\.yaml$
