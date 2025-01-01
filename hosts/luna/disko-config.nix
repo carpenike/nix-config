@@ -1,4 +1,4 @@
-{ disks ? [ "/dev/sda" ], ... }: {
+{ disks ? [ "/dev/sda" ], lib, ... }: {
   disko.devices = {
     disk = {
       vdb = {
@@ -103,10 +103,10 @@
     };
   };
 
-  # Define fileSystems separately to ensure neededForBoot works
+  # Use lib.mkForce to ensure Disko's device path is used
   fileSystems = {
     "/boot" = {
-      device = "/dev/disk/by-label/ESP";
+      device = lib.mkForce "/dev/disk/by-partlabel/disk-vdb-ESP";
       fsType = "vfat";
     };
     "/" = {
