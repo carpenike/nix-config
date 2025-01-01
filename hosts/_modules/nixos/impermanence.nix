@@ -50,8 +50,55 @@ with lib;
 
     # Ensure persistence services wait for /persist to mount
     systemd.services."impermanence-bind-mounts" = {
-      after = [ "persist.mount" ];
-      requires = [ "persist.mount" ];
+      description = "Ensure impermanence bind mounts are set up";
+      wantedBy = [ "local-fs.target" ];
+      after = [ "persist.mount" "zfs-mount.service" ];
+      requires = [ "persist.mount" "zfs-mount.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        # Ensure machine-id is correctly symlinked
+        if [ ! -e /etc/machine-id ]; then
+          ln -sf ${cfg.persistPath}/etc/machine-id /etc/machine-id
+        fi
+      '';
     };
+
+    # Ensure SSH keys are correctly linked and have correct permissions
+    systemd.services.ssh-key-permissions = {
+      description = "Set correct permissions for persisted SSH host keys";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "impermanence-bind-mounts.service" ];
+      requires = [ "impermanence-bind-mounts.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        chmod 600 ${cfg.persistPath}/etc/ssh/ssh_host_*_key
+        chmod 644 ${cfg.persistPath}/etc/ssh/ssh_host_*_key.pub
+      '';
+    };
+
+    # Ensure SSH uses the persisted keys
+    services.openssh = {
+      hostKeys = [
+        {
+          path = "${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key";
+          type = "ed25519";
+        }
+        {
+          path = "${cfg.persistPath}/etc/ssh/ssh_host_rsa_key";
+          type = "rsa";
+        }
+      ];
+    };
+
+    # Additional tmpfiles rule to ensure machine-id is always linked
+    systemd.tmpfiles.rules = [
+      "L+ /etc/machine-id - - - - ${cfg.persistPath}/etc/machine-id"
+    ];
   };
 }

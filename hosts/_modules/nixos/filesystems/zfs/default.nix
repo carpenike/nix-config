@@ -35,16 +35,20 @@ in
       what = "rpool/safe/persist";
       type = "zfs";
       options = [ "defaults" ];
-      after = [ "zfs-mount.service" ];
+      wantedBy = [ "local-fs.target" ];
       before = [ "local-fs.target" ];
+      requires = [ "zfs-mount.service" ];
+      after = [ "zfs-mount.service" ];
     };
 
     systemd.mounts."/home" = {
       what = "rpool/safe/home";
       type = "zfs";
       options = [ "defaults" ];
-      after = [ "zfs-mount.service" ];
+      wantedBy = [ "local-fs.target" ];
       before = [ "local-fs.target" ];
+      requires = [ "zfs-mount.service" ];
+      after = [ "zfs-mount.service" ];
     };
   };
 }

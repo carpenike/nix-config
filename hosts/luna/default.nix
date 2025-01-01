@@ -23,6 +23,26 @@ in
       firewall.enable = false;
     };
 
+    # ZFS and boot configuration
+    boot = {
+      supportedFilesystems = [ "zfs" ];
+      zfs = {
+        forceImportRoot = true;
+        enableUnstable = true;
+        requestEncryptionCredentials = true;
+        extraPools = [ "rpool" ];
+      };
+
+      loader = {
+        systemd-boot.enable = true;
+        efi.canTouchEfiVariables = true;
+      };
+    };
+
+    # Ensure these filesystems are needed for boot
+    fileSystems."/persist".neededForBoot = true;
+    fileSystems."/home".neededForBoot = true;
+
     users.users.ryan = {
       uid = 1000;
       name = "ryan";
@@ -97,6 +117,12 @@ in
         omada.enable = true;
       };
 
+      # Explicitly enable ZFS filesystem module
+      filesystems.zfs = {
+        enable = true;
+        mountPoolsAtBoot = [ "rpool" ];
+      };
+
       system.impermanence.enable = true;
 
       users = {
@@ -109,12 +135,6 @@ in
           };
         };
       };
-    };
-
-    # Use the systemd-boot EFI boot loader.
-    boot.loader = {
-      systemd-boot.enable = true;
-      efi.canTouchEfiVariables = true;
     };
   };
 }
