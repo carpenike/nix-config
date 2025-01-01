@@ -43,7 +43,7 @@
           normalization = "formD";
           mountpoint = "none";
           compression = "lz4";
-          "com.sun:auto-sanpshot" = "false";
+          "com.sun:auto-snapshot" = "false";
         };
 
         options = {
@@ -102,11 +102,30 @@
       };
     };
   };
-  fileSystems."/persist" =
-    {
+
+  # Define fileSystems separately to ensure neededForBoot works
+  fileSystems = {
+    "/boot" = {
+      device = "/dev/disk/by-label/ESP";
+      fsType = "vfat";
+    };
+    "/" = {
+      device = "rpool/local/root";
+      fsType = "zfs";
+    };
+    "/nix" = {
+      device = "rpool/local/nix";
+      fsType = "zfs";
+    };
+    "/home" = {
+      device = "rpool/safe/home";
+      fsType = "zfs";
+      neededForBoot = true;
+    };
+    "/persist" = {
       device = "rpool/safe/persist";
       fsType = "zfs";
-      neededForBoot = true; # for impermanence
+      neededForBoot = true;
     };
-  fileSystems."/home".neededForBoot = true;
+  };
 }
