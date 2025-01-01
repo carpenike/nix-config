@@ -102,6 +102,11 @@
       };
     };
   };
-  fileSystems."/persist".neededForBoot = true;
+  fileSystems."/persist" =
+    {
+      device = "rpool/safe/persist";
+      fsType = "zfs";
+      neededForBoot = true; # for impermanence
+    };
   fileSystems."/home".neededForBoot = true;
 }
