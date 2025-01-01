@@ -28,13 +28,13 @@ with lib;
     # move ssh keys
 
     # bind a initrd command to rollback to blank root after boot
-    boot.initrd.postDeviceCommands = lib.mkAfter ''
-      zfs rollback -r ${cfg.rootPoolName}@${cfg.rootBlankSnapshotName}
-    '';
+   boot.initrd.postDeviceCommands = lib.mkAfter ''
+     zfs rollback -r ${cfg.rootPoolName}@${cfg.rootBlankSnapshotName}
+   '';
 
     systemd.tmpfiles.rules = mkIf config.services.openssh.enable [
-      "d /etc/ 0755 root root -" #The - disables automatic cleanup, so the file wont be removed after a period
-      "d /etc/ssh/ 0755 root root -" #The - disables automatic cleanup, so the file wont be removed after a period
+      # "d /etc/ 0755 root root -" #The - disables automatic cleanup, so the file wont be removed after a period
+      # "d /etc/ssh/ 0755 root root -" #The - disables automatic cleanup, so the file wont be removed after a period
     ];
 
     environment.persistence."${cfg.persistPath}" = {
@@ -50,7 +50,7 @@ with lib;
         ];
       files = [
         "/etc/machine-id"
-        "/etc/adjtime" # hardware clock adjustment
+        # "/etc/adjtime" # hardware clock adjustment
         # ssh keys
         "/etc/ssh/ssh_host_ed25519_key"
         "/etc/ssh/ssh_host_ed25519_key.pub"

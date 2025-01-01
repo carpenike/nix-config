@@ -17,11 +17,9 @@ in
 
   config = lib.mkIf cfg.enable {
     boot = {
-      supportedFilesystems = [
-        "zfs"
-      ];
+      supportedFilesystems = [ "zfs" ];
       zfs = {
-        forceImportRoot = false;
+        forceImportRoot = true; # Temporarily enable for debugging
         extraPools = cfg.mountPoolsAtBoot;
       };
     };
@@ -29,6 +27,25 @@ in
     services.zfs = {
       autoScrub.enable = true;
       trim.enable = true;
+    };
+
+    # Ensure ZFS pool is mounted at boot
+    modules.filesystems.zfs = {
+      enable = true;
+      mountPoolsAtBoot = [ "rpool" ]; # Add your pool name here
+    };
+
+    # Explicit fileSystems entries (if not defined elsewhere)
+    fileSystems."/persist" = {
+      device = "rpool/safe/persist";
+      fsType = "zfs";
+      neededForBoot = true;
+    };
+
+    fileSystems."/home" = {
+      device = "rpool/safe/home";
+      fsType = "zfs";
+      neededForBoot = true;
     };
   };
 }
