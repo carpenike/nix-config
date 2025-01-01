@@ -12,6 +12,7 @@ in
     mountPoolsAtBoot = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [];
+      description = "List of ZFS pools to mount at boot";
     };
   };
 
@@ -19,8 +20,8 @@ in
     boot = {
       supportedFilesystems = [ "zfs" ];
       zfs = {
-        forceImportRoot = true; # Temporarily enable for debugging
-        extraPools = cfg.mountPoolsAtBoot;
+        forceImportRoot = true; # Enable for debugging
+        extraPools = cfg.mountPoolsAtBoot; # Ensure the pool is imported
       };
     };
 
@@ -29,23 +30,21 @@ in
       trim.enable = true;
     };
 
-    # Ensure ZFS pool is mounted at boot
-    modules.filesystems.zfs = {
-      enable = true;
-      mountPoolsAtBoot = [ "rpool" ]; # Add your pool name here
+    # Explicitly define dependencies for mount points
+    systemd.mounts."/persist" = {
+      what = "rpool/safe/persist";
+      type = "zfs";
+      options = [ "defaults" ];
+      after = [ "zfs-mount.service" ];
+      before = [ "local-fs.target" ];
     };
 
-    # Explicit fileSystems entries (if not defined elsewhere)
-    fileSystems."/persist" = {
-      device = "rpool/safe/persist";
-      fsType = "zfs";
-      neededForBoot = true;
-    };
-
-    fileSystems."/home" = {
-      device = "rpool/safe/home";
-      fsType = "zfs";
-      neededForBoot = true;
+    systemd.mounts."/home" = {
+      what = "rpool/safe/home";
+      type = "zfs";
+      options = [ "defaults" ];
+      after = [ "zfs-mount.service" ];
+      before = [ "local-fs.target" ];
     };
   };
 }
