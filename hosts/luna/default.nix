@@ -27,8 +27,8 @@ in
     boot = {
       supportedFilesystems = [ "zfs" ];
       zfs = {
+        package = pkgs.zfs_unstable;  # Replace enableUnstable with this
         forceImportRoot = true;
-        enableUnstable = true;
         requestEncryptionCredentials = true;
         extraPools = [ "rpool" ];
       };
