@@ -11,8 +11,10 @@ in
 {
   imports = [
     ./hardware-configuration.nix
-    (import ./disko-config.nix {disks = [ "/dev/sda"]; })
-    ./secrets.nix
+    (import ./disko-config.nix {
+      disks = [ "/dev/sda" ];
+      inherit lib;  # Pass lib here
+    })    ./secrets.nix
   ];
 
   config = {
