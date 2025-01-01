@@ -23,25 +23,11 @@ in
       firewall.enable = false;
     };
 
-    # ZFS and boot configuration
-    boot = {
-      supportedFilesystems = [ "zfs" ];
-      zfs = {
-        package = pkgs.zfs_unstable;  # Replace enableUnstable with this
-        forceImportRoot = true;
-        requestEncryptionCredentials = true;
-        extraPools = [ "rpool" ];
-      };
-
-      loader = {
-        systemd-boot.enable = true;
-        efi.canTouchEfiVariables = true;
-      };
+    # Boot loader configuration
+    boot.loader = {
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
     };
-
-    # Ensure these filesystems are needed for boot
-    fileSystems."/persist".neededForBoot = true;
-    fileSystems."/home".neededForBoot = true;
 
     users.users.ryan = {
       uid = 1000;

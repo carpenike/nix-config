@@ -1,6 +1,7 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }:
 let
@@ -20,35 +21,30 @@ in
     boot = {
       supportedFilesystems = [ "zfs" ];
       zfs = {
-        forceImportRoot = true; # Enable for debugging
-        extraPools = cfg.mountPoolsAtBoot; # Ensure the pool is imported
+        package = pkgs.zfs_unstable;
+        forceImportRoot = true;
+        requestEncryptionCredentials = true;
+        extraPools = cfg.mountPoolsAtBoot;
       };
     };
 
+    # Use standard fileSystems configuration for ZFS mounts
+    fileSystems."/persist" = {
+      device = "rpool/safe/persist";
+      fsType = "zfs";
+      neededForBoot = true;
+    };
+
+    fileSystems."/home" = {
+      device = "rpool/safe/home";
+      fsType = "zfs";
+      neededForBoot = true;
+    };
+
+    # Optional: ZFS services
     services.zfs = {
       autoScrub.enable = true;
       trim.enable = true;
-    };
-
-    # Explicitly define dependencies for mount points
-    systemd.mounts."/persist" = {
-      what = "rpool/safe/persist";
-      type = "zfs";
-      options = [ "defaults" ];
-      wantedBy = [ "local-fs.target" ];
-      before = [ "local-fs.target" ];
-      requires = [ "zfs-mount.service" ];
-      after = [ "zfs-mount.service" ];
-    };
-
-    systemd.mounts."/home" = {
-      what = "rpool/safe/home";
-      type = "zfs";
-      options = [ "defaults" ];
-      wantedBy = [ "local-fs.target" ];
-      before = [ "local-fs.target" ];
-      requires = [ "zfs-mount.service" ];
-      after = [ "zfs-mount.service" ];
     };
   };
 }
