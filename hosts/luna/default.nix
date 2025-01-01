@@ -14,7 +14,8 @@ in
     (import ./disko-config.nix {
       disks = [ "/dev/sda" ];
       inherit lib;  # Pass lib here
-    })    ./secrets.nix
+    })
+    ./secrets.nix
   ];
 
   config = {
