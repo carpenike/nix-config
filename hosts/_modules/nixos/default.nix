@@ -6,6 +6,7 @@
     ./impermanence.nix
     ./nix.nix
     ./users.nix
+    ./systemd.nix
     ./filesystems
     ./services
   ];
