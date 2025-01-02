@@ -66,9 +66,9 @@ with lib;
       '';
     };
 
-    # Ensure SSH keys are correctly linked and have correct permissions
+    # Modify the SSH key permissions service to be more careful
     systemd.services.ssh-key-permissions = {
-      description = "Set correct permissions for persisted SSH host keys";
+      description = "Manage SSH host keys for persistence";
       wantedBy = [ "multi-user.target" ];
       after = [ "impermanence-bind-mounts.service" ];
       requires = [ "impermanence-bind-mounts.service" ];
@@ -77,8 +77,46 @@ with lib;
         RemainAfterExit = true;
       };
       script = ''
-        chmod 600 ${cfg.persistPath}/etc/ssh/ssh_host_*_key
-        chmod 644 ${cfg.persistPath}/etc/ssh/ssh_host_*_key.pub
+        # SSH host keys to manage
+        ssh_keys=(
+          "ssh_host_ed25519_key"
+          "ssh_host_ed25519_key.pub"
+          "ssh_host_rsa_key"
+          "ssh_host_rsa_key.pub"
+        )
+
+        # Ensure persist directory exists
+        mkdir -p ${cfg.persistPath}/etc/ssh
+
+        for key in "''${ssh_keys[@]}"; do
+          persist_key="${cfg.persistPath}/etc/ssh/$key"
+          system_key="/etc/ssh/$key"
+
+          # Check if the system key is already a symlink to the persist location
+          if [ -L "$system_key" ] && [ "$(readlink -f "$system_key")" == "$persist_key" ]; then
+            echo "SSH key $key is already correctly symlinked. Skipping."
+            continue
+          fi
+
+          # If the system key doesn't exist or isn't a symlink to persist
+          if [ ! -L "$system_key" ]; then
+            # If no existing key in persist, copy the current key
+            if [ ! -f "$persist_key" ]; then
+              cp -p "$system_key" "$persist_key"
+            fi
+
+            # Remove existing file and create symlink
+            rm -f "$system_key"
+            ln -sf "$persist_key" "$system_key"
+          fi
+
+          # Set correct permissions
+          if [[ "$key" == *".pub" ]]; then
+            chmod 644 "$persist_key"
+          else
+            chmod 600 "$persist_key"
+          fi
+        done
       '';
     };
 
@@ -96,9 +134,13 @@ with lib;
       ];
     };
 
-    # Additional tmpfiles rule to ensure machine-id is always linked
+    # Tmpfiles rules to ensure machine-id and SSH keys are linked
     systemd.tmpfiles.rules = [
       "L+ /etc/machine-id - - - - ${cfg.persistPath}/etc/machine-id"
+      "L+ /etc/ssh/ssh_host_ed25519_key - - - - ${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key"
+      "L+ /etc/ssh/ssh_host_ed25519_key.pub - - - - ${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key.pub"
+      "L+ /etc/ssh/ssh_host_rsa_key - - - - ${cfg.persistPath}/etc/ssh/ssh_host_rsa_key"
+      "L+ /etc/ssh/ssh_host_rsa_key.pub - - - - ${cfg.persistPath}/etc/ssh/ssh_host_rsa_key.pub"
     ];
   };
 }
