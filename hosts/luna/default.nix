@@ -89,6 +89,7 @@ in
         haproxy = {
           enable = true;
           # package = "pkgs.haproxy";
+          useDnsDependency = true;
           config = builtins.readFile ./config/haproxy.conf;
         };
 
