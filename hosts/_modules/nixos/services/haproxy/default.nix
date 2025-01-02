@@ -21,9 +21,6 @@ in
     services.haproxy = {
       enable = true;
       config = cfg.config;
-
-      # Optional: Add configuration checking
-      checkConfig = true;
     };
 
     networking.firewall.allowedTCPPorts = [ k8sApiPort haProxyStatsPort ];
