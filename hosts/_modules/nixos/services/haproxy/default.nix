@@ -54,7 +54,9 @@ in
 
           # Check network connectivity
           echo "Checking network connectivity..." >&2
-          if ! ping -c 4 1.1.1.1 > /dev/null 2>&1; then
+
+          # Use curl instead of ping to check internet connectivity
+          if ! curl -s --connect-timeout 5 https://1.1.1.1 > /dev/null; then
             echo "Network connectivity check failed" >&2
             exit 1
           fi
@@ -90,11 +92,11 @@ in
         after = [
           "network.target"
           "network-online.target"
-          "bind.service"  # Changed from named.service
+          "bind.service"
         ];
         requires = [
           "network.target"
-          "bind.service"  # Changed from named.service
+          "bind.service"
         ];
         wants = [ "network-online.target" ];
       })
