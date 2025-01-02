@@ -1,6 +1,7 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }:
 let
@@ -24,6 +25,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Ensure necessary packages are available
+    environment.systemPackages = with pkgs; [
+      netcat
+      dnsutils  # for dig
+    ];
+
     services.haproxy = {
       enable = true;
       config = cfg.config;
@@ -41,8 +48,8 @@ in
           Restart = lib.mkOverride 500 "on-failure";
           RestartSec = "5s";
 
-          Type = "notify";
-          NotifyAccess = "all";
+          Type = "forking";  # Changed from notify
+          PIDFile = "/run/haproxy.pid";
         };
 
         # Comprehensive pre-start script with extensive logging
@@ -55,8 +62,12 @@ in
           # Check network connectivity
           echo "Checking network connectivity..." >&2
 
-          # Use curl instead of ping to check internet connectivity
-          if ! curl -s --connect-timeout 5 https://1.1.1.1 > /dev/null; then
+          # Try multiple methods to check connectivity
+          if nc -z -w5 1.1.1.1 443 2>/dev/null; then
+            echo "Network connectivity check passed using netcat" >&2
+          elif timeout 5 sh -c "true >/dev/tcp/1.1.1.1/443" 2>/dev/null; then
+            echo "Network connectivity check passed using bash" >&2
+          else
             echo "Network connectivity check failed" >&2
             exit 1
           fi
