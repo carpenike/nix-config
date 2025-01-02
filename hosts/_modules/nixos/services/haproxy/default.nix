@@ -40,7 +40,7 @@ in
       wants = [ "network-online.target" ];
 
       serviceConfig = {
-        Restart = "on-failure";
+        Restart = lib.mkOverride 500 "on-failure";
         RestartSec = "5s";
       };
 
