@@ -70,11 +70,15 @@ with lib;
     systemd.services.ssh-key-permissions = {
       description = "Manage SSH host keys for persistence";
       wantedBy = [ "multi-user.target" ];
+      before = [ "sshd.service" ];  # Ensure this runs before SSH starts
       after = [ "impermanence-bind-mounts.service" ];
       requires = [ "impermanence-bind-mounts.service" ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        # Stop SSH before this service runs
+        ExecStartPre = "${config.systemd.package}/bin/systemctl stop sshd.service";
+        ExecFinishPost = "${config.systemd.package}/bin/systemctl start sshd.service";
       };
       script = ''
         # SSH host keys to manage
@@ -98,17 +102,15 @@ with lib;
             continue
           fi
 
-          # If the system key doesn't exist or isn't a symlink to persist
-          if [ ! -L "$system_key" ]; then
-            # If no existing key in persist, copy the current key
-            if [ ! -f "$persist_key" ]; then
-              cp -p "$system_key" "$persist_key"
-            fi
-
-            # Remove existing file and create symlink
-            rm -f "$system_key"
-            ln -sf "$persist_key" "$system_key"
+          # If no existing key in persist, copy the current key
+          if [ ! -f "$persist_key" ]; then
+            cp -p "$system_key" "$persist_key"
           fi
+
+          # Replace the key with a symlink
+          # Use mv to handle busy files more gracefully
+          mv "$system_key" "$system_key.bak"
+          ln -sf "$persist_key" "$system_key"
 
           # Set correct permissions
           if [[ "$key" == *".pub" ]]; then
