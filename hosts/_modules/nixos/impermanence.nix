@@ -88,7 +88,7 @@ with lib;
         # Ensure persist directory exists
         mkdir -p /persist/etc/ssh
 
-        for key in "${ssh_keys[@]}"; do
+        for key in ''${ssh_keys[@]}; do
           persist_key="/persist/etc/ssh/$key"
           system_key="/etc/ssh/$key"
 
