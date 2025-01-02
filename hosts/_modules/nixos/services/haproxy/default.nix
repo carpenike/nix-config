@@ -48,7 +48,7 @@ in
           Restart = lib.mkOverride 500 "on-failure";
           RestartSec = "5s";
 
-          Type = "forking";  # Changed from notify
+          Type = lib.mkOverride 500 "forking";  # Use mkOverride to resolve conflict
           PIDFile = "/run/haproxy.pid";
         };
 
