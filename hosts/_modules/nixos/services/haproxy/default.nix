@@ -16,11 +16,10 @@ in
       default = "";
     };
 
-    # Add a new option to specify DNS dependency
     useDnsDependency = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Whether to add a dependency on named/bind service";
+      description = "Whether to add a dependency on bind service";
     };
   };
 
@@ -42,7 +41,6 @@ in
           Restart = lib.mkOverride 500 "on-failure";
           RestartSec = "5s";
 
-          # Add more robust error handling
           Type = "notify";
           NotifyAccess = "all";
         };
@@ -92,11 +90,11 @@ in
         after = [
           "network.target"
           "network-online.target"
-          "named.service"
+          "bind.service"  # Changed from named.service
         ];
         requires = [
           "network.target"
-          "named.service"
+          "bind.service"  # Changed from named.service
         ];
         wants = [ "network-online.target" ];
       })
