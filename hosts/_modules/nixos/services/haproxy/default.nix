@@ -35,20 +35,55 @@ in
     # Conditionally add systemd service configuration
     systemd.services.haproxy = lib.mkMerge [
       {
+        # Ensure the service starts
+        wantedBy = [ "multi-user.target" ];
+
         serviceConfig = {
           Restart = lib.mkOverride 500 "on-failure";
           RestartSec = "5s";
+
+          # Add more robust error handling
+          Type = "notify";
+          NotifyAccess = "all";
         };
 
-        # Pre-start script to check DNS resolution
+        # Comprehensive pre-start script with extensive logging
         preStart = ''
-          # Check DNS resolution before starting HAProxy
-          for host in cp-0.holthome.net node-0.holthome.net node-1.holthome.net node-2.holthome.net node-3.holthome.net; do
-            if ! getent hosts "$host" > /dev/null; then
+          #!/bin/bash
+          set -x  # Enable debug output
+
+          echo "Starting HAProxy pre-start checks" >&2
+
+          # Check network connectivity
+          echo "Checking network connectivity..." >&2
+          if ! ping -c 4 1.1.1.1 > /dev/null 2>&1; then
+            echo "Network connectivity check failed" >&2
+            exit 1
+          fi
+
+          # Check DNS resolution
+          echo "Checking DNS resolution..." >&2
+          hosts=(
+            "cp-0.holthome.net"
+            "node-0.holthome.net"
+            "node-1.holthome.net"
+            "node-2.holthome.net"
+            "node-3.holthome.net"
+          )
+
+          for host in "''${hosts[@]}"; do
+            echo "Resolving $host..." >&2
+            if ! getent hosts "$host" > /dev/null 2>&1; then
               echo "Cannot resolve $host" >&2
               exit 1
             fi
+
+            # Additional verbose DNS check
+            dig +short "$host" >&2
           done
+
+          echo "All pre-start checks passed" >&2
+          exit 0
         '';
       }
 
