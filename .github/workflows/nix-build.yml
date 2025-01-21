@@ -58,7 +58,7 @@ jobs:
             extra-platforms = aarch64-linux
 
       - name: Set up Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v8
+        uses: DeterminateSystems/magic-nix-cache-action@v9
 
       - name: Register binfmt
         run: |
