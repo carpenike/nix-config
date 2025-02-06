@@ -15,13 +15,13 @@
   };
   kubectl-browse-pvc = {
     pname = "kubectl-browse-pvc";
-    version = "v1.0.7";
+    version = "v1.1.0";
     src = fetchFromGitHub {
       owner = "clbx";
       repo = "kubectl-browse-pvc";
-      rev = "v1.0.7";
+      rev = "v1.1.0";
       fetchSubmodules = false;
-      sha256 = "sha256-Ql+mMgpmcbGy5TwQrv8f9uWK9yNXfHykNDnOrp4E7+I=";
+      sha256 = "sha256-BkLcS4FFSkYG+NQW956RaLievD+GdOMjQ62tIi6J+MM=";
     };
   };
   kubectl-get-all = {
@@ -59,13 +59,13 @@
   };
   kubectl-pgo = {
     pname = "kubectl-pgo";
-    version = "v0.5.0";
+    version = "v0.5.1";
     src = fetchFromGitHub {
       owner = "CrunchyData";
       repo = "postgres-operator-client";
-      rev = "v0.5.0";
+      rev = "v0.5.1";
       fetchSubmodules = false;
-      sha256 = "sha256-JX+V8xYtvvzfsxjxWMB8YgF+2QgALdedHwxQ5J+a1+c=";
+      sha256 = "sha256-0y1+goq9xFZYfHelUBJD/ZcEiDvRFx0sEweF1Q6N2uk=";
     };
   };
   shcopy = {
@@ -81,13 +81,13 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v1.3.4";
+    version = "v2.0.4";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v1.3.4";
+      rev = "v2.0.4";
       fetchSubmodules = false;
-      sha256 = "sha256-4oFoblnv+IBmzVHtwVuiBu3+zlFNL2QYH1QWTnzUMmE=";
+      sha256 = "sha256-B/jphWQUZdNsMANscn/BgfKqCmSsHGMyib4Ll9jt+GM=";
     };
   };
 }
