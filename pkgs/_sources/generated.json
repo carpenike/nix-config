@@ -15,6 +15,7 @@
             "repo": "kubecolor-catppuccin",
             "rev": "1d4c2888f7de077e1a837a914a1824873d16762d",
             "sha256": "sha256-gTneUh6yMcH6dVKrH00G61a+apasu9tiMyYjvNdOiOw=",
+            "sparseCheckout": [],
             "type": "github"
         },
         "version": "1d4c2888f7de077e1a837a914a1824873d16762d"
@@ -33,11 +34,12 @@
             "name": null,
             "owner": "clbx",
             "repo": "kubectl-browse-pvc",
-            "rev": "v1.0.7",
-            "sha256": "sha256-Ql+mMgpmcbGy5TwQrv8f9uWK9yNXfHykNDnOrp4E7+I=",
+            "rev": "v1.2.0",
+            "sha256": "sha256-L3KGVJZapER48NwhKDVCBwUw9fvpurjlAjTfEmewMPk=",
+            "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v1.0.7"
+        "version": "v1.2.0"
     },
     "kubectl-get-all": {
         "cargoLocks": null,
@@ -55,6 +57,7 @@
             "repo": "ketall",
             "rev": "v1.3.8",
             "sha256": "sha256-Mau57mXS78fHyeU0OOz3Tms0WNu7HixfAZZL3dmcj3w=",
+            "sparseCheckout": [],
             "type": "github"
         },
         "version": "v1.3.8"
@@ -75,6 +78,7 @@
             "repo": "kubectl-klock",
             "rev": "v0.7.2",
             "sha256": "sha256-S7cpVRVboLkU+GgvwozJmfFAO29tKpPlk+r9mbVLxF8=",
+            "sparseCheckout": [],
             "type": "github"
         },
         "version": "v0.7.2"
@@ -95,6 +99,7 @@
             "repo": "kubectl-netshoot",
             "rev": "v0.1.0",
             "sha256": "sha256-6IQmD2tJ1qdjeJqOnHGSpfNg6rxDRmdW9a9Eon/EdsM=",
+            "sparseCheckout": [],
             "type": "github"
         },
         "version": "v0.1.0"
@@ -113,11 +118,12 @@
             "name": null,
             "owner": "CrunchyData",
             "repo": "postgres-operator-client",
-            "rev": "v0.5.0",
-            "sha256": "sha256-JX+V8xYtvvzfsxjxWMB8YgF+2QgALdedHwxQ5J+a1+c=",
+            "rev": "v0.5.1",
+            "sha256": "sha256-0y1+goq9xFZYfHelUBJD/ZcEiDvRFx0sEweF1Q6N2uk=",
+            "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.5.0"
+        "version": "v0.5.1"
     },
     "shcopy": {
         "cargoLocks": null,
@@ -135,6 +141,7 @@
             "repo": "shcopy",
             "rev": "v0.1.5",
             "sha256": "sha256-MKlW8HrkXCYCOeO38F0S4c8mVbsG/VcZ+oGFC70amqQ=",
+            "sparseCheckout": [],
             "type": "github"
         },
         "version": "v0.1.5"
@@ -153,10 +160,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v1.3.4",
-            "sha256": "sha256-4oFoblnv+IBmzVHtwVuiBu3+zlFNL2QYH1QWTnzUMmE=",
+            "rev": "v2.0.6",
+            "sha256": "sha256-QPEKB4lyYQsf6z7v1eYW11laa5j+BBnwnJC/t83GM0A=",
+            "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v1.3.4"
+        "version": "v2.0.6"
     }
 }
