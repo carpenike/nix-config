@@ -48,7 +48,6 @@ in
       kubectl-node-shell
       kubectl-view-secret
       stern
-      talosctl
     ]) ++
     [
       wrappedHelmPkg
