@@ -1,35 +1,27 @@
 {
   extends: [
-    "github>carpenike/renovate-config",
-    "github>carpenike/renovate-config:automerge-github-actions",
+    'github>carpenike/renovate-config',
+    'github>carpenike/renovate-config:automerge-github-actions',
   ],
-  "nix": {
-    "enabled": true
+  nix: {
+    enabled: true,
   },
-  "lockFileMaintenance": {
-    "enabled": true
+  lockFileMaintenance: {
+    enabled: true,
   },
-  "regexManagers": [
-    {
-      fileMatch: ["\\.nix$"],
-      matchStrings: [
-        'image *= *"(?<depName>.*?):(?<currentValue>.*?)(@(?<currentDigest>sha256:[a-f0-9]+))?"',
-      ],
-      datasourceTemplate: "docker",
-    }
-  ],
   customManagers: [
     {
-      customType: "regex",
-      description: "Process various dependencies in nix files",
-      fileMatch: ["\\.nix$"],
+      customType: 'regex',
+      description: 'Process various dependencies in nix files',
+      fileMatch: [
+        '\\.nix$',
+      ],
       matchStrings: [
-        // Newline
         '(?m:^[ \\t]*?# ?renovate: depName=(?<depName>\\S+)( datasource=(?<datasource>\\S+))?( versioning=(?<versioning>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n[ \\t ]*?\\S+ = "?(?<currentValue>[^" ]+?)";?$)',
       ],
-      datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
-      versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}",
-      extractVersionTemplate: "{{#if extractVersion}}{{{extractVersion}}}{{else}}^(?<version>.*)${{/if}}",
+      datasourceTemplate: '{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}',
+      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}',
+      extractVersionTemplate: '{{#if extractVersion}}{{{extractVersion}}}{{else}}^(?<version>.*)${{/if}}',
     },
   ],
 }
