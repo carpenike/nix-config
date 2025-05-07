@@ -16,6 +16,7 @@ in
       inherit lib;  # Pass lib here
     })
     ./secrets.nix
+    ./systemPackages.nix
   ];
 
   config = {
