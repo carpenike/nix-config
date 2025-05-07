@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 {
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "update-nix" ''
