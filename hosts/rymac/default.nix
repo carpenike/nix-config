@@ -28,7 +28,7 @@
       taps = [
       ];
       brews = [
-        # CLI tools should be in Nix packages instead
+        "cidr"  # Not available in nixpkgs yet
       ];
       casks = [
         "anylist"
