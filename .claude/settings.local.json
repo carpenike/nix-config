@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "mcp__zen__thinkdeep",
+      "mcp__perplexity__perplexity_ask",
+      "mcp__zen__chat",
+      "Bash(mkdir:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}
