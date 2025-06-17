@@ -30,7 +30,7 @@ in
   config = lib.mkIf cfg.enable {
     home.packages = (with pkgs; [
       kubecolor-catppuccin
-      kubectl-browse-pvc
+      # kubectl-browse-pvc # TODO: Fix for Go 1.24 - missing go.mod
       kubectl-get-all
       kubectl-klock
       kubectl-netshoot

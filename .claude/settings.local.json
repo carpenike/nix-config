@@ -10,7 +10,9 @@
       "Bash(git commit:*)",
       "Bash(git add:*)",
       "Bash(git branch:*)",
-      "Bash(nix flake check:*)"
+      "Bash(nix flake check:*)",
+      "Bash(nix log:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
