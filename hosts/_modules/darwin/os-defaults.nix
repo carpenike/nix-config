@@ -1,8 +1,10 @@
 _:
 {
-  security.pam.enableSudoTouchIdAuth = true;
+  security.pam.services.sudo_local.touchIdAuth = true;
 
   system = {
+    # Set primary user for Darwin-specific settings
+    primaryUser = "ryan";
     defaults = {
       NSGlobalDomain = {
         # Whether to automatically switch between light and dark mode.

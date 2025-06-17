@@ -10,5 +10,5 @@ _:
     };
   };
 
-  services.nix-daemon.enable = true;
+  # nix-daemon is now managed unconditionally by nix-darwin when nix.enable is on
 }
