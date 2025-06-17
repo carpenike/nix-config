@@ -24,6 +24,7 @@
     ripgrep      # Fast grep alternative
     sops         # Secret operations
     go-task      # Task runner
+    cidr         # CIDR calculator (moved from Homebrew)
   ] ++ lib.optionals pkgs.stdenv.isDarwin [
     mas          # Mac App Store CLI (Darwin only)
   ];
