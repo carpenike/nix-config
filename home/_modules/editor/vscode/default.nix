@@ -38,8 +38,8 @@ in
         package = pkgs.unstable.vscode;
         mutableExtensionsDir = true;
 
-        inherit (cfg) extensions;
-        inherit (cfg) userSettings;
+        profiles.default.extensions = cfg.extensions;
+        profiles.default.userSettings = cfg.userSettings;
       };
 
       home.file = lib.genAttrs pathsToMakeWritable (_: {
