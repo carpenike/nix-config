@@ -73,6 +73,14 @@ Combine tools and commands to accomplish common goals efficiently.
 4. `/sops-reencrypt`: (If keys changed) Re-encrypt all secrets
 5. Deploy carefully with validation at each step
 
+### Package Management Workflow
+1. **Determine package type**: CLI tool → Nix, GUI app → Homebrew
+2. **Add to configuration**: Edit appropriate module file
+3. `/nix-validate`: Check configuration syntax
+4. `darwin-rebuild build --flake .`: Preview changes safely
+5. `darwin-rebuild switch --flake .`: Apply if build succeeds
+6. **Important**: Never use `brew install` directly - always declare in configuration
+
 ## Essential Commands
 
 ### Validation (ALWAYS run before deployment)
@@ -227,6 +235,57 @@ Unified user experience across platforms achieved through:
 - **Secrets issues**: Verify age key is properly configured on target host
 - **Task runner failures**: Run underlying nix commands directly for detailed errors
 - **Darwin issues**: Ensure nix-darwin is properly installed and configured
+
+## Package Management Strategy
+
+### Core Principle
+This repository uses **strict declarative package management** with `homebrew.onActivation.cleanup = "zap"`. This means:
+- Any package not declared in the configuration will be **removed** during deployment
+- All packages must be explicitly declared in the appropriate configuration files
+- Never use `brew install` directly - always add to configuration
+
+### Package Placement Rules
+
+| Package Type | Management Method | Location | Examples |
+|--------------|-------------------|----------|----------|
+| CLI tools | Nix | `home/_modules/shell/utilities/` | ripgrep, sops, go-task |
+| Development languages | Nix | `home/_modules/development/languages/` | python, nodejs, go |
+| Infrastructure tools | Nix | `home/_modules/infrastructure/` | terraform, kubectl, helm |
+| GUI applications | Homebrew (declared) | `homebrew.casks` | Discord, Slack, VSCode |
+| macOS-only tools | Homebrew (declared) | `homebrew.brews` | Tools unavailable in nixpkgs |
+
+### Adding New Packages
+
+1. **Determine the correct location**:
+   - Is it a GUI app? → Add to `homebrew.casks` in host config
+   - Is it a CLI tool? → Add to appropriate Nix module
+   - Is it development-related? → Add to development modules
+
+2. **Make Darwin-specific packages conditional**:
+   ```nix
+   home.packages = with pkgs; [
+     # Cross-platform packages
+     ripgrep
+   ] ++ lib.optionals pkgs.stdenv.isDarwin [
+     mas  # Darwin-only
+   ];
+   ```
+
+3. **Always validate before deploying**:
+   ```bash
+   nix flake check
+   darwin-rebuild build --flake .
+   darwin-rebuild switch --flake .
+   ```
+
+### Common Package Locations
+
+- **Shell utilities**: `home/_modules/shell/utilities/default.nix`
+- **Development tools**: `home/_modules/development/utilities/default.nix`
+- **Language toolchains**: `home/_modules/development/languages/default.nix`
+- **Kubernetes tools**: `home/_modules/kubernetes/default.nix`
+- **Infrastructure**: `home/_modules/infrastructure/default.nix`
+- **Homebrew GUI apps**: `hosts/rymac/default.nix` (homebrew.casks)
 
 ## Testing and Validation
 

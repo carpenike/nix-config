@@ -5,6 +5,7 @@
 {
   imports = [
     ./utilities
+    ./languages
   ];
 
   options.modules.development = {

@@ -9,6 +9,7 @@
     ./deployment
     ./development
     ./editor
+    ./infrastructure
     ./kubernetes
     ./security
     ./shell
