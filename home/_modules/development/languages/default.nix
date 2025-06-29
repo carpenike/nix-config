@@ -7,6 +7,7 @@
     python311Packages.black
     python311Packages.flake8
     python311Packages.ipython
+    uv  # Fast Python package manager (includes uvx)
 
     # Node.js - daily driver
     nodejs
