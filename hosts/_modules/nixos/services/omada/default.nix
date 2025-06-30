@@ -75,8 +75,11 @@ in
 
       # Increase timeouts for slow initialization
       serviceConfig = {
-        # Give Omada more time to start (default is 90s)
-        TimeoutStartSec = "5m";
+        # Give Omada more time to start (default is 0 = infinity)
+        TimeoutStartSec = lib.mkForce "5m";
+
+        # Give Omada more time to gracefully shut down (default is 120s)
+        TimeoutStopSec = lib.mkForce "3m";
 
         # If it fails, wait before restarting to avoid rapid restart loops
         RestartSec = cfg.restartDelay;
