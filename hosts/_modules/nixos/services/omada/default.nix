@@ -85,8 +85,8 @@ in
         StartLimitInterval = "10m";
         StartLimitBurst = 5;
 
-        # Continue even if the service is restarting
-        Restart = "on-failure";
+        # Override the default "always" restart behavior to prevent rapid restart loops
+        Restart = lib.mkForce "on-failure";
       };
 
       # Add a post-start script to verify Omada is responding
