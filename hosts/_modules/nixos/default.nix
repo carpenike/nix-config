@@ -8,6 +8,7 @@
     ./users.nix
     ./systemd.nix
     ./filesystems
+    ./hardware
     ./services
   ];
 

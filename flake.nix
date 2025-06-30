@@ -78,6 +78,11 @@
 
     impermanence.url = "github:nix-community/impermanence";
 
+    # CoachIQ RV monitoring
+    coachiq = {
+      url = "github:carpenike/coachiq";
+    };
+
     #################### Personal Repositories ####################
   };
 
@@ -113,6 +118,8 @@ in
         rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev";# overlays flake-packages;
         # Luna
         luna =  mkSystemLib.mkNixosSystem "x86_64-linux" "luna";# overlays flake-packages;
+        # Raspberry Pi RV system
+        nixpi = mkSystemLib.mkNixosSystem "aarch64-linux" "nixpi";# overlays flake-packages;
       };
 
       darwinConfigurations = {

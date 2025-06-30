@@ -13,7 +13,25 @@
       "Bash(nix flake check:*)",
       "Bash(nix log:*)",
       "Bash(grep:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "mcp__zen__codereview",
+      "Bash(git clone:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(find:*)",
+      "mcp__zen__analyze",
+      "mcp__serena__activate_project",
+      "mcp__serena__initial_instructions",
+      "mcp__serena__list_dir",
+      "mcp__serena__read_file",
+      "mcp__serena__get_current_config",
+      "mcp__serena__switch_modes",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__find_file",
+      "mcp__serena__think_about_collected_information",
+      "Bash(sops:*)",
+      "Bash(task:*)"
     ],
     "deny": []
   }
