@@ -12,7 +12,8 @@
       "Bash(git branch:*)",
       "Bash(nix flake check:*)",
       "Bash(nix log:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }
