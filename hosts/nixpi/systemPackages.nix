@@ -1,20 +1,7 @@
 { pkgs, ... }:
 {
-  environment.systemPackages = [
-    # Custom update script for nixpi
-    (pkgs.writeShellScriptBin "update-nixpi" ''
-      #!/usr/bin/env bash
-      set -euo pipefail
-
-      echo "📦 Updating nixpi from remote flake..."
-
-      sudo nixos-rebuild switch \
-        --flake github:carpenike/nix-config#nixpi \
-        --option accept-flake-config true \
-        --refresh \
-        --show-trace
-    '')
-  ];
+  # System packages are empty - update-nix script is provided by common module
+  environment.systemPackages = [];
 
   # Note: Package organization follows repository patterns:
   # - User packages: Moved to home/ryan/hosts/nixpi.nix

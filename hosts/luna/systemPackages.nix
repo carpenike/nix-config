@@ -1,18 +1,7 @@
 { pkgs, ... }:
 {
   environment.systemPackages = [
-    (pkgs.writeShellScriptBin "update-nix" ''
-      #!/usr/bin/env bash
-      set -euo pipefail
-
-      echo "📦 Updating system from remote flake..."
-
-      sudo nixos-rebuild switch \
-        --flake github:carpenike/nix-config#luna \
-        --option accept-flake-config true \
-        --refresh \
-        --show-trace
-    '')
+    # update-nix script is now provided by common module
 
     (pkgs.writeShellScriptBin "check-config-match" ''
       #!/usr/bin/env bash
