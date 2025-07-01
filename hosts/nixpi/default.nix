@@ -120,7 +120,7 @@ in
           openFirewall = true;
         };
 
-        cloudflared.enable = true;
+        # cloudflared.enable = true;  # TODO: Add cloudflare secrets to secrets.sops.yaml
 
         caddy = {
           enable = true;

@@ -24,13 +24,11 @@
           path = "/run/secrets/wifi_rvproblems_password";
         };
 
-        # Cloudflare credentials for caddy
-        "cloudflare/dns_api_token" = {
-          owner = config.services.caddy.user;
-        };
-
-        # Cloudflared tunnel credentials
-        "cloudflared/credentials" = {};
+        # TODO: Add cloudflare secrets when needed
+        # "cloudflare/dns_api_token" = {
+        #   owner = config.services.caddy.user;
+        # };
+        # "cloudflared/credentials" = {};
       };
     };
   };
