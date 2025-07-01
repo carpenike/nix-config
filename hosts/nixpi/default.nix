@@ -59,6 +59,11 @@ in
         "net.core.rmem_max" = 7500000;
         "net.core.wmem_max" = 7500000;
         "net.ipv4.ip_forward" = 1;
+
+        # Allow replies to go out different interface than requests came in
+        # This fixes accessibility when both ethernet and WiFi are connected
+        "net.ipv4.conf.all.rp_filter" = 2;  # Loose mode
+        "net.ipv4.conf.default.rp_filter" = 2;
       };
     };
 
@@ -137,11 +142,13 @@ in
         "10-wired" = {
           matchConfig.Name = "end0";
           networkConfig.DHCP = "ipv4";
+          dhcpV4Config.RouteMetric = 100;  # Lower metric = higher priority
         };
 
         "20-wireless" = {
           matchConfig.Name = "wlan0";
           networkConfig.DHCP = "ipv4";
+          dhcpV4Config.RouteMetric = 200;  # Higher metric = lower priority
         };
       };
     };

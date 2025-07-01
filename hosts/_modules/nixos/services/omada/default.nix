@@ -73,6 +73,12 @@ in
       after = lib.mkForce [ "network-online.target" ];
       wants = lib.mkForce [ "network-online.target" ];
 
+      # Allow more restart attempts during activation
+      unitConfig = {
+        StartLimitIntervalSec = "10m";
+        StartLimitBurst = 5;
+      };
+
       # Increase timeouts for slow initialization
       serviceConfig = {
         # Give Omada more time to start (default is 0 = infinity)
@@ -83,10 +89,6 @@ in
 
         # If it fails, wait before restarting to avoid rapid restart loops
         RestartSec = cfg.restartDelay;
-
-        # Allow more restart attempts during activation
-        StartLimitInterval = "10m";
-        StartLimitBurst = 5;
 
         # Override the default "always" restart behavior to prevent rapid restart loops
         Restart = lib.mkForce "on-failure";
