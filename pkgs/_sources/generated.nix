@@ -37,13 +37,13 @@
   };
   kubectl-klock = {
     pname = "kubectl-klock";
-    version = "v0.7.2";
+    version = "v0.8.1";
     src = fetchFromGitHub {
       owner = "applejag";
       repo = "kubectl-klock";
-      rev = "v0.7.2";
+      rev = "v0.8.1";
       fetchSubmodules = false;
-      sha256 = "sha256-S7cpVRVboLkU+GgvwozJmfFAO29tKpPlk+r9mbVLxF8=";
+      sha256 = "sha256-WKWaQ7VKzlfgYb5B/GmcUKTjxfFRctt+N+zRJcOGukA=";
     };
   };
   kubectl-netshoot = {
@@ -81,13 +81,13 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v2.0.7";
+    version = "v2.2.0";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v2.0.7";
+      rev = "v2.2.0";
       fetchSubmodules = false;
-      sha256 = "sha256-un1HFT3hdQa7J0jkybzoanWq0Ijo1vyfINCrz/t1siA=";
+      sha256 = "sha256-9/NkpiTNk0OeH66AAhJDeFRe6vBvMxhxirX8qAPAH58=";
     };
   };
 }
