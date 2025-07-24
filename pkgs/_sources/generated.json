@@ -76,12 +76,12 @@
             "name": null,
             "owner": "applejag",
             "repo": "kubectl-klock",
-            "rev": "v0.7.2",
-            "sha256": "sha256-S7cpVRVboLkU+GgvwozJmfFAO29tKpPlk+r9mbVLxF8=",
+            "rev": "v0.8.2",
+            "sha256": "sha256-Ajq3/JUnaIcz6FnC2nP9H/+oKJXQSca+mRpPSkG/xY0=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.7.2"
+        "version": "v0.8.2"
     },
     "kubectl-netshoot": {
         "cargoLocks": null,
@@ -160,11 +160,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v2.0.7",
-            "sha256": "sha256-un1HFT3hdQa7J0jkybzoanWq0Ijo1vyfINCrz/t1siA=",
+            "rev": "v2.2.2",
+            "sha256": "sha256-Hnq3ViMrNIo9m/1mePjEzMv87U24wY50UiYxnpJqHR8=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v2.0.7"
+        "version": "v2.2.2"
     }
 }
