@@ -89,9 +89,10 @@ in
 
         haproxy = {
           enable = true;
-          # package = "pkgs.haproxy";
-          useDnsDependency = true;
-          config = builtins.readFile ./config/haproxy.conf;
+          shared = {
+            enable = true; # Use shared configuration
+            useDnsDependency = true;
+          };
         };
 
         node-exporter.enable = true;

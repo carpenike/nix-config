@@ -5,10 +5,10 @@
 }:
 let
   cfg = config.modules.services.haproxy;
-  k8sApiPort = 6443;
-  haProxyStatsPort = 8404;
 in
 {
+  imports = [ ./shared.nix ]; # Import the shared options module
+
   options.modules.services.haproxy = {
     enable = lib.mkEnableOption "haproxy";
     config = lib.mkOption {
@@ -29,7 +29,7 @@ in
       config = cfg.config;
     };
 
-    networking.firewall.allowedTCPPorts = [ k8sApiPort haProxyStatsPort ];
+    # Note: firewall ports now managed by shared.nix when shared config is used
 
     # Conditionally add systemd service configuration
     systemd.services.haproxy = lib.mkMerge [
