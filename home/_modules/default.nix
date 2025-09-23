@@ -14,7 +14,6 @@
     ./security
     ./shell
     ./themes
-    # ./virtualisation
   ];
 
   config = {
