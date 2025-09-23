@@ -31,7 +31,9 @@
       "mcp__serena__find_file",
       "mcp__serena__think_about_collected_information",
       "Bash(sops:*)",
-      "Bash(task:*)"
+      "Bash(task:*)",
+      "Bash(diff:*)",
+      "Bash(md5sum:*)"
     ],
     "deny": []
   }
