@@ -35,7 +35,5 @@ in
       ipv4Only = true;
       configFile = pkgs.writeText "bind.cfg" cfg.config;
     };
-    networking.firewall.allowedTCPPorts = [ 5391 ];
-    networking.firewall.allowedUDPPorts = [ 5391 ];
   };
 }

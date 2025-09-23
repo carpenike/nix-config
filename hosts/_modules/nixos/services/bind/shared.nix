@@ -1,6 +1,8 @@
 { lib, config, ... }:
 let
   cfg = config.modules.services.bind.shared;
+  # Basic regex to validate IPv4 CIDR notation
+  cidrRegex = "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$";
 in
 {
   options.modules.services.bind.shared = {
@@ -11,18 +13,32 @@ in
       type = lib.types.lines;
       default = "";
       description = "Extra configuration lines to append for this specific host.";
+      example = ''
+        # Development-specific DNS settings
+        also-notify { 192.168.1.5; };
+        allow-transfer { 192.168.1.1; };
+      '';
     };
 
     extraZones = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       default = {};
       description = "Additional zones specific to this host as zone-name = zone-config pairs.";
+      example = lib.literalExpression ''
+        {
+          "dev.holthome.net." = '''
+            type master;
+            file "/etc/bind/zones/dev.holthome.net";
+            allow-transfer { key "externaldns"; };
+          ''';
+        }
+      '';
     };
 
     # Network customization options
     networks = {
       trusted = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
+        type = lib.types.listOf (lib.types.strMatching cidrRegex);
         default = [
           "10.10.0.0/16"   # LAN
           "10.20.0.0/16"   # Servers
@@ -30,12 +46,14 @@ in
           "10.40.0.0/16"   # IoT
         ];
         description = "List of trusted network CIDR blocks.";
+        example = [ "192.168.1.0/24" ];
       };
 
       blacklisted = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
+        type = lib.types.listOf (lib.types.strMatching cidrRegex);
         default = [];
         description = "List of blacklisted network CIDR blocks.";
+        example = [ "192.168.100.0/24" ];
       };
     };
 
@@ -44,6 +62,7 @@ in
       type = lib.types.int;
       default = 5391;
       description = "Port for BIND to listen on.";
+      example = 53;
     };
 
     # Logging customization
@@ -52,6 +71,7 @@ in
         type = lib.types.enum [ "critical" "error" "warning" "notice" "info" "debug" ];
         default = "info";
         description = "Logging severity level.";
+        example = "debug";
       };
     };
   };
@@ -134,5 +154,9 @@ in
         ${cfg.extraConfig}
       '';
     };
+
+    # Configure firewall for the shared BIND service
+    networking.firewall.allowedTCPPorts = [ cfg.port ];
+    networking.firewall.allowedUDPPorts = [ cfg.port ];
   };
 }
