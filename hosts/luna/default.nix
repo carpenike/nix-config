@@ -63,7 +63,7 @@ in
       services = {
         bind = {
           enable = true;
-          config = import ./config/bind.nix {inherit config;};
+          shared.enable = true; # Use shared holthome.net configuration
         };
 
         blocky = {

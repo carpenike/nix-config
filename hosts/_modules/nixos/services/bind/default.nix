@@ -6,9 +6,10 @@
 }:
 let
   cfg = config.modules.services.bind;
-  listenPort = 5391;
 in
 {
+  imports = [ ./shared.nix ]; # Import the shared options module
+
   options.modules.services.bind = {
     enable = lib.mkEnableOption "bind";
     package = lib.mkPackageOption pkgs "bind" { };
@@ -34,7 +35,7 @@ in
       ipv4Only = true;
       configFile = pkgs.writeText "bind.cfg" cfg.config;
     };
-    networking.firewall.allowedTCPPorts = [ listenPort ];
-    networking.firewall.allowedUDPPorts = [ listenPort ];
+    networking.firewall.allowedTCPPorts = [ 5391 ];
+    networking.firewall.allowedUDPPorts = [ 5391 ];
   };
 }
