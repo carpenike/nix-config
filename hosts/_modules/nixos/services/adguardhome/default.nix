@@ -7,9 +7,10 @@
 let
   cfg = config.modules.services.adguardhome;
   adguardUser = "adguardhome";
-  webPort = 3000;
 in
 {
+  imports = [ ./shared.nix ]; # Import the shared options module
+
   options.modules.services.adguardhome = {
     enable = lib.mkEnableOption "adguardhome";
     package = lib.mkPackageOption pkgs "adguardhome" { };
@@ -17,12 +18,17 @@ in
       default = {};
       type = lib.types.attrs;
     };
+    mutableSettings = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Whether to allow settings to be changed via web UI.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
     services.adguardhome = {
       enable = true;
-      mutableSettings = false;
+      inherit (cfg) mutableSettings;
       inherit (cfg) settings;
     };
     # add user, needed to access the secret
@@ -41,7 +47,8 @@ in
       '';
       serviceConfig.User = adguardUser;
     };
-    networking.firewall.allowedTCPPorts = [ webPort ];
+
+    # Note: firewall ports now managed by shared.nix when shared config is used
   };
 
 }
