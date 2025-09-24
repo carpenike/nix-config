@@ -69,7 +69,7 @@
         CURRENT_SYSTEM="/run/current-system"
       else
         BUILD_CMD="nixos-rebuild build"
-        SWITCH_CMD="sudo -i nixos-rebuild switch"
+        SWITCH_CMD="env HOME=/root doas nixos-rebuild switch"
         CURRENT_SYSTEM="/run/current-system"
       fi
 
