@@ -33,7 +33,8 @@
       "Bash(sops:*)",
       "Bash(task:*)",
       "Bash(diff:*)",
-      "Bash(md5sum:*)"
+      "Bash(md5sum:*)",
+      "mcp__zen__debug"
     ],
     "deny": []
   }
