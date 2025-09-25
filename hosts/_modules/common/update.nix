@@ -68,8 +68,9 @@
         SWITCH_CMD="darwin-rebuild switch"
         CURRENT_SYSTEM="/run/current-system"
       else
-        BUILD_CMD="nixos-rebuild build"
-        SWITCH_CMD="env HOME=/root doas nixos-rebuild switch"
+        # For NixOS with doas, run both build and switch as root to avoid cache ownership issues
+        BUILD_CMD="doas nixos-rebuild build"
+        SWITCH_CMD="doas nixos-rebuild switch"
         CURRENT_SYSTEM="/run/current-system"
       fi
 
