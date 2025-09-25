@@ -7,6 +7,8 @@ let
   cfg = config.modules.services.dnsdist;
 in
 {
+  imports = [ ./shared.nix ];
+
   options.modules.services.dnsdist = {
     enable = lib.mkEnableOption "dnsdist";
     listenAddress = lib.mkOption {
