@@ -151,6 +151,17 @@ in
       enable = true;
       package = cfg.package;
 
+      # Use Cloudflare DNS challenge for Let's Encrypt certificates
+      globalConfig = ''
+        {
+          log {
+            level ERROR
+          }
+          # Use Cloudflare DNS challenge for internal domains
+          acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+        }
+      '';
+
       # Generate configuration from registered virtual hosts
       extraConfig =
         (generateVhostConfig cfg.virtualHosts) +
