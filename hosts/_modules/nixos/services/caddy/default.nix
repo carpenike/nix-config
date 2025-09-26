@@ -17,9 +17,10 @@ let
           reverse_proxy ${vhost.proxyTo} {${optionalString vhost.httpsBackend ''
             transport http {
               tls_insecure_skip_verify
-            }''}${optionalString (vhost.headers != "") ''
-            ${vhost.headers}''}
-          }
+            }
+''}${optionalString (vhost.headers != "") ''
+            ${vhost.headers}
+''}          }
           ${vhost.extraConfig}
         }
       '' else ""
