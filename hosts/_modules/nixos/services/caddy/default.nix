@@ -153,13 +153,10 @@ in
 
       # Use Cloudflare DNS challenge for Let's Encrypt certificates
       globalConfig = ''
-        {
-          log {
-            level ERROR
-          }
-          # Use Cloudflare DNS challenge for internal domains
-          acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+        log {
+          level ERROR
         }
+        acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
       '';
 
       # Generate configuration from registered virtual hosts
