@@ -65,7 +65,7 @@ in
       hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
       proxyTo = "localhost:${toString cfg.reverseProxy.port}";
       httpsBackend = true; # Omada uses HTTPS
-      extraConfig = ''
+      headers = ''
         # Handle websockets for real-time updates
         header_up Host {host}
         header_up X-Real-IP {remote_host}

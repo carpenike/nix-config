@@ -14,11 +14,12 @@ let
             ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
           }
           ''}
-          reverse_proxy ${vhost.proxyTo}${optionalString vhost.httpsBackend " {
+          reverse_proxy ${vhost.proxyTo} {${optionalString vhost.httpsBackend ''
             transport http {
               tls_insecure_skip_verify
-            }
-          }"}
+            }''}${optionalString (vhost.headers != "") ''
+            ${vhost.headers}''}
+          }
           ${vhost.extraConfig}
         }
       '' else ""
@@ -62,6 +63,12 @@ in
             type = types.bool;
             default = false;
             description = "Whether backend uses HTTPS and requires TLS skip verification";
+          };
+
+          headers = mkOption {
+            type = types.lines;
+            default = "";
+            description = "Header directives to include inside the reverse_proxy block";
           };
 
           auth = mkOption {
