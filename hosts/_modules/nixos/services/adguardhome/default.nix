@@ -23,13 +23,65 @@ in
       default = false;
       description = "Whether to allow settings to be changed via web UI.";
     };
+
+    # Reverse proxy integration options
+    reverseProxy = {
+      enable = lib.mkEnableOption "Caddy reverse proxy integration for AdGuardHome";
+      subdomain = lib.mkOption {
+        type = lib.types.str;
+        default = "adguard";
+        description = "Subdomain to use for the reverse proxy";
+      };
+      requireAuth = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Whether to require authentication (AdGuardHome has its own login)";
+      };
+      auth = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            user = lib.mkOption {
+              type = lib.types.str;
+              default = "admin";
+              description = "Username for basic authentication";
+            };
+            passwordHashEnvVar = lib.mkOption {
+              type = lib.types.str;
+              description = "Name of environment variable containing bcrypt password hash";
+            };
+          };
+        });
+        default = null;
+        description = "Authentication configuration for AdGuardHome web interface";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
     services.adguardhome = {
       enable = true;
+      host = "127.0.0.1";  # Restrict web UI to localhost only (force traffic through Caddy)
+      port = 3000;         # Extract from settings
       inherit (cfg) mutableSettings;
-      inherit (cfg) settings;
+      settings = builtins.removeAttrs cfg.settings [ "bind_host" "bind_port" ];
+    };
+
+    # Automatically register with Caddy reverse proxy if enabled
+    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
+      enable = true;
+      hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
+      proxyTo = "localhost:${toString config.services.adguardhome.port}"; # Use dynamic port reference
+      httpsBackend = false; # AdGuardHome uses HTTP locally
+      auth = lib.mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
+      extraConfig = ''
+        # AdGuardHome web interface headers
+        header / {
+          X-Frame-Options "SAMEORIGIN"
+          X-Content-Type-Options "nosniff"
+          X-XSS-Protection "1; mode=block"
+          Referrer-Policy "strict-origin-when-cross-origin"
+        }
+      '';
     };
     # add user, needed to access the secret
     users.users.${adguardUser} = {

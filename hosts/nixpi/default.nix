@@ -124,6 +124,7 @@ in
 
         caddy = {
           enable = true;
+          # Now includes reverse proxy functionality via reverseProxy option
         };
 
         chrony = {

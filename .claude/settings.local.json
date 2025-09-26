@@ -34,7 +34,10 @@
       "Bash(task:*)",
       "Bash(diff:*)",
       "Bash(md5sum:*)",
-      "mcp__zen__debug"
+      "mcp__zen__debug",
+      "Bash(nix-instantiate:*)",
+      "Bash(rm:*)",
+      "Bash(nix eval:*)"
     ],
     "deny": []
   }

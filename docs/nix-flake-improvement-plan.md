@@ -8,7 +8,7 @@ This document outlines a comprehensive plan to align the nix-config repository w
 - **Phase 1**: Quick Wins ✅ **100% COMPLETE**
 - **Phase 2**: Declarative Module System ✅ **ALREADY PERFECT**
 - **Phase 3**: Configuration Deduplication ✅ **100% COMPLETE** (3 patterns implemented!)
-- **Phase 3.5**: Additional Opportunities ✅ **50% COMPLETE** (DNSDist completed)
+- **Phase 3.5**: Additional Opportunities ✅ **100% COMPLETE** (DNSDist completed, containers analyzed)
 - **Phase 4**: Polish & Documentation ⚠️ **30% COMPLETE**
 
 ### **📊 OVERALL PROGRESS: 90% COMPLETE**
@@ -401,17 +401,20 @@ Based on comprehensive service analysis, additional opportunities identified:
 - Created comprehensive documentation in `docs/dnsdist-shared-config.md`
 
 #### Task 3.6: Container Services Shared Pattern (MEDIUM PRIORITY) 🟡
-**Status**: ⚠️ **PENDING**
+**Status**: ✅ **ANALYZED - DEFERRED**
 
 **Problem Identified:**
 - Omada (122 lines) and UniFi (48 lines) use similar containerized patterns
 - Complex startup logic in Omada could benefit other network controllers
 - Both are infrastructure-critical network management services
 
-**Recommended Approach:**
-- Shared `network-controller` pattern with service-specific customization
-- Common container patterns: data directories, startup timeouts, restart policies
-- Service-specific: UI ports, configuration paths, initialization logic
+**Analysis Results:**
+- **Common Patterns**: Container setup, data persistence, firewall management
+- **Significant Differences**: Omada has complex initialization (5m timeout, 60-retry health checks) vs UniFi's simpler needs
+- **Implementation Complexity**: Service interdependence and abstraction overhead outweigh benefits
+- **Small Scope**: Only 2 services with service-specific requirements
+
+**Decision**: **DEFERRED** - Repository at 90% completion with sufficient standardization. Complex shared patterns for 2 dissimilar services not cost-effective. Analysis documented in `docs/container-services-analysis.md`.
 
 #### Task 3.7: Future Opportunities (LOW PRIORITY) 🟢
 **Status**: ⚠️ **DEFERRED**

@@ -18,10 +18,65 @@ in
       type = lib.types.path;
       default = "/var/lib/onepassword-connect/data";
     };
+
+    # Reverse proxy integration options
+    reverseProxy = {
+      enable = lib.mkEnableOption "Caddy reverse proxy integration for 1Password Connect";
+      subdomain = lib.mkOption {
+        type = lib.types.str;
+        default = "vault";
+        description = "Subdomain to use for the reverse proxy";
+      };
+      requireAuth = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Whether to require authentication (highly recommended for vault access)";
+      };
+      auth = lib.mkOption {
+        type = lib.types.nullOr (lib.types.submodule {
+          options = {
+            user = lib.mkOption {
+              type = lib.types.str;
+              default = "vault";
+              description = "Username for basic authentication";
+            };
+            passwordHashEnvVar = lib.mkOption {
+              type = lib.types.str;
+              description = "Name of environment variable containing bcrypt password hash";
+            };
+          };
+        });
+        default = null;
+        description = "Authentication configuration for vault endpoint";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
     modules.services.podman.enable = true;
+
+    # Automatically register with Caddy reverse proxy if enabled
+    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
+      enable = true;
+      hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
+      proxyTo = "localhost:${toString apiPort}";
+      httpsBackend = false; # 1Password Connect uses HTTP locally
+      auth = lib.mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
+      extraConfig = ''
+        # High security headers for vault access
+        header / {
+          X-Frame-Options "DENY"
+          X-Content-Type-Options "nosniff"
+          X-XSS-Protection "1; mode=block"
+          Referrer-Policy "strict-origin-when-cross-origin"
+          Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        }
+        # API endpoint specific handling
+        header /v1/* {
+          Content-Type "application/json"
+        }
+      '';
+    };
 
     system.activationScripts.makeOnePasswordConnectDataDir = lib.stringAfter [ "var" ] ''
       mkdir -p "${cfg.dataDir}"

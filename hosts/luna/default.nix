@@ -25,6 +25,7 @@ in
       hostId = "506a4dd5";
       useDHCP = true;
       firewall.enable = false;
+      domain = "holthome.net"; # Base domain for reverse proxy
     };
 
     # Boot loader configuration
@@ -61,15 +62,28 @@ in
 
     modules = {
       services = {
+        # Enable Caddy reverse proxy
+        caddy = {
+          enable = true;
+          domain = "holthome.net";
+        };
+
         bind = {
           enable = true;
           shared.enable = true; # Use shared holthome.net configuration
         };
 
-        blocky = {
+        # Note: Disabled blocky in favor of AdGuardHome
+        # blocky = {
+        #   enable = true;
+        #   package = pkgs.unstable.blocky;
+        #   config = import ./config/blocky.nix;
+        # };
+
+        adguardhome = {
           enable = true;
-          package = pkgs.unstable.blocky;
-          config = import ./config/blocky.nix;
+          settings = import ./config/adguard.nix { inherit config lib; };
+          reverseProxy.enable = true;
         };
 
         chrony = {
@@ -138,18 +152,42 @@ in
           };
         };
 
-        node-exporter.enable = true;
+        node-exporter = {
+          enable = true;
+          reverseProxy = {
+            enable = true;
+            requireAuth = true;
+            auth = {
+              user = "metrics";
+              passwordHashEnvVar = "CADDY_METRICS_HASH";
+            };
+          };
+        };
 
         onepassword-connect = {
           enable = true;
           credentialsFile = config.sops.secrets.onepassword-credentials.path;
+          reverseProxy = {
+            enable = true;
+            requireAuth = true;
+            auth = {
+              user = "vault";
+              passwordHashEnvVar = "CADDY_VAULT_HASH";
+            };
+          };
         };
 
         openssh.enable = true;
 
-        unifi.enable = true;
+        unifi = {
+          enable = true;
+          reverseProxy.enable = true;
+        };
 
-        omada.enable = true;
+        omada = {
+          enable = true;
+          reverseProxy.enable = true;
+        };
       };
 
       # Explicitly enable ZFS filesystem module
@@ -159,7 +197,22 @@ in
       };
 
       system.impermanence.enable = true;
+    };
 
+    # Configure Caddy to load environment file with SOPS secrets
+    systemd.services.caddy.serviceConfig.EnvironmentFile = "/run/secrets/caddy-env";
+
+    # Create environment file from SOPS secrets
+    sops.templates."caddy-env" = {
+      content = ''
+        CADDY_METRICS_HASH=${config.sops.placeholder."reverse-proxy/metrics-auth"}
+        CADDY_VAULT_HASH=${config.sops.placeholder."reverse-proxy/vault-auth"}
+      '';
+      owner = config.services.caddy.user;
+      group = config.services.caddy.group;
+    };
+
+    modules = {
       users = {
         groups = {
           admins = {

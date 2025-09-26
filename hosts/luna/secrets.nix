@@ -41,6 +41,15 @@
           restartUnits = [ "bind.service" ];
           owner = config.users.users.named.name;
         };
+        "reverse-proxy/metrics-auth" = {
+          restartUnits = [ "caddy.service" ];
+        };
+        "reverse-proxy/vault-auth" = {
+          restartUnits = [ "caddy.service" ];
+        };
+        "networking/adguardhome/password" = {
+          restartUnits = [ "adguardhome.service" ];
+        };
       };
     };
   };

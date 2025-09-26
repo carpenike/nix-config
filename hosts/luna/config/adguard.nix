@@ -5,8 +5,7 @@
 }:
 {
   schema_version = 24;
-  bind_host = "0.0.0.0";
-  bind_port = 3000;
+  # bind_host and bind_port now managed by the AdGuardHome module
   theme = "auto";
   users = [{
     name = "ryan";
