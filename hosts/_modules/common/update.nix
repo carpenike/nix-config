@@ -121,14 +121,14 @@
       if [[ "$DRY_RUN" == "true" ]]; then
         echo "🔍 DRY RUN: Would build configuration with:"
         echo "   Command: $BUILD_CMD --flake \"$FLAKE_URI#${hostname}\" --option accept-flake-config true --refresh --show-trace"
-        echo "   Timeout: ${BUILD_TIMEOUT}s"
+        echo "   Timeout: $BUILD_TIMEOUT"s
         echo ""
         echo "✅ Dry run complete - no actual build performed"
         exit 0
       fi
 
       echo "🔨 Building new configuration..."
-      echo "   This may take a while (timeout: ${BUILD_TIMEOUT}s)..."
+      echo "   This may take a while (timeout: $BUILD_TIMEOUT"s")..."
       echo ""
 
       if ! timeout "$BUILD_TIMEOUT" $BUILD_CMD \
@@ -138,7 +138,7 @@
         --show-trace; then
         echo ""
         if [ $? -eq 124 ]; then
-          echo "❌ Build timed out after ${BUILD_TIMEOUT} seconds!"
+          echo "❌ Build timed out after $BUILD_TIMEOUT seconds!"
           echo "   Try increasing timeout with --timeout <seconds> or check for hanging processes"
         else
           echo "❌ Build failed! Check the errors above."
