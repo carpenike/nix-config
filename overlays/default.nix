@@ -38,10 +38,10 @@
     # Custom Caddy build with Cloudflare DNS plugin for nixpi
     caddy = final.unstable.caddy.withPlugins {
       # Include Cloudflare DNS provider plugin
-      # TODO: Update to v0.2.1 when we can get the correct hash
-      # Currently using commit from 2024-07-03 which is known to work
-      plugins = [ "github.com/caddy-dns/cloudflare@v0.0.0-20240703190432-89f16b99c18e" ];
-      hash = "sha256-vi6sE9D4gjUEi5YoDhNoWjiPcWvOYnV7pK4BAFqNojI=";
+      # Using latest v0.2.1 release
+      plugins = [ "github.com/caddy-dns/cloudflare@v0.2.1" ];
+      # Let Nix calculate the hash - will fail first time with correct hash
+      hash = "";
     };
   };
 }
