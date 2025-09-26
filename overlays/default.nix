@@ -41,7 +41,7 @@
       # TODO: Update to v0.2.1 when we can get the correct hash
       # Currently using commit from 2024-07-03 which is known to work
       plugins = [ "github.com/caddy-dns/cloudflare@v0.0.0-20240703190432-89f16b99c18e" ];
-      hash = "sha256-JoujVXRXjKUam1Ej3/zKVvF0nX97dUizmISjy3M3Kr8=";
+      hash = "sha256-vi6sE9D4gjUEi5YoDhNoWjiPcWvOYnV7pK4BAFqNojI=";
     };
   };
 }
