@@ -200,7 +200,7 @@ in
     };
 
     # Configure Caddy to load environment file with SOPS secrets
-    systemd.services.caddy.serviceConfig.EnvironmentFile = "/run/secrets/caddy-env";
+    systemd.services.caddy.serviceConfig.EnvironmentFile = "/run/secrets/rendered/caddy-env";
 
     # Create environment file from SOPS secrets
     sops.templates."caddy-env" = {

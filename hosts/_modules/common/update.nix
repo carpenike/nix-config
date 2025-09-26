@@ -70,18 +70,21 @@
       # Default to GitHub if no flake URI provided
       FLAKE_URI="''${FLAKE_URI:-github:carpenike/nix-config}"
 
+      # Set hostname from Nix build-time parameter
+      HOSTNAME="${hostname}"
+
       # Validate hostname for shell injection protection
-      if [[ ! "$hostname" =~ ^[a-zA-Z0-9._-]+$ ]]; then
-        echo "❌ Invalid hostname: $hostname"
+      if [[ ! "$HOSTNAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        echo "❌ Invalid hostname: $HOSTNAME"
         echo "   Hostname must contain only alphanumeric characters, dots, hyphens, and underscores"
         exit 1
       fi
 
       if [[ "$DRY_RUN" == "true" ]]; then
-        echo "🔍 DRY RUN: Updating ${hostname} from flake: $FLAKE_URI"
+        echo "🔍 DRY RUN: Updating $HOSTNAME from flake: $FLAKE_URI"
         echo "   (No changes will be applied)"
       else
-        echo "📦 Updating ${hostname} from flake: $FLAKE_URI"
+        echo "📦 Updating $HOSTNAME from flake: $FLAKE_URI"
       fi
       echo ""
 
@@ -120,7 +123,7 @@
       # Step 1: Build only
       if [[ "$DRY_RUN" == "true" ]]; then
         echo "🔍 DRY RUN: Would build configuration with:"
-        echo "   Command: $BUILD_CMD --flake \"$FLAKE_URI#${hostname}\" --option accept-flake-config true --refresh --show-trace"
+        echo "   Command: $BUILD_CMD --flake \"$FLAKE_URI#$HOSTNAME\" --option accept-flake-config true --refresh --show-trace"
         echo "   Timeout: $BUILD_TIMEOUT"s
         echo ""
         echo "✅ Dry run complete - no actual build performed"
@@ -132,7 +135,7 @@
       echo ""
 
       if ! timeout "$BUILD_TIMEOUT" $BUILD_CMD \
-        --flake "$FLAKE_URI#${hostname}" \
+        --flake "$FLAKE_URI#$HOSTNAME" \
         --option accept-flake-config true \
         --refresh \
         --show-trace; then
@@ -178,7 +181,7 @@
       # Step 4: Switch
       echo ""
       echo "⚙️  Applying new configuration..."
-      $SWITCH_CMD --flake "$FLAKE_URI#${hostname}"
+      $SWITCH_CMD --flake "$FLAKE_URI#$HOSTNAME"
 
       echo ""
       echo "✅ Update complete!"
