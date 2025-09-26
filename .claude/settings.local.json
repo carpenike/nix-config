@@ -37,7 +37,8 @@
       "mcp__zen__debug",
       "Bash(nix-instantiate:*)",
       "Bash(rm:*)",
-      "Bash(nix eval:*)"
+      "Bash(nix eval:*)",
+      "mcp__zen__consensus"
     ],
     "deny": []
   }

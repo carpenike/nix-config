@@ -6,9 +6,11 @@
       #!/usr/bin/env bash
       set -euo pipefail
 
-      # Error recovery guidance
+      # Error recovery guidance - preserve exit code
+      EXIT_CODE=0
       cleanup() {
-        if [ $? -ne 0 ]; then
+        local exit_code=$?
+        if [ $exit_code -ne 0 ]; then
           echo ""
           echo "❌ Update failed!"
           echo ""
@@ -18,16 +20,26 @@
           if [[ "$(uname)" == "Darwin" ]]; then
             echo "     darwin-rebuild switch --rollback"
           else
-            echo "     sudo nixos-rebuild switch --rollback"
+            # Use dynamic privilege escalation
+            if command -v doas >/dev/null 2>&1; then
+              echo "     doas nixos-rebuild switch --rollback"
+            elif command -v sudo >/dev/null 2>&1; then
+              echo "     sudo nixos-rebuild switch --rollback"
+            else
+              echo "     nixos-rebuild switch --rollback"
+            fi
           fi
         fi
+        exit $exit_code
       }
       trap cleanup EXIT
 
       # Parse arguments
       FLAKE_URI=""
       BUILD_ONLY=false
+      DRY_RUN=false
       SHOW_DIFF=true
+      BUILD_TIMEOUT=1800  # 30 minutes
 
       while [[ $# -gt 0 ]]; do
         case $1 in
@@ -35,9 +47,18 @@
             BUILD_ONLY=true
             shift
             ;;
+          --dry-run)
+            DRY_RUN=true
+            BUILD_ONLY=true  # Dry run implies build-only
+            shift
+            ;;
           --no-diff)
             SHOW_DIFF=false
             shift
+            ;;
+          --timeout)
+            BUILD_TIMEOUT="$2"
+            shift 2
             ;;
           *)
             FLAKE_URI="$1"
@@ -49,7 +70,19 @@
       # Default to GitHub if no flake URI provided
       FLAKE_URI="''${FLAKE_URI:-github:carpenike/nix-config}"
 
-      echo "📦 Updating ${hostname} from flake: $FLAKE_URI"
+      # Validate hostname for shell injection protection
+      if [[ ! "$hostname" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        echo "❌ Invalid hostname: $hostname"
+        echo "   Hostname must contain only alphanumeric characters, dots, hyphens, and underscores"
+        exit 1
+      fi
+
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo "🔍 DRY RUN: Updating ${hostname} from flake: $FLAKE_URI"
+        echo "   (No changes will be applied)"
+      else
+        echo "📦 Updating ${hostname} from flake: $FLAKE_URI"
+      fi
       echo ""
 
       # Check network connectivity if using remote flake
@@ -62,30 +95,54 @@
         fi
       fi
 
-      # Determine commands based on OS
+      # Determine commands based on OS with dynamic privilege escalation
       if [[ "$(uname)" == "Darwin" ]]; then
         BUILD_CMD="darwin-rebuild build"
         SWITCH_CMD="darwin-rebuild switch"
         CURRENT_SYSTEM="/run/current-system"
       else
-        # For NixOS with doas, run both build and switch as root to avoid cache ownership issues
-        BUILD_CMD="doas nixos-rebuild build"
-        SWITCH_CMD="doas nixos-rebuild switch"
+        # For NixOS, detect available privilege escalation tool
+        if command -v doas >/dev/null 2>&1; then
+          PRIV_CMD="doas"
+        elif command -v sudo >/dev/null 2>&1; then
+          PRIV_CMD="sudo"
+        else
+          echo "⚠️  Warning: No privilege escalation tool found (doas/sudo)"
+          echo "   Attempting to run as current user..."
+          PRIV_CMD=""
+        fi
+
+        BUILD_CMD="$PRIV_CMD nixos-rebuild build"
+        SWITCH_CMD="$PRIV_CMD nixos-rebuild switch"
         CURRENT_SYSTEM="/run/current-system"
       fi
 
       # Step 1: Build only
+      if [[ "$DRY_RUN" == "true" ]]; then
+        echo "🔍 DRY RUN: Would build configuration with:"
+        echo "   Command: $BUILD_CMD --flake \"$FLAKE_URI#${hostname}\" --option accept-flake-config true --refresh --show-trace"
+        echo "   Timeout: ${BUILD_TIMEOUT}s"
+        echo ""
+        echo "✅ Dry run complete - no actual build performed"
+        exit 0
+      fi
+
       echo "🔨 Building new configuration..."
-      echo "   This may take a while..."
+      echo "   This may take a while (timeout: ${BUILD_TIMEOUT}s)..."
       echo ""
 
-      if ! $BUILD_CMD \
+      if ! timeout "$BUILD_TIMEOUT" $BUILD_CMD \
         --flake "$FLAKE_URI#${hostname}" \
         --option accept-flake-config true \
         --refresh \
         --show-trace; then
         echo ""
-        echo "❌ Build failed! Check the errors above."
+        if [ $? -eq 124 ]; then
+          echo "❌ Build timed out after ${BUILD_TIMEOUT} seconds!"
+          echo "   Try increasing timeout with --timeout <seconds> or check for hanging processes"
+        else
+          echo "❌ Build failed! Check the errors above."
+        fi
         exit 1
       fi
 
