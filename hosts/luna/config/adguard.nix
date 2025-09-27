@@ -14,6 +14,12 @@
   dns = {
     bind_hosts = ["127.0.0.1"];
     port = 5392;
+
+    # Trust dnsdist for ECS (EDNS Client Subnet)
+    trusted_proxies = [
+      "127.0.0.1"  # dnsdist via loopback
+      "::1"        # IPv6 loopback
+    ];
     bootstrap_dns = [
       # quad9
       "9.9.9.10"

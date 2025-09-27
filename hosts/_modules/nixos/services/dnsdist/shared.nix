@@ -175,8 +175,9 @@ in
         useClientSubnet = true
       })
 
-      -- AdGuard will be given requester IP
-      setECSSourcePrefixV4(32)
+      -- AdGuard will be given requester IP via ECS
+      setECSOverride(32, 128)      -- /32 for IPv4, /128 for IPv6
+      setMaxECSSubnet(32, 128)     -- Don't truncate if client sent longer prefix
 
       -- CloudFlare DNS over DoH - General
       newServer({
