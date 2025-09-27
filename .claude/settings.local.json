@@ -39,7 +39,10 @@
       "Bash(rm:*)",
       "Bash(nix eval:*)",
       "mcp__zen__consensus",
-      "mcp__serena__replace_symbol_body"
+      "mcp__serena__replace_symbol_body",
+      "Bash(/nix-deploy host=luna)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)"
     ],
     "deny": []
   }

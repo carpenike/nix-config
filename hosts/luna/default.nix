@@ -96,54 +96,10 @@ in
           ];
         };
 
-        dnsdist = {
-          enable = true;
-          shared = {
-            enable = true;
-            adguardPort = 5392;
-            # Luna has RV DNS server
-            additionalServers = [{
-              address = "192.168.88.1:53";
-              pool = "rv";
-              options = ''
-                healthCheckMode = "lazy",
-                checkInterval = 1800,
-                maxCheckFailures = 3,
-                lazyHealthCheckFailedInterval = 30,
-                rise = 2,
-                lazyHealthCheckThreshold = 30,
-                lazyHealthCheckSampleSize = 100,
-                lazyHealthCheckMinSampleCount = 10,
-                lazyHealthCheckMode = 'TimeoutOnly',
-                useClientSubnet = true
-              '';
-            }];
-            # Luna-specific domain routing
-            domainRouting = {
-              "holtel.io" = "rv";
-            };
-            # Network routing configuration
-            networkRouting = [
-              # Guest and Video VLANs - isolated
-              { subnet = "10.35.0.0/16"; pool = "cloudflare_general"; description = "guest vlan"; dropAfter = true; }
-              { subnet = "10.50.0.0/16"; pool = "cloudflare_general"; description = "video vlan"; dropAfter = true; }
-              # Docker and LAN networks
-              { subnet = "10.88.0.0/24"; pool = "adguard"; description = "local docker network"; }
-              { subnet = "10.10.0.0/16"; pool = "adguard"; description = "lan"; }
-              # Management and server VLANs
-              { subnet = "10.8.0.0/24"; pool = "cloudflare_general"; description = "wireguard"; }
-              { subnet = "10.9.18.0/24"; pool = "cloudflare_general"; description = "mgmt"; }
-              { subnet = "10.20.0.0/16"; pool = "cloudflare_general"; description = "servers vlan"; }
-              # Trusted and IoT VLANs
-              { subnet = "10.30.0.0/16"; pool = "adguard"; description = "trusted vlan"; }
-              { subnet = "10.40.0.0/16"; pool = "cloudflare_general"; description = "iot vlan"; }
-              # Additional trusted networks
-              { subnet = "10.11.0.0/16"; pool = "adguard"; description = "wg_trusted vlan"; }
-              { subnet = "10.6.0.0/16"; pool = "adguard"; description = "services vlan"; }
-              { subnet = "192.168.50.0/24"; pool = "adguard"; description = "RV"; }
-            ];
-          };
-        };
+        # Disabled dnsdist - using AdGuardHome directly on port 53
+        # dnsdist = {
+        #   enable = false;
+        # };
 
         haproxy = {
           enable = true;

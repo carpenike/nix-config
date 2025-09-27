@@ -12,14 +12,8 @@
     password = "ADGUARDPASS";
   }];
   dns = {
-    bind_hosts = ["127.0.0.1"];
-    port = 5392;
-
-    # Trust dnsdist for ECS (EDNS Client Subnet)
-    trusted_proxies = [
-      "127.0.0.1"  # dnsdist via loopback
-      "::1"        # IPv6 loopback
-    ];
+    bind_hosts = ["0.0.0.0"];  # Listen on all interfaces
+    port = 53;
     bootstrap_dns = [
       # quad9
       "9.9.9.10"
@@ -31,12 +25,18 @@
       "1.1.1.1"
       "2606:4700:4700::1111"
     ];
-    # Simplified upstream - dnsdist handles ALL routing except reverse DNS
+    # Local domain routing (replacing dnsdist functionality)
     upstream_dns = [
-      "[/in-addr.arpa/]127.0.0.1:5391"  # Only reverse DNS for hostname logging
+      # Local domains to BIND
+      "[/holthome.net/]127.0.0.1:5391"
+      "[/unifi/]127.0.0.1:5391"
+      "[/in-addr.arpa/]127.0.0.1:5391"  # Reverse DNS for hostname logging
       "[/ip6.arpa/]127.0.0.1:5391"     # IPv6 reverse DNS
+      # RV domain routing (was in dnsdist)
+      "[/holtel.io/]192.168.88.1:53"
+      # Global upstreams
       "https://1.1.1.1/dns-query"
-      "https://1.0.0.1/dns-query"  # Added for redundancy
+      "https://1.0.0.1/dns-query"
     ];
     upstream_mode = "load_balance";
     fallback_dns = [];  # Not needed with two load-balanced DoH upstreams
@@ -85,5 +85,31 @@
       dhcp = true;
       hosts = true;
     };
+    persistent = [
+      {
+        name = "Unfiltered VLANs";
+        ids = [
+          "10.35.0.0/16"  # Guest VLAN
+          "10.50.0.0/16"  # Video VLAN
+          "10.8.0.0/24"   # Wireguard
+          "10.9.18.0/24"  # Management
+          "10.20.0.0/16"  # Servers VLAN
+          "10.40.0.0/16"  # IoT VLAN
+        ];
+        use_global_settings = false;
+        filtering_enabled = false;
+        safebrowsing_enabled = false;
+        parental_enabled = false;
+        safesearch = {
+          enabled = false;
+        };
+        use_global_blocked_services = false;
+        blocked_services = [];
+        upstreams = [
+          "https://1.1.1.1/dns-query"
+          "https://1.0.0.1/dns-query"
+        ];
+      }
+    ];
   };
 }
