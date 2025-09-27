@@ -175,9 +175,9 @@ in
         useClientSubnet = true
       })
 
-      -- Enable ECS override to send full client IP to AdGuard Home
-      setECSOverride(true)
-      setMaxECSSubnet(32, 128)
+      -- Send full client IP via ECS to AdGuard Home (dnsdist 1.9.9 syntax)
+      setECSSourcePrefixV4(32)   -- Forward full IPv4 address in ECS
+      setECSSourcePrefixV6(128)  -- Forward full IPv6 address in ECS
 
       -- CloudFlare DNS over DoH - General
       newServer({
