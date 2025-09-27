@@ -207,7 +207,7 @@ in
       content = ''
         CADDY_METRICS_HASH=${config.sops.placeholder."reverse-proxy/metrics-auth"}
         CADDY_VAULT_HASH=${config.sops.placeholder."reverse-proxy/vault-auth"}
-        CLOUDFLARE_API_TOKEN=${config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
+        CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
       '';
       owner = config.services.caddy.user;
       group = config.services.caddy.group;
