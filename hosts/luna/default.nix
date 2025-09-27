@@ -100,6 +100,7 @@ in
           enable = true;
           shared = {
             enable = true;
+            adguardPort = 5392;
             # Luna has RV DNS server
             additionalServers = [{
               address = "192.168.88.1:53";
