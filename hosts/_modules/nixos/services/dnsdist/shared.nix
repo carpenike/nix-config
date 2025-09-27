@@ -175,12 +175,8 @@ in
         useClientSubnet = true
       })
 
-      -- Add the full client IP as an ECS record for all queries
-      -- This ensures AdGuard sees the original requester IP
-      addECSNode('0.0.0.0/0', 32)   -- IPv4: send full /32 address
-      addECSNode('::/0', 128)       -- IPv6: send full /128 address
-
-      -- Allow full prefix lengths and prevent dnsdist from truncating them
+      -- Enable ECS override to send full client IP to AdGuard Home
+      setECSOverride(true)
       setMaxECSSubnet(32, 128)
 
       -- CloudFlare DNS over DoH - General
