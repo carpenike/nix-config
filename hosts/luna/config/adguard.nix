@@ -87,7 +87,7 @@
     };
     persistent = [
       {
-        name = "Unfiltered VLANs (with local domains)";
+        name = "Unfiltered VLANs";
         ids = [
           "10.35.0.0/16"  # Guest VLAN
           "10.8.0.0/24"   # Wireguard
@@ -106,9 +106,9 @@
         # Use global upstreams (includes local domain routing)
       }
       {
-        name = "Video VLAN (completely isolated)";
+        name = "Video VLAN";
         ids = [
-          "10.50.0.0/16"  # Video VLAN - no local domains
+          "10.50.0.0/16"  # Video VLAN - bypass local domains entirely
         ];
         use_global_settings = false;
         filtering_enabled = false;
