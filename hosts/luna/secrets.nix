@@ -49,6 +49,7 @@
         };
         "networking/adguardhome/password" = {
           restartUnits = [ "adguardhome.service" ];
+          owner = "adguardhome";
         };
       };
     };
