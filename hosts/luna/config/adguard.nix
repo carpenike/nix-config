@@ -104,7 +104,6 @@
           enabled = false;
         };
         use_global_blocked_services = false;
-        blocked_services = [];
         upstreams = [
           "https://1.1.1.1/dns-query"
           "https://1.0.0.1/dns-query"
