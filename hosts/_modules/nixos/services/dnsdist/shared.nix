@@ -179,9 +179,6 @@ in
       setECSSourcePrefixV4(32)   -- Forward full IPv4 address in ECS
       setECSSourcePrefixV6(128)  -- Forward full IPv6 address in ECS
 
-      -- Force ECS to be added to all downstream queries
-      addAction(AllRule(), AddEDNSToQueryAction())
-
       -- CloudFlare DNS over DoH - General
       newServer({
         address = "1.1.1.1:443",
