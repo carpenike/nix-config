@@ -94,8 +94,10 @@ in
     # and insert it as per config requirements
     systemd.services.adguardhome = {
       preStart = lib.mkAfter ''
-        HASH=$(cat ${config.sops.secrets."networking/adguardhome/password".path} | ${pkgs.apacheHttpd}/bin/htpasswd -binBC 12 "" | cut -c 2-)
-        ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
+        # Generate bcrypt hash properly with username, then extract just the hash
+        HASH=$(cat ${config.sops.secrets."networking/adguardhome/password".path} | ${pkgs.apacheHttpd}/bin/htpasswd -nbB ryan | cut -d: -f2-)
+        # Quote the hash to handle special characters in YAML
+        ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,\"$HASH\"," "$STATE_DIRECTORY/AdGuardHome.yaml"
       '';
       serviceConfig.User = adguardUser;
     };

@@ -38,7 +38,8 @@
       "Bash(nix-instantiate:*)",
       "Bash(rm:*)",
       "Bash(nix eval:*)",
-      "mcp__zen__consensus"
+      "mcp__zen__consensus",
+      "mcp__serena__replace_symbol_body"
     ],
     "deny": []
   }
