@@ -224,12 +224,7 @@ in
       -- Allow DNS updates to go to BIND
       addAction(OpcodeRule(DNSOpcode.Update), PoolAction("bind"))
 
-      -- Network-based routing rules
-      ${lib.concatMapStringsSep "\n" (rule: ''
-        addAction("${rule.subnet}", PoolAction("${rule.pool}"))  -- ${rule.description}
-        ${lib.optionalString rule.dropAfter ''addAction("${rule.subnet}", DropAction())  -- stop processing''}
-      '') cfg.networkRouting}
-
+      -- Domain-specific routing (BEFORE network rules for proper precedence)
       -- Local domain routing (always to BIND)
       ${lib.concatMapStringsSep "\n" (domain: ''
         addAction('${domain}', PoolAction('bind'))
@@ -239,6 +234,12 @@ in
       ${lib.concatStringsSep "\n" (lib.mapAttrsToList (domain: pool: ''
         addAction('${domain}', PoolAction('${pool}'))
       '') cfg.domainRouting)}
+
+      -- Network-based routing rules (AFTER domain rules)
+      ${lib.concatMapStringsSep "\n" (rule: ''
+        addAction("${rule.subnet}", PoolAction("${rule.pool}"))  -- ${rule.description}
+        ${lib.optionalString rule.dropAfter ''addAction("${rule.subnet}", DropAction())  -- stop processing''}
+      '') cfg.networkRouting}
 
       ${cfg.extraConfig}
     '';

@@ -25,18 +25,16 @@
       "1.1.1.1"
       "2606:4700:4700::1111"
     ];
+    # Simplified upstream - dnsdist handles ALL routing except reverse DNS
     upstream_dns = [
-      "[/holthome.net/]127.0.0.1:5391"
-      "[/ryho.lt/]127.0.0.1:5391"
-      "[/in-addr.arpa/]127.0.0.1:5391"
-      "[/ip6.arpa/]127.0.0.1:5391"
+      "[/in-addr.arpa/]127.0.0.1:5391"  # Only reverse DNS for hostname logging
+      "[/ip6.arpa/]127.0.0.1:5391"     # IPv6 reverse DNS
       "https://1.1.1.1/dns-query"
+      "https://1.0.0.1/dns-query"  # Added for redundancy
     ];
     upstream_mode = "load_balance";
-    fallback_dns = [
-      "https://dns.cloudflare.com/dns-query"
-    ];
-    local_ptr_upstreams = [ "127.0.0.1:5391" ];
+    fallback_dns = [];  # Not needed with two load-balanced DoH upstreams
+    local_ptr_upstreams = [ "127.0.0.1:5391" ];  # For local hostname resolution
     use_private_ptr_resolvers = true;
 
     # security
@@ -50,15 +48,14 @@
   filters =
     let
     urls = [
-      { name = "AdGuard DNS filter"; url = "https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt"; }
-      { name = "AdAway Default Blocklist"; url = "https://adaway.org/hosts.txt"; }
-      { name = "Big OSID"; url = "https://big.oisd.nl"; }
-      { name = "1Hosts Lite"; url = "https://o0.pages.dev/Lite/adblock.txt"; }
-      { name = "hagezi multi pro"; url = "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt"; }
-      { name = "osint"; url = "https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt"; }
-      { name = "phishing army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
-      { name = "notrack malware"; url = "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt"; }
-      { name = "EasyPrivacy"; url = "https://v.firebog.net/hosts/Easyprivacy.txt"; }
+      # --- Core Blocklist ---
+      # Comprehensive, balanced list with low false-positive rate. Excellent for family networks.
+      { name = "OISD Big"; url = "https://big.oisd.nl/"; }
+
+      # --- High-Value Security Additions ---
+      # Focused on malware and phishing with minimal overlap on general ad/tracker blocking.
+      { name = "Phishing Army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
+      { name = "URLHaus Malware"; url = "https://urlhaus.abuse.ch/downloads/hostfile/"; }
     ];
     buildList = id: url: {
       enabled = true;
