@@ -73,12 +73,12 @@ in
           shared.enable = true; # Use shared holthome.net configuration
         };
 
-        # Note: Disabled blocky in favor of AdGuardHome
-        # blocky = {
-        #   enable = true;
-        #   package = pkgs.unstable.blocky;
-        #   config = import ./config/blocky.nix;
-        # };
+        # Run both blocky and AdGuardHome on different ports
+        blocky = {
+          enable = true;
+          package = pkgs.unstable.blocky;
+          config = import ./config/blocky.nix;
+        };
 
         adguardhome = {
           enable = true;

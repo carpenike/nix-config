@@ -13,7 +13,7 @@
   }];
   dns = {
     bind_hosts = ["127.0.0.1"];
-    port = 5390;
+    port = 5392;
     bootstrap_dns = [
       # quad9
       "9.9.9.10"
