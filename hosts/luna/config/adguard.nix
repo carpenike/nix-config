@@ -87,14 +87,28 @@
     };
     persistent = [
       {
-        name = "Unfiltered VLANs";
+        name = "Unfiltered VLANs (with local domains)";
         ids = [
           "10.35.0.0/16"  # Guest VLAN
-          "10.50.0.0/16"  # Video VLAN
           "10.8.0.0/24"   # Wireguard
           "10.9.18.0/24"  # Management
           "10.20.0.0/16"  # Servers VLAN
           "10.40.0.0/16"  # IoT VLAN
+        ];
+        use_global_settings = false;
+        filtering_enabled = false;
+        safebrowsing_enabled = false;
+        parental_enabled = false;
+        safesearch = {
+          enabled = false;
+        };
+        use_global_blocked_services = false;
+        # Use global upstreams (includes local domain routing)
+      }
+      {
+        name = "Video VLAN (completely isolated)";
+        ids = [
+          "10.50.0.0/16"  # Video VLAN - no local domains
         ];
         use_global_settings = false;
         filtering_enabled = false;
