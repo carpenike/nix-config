@@ -19,6 +19,10 @@ in
       type = lib.types.path;
       default = "/var/lib/unifi/data";
     };
+    logDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/var/lib/unifi/logs";
+    };
 
     # Reverse proxy integration options
     reverseProxy = {
@@ -47,7 +51,7 @@ in
       httpsBackend = true; # UniFi uses HTTPS
       headers = ''
         # Handle websockets for real-time updates
-        header_up Host {upstream_hostport}
+        header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
@@ -62,6 +66,11 @@ in
       chown -R 999:999 ${cfg.dataDir}
     '';
 
+    system.activationScripts.makeUnifiLogDir = lib.stringAfter [ "var" ] ''
+      mkdir -p "${cfg.logDir}"
+      chown -R 999:999 ${cfg.logDir}
+    '';
+
     virtualisation.oci-containers.containers = {
       unifi = {
         image = "ghcr.io/jacobalberty/unifi-docker:v8.4.62";
@@ -72,6 +81,7 @@ in
         ports = [ "8080:8080" "8443:8443" "3478:3478/udp" ];
         volumes = [
           "${cfg.dataDir}:/unifi"
+          "${cfg.logDir}:/unifi/logs"
         ];
       };
     };
