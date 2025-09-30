@@ -1,0 +1,110 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 26,
+        "title": "Establish Flake Structure and System Builders",
+        "description": "Create the foundational Nix flake structure with system builders for both NixOS and Darwin platforms",
+        "details": "1. Create a `flake.nix` file at the root of the repository that defines inputs (nixpkgs, home-manager, darwin, etc.)\n2. Implement `lib/mkSystem.nix` with functions to build configurations for both NixOS and Darwin\n3. Set up a basic directory structure:\n   - hosts/: For host-specific configurations\n   - hosts/_modules/: For shared modules (common, nixos, darwin)\n   - home/: For Home Manager configurations\n   - overlays/: For package modifications\n   - pkgs/: For custom packages\n4. Create a simple argument passing system for dependency injection between modules\n5. Implement basic validation to catch configuration errors\n6. Ensure the flake builds successfully with `nix flake check`",
+        "testStrategy": "1. Verify flake evaluation with `nix flake check`\n2. Test building a minimal NixOS configuration\n3. Test building a minimal Darwin configuration\n4. Validate directory structure follows the planned architecture\n5. Ensure proper error messages are displayed for common configuration mistakes",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "Implement Modular Configuration System",
+        "description": "Create a layered module system with clear separation of concerns between common, platform-specific, and host-specific configurations",
+        "details": "1. Design a module structure with three layers:\n   - Common modules (shared across all systems)\n   - Platform-specific modules (NixOS vs Darwin)\n   - Host-specific configurations\n2. Create standard module interfaces with options and config attributes\n3. Implement module composition logic in `lib/mkSystem.nix`\n4. Set up inheritance patterns for configuration values\n5. Create helper functions for common configuration patterns\n6. Implement conditional module loading based on system type\n7. Document the module system architecture and usage patterns",
+        "testStrategy": "1. Create test modules for each layer and verify proper inheritance\n2. Test platform-specific module loading on different system types\n3. Verify that common configurations are properly applied across platforms\n4. Test module composition with conflicting configurations to ensure proper resolution\n5. Validate that helper functions produce expected configuration outputs",
+        "priority": "high",
+        "dependencies": [
+          26
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 28,
+        "title": "Set Up SOPS-based Secrets Management",
+        "description": "Implement secure secrets management using SOPS with age keys for encrypted configuration across hosts",
+        "details": "1. Set up SOPS integration with the Nix flake\n2. Generate age keys for each host and store public keys in the repository\n3. Create a `.sops.yaml` configuration file defining access policies\n4. Implement a secrets directory structure under `hosts/<hostname>/secrets/`\n5. Create templates for common secret types (credentials, certificates, etc.)\n6. Write helper functions for secret deployment and usage\n7. Document secret rotation and management procedures\n8. Implement integration with the module system for automatic secret deployment",
+        "testStrategy": "1. Test encryption and decryption of sample secrets\n2. Verify that secrets are only accessible by the intended hosts\n3. Test secret rotation procedure on a non-critical system\n4. Validate that secrets are properly deployed to the correct locations\n5. Ensure secrets are not exposed in the Nix store or logs",
+        "priority": "high",
+        "dependencies": [
+          26,
+          27
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 29,
+        "title": "Configure Home Manager Integration",
+        "description": "Set up Home Manager for consistent user environments across all platforms with shared configurations",
+        "details": "1. Create a base Home Manager configuration in `home/default.nix`\n2. Implement platform-specific Home Manager modules (Darwin vs NixOS)\n3. Set up user profiles with shared development tools and configurations\n4. Configure shell environments (zsh, bash) with consistent aliases and functions\n5. Set up dotfiles management through Home Manager\n6. Implement editor configurations (VSCode, Neovim) with consistent theming\n7. Create language-specific development environments (Python, Node.js, Go)\n8. Integrate Home Manager with the system builders in `lib/mkSystem.nix`",
+        "testStrategy": "1. Test Home Manager configuration on both NixOS and Darwin platforms\n2. Verify that user environments are consistent across different hosts\n3. Test shell configuration and aliases on different platforms\n4. Validate that editor configurations are properly applied\n5. Test language-specific development environments with sample projects",
+        "priority": "medium",
+        "dependencies": [
+          26,
+          27
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 30,
+        "title": "Implement Core Infrastructure Services",
+        "description": "Configure essential home lab services including DNS, reverse proxy, and container orchestration",
+        "details": "1. Create NixOS modules for DNS services:\n   - AdGuard Home configuration\n   - Blocky for DNS filtering\n   - BIND for authoritative DNS\n   - DNSdist for load balancing\n2. Implement reverse proxy configurations:\n   - Caddy with automatic HTTPS\n   - HAProxy for load balancing\n   - Nginx for static content\n3. Set up Podman-based container orchestration:\n   - Network configuration\n   - Volume management\n   - Container definitions\n4. Configure basic monitoring with Glances and Node Exporter\n5. Implement network management for Unifi and Omada controllers\n6. Create service dependency management to ensure proper startup order",
+        "testStrategy": "1. Test DNS resolution with each configured DNS service\n2. Verify reverse proxy configurations with test services\n3. Test container deployment and networking\n4. Validate monitoring data collection\n5. Test service dependencies during system startup\n6. Verify network management functionality",
+        "priority": "medium",
+        "dependencies": [
+          26,
+          27,
+          28
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 31,
+        "title": "Configure Development Environment Toolchain",
+        "description": "Set up comprehensive development tools including language support, Kubernetes tools, and editor configurations",
+        "details": "1. Configure language-specific development environments:\n   - Python with virtual environments and common packages\n   - Node.js with npm/yarn and development tools\n   - Go with proper GOPATH configuration\n2. Set up Kubernetes toolchain:\n   - kubectl with autocompletion\n   - Custom kubectl plugins for workflow enhancement\n   - Helm for package management\n   - k9s for cluster management\n3. Configure infrastructure-as-code tools:\n   - Terraform with provider configurations\n   - Ansible for configuration management\n4. Implement editor configurations:\n   - VSCode with extensions and settings\n   - Neovim with plugins and keybindings\n5. Set up consistent theming across all development tools",
+        "testStrategy": "1. Test each language environment with sample projects\n2. Verify Kubernetes tools against a test cluster\n3. Test infrastructure-as-code tools with sample configurations\n4. Validate editor configurations and extensions\n5. Test consistent theming across different applications",
+        "priority": "medium",
+        "dependencies": [
+          26,
+          27,
+          29
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 32,
+        "title": "Create Host-Specific Configurations",
+        "description": "Implement specific configurations for each target host (rymac, luna, rydev, nixos-bootstrap, nixpi)",
+        "details": "1. Create host directories under `hosts/` for each target system:\n   - rymac (Darwin): Primary development machine\n   - luna (NixOS x86_64): Production infrastructure services\n   - rydev (NixOS aarch64): Development and testing\n   - nixos-bootstrap: Base system deployment\n   - nixpi: Raspberry Pi configuration\n2. Configure hardware-specific settings for each host\n3. Set up host-specific service configurations\n4. Implement Disko for declarative disk management on NixOS hosts\n5. Create host-specific network configurations\n6. Set up boot configurations appropriate for each platform\n7. Configure host-specific user accounts and permissions",
+        "testStrategy": "1. Test building configurations for each host\n2. Verify hardware-specific settings are correctly applied\n3. Test service configurations on appropriate hosts\n4. Validate disk configurations with Disko\n5. Test network configurations for connectivity\n6. Verify boot configurations with test boots where possible",
+        "priority": "medium",
+        "dependencies": [
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-09-30T13:53:55.465Z",
+      "updated": "2025-09-30T14:14:40.093Z",
+      "description": "Tasks for master context"
+    }
+  }
+}

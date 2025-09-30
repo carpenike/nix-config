@@ -145,6 +145,14 @@ in
           enable = true;
           reverseProxy.enable = true;
         };
+
+        attic = {
+          enable = true;
+          reverseProxy = {
+            enable = true;
+            virtualHost = "attic.holthome.net";
+          };
+        };
       };
 
       # Explicitly enable ZFS filesystem module

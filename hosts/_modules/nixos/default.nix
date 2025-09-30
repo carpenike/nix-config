@@ -10,6 +10,7 @@
     ./filesystems
     ./hardware
     ./services
+    ./services/attic.nix
   ];
 
   documentation.nixos.enable = false;

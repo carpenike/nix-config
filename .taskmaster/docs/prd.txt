@@ -1,0 +1,168 @@
+# Overview
+This is a personal home lab Nix configuration repository that manages personal development machines (macOS and Linux) and a few home lab servers using Nix flakes. The goal is to achieve consistent development environments across devices, simplify new machine setup, and enable easy experimentation with home lab services. The focus is on simplicity, maintainability, and reducing manual configuration work while keeping the system transparent and easy to understand.
+
+# Core Features
+
+## Multi-Platform System Management
+- Unified configuration for NixOS (Linux) and Darwin (macOS) systems
+- Consistent user experience across platforms through Home Manager integration
+- Platform-specific optimizations while maintaining shared configuration base
+- Support for multiple host types: servers, development machines, and bootstrap systems
+
+## Modular Architecture
+- Layered module system with clear separation of concerns (common/platform/host-specific)
+- Reusable components that can be composed for different host configurations
+- Clean dependency injection through specialized args system
+- Standardized module interfaces for consistent behavior
+
+## Secrets Management
+- SOPS-based encrypted secrets with age keys for secure configuration
+- Per-host key management for isolation and security
+- Automated secret deployment and rotation capabilities
+- Integration with external secret management systems
+
+## Infrastructure Services
+- DNS services (AdGuard Home, Blocky, BIND, DNSdist)
+- Reverse proxy and load balancing (Caddy, HAProxy, Nginx)
+- Container orchestration with Podman
+- Monitoring and observability (Glances, Node Exporter)
+- Network management (Unifi, Omada controllers)
+
+## Development Environment
+- Comprehensive development toolchain with language support
+- Kubernetes tools and utilities for infrastructure management
+- Custom kubectl plugins for enhanced workflow
+- VSCode and Neovim configurations with consistent theming
+
+# User Experience
+
+## Primary Users
+- DevOps engineers managing infrastructure at scale
+- Platform engineers building development environments
+- Security-conscious administrators requiring encrypted configuration management
+- Multi-platform users needing consistent tooling across macOS and Linux
+
+## Key User Flows
+- **New Host Onboarding**: Quick deployment of standardized configurations to new systems
+- **Configuration Updates**: Safe, validated deployment of changes across multiple hosts
+- **Secret Management**: Secure addition and rotation of sensitive configuration data
+- **Development Workflow**: Consistent development environment setup across team members
+- **Service Deployment**: Reliable deployment of infrastructure services with proper dependencies
+
+## Administrative Experience
+- Command-line driven workflows with validation safeguards
+- Automated testing and validation before deployment
+- Clear documentation and operational procedures
+- Rollback capabilities for failed deployments
+
+# Technical Architecture
+
+## System Components
+- **Flake.nix**: Central configuration entry point with input management
+- **lib/mkSystem.nix**: Unified system builders for NixOS and Darwin
+- **hosts/_modules/**: Shared modules organized by scope (common/nixos/darwin)
+- **hosts/<hostname>/**: Individual host configurations with secrets and hardware specs
+- **home/**: Home Manager configurations for user environments
+- **overlays/**: Package modifications and customizations
+- **pkgs/**: Custom package definitions for specialized tools
+
+## Data Models
+- Host-centric configuration with inherited common settings
+- User profiles that work consistently across platforms
+- Service configurations with shared templates and host-specific overrides
+- Secret schemas with proper typing and validation
+
+## APIs and Integrations
+- Nix flake system for dependency management and evaluation
+- Home Manager for user environment management
+- SOPS integration for secrets encryption/decryption
+- Disko for declarative disk management
+- Task runner integration for operational workflows
+
+## Infrastructure Requirements
+- Git repository for configuration versioning
+- GPG/age keys for secrets management
+- SSH access for remote deployment
+- Nix package manager on all target systems
+- Build host capabilities for complex configurations
+
+# Development Roadmap
+
+## Phase 1: Core Foundation (MVP)
+- Establish working Nix flake structure with basic system builders
+- Create modular configuration for personal machines (rymac, rydev, luna)
+- Implement basic secrets management for home lab services
+- Set up Home Manager for consistent user environment across all devices
+- Create simple validation to catch basic configuration errors
+
+## Phase 2: Home Lab Services
+- Configure essential home lab services (DNS, reverse proxy, containers)
+- Set up development toolchain with language support and editors
+- Implement basic backup strategy for important configurations
+- Create simple deployment scripts for updating machines
+
+## Phase 3: Quality of Life Improvements
+- Optimize build performance and reduce rebuild times
+- Create templates for quick new machine setup
+- Add monitoring for critical home lab services
+- Document common workflows and troubleshooting
+
+# Logical Dependency Chain
+
+## Foundation First (Critical Path)
+1. **Working Flake Structure**: Get basic Nix flake evaluation and building working
+2. **System Builders**: Simple functions to build NixOS and Darwin configurations
+3. **Modular Configuration**: Organize code into reusable, understandable modules
+4. **Home Manager Integration**: Consistent user environment across all machines
+
+## Progressive Enhancement
+1. **Essential Services**: SSH, basic networking, and core development tools
+2. **Home Lab Services**: DNS, containers, and other home infrastructure
+3. **Quality of Life**: Performance optimization, templates, and documentation
+
+## Simple, Iterative Approach
+- Focus on getting things working before making them perfect
+- Manual deployment is fine initially - automation comes later
+- Keep configurations simple and transparent
+- Prioritize personal productivity over enterprise features
+
+# Risks and Mitigations
+
+## Technical Challenges
+- **Risk**: Over-engineering leading to complexity and maintenance burden
+- **Mitigation**: Start simple, add features incrementally only when needed
+
+- **Risk**: Nix learning curve and debugging difficulties
+- **Mitigation**: Focus on well-documented patterns, keep configurations readable
+
+- **Risk**: Secret management key loss
+- **Mitigation**: Simple backup strategy for age keys, avoid over-complex rotation
+
+## Personal Project Risks
+- **Risk**: Project abandonment due to complexity or time constraints
+- **Mitigation**: Maintain focus on immediate value, avoid perfectionism
+
+- **Risk**: Breaking working systems during configuration changes
+- **Mitigation**: Test changes on non-critical machines first, keep simple rollback options
+
+# Appendix
+
+## Current Infrastructure
+- **rymac**: Darwin configuration (aarch64-darwin) - Primary development machine
+- **luna**: x86_64-linux NixOS server - Production infrastructure services
+- **rydev**: aarch64-linux NixOS (Parallels) - Development and testing environment
+- **nixos-bootstrap**: aarch64-linux bootstrap deployment - Base system deployment
+- **nixpi**: Raspberry Pi NixOS configuration - Edge/IoT deployment
+
+## Service Portfolio
+- DNS: AdGuard Home, Blocky, BIND, DNSdist for comprehensive DNS management
+- Reverse Proxy: Caddy, HAProxy, Nginx for load balancing and SSL termination
+- Containers: Podman-based container orchestration with proper networking
+- Monitoring: Glances, Node Exporter for system observability
+- Network: Unifi and Omada controller management for enterprise networking
+
+## Development Tools
+- Languages: Python, Node.js, Go development environments
+- Kubernetes: kubectl with custom plugins for enhanced workflow
+- Editors: VSCode and Neovim with consistent configuration and theming
+- Infrastructure: Terraform, Helm, and other infrastructure-as-code tools

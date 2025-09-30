@@ -43,7 +43,14 @@
       "Bash(/nix-deploy host=luna)",
       "Bash(ssh:*)",
       "Bash(scp:*)",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "mcp__taskmaster-ai__initialize_project",
+      "mcp__taskmaster-ai__parse_prd",
+      "mcp__taskmaster-ai__get_tasks",
+      "mcp__taskmaster-ai__next_task",
+      "mcp__taskmaster-ai__set_task_status",
+      "Bash(nix-shell:*)",
+      "mcp__taskmaster-ai__update_task"
     ],
     "deny": []
   }
