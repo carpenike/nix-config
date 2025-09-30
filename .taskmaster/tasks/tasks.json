@@ -99,11 +99,27 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": 33,
+        "title": "Set Up Attic Binary Cache for Improved Build Performance",
+        "description": "Deploy a self-hosted Attic binary cache server on luna with secure configuration and integrate with all client machines to achieve approximately 10x faster rebuilds.",
+        "details": "1. Install and configure Attic server on luna:\n   - Set up the Attic service using the NixOS module\n   - Configure storage backend with appropriate retention policies\n   - Set up authentication and access control mechanisms\n   - Implement TLS with proper certificates (possibly using ACME)\n   - Configure backup strategy for cache data\n\n2. Create cache management infrastructure:\n   - Set up cache signing keys with proper permissions\n   - Configure cache pruning policies to manage disk usage\n   - Implement monitoring for cache size and performance\n   - Create maintenance scripts for cache optimization\n\n3. Configure client-side integration:\n   - Add Attic cache to substituters in Nix configuration\n   - Configure trusted public keys for all clients\n   - Set up appropriate bandwidth and connection limits\n   - Implement fallback to official cache for missing packages\n\n4. Implement automated cache population:\n   - Configure CI/CD pipeline to push built derivations to the cache\n   - Set up post-build hooks to automatically push local builds\n   - Create policies for which derivations should be cached\n\n5. Optimize cache performance:\n   - Configure appropriate compression settings\n   - Tune network parameters for optimal throughput\n   - Implement request rate limiting to prevent overload\n   - Set up caching headers for improved performance\n\n6. Document cache usage and maintenance:\n   - Create documentation for adding new clients\n   - Document troubleshooting procedures\n   - Create guidelines for cache maintenance and monitoring\n   - Document backup and recovery procedures",
+        "testStrategy": "1. Verify Attic server deployment:\n   - Confirm service is running and accessible from the network\n   - Test authentication mechanisms\n   - Validate TLS configuration with SSL testing tools\n   - Verify storage backend is properly configured\n\n2. Test cache functionality:\n   - Push test derivations to the cache\n   - Verify derivations can be retrieved from other hosts\n   - Test cache signing and verification\n   - Measure cache hit rates and performance improvements\n\n3. Benchmark performance improvements:\n   - Measure build times before and after cache implementation\n   - Compare performance across different host types\n   - Test concurrent access from multiple clients\n   - Verify bandwidth usage is within expected parameters\n\n4. Validate security configuration:\n   - Ensure only authorized clients can push to the cache\n   - Verify that only properly signed packages are accepted\n   - Test access control mechanisms\n   - Validate that sensitive information is not exposed\n\n5. Test failure scenarios:\n   - Simulate network outages and verify graceful fallback\n   - Test cache server restart procedures\n   - Verify behavior when cache storage is near capacity\n   - Test backup and recovery procedures",
+        "status": "pending",
+        "dependencies": [
+          27,
+          28,
+          30,
+          32
+        ],
+        "priority": "high",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-09-30T13:53:55.465Z",
-      "updated": "2025-09-30T14:14:40.093Z",
+      "updated": "2025-09-30T20:28:30.450Z",
       "description": "Tasks for master context"
     }
   }

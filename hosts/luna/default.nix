@@ -148,6 +148,7 @@ in
 
         attic = {
           enable = true;
+          jwtSecretFile = config.sops.secrets."attic/jwt-secret".path;
           reverseProxy = {
             enable = true;
             virtualHost = "attic.holthome.net";

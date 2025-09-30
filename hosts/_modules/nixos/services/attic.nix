@@ -32,6 +32,11 @@ in
       description = "Storage-specific configuration";
     };
 
+    jwtSecretFile = lib.mkOption {
+      type = lib.types.path;
+      description = "Path to file containing the JWT HMAC secret (base64 encoded)";
+    };
+
     reverseProxy = {
       enable = lib.mkEnableOption "Caddy reverse proxy for Attic";
 
@@ -118,6 +123,11 @@ in
         ReadWritePaths = [ cfg.dataDir ];
 
         ExecStart = "${pkgs.attic-server}/bin/atticd -f /etc/atticd/config.toml";
+      };
+
+      # Set JWT secret from file
+      environment = {
+        ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64 = "$(cat ${cfg.jwtSecretFile})";
       };
 
       # Run database migrations on first start or upgrades

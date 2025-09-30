@@ -51,6 +51,10 @@
           restartUnits = [ "adguardhome.service" ];
           owner = "adguardhome";
         };
+        "attic/jwt-secret" = {
+          restartUnits = [ "atticd.service" ];
+          owner = "attic";
+        };
       };
     };
   };
