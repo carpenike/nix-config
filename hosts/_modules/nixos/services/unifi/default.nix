@@ -81,7 +81,7 @@ in
         ports = [ "8080:8080" "8443:8443" "3478:3478/udp" ];
         volumes = [
           "${cfg.dataDir}:/unifi"
-          "${cfg.logDir}:/unifi/logs"
+          "${cfg.logDir}:/logs"
         ];
       };
     };
