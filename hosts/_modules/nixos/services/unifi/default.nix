@@ -2,6 +2,7 @@
   pkgs,
   lib,
   config,
+  podmanLib,
   ...
 }:
 let
@@ -61,29 +62,37 @@ in
       '';
     };
 
-    system.activationScripts.makeUnifiDataDir = lib.stringAfter [ "var" ] ''
-      mkdir -p "${cfg.dataDir}"
-      chown -R 999:999 ${cfg.dataDir}
-    '';
+    system.activationScripts = {
+      makeUnifiDataDir = lib.stringAfter [ "var" ] ''
+        mkdir -p "${cfg.dataDir}"
+        chown -R 999:999 ${cfg.dataDir}
+      '';
+    } // podmanLib.mkLogDirActivation {
+      name = "Unifi";
+      path = cfg.logDir;
+      user = "999";
+      group = "999";
+    };
 
-    system.activationScripts.makeUnifiLogDir = lib.stringAfter [ "var" ] ''
-      mkdir -p "${cfg.logDir}"
-      chown -R 999:999 ${cfg.logDir}
-    '';
+    # Configure logrotate for UniFi application logs
+    services.logrotate.settings = podmanLib.mkLogRotate {
+      containerName = "unifi";
+      logDir = cfg.logDir;
+      user = "999";
+      group = "999";
+    };
 
-    virtualisation.oci-containers.containers = {
-      unifi = {
-        image = "ghcr.io/jacobalberty/unifi-docker:v8.4.62";
-        environment = {
-          "TZ" = "America/New_York";
-        };
-        autoStart = true;
-        ports = [ "8080:8080" "8443:8443" "3478:3478/udp" ];
-        volumes = [
-          "${cfg.dataDir}:/unifi"
-          "${cfg.logDir}:/logs"
-        ];
+    virtualisation.oci-containers.containers.unifi = podmanLib.mkContainer "unifi" {
+      image = "ghcr.io/jacobalberty/unifi-docker:v8.4.62";
+      environment = {
+        "TZ" = "America/New_York";
       };
+      autoStart = true;
+      ports = [ "8080:8080" "8443:8443" "3478:3478/udp" ];
+      volumes = [
+        "${cfg.dataDir}:/unifi"
+        "${cfg.logDir}:/logs"
+      ];
     };
     networking.firewall.allowedTCPPorts = unifiTcpPorts;
     networking.firewall.allowedUDPPorts = unifiUdpPorts;

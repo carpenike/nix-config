@@ -42,7 +42,8 @@
       "mcp__serena__replace_symbol_body",
       "Bash(/nix-deploy host=luna)",
       "Bash(ssh:*)",
-      "Bash(scp:*)"
+      "Bash(scp:*)",
+      "WebFetch(domain:ai.google.dev)"
     ],
     "deny": []
   }

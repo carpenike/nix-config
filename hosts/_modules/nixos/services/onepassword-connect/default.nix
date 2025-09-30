@@ -2,6 +2,7 @@
   pkgs,
   lib,
   config,
+  podmanLib,
   ...
 }:
 let
@@ -84,7 +85,7 @@ in
     '';
 
     virtualisation.oci-containers.containers = {
-      onepassword-connect-api = {
+      onepassword-connect-api = podmanLib.mkContainer "onepassword-connect-api" {
         image = "docker.io/1password/connect-api:1.7.2";
         autoStart = true;
         ports = [ "8000:8080" ];
@@ -94,7 +95,7 @@ in
         ];
       };
 
-      onepassword-connect-sync = {
+      onepassword-connect-sync = podmanLib.mkContainer "onepassword-connect-sync" {
         image = "docker.io/1password/connect-sync:1.7.2";
         autoStart = true;
         volumes = [

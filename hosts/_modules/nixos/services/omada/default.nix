@@ -2,6 +2,7 @@
   pkgs,
   lib,
   config,
+  podmanLib,
   ...
 }:
 let
@@ -74,28 +75,37 @@ in
       '';
     };
 
-    system.activationScripts.makeOmadaDataDir = lib.stringAfter [ "var" ] ''
-      mkdir -p "${cfg.dataDir}"
-      chown -R 999:999 ${cfg.dataDir}
-    '';
-    system.activationScripts.makeOmadaLogDir = lib.stringAfter [ "var" ] ''
-      mkdir -p "${cfg.logDir}"
-      chown -R 999:999 ${cfg.logDir}
-    '';
+    system.activationScripts = {
+      makeOmadaDataDir = lib.stringAfter [ "var" ] ''
+        mkdir -p "${cfg.dataDir}"
+        chown -R 999:999 ${cfg.dataDir}
+      '';
+    } // podmanLib.mkLogDirActivation {
+      name = "Omada";
+      path = cfg.logDir;
+      user = "999";
+      group = "999";
+    };
 
-    virtualisation.oci-containers.containers = {
-      omada = {
-        image = "docker.io/mbentley/omada-controller:5.14";
-        environment = {
-          "TZ" = "America/New_York";
-        };
-        autoStart = true;
-        ports = [ "8043:8043" "8843:8843" "29814:29814" "29810:29810/udp"  ];
-        volumes = [
-          "${cfg.dataDir}:/opt/tplink/EAPController/data"
-          "${cfg.logDir}:/opt/tplink/EAPController/logs"
-        ];
+    # Configure logrotate for Omada application logs
+    services.logrotate.settings = podmanLib.mkLogRotate {
+      containerName = "omada";
+      logDir = cfg.logDir;
+      user = "999";
+      group = "999";
+    };
+
+    virtualisation.oci-containers.containers.omada = podmanLib.mkContainer "omada" {
+      image = "docker.io/mbentley/omada-controller:5.14";
+      environment = {
+        "TZ" = "America/New_York";
       };
+      autoStart = true;
+      ports = [ "8043:8043" "8843:8843" "29814:29814" "29810:29810/udp"  ];
+      volumes = [
+        "${cfg.dataDir}:/opt/tplink/EAPController/data"
+        "${cfg.logDir}:/opt/tplink/EAPController/logs"
+      ];
     };
 
     # Override systemd service to handle Omada's initialization behavior
