@@ -127,6 +127,9 @@ in
         ProtectHome = true;
         ReadWritePaths = [ cfg.dataDir ];
 
+        # Ensure the user can access the database file
+        UMask = "0022";
+
         # Use a wrapper script to read the JWT secret
         ExecStart = pkgs.writeShellScript "atticd-start" ''
           export ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64="$(cat ${cfg.jwtSecretFile})"
@@ -136,6 +139,19 @@ in
 
       # Run database migrations on first start or upgrades
       preStart = ''
+        # Ensure directories exist with correct permissions
+        mkdir -p ${cfg.dataDir}
+        mkdir -p ${cfg.dataDir}/storage
+        chown attic:attic ${cfg.dataDir}
+        chown attic:attic ${cfg.dataDir}/storage
+        chmod 755 ${cfg.dataDir}
+        chmod 755 ${cfg.dataDir}/storage
+
+        # Touch the database file to ensure it exists with correct ownership
+        touch ${cfg.dataDir}/server.db
+        chown attic:attic ${cfg.dataDir}/server.db
+        chmod 644 ${cfg.dataDir}/server.db
+
         export ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64="$(cat ${cfg.jwtSecretFile})"
         ${pkgs.attic-server}/bin/atticd -f /etc/atticd/config.toml --mode db-migrations
       '';
