@@ -122,12 +122,11 @@ in
         ProtectHome = true;
         ReadWritePaths = [ cfg.dataDir ];
 
-        ExecStart = "${pkgs.attic-server}/bin/atticd -f /etc/atticd/config.toml";
-      };
-
-      # Set JWT secret from file
-      environment = {
-        ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64 = "$(cat ${cfg.jwtSecretFile})";
+        # Use a wrapper script to read the JWT secret
+        ExecStart = pkgs.writeShellScript "atticd-start" ''
+          export ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64="$(cat ${cfg.jwtSecretFile})"
+          exec ${pkgs.attic-server}/bin/atticd -f /etc/atticd/config.toml
+        '';
       };
 
       # Run database migrations on first start or upgrades
