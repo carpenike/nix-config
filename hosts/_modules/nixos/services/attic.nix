@@ -131,6 +131,7 @@ in
 
       # Run database migrations on first start or upgrades
       preStart = ''
+        export ATTIC_SERVER_TOKEN_HS256_SECRET_BASE64="$(cat ${cfg.jwtSecretFile})"
         ${pkgs.attic-server}/bin/atticd -f /etc/atticd/config.toml --mode db-migrations
       '';
     };
