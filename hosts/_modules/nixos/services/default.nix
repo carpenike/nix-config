@@ -4,6 +4,8 @@
 {
   imports = [
     ./adguardhome
+    ./attic.nix
+    ./attic-admin.nix
     ./bind
     ./blocky
     ./caddy
