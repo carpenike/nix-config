@@ -3,6 +3,7 @@
 }:
 {
   imports = [
+    # Uncomment modules as they are created with enable options
     # ./atuin
     # ./bat
     # ./bash

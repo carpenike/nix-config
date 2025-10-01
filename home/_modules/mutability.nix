@@ -49,6 +49,7 @@ in {
           source = lib.escapeShellArg file.source;
           target = lib.escapeShellArg file.target;
         in ''
+          $DRY_RUN_CMD mkdir -p "$(dirname ${target})"
           $VERBOSE_ECHO "${source} -> ${target}"
           $DRY_RUN_CMD cp --remove-destination --no-preserve=mode ${source} ${target}
         '';

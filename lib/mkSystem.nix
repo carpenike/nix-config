@@ -37,7 +37,7 @@
             extraSpecialArgs = {
               inherit inputs hostname system;
             };
-            users.ryan = ../. + "/home/ryan";
+            users.ryan = ../home/ryan;
           };
         }
         ../hosts/_modules/common
@@ -80,7 +80,7 @@
             extraSpecialArgs = {
               inherit inputs hostname system;
             };
-            users.ryan = ../. + "/home/ryan";
+            users.ryan = ../home/ryan;
           };
         }
         ../hosts/_modules/common
