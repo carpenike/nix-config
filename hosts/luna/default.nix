@@ -148,6 +148,7 @@ in
 
         attic = {
           enable = true;
+          listenAddress = "127.0.0.1:8081";  # Use different port to avoid UniFi conflict
           jwtSecretFile = config.sops.secrets."attic/jwt-secret".path;
           reverseProxy = {
             enable = true;
