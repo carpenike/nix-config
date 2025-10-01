@@ -157,23 +157,22 @@ in
       '';
     };
 
-    # Reverse proxy configuration
-    services.caddy = lib.mkIf cfg.reverseProxy.enable {
+    # Register with enhanced Caddy module
+    modules.services.caddy.virtualHosts.attic = lib.mkIf cfg.reverseProxy.enable {
       enable = true;
-      virtualHosts."${cfg.reverseProxy.virtualHost}" = {
-        extraConfig = ''
-          reverse_proxy ${cfg.listenAddress}
-
-          # Security headers
-          header {
-            Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-            X-Content-Type-Options "nosniff"
-            X-Frame-Options "DENY"
-            X-XSS-Protection "1; mode=block"
-            Referrer-Policy "strict-origin-when-cross-origin"
-          }
-        '';
-      };
+      hostName = cfg.reverseProxy.virtualHost;
+      proxyTo = "http://${cfg.listenAddress}";
+      httpsBackend = false;
+      extraConfig = ''
+        # Security headers
+        header {
+          Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+          X-Content-Type-Options "nosniff"
+          X-Frame-Options "DENY"
+          X-XSS-Protection "1; mode=block"
+          Referrer-Policy "strict-origin-when-cross-origin"
+        }
+      '';
     };
 
     # Firewall configuration for direct access (if not using reverse proxy)

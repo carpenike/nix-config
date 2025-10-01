@@ -154,6 +154,10 @@ in
             virtualHost = "attic.holthome.net";
           };
         };
+
+        attic-admin = {
+          enable = true;
+        };
       };
 
       # Explicitly enable ZFS filesystem module

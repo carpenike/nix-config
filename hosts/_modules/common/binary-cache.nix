@@ -2,6 +2,9 @@
 { config, lib, pkgs, ... }:
 
 {
+  imports = [
+    ./attic-client.nix
+  ];
   # Configure Nix to use the homelab binary cache
   nix.settings = {
     substituters = [

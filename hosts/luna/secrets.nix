@@ -55,6 +55,9 @@
           restartUnits = [ "atticd.service" ];
           owner = "attic";
         };
+        "attic/admin-token" = {
+          mode = "0444";
+        };
       };
     };
   };
