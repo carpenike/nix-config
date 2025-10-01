@@ -154,6 +154,10 @@ in
             enable = true;
             virtualHost = "attic.holthome.net";
           };
+          autoPush = {
+            enable = true;
+            cacheName = "homelab";
+          };
         };
 
         attic-admin = {

@@ -45,6 +45,16 @@ in
         description = "Virtual host for reverse proxy";
       };
     };
+
+    autoPush = {
+      enable = lib.mkEnableOption "Automatically push system builds to cache";
+
+      cacheName = lib.mkOption {
+        type = lib.types.str;
+        default = "homelab";
+        description = "Name of the cache to push to";
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -178,6 +188,40 @@ in
     # Firewall configuration for direct access (if not using reverse proxy)
     networking.firewall = lib.mkIf (!cfg.reverseProxy.enable) {
       allowedTCPPorts = [ (lib.toInt (lib.last (lib.splitString ":" cfg.listenAddress))) ];
+    };
+
+    # Auto-push service to push system builds to cache
+    systemd.services.attic-auto-push = lib.mkIf cfg.autoPush.enable {
+      description = "Auto-push system build to Attic cache";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "atticd.service" ];
+      path = with pkgs; [ attic-client ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+        ExecStart = pkgs.writeShellScript "attic-auto-push" ''
+          # Wait for attic service to be ready
+          sleep 5
+
+          # Push current system build to cache
+          if ${pkgs.attic-client}/bin/attic push ${cfg.autoPush.cacheName} /run/current-system 2>/dev/null; then
+            echo "Successfully pushed system build to cache"
+          else
+            echo "Failed to push to cache (this is normal on first deployment)"
+          fi
+        '';
+      };
+    };
+
+    # Auto-push timer to periodically push builds
+    systemd.timers.attic-auto-push = lib.mkIf cfg.autoPush.enable {
+      description = "Auto-push system builds to Attic cache";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "10min";
+        OnUnitActiveSec = "1h";
+      };
     };
 
     # Package requirements
