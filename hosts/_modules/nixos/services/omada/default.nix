@@ -51,7 +51,7 @@ in
       };
       port = lib.mkOption {
         type = lib.types.port;
-        default = 8843;
+        default = 8043;
         description = "Omada Controller HTTPS port for reverse proxy";
       };
     };
@@ -72,6 +72,8 @@ in
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        # Fix redirects by rewriting Location headers from backend
+        header_down Location "https://{http.request.host}:8043" "https://{http.request.host}"
       '';
     };
 
