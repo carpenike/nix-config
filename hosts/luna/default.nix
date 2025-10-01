@@ -155,9 +155,9 @@ in
           };
         };
 
-        attic-admin = {
-          enable = true;
-        };
+        # attic-admin = {
+        #   enable = true;
+        # };
       };
 
       # Explicitly enable ZFS filesystem module
