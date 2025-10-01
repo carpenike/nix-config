@@ -24,10 +24,6 @@ in
       type = lib.types.path;
       default = "/var/lib/omada/log";
     };
-    mongoDataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/omada/mongodb";
-    };
     blockOnActivation = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -85,8 +81,6 @@ in
       makeOmadaDataDir = lib.stringAfter [ "var" ] ''
         mkdir -p "${cfg.dataDir}"
         chown -R 999:999 ${cfg.dataDir}
-        mkdir -p "${cfg.mongoDataDir}"
-        chown -R 999:999 ${cfg.mongoDataDir}
       '';
     } // podmanLib.mkLogDirActivation {
       name = "Omada";
@@ -103,29 +97,14 @@ in
       group = "999";
     };
 
-    # MongoDB container for Omada
-    virtualisation.oci-containers.containers.omada-mongo = podmanLib.mkContainer "omada-mongo" {
-      image = "docker.io/library/mongo:4.4";
-      environment = {
-        "MONGO_INITDB_ROOT_USERNAME" = "omada";
-        "MONGO_INITDB_ROOT_PASSWORD" = "omada";
-        "MONGO_INITDB_DATABASE" = "omada";
-      };
-      autoStart = true;
-      volumes = [
-        "${cfg.mongoDataDir}:/data/db"
-      ];
-    };
-
+    # Omada Controller with embedded MongoDB
     virtualisation.oci-containers.containers.omada = podmanLib.mkContainer "omada" {
       image = "docker.io/mbentley/omada-controller:5.14";
       environment = {
         "TZ" = "America/New_York";
-        "MONGO_EXTERNAL" = "true";
-        "EAP_MONGOD_URI" = "mongodb://omada:omada@omada-mongo:27017/omada";
+        # Using embedded MongoDB (default behavior when MONGO_EXTERNAL is not set)
       };
       autoStart = true;
-      dependsOn = [ "omada-mongo" ];
       ports = [ "8043:8043" "8843:8843" "29814:29814" "29810:29810/udp"  ];
       volumes = [
         "${cfg.dataDir}:/opt/tplink/EAPController/data"
@@ -135,9 +114,8 @@ in
 
     # Override systemd service to handle Omada's initialization behavior
     systemd.services."${config.virtualisation.oci-containers.backend}-omada" = {
-      after = lib.mkForce [ "network-online.target" "${config.virtualisation.oci-containers.backend}-omada-mongo.service" ];
-      wants = lib.mkForce [ "network-online.target" "${config.virtualisation.oci-containers.backend}-omada-mongo.service" ];
-      requires = [ "${config.virtualisation.oci-containers.backend}-omada-mongo.service" ];
+      after = lib.mkForce [ "network-online.target" ];
+      wants = lib.mkForce [ "network-online.target" ];
 
       # Allow more restart attempts during activation
       unitConfig = {
