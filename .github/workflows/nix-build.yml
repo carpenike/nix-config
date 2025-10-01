@@ -25,12 +25,14 @@ jobs:
         include:
           - system: luna
             os: ubuntu-latest
+          - system: rydev
+            os: ubuntu-latest
+          - system: nixos-bootstrap
+            os: ubuntu-latest
+          - system: nixpi
+            os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Create nix mount point
-        if: contains(matrix.os, 'ubuntu')
-        run: sudo mkdir /nix
-
       - name: Maximize build space
         uses: easimon/maximize-build-space@v10
         if: contains(matrix.os, 'ubuntu')
@@ -50,11 +52,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install nix
-        uses: cachix/install-nix-action@v31
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v19
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+          extra-conf: |
             extra-platforms = aarch64-linux
 
       - name: Set up Magic Nix Cache
@@ -63,13 +64,6 @@ jobs:
       - name: Register binfmt
         run: |
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-      - name: Set up Cachix
-        uses: cachix/cachix-action@v16
-        if: ${{ !github.event.pull_request.head.repo.fork }}
-        with:
-          name: carpenike
-          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Garbage collect build dependencies
         run: nix-collect-garbage

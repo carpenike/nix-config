@@ -3,7 +3,7 @@ name: Update nvfetcher
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: 0 * * * *
+    - cron: '0 5 * * *'  # Daily at 5 AM UTC
   push:
     branches:
       - main
@@ -34,6 +34,12 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Update flake.lock for nvfetcher sources
+        run: nix flake update
+
+      - name: Validate updated packages
+        run: nix flake check --no-build
+
       - name: Generate Token
         uses: actions/create-github-app-token@v2
         id: app-token
@@ -53,4 +59,5 @@ jobs:
             ## ${{ steps.run-nvfetcher.outputs.changes }}
           add-paths: |
             pkgs/**
+            flake.lock
           delete-branch: true
