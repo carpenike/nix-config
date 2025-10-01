@@ -97,9 +97,10 @@ in
       level = 8
     '';
 
-    # Create storage directory if using local storage
-    systemd.tmpfiles.rules = lib.optionals (cfg.storageType == "local") [
-      "d ${cfg.dataDir}/storage 755 attic attic -"
+    # Create directories with proper permissions
+    systemd.tmpfiles.rules = [
+      "d ${cfg.dataDir} 0755 attic attic -"
+      "d ${cfg.dataDir}/storage 0755 attic attic -"
     ];
 
     # Attic server service
@@ -114,6 +115,10 @@ in
         Group = "attic";
         Restart = "on-failure";
         RestartSec = 5;
+
+        # Directory management
+        StateDirectory = "atticd";
+        StateDirectoryMode = "0755";
 
         # Security settings
         NoNewPrivileges = true;
