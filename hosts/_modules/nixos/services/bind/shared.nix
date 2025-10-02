@@ -1,6 +1,7 @@
 { lib, config, ... }:
 let
   cfg = config.modules.services.bind.shared;
+  caddyCfg = config.modules.services.caddy;
   # Basic regex to validate IPv4 CIDR notation
   cidrRegex = "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$";
 in
@@ -123,6 +124,11 @@ in
           category update-security { stdout; };   # Log update authentication
         };
 
+        # holthome.net zone with:
+        # - Base zone records (SOA, NS, etc.) in SOPS secret
+        # - Caddy reverse proxy A records (declarative, add to SOPS zone file):
+        #   ${lib.optionalString caddyCfg.enable (lib.replaceStrings ["\n"] ["\n        #   "] caddyCfg.dnsRecords)}
+        # - Kubernetes service records (dynamic, via external-dns + rndc)
         zone "holthome.net." {
           type master;
           file "${config.sops.secrets."networking/bind/zones/holthome.net".path}";
@@ -160,5 +166,26 @@ in
     # Configure firewall for the shared BIND service
     networking.firewall.allowedTCPPorts = [ cfg.port ];
     networking.firewall.allowedUDPPorts = [ cfg.port ];
+
+    # Build-time check: Output DNS records that should be added to SOPS zone file
+    # DEPRECATED: Use nix eval .#allCaddyDnsRecords --raw for ALL hosts
+    # This only shows records from THIS host (luna)
+    system.build.caddy-dns-records = lib.mkIf caddyCfg.enable (
+      builtins.toFile "caddy-dns-records.txt" ''
+        # DNS A records for Caddy reverse proxies (THIS HOST ONLY)
+        # For ALL hosts, use: nix eval .#allCaddyDnsRecords --raw
+        # Add these to: hosts/luna/secrets.sops.yaml -> networking/bind/zones/holthome.net
+        #
+        ${caddyCfg.dnsRecords}
+      ''
+    );
+  };
+
+  # Export generated DNS records for easy access
+  options.modules.services.bind.shared.generatedDnsRecords = lib.mkOption {
+    type = lib.types.lines;
+    readOnly = true;
+    default = if caddyCfg.enable then caddyCfg.dnsRecords else "";
+    description = "DNS records generated from Caddy virtual hosts on THIS host only (use flake.allCaddyDnsRecords for all hosts)";
   };
 }

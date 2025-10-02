@@ -93,6 +93,11 @@
   let
     overlays = import ./overlays {inherit inputs;};
     mkSystemLib = import ./lib/mkSystem.nix {inherit inputs overlays;};
+
+    # Aggregate DNS records from all hosts for centralized zone management
+    aggregateDnsRecords = import ./lib/dns-aggregate.nix {
+      lib = inputs.nixpkgs.lib;
+    };
 in
   flake-parts.lib.mkFlake {inherit inputs;} {
     systems = [
@@ -125,6 +130,12 @@ in
       darwinConfigurations = {
         rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac";# overlays flake-packages;
       };
+
+      # Aggregated DNS records from all hosts' Caddy virtual hosts
+      # View with: nix eval .#allCaddyDnsRecords --raw
+      allCaddyDnsRecords = aggregateDnsRecords (
+        inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
+      );
 
         # Convenience output that aggregates the outputs for home, nixos.
         # Also used in ci to build targets generally.

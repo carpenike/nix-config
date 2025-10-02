@@ -40,6 +40,8 @@ ${optionalString vhost.httpsBackend ''            transport http {
     ) vhosts);
 in
 {
+  imports = [ ./dns-records.nix ];
+
   options.modules.services.caddy = {
     enable = mkEnableOption "Caddy web server";
 

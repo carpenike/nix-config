@@ -242,6 +242,87 @@ This configuration implements a production-grade homelab infrastructure on `luna
 - **Authentication**: `basic_auth` directive with bcrypt hashes from SOPS secrets
 - **Best Practices**: Caddy automatically forwards X-Forwarded-For/Proto; manual header_up only when needed
 
+### DNS Management Architecture
+
+**Multi-Host DNS Record Generation:**
+
+This repository implements declarative DNS management using flake-level aggregation. DNS records are automatically generated from Caddy virtual host configurations across ALL hosts in the flake.
+
+**Architecture Pattern:**
+```
+Host Configs → Flake Aggregation → Manual SOPS Update → BIND Server
+(luna, rydev,   (lib/dns-aggregate.nix)  (Zone File)      (luna)
+ nixpi, rymac)
+```
+
+**DNS Record Sources:**
+1. **Static Infrastructure (Caddy)**: Declaratively generated from NixOS config (this system)
+2. **Dynamic Services (Kubernetes)**: Updated via external-dns + rndc at runtime
+3. **Manual Records**: Directly edited in SOPS encrypted zone file
+
+**Key Components:**
+- `lib/dns-aggregate.nix` - Scans all hosts and collects Caddy virtual hosts
+- `hosts/_modules/common/networking/host-ip.nix` - Each host declares its primary IP via `my.hostIp` option
+- `hosts/_modules/nixos/services/caddy/dns-records.nix` - Per-host DNS record generation
+- `.#allCaddyDnsRecords` - Flake output containing aggregated DNS records from entire fleet
+
+**Workflow for DNS Updates:**
+
+1. **View Generated Records:**
+   ```bash
+   nix eval .#allCaddyDnsRecords --raw
+   ```
+
+2. **Add New Service with DNS:**
+   ```nix
+   # In any host config (e.g., hosts/rydev/default.nix)
+   config = {
+     my.hostIp = "10.20.0.20";  # Declare host IP once
+
+     modules.services.caddy = {
+       enable = true;
+       virtualHosts."myservice" = {
+         enable = true;
+         hostName = "myservice.holthome.net";
+         proxyTo = "localhost:8080";
+       };
+     };
+   };
+   ```
+
+3. **Regenerate and View Updated Records:**
+   ```bash
+   nix eval .#allCaddyDnsRecords --raw
+   ```
+
+4. **Update SOPS Zone File:**
+   ```bash
+   sops hosts/luna/secrets.sops.yaml
+   # Navigate to: networking/bind/zones/holthome.net
+   # Add the new A record(s) from step 3
+   # Check for duplicates before saving
+   ```
+
+5. **Deploy BIND Configuration:**
+   ```bash
+   /nix-deploy host=luna
+   ```
+
+**Important Notes:**
+- DNS record generation is **automatic** - records appear in flake output when you add Caddy virtual hosts
+- SOPS zone file update is **manual** - you must paste records into encrypted zone file
+- Always check for **duplicate records** before adding new ones to the zone file
+- Records from all hosts (luna, rydev, nixpi, rymac) are aggregated into single output
+- Host IPs are declared once per host via `my.hostIp` option in each host's config
+
+**Benefits:**
+- ✅ Single source of truth (NixOS config)
+- ✅ Automatic aggregation across fleet
+- ✅ Type-safe (caught at evaluation time)
+- ✅ No manual DNS/Caddy synchronization
+- ✅ Works alongside Kubernetes external-dns
+- ✅ SOPS security model preserved
+
 ### Deployment Architecture
 
 - **Darwin**: Local builds using `darwin-rebuild` with Task runner orchestration

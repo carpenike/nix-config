@@ -55,7 +55,9 @@
       "Bash(htpasswd:*)",
       "Bash(dig:*)",
       "Bash(curl -s \"https://cloudflare-dns.com/dns-query?name=omada.holthome.net&type=A\" -H \"accept: application/dns-json\")",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(git stash:*)",
+      "Bash(bash:*)"
     ],
     "deny": []
   }

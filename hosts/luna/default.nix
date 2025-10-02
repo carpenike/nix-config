@@ -20,6 +20,9 @@ in
   ];
 
   config = {
+    # Primary IP for DNS record generation
+    my.hostIp = "10.20.0.15";
+
     networking = {
       hostName = hostname;
       hostId = "506a4dd5";

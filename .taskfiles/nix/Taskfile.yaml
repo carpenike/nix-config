@@ -110,6 +110,49 @@ tasks:
           - Build-only validation for a host: /nix-deploy host=<hostname> --build-only
           - General configuration check: /nix-validate
 
+  dns-records:
+    desc: View aggregated DNS records from all Caddy virtual hosts
+    silent: true
+    summary: |
+      Shows DNS A records that should be added to the BIND zone file.
+      Records are automatically generated from Caddy virtual hosts across all hosts.
+
+      Usage:
+        task nix:dns-records
+
+      Next steps:
+        1. Review the generated records
+        2. Edit SOPS zone file: sops hosts/luna/secrets.sops.yaml
+        3. Navigate to: networking/bind/zones/holthome.net
+        4. Add new records (check for duplicates first!)
+        5. Deploy: /nix-deploy host=luna
+    cmds:
+      - |
+        echo "=== DNS A Records for Caddy Virtual Hosts ==="
+        echo "Generated from all hosts in flake (luna, rydev, nixpi, rymac)"
+        echo ""
+        RECORDS=$(nix eval .#allCaddyDnsRecords --raw)
+        echo "$RECORDS"
+        echo ""
+
+        # Check for duplicates within generated records
+        DUPLICATES=$(echo "$RECORDS" | sort | uniq -d)
+        if [ -n "$DUPLICATES" ]; then
+          echo "⚠️  WARNING: Duplicate records detected in generated output!"
+          echo "$DUPLICATES"
+          echo ""
+        fi
+
+        echo "=== Instructions ==="
+        echo "1. Copy the records you need above"
+        echo "2. Edit zone file: sops hosts/luna/secrets.sops.yaml"
+        echo "3. Add to section: networking/bind/zones/holthome.net"
+        echo "4. Check for existing duplicates in zone file before pasting!"
+        echo "5. Deploy BIND: /nix-deploy host=luna"
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+
   .prompt_to_continue:
     internal: true
     prompt: Do you want to continue applying this configuration?
