@@ -46,6 +46,7 @@ tasks:
     silent: true
     vars:
       ssh_user: ryan
+      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"bjw-s.internal\"}}"
     summary: |
       Args:
         host: Host to build and deploy to (required)
@@ -53,18 +54,17 @@ tasks:
       vars:
         - host
     cmds:
-      - nix-shell -p nixos-rebuild --run 'nixos-rebuild build --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.bjw-s.internal" --target-host "{{.ssh_user}}@{{.host}}.bjw-s.internal"'
+      - nix-shell -p nixos-rebuild --run 'nixos-rebuild build --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}"'
     preconditions:
       - sh: which nix
         msg: "nix not found"
-      - sh: which nixos-rebuild
-        msg: "nixos-rebuild not found"
 
   apply-nixos:
     desc: Build and apply nixos configuration
     silent: true
     vars:
       ssh_user: ryan
+      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"bjw-s.internal\"}}"
     summary: |
       Args:
         host: Host to build and deploy to (required)
@@ -72,12 +72,10 @@ tasks:
       vars:
         - host
     cmds:
-      - nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.bjw-s.internal" --target-host "{{.ssh_user}}@{{.host}}.bjw-s.internal"'
+      - nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}"'
     preconditions:
       - sh: which nix
         msg: "nix not found"
-      - sh: which nixos-rebuild
-        msg: "nixos-rebuild not found"
 
   test-vm:
     desc: Build and run a NixOS configuration in a QEMU VM for testing
@@ -124,8 +122,7 @@ tasks:
         1. Generate records from all Caddy virtual hosts
         2. Decrypt and parse current BIND zone file
         3. Show only records that need to be ADDED
-        4. Show stale records (in zone but not generated)
-        5. Provide step-by-step instructions for updating
+        4. Provide step-by-step instructions for updating
     cmds:
       - .taskfiles/nix/scripts/dns-diff.sh
     preconditions:

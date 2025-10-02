@@ -25,7 +25,7 @@ else
 fi
 
 # Create temp directory
-TMPDIR=$(mktemp -d)
+TMPDIR=$(mktemp -d) || { echo -e "${RED}❌ Failed to create temporary directory${NC}"; exit 1; }
 trap 'rm -rf "${TMPDIR}"; exit' EXIT INT TERM
 
 echo -e "${BLUE}=== DNS Smart Diff ===${NC}"
@@ -59,20 +59,21 @@ fi
 echo "Parsing zone file..."
 if command -v named-checkzone >/dev/null 2>&1; then
     # Use named-checkzone to canonicalize and extract A records
+    # Strip trailing dots and handle optional TTLs robustly
     if ! LC_ALL=C named-checkzone "${DOMAIN}" "${TMPDIR}/zone-raw.txt" 2>/dev/null \
-        | LC_ALL=C awk '$4 == "A" {print $1 "\tIN\tA\t" $5}' \
+        | LC_ALL=C awk '$(NF-1) == "A" && $NF ~ /^[0-9.]+$/ {gsub(/\.$/, "", $1); print $1 "\tIN\tA\t" $NF}' \
         | LC_ALL=C sort | uniq > "${TMPDIR}/current.txt"; then
         echo -e "${YELLOW}⚠️  Warning: named-checkzone failed, falling back to simple parsing${NC}"
         # Fallback: simple grep for A records
         LC_ALL=C grep -E '^\s*\S+\s+(IN\s+)?A\s+[0-9.]+' "${TMPDIR}/zone-raw.txt" \
-            | LC_ALL=C awk '{print $1 "\tIN\tA\t" $(NF)}' \
+            | LC_ALL=C awk '{gsub(/\.$/, "", $1); print $1 "\tIN\tA\t" $(NF)}' \
             | LC_ALL=C sort | uniq > "${TMPDIR}/current.txt" || true
     fi
 else
     echo -e "${YELLOW}⚠️  named-checkzone not found, using simple parsing${NC}"
     # Fallback: simple grep for A records
     LC_ALL=C grep -E '^\s*\S+\s+(IN\s+)?A\s+[0-9.]+' "${TMPDIR}/zone-raw.txt" \
-        | LC_ALL=C awk '{print $1 "\tIN\tA\t" $(NF)}' \
+        | LC_ALL=C awk '{gsub(/\.$/, "", $1); print $1 "\tIN\tA\t" $(NF)}' \
         | LC_ALL=C sort | uniq > "${TMPDIR}/current.txt" || true
 fi
 
@@ -93,7 +94,7 @@ fi
 # Step 6: Check for duplicates in generated records (same hostname with different IPs)
 echo ""
 echo -e "${BLUE}=== Validation ===${NC}"
-DUPLICATES=$(cut -f1 "${TMPDIR}/generated.txt" | sort | uniq -d)
+DUPLICATES=$(cut -f1 "${TMPDIR}/generated.txt" | LC_ALL=C sort | uniq -d)
 if [ -n "$DUPLICATES" ]; then
     echo -e "${RED}❌ Duplicate hostnames detected in generated records:${NC}"
     echo "$DUPLICATES"
