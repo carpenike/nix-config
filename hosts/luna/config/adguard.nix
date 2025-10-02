@@ -83,7 +83,7 @@
       arp = true;
       rdns = true;
       dhcp = true;
-      hosts = true;
+      hosts = false;  # Don't serve /etc/hosts entries to DNS clients
     };
     persistent = [
       {
