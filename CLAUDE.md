@@ -235,6 +235,13 @@ This configuration implements a production-grade homelab infrastructure on `luna
 - All services binding to localhost with reverse proxy providing secure external access
 - Authentication via SOPS-managed bcrypt hashes injected as environment variables
 
+**Caddy Reverse Proxy Configuration:**
+- **TLS/ACME**: Per-site DNS-01 challenges using Cloudflare DNS provider
+- **Split-Horizon DNS**: External resolvers (1.1.1.1, 8.8.8.8) bypass internal BIND for ACME verification
+- **HSTS**: Standardized across all services with 6-month max-age and includeSubDomains
+- **Authentication**: `basic_auth` directive with bcrypt hashes from SOPS secrets
+- **Best Practices**: Caddy automatically forwards X-Forwarded-For/Proto; manual header_up only when needed
+
 ### Deployment Architecture
 
 - **Darwin**: Local builds using `darwin-rebuild` with Task runner orchestration
@@ -271,6 +278,7 @@ This configuration implements a production-grade homelab infrastructure on `luna
 - **Darwin issues**: Ensure nix-darwin is properly installed and configured
 - **Container issues**: Check `podman logs <container>` and systemd service status
 - **Reverse proxy issues**: Verify Caddy configuration and SOPS environment variables
+- **ACME/TLS issues**: Check Caddy logs for DNS-01 challenge failures; verify Cloudflare API token has Zone:DNS:Edit permissions
 
 ### Containerized Services Best Practices
 
@@ -309,9 +317,22 @@ modules.services.caddy.virtualHosts.${subdomain} = lib.mkIf cfg.reverseProxy.ena
   enable = true;
   hostName = "${subdomain}.${config.networking.domain}";
   proxyTo = "localhost:${port}";
+  httpsBackend = true;  # Set true if backend uses HTTPS
   auth = cfg.reverseProxy.auth;  # Optional authentication
+  headers = ''
+    # Only add headers if backend specifically requires them
+    # Caddy automatically passes: X-Forwarded-For, X-Forwarded-Proto, Host
+    header_up X-Real-IP {remote_host}  # Only if backend needs it
+  '';
 };
 ```
+
+**Automatic Caddy Features (Built-in per site):**
+- TLS certificates via Let's Encrypt DNS-01 challenges
+- External DNS resolvers (1.1.1.1, 8.8.8.8) for split-horizon DNS compatibility
+- HSTS headers (6-month max-age, includeSubDomains)
+- Standard reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto, Host)
+- HTTP → HTTPS redirects
 
 ### Podman Library Helpers
 
