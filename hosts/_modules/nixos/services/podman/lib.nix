@@ -33,8 +33,8 @@ in
 
     # Helper to create logrotate configuration for a container's application logs
     # Note: This helper ONLY creates the logrotate configuration.
-    # You must also call mkLogDirTmpfiles to ensure the log directory and placeholder
-    # file exist before logrotate-checkconf runs.
+    # You must also call mkLogDirTmpfiles to ensure the log directory exists with
+    # proper permissions before containers start.
     mkLogRotate = {
       containerName,
       logDir,
@@ -64,26 +64,15 @@ in
       '';
     };
 
-    # Helper to create tmpfiles rules for directories
+    # Helper to create tmpfiles rules for directories with correct ownership
     # Should be used in addition to mkLogDirActivation to ensure directories
-    # exist before logrotate-checkconf.service runs during boot
+    # exist with proper permissions at boot
     mkLogDirTmpfiles = {
       path,
       user ? "999",
       group ? "999"
     }: [
       "d ${path} 0755 ${user} ${group} -"
-      # WORKAROUND: The logrotate-checkconf.service fails at boot if a logrotate
-      # configuration uses a wildcard path (e.g., /var/lib/unifi/logs/*.log) that
-      # matches no files. This occurs because the directory is empty before any
-      # containers have started.
-      #
-      # The `logrotate --debug` command, used by the check service, treats this
-      # as a fatal error even if the `missingok` option is set. Creating a
-      # placeholder file that matches the glob satisfies the check, allowing the
-      # service to pass without affecting real log rotation (due to `notifempty`).
-      # Note: Must not start with dot (.) as wildcards don't match hidden files.
-      "f ${path}/logrotate-placeholder.log 0644 ${user} ${group} -"
     ];
 
     # Helper to create health check scripts for containerized services
