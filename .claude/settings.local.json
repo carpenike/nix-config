@@ -58,7 +58,8 @@
       "Bash(git log:*)",
       "Bash(git stash:*)",
       "Bash(bash:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(.taskfiles/nix/scripts/dns-diff.sh:*)"
     ],
     "deny": []
   }
