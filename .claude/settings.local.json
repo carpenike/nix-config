@@ -54,7 +54,8 @@
       "mcp__taskmaster-ai__add_task",
       "Bash(htpasswd:*)",
       "Bash(dig:*)",
-      "Bash(curl -s \"https://cloudflare-dns.com/dns-query?name=omada.holthome.net&type=A\" -H \"accept: application/dns-json\")"
+      "Bash(curl -s \"https://cloudflare-dns.com/dns-query?name=omada.holthome.net&type=A\" -H \"accept: application/dns-json\")",
+      "Bash(git log:*)"
     ],
     "deny": []
   }
