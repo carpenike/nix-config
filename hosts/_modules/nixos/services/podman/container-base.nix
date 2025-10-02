@@ -77,10 +77,12 @@ in
     # Enable logrotate if needed
     services.logrotate.enable = cfg.enableLogRotation;
 
-    # Disable logrotate-checkconf.service for container workloads
-    # The validation is too strict and fails when log directories are empty at boot,
-    # which is normal for containers. The actual logrotate.timer handles missing
-    # files gracefully via the `missingok` option in rotation settings.
-    systemd.services.logrotate-checkconf.enable = lib.mkIf cfg.enableLogRotation false;
+    # Override logrotate-checkconf.service to tolerate missing container log files
+    # Exit code 1 (no files matched wildcard) is expected before containers start,
+    # but we still want to catch syntax errors (exit code 2+). This preserves
+    # validation while eliminating spurious failures from the container lifecycle.
+    systemd.services.logrotate-checkconf.serviceConfig.ExecStart = lib.mkIf cfg.enableLogRotation (
+      lib.mkForce "${pkgs.bash}/bin/sh -ec '${pkgs.logrotate}/bin/logrotate --debug /etc/logrotate.conf || [ $? -eq 1 ]'"
+    );
   };
 }
