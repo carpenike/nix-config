@@ -151,20 +151,18 @@ in
       enable = true;
       package = cfg.package;
 
-      # Use Cloudflare DNS challenge for Let's Encrypt certificates
-      globalConfig = ''
-        acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-      '';
-
       # Configure ACME to use external DNS resolvers for verification
       # This is necessary because the system resolver (10.20.0.15) is internal-only
-      # and doesn't replicate from Cloudflare
+      # and doesn't replicate from Cloudflare. Uses JSON config for full control.
       settings = {
         apps.tls.automation.policies = [{
           issuers = [{
             module = "acme";
             challenges.dns = {
-              provider.name = "cloudflare";
+              provider = {
+                name = "cloudflare";
+                api_token = "{env.CLOUDFLARE_API_TOKEN}";
+              };
               # Use public DNS resolvers for DNS-01 challenge verification
               resolvers = [ "1.1.1.1:53" "8.8.8.8:53" ];
             };
