@@ -91,8 +91,6 @@ in
         # Handle websockets for real-time updates
         header_up Host {host}
         header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
         # UniFi specific headers
         header_up Upgrade {>Upgrade}
         header_up Connection {>Connection}

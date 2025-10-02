@@ -107,10 +107,8 @@ in
         # Handle websockets for real-time updates
         header_up Host {host}
         header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
         # Fix redirects by rewriting Location headers from backend
-        header_down Location "https://{http.request.host}:8043" "https://{http.request.host}"
+        header_down Location {http.request.scheme}://{http.request.host}{http.request.uri}
       '';
     };
 

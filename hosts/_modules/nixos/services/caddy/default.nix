@@ -16,8 +16,15 @@ let
             resolvers 1.1.1.1:53 8.8.8.8:53
           }
 
+          # HSTS: Force HTTPS for 6 months across all subdomains
+          # Homelab best practice: conservative max-age, includeSubDomains safe since all are HTTPS
+          # Omit 'preload' - only for public sites
+          header {
+            Strict-Transport-Security "max-age=15552000; includeSubDomains"
+          }
+
           ${optionalString (vhost.auth != null) ''
-          basicauth {
+          basic_auth {
             ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
           }
           ''}
@@ -171,8 +178,13 @@ in
               resolvers 1.1.1.1:53 8.8.8.8:53
             }
 
+            # HSTS: Force HTTPS for 6 months across all subdomains
+            header {
+              Strict-Transport-Security "max-age=15552000; includeSubDomains"
+            }
+
             ${optionalString (proxy.auth != null) ''
-            basicauth {
+            basic_auth {
               ${proxy.auth.user} {env.${proxy.auth.passwordHashEnvVar}}
             }
             ''}
