@@ -119,6 +119,8 @@ in
           category security { stdout; };
           category dnssec   { stdout; };
           category default  { stdout; };
+          category update   { stdout; };          # Log dynamic DNS updates
+          category update-security { stdout; };   # Log update authentication
         };
 
         zone "holthome.net." {
