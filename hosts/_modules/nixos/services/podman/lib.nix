@@ -61,6 +61,17 @@ in
       '';
     };
 
+    # Helper to create tmpfiles rules for directories
+    # Should be used in addition to mkLogDirActivation to ensure directories
+    # exist before logrotate-checkconf.service runs during boot
+    mkLogDirTmpfiles = {
+      path,
+      user ? "999",
+      group ? "999"
+    }: [
+      "d ${path} 0755 ${user} ${group} -"
+    ];
+
     # Helper to create health check scripts for containerized services
     mkHealthCheck = {
       port,

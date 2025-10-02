@@ -114,6 +114,19 @@ in
       '';
     };
 
+    # Ensure directories exist before services start
+    systemd.tmpfiles.rules =
+      podmanLib.mkLogDirTmpfiles {
+        path = cfg.dataDir;
+        user = cfg.user;
+        group = cfg.group;
+      }
+      ++ podmanLib.mkLogDirTmpfiles {
+        path = cfg.logDir;
+        user = cfg.user;
+        group = cfg.group;
+      };
+
     system.activationScripts = {
       makeOmadaDataDir = lib.stringAfter [ "var" ] ''
         mkdir -p "${cfg.dataDir}"
