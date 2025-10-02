@@ -82,7 +82,8 @@ in
       # as a fatal error even if the `missingok` option is set. Creating a
       # placeholder file that matches the glob satisfies the check, allowing the
       # service to pass without affecting real log rotation (due to `notifempty`).
-      "f ${path}/.logrotate-placeholder.log 0644 ${user} ${group} -"
+      # Note: Must not start with dot (.) as wildcards don't match hidden files.
+      "f ${path}/logrotate-placeholder.log 0644 ${user} ${group} -"
     ];
 
     # Helper to create health check scripts for containerized services
