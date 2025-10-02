@@ -70,6 +70,16 @@ in
       group ? "999"
     }: [
       "d ${path} 0755 ${user} ${group} -"
+      # WORKAROUND: The logrotate-checkconf.service fails at boot if a logrotate
+      # configuration uses a wildcard path (e.g., /var/lib/unifi/logs/*.log) that
+      # matches no files. This occurs because the directory is empty before any
+      # containers have started.
+      #
+      # The `logrotate --debug` command, used by the check service, treats this
+      # as a fatal error even if the `missingok` option is set. Creating a
+      # placeholder file that matches the glob satisfies the check, allowing the
+      # service to pass without affecting real log rotation (due to `notifempty`).
+      "f ${path}/.logrotate-placeholder.log 0644 ${user} ${group} -"
     ];
 
     # Helper to create health check scripts for containerized services
