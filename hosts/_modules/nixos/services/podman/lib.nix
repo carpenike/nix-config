@@ -32,6 +32,9 @@ in
       withResourceLimits // (builtins.removeAttrs containerConfig [ "resources" ]);
 
     # Helper to create logrotate configuration for a container's application logs
+    # Note: This helper ONLY creates the logrotate configuration.
+    # You must also call mkLogDirTmpfiles to ensure the log directory and placeholder
+    # file exist before logrotate-checkconf runs.
     mkLogRotate = {
       containerName,
       logDir,
