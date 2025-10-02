@@ -57,7 +57,7 @@
         "id": 30,
         "title": "Implement Core Infrastructure Services",
         "description": "Configure essential home lab services including DNS, reverse proxy, and container orchestration",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           26,
           27,
@@ -125,37 +125,59 @@
             "id": 7,
             "title": "Implement DNS services",
             "description": "Create NixOS modules for AdGuard Home, Blocky, BIND, and DNSdist",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "details": "",
-            "testStrategy": ""
+            "details": "Successfully implemented all DNS services:\n- AdGuard Home for primary DNS filtering\n- Blocky as secondary DNS filtering option\n- BIND for authoritative DNS\n- DNSdist for load balancing",
+            "testStrategy": "Verified DNS resolution with each configured service and confirmed proper functionality"
           },
           {
             "id": 8,
             "title": "Configure reverse proxy services",
             "description": "Implement Caddy, HAProxy, and Nginx configurations",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "details": "",
-            "testStrategy": ""
+            "details": "Completed implementation of all reverse proxy services:\n- Caddy with automatic HTTPS for web services\n- HAProxy for load balancing\n- Nginx for static content\n- Configured hostname-based routing for all services",
+            "testStrategy": "Tested all reverse proxy configurations with various services and verified proper routing and HTTPS functionality"
           },
           {
             "id": 9,
             "title": "Set up Node Exporter monitoring",
             "description": "Configure Node Exporter for system metrics collection",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "details": "",
-            "testStrategy": ""
+            "details": "Implemented Node Exporter for system metrics collection with proper security hardening",
+            "testStrategy": "Verified metrics collection and confirmed secure configuration"
           },
           {
             "id": 10,
             "title": "Implement service dependency management",
             "description": "Create proper startup order for all infrastructure services",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "details": "",
-            "testStrategy": ""
+            "details": "Established proper service dependencies to ensure correct startup order for all infrastructure services",
+            "testStrategy": "Tested system startup sequence and verified services start in the correct order"
+          },
+          {
+            "id": 11,
+            "title": "Configure Glances on luna with authentication",
+            "description": "Enable Glances on luna host with proper authentication via SOPS secrets",
+            "status": "done",
+            "dependencies": [
+              6
+            ],
+            "details": "Configured Glances on luna with authentication using SOPS for secure secret management",
+            "testStrategy": "Verified authentication works properly and secrets are securely managed"
+          },
+          {
+            "id": 12,
+            "title": "Update nixpi with secure Glances configuration",
+            "description": "Apply the improved secure Glances configuration to nixpi host",
+            "status": "done",
+            "dependencies": [
+              6
+            ],
+            "details": "Updated nixpi to use the secure Glances configuration with all security improvements",
+            "testStrategy": "Confirmed nixpi is using the secure configuration with proper localhost binding and reverse proxy integration"
           }
         ]
       },
@@ -210,7 +232,7 @@
     ],
     "metadata": {
       "created": "2025-09-30T13:53:55.465Z",
-      "updated": "2025-10-02T13:05:56.024Z",
+      "updated": "2025-10-02T13:12:13.008Z",
       "description": "Tasks for master context"
     }
   }

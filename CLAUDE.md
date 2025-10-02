@@ -33,6 +33,8 @@ These specialized servers are available for complex tasks. Choose the right tool
 | **Context7** | Library & API Docs | - Use for framework documentation, function signatures, API references<br>- *Example*: "Use Context7 to find nixpkgs.lib function documentation"<br>- *Example*: "Look up home-manager options with Context7" |
 | **Perplexity** | Web Search & Best Practices | - Use for current best practices, tool research, recent updates<br>- *Example*: "Search Perplexity for NixOS impermanence best practices"<br>- *Example*: "Find recent security advisories for package X" |
 | **GitHub** | Repository Operations | - Use for all Git/GitHub operations: branches, PRs, issues<br>- *Example*: "Create PR from feature branch"<br>- *Example*: "Search for similar issues in nixpkgs repository" |
+| **Taskmaster** | Task & Project Management | - Use for tracking multi-step tasks, breaking down complex projects<br>- *Example*: "Update taskmaster with completed infrastructure work"<br>- *Example*: "Mark task 30 as complete and add findings" |
+| **Serena** | Semantic Code Navigation | - Use for intelligent code search, symbol navigation, refactoring<br>- *Example*: "Find all references to this function"<br>- *Example*: "Search for similar patterns in the codebase" |
 
 ## Common Workflow Patterns
 
@@ -72,6 +74,15 @@ Combine tools and commands to accomplish common goals efficiently.
 3. `/nix-deploy host=<hostname> --build-only`: Test build
 4. `/sops-reencrypt`: (If keys changed) Re-encrypt all secrets
 5. Deploy carefully with validation at each step
+
+### Infrastructure Service Development Workflow
+1. **Research**: Use Perplexity for current best practices and security considerations
+2. **Code Review**: Use Zen or Gemini Pro for security and architecture review
+3. **Module Creation**: Follow reverse proxy integration pattern (see Containerized Services section)
+4. **Resource Limits**: Apply appropriate CPU/memory limits based on service type
+5. **Security**: Localhost binding + reverse proxy + authentication + systemd hardening
+6. **Testing**: Validate with `/nix-validate` and test deployment on `rydev` first
+7. **Tracking**: Update Taskmaster with findings and completed work
 
 ### Package Management Workflow
 1. **Determine package type**: CLI tool → Nix, GUI app → Homebrew
@@ -153,7 +164,9 @@ nix build .#checks.x86_64-linux.nginx-service
 |------|---------|
 | `flake.nix` | Main flake entry point defining inputs, outputs, and system configurations |
 | `lib/mkSystem.nix` | Unified system builder functions for NixOS and Darwin |
+| `lib/podman.nix` | Podman container helpers (mkHealthCheck, mkContainer, resource management) |
 | `hosts/_modules/` | Shared modules organized by scope (common/nixos/darwin) |
+| `hosts/_modules/nixos/services/` | NixOS service modules with reverse proxy integration patterns |
 | `hosts/<hostname>/` | Individual host configurations and secrets |
 | `home/` | Home Manager configurations for user environments |
 | `overlays/` | Package overlays for modified/custom packages |
@@ -200,6 +213,27 @@ Unified user experience across platforms achieved through:
 - **Catppuccin Theming**: Unified color scheme across all applications
 - **Custom Packages**: kubectl plugins and utilities in `pkgs/`
 - **Overlays**: Shared package modifications ensuring consistency across hosts
+- **Podman Infrastructure**: Rootful container orchestration with health checks, resource limits, and security hardening
+
+### Infrastructure Services Architecture
+
+This configuration implements a production-grade homelab infrastructure on `luna` (primary server):
+
+**Core Services:**
+- **DNS Stack**: BIND (authoritative) + AdGuardHome (filtering/DoH) + Chrony (NTP)
+- **Reverse Proxies**: HAProxy (TCP/stream) + Caddy (HTTP/HTTPS with automatic TLS)
+- **Container Orchestration**: Podman with health checks, resource limits, and systemd integration
+- **Monitoring**: Node Exporter (metrics) + Glances (per-host system monitoring)
+- **Network Controllers**: UniFi (main network) + Omada (IoT network)
+- **Binary Cache**: Attic with auto-push for faster deployments
+- **Secrets Management**: 1Password Connect for secure credential storage
+
+**Service Integration Patterns:**
+- Services automatically register with Caddy reverse proxy when `reverseProxy.enable = true`
+- Per-host monitoring tools use hostname-based routing (`luna.holthome.net`)
+- Service-level tools use descriptive subdomains (`vault.holthome.net`, `attic.holthome.net`)
+- All services binding to localhost with reverse proxy providing secure external access
+- Authentication via SOPS-managed bcrypt hashes injected as environment variables
 
 ### Deployment Architecture
 
@@ -235,6 +269,85 @@ Unified user experience across platforms achieved through:
 - **Secrets issues**: Verify age key is properly configured on target host
 - **Task runner failures**: Run underlying nix commands directly for detailed errors
 - **Darwin issues**: Ensure nix-darwin is properly installed and configured
+- **Container issues**: Check `podman logs <container>` and systemd service status
+- **Reverse proxy issues**: Verify Caddy configuration and SOPS environment variables
+
+### Containerized Services Best Practices
+
+When configuring Podman-based services, follow these patterns established in 2025:
+
+**Resource Management:**
+- Set explicit memory limits and reservations for all containers
+- Apply CPU quotas appropriate to service criticality
+- **Examples**:
+  - Lightweight APIs (1Password Connect): 128MB memory, 0.25 CPU cores
+  - Monitoring tools (Glances): 256MB memory, 30% CPU quota
+  - Network controllers (UniFi/Omada): 2GB memory, 50% CPU quota
+
+**Security Hardening:**
+- Bind services to localhost only; use reverse proxy for external access
+- Apply systemd security directives: `ProtectSystem`, `ProtectHome`, `PrivateTmp`, `NoNewPrivileges`
+- Use dedicated system users with minimal permissions
+- Enable authentication for all monitoring and admin interfaces
+
+**Health Monitoring:**
+```nix
+# Use podmanLib.mkHealthCheck helper
+healthcheck = podmanLib.mkHealthCheck {
+  test = [ "CMD" "curl" "-f" "http://localhost:8080/health" ];
+  interval = "30s";
+  timeout = "10s";
+  retries = 3;
+  startPeriod = "60s";
+};
+```
+
+**Module Pattern for Reverse Proxy Integration:**
+```nix
+# Services automatically register with Caddy when enabled
+modules.services.caddy.virtualHosts.${subdomain} = lib.mkIf cfg.reverseProxy.enable {
+  enable = true;
+  hostName = "${subdomain}.${config.networking.domain}";
+  proxyTo = "localhost:${port}";
+  auth = cfg.reverseProxy.auth;  # Optional authentication
+};
+```
+
+### Podman Library Helpers
+
+The `lib/podman.nix` provides reusable functions for container management:
+
+**mkHealthCheck** - Standardized health check configuration:
+```nix
+healthcheck = podmanLib.mkHealthCheck {
+  test = [ "CMD" "curl" "-f" "http://localhost:8080/health" ];
+  interval = "30s";
+  timeout = "10s";
+  retries = 3;
+  startPeriod = "60s";
+};
+```
+
+**mkContainer** - Simplified container creation with resource limits:
+```nix
+virtualisation.oci-containers.containers.myservice = podmanLib.mkContainer "myservice" {
+  image = "docker.io/service:latest";
+  ports = [ "8080:8080" ];
+  resources = {
+    memory = "256m";
+    memoryReservation = "128m";
+    cpus = "0.5";
+  };
+  healthcheck = { /* ... */ };
+};
+```
+
+**Key Features:**
+- Automatic systemd service dependencies
+- Standardized logging configuration
+- Resource limit enforcement
+- Health check integration
+- Configurable UID/GID for data ownership
 
 ## Package Management Strategy
 
