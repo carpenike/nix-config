@@ -82,6 +82,7 @@ in
 
         adguardhome = {
           enable = true;
+          mutableSettings = true; # Allow web UI changes to persist
           settings = import ./config/adguard.nix { inherit config lib; };
           reverseProxy.enable = true;
         };

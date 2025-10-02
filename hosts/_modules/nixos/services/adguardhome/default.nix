@@ -93,13 +93,27 @@ in
     # password in sops is unencrypted, so we bcrypt it
     # and insert it as per config requirements
     systemd.services.adguardhome = {
-      preStart = lib.mkAfter ''
+      # Override the default NixOS adguardhome preStart to enforce declarative config
+      # when mutableSettings is false (default behavior)
+      preStart = lib.mkIf (!cfg.mutableSettings) (lib.mkForce ''
+        # The NixOS module's default preStart has broken logic: [ "" = "1" ] always fails
+        # This override ensures declarative config is applied on every service start
+        # Runtime data (query logs, statistics) are stored separately and not affected
+
+        # Get the path to the generated config in the nix store
+        CONFIG_FILE="${pkgs.writeText "AdGuardHome.yaml" (builtins.toJSON config.services.adguardhome.settings)}"
+
+        # Always copy the declarative config to enforce configuration.nix as source of truth
+        echo "Syncing declarative AdGuard Home configuration..."
+        cp --force "$CONFIG_FILE" "$STATE_DIRECTORY/AdGuardHome.yaml"
+        chmod 600 "$STATE_DIRECTORY/AdGuardHome.yaml"
+
         # Generate bcrypt hash using AdGuardHome's recommended parameters (-B -C 10)
         PASSWORD=$(cat ${config.sops.secrets."networking/adguardhome/password".path})
         HASH=$(${pkgs.apacheHttpd}/bin/htpasswd -B -C 10 -n -b ryan "$PASSWORD" | cut -d: -f2-)
         # Insert the hash without quotes (AdGuardHome expects unquoted bcrypt hash)
         ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
-      '';
+      '');
       serviceConfig.User = adguardUser;
     };
 

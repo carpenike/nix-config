@@ -228,11 +228,27 @@
         ],
         "priority": "high",
         "subtasks": []
+      },
+      {
+        "id": 34,
+        "title": "Implement Backup and Restore Strategy for Stateful NixOS Services",
+        "description": "Research and implement comprehensive backup and restore mechanisms for critical NixOS services that maintain state outside the Nix store, with special focus on services using mutableSettings=true like AdGuard Home.",
+        "details": "1. Research and document state management patterns in NixOS:\n   - Identify services using mutableSettings=true in the current configuration\n   - Map all critical stateful data locations across deployed services\n   - Document the persistence mechanisms used by each service\n\n2. Design a layered backup strategy:\n   - Create a central backup module in the NixOS configuration\n   - Implement service-specific backup hooks for each stateful service\n   - Configure automated, scheduled backups with retention policies\n   - Set up secure remote storage for backups (possibly using SOPS for credentials)\n\n3. Implement AdGuard Home backup solution:\n   - Create a backup script that preserves AdGuard configuration and statistics\n   - Ensure backup captures both /var/lib/AdGuardHome and runtime configuration\n   - Test backup during service updates to verify completeness\n\n4. Develop restore procedures:\n   - Create documented restore workflows for each service\n   - Implement restore scripts with appropriate permission handling\n   - Test restore procedures in isolation to verify effectiveness\n\n5. Integrate with existing infrastructure:\n   - Configure backup monitoring and alerting\n   - Add backup status to system health checks\n   - Document backup locations and retention policies\n\n6. Implement backup rotation and pruning:\n   - Configure retention policies (daily, weekly, monthly)\n   - Implement secure cleanup of expired backups\n   - Monitor backup storage usage\n\n7. Create disaster recovery documentation:\n   - Step-by-step recovery procedures for each critical service\n   - Required credentials and access methods\n   - Verification steps for successful restoration",
+        "testStrategy": "1. Test backup creation:\n   - Verify automated backup execution on schedule\n   - Validate backup content contains all critical configuration\n   - Check backup integrity and completeness\n   - Confirm proper permissions on backup files\n\n2. Test restore procedures:\n   - Perform test restores in isolated environments\n   - Verify service functionality after restore\n   - Measure restore time and document in disaster recovery plan\n   - Test restoration to different host to verify portability\n\n3. Validate AdGuard Home specific backup/restore:\n   - Backup AdGuard Home with active configuration\n   - Modify settings and verify they're captured in subsequent backups\n   - Restore to a previous configuration and verify settings are properly applied\n   - Test migration between AdGuard Home versions\n\n4. Test backup rotation:\n   - Verify old backups are properly pruned according to retention policy\n   - Confirm backup storage doesn't exceed allocated space\n   - Test recovery using backups of different ages\n\n5. Perform disaster recovery simulation:\n   - Simulate complete system failure\n   - Follow documented recovery procedures\n   - Measure time to restore full functionality\n   - Document any gaps or improvements needed",
+        "status": "pending",
+        "dependencies": [
+          27,
+          28,
+          30,
+          32
+        ],
+        "priority": "high",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-09-30T13:53:55.465Z",
-      "updated": "2025-10-02T13:12:13.008Z",
+      "updated": "2025-10-02T16:23:18.509Z",
       "description": "Tasks for master context"
     }
   }
