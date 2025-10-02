@@ -157,9 +157,9 @@ in
           enable = true;
           reverseProxy.enable = true;
           resources = {
-            memory = "2g";            # Increased from 512m - Omada needs more memory
-            memoryReservation = "1g"; # Increased from 256m
-            cpus = "1.0";             # Increased from 0.75
+            memory = "4g";            # Recommended by Perplexity for Omada 5.14 with embedded MongoDB
+            memoryReservation = "2g"; # Reserve half for stable operation
+            cpus = "2.0";             # 2 cores recommended for Omada + MongoDB
           };
         };
 
