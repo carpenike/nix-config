@@ -26,13 +26,13 @@ in
     };
     user = lib.mkOption {
       type = lib.types.str;
-      default = "999";
-      description = "User ID to own the data and log directories";
+      default = "508";
+      description = "User ID to own the data and log directories (omada:omada in container)";
     };
     group = lib.mkOption {
       type = lib.types.str;
-      default = "999";
-      description = "Group ID to own the data and log directories";
+      default = "508";
+      description = "Group ID to own the data and log directories (omada:omada in container)";
     };
     blockOnActivation = lib.mkOption {
       type = lib.types.bool;
