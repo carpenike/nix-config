@@ -52,7 +52,9 @@
       "Bash(nix-shell:*)",
       "mcp__taskmaster-ai__update_task",
       "mcp__taskmaster-ai__add_task",
-      "Bash(htpasswd:*)"
+      "Bash(htpasswd:*)",
+      "Bash(dig:*)",
+      "Bash(curl -s \"https://cloudflare-dns.com/dns-query?name=omada.holthome.net&type=A\" -H \"accept: application/dns-json\")"
     ],
     "deny": []
   }

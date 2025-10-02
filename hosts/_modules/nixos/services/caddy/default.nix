@@ -152,8 +152,13 @@ in
       package = cfg.package;
 
       # Use Cloudflare DNS challenge for Let's Encrypt certificates
+      # Use public DNS resolvers for ACME validation (not internal DNS)
       globalConfig = ''
         acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+
+        servers {
+          resolver 1.1.1.1 8.8.8.8
+        }
       '';
 
       # Generate configuration from registered virtual hosts
