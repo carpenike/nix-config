@@ -14,6 +14,7 @@
   dns = {
     bind_hosts = ["0.0.0.0"];  # Listen on all interfaces
     port = 53;
+    hostsfile_enabled = false;  # Don't use /etc/hosts for DNS resolution
     bootstrap_dns = [
       # quad9
       "9.9.9.10"
