@@ -111,47 +111,28 @@ tasks:
           - General configuration check: /nix-validate
 
   dns-records:
-    desc: View aggregated DNS records from all Caddy virtual hosts
+    desc: Smart diff DNS records - shows only what needs to be added/removed
     silent: true
     summary: |
-      Shows DNS A records that should be added to the BIND zone file.
-      Records are automatically generated from Caddy virtual hosts across all hosts.
+      Compares generated Caddy records against current BIND zone file.
+      Shows only the delta (additions and stale records).
 
       Usage:
         task nix:dns-records
 
-      Next steps:
-        1. Review the generated records
-        2. Edit SOPS zone file: sops hosts/luna/secrets.sops.yaml
-        3. Navigate to: networking/bind/zones/holthome.net
-        4. Add new records (check for duplicates first!)
-        5. Deploy: /nix-deploy host=luna
+      The script will:
+        1. Generate records from all Caddy virtual hosts
+        2. Decrypt and parse current BIND zone file
+        3. Show only records that need to be ADDED
+        4. Show stale records (in zone but not generated)
+        5. Provide step-by-step instructions for updating
     cmds:
-      - |
-        echo "=== DNS A Records for Caddy Virtual Hosts ==="
-        echo "Generated from all hosts in flake (luna, rydev, nixpi, rymac)"
-        echo ""
-        RECORDS=$(nix eval .#allCaddyDnsRecords --raw)
-        echo "$RECORDS"
-        echo ""
-
-        # Check for duplicates within generated records
-        DUPLICATES=$(echo "$RECORDS" | sort | uniq -d)
-        if [ -n "$DUPLICATES" ]; then
-          echo "⚠️  WARNING: Duplicate records detected in generated output!"
-          echo "$DUPLICATES"
-          echo ""
-        fi
-
-        echo "=== Instructions ==="
-        echo "1. Copy the records you need above"
-        echo "2. Edit zone file: sops hosts/luna/secrets.sops.yaml"
-        echo "3. Add to section: networking/bind/zones/holthome.net"
-        echo "4. Check for existing duplicates in zone file before pasting!"
-        echo "5. Deploy BIND: /nix-deploy host=luna"
+      - .taskfiles/nix/scripts/dns-diff.sh
     preconditions:
       - sh: which nix
         msg: "nix not found"
+      - sh: which sops
+        msg: "sops not found - needed to decrypt zone file"
 
   .prompt_to_continue:
     internal: true
