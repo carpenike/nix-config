@@ -9,6 +9,13 @@ let
     concatStringsSep "\n\n" (mapAttrsToList (name: vhost:
       if vhost.enable then ''
         ${vhost.hostName} {
+          # Use external DNS resolvers for ACME DNS-01 challenge verification
+          # The system resolver (10.20.0.15) is internal-only and doesn't replicate from Cloudflare
+          tls {
+            dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+            resolvers 1.1.1.1:53 8.8.8.8:53
+          }
+
           ${optionalString (vhost.auth != null) ''
           basicauth {
             ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
@@ -151,27 +158,11 @@ in
       enable = true;
       package = cfg.package;
 
-      # Configure ACME to use external DNS resolvers for verification
-      # This is necessary because the system resolver (10.20.0.15) is internal-only
-      # and doesn't replicate from Cloudflare. Uses JSON config for full control.
-      settings = {
-        apps.tls.automation = {
-          policies = [{
-            # Default policy matches all hostnames from Caddyfile extraConfig
-            issuers = [{
-              module = "acme";
-              challenges.dns = {
-                provider = {
-                  name = "cloudflare";
-                  api_token = "{env.CLOUDFLARE_API_TOKEN}";
-                };
-                # Use public DNS resolvers for DNS-01 challenge verification
-                resolvers = [ "1.1.1.1:53" "8.8.8.8:53" ];
-              };
-            }];
-          }];
-        };
-      };
+      # Global ACME configuration for Cloudflare DNS-01 challenges
+      # Per-site resolvers configured in tls blocks (Caddyfile doesn't support global resolvers)
+      globalConfig = ''
+        acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+      '';
 
       # Generate configuration from registered virtual hosts
       extraConfig =
@@ -179,6 +170,12 @@ in
         # Legacy support for manual reverse proxy config
         (concatStringsSep "\n\n" (mapAttrsToList (hostname: proxy: ''
           ${hostname} {
+            # Use external DNS resolvers for ACME DNS-01 challenge verification
+            tls {
+              dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+              resolvers 1.1.1.1:53 8.8.8.8:53
+            }
+
             ${optionalString (proxy.auth != null) ''
             basicauth {
               ${proxy.auth.user} {env.${proxy.auth.passwordHashEnvVar}}
