@@ -155,7 +155,8 @@ in
       # This is necessary because the system resolver (10.20.0.15) is internal-only
       # and doesn't replicate from Cloudflare. Uses JSON config for full control.
       settings = {
-        apps.tls.automation.policies = [{
+        apps.tls = {
+          # Define a global ACME issuer with DNS challenge configuration
           issuers = [{
             module = "acme";
             challenges.dns = {
@@ -167,7 +168,10 @@ in
               resolvers = [ "1.1.1.1:53" "8.8.8.8:53" ];
             };
           }];
-        }];
+          # Use a single, empty policy that matches all hostnames
+          # and uses the default issuers (defined above)
+          automation.policies = [{}];
+        };
       };
 
       # Generate configuration from registered virtual hosts
