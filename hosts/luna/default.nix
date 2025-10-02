@@ -156,6 +156,11 @@ in
         omada = {
           enable = true;
           reverseProxy.enable = true;
+          resources = {
+            memory = "2g";            # Increased from 512m - Omada needs more memory
+            memoryReservation = "1g"; # Increased from 256m
+            cpus = "1.0";             # Increased from 0.75
+          };
         };
 
         attic = {

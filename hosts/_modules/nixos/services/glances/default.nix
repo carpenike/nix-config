@@ -100,18 +100,15 @@ in
       httpsBackend = false; # Glances uses HTTP locally
       auth = cfg.reverseProxy.auth;
       extraConfig = ''
-        # Required for Glances WebSocket support (real-time updates)
-        header_up Connection {>Connection}
-        header_up Upgrade {>Upgrade}
-
         # Security headers for monitoring interface
-        header / {
+        header {
           X-Frame-Options "SAMEORIGIN"
           X-Content-Type-Options "nosniff"
           X-XSS-Protection "1; mode=block"
           Referrer-Policy "strict-origin-when-cross-origin"
         }
       '';
+      # Note: Caddy automatically handles WebSocket upgrades, no explicit configuration needed
     };
   };
 }
