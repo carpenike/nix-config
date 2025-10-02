@@ -158,13 +158,8 @@ in
       enable = true;
       package = cfg.package;
 
-      # Global ACME configuration for Cloudflare DNS-01 challenges
-      # Per-site resolvers configured in tls blocks (Caddyfile doesn't support global resolvers)
-      globalConfig = ''
-        acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-      '';
-
       # Generate configuration from registered virtual hosts
+      # Note: DNS provider and resolvers are configured per-site in tls blocks
       extraConfig =
         (generateVhostConfig cfg.virtualHosts) +
         # Legacy support for manual reverse proxy config
