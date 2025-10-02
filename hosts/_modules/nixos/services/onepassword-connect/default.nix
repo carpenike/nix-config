@@ -19,6 +19,43 @@ in
       type = lib.types.path;
       default = "/var/lib/onepassword-connect/data";
     };
+    user = lib.mkOption {
+      type = lib.types.str;
+      default = "999";
+      description = "User ID to own the data directory";
+    };
+    group = lib.mkOption {
+      type = lib.types.str;
+      default = "999";
+      description = "Group ID to own the data directory";
+    };
+    resources = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          memory = lib.mkOption {
+            type = lib.types.str;
+            default = "128m";
+            description = "Memory limit for each container (e.g., '128m', '256m')";
+          };
+          memoryReservation = lib.mkOption {
+            type = lib.types.str;
+            default = "64m";
+            description = "Memory reservation (soft limit) for each container";
+          };
+          cpus = lib.mkOption {
+            type = lib.types.str;
+            default = "0.25";
+            description = "CPU limit in cores (e.g., '0.25', '0.5')";
+          };
+        };
+      });
+      default = {
+        memory = "128m";
+        memoryReservation = "64m";
+        cpus = "0.25";
+      };
+      description = "Resource limits for the 1Password Connect containers (lightweight API services)";
+    };
 
     # Reverse proxy integration options
     reverseProxy = {
@@ -81,7 +118,7 @@ in
 
     system.activationScripts.makeOnePasswordConnectDataDir = lib.stringAfter [ "var" ] ''
       mkdir -p "${cfg.dataDir}"
-      chown -R 999:999 ${cfg.dataDir}
+      chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
     '';
 
     virtualisation.oci-containers.containers = {
@@ -93,6 +130,7 @@ in
           "${cfg.credentialsFile}:/home/opuser/.op/1password-credentials.json"
           "${cfg.dataDir}:/home/opuser/.op/data"
         ];
+        resources = cfg.resources;
       };
 
       onepassword-connect-sync = podmanLib.mkContainer "onepassword-connect-sync" {
@@ -102,6 +140,7 @@ in
           "${cfg.credentialsFile}:/home/opuser/.op/1password-credentials.json"
           "${cfg.dataDir}:/home/opuser/.op/data"
         ];
+        resources = cfg.resources;
       };
     };
     networking.firewall.allowedTCPPorts = [ apiPort ];

@@ -121,6 +121,18 @@ in
           };
         };
 
+        glances = {
+          enable = true;
+          reverseProxy = {
+            enable = true;
+            # Uses hostname-based routing: luna.holthome.net
+            auth = {
+              user = "admin";
+              passwordHashEnvVar = "CADDY_GLANCES_HASH";
+            };
+          };
+        };
+
         onepassword-connect = {
           enable = true;
           credentialsFile = config.sops.secrets.onepassword-credentials.path;
@@ -182,6 +194,7 @@ in
       content = ''
         CADDY_METRICS_HASH=${config.sops.placeholder."reverse-proxy/metrics-auth"}
         CADDY_VAULT_HASH=${config.sops.placeholder."reverse-proxy/vault-auth"}
+        CADDY_GLANCES_HASH=${config.sops.placeholder."reverse-proxy/glances-auth"}
         CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
       '';
       owner = config.services.caddy.user;

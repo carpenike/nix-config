@@ -42,6 +42,13 @@ in
       };
       description = "Default logrotate settings for application logs";
     };
+
+    # Resource limit defaults for homelab deployments
+    defaultResourceLimits = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Enable default resource limits for containers to prevent resource exhaustion";
+    };
   };
 
   config = lib.mkIf (cfg.enable && config.modules.services.podman.enable) {

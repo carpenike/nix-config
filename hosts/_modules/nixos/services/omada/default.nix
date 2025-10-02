@@ -24,6 +24,16 @@ in
       type = lib.types.path;
       default = "/var/lib/omada/log";
     };
+    user = lib.mkOption {
+      type = lib.types.str;
+      default = "999";
+      description = "User ID to own the data and log directories";
+    };
+    group = lib.mkOption {
+      type = lib.types.str;
+      default = "999";
+      description = "Group ID to own the data and log directories";
+    };
     blockOnActivation = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -39,6 +49,33 @@ in
         How long to wait before restarting the service after a failure.
         Increase this on resource-constrained systems.
       '';
+    };
+    resources = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          memory = lib.mkOption {
+            type = lib.types.str;
+            default = "512m";
+            description = "Memory limit for the container (e.g., '512m', '1g')";
+          };
+          memoryReservation = lib.mkOption {
+            type = lib.types.str;
+            default = "256m";
+            description = "Memory reservation (soft limit) for the container";
+          };
+          cpus = lib.mkOption {
+            type = lib.types.str;
+            default = "0.75";
+            description = "CPU limit in cores (e.g., '0.5', '1', '2')";
+          };
+        };
+      });
+      default = {
+        memory = "512m";
+        memoryReservation = "256m";
+        cpus = "0.75";
+      };
+      description = "Resource limits for the Omada container (recommended for homelab stability)";
     };
 
     # Reverse proxy integration options
@@ -80,21 +117,21 @@ in
     system.activationScripts = {
       makeOmadaDataDir = lib.stringAfter [ "var" ] ''
         mkdir -p "${cfg.dataDir}"
-        chown -R 999:999 ${cfg.dataDir}
+        chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
       '';
     } // podmanLib.mkLogDirActivation {
       name = "Omada";
       path = cfg.logDir;
-      user = "999";
-      group = "999";
+      user = cfg.user;
+      group = cfg.group;
     };
 
     # Configure logrotate for Omada application logs
     services.logrotate.settings = podmanLib.mkLogRotate {
       containerName = "omada";
       logDir = cfg.logDir;
-      user = "999";
-      group = "999";
+      user = cfg.user;
+      group = cfg.group;
     };
 
     # Omada Controller with embedded MongoDB
@@ -110,6 +147,7 @@ in
         "${cfg.dataDir}:/opt/tplink/EAPController/data"
         "${cfg.logDir}:/opt/tplink/EAPController/logs"
       ];
+      resources = cfg.resources;
     };
 
     # Override systemd service to handle Omada's initialization behavior
@@ -139,17 +177,12 @@ in
       };
 
       # Add a post-start script to verify Omada is responding
-      postStart = ''
-        echo "Waiting for Omada Controller to be ready..."
-        for i in {1..60}; do
-          if ${pkgs.curl}/bin/curl -k -s -f --max-time 10 https://localhost:8043 >/dev/null 2>&1; then
-            echo "Omada Controller is ready!"
-            break
-          fi
-          echo "Waiting for Omada Controller... ($i/60)"
-          sleep 5
-        done
-      '';
+      postStart = podmanLib.mkHealthCheck {
+        port = 8043;
+        protocol = "https";
+        retries = 60;
+        delay = 5;
+      };
     };
 
     # If not blocking on activation, start Omada after the main system is up

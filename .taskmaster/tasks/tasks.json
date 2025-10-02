@@ -50,23 +50,114 @@
           26,
           27
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
         "id": 30,
         "title": "Implement Core Infrastructure Services",
         "description": "Configure essential home lab services including DNS, reverse proxy, and container orchestration",
-        "details": "1. Create NixOS modules for DNS services:\n   - AdGuard Home configuration\n   - Blocky for DNS filtering\n   - BIND for authoritative DNS\n   - DNSdist for load balancing\n2. Implement reverse proxy configurations:\n   - Caddy with automatic HTTPS\n   - HAProxy for load balancing\n   - Nginx for static content\n3. Set up Podman-based container orchestration:\n   - Network configuration\n   - Volume management\n   - Container definitions\n4. Configure basic monitoring with Glances and Node Exporter\n5. Implement network management for Unifi and Omada controllers\n6. Create service dependency management to ensure proper startup order",
-        "testStrategy": "1. Test DNS resolution with each configured DNS service\n2. Verify reverse proxy configurations with test services\n3. Test container deployment and networking\n4. Validate monitoring data collection\n5. Test service dependencies during system startup\n6. Verify network management functionality",
-        "priority": "medium",
+        "status": "pending",
         "dependencies": [
           26,
           27,
           28
         ],
-        "status": "pending",
-        "subtasks": []
+        "priority": "medium",
+        "details": "1. Create NixOS modules for DNS services:\n   - AdGuard Home configuration\n   - Blocky for DNS filtering\n   - BIND for authoritative DNS\n   - DNSdist for load balancing\n2. Implement reverse proxy configurations:\n   - Caddy with automatic HTTPS\n   - HAProxy for load balancing\n   - Nginx for static content\n3. Set up Podman-based container orchestration:\n   - Network configuration\n   - Volume management\n   - Container definitions\n   - Enhanced podmanLib with mkHealthCheck helper and resource limit support\n   - Configurable UID/GID for all containerized services\n4. Configure basic monitoring with Glances and Node Exporter:\n   - Secure Glances configuration (localhost binding only)\n   - Reverse proxy integration with hostname-based routing\n   - Systemd hardening and resource limits\n   - Flexible configuration with extraArgs\n5. Implement network management for Unifi and Omada controllers:\n   - Unifi Controller with 1GB memory, 1 CPU limits\n   - Omada Controller with 512MB memory, 0.75 CPU limits\n6. Create service dependency management to ensure proper startup order\n7. Implement 1Password Connect with 128MB memory, 0.25 CPU limits",
+        "testStrategy": "1. Test DNS resolution with each configured DNS service\n2. Verify reverse proxy configurations with test services\n3. Test container deployment and networking\n4. Validate monitoring data collection and security (especially for Glances)\n5. Test service dependencies during system startup\n6. Verify network management functionality\n7. Validate resource limits on containerized services\n8. Test UID/GID configuration for containers",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Enhance podmanLib with resource management features",
+            "description": "Implement mkHealthCheck helper and resource limit support in podmanLib",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Update Omada Controller with resource limits",
+            "description": "Configure Omada Controller with 512MB memory, 0.75 CPU limits and configurable UID/GID",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Update Unifi Controller with resource limits",
+            "description": "Configure Unifi Controller with 1GB memory, 1 CPU limits and configurable UID/GID",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Update 1Password Connect with resource limits",
+            "description": "Configure 1Password Connect (both API and sync containers) with 128MB memory, 0.25 CPU limits",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Implement configurable user/group ownership for containers",
+            "description": "Make all containerized services have configurable user/group ownership instead of hardcoded 999",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Improve Glances system monitoring security",
+            "description": "Fix network exposure (bind to localhost only), add reverse proxy integration, remove insecure openFirewall option, add systemd hardening and resource limits, and make configuration flexible with extraArgs",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Implement DNS services",
+            "description": "Create NixOS modules for AdGuard Home, Blocky, BIND, and DNSdist",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Configure reverse proxy services",
+            "description": "Implement Caddy, HAProxy, and Nginx configurations",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Set up Node Exporter monitoring",
+            "description": "Configure Node Exporter for system metrics collection",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 10,
+            "title": "Implement service dependency management",
+            "description": "Create proper startup order for all infrastructure services",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
       },
       {
         "id": 31,
@@ -119,7 +210,7 @@
     ],
     "metadata": {
       "created": "2025-09-30T13:53:55.465Z",
-      "updated": "2025-10-01T17:04:15.558Z",
+      "updated": "2025-10-02T13:05:56.024Z",
       "description": "Tasks for master context"
     }
   }

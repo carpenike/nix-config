@@ -117,7 +117,8 @@ in
 
         glances = {
           enable = true;
-          openFirewall = true;
+          # Note: Reverse proxy disabled - nixpi doesn't have domain configured
+          # Glances binds to localhost only for security
         };
 
         # cloudflared.enable = true;  # TODO: Add cloudflare secrets to secrets.sops.yaml

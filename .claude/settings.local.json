@@ -51,7 +51,8 @@
       "mcp__taskmaster-ai__set_task_status",
       "Bash(nix-shell:*)",
       "mcp__taskmaster-ai__update_task",
-      "mcp__taskmaster-ai__add_task"
+      "mcp__taskmaster-ai__add_task",
+      "Bash(htpasswd:*)"
     ],
     "deny": []
   }

@@ -24,6 +24,43 @@ in
       type = lib.types.path;
       default = "/var/lib/unifi/logs";
     };
+    user = lib.mkOption {
+      type = lib.types.str;
+      default = "999";
+      description = "User ID to own the data and log directories";
+    };
+    group = lib.mkOption {
+      type = lib.types.str;
+      default = "999";
+      description = "Group ID to own the data and log directories";
+    };
+    resources = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          memory = lib.mkOption {
+            type = lib.types.str;
+            default = "1g";
+            description = "Memory limit for the container (e.g., '512m', '1g')";
+          };
+          memoryReservation = lib.mkOption {
+            type = lib.types.str;
+            default = "512m";
+            description = "Memory reservation (soft limit) for the container";
+          };
+          cpus = lib.mkOption {
+            type = lib.types.str;
+            default = "1";
+            description = "CPU limit in cores (e.g., '0.5', '1', '2')";
+          };
+        };
+      });
+      default = {
+        memory = "1g";
+        memoryReservation = "512m";
+        cpus = "1";
+      };
+      description = "Resource limits for the Unifi container (recommended for homelab stability)";
+    };
 
     # Reverse proxy integration options
     reverseProxy = {
@@ -65,21 +102,21 @@ in
     system.activationScripts = {
       makeUnifiDataDir = lib.stringAfter [ "var" ] ''
         mkdir -p "${cfg.dataDir}"
-        chown -R 999:999 ${cfg.dataDir}
+        chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
       '';
     } // podmanLib.mkLogDirActivation {
       name = "Unifi";
       path = cfg.logDir;
-      user = "999";
-      group = "999";
+      user = cfg.user;
+      group = cfg.group;
     };
 
     # Configure logrotate for UniFi application logs
     services.logrotate.settings = podmanLib.mkLogRotate {
       containerName = "unifi";
       logDir = cfg.logDir;
-      user = "999";
-      group = "999";
+      user = cfg.user;
+      group = cfg.group;
     };
 
     virtualisation.oci-containers.containers.unifi = podmanLib.mkContainer "unifi" {
@@ -93,6 +130,7 @@ in
         "${cfg.dataDir}:/unifi"
         "${cfg.logDir}:/logs"
       ];
+      resources = cfg.resources;
     };
     networking.firewall.allowedTCPPorts = unifiTcpPorts;
     networking.firewall.allowedUDPPorts = unifiUdpPorts;

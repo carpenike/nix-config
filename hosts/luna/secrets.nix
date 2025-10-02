@@ -47,6 +47,9 @@
         "reverse-proxy/vault-auth" = {
           restartUnits = [ "caddy.service" ];
         };
+        "reverse-proxy/glances-auth" = {
+          restartUnits = [ "caddy.service" ];
+        };
         "networking/adguardhome/password" = {
           restartUnits = [ "adguardhome.service" ];
           owner = "adguardhome";

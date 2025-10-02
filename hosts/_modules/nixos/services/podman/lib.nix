@@ -9,7 +9,7 @@ let
 in
 {
   _module.args.podmanLib = rec {
-    # Helper to create a container with standard logging configuration
+    # Helper to create a container with standard logging configuration and optional resource limits
     mkContainer = name: containerConfig:
       let
         defaults = {
@@ -18,8 +18,18 @@ in
             "--log-opt=tag=${cfg.containerDefaults.logTag}"
           ] ++ (containerConfig.extraOptions or []);
         };
+        # Add resource limits if specified in containerConfig
+        withResourceLimits = if (containerConfig ? resources && containerConfig.resources != null)
+          then defaults // {
+            extraOptions = defaults.extraOptions ++ [
+              (lib.optionalString (containerConfig.resources ? memory) "--memory=${containerConfig.resources.memory}")
+              (lib.optionalString (containerConfig.resources ? memoryReservation) "--memory-reservation=${containerConfig.resources.memoryReservation}")
+              (lib.optionalString (containerConfig.resources ? cpus) "--cpus=${containerConfig.resources.cpus}")
+            ];
+          }
+          else defaults;
       in
-      defaults // containerConfig;
+      withResourceLimits // (builtins.removeAttrs containerConfig [ "resources" ]);
 
     # Helper to create logrotate configuration for a container's application logs
     mkLogRotate = {
@@ -50,5 +60,27 @@ in
         chown -R ${user}:${group} ${path}
       '';
     };
+
+    # Helper to create health check scripts for containerized services
+    mkHealthCheck = {
+      port,
+      host ? "localhost",
+      protocol ? "https",
+      retries ? 60,
+      delay ? 5,
+      path ? ""
+    }: ''
+      echo "Waiting for service on ${host}:${toString port} to be ready..."
+      for i in {1..${toString retries}}; do
+        if ${pkgs.curl}/bin/curl -k -s -f --max-time 10 ${protocol}://${host}:${toString port}${path} >/dev/null 2>&1; then
+          echo "Service is ready!"
+          exit 0
+        fi
+        echo "Waiting for service... ($i/${toString retries})"
+        sleep ${toString delay}
+      done
+      echo "Service failed to become ready after ${toString (retries * delay)} seconds."
+      exit 1
+    '';
   };
 }
