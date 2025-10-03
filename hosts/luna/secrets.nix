@@ -61,6 +61,72 @@
         "attic/admin-token" = {
           mode = "0444";
         };
+
+        # Backup system secrets
+        "backup/restic-password" = {
+          mode = "0400";
+          owner = "root";
+        };
+        "backup/b2-application-key-id" = {
+          mode = "0400";
+          owner = "root";
+        };
+        "backup/b2-application-key" = {
+          mode = "0400";
+          owner = "root";
+        };
+        "backup/healthchecks-uuid" = {
+          mode = "0444";
+        };
+        "backup/ntfy-topic" = {
+          mode = "0444";
+        };
+        "backup/unifi/mongo-credentials" = {
+          mode = "0400";
+          owner = "root";
+        };
+      };
+
+      # SOPS templates for backup environment files
+      templates = {
+        "restic-primary.env" = {
+          content = ''
+            RESTIC_REPOSITORY=/mnt/nas/backups/luna
+            RESTIC_PASSWORD_FILE=${config.sops.secrets."backup/restic-password".path}
+          '';
+          owner = "root";
+          group = "root";
+          mode = "0400";
+        };
+
+        "restic-cloud.env" = {
+          content = ''
+            RESTIC_REPOSITORY=b2:homelab-backups:/luna
+            RESTIC_PASSWORD_FILE=${config.sops.secrets."backup/restic-password".path}
+            B2_ACCOUNT_ID=${config.sops.placeholder."backup/b2-application-key-id"}
+            B2_ACCOUNT_KEY=${config.sops.placeholder."backup/b2-application-key"}
+          '';
+          owner = "root";
+          group = "root";
+          mode = "0400";
+        };
+
+        "backup-monitoring.env" = {
+          content = ''
+            HEALTHCHECKS_UUID=${config.sops.placeholder."backup/healthchecks-uuid"}
+            NTFY_TOPIC=${config.sops.placeholder."backup/ntfy-topic"}
+          '';
+          owner = "root";
+          group = "root";
+          mode = "0444";
+        };
+
+        "unifi-mongo-credentials" = {
+          content = config.sops.placeholder."backup/unifi/mongo-credentials";
+          owner = "root";
+          group = "root";
+          mode = "0400";
+        };
       };
     };
   };

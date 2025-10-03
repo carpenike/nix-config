@@ -11,6 +11,8 @@
     ./hardware
     ./services
     ./services/attic.nix
+    ./backup.nix
+    # ./services/backup-services.nix  # Temporarily disabled
   ];
 
   documentation.nixos.enable = false;

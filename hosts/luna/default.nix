@@ -193,6 +193,114 @@ in
       };
 
       system.impermanence.enable = true;
+
+      # Comprehensive backup system
+      backup = {
+        enable = true;
+
+        zfs = {
+          enable = true;
+          pool = "rpool";
+          datasets = [ "" "safe" "persist" ];  # Root, safe, and persist datasets
+          retention = {
+            daily = 7;
+            weekly = 4;
+            monthly = 3;
+          };
+        };
+
+        restic = {
+          enable = true;
+
+          repositories = {
+            primary = {
+              url = "/mnt/nas/backups/luna";
+              passwordFile = config.sops.secrets."backup/restic-password".path;
+              primary = true;
+            };
+
+            cloud = {
+              url = "b2:homelab-backups:/luna";
+              passwordFile = config.sops.secrets."backup/restic-password".path;
+              environmentFile = "/run/secrets/rendered/restic-cloud.env";
+            };
+          };
+
+          globalSettings = {
+            compression = "auto";
+            readConcurrency = 2;
+            retention = {
+              daily = 14;
+              weekly = 8;
+              monthly = 6;
+              yearly = 2;
+            };
+          };
+        };
+
+        monitoring = {
+          enable = true;
+
+          healthchecks = {
+            enable = true;
+            uuidFile = config.sops.secrets."backup/healthchecks-uuid".path;
+          };
+
+          ntfy = {
+            enable = true;
+            topic = "https://ntfy.holthome.net/backups";
+          };
+        };
+
+        schedule = "02:00";  # 2 AM daily
+      };
+
+      # Temporarily disabled while debugging
+      # services.backup-services = {
+      #   enable = true;
+      #
+      #   unifi = {
+      #     enable = config.modules.services.unifi.enable or false;
+      #     mongoCredentialsFile = "/run/secrets/rendered/unifi-mongo-credentials";
+      #   };
+      #
+      #   omada = {
+      #     enable = config.modules.services.omada.enable or false;
+      #     containerName = "omada";
+      #   };
+      #
+      #   onepassword-connect = {
+      #     enable = config.modules.services.onepassword-connect.enable or false;
+      #     credentialsFile = config.sops.secrets.onepassword-credentials.path;
+      #   };
+      #
+      #   attic = {
+      #     enable = config.modules.services.attic.enable or false;
+      #     useZfsSend = true;
+      #     nasDestination = "backup@nas.holthome.net";
+      #   };
+      #
+      #   system = {
+      #     enable = true;
+      #     paths = [
+      #       "/etc/nixos"
+      #       "/home/ryan/.config"
+      #       "/var/log"
+      #       "/persist"
+      #     ];
+      #   };
+      # };
+
+      users = {
+        groups = {
+          admins = {
+            gid = 991;
+            members = [
+              "ryan"
+            ];
+          };
+        };
+      };
     };
 
     # Configure Caddy to load environment file with SOPS secrets
@@ -208,19 +316,6 @@ in
       '';
       owner = config.services.caddy.user;
       group = config.services.caddy.group;
-    };
-
-    modules = {
-      users = {
-        groups = {
-          admins = {
-            gid = 991;
-            members = [
-              "ryan"
-            ];
-          };
-        };
-      };
     };
   };
 }

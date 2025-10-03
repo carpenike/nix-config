@@ -92,7 +92,7 @@ tasks:
       - echo "🔨 Building VM for {{.host}}..."
       - nix build .#nixosConfigurations.{{.host}}.config.system.build.vm --show-trace
       - echo "🚀 Running VM for {{.host}}. Close the VM window to exit."
-      - echo "💡 Note: This VM runs in isolation and won't affect your actual system."
+      - 'echo "💡 Note: This VM runs in isolation and won''t affect your actual system."'
       - ./result/bin/run-{{.host}}-vm
     preconditions:
       - sh: which nix

@@ -59,7 +59,10 @@
       "Bash(git stash:*)",
       "Bash(bash:*)",
       "Bash(chmod:*)",
-      "Bash(.taskfiles/nix/scripts/dns-diff.sh:*)"
+      "Bash(.taskfiles/nix/scripts/dns-diff.sh:*)",
+      "mcp__github__get_file_contents",
+      "mcp__github__search_code",
+      "mcp__taskmaster-ai__get_task"
     ],
     "deny": []
   }
