@@ -1,42 +1,50 @@
-{ lib, config, pkgs, inputs, ... }:
+# hosts/nixos-bootstrap/default.nix
+{ lib, config, pkgs, inputs
+, disks ? [ "/dev/nvme0n1" ]
+, ... }:
 {
-  imports =  [
-    ./hardware-configuration.nix
-    (import ./disko-config.nix {disks = [ "/dev/sda"]; })
+  _module.args.disks = disks;
+
+  imports = [
+    ./disko-config.nix
+    # Skip hardware-configuration.nix - disko handles it
   ];
 
-  config = {
-    networking.hostName = "nixos-bootstrap";
-    networking.hostId = "506a4dd5";
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-    environment.systemPackages = with pkgs; [
-      git
-      vim
-    ];
-    users.users.ryan = {
-      uid = 1000;
-      name = "ryan";
-      home = "/home/ryan";
-      group = "ryan";
-      shell = pkgs.fish;
-      openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../home/ryan/config/ssh/ssh.pub);
-      isNormalUser = true;
-      extraGroups =
-        [
-          "wheel"
-          "users"
-        ];
-    };
-    users.groups.ryan = {
-      gid = 1000;
-    };
-    modules = {
-      services = {
-        openssh.enable = true;
-      };
-      system.impermanence.enable = true;
-    };
-    system.stateVersion = "23.11";
+  # Bare minimum for bootstrap
+  networking.hostName = "nixos-bootstrap";
+  networking.hostId = "506a4dd5";
+
+  # ZFS essentials
+  boot.supportedFilesystems = [ "zfs" ];
+  boot.zfs.forceImportRoot = false;
+
+  # Boot
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  # Network (DHCP usually fine for bootstrap)
+  networking.useDHCP = lib.mkDefault true;
+
+  # SSH for remote access
+  services.openssh = {
+    enable = true;
+    settings.PermitRootLogin = "yes";  # Temporary for bootstrap
   };
+
+  # Your user
+  users.users.ryan = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" "networkmanager" ];
+    openssh.authorizedKeys.keys = [
+      (builtins.readFile ../../home/ryan/config/ssh/ssh.pub)
+    ];
+  };
+
+  # Allow sudo without password during bootstrap
+  security.sudo.wheelNeedsPassword = false;
+
+  # Minimal packages
+  environment.systemPackages = with pkgs; [ git vim ];
+
+  system.stateVersion = "23.11";
 }
