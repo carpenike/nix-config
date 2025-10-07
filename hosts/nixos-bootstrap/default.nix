@@ -1,8 +1,8 @@
 # hosts/nixos-bootstrap/default.nix
-{ lib, config, pkgs, inputs
-, disks ? [ "/dev/nvme0n1" ]
-, ... }:
+{ lib, config, pkgs, ... }:
 {
+  # ✅ Provide disks to imported modules
+  _module.args.disks = [ "/dev/disk/by-id/nvme-Samsung_SSD_950_PRO_512GB_S2GMNX0H803986M" "/dev/disk/by-id/nvme-WDS100T3X0C-00SJG0_200278801343" ];
 
   imports = [
     ./disko-config.nix
