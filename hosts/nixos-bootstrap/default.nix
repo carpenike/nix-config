@@ -12,7 +12,7 @@
 
   # Bare minimum for bootstrap
   networking.hostName = "nixos-bootstrap";
-  networking.hostId = "506a4dd5";
+  networking.hostId = "1b3031e7";
 
   # ZFS essentials
   boot.supportedFilesystems = [ "zfs" ];
