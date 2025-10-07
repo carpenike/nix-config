@@ -3,11 +3,9 @@
 , disks ? [ "/dev/nvme0n1" ]
 , ... }:
 {
-  _module.args.disks = disks;
 
   imports = [
     ./disko-config.nix
-    # Skip hardware-configuration.nix - disko handles it
   ];
 
   # Bare minimum for bootstrap
