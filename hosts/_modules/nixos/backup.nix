@@ -550,20 +550,28 @@ with lib;
 
             echo "Cleaning up ZFS snapshots..."
 
-            # Unmount all snapshot mounts
-            for mount in $(mount | grep "@backup-" | awk '{print $3}'); do
-              echo "Unmounting $mount"
-              umount "$mount" || true
-            done
+            # Unmount all snapshot mounts in reverse order (deepest first)
+            if [ -d /mnt/backup-snapshot ]; then
+              echo "Unmounting snapshots..."
+              for mount in $(mount | grep "@backup-" | awk '{print $3}' | sort -r); do
+                echo "Unmounting $mount"
+                umount -f "$mount" 2>/dev/null || umount -l "$mount" 2>/dev/null || true
+              done
+
+              # Wait a moment for unmounts to settle
+              sleep 1
+            fi
 
             # Find and destroy backup snapshots from this run
-            for snapshot in $(zfs list -H -o name -t snapshot | grep "@backup-"); do
+            for snapshot in $(zfs list -H -o name -t snapshot | grep "@backup-" 2>/dev/null || true); do
               echo "Destroying snapshot: $snapshot"
               zfs destroy "$snapshot" || true
             done
 
             # Clean up mount directories and runtime state
-            rm -rf /mnt/backup-snapshot
+            if [ -d /mnt/backup-snapshot ]; then
+              rm -rf /mnt/backup-snapshot 2>/dev/null || true
+            fi
             rm -f /run/zfs-backup/current-snapshot
           '';
           serviceConfig = {
