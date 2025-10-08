@@ -36,7 +36,7 @@
         datasets = [
           "safe/home"      # User home directories
           "safe/persist"   # System state and persistent data
-          "local/nix"      # Nix store (optional, can be rebuilt)
+          # local/nix excluded - fully reproducible from NixOS configuration
         ];
         retention = {
           daily = 7;
