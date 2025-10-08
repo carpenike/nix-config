@@ -226,6 +226,11 @@ Ensure ZFS datasets are created with proper properties.
       zfs create backup/forge/zfs-recv
       zfs set canmount=off backup/forge/zfs-recv
     fi
+
+    if ! zfs list backup/forge/docs >/dev/null 2>&1; then
+      zfs create backup/forge/docs
+      zfs set recordsize=128K backup/forge/docs
+    fi
   '';
 }
 ```
@@ -237,11 +242,18 @@ Ensure ZFS datasets are created with proper properties.
 zfs create backup/forge
 zfs create backup/forge/restic
 zfs create backup/forge/zfs-recv
+zfs create backup/forge/docs
 zfs set compression=lz4 backup/forge
 zfs set atime=off backup/forge
 zfs set recordsize=1M backup/forge/restic
 zfs set quota=500G backup/forge/restic
 zfs set canmount=off backup/forge/zfs-recv
+zfs set recordsize=128K backup/forge/docs
+
+# Set ownership for DR docs directory (restic-backup user from forge: uid=994, gid=992)
+# Using 'dr' (disaster recovery) instead of nested hostname for clarity during emergencies
+mkdir -p /mnt/backup/forge/docs/dr
+chown -R 994:992 /mnt/backup/forge/docs/dr
 ```
 
 ---
@@ -262,6 +274,9 @@ Configure NFS exports for Restic backup repository.
     exports = ''
       # Restic backup repository for forge
       /mnt/backup/forge/restic  forge.holthome.net(rw,sync,no_subtree_check,root_squash,anonuid=1001,anongid=1001)
+
+      # Documentation directory for DR access
+      /mnt/backup/forge/docs  forge.holthome.net(rw,sync,no_subtree_check,root_squash,anonuid=1001,anongid=1001)
     '';
   };
 
@@ -282,6 +297,7 @@ Configure NFS exports for Restic backup repository.
 ```bash
 # /etc/exports on nas-1:
 /mnt/backup/forge/restic  forge.holthome.net(rw,sync,no_subtree_check,root_squash,anonuid=1001,anongid=1001)
+/mnt/backup/forge/docs  forge.holthome.net(rw,sync,no_subtree_check,root_squash,anonuid=1001,anongid=1001)
 ```
 
 ---
