@@ -3,6 +3,7 @@
 }:
 {
   imports = [
+    ./nfs
     ./zfs
   ];
 }
