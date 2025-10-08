@@ -16,6 +16,10 @@
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.forceImportRoot = false;
 
+  # Ensure all ZFS pools are imported at boot
+  boot.zfs.extraPools = [ "rpool" ]
+    ++ lib.optionals ((builtins.length config._module.args.disks) >= 2) [ "tank" ];
+
   # Boot
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
