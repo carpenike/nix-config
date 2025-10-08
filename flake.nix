@@ -68,7 +68,8 @@
     # nix-darwin - nix modules for darwin (MacOS)
     # https://github.com/LnL7/nix-darwin
     nix-darwin = {
-      url = "github:LnL7/nix-darwin/nix-darwin-25.05";
+      # url = "github:LnL7/nix-darwin/nix-darwin-25.05";
+      url = "github:LnL7/nix-darwin/nix-darwin-24.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

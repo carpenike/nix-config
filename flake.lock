@@ -336,16 +336,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1759509947,
-        "narHash": "sha256-4XifSIHfpJKcCf5bZZRhj8C4aCpjNBaE3kXr02s4rHU=",
+        "lastModified": 1743127615,
+        "narHash": "sha256-+sMGqywrSr50BGMLMeY789mSrzjkoxZiu61eWjYS/8o=",
         "owner": "LnL7",
         "repo": "nix-darwin",
-        "rev": "000eadb231812ad6ea6aebd7526974aaf4e79355",
+        "rev": "fc843893cecc1838a59713ee3e50e9e7edc6207c",
         "type": "github"
       },
       "original": {
         "owner": "LnL7",
-        "ref": "nix-darwin-25.05",
+        "ref": "nix-darwin-24.11",
         "repo": "nix-darwin",
         "type": "github"
       }
@@ -481,11 +481,11 @@
         "systems": "systems_4"
       },
       "locked": {
-        "lastModified": 1759874391,
-        "narHash": "sha256-7g8JxpJEd8DZeRLNiodkoEUTiuyXxn+P9+STfUJXGWw=",
+        "lastModified": 1759878636,
+        "narHash": "sha256-yKMf+iG5KmQkMamtT8wWNFwyjSiluHyH683OcpJh/kQ=",
         "owner": "nix-community",
         "repo": "nixvim",
-        "rev": "a46778cf758f2bdf4b90c1e2d9f0eb08c34259da",
+        "rev": "c074710027ce3047382326d1fcc1a4e174cccfcc",
         "type": "github"
       },
       "original": {
