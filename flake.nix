@@ -57,49 +57,56 @@
 
     # VSCode community extensions
     # https://github.com/nix-community/nix-vscode-extensions
-    nix-vscode-extensions = {
-      url = "github:nix-community/nix-vscode-extensions";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # nix-vscode-extensions = {
+    #   url = "github:nix-community/nix-vscode-extensions";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
 
     # Rust toolchain overlay
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # rust-overlay = {
+    #   url = "github:oxalica/rust-overlay";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
 
     # Catppuccin - Soothing pastel theme for Nix
     # https://github.com/catppuccin/nix
     # v1.0.2 does not have a nixpkgs input to follow
-    catppuccin = {
-      url = "github:catppuccin/nix/v1.0.2";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # catppuccin = {
+    #   url = "github:catppuccin/nix/v1.0.2";
+    # };
 
     # nix-darwin - nix modules for darwin (MacOS)
     # https://github.com/LnL7/nix-darwin
-    nix-darwin = {
-      # url = "github:LnL7/nix-darwin/nix-darwin-25.05";
-      url = "github:LnL7/nix-darwin/nix-darwin-24.11";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP (not needed for NixOS bootstrap)
+    # nix-darwin = {
+    #   # url = "github:LnL7/nix-darwin/nix-darwin-25.05";
+    #   url = "github:LnL7/nix-darwin/nix-darwin-24.11";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
 
     # nix-inspect - Interactive tui for inspecting nix configs
     # https://github.com/bluskript/nix-inspect
-    nix-inspect = {
-      url = "github:bluskript/nix-inspect";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # nix-inspect = {
+    #   url = "github:bluskript/nix-inspect";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
 
     # Impermanence - does not have a nixpkgs input, pure module flake
-    impermanence = {
-      url = "github:nix-community/impermanence";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # impermanence = {
+    #   url = "github:nix-community/impermanence";
+    # };
 
     # CoachIQ RV monitoring
-    coachiq = {
-      url = "github:carpenike/coachiq";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # coachiq = {
+    #   url = "github:carpenike/coachiq";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
 
     #################### Personal Repositories ####################
   };
