@@ -29,9 +29,66 @@
 
     # Grant ZFS permissions for sending snapshots
     # Note: These need to be run manually after first boot:
-    # sudo zfs allow zfs-replication send,snapshot,hold rpool
-    # sudo zfs allow zfs-replication send,snapshot,hold tank
+    # sudo zfs allow zfs-replication send,snapshot,hold rpool/safe
+    # sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/home
+    # sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/persist
 
-    # Future: systemd service for automated replication will go here
+    # Configure Sanoid for snapshot management
+    services.sanoid = {
+      enable = true;
+
+      # Template for common snapshot settings
+      templates = {
+        production = {
+          hourly = 24;      # Keep 24 hourly snapshots
+          daily = 7;        # Keep 7 daily snapshots
+          weekly = 4;       # Keep 4 weekly snapshots
+          monthly = 3;      # Keep 3 monthly snapshots
+          yearly = 0;       # Don't keep yearly snapshots
+          autosnap = true;  # Automatically create snapshots
+          autoprune = true; # Automatically prune old snapshots
+        };
+      };
+
+      # Dataset configurations
+      datasets = {
+        "rpool/safe/home" = {
+          useTemplate = [ "production" ];
+          recursive = false;  # Don't snapshot child datasets
+        };
+
+        "rpool/safe/persist" = {
+          useTemplate = [ "production" ];
+          recursive = false;
+        };
+      };
+    };
+
+    # Configure Syncoid for replication to nas-1
+    services.syncoid = {
+      enable = true;
+      interval = "hourly";  # Run replication every hour
+
+      # Use the zfs-replication user's SSH key
+      sshKey = "/var/lib/zfs-replication/.ssh/id_ed25519";
+
+      commands = {
+        # Replicate home dataset
+        "rpool/safe/home" = {
+          target = "zfs-replication@nas-1.holthome.net:backup/forge/zfs-recv/home";
+          recursive = false;
+          sendOptions = "w";  # Send raw encrypted datasets
+          recvOptions = "u";  # Receive without mounting
+        };
+
+        # Replicate persist dataset
+        "rpool/safe/persist" = {
+          target = "zfs-replication@nas-1.holthome.net:backup/forge/zfs-recv/persist";
+          recursive = false;
+          sendOptions = "w";
+          recvOptions = "u";
+        };
+      };
+    };
   };
 }
