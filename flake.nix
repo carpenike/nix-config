@@ -4,8 +4,7 @@
   inputs = {
     #################### Official NixOS and HM Package Sources ####################
 
-    # nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable"; # also see 'unstable-packages' overlay at 'overlays/default.nix"
 
     # nixos-hardware - does not have a nixpkgs input, pure module flake
@@ -23,90 +22,76 @@
     # home-manager - home user+dotfile manager
     # https://github.com/nix-community/home-manager
     home-manager = {
-      # url = "github:nix-community/home-manager/release-25.05";
-      url = "github:nix-community/home-manager/release-24.11";
+      url = "github:nix-community/home-manager/release-25.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     #################### Utilities ####################
 
     # Declarative partitioning and formatting
-    # Pinned to v1.0.0 - last version before types.attrsWith was introduced
-    # This is required for compatibility with nixpkgs 24.11
-    # After installation, can update to latest disko when switching to 25.05
     disko = {
-      url = "github:nix-community/disko/v1.0.0";
+      url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # sops-nix - secrets with mozilla sops
     # https://github.com/Mic92/sops-nix
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # sops-nix = {
-    #   url = "github:mic92/sops-nix";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    sops-nix = {
+      url = "github:mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # NixVim - Configure Neovim with Nix
     # https://github.com/nix-community/nixvim
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # nixvim = {
-    #   url = "github:nix-community/nixvim";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    nixvim = {
+      url = "github:nix-community/nixvim";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # VSCode community extensions
     # https://github.com/nix-community/nix-vscode-extensions
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # nix-vscode-extensions = {
-    #   url = "github:nix-community/nix-vscode-extensions";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    nix-vscode-extensions = {
+      url = "github:nix-community/nix-vscode-extensions";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # Rust toolchain overlay
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # rust-overlay = {
-    #   url = "github:oxalica/rust-overlay";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # Catppuccin - Soothing pastel theme for Nix
     # https://github.com/catppuccin/nix
     # v1.0.2 does not have a nixpkgs input to follow
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # catppuccin = {
-    #   url = "github:catppuccin/nix/v1.0.2";
-    # };
+    catppuccin = {
+      url = "github:catppuccin/nix/v1.0.2";
+    };
 
     # nix-darwin - nix modules for darwin (MacOS)
     # https://github.com/LnL7/nix-darwin
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP (not needed for NixOS bootstrap)
-    # nix-darwin = {
-    #   # url = "github:LnL7/nix-darwin/nix-darwin-25.05";
-    #   url = "github:LnL7/nix-darwin/nix-darwin-24.11";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    nix-darwin = {
+      url = "github:LnL7/nix-darwin/nix-darwin-25.05";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # nix-inspect - Interactive tui for inspecting nix configs
     # https://github.com/bluskript/nix-inspect
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # nix-inspect = {
-    #   url = "github:bluskript/nix-inspect";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    nix-inspect = {
+      url = "github:bluskript/nix-inspect";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # Impermanence - does not have a nixpkgs input, pure module flake
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # impermanence = {
-    #   url = "github:nix-community/impermanence";
-    # };
+    impermanence = {
+      url = "github:nix-community/impermanence";
+    };
 
     # CoachIQ RV monitoring
-    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
-    # coachiq = {
-    #   url = "github:carpenike/coachiq";
-    #   inputs.nixpkgs.follows = "nixpkgs";
-    # };
+    coachiq = {
+      url = "github:carpenike/coachiq";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     #################### Personal Repositories ####################
   };
@@ -116,16 +101,13 @@
     ...
   } @inputs:
   let
-    # Overlays can trigger evaluation of inputs that use newer nixpkgs features
-    # Comment out during 24.11 bootstrap, uncomment after switching to 25.05
-    # overlays = import ./overlays {inherit inputs;};
-    mkSystemLib = import ./lib/mkSystem.nix {inherit inputs;};
+    overlays = import ./overlays {inherit inputs;};
+    mkSystemLib = import ./lib/mkSystem.nix {inherit inputs; inherit overlays;};
 
     # Aggregate DNS records from all hosts for centralized zone management
-    # Commented out during 24.11 bootstrap
-    # aggregateDnsRecords = import ./lib/dns-aggregate.nix {
-    #   lib = inputs.nixpkgs.lib;
-    # };
+    aggregateDnsRecords = import ./lib/dns-aggregate.nix {
+      lib = inputs.nixpkgs.lib;
+    };
 in
   flake-parts.lib.mkFlake {inherit inputs;} {
     systems = [
@@ -161,11 +143,9 @@ in
 
       # Aggregated DNS records from all hosts' Caddy virtual hosts
       # View with: nix eval .#allCaddyDnsRecords --raw
-      # NOTE: Commented out during 24.11 bootstrap to avoid evaluating all systems
-      # Uncomment after switching to 25.05
-      # allCaddyDnsRecords = aggregateDnsRecords (
-      #   inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
-      # );
+      allCaddyDnsRecords = aggregateDnsRecords (
+        inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
+      );
 
         # Convenience output that aggregates the outputs for home, nixos.
         # Also used in ci to build targets generally.
