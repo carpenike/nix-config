@@ -41,17 +41,19 @@
 
     # sops-nix - secrets with mozilla sops
     # https://github.com/Mic92/sops-nix
-    sops-nix = {
-      url = "github:mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # sops-nix = {
+    #   url = "github:mic92/sops-nix";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
 
     # NixVim - Configure Neovim with Nix
     # https://github.com/nix-community/nixvim
-    nixvim = {
-      url = "github:nix-community/nixvim";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # TEMPORARILY COMMENTED FOR 24.11 BOOTSTRAP
+    # nixvim = {
+    #   url = "github:nix-community/nixvim";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
 
     # VSCode community extensions
     # https://github.com/nix-community/nix-vscode-extensions
