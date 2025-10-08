@@ -12,6 +12,7 @@ This guide provides comprehensive instructions for onboarding new hosts and serv
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Host Onboarding](#host-onboarding)
+  - [Step 9: Configure ZFS Replication (Optional)](#step-9-configure-zfs-replication-optional-but-recommended)
 - [Service Onboarding](#service-onboarding)
 - [Configuration Reference](#configuration-reference)
 - [Advanced Features](#advanced-features)
@@ -25,12 +26,13 @@ The backup system consists of several integrated components:
 
 ### Core Components
 
-1. **Restic Backup Engine**: Modern, encrypted, deduplicated backup solution
+1. **Restic Backup Engine**: Modern, encrypted, deduplicated file-based backup solution
 2. **ZFS Snapshot Integration**: Consistent point-in-time backups via ZFS snapshots
-3. **Service Module**: Pre-configured backup profiles for common services (UniFi, Omada, 1Password Connect, Attic, System configs)
-4. **Monitoring System**: Multi-tier monitoring with Prometheus metrics, error analysis, and notifications
-5. **Automated Testing**: Repository verification and restore testing
-6. **Documentation Generator**: Self-documenting system with runbooks
+3. **Sanoid/Syncoid (Optional)**: Automated ZFS snapshot management and block-level replication
+4. **Service Module**: Pre-configured backup profiles for common services (UniFi, Omada, 1Password Connect, Attic, System configs)
+5. **Monitoring System**: Multi-tier monitoring with Prometheus metrics, error analysis, and notifications
+6. **Automated Testing**: Repository verification and restore testing
+7. **Documentation Generator**: Self-documenting system with runbooks
 
 ### Architecture Diagram
 
@@ -501,6 +503,202 @@ systemctl status restic-backups-*
 # View logs
 journalctl -u restic-backups-* -f
 ```
+
+### Step 9: Configure ZFS Replication (Optional but Recommended)
+
+For hosts with ZFS, add automated snapshot management and replication using Sanoid and Syncoid. This provides block-level replication complementing the file-based Restic backups.
+
+#### Prerequisites
+
+1. **ZFS-based filesystem** on source host
+2. **ZFS dataset** on destination (e.g., nas-1)
+3. **SSH key** for zfs-replication user
+4. **ZFS permissions** granted on both source and destination
+
+#### Configure Sanoid (Snapshot Management)
+
+Add to your host configuration (e.g., `hosts/forge/zfs-replication.nix`):
+
+```nix
+{ config, ... }:
+
+{
+  config = {
+    # Create dedicated user for ZFS replication
+    users.users.zfs-replication = {
+      isSystemUser = true;
+      group = "zfs-replication";
+      home = "/var/lib/zfs-replication";
+      createHome = true;
+      shell = "/run/current-system/sw/bin/nologin";
+      description = "ZFS replication service user";
+    };
+
+    users.groups.zfs-replication = {};
+
+    # Manage SSH private key via SOPS
+    sops.secrets."zfs-replication/ssh-key" = {
+      owner = "zfs-replication";
+      group = "zfs-replication";
+      mode = "0600";
+      path = "/var/lib/zfs-replication/.ssh/id_ed25519";
+    };
+
+    # Create .ssh directory
+    systemd.tmpfiles.rules = [
+      "d /var/lib/zfs-replication/.ssh 0700 zfs-replication zfs-replication -"
+    ];
+
+    # Configure Sanoid for snapshot management
+    services.sanoid = {
+      enable = true;
+
+      templates = {
+        production = {
+          hourly = 24;      # 1 day of hourly snapshots
+          daily = 7;        # 1 week of daily snapshots
+          weekly = 4;       # 1 month of weekly snapshots
+          monthly = 3;      # 3 months of monthly snapshots
+          yearly = 0;       # No yearly snapshots
+          autosnap = true;
+          autoprune = true;
+        };
+      };
+
+      datasets = {
+        "rpool/safe/home" = {
+          useTemplate = [ "production" ];
+          recursive = false;
+        };
+
+        "rpool/safe/persist" = {
+          useTemplate = [ "production" ];
+          recursive = false;
+        };
+      };
+    };
+
+    # Configure Syncoid for replication
+    services.syncoid = {
+      enable = true;
+      interval = "hourly";
+      sshKey = "/var/lib/zfs-replication/.ssh/id_ed25519";
+
+      commands = {
+        "rpool/safe/home" = {
+          target = "zfs-replication@nas-1.holthome.net:backup/forge/zfs-recv/home";
+          recursive = false;
+          sendOptions = "w";  # Raw encrypted send
+          recvOptions = "u";  # Receive without mounting
+        };
+
+        "rpool/safe/persist" = {
+          target = "zfs-replication@nas-1.holthome.net:backup/forge/zfs-recv/persist";
+          recursive = false;
+          sendOptions = "w";
+          recvOptions = "u";
+        };
+      };
+    };
+  };
+}
+```
+
+#### Post-Deployment: Grant ZFS Permissions
+
+After deploying the configuration, grant necessary ZFS permissions:
+
+```bash
+# On source host (e.g., forge)
+ssh forge.holthome.net
+
+# Grant permissions for Sanoid to create snapshots
+sudo zfs allow sanoid send,snapshot,hold,destroy rpool/safe/home
+sudo zfs allow sanoid send,snapshot,hold,destroy rpool/safe/persist
+
+# Grant permissions for Syncoid to send snapshots
+sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/home
+sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/persist
+
+# Verify permissions
+sudo zfs allow rpool/safe/home
+sudo zfs allow rpool/safe/persist
+```
+
+On destination host (nas-1), the zfs-replication user needs receive permissions:
+
+```bash
+# On destination host (nas-1)
+ssh nas-1.holthome.net
+
+# Grant receive permissions
+sudo zfs allow zfs-replication receive,create,mount,hold backup/forge/zfs-recv
+
+# Verify permissions
+sudo zfs allow backup/forge/zfs-recv
+```
+
+#### Verify ZFS Replication Setup
+
+```bash
+# On source host - check services
+systemctl status sanoid.timer
+systemctl status syncoid.timer
+
+# Trigger initial snapshot
+sudo systemctl start sanoid.service
+
+# Check snapshots were created
+zfs list -t snapshot | grep autosnap
+
+# Trigger initial replication (will take time for first full send)
+sudo systemctl start syncoid.service
+
+# Monitor replication progress
+sudo journalctl -u syncoid.service -f
+
+# On destination - verify snapshots arrived
+ssh nas-1.holthome.net 'zfs list -t all backup/forge/zfs-recv'
+```
+
+#### ZFS Replication Monitoring
+
+```bash
+# Check timer schedules
+systemctl list-timers sanoid syncoid
+
+# View recent snapshot activity
+sudo journalctl -u sanoid.service -n 50
+
+# View recent replication activity
+sudo journalctl -u syncoid.service -n 50
+
+# Check for errors
+systemctl --state=failed | grep -E "sanoid|syncoid"
+
+# Compare snapshot counts (source vs destination)
+echo "Source snapshots:"
+zfs list -t snapshot rpool/safe/home | wc -l
+echo "Destination snapshots:"
+ssh nas-1.holthome.net 'zfs list -t snapshot backup/forge/zfs-recv/home | wc -l'
+```
+
+> **Note**: For comprehensive ZFS replication documentation, see [Sanoid & Syncoid Setup Guide](./sanoid-syncoid-setup.md)
+
+#### Benefits of Sanoid/Syncoid
+
+**Complements Restic by providing:**
+- Near-instant snapshots (copy-on-write)
+- Efficient block-level replication (only changed blocks)
+- Fast bare-metal recovery
+- Preserves ZFS properties and attributes
+- Hourly snapshots with automatic pruning
+
+**Use cases:**
+- Quick rollback to recent snapshot
+- Fast recovery of entire datasets
+- Replication to off-site ZFS storage
+- Disaster recovery with block-level consistency
 
 ## Service Onboarding
 
