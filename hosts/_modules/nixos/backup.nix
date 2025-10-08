@@ -1079,7 +1079,7 @@ EOF
       (mkIf cfg.documentation.enable {
         backup-documentation = {
           description = "Generate comprehensive backup documentation and runbooks";
-          path = with pkgs; [ jq gawk coreutils restic ];
+          path = with pkgs; [ jq gawk coreutils restic rsync ];
           script = ''
             set -euo pipefail
 
@@ -1422,6 +1422,27 @@ restic snapshots
 EOF
 
             echo "Documentation generated successfully in $DOC_DIR"
+
+            # Copy documentation to NAS for DR access
+            ${concatStringsSep "\n" (mapAttrsToList (repoName: repoConfig:
+              optionalString (repoConfig.primary && (hasPrefix "/mnt/" repoConfig.url || hasPrefix "nfs://" repoConfig.url)) ''
+                # Copy to primary repository location for immediate DR access
+                NAS_DOCS_DIR="${repoConfig.url}/docs/$HOSTNAME"
+                if [ -d "$(dirname ${repoConfig.url})" ]; then
+                  echo "Copying documentation to NAS: $NAS_DOCS_DIR"
+                  ${pkgs.coreutils}/bin/mkdir -p "$NAS_DOCS_DIR" 2>/dev/null || true
+                  if [ -d "$NAS_DOCS_DIR" ]; then
+                    ${pkgs.rsync}/bin/rsync -a --delete "$DOC_DIR/" "$NAS_DOCS_DIR/" && \
+                      echo "Documentation copied to NAS successfully" || \
+                      echo "Warning: Could not copy documentation to NAS"
+                  else
+                    echo "Warning: NAS documentation directory not accessible: $NAS_DOCS_DIR"
+                  fi
+                else
+                  echo "Warning: NAS mount not available: ${repoConfig.url}"
+                fi
+              ''
+            ) cfg.restic.repositories)}
 
             # Update generation timestamp for metrics
             ${optionalString cfg.monitoring.prometheus.enable ''

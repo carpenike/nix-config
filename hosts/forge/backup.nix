@@ -77,6 +77,7 @@
             paths = [
               "/home"
               "/persist"
+              "/var/lib/backup-docs"  # Backup the documentation for DR
             ];
             excludePatterns = [
               # Exclude cache directories
