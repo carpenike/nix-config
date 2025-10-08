@@ -1560,7 +1560,8 @@ EOF
             backupPrepareCommand = ''
               ${optionalString cfg.monitoring.enable ''
                 # Capture start time for duration calculation
-                export START_TIME=$(${pkgs.coreutils}/bin/date +%s)
+                ${pkgs.coreutils}/bin/mkdir -p /run/restic-backups-${jobName}
+                ${pkgs.coreutils}/bin/date +%s > /run/restic-backups-${jobName}/start-time
               ''}
               ${optionalString cfg.zfs.enable ''
                 # Create ZFS snapshots for consistent backup
@@ -1648,7 +1649,8 @@ EOF
                 TIMESTAMP=$(${pkgs.coreutils}/bin/date --iso-8601=seconds)
                 LOG_FILE="${cfg.monitoring.logDir}/backup-jobs.jsonl"
                 END_TIME=$(${pkgs.coreutils}/bin/date +%s)
-                DURATION=$((END_TIME - ''${START_TIME:-$END_TIME}))
+                START_TIME=$(${pkgs.coreutils}/bin/cat /run/restic-backups-${jobName}/start-time 2>/dev/null || echo "$END_TIME")
+                DURATION=$((END_TIME - START_TIME))
 
                 ${pkgs.jq}/bin/jq -n \
                   --arg timestamp "$TIMESTAMP" \
