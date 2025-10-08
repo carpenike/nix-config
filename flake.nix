@@ -8,7 +8,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable"; # also see 'unstable-packages' overlay at 'overlays/default.nix"
 
-    hardware.url = "github:nixos/nixos-hardware";
+    hardware = {
+      url = "github:nixos/nixos-hardware";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # Flake-parts - Simplify Nix Flakes with the module system
     #
@@ -67,6 +70,7 @@
     # https://github.com/catppuccin/nix
     catppuccin = {
       url = "github:catppuccin/nix/v1.0.2";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # nix-darwin - nix modules for darwin (MacOS)
@@ -84,9 +88,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Impermanence - does not have a nixpkgs input, pure module flake
     impermanence = {
       url = "github:nix-community/impermanence";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # CoachIQ RV monitoring
