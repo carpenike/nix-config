@@ -1558,6 +1558,10 @@ EOF
               "--keep-yearly ${toString cfg.restic.globalSettings.retention.yearly}"
             ];
             backupPrepareCommand = ''
+              ${optionalString cfg.monitoring.enable ''
+                # Capture start time for duration calculation
+                export START_TIME=$(${pkgs.coreutils}/bin/date +%s)
+              ''}
               ${optionalString cfg.zfs.enable ''
                 # Create ZFS snapshots for consistent backup
                 ${pkgs.systemd}/bin/systemctl start zfs-snapshot.service
@@ -1643,7 +1647,8 @@ EOF
                 # Log backup completion and export metrics
                 TIMESTAMP=$(${pkgs.coreutils}/bin/date --iso-8601=seconds)
                 LOG_FILE="${cfg.monitoring.logDir}/backup-jobs.jsonl"
-                DURATION=$(${pkgs.coreutils}/bin/date +%s)
+                END_TIME=$(${pkgs.coreutils}/bin/date +%s)
+                DURATION=$((END_TIME - ''${START_TIME:-$END_TIME}))
 
                 ${pkgs.jq}/bin/jq -n \
                   --arg timestamp "$TIMESTAMP" \
