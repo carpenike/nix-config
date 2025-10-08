@@ -1436,6 +1436,72 @@ reboot
 
 ## Best Practices
 
+### NFS Mount Configuration
+
+#### Backup Storage (Occasional Access)
+
+For backup destinations that need occasional access, use systemd automount with idle timeout:
+
+```nix
+fileSystems."/mnt/nas-backup" = {
+  device = "nas-1.holthome.net:/mnt/backup/forge/restic";
+  fsType = "nfs";
+  options = [
+    "nfsvers=4.2"
+    "rw"
+    "noatime"
+    "x-systemd.automount"           # Mount on first access
+    "x-systemd.idle-timeout=600"    # Unmount after 10 min idle
+    "x-systemd.mount-timeout=30s"   # Fail fast if NAS down
+  ];
+};
+```
+
+**Benefits:**
+
+- Won't block boot if NAS is down
+- Automatically unmounts after idle period (security + resource efficiency)
+- Auto-mounts on first access (transparent to services)
+- Available system-wide for any service that needs it
+
+#### Media Library (Continuous Access)
+
+For shared media libraries accessed by multiple services (Plex, Sonarr, Radarr, SABnzbd, etc.), use a single shared mount point:
+
+```nix
+fileSystems."/mnt/media" = {
+  device = "nas-1.holthome.net:/mnt/media";
+  fsType = "nfs";
+  options = [
+    "nfsvers=4.2"
+    "rw"
+    "noatime"
+    "x-systemd.automount"  # Optional but recommended for resilience
+    "noauto"               # Required with automount
+  ];
+};
+```
+
+**Best Practices for Shared Media:**
+
+- **Single mount point**: All services reference the same path (e.g., `/mnt/media`)
+- **Shared group**: Create a `media` group and add all service users to it
+- **Consistent permissions**: Ensure NFS export and local permissions align (UID/GID mapping)
+- **Do not create separate mounts per service**: This adds complexity and can cause file sync issues
+
+**Example user/group configuration:**
+
+```nix
+users.groups.media = { gid = 1500; };  # Match GID across NAS and clients
+
+users.users = {
+  plex.extraGroups = [ "media" ];
+  sonarr.extraGroups = [ "media" ];
+  radarr.extraGroups = [ "media" ];
+  sabnzbd.extraGroups = [ "media" ];
+};
+```
+
 ### Security
 
 1. **Encrypt Repository Passwords**: Always use SOPS or similar for password management
@@ -1693,6 +1759,7 @@ reboot
 ## Conclusion
 
 The NixOS backup system provides enterprise-grade backup capabilities with:
+
 - Encrypted, deduplicated backups via Restic
 - ZFS snapshot integration for consistency
 - Pre-configured service profiles
@@ -1701,6 +1768,7 @@ The NixOS backup system provides enterprise-grade backup capabilities with:
 - Self-documenting system
 
 For additional help:
+
 - Review generated documentation in `/var/lib/backup/docs/`
 - Check structured logs in `/var/log/backup/`
 - Consult Prometheus metrics for system health

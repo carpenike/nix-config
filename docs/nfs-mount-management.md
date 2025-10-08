@@ -8,6 +8,7 @@ The NFS mount management module provides a DRY (Don't Repeat Yourself) approach 
 
 ## Table of Contents
 
+- [Mount Strategies by Use Case](#mount-strategies-by-use-case)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [Configuration Reference](#configuration-reference)
@@ -17,6 +18,116 @@ The NFS mount management module provides a DRY (Don't Repeat Yourself) approach 
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
 - [Examples](#examples)
+
+## Mount Strategies by Use Case
+
+### Backup Storage (Occasional Access)
+
+**Use Case**: Restic repositories, ZFS replication targets, archive storage
+
+**Strategy**: Systemd automount with idle timeout
+
+```nix
+fileSystems."/mnt/nas-backup" = {
+  device = "nas-1.holthome.net:/mnt/backup/forge/restic";
+  fsType = "nfs";
+  options = [
+    "nfsvers=4.2"
+    "rw"
+    "noatime"
+    "x-systemd.automount"           # Mount on first access
+    "x-systemd.idle-timeout=600"    # Unmount after 10 min idle
+    "x-systemd.mount-timeout=30s"   # Fail fast if NAS down
+  ];
+};
+```
+
+**Benefits**:
+
+- **Boot Reliability**: Won't block system boot if NAS is unavailable
+- **Security**: Automatically unmounts after idle period, minimizing exposure
+- **Resource Efficiency**: Only mounted when needed
+- **Transparency**: Any service can access the path; it auto-mounts on demand
+
+### Media Library (Continuous Access)
+
+**Use Case**: Plex, Sonarr, Radarr, SABnzbd - services that need continuous shared access
+
+**Strategy**: Single shared mount point (DO NOT create separate mounts per service)
+
+```nix
+# Create shared group for all media services
+users.groups.media = { gid = 1500; };  # Must match NAS export UID/GID
+
+# Single mount point for ALL media services
+fileSystems."/mnt/media" = {
+  device = "nas-1.holthome.net:/mnt/media";
+  fsType = "nfs";
+  options = [
+    "nfsvers=4.2"
+    "rw"
+    "noatime"
+    "x-systemd.automount"  # Optional: provides resilience to NAS reboots
+    "noauto"               # Required when using automount
+  ];
+};
+
+# Add all media service users to shared group
+users.users = {
+  plex.extraGroups = [ "media" ];
+  sonarr.extraGroups = [ "media" ];
+  radarr.extraGroups = [ "media" ];
+  sabnzbd.extraGroups = [ "media" ];
+};
+```
+
+**Critical Requirements**:
+
+1. **Single Mount Point**: All services reference `/mnt/media` (not `/mnt/plex-media`, `/mnt/sonarr-media`, etc.)
+2. **Shared Group**: All service users must be in the `media` group
+3. **UID/GID Consistency**: Ensure NFS export uses matching UID/GID (via `anonuid`/`anongid` or user mapping)
+
+**Why Single Mount**:
+
+- Simpler permission management
+- Better performance (single NFS connection)
+- Prevents file sync issues between mounts
+- Industry best practice for shared media libraries
+
+**NFS Server Export Example**:
+
+```bash
+# /etc/exports on NAS
+/mnt/media  forge.holthome.net(rw,sync,no_subtree_check,all_squash,anonuid=1500,anongid=1500)
+```
+
+### Database/Application Storage (Not Recommended)
+
+**Use Case**: PostgreSQL, Redis, high-IOPS applications
+
+**Strategy**: Avoid NFS; use local ZFS with replication instead
+
+```nix
+# Do NOT use NFS for databases
+# Instead, use local ZFS and replicate with Syncoid
+services.postgresql = {
+  enable = true;
+  dataDir = "/persist/postgres";  # Local ZFS dataset
+};
+
+# Replicate via ZFS (see zfs-replication.nix)
+services.syncoid.commands."rpool/safe/persist" = {
+  target = "zfs-replication@nas-1.holthome.net:backup/forge/zfs-recv/persist";
+  # ...
+};
+```
+
+**Why Not NFS**:
+
+- Network latency severely impacts database performance
+- NFS locking can cause database corruption
+- Local ZFS provides snapshots, compression, and better I/O
+- ZFS replication provides block-level backup without NFS overhead
 
 ## Architecture
 
