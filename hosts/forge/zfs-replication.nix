@@ -106,6 +106,10 @@
       enable = true;
       interval = "hourly";  # Run replication every hour
 
+      # Run as zfs-replication user (matches SSH key ownership)
+      user = "zfs-replication";
+      group = "zfs-replication";
+
       # Use the zfs-replication user's SSH key
       sshKey = "/var/lib/zfs-replication/.ssh/id_ed25519";
 
