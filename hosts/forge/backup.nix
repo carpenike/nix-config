@@ -2,6 +2,15 @@
 
 {
   config = {
+    # Create restic-backup user and group
+    users.users.restic-backup = {
+      isSystemUser = true;
+      group = "restic-backup";
+      description = "Restic backup service user";
+    };
+
+    users.groups.restic-backup = {};
+
     # Mount NFS share from nas-1 for backups
     fileSystems."/mnt/nas-backup" = {
       device = "nas-1.holthome.net:/mnt/backup/forge/restic";
