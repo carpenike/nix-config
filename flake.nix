@@ -28,8 +28,11 @@
     #################### Utilities ####################
 
     # Declarative partitioning and formatting
+    # Pinned to v1.0.0 - last version before types.attrsWith was introduced
+    # This is required for compatibility with nixpkgs 24.11
+    # After installation, can update to latest disko when switching to 25.05
     disko = {
-      url = "github:nix-community/disko";
+      url = "github:nix-community/disko/v1.0.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
