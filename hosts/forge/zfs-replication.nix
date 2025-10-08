@@ -101,6 +101,17 @@
       };
     };
 
+    # Override syncoid service sandboxing to allow SSH key access
+    # ProtectHome=true doesn't block /var/lib - the issue is ProtectSystem=strict
+    # Use ReadOnlyPaths to surgically grant access while maintaining security
+    systemd.services.syncoid-rpool-safe-home.serviceConfig = {
+      ReadOnlyPaths = [ "/var/lib/zfs-replication/.ssh" ];
+    };
+
+    systemd.services.syncoid-rpool-safe-persist.serviceConfig = {
+      ReadOnlyPaths = [ "/var/lib/zfs-replication/.ssh" ];
+    };
+
     # Configure Syncoid for replication to nas-1
     services.syncoid = {
       enable = true;
