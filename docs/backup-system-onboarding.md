@@ -1756,6 +1756,171 @@ users.users = {
 }
 ```
 
+## Advanced Troubleshooting
+
+### Systemd Sandboxing with SSH Keys and Symlinks
+
+When using systemd services that need to access SSH keys managed via SOPS (or other secret management that uses symlinks), you may encounter issues with systemd sandboxing.
+
+#### Symptom: "Identity file not accessible"
+
+```text
+Warning: Identity file /var/lib/user/.ssh/id_ed25519 not accessible: No such file or directory
+```
+
+Even though:
+
+- The file exists
+- Manual `sudo -u user test -r /var/lib/user/.ssh/id_ed25519` succeeds
+- File permissions are correct (600)
+
+#### Root Cause
+
+When `PrivateMounts=true` is set (common in hardened systemd services), the service runs in a private mount namespace. Symlinks that cross mount namespace boundaries won't resolve correctly unless **both** the symlink source AND target are explicitly mapped into the service's namespace.
+
+Example problematic setup:
+
+```text
+/var/lib/user/.ssh/id_ed25519 -> /run/secrets/service/ssh-key
+```
+
+With only `ReadOnlyPaths=/var/lib/user/.ssh`, the symlink exists but the target `/run/secrets/service/ssh-key` is not visible in the private mount namespace.
+
+#### Solution: Use BindReadOnlyPaths
+
+You must use `BindReadOnlyPaths` (not `ReadOnlyPaths`) for **both** ends of the symlink:
+
+```nix
+systemd.services.my-service.serviceConfig = {
+  BindReadOnlyPaths = lib.mkForce [
+    "/nix/store"
+    "/etc"
+    "/bin/sh"
+    # Both symlink source and target must be explicitly bound
+    "/var/lib/user/.ssh"            # Symlink location
+    "/run/secrets/service"          # Symlink target directory
+  ];
+};
+```
+
+**Why `BindReadOnlyPaths` instead of `ReadOnlyPaths`?**
+
+- `ReadOnlyPaths` only makes paths read-only within the existing namespace
+- `BindReadOnlyPaths` explicitly binds external paths into the private mount namespace
+- With `PrivateMounts=true`, symlink resolution requires both ends to be bound
+
+#### Common Pitfall: BindReadOnlyPaths=/run
+
+Many NixOS modules set `BindReadOnlyPaths=/run` which makes the entire `/run` tree read-only. This prevents access to specific subdirectories even if you add `ReadOnlyPaths=/run/secrets/...`.
+
+**Solution**: Override the entire `BindReadOnlyPaths` list:
+
+```nix
+systemd.services.my-service.serviceConfig = {
+  # Override to remove /run from the list
+  BindReadOnlyPaths = lib.mkForce [
+    "/nix/store"
+    "/etc"
+    "/bin/sh"
+    # Now add specific paths under /run as needed
+    "/run/secrets/service"
+  ];
+};
+```
+
+### ZFS Replication SSH Issues
+
+#### Symptom: SSH Connection Hangs
+
+When testing SSH as the replication user, the connection hangs with a blank screen. Syncoid reports:
+
+```text
+CRITICAL ERROR: ssh connection echo test failed with exit code 255
+cannot receive: failed to read from stream
+```
+
+#### Common Causes
+
+##### 1. User Shell Set to nologin
+
+```bash
+# Check current shell
+getent passwd zfs-replication
+# Output: zfs-replication:x:998:998::/var/lib/zfs-replication:/usr/sbin/nologin
+```
+
+**Solution**: The user needs a working shell:
+
+```bash
+# On Ubuntu/Debian
+sudo usermod -s /usr/bin/bash zfs-replication
+
+# In NixOS configuration
+users.users.zfs-replication = {
+  shell = "/run/current-system/sw/bin/bash";  # Not nologin!
+};
+```
+
+**Why**: Tools like syncoid need to execute multiple commands (`zfs list`, `zfs receive`, etc.). With `nologin`, SSH connections hang waiting for input.
+
+##### 2. Forced Command in authorized_keys
+
+```bash
+# Check for forced command
+sudo cat /var/lib/zfs-replication/.ssh/authorized_keys
+# Output: command="zfs recv -F pool/dataset" ssh-ed25519 AAAAC3...
+```
+
+**Problem**: The forced command restricts SSH to only execute that single command. Syncoid needs to:
+
+- Run echo tests to verify connectivity
+- List datasets with `zfs list`
+- Check snapshot existence
+- Execute `zfs receive` with dynamic options
+
+**Solution**: Remove the forced command, keep other restrictions:
+
+```bash
+# Before (BAD)
+command="zfs recv -F pool/dataset",no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3...
+
+# After (GOOD)
+no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3...
+```
+
+In NixOS:
+
+```nix
+users.users.zfs-replication = {
+  openssh.authorizedKeys.keys = [
+    # DO NOT add a forced command
+    "no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3... user@host"
+  ];
+};
+```
+
+**Security Note**: Security is maintained through:
+
+- SSH key-based authentication only
+- ZFS delegated permissions (only specific operations allowed)
+- SSH restrictions (no-agent-forwarding, no-X11-forwarding, no-pty)
+- User has no sudo access
+
+#### Testing SSH Connectivity
+
+```bash
+# From the source host, as the replication user
+sudo -u zfs-replication ssh zfs-replication@destination 'echo OK && hostname'
+
+# Should output:
+# OK
+# destination-hostname
+
+# If it hangs, check:
+# 1. Shell (not nologin)
+# 2. authorized_keys (no forced command)
+```
+
 ## Conclusion
 
 The NixOS backup system provides enterprise-grade backup capabilities with:
@@ -1773,3 +1938,4 @@ For additional help:
 - Check structured logs in `/var/log/backup/`
 - Consult Prometheus metrics for system health
 - Review backup module source: `/hosts/_modules/nixos/backup.nix`
+- See advanced troubleshooting above for systemd sandboxing and SSH issues

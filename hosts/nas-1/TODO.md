@@ -27,9 +27,12 @@ Configure the `zfs-replication` user to receive snapshots from forge.
     group = "zfs-replication";
     home = "/var/lib/zfs-replication";
     createHome = true;
+    shell = "/run/current-system/sw/bin/bash";  # IMPORTANT: Needs a working shell for syncoid
     openssh.authorizedKeys.keys = [
-      # TODO: Add forge's zfs-replication public key
-      "ssh-ed25519 AAAAC3... forge-zfs-replication"
+      # SSH key from forge's zfs-replication user
+      # Note: no-agent-forwarding and no-X11-forwarding for security
+      # DO NOT add a forced command - syncoid needs to run multiple commands
+      "no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC4aPwHeW7/p2YcKI41srC8X6Cw2D6e5mCbQuVp0USW1 zfs-replication@forge"
     ];
   };
 
@@ -57,11 +60,25 @@ Configure the `zfs-replication` user to receive snapshots from forge.
 }
 ```
 
+**Important Notes**:
+
+- **Shell**: User needs a working shell (e.g., `/bin/bash`), NOT `/usr/sbin/nologin`
+  - Syncoid needs to execute commands like `zfs list`, `zfs receive`, etc.
+  - With `nologin`, SSH connections hang waiting for input
+
+- **SSH Authorized Keys**: DO NOT use forced commands in `authorized_keys`
+  - ❌ BAD: `command="zfs recv -F backup/forge/zfs-recv"` (blocks syncoid's echo tests)
+  - ✅ GOOD: `no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3...`
+  - Syncoid needs to run multiple commands, not just `zfs receive`
+  - Security is maintained through SSH key restrictions and ZFS delegated permissions
+
 **Manual Steps Replaced**:
 
-- ✅ User creation: `useradd -r -s /usr/sbin/nologin zfs-replication`
+- ✅ User creation: `useradd -r -s /usr/sbin/nologin zfs-replication` (NOTE: needs bash shell!)
 - ✅ SSH key authorization: Adding public key to `~/.ssh/authorized_keys`
 - ✅ ZFS permissions: `zfs allow` commands
+- ✅ Shell fix: Changed from `/usr/sbin/nologin` to `/usr/bin/bash`
+- ✅ Authorized keys fix: Removed forced command restriction
 
 **Validation**:
 
@@ -328,6 +345,76 @@ Harden SSH and allow key-based authentication.
 
 ---
 
+## Troubleshooting Guide
+
+### SSH Connection Hangs
+
+**Symptom**: `ssh zfs-replication@nas-1` hangs with blank screen, syncoid reports "failed to read from stream"
+
+**Causes**:
+
+1. User shell set to `/usr/sbin/nologin` or similar
+2. Forced command in `authorized_keys` blocking interactive commands
+
+**Solution**:
+
+```bash
+# Check current shell
+getent passwd zfs-replication
+
+# Fix shell (Ubuntu path)
+sudo usermod -s /usr/bin/bash zfs-replication
+
+# Check authorized_keys for forced command
+sudo cat /var/lib/zfs-replication/.ssh/authorized_keys
+
+# Remove forced command, keep security restrictions
+# BAD:  command="zfs recv ..." ssh-ed25519 AAAAC3...
+# GOOD: no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3...
+```
+
+### Syncoid "Identity file not accessible"
+
+**Symptom**: Service logs show "Warning: Identity file /var/lib/zfs-replication/.ssh/id_ed25519 not accessible"
+
+**Cause**: systemd sandboxing with `PrivateMounts=true` blocks symlink resolution across mount namespaces
+
+**Solution**: Add both symlink source and target to `BindReadOnlyPaths`:
+
+```nix
+systemd.services.syncoid-*.serviceConfig = {
+  BindReadOnlyPaths = lib.mkForce [
+    "/nix/store"
+    "/etc"
+    "/bin/sh"
+    "/var/lib/zfs-replication/.ssh"      # Symlink source
+    "/run/secrets/zfs-replication"       # Symlink target
+  ];
+};
+```
+
+**Why**: `ReadOnlyPaths` alone doesn't work for symlinks when `PrivateMounts=true`. Both ends of the symlink must be explicitly bound into the service's mount namespace.
+
+### ZFS Receive Permission Denied
+
+**Symptom**: "cannot receive: permission denied"
+
+**Cause**: Missing ZFS delegated permissions
+
+**Solution**:
+
+```bash
+# Grant all necessary permissions at once
+zfs allow zfs-replication \
+  compression,create,hold,mount,mountpoint,receive,rollback \
+  backup/forge/zfs-recv
+
+# Verify
+zfs allow backup/forge/zfs-recv
+```
+
+---
+
 ## Integration Checklist
 
 When migrating nas-1 to NixOS:
@@ -335,8 +422,11 @@ When migrating nas-1 to NixOS:
 - [ ] Create `hosts/nas-1/default.nix` with hardware configuration
 - [ ] Import all configuration modules listed above
 - [ ] Configure ZFS pools in hardware configuration
+- [ ] Verify zfs-replication user shell is set to bash (not nologin)
+- [ ] Ensure authorized_keys has NO forced commands
+- [ ] Test SSH connectivity: `ssh zfs-replication@nas-1 'echo OK'`
 - [ ] Test ZFS replication from forge
-- [ ] Verify sanoid pruning on nas-1
+- [ ] Verify sanoid pruning on nas-1 (after 48h, check snapshot count stabilizes)
 - [ ] Test NFS mounts from forge
 - [ ] Validate backup and restore workflows
 - [ ] Update documentation with nas-1 specific notes
