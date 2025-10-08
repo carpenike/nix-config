@@ -11,9 +11,22 @@
 
     users.groups.restic-backup = {};
 
-    # Mount NFS share from nas-1 for backups
+    # Mount NFS shares from nas-1 for backups
     fileSystems."/mnt/nas-backup" = {
       device = "nas-1.holthome.net:/mnt/backup/forge/restic";
+      fsType = "nfs";
+      options = [
+        "nfsvers=4.2"
+        "rw"
+        "noatime"
+        "x-systemd.automount"
+        "x-systemd.idle-timeout=600"  # Unmount after 10 minutes idle
+        "x-systemd.mount-timeout=30s"
+      ];
+    };
+
+    fileSystems."/mnt/nas-docs" = {
+      device = "nas-1.holthome.net:/mnt/backup/forge/docs";
       fsType = "nfs";
       options = [
         "nfsvers=4.2"

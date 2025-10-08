@@ -1426,9 +1426,11 @@ EOF
             # Copy documentation to NAS for DR access
             ${concatStringsSep "\n" (mapAttrsToList (repoName: repoConfig:
               optionalString (repoConfig.primary && (hasPrefix "/mnt/" repoConfig.url || hasPrefix "nfs://" repoConfig.url)) ''
-                # Copy to primary repository location for immediate DR access
-                NAS_DOCS_DIR="${repoConfig.url}/docs/$HOSTNAME"
-                if [ -d "$(dirname ${repoConfig.url})" ]; then
+                # Copy to sibling docs directory for immediate DR access
+                # If repo is at /mnt/nas-backup, docs go to /mnt/nas-docs/$HOSTNAME
+                REPO_BASE=$(dirname "${repoConfig.url}")
+                NAS_DOCS_DIR="$REPO_BASE/nas-docs/$HOSTNAME"
+                if [ -d "$REPO_BASE" ]; then
                   echo "Copying documentation to NAS: $NAS_DOCS_DIR"
                   ${pkgs.coreutils}/bin/mkdir -p "$NAS_DOCS_DIR" 2>/dev/null || true
                   if [ -d "$NAS_DOCS_DIR" ]; then
@@ -1439,7 +1441,7 @@ EOF
                     echo "Warning: NAS documentation directory not accessible: $NAS_DOCS_DIR"
                   fi
                 else
-                  echo "Warning: NAS mount not available: ${repoConfig.url}"
+                  echo "Warning: NAS mount base directory not available: $REPO_BASE"
                 fi
               ''
             ) cfg.restic.repositories)}
