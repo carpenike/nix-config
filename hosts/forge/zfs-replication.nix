@@ -102,9 +102,17 @@
     };
 
     # Override syncoid service sandboxing to allow SSH key access
-    # Override systemd sandboxing to allow access to SSH key symlink and SOPS secret
-    # Grant read-only access to both the .ssh directory and the SOPS secret it links to
+    # Override systemd sandboxing to allow access to SSH key and SOPS secret
+    # BindReadOnlyPaths=/run (set by nixos module) prevents access to /run/secrets
+    # We need to override it completely and use a more targeted approach
     systemd.services.syncoid-rpool-safe-home.serviceConfig = {
+      # Remove the restrictive BindReadOnlyPaths=/run
+      BindReadOnlyPaths = lib.mkForce [
+        "/nix/store"
+        "/etc"
+        "/bin/sh"
+      ];
+      # Grant read-only access to the SSH key paths
       ReadOnlyPaths = [
         "/var/lib/zfs-replication/.ssh"
         "/run/secrets/zfs-replication"
@@ -112,13 +120,18 @@
     };
 
     systemd.services.syncoid-rpool-safe-persist.serviceConfig = {
+      # Remove the restrictive BindReadOnlyPaths=/run
+      BindReadOnlyPaths = lib.mkForce [
+        "/nix/store"
+        "/etc"
+        "/bin/sh"
+      ];
+      # Grant read-only access to the SSH key paths
       ReadOnlyPaths = [
         "/var/lib/zfs-replication/.ssh"
         "/run/secrets/zfs-replication"
       ];
-    };
-
-    # Configure Syncoid for replication to nas-1
+    };    # Configure Syncoid for replication to nas-1
     services.syncoid = {
       enable = true;
       interval = "hourly";  # Run replication every hour
