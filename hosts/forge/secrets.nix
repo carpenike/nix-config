@@ -28,6 +28,18 @@
           owner = "zfs-replication";
           group = "zfs-replication";
         };
+
+        # Pushover notification credentials
+        "pushover/token" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+        "pushover/user-key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
       };
     };
   };

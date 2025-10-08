@@ -220,15 +220,7 @@ with lib;
         };
       };
 
-      ntfy = {
-        enable = mkEnableOption "ntfy.sh notifications";
 
-        topic = mkOption {
-          type = types.str;
-          default = "";
-          description = "ntfy.sh topic URL for notifications";
-        };
-      };
 
       onFailure = {
         enable = mkEnableOption "immediate failure notifications via systemd OnFailure";
@@ -492,7 +484,12 @@ with lib;
 
   config = let
     cfg = config.modules.backup;
+    notificationsCfg = config.modules.notifications;
+
+    # Check if centralized notifications are available
+    hasCentralizedNotifications = notificationsCfg.enable or false;
   in mkIf cfg.enable {
+
     # Ensure required packages are available
     environment.systemPackages = with pkgs; [
       restic
@@ -900,6 +897,7 @@ EOF
                 mv "$METRICS_TEMP" "$METRICS_FILE"
               ''}
 
+              # Legacy healthchecks.io support (kept for backward compatibility)
               ${optionalString cfg.monitoring.healthchecks.enable ''
                 # Send failure notification to Healthchecks.io
                 if [ -f "${cfg.monitoring.healthchecks.uuidFile}" ]; then
@@ -907,18 +905,6 @@ EOF
                   curl -fsS -m 10 --retry 3 \
                     --data-raw "Backup job ${jobName} failed on ${config.networking.hostName}" \
                     "${cfg.monitoring.healthchecks.baseUrl}/$UUID/fail" || true
-                fi
-              ''}
-
-              ${optionalString cfg.monitoring.ntfy.enable ''
-                # Send ntfy notification
-                if [ -n "${cfg.monitoring.ntfy.topic}" ]; then
-                  curl -fsS -m 10 --retry 3 \
-                    -H "Title: Backup Failure - ${config.networking.hostName}" \
-                    -H "Priority: urgent" \
-                    -H "Tags: rotating_light,backup,failure" \
-                    -d "Backup job ${jobName} failed on ${config.networking.hostName} at $TIMESTAMP" \
-                    "${cfg.monitoring.ntfy.topic}" || true
                 fi
               ''}
 
@@ -1486,7 +1472,20 @@ EOF
         mkIf (jobConfig.enable && cfg.monitoring.onFailure.enable) {
           "restic-backups-${jobName}" = {
             unitConfig = {
-              OnFailure = "backup-failure-${jobName}.service";
+              # Use centralized notification system if available, otherwise fallback to legacy
+              OnFailure = lib.mkMerge [
+                # Legacy notification service (when centralized is not available)
+                (lib.mkIf (!hasCentralizedNotifications)
+                  "backup-failure-${jobName}.service")
+
+                # Centralized notification services (when enabled)
+                (lib.mkIf (hasCentralizedNotifications && notificationsCfg.pushover.enable or false)
+                  "notify-backup-failure@${jobName}.service")
+                (lib.mkIf (hasCentralizedNotifications && notificationsCfg.ntfy.enable or false)
+                  "notify-ntfy-backup-failure@${jobName}.service")
+                (lib.mkIf (hasCentralizedNotifications && notificationsCfg.healthchecks.enable or false)
+                  "healthcheck-backup-failure@${jobName}.service")
+              ];
             };
           };
         }
