@@ -8,9 +8,9 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable"; # also see 'unstable-packages' overlay at 'overlays/default.nix"
 
+    # nixos-hardware - does not have a nixpkgs input, pure module flake
     hardware = {
       url = "github:nixos/nixos-hardware";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Flake-parts - Simplify Nix Flakes with the module system
@@ -68,9 +68,9 @@
 
     # Catppuccin - Soothing pastel theme for Nix
     # https://github.com/catppuccin/nix
+    # v1.0.2 does not have a nixpkgs input to follow
     catppuccin = {
       url = "github:catppuccin/nix/v1.0.2";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # nix-darwin - nix modules for darwin (MacOS)
@@ -111,9 +111,10 @@
     mkSystemLib = import ./lib/mkSystem.nix {inherit inputs overlays;};
 
     # Aggregate DNS records from all hosts for centralized zone management
-    aggregateDnsRecords = import ./lib/dns-aggregate.nix {
-      lib = inputs.nixpkgs.lib;
-    };
+    # Commented out during 24.11 bootstrap
+    # aggregateDnsRecords = import ./lib/dns-aggregate.nix {
+    #   lib = inputs.nixpkgs.lib;
+    # };
 in
   flake-parts.lib.mkFlake {inherit inputs;} {
     systems = [
@@ -149,9 +150,11 @@ in
 
       # Aggregated DNS records from all hosts' Caddy virtual hosts
       # View with: nix eval .#allCaddyDnsRecords --raw
-      allCaddyDnsRecords = aggregateDnsRecords (
-        inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
-      );
+      # NOTE: Commented out during 24.11 bootstrap to avoid evaluating all systems
+      # Uncomment after switching to 25.05
+      # allCaddyDnsRecords = aggregateDnsRecords (
+      #   inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
+      # );
 
         # Convenience output that aggregates the outputs for home, nixos.
         # Also used in ci to build targets generally.
