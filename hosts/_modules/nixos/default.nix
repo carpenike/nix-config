@@ -1,4 +1,5 @@
 {
+  lib,
   ...
 }: {
   imports = [
@@ -34,6 +35,8 @@
   ];
 
   system = {
-    stateVersion = "23.11";
+    # Use mkDefault so individual hosts can override this value
+    # Each host should set its stateVersion to the NixOS version it was first installed with
+    stateVersion = lib.mkDefault "23.11";
   };
 }
