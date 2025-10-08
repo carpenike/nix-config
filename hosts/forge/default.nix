@@ -19,8 +19,8 @@ in
   ];
 
   config = {
-    # Primary IP for DNS record generation (TODO: Set the actual IP for forge)
-    # my.hostIp = "10.20.0.XX";
+    # Primary IP for DNS record generation
+    my.hostIp = "10.20.0.30";
 
     networking = {
       hostName = hostname;
