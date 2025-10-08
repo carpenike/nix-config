@@ -1,7 +1,18 @@
-{ ... }:
+{ lib, ... }:
 
 {
   config = {
+    # Create static user for Sanoid (required for ZFS permissions)
+    # By default, sanoid uses DynamicUser which creates an ephemeral user
+    # We need a static user to grant ZFS permissions before the service starts
+    users.users.sanoid = {
+      isSystemUser = true;
+      group = "sanoid";
+      description = "Sanoid ZFS snapshot management user";
+    };
+
+    users.groups.sanoid = {};
+
     # Create dedicated user for ZFS replication
     users.users.zfs-replication = {
       isSystemUser = true;
@@ -49,6 +60,14 @@
 
         echo "ZFS delegated permissions applied successfully"
       '';
+    };
+
+    # Override sanoid service to use static user instead of DynamicUser
+    # This allows us to grant ZFS permissions before the service starts
+    systemd.services.sanoid.serviceConfig = {
+      DynamicUser = lib.mkForce false;
+      User = "sanoid";
+      Group = "sanoid";
     };
 
     # Configure Sanoid for snapshot management
