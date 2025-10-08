@@ -524,27 +524,47 @@ with lib;
               ''
             ) cfg.zfs.datasets}
 
-            # Mount the root dataset snapshot for backup access
+            # Mount snapshots to /mnt/backup-snapshot for backup access
+            # This is required for legacy mountpoints where .zfs/snapshot doesn't work
             mkdir -p /mnt/backup-snapshot
-            mount -t zfs ${cfg.zfs.pool}@$SNAPSHOT_NAME /mnt/backup-snapshot
+            ${concatMapStringsSep "\n" (dataset:
+              let fullPath = if dataset == "" then cfg.zfs.pool else "${cfg.zfs.pool}/${dataset}";
+              in ''
+                echo "Mounting snapshot ${fullPath}@$SNAPSHOT_NAME..."
+                MOUNT_DIR="/mnt/backup-snapshot/${dataset}"
+                mkdir -p "$MOUNT_DIR"
+                mount -t zfs ${fullPath}@$SNAPSHOT_NAME "$MOUNT_DIR" -o ro
+              ''
+            ) cfg.zfs.datasets}
 
-            echo "ZFS snapshots created and mounted at /mnt/backup-snapshot"
+            # Store snapshot name for backup jobs to reference
+            mkdir -p /run/zfs-backup
+            echo "$SNAPSHOT_NAME" > /run/zfs-backup/current-snapshot
+
+            echo "ZFS snapshots created and mounted: $SNAPSHOT_NAME"
+            echo "Snapshot mounts:"
+            mount | grep "$SNAPSHOT_NAME"
           '';
           postStop = ''
             set +e  # Don't fail on cleanup errors
 
             echo "Cleaning up ZFS snapshots..."
 
-            # Unmount snapshot
-            if mountpoint -q /mnt/backup-snapshot; then
-              umount /mnt/backup-snapshot
-            fi
+            # Unmount all snapshot mounts
+            for mount in $(mount | grep "@backup-" | awk '{print $3}'); do
+              echo "Unmounting $mount"
+              umount "$mount" || true
+            done
 
             # Find and destroy backup snapshots from this run
             for snapshot in $(zfs list -H -o name -t snapshot | grep "@backup-"); do
               echo "Destroying snapshot: $snapshot"
               zfs destroy "$snapshot" || true
             done
+
+            # Clean up mount directories and runtime state
+            rm -rf /mnt/backup-snapshot
+            rm -f /run/zfs-backup/current-snapshot
           '';
           serviceConfig = {
             Type = "oneshot";
@@ -1472,12 +1492,17 @@ EOF
       mkIf jobConfig.enable (
         let
           repo = cfg.restic.repositories.${jobConfig.repository};
+          # When ZFS snapshots are enabled, we'll use dynamicFilesFrom to read paths at runtime
+          # This allows us to use snapshot paths with the runtime-determined snapshot name
           actualPaths = if cfg.zfs.enable
-            then map (path: "/mnt/backup-snapshot${path}") jobConfig.paths
+            then [] # Empty, will use dynamicFilesFrom instead
             else jobConfig.paths;
         in {
           "${jobName}" = {
             paths = actualPaths;
+            dynamicFilesFrom = if cfg.zfs.enable
+              then "cat /run/restic-backup/${jobName}-paths.txt"
+              else null;
             repository = repo.url;
             passwordFile = repo.passwordFile;
             environmentFile = repo.environmentFile;
@@ -1496,7 +1521,37 @@ EOF
             ];
             backupPrepareCommand = ''
               ${optionalString cfg.zfs.enable ''
+                # Create ZFS snapshots for consistent backup
                 ${pkgs.systemd}/bin/systemctl start zfs-snapshot.service
+
+                # Read the snapshot name that was just created
+                SNAPSHOT_NAME=$(${pkgs.coreutils}/bin/cat /run/zfs-backup/current-snapshot)
+                echo "Created ZFS snapshots: $SNAPSHOT_NAME"
+
+                # Create paths file with snapshot mount locations
+                ${pkgs.coreutils}/bin/mkdir -p /run/restic-backup
+                : > /run/restic-backup/${jobName}-paths.txt  # Truncate file
+
+                # Map each backup path to its mounted snapshot location
+                # /home -> /mnt/backup-snapshot/safe/home
+                # /persist -> /mnt/backup-snapshot/safe/persist
+                # /nix -> /mnt/backup-snapshot/local/nix
+                ${concatMapStringsSep "\n" (path:
+                  let
+                    # Map path to dataset - this is a simplified mapping
+                    # You may need to make this more sophisticated for complex setups
+                    datasetPath =
+                      if path == "/home" then "safe/home"
+                      else if path == "/persist" then "safe/persist"
+                      else if path == "/nix" then "local/nix"
+                      else path;  # fallback
+                  in ''
+                    echo "/mnt/backup-snapshot/${datasetPath}" >> /run/restic-backup/${jobName}-paths.txt
+                  ''
+                ) jobConfig.paths}
+
+                echo "Backup will use snapshot paths:"
+                ${pkgs.coreutils}/bin/cat /run/restic-backup/${jobName}-paths.txt
               ''}
               ${optionalString cfg.validation.preFlightChecks.enable ''
                 # Pre-flight validation checks
