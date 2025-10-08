@@ -102,32 +102,25 @@
     };
 
     # Override syncoid service sandboxing to allow SSH key access
-    # Override systemd sandboxing to allow access to SSH key and SOPS secret
-    # BindReadOnlyPaths=/run (set by nixos module) prevents access to /run/secrets
-    # We need to override it completely and use a more targeted approach
+    # With PrivateMounts=true, symlink resolution requires BOTH ends to be in BindReadOnlyPaths
+    # ReadOnlyPaths alone doesn't work for symlinks across mount namespaces
     systemd.services.syncoid-rpool-safe-home.serviceConfig = {
-      # Remove the restrictive BindReadOnlyPaths=/run
       BindReadOnlyPaths = lib.mkForce [
         "/nix/store"
         "/etc"
         "/bin/sh"
-      ];
-      # Grant read-only access to the SSH key paths
-      ReadOnlyPaths = [
+        # Both symlink source and target must be explicitly bound for resolution
         "/var/lib/zfs-replication/.ssh"
         "/run/secrets/zfs-replication"
       ];
     };
 
     systemd.services.syncoid-rpool-safe-persist.serviceConfig = {
-      # Remove the restrictive BindReadOnlyPaths=/run
       BindReadOnlyPaths = lib.mkForce [
         "/nix/store"
         "/etc"
         "/bin/sh"
-      ];
-      # Grant read-only access to the SSH key paths
-      ReadOnlyPaths = [
+        # Both symlink source and target must be explicitly bound for resolution
         "/var/lib/zfs-replication/.ssh"
         "/run/secrets/zfs-replication"
       ];
