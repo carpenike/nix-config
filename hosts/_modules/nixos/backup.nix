@@ -1671,7 +1671,6 @@ EOF
                 METRICS_FILE="${cfg.monitoring.prometheus.metricsDir}/restic_backup_${jobName}.prom"
                 METRICS_TEMP="$METRICS_FILE.tmp"
                 TIMESTAMP=$(${pkgs.coreutils}/bin/date +%s)
-                DURATION=$(${pkgs.coreutils}/bin/date +%s)
 
                 cat > "$METRICS_TEMP" <<EOF
 # HELP restic_backup_duration_seconds Duration of backup job in seconds
