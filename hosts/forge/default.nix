@@ -16,6 +16,8 @@ in
     })
     ./secrets.nix
     ./systemPackages.nix
+    ./backup.nix
+    ./zfs-replication.nix
   ];
 
   config = {

@@ -15,11 +15,19 @@
         "/etc/ssh/ssh_host_ed25519_key"
       ];
       secrets = {
-        # Add secrets here as needed
-        # Example:
-        # "example/secret" = {
-        #   mode = "0444";
-        # };
+        # Restic backup password
+        "restic/password" = {
+          mode = "0400";
+          owner = "restic-backup";
+          group = "restic-backup";
+        };
+
+        # ZFS replication SSH key
+        "zfs-replication/ssh-key" = {
+          mode = "0600";
+          owner = "zfs-replication";
+          group = "zfs-replication";
+        };
       };
     };
   };
