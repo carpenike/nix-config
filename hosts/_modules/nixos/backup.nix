@@ -1426,13 +1426,16 @@ EOF
             # Copy documentation to NAS for DR access
             ${concatStringsSep "\n" (mapAttrsToList (repoName: repoConfig:
               optionalString (repoConfig.primary && (hasPrefix "/mnt/" repoConfig.url || hasPrefix "nfs://" repoConfig.url)) ''
-                # Copy to sibling docs directory for immediate DR access
-                # If repo is at /mnt/nas-backup, docs go to /mnt/nas-docs/$HOSTNAME
+                # Copy to sibling DR directory for immediate disaster recovery access
+                # If repo is at /mnt/nas-backup, DR docs go to /mnt/nas-docs/dr/
                 REPO_BASE=$(dirname "${repoConfig.url}")
-                NAS_DOCS_DIR="$REPO_BASE/nas-docs/$HOSTNAME"
+                NAS_DOCS_DIR="$REPO_BASE/nas-docs/dr"
                 if [ -d "$REPO_BASE" ]; then
                   echo "Copying documentation to NAS: $NAS_DOCS_DIR"
-                  ${pkgs.coreutils}/bin/mkdir -p "$NAS_DOCS_DIR" 2>/dev/null || true
+                  # Create DR directory with proper ownership if it doesn't exist
+                  if ! [ -d "$NAS_DOCS_DIR" ]; then
+                    ${pkgs.coreutils}/bin/mkdir -p "$NAS_DOCS_DIR" 2>/dev/null || true
+                  fi
                   if [ -d "$NAS_DOCS_DIR" ]; then
                     ${pkgs.rsync}/bin/rsync -a --delete "$DOC_DIR/" "$NAS_DOCS_DIR/" && \
                       echo "Documentation copied to NAS successfully" || \
