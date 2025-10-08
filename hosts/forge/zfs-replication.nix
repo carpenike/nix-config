@@ -27,11 +27,29 @@
       "d /var/lib/zfs-replication/.ssh 0700 zfs-replication zfs-replication -"
     ];
 
-    # Grant ZFS permissions for sending snapshots
-    # Note: These need to be run manually after first boot:
-    # sudo zfs allow zfs-replication send,snapshot,hold rpool/safe
-    # sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/home
-    # sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/persist
+    # Automatically grant ZFS permissions at boot
+    # This makes the system fully declarative and reproducible
+    systemd.services.zfs-delegate-permissions = {
+      description = "Delegate ZFS permissions for Sanoid and Syncoid";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "zfs-import.target" ];
+      before = [ "sanoid.service" "syncoid.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        # Grant permissions for Sanoid to manage snapshots
+        /run/current-system/sw/bin/zfs allow sanoid send,snapshot,hold,destroy rpool/safe/home
+        /run/current-system/sw/bin/zfs allow sanoid send,snapshot,hold,destroy rpool/safe/persist
+
+        # Grant permissions for Syncoid to send snapshots for replication
+        /run/current-system/sw/bin/zfs allow zfs-replication send,snapshot,hold rpool/safe/home
+        /run/current-system/sw/bin/zfs allow zfs-replication send,snapshot,hold rpool/safe/persist
+
+        echo "ZFS delegated permissions applied successfully"
+      '';
+    };
 
     # Configure Sanoid for snapshot management
     services.sanoid = {

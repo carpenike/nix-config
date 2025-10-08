@@ -604,26 +604,27 @@ Add to your host configuration (e.g., `hosts/forge/zfs-replication.nix`):
 }
 ```
 
-#### Post-Deployment: Grant ZFS Permissions
+#### Post-Deployment: Verify ZFS Permissions
 
-After deploying the configuration, grant necessary ZFS permissions:
+ZFS permissions are now applied **automatically** via a systemd service (`zfs-delegate-permissions.service`). After deploying, verify they were applied correctly:
 
 ```bash
 # On source host (e.g., forge)
 ssh forge.holthome.net
 
-# Grant permissions for Sanoid to create snapshots
-sudo zfs allow sanoid send,snapshot,hold,destroy rpool/safe/home
-sudo zfs allow sanoid send,snapshot,hold,destroy rpool/safe/persist
+# Verify the systemd service ran successfully
+systemctl status zfs-delegate-permissions.service
 
-# Grant permissions for Syncoid to send snapshots
-sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/home
-sudo zfs allow zfs-replication send,snapshot,hold rpool/safe/persist
-
-# Verify permissions
+# Verify permissions were granted
 sudo zfs allow rpool/safe/home
 sudo zfs allow rpool/safe/persist
+
+# Expected output should show:
+# - sanoid: send,snapshot,hold,destroy
+# - zfs-replication: send,snapshot,hold
 ```
+
+> **Note**: The configuration includes a `systemd.services.zfs-delegate-permissions` service that automatically applies ZFS permissions at boot, making the system fully declarative and reproducible.
 
 On destination host (nas-1), the zfs-replication user needs receive permissions:
 
