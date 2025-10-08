@@ -1469,6 +1469,10 @@ EOF
             ReadWritePaths = mkMerge [
               [ cfg.documentation.outputDir ]
               (mkIf cfg.monitoring.prometheus.enable [ cfg.monitoring.prometheus.metricsDir ])
+              # Allow write access to NAS docs directory for primary repositories
+              (map (repoConfig: "${dirOf repoConfig.url}/nas-docs")
+                (filter (repoConfig: repoConfig.primary && (hasPrefix "/mnt/" repoConfig.url || hasPrefix "nfs://" repoConfig.url))
+                  (attrValues cfg.restic.repositories)))
             ];
           };
         };
