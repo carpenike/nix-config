@@ -110,9 +110,9 @@
       monitoring = {
         enable = true;
 
-        # Enable Prometheus metrics export
+        # Disable Prometheus metrics for now (enable when Node Exporter is set up)
         prometheus = {
-          enable = true;
+          enable = false;
           metricsDir = "/var/lib/node_exporter/textfile_collector";
         };
 
