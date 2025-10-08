@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ ... }:
 
 {
   config = {
@@ -8,7 +8,7 @@
       group = "zfs-replication";
       home = "/var/lib/zfs-replication";
       createHome = true;
-      shell = pkgs.nologin;
+      shell = "/run/current-system/sw/bin/nologin";
       description = "ZFS replication service user";
     };
 
