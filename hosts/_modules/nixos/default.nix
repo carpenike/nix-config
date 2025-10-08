@@ -14,6 +14,7 @@
     ./services/attic.nix
     ./backup.nix
     ./services/backup-services.nix
+    ./monitoring.nix
   ];
 
   documentation.nixos.enable = false;

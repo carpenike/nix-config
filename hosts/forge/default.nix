@@ -18,6 +18,7 @@ in
     ./systemPackages.nix
     ./backup.nix
     ./zfs-replication.nix
+    ./monitoring.nix
   ];
 
   config = {
