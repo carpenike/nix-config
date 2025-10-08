@@ -107,8 +107,10 @@
     ...
   } @inputs:
   let
-    overlays = import ./overlays {inherit inputs;};
-    mkSystemLib = import ./lib/mkSystem.nix {inherit inputs overlays;};
+    # Overlays can trigger evaluation of inputs that use newer nixpkgs features
+    # Comment out during 24.11 bootstrap, uncomment after switching to 25.05
+    # overlays = import ./overlays {inherit inputs;};
+    mkSystemLib = import ./lib/mkSystem.nix {inherit inputs;};
 
     # Aggregate DNS records from all hosts for centralized zone management
     # Commented out during 24.11 bootstrap
