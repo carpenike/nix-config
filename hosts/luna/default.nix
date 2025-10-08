@@ -194,134 +194,14 @@ in
 
       system.impermanence.enable = true;
 
-      # Comprehensive backup system
-      backup = {
-        enable = true;
+      # Backup system disabled for now - needs full configuration
+      # backup = {
+      #   enable = false;
+      # };
 
-        zfs = {
-          enable = true;
-          pool = "rpool";
-          datasets = [ "" "safe" "persist" ];  # Root, safe, and persist datasets
-          retention = {
-            daily = 7;
-            weekly = 4;
-            monthly = 3;
-          };
-        };
-
-        restic = {
-          enable = true;
-
-          repositories = {
-            primary = {
-              url = "/mnt/nas/backups/luna";
-              passwordFile = config.sops.secrets."backup/restic-password".path;
-              primary = true;
-            };
-
-            cloud = {
-              url = "b2:homelab-backups:/luna";
-              passwordFile = config.sops.secrets."backup/restic-password".path;
-              environmentFile = "/run/secrets/rendered/restic-cloud.env";
-            };
-          };
-
-          globalSettings = {
-            compression = "auto";
-            readConcurrency = 2;
-            retention = {
-              daily = 14;
-              weekly = 8;
-              monthly = 6;
-              yearly = 2;
-            };
-          };
-        };
-
-        monitoring = {
-          enable = true;
-
-          healthchecks = {
-            enable = true;
-            uuidFile = config.sops.secrets."backup/healthchecks-uuid".path;
-          };
-
-          ntfy = {
-            enable = true;
-            topic = "https://ntfy.holthome.net/backups";
-          };
-
-          prometheus = {
-            enable = true;
-            # Default textfile collector directory for Node Exporter
-          };
-
-          onFailure = {
-            enable = true;
-            # Custom notification script could be added here if needed
-          };
-
-          errorAnalysis = {
-            enable = true;
-            # Uses default category rules for common backup error patterns
-          };
-        };
-
-        verification = {
-          enable = true;
-          schedule = "weekly";  # Run integrity checks weekly
-          checkData = false;    # Metadata only for performance (homelab setting)
-        };
-
-        restoreTesting = {
-          enable = true;
-          schedule = "monthly"; # Test restores monthly for confidence
-          sampleFiles = 5;      # Test 5 random files (homelab appropriate)
-          retainTestData = false; # Clean up after tests
-        };
-
-        validation = {
-          enable = true;
-          preFlightChecks = {
-            enable = true;
-            minFreeSpace = "5G";  # Reasonable for homelab
-            networkTimeout = 30;
-          };
-          repositoryHealth = {
-            enable = true;
-            maxAge = "48h";
-            minBackups = 3;
-          };
-        };
-
-        performance = {
-          cacheDir = "/var/cache/restic";
-          cacheSizeLimit = "2G"; # Increased for better performance
-          ioScheduling = {
-            enable = true;
-            ioClass = "idle";    # Low priority to avoid impacting system
-            priority = 7;
-          };
-        };
-
-        security = {
-          enable = true;
-          restrictNetwork = true;
-          readOnlyRootfs = true;
-          auditLogging = true;
-        };
-
-        documentation = {
-          enable = true;
-          includeMetrics = true;
-        };
-
-        schedule = "02:00";  # 2 AM daily
-      };
-
-      # Service-specific backup configurations
+      # Service-specific backup configurations (disabled with main backup module)
       services.backup-services = {
-        enable = true;
+        enable = false;
 
         unifi = {
           enable = config.modules.services.unifi.enable or false;
