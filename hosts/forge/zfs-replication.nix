@@ -103,15 +103,19 @@
 
     # Override syncoid service sandboxing to allow SSH key access
     # Override systemd sandboxing to allow access to SSH key symlink and SOPS secret
-    # BindReadOnlyPaths=/run makes /run read-only, so we need ReadWritePaths for the secret
+    # Grant read-only access to both the .ssh directory and the SOPS secret it links to
     systemd.services.syncoid-rpool-safe-home.serviceConfig = {
-      ReadOnlyPaths = [ "/var/lib/zfs-replication/.ssh" ];
-      ReadWritePaths = [ "/run/secrets/zfs-replication" ];
+      ReadOnlyPaths = [
+        "/var/lib/zfs-replication/.ssh"
+        "/run/secrets/zfs-replication"
+      ];
     };
 
     systemd.services.syncoid-rpool-safe-persist.serviceConfig = {
-      ReadOnlyPaths = [ "/var/lib/zfs-replication/.ssh" ];
-      ReadWritePaths = [ "/run/secrets/zfs-replication" ];
+      ReadOnlyPaths = [
+        "/var/lib/zfs-replication/.ssh"
+        "/run/secrets/zfs-replication"
+      ];
     };
 
     # Configure Syncoid for replication to nas-1
