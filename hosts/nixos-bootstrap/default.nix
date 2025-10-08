@@ -16,6 +16,9 @@
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.forceImportRoot = false;
 
+  # ✅ USE WORKING KERNEL - avoids Nix 2.18.5 bug
+  boot.kernelPackages = pkgs.linuxPackages_6_6;
+
   # Boot
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
