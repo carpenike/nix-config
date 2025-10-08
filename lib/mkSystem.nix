@@ -6,20 +6,14 @@
 {
   # Minimal bootstrap system for initial installation
   # Skips all custom modules to avoid compatibility issues with older ISOs
+  # Does NOT use overlays to avoid any potential conflicts
   mkNixosBootstrapSystem = system: hostname:
     inputs.nixpkgs.lib.nixosSystem {
       inherit system;
-      pkgs = import inputs.nixpkgs {
-        inherit system;
-        overlays = builtins.attrValues overlays;
-        config = {
-          allowUnfree = true;
-          allowUnfreePredicate = _: true;
-        };
-      };
       modules = [
         {
           nixpkgs.hostPlatform = system;
+          nixpkgs.config.allowUnfree = true;
           _module.args = {
             inherit inputs system;
           };

@@ -60,6 +60,7 @@
     # Rust toolchain overlay
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Catppuccin - Soothing pastel theme for Nix
@@ -80,13 +81,18 @@
     # https://github.com/bluskript/nix-inspect
     nix-inspect = {
       url = "github:bluskript/nix-inspect";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    impermanence.url = "github:nix-community/impermanence";
+    impermanence = {
+      url = "github:nix-community/impermanence";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # CoachIQ RV monitoring
     coachiq = {
       url = "github:carpenike/coachiq";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     #################### Personal Repositories ####################
