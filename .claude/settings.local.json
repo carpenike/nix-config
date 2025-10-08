@@ -62,7 +62,8 @@
       "Bash(.taskfiles/nix/scripts/dns-diff.sh:*)",
       "mcp__github__get_file_contents",
       "mcp__github__search_code",
-      "mcp__taskmaster-ai__get_task"
+      "mcp__taskmaster-ai__get_task",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

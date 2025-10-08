@@ -12,7 +12,7 @@
     ./services
     ./services/attic.nix
     ./backup.nix
-    # ./services/backup-services.nix  # Temporarily disabled
+    ./services/backup-services.nix
   ];
 
   documentation.nixos.enable = false;

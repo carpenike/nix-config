@@ -4,6 +4,35 @@
   ...
 }:
 {
+  # Minimal bootstrap system for initial installation
+  # Skips all custom modules to avoid compatibility issues with older ISOs
+  mkNixosBootstrapSystem = system: hostname:
+    inputs.nixpkgs.lib.nixosSystem {
+      inherit system;
+      pkgs = import inputs.nixpkgs {
+        inherit system;
+        overlays = builtins.attrValues overlays;
+        config = {
+          allowUnfree = true;
+          allowUnfreePredicate = _: true;
+        };
+      };
+      modules = [
+        {
+          nixpkgs.hostPlatform = system;
+          _module.args = {
+            inherit inputs system;
+          };
+        }
+        inputs.disko.nixosModules.disko
+        # Skip all complex modules for bootstrap - just the host config
+        ../hosts/${hostname}
+      ];
+      specialArgs = {
+        inherit inputs hostname;
+      };
+    };
+
   mkNixosSystem = system: hostname:
     inputs.nixpkgs.lib.nixosSystem {
       inherit system;

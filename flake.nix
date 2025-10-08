@@ -120,8 +120,8 @@ in
       #
       # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
       nixosConfigurations = {
-        # Bootstrap deployment
-        nixos-bootstrap = mkSystemLib.mkNixosSystem "x86_64-linux" "nixos-bootstrap";# overlays flake-packages;
+        # Bootstrap deployment - uses minimal builder to avoid compatibility issues
+        nixos-bootstrap = mkSystemLib.mkNixosBootstrapSystem "x86_64-linux" "nixos-bootstrap";
         # Parallels devlab
         rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev";# overlays flake-packages;
         # Luna

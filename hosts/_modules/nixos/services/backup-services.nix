@@ -122,7 +122,7 @@ in
         unifi = {
           enable = true;
           paths = [
-            "/mnt/backup-snapshot${cfg.unifi.dataPath}"
+            "/tmp/unifi-backup"
           ];
           repository = "primary";
           tags = [ "unifi" "database" "controller" ];
@@ -177,7 +177,7 @@ in
         omada = {
           enable = true;
           paths = [
-            "/mnt/backup-snapshot${cfg.omada.dataPath}"
+            "/tmp/omada-backup"
           ];
           repository = "primary";
           tags = [ "omada" "database" "controller" ];
@@ -336,7 +336,7 @@ in
       (mkIf cfg.system.enable {
         system = {
           enable = true;
-          paths = map (path: "/mnt/backup-snapshot${path}") cfg.system.paths;
+          paths = cfg.system.paths ++ [ "/tmp/system-backup" ];
           repository = "primary";
           tags = [ "system" "configuration" "nixos" ];
 

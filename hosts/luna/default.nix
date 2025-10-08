@@ -250,46 +250,110 @@ in
             enable = true;
             topic = "https://ntfy.holthome.net/backups";
           };
+
+          prometheus = {
+            enable = true;
+            # Default textfile collector directory for Node Exporter
+          };
+
+          onFailure = {
+            enable = true;
+            # Custom notification script could be added here if needed
+          };
+
+          errorAnalysis = {
+            enable = true;
+            # Uses default category rules for common backup error patterns
+          };
+        };
+
+        verification = {
+          enable = true;
+          schedule = "weekly";  # Run integrity checks weekly
+          checkData = false;    # Metadata only for performance (homelab setting)
+        };
+
+        restoreTesting = {
+          enable = true;
+          schedule = "monthly"; # Test restores monthly for confidence
+          sampleFiles = 5;      # Test 5 random files (homelab appropriate)
+          retainTestData = false; # Clean up after tests
+        };
+
+        validation = {
+          enable = true;
+          preFlightChecks = {
+            enable = true;
+            minFreeSpace = "5G";  # Reasonable for homelab
+            networkTimeout = 30;
+          };
+          repositoryHealth = {
+            enable = true;
+            maxAge = "48h";
+            minBackups = 3;
+          };
+        };
+
+        performance = {
+          cacheDir = "/var/cache/restic";
+          cacheSizeLimit = "2G"; # Increased for better performance
+          ioScheduling = {
+            enable = true;
+            ioClass = "idle";    # Low priority to avoid impacting system
+            priority = 7;
+          };
+        };
+
+        security = {
+          enable = true;
+          restrictNetwork = true;
+          readOnlyRootfs = true;
+          auditLogging = true;
+        };
+
+        documentation = {
+          enable = true;
+          includeMetrics = true;
         };
 
         schedule = "02:00";  # 2 AM daily
       };
 
-      # Temporarily disabled while debugging
-      # services.backup-services = {
-      #   enable = true;
-      #
-      #   unifi = {
-      #     enable = config.modules.services.unifi.enable or false;
-      #     mongoCredentialsFile = "/run/secrets/rendered/unifi-mongo-credentials";
-      #   };
-      #
-      #   omada = {
-      #     enable = config.modules.services.omada.enable or false;
-      #     containerName = "omada";
-      #   };
-      #
-      #   onepassword-connect = {
-      #     enable = config.modules.services.onepassword-connect.enable or false;
-      #     credentialsFile = config.sops.secrets.onepassword-credentials.path;
-      #   };
-      #
-      #   attic = {
-      #     enable = config.modules.services.attic.enable or false;
-      #     useZfsSend = true;
-      #     nasDestination = "backup@nas.holthome.net";
-      #   };
-      #
-      #   system = {
-      #     enable = true;
-      #     paths = [
-      #       "/etc/nixos"
-      #       "/home/ryan/.config"
-      #       "/var/log"
-      #       "/persist"
-      #     ];
-      #   };
-      # };
+      # Service-specific backup configurations
+      services.backup-services = {
+        enable = true;
+
+        unifi = {
+          enable = config.modules.services.unifi.enable or false;
+          mongoCredentialsFile = "/run/secrets/rendered/unifi-mongo-credentials";
+        };
+
+        omada = {
+          enable = config.modules.services.omada.enable or false;
+          containerName = "omada";
+        };
+
+        onepassword-connect = {
+          enable = config.modules.services.onepassword-connect.enable or false;
+          credentialsFile = config.sops.secrets.onepassword-credentials.path;
+        };
+
+        attic = {
+          enable = config.modules.services.attic.enable or false;
+          useZfsSend = false;  # Temporarily disable ZFS send to avoid conflicts
+          nasDestination = "backup@nas.holthome.net";
+        };
+
+        system = {
+          enable = true;
+          paths = [
+            "/etc/nixos"
+            "/home/ryan/.config"
+            "/var/log"
+            "/persist"
+          ];
+        };
+      };
 
       users = {
         groups = {
