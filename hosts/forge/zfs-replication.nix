@@ -32,7 +32,7 @@
     systemd.services.zfs-delegate-permissions = {
       description = "Delegate ZFS permissions for Sanoid and Syncoid";
       wantedBy = [ "multi-user.target" ];
-      after = [ "zfs-import.target" ];
+      after = [ "zfs-import.target" "systemd-sysusers.service" ];
       before = [ "sanoid.service" "syncoid.service" ];
       serviceConfig = {
         Type = "oneshot";
