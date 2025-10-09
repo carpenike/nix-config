@@ -242,9 +242,11 @@ in
         set -euo pipefail
 
         # Parse the instance string: template-name:instance-info
-        # Note: Use %i (lowercase) to get the actual instance string
-        TEMPLATE_NAME=$(echo "%i" | cut -d: -f1)
-        INSTANCE_INFO=$(echo "%i" | cut -d: -f2-)
+        # CRITICAL: Must assign %i directly first - systemd expands specifiers BEFORE script execution
+        # Using %i inside $(...) prevents expansion because it's in a future subshell context
+        INSTANCE_STRING="%i"
+        TEMPLATE_NAME=$(echo "$INSTANCE_STRING" | cut -d: -f1)
+        INSTANCE_INFO=$(echo "$INSTANCE_STRING" | cut -d: -f2-)
 
         echo "[notify] Dispatching notification for template: $TEMPLATE_NAME, instance: $INSTANCE_INFO"
 
