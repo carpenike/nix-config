@@ -30,7 +30,7 @@ in
         title = mkDefault ''<b><font color="green">🚀 System Boot</font></b>'';
         body = mkDefault ''
           <b>Host:</b> ''${hostname}
-          <b>Time:</b> ''${bootTime}
+          <b>Time:</b> ''${boottime}
 
           <b>System Info:</b>
           • Kernel: <code>''${kernel}</code>
@@ -39,16 +39,14 @@ in
 
           System is online and ready.
         '';
-      };
-
-      system-shutdown = {
+      };      system-shutdown = {
         enable = mkDefault cfg.shutdown.enable;
         priority = mkDefault "low";
         backend = mkDefault "pushover";
         title = mkDefault ''<b><font color="orange">⏸️ System Shutdown</font></b>'';
         body = mkDefault ''
           <b>Host:</b> ''${hostname}
-          <b>Time:</b> ''${shutdownTime}
+          <b>Time:</b> ''${shutdowntime}
 
           <b>Uptime:</b> ''${uptime}
 
@@ -72,16 +70,16 @@ in
       script = ''
         # Gather system information
         export NOTIFY_HOSTNAME="${config.networking.hostName}"
-        export NOTIFY_BOOT_TIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
+        export NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
         export NOTIFY_KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
         export NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/readlink /run/current-system | ${pkgs.coreutils}/bin/cut -d'-' -f2)"
-        export NOTIFY_UPTIME="$(${pkgs.coreutils}/bin/uptime -p)"
+        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed 's/.*up \([^,]*\).*/\1/')"
 
         # Wait a bit for network to be fully ready
         sleep 5
 
         # Trigger notification through generic dispatcher
-        ${pkgs.systemd}/bin/systemctl start notify@system-boot:boot.service
+        ${pkgs.systemd}/bin/systemctl start "notify@system-boot:boot.service"
       '';
     };
 
@@ -99,12 +97,12 @@ in
       script = ''
         # Gather system information
         export NOTIFY_HOSTNAME="${config.networking.hostName}"
-        export NOTIFY_SHUTDOWN_TIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
-        export NOTIFY_UPTIME="$(${pkgs.coreutils}/bin/uptime -p)"
+        export NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
+        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed 's/.*up \([^,]*\).*/\1/')"
 
         # Trigger notification through generic dispatcher
         # Note: Must complete quickly before network shuts down
-        ${pkgs.systemd}/bin/systemctl start notify@system-shutdown:shutdown.service || true
+        ${pkgs.systemd}/bin/systemctl start "notify@system-shutdown:shutdown.service" || true
       '';
     };
   };

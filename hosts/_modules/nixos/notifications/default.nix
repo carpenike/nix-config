@@ -242,8 +242,9 @@ in
         set -euo pipefail
 
         # Parse the instance string: template-name:instance-info
-        TEMPLATE_NAME=$(echo "%I" | cut -d: -f1)
-        INSTANCE_INFO=$(echo "%I" | cut -d: -f2-)
+        # Note: Use %i (lowercase) to get the actual instance string
+        TEMPLATE_NAME=$(echo "%i" | cut -d: -f1)
+        INSTANCE_INFO=$(echo "%i" | cut -d: -f2-)
 
         echo "[notify] Dispatching notification for template: $TEMPLATE_NAME, instance: $INSTANCE_INFO"
 
