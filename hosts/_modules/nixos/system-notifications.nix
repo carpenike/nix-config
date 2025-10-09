@@ -117,12 +117,15 @@ System is shutting down gracefully.
     # Shutdown notification service
     systemd.services.notify-shutdown = mkIf cfg.shutdown.enable {
       description = "Send system shutdown notification";
-      wantedBy = [ "shutdown.target" ];
-      before = [ "shutdown.target" ];
+      wantedBy = [ "multi-user.target" ];
+      # Run before network is shut down but after normal services stop
+      before = [ "network-pre.target" "shutdown.target" ];
+      after = [ "network.target" ];
+      conflicts = [ "shutdown.target" ];
 
       serviceConfig = {
         Type = "oneshot";
-        DefaultDependencies = false;
+        RemainAfterExit = true;
         # Directory is created by tmpfiles rules with proper permissions
       };
 
