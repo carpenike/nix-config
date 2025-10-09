@@ -30,7 +30,7 @@ jobs:
           nix run nixpkgs#deadnix -- --edit .
 
       - name: Nix Flake Checker
-        uses: DeterminateSystems/flake-checker-action@v9
+        uses: DeterminateSystems/flake-checker-action@v12
 
       - name: Check for uncommitted changes
         run: |
