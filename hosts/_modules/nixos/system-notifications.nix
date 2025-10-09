@@ -127,7 +127,7 @@ System is shutting down gracefully.
 
         # Load Pushover credentials for direct notification sending
         LoadCredential = let
-          pushoverCfg = config.modules.notifications.backends.pushover;
+          pushoverCfg = config.modules.notifications.pushover;
         in [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
