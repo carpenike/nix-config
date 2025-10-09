@@ -1517,6 +1517,7 @@ EOF
             Type = "oneshot";
             User = "restic-backup";
             Group = "restic-backup";
+            SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
             PrivateTmp = true;
             ProtectSystem = "strict";
             ProtectHome = true;
