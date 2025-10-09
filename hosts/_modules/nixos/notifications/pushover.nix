@@ -106,7 +106,7 @@ in
     # This eliminates race conditions and the need for root escalation in the dispatcher
     systemd.paths."notify-pushover@" = {
       pathConfig = {
-        PathExists = "/run/notify/%I.json";
+        PathExists = "/run/notify/%i.json";
       };
       wantedBy = [ "multi-user.target" ];
     };
@@ -137,9 +137,11 @@ in
 
         INSTANCE="$1"
 
-        # Construct payload file path and ensure it's cleaned up on exit
-        PAYLOAD_FILE="/run/notify/$(${pkgs.systemd}/bin/systemd-escape "$INSTANCE").json"
-        trap 'rm -f "$PAYLOAD_FILE"' EXIT
+        # Construct payload file path (may be in subdirectory)
+        PAYLOAD_FILE="/run/notify/$INSTANCE.json"
+
+        # On exit, remove the payload file and any empty parent directories
+        trap 'rm -f "$PAYLOAD_FILE" && rmdir -p "$(dirname "$PAYLOAD_FILE")" 2>/dev/null || true' EXIT
 
         # Verify payload file exists - fail fast if dispatcher didn't create it
         if [ ! -f "$PAYLOAD_FILE" ]; then

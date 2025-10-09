@@ -351,9 +351,9 @@ in
 
         echo "[notify] Dispatching to $BACKEND (template: $TEMPLATE_NAME, instance: $INSTANCE_INFO)"
 
-        # Escape instance ID for safe use in filenames
-        ESCAPED_ID=$(${pkgs.systemd}/bin/systemd-escape "$INSTANCE_STRING")
-        PAYLOAD_FILE="/run/notify/$ESCAPED_ID.json"
+        # Use instance ID directly, creating subdirectories as needed
+        PAYLOAD_FILE="/run/notify/$INSTANCE_STRING.json"
+        mkdir -p "$(dirname "$PAYLOAD_FILE")"
 
         # Create JSON payload for the backend service
         # File will be automatically group-readable (0660) via umask
