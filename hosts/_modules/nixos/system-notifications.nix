@@ -112,11 +112,12 @@ System is shutting down gracefully.
       description = "Send system shutdown notification";
 
       wantedBy = [ "multi-user.target" ];
-      # Run before network shuts down during shutdown sequence
-      before = [ "network.target" "network-pre.target" "shutdown.target" ];
-      # Require network to be up when this service is active
+      # Key ordering: after network-online.target ensures we start AFTER network is up,
+      # and systemd reverses this during shutdown, stopping us BEFORE network goes down
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
+      # Run before final shutdown stages
+      before = [ "shutdown.target" ];
 
       serviceConfig = {
         Type = "oneshot";
