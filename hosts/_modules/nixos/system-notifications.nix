@@ -55,6 +55,16 @@ System is shutting down gracefully.
       };
     };
 
+    # Enable path units for boot/shutdown notifications
+    # These watch for payload files and trigger the backend services
+    systemd.paths."notify-pushover@system-boot:boot" = mkIf cfg.boot.enable {
+      wantedBy = [ "multi-user.target" ];
+    };
+
+    systemd.paths."notify-pushover@system-shutdown:shutdown" = mkIf cfg.shutdown.enable {
+      wantedBy = [ "multi-user.target" ];
+    };
+
     # Boot notification service
     systemd.services.notify-boot = mkIf cfg.boot.enable {
       description = "Send system boot notification";
