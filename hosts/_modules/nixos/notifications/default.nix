@@ -368,13 +368,7 @@ in
         chgrp notify-ipc "$PAYLOAD_FILE"
 
         echo "[notify] Payload created at $PAYLOAD_FILE"
-
-        # Trigger backend service directly
-        # Note: Small delay to ensure file is fully written and visible
-        sleep 0.1
-        ${pkgs.systemd}/bin/systemctl start "notify-$BACKEND@$INSTANCE_STRING.service" || true
-
-        echo "[notify] Backend service notify-$BACKEND@$INSTANCE_STRING.service triggered"
+        echo "[notify] Backend services will be triggered automatically by .path units"
       '';
     };
 
