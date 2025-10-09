@@ -105,6 +105,7 @@ System is shutting down gracefully.
           echo "NOTIFY_GENERATION=$NOTIFY_GENERATION"
           echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
         } > "$ENV_FILE"
+        chgrp notify-ipc "$ENV_FILE"
         chmod 660 "$ENV_FILE"
 
         # Trigger notification through generic dispatcher
@@ -137,6 +138,7 @@ System is shutting down gracefully.
           echo "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME"
           echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
         } > "$ENV_FILE"
+        chgrp notify-ipc "$ENV_FILE"
         chmod 660 "$ENV_FILE"
 
         # Trigger notification through generic dispatcher
