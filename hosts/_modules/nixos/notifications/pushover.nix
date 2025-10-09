@@ -105,15 +105,10 @@ in
     # Systemd path unit that triggers the service when a payload file appears
     # This eliminates race conditions and the need for root escalation in the dispatcher
     systemd.paths."notify-pushover@" = {
-      description = "Pushover notification trigger for %i";
-      wantedBy = [ "multi-user.target" ];
-
       pathConfig = {
-        # Trigger when a payload file is created (uses systemd-escaped instance name)
-        PathExists = "/run/notify/%i.json";
-        # Automatically start the corresponding service unit
-        Unit = "notify-pushover@%i.service";
+        PathExists = "/run/notify/%I.json";
       };
+      wantedBy = [ "multi-user.target" ];
     };
 
     # Generic notification service template using Pushover
