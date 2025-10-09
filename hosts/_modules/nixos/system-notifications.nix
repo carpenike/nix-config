@@ -122,8 +122,16 @@ System is shutting down gracefully.
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # Remove default dependencies for full control over shutdown ordering
+        # Disable default dependencies for full control over shutdown ordering
         DefaultDependencies = false;
+
+        # Load Pushover credentials for direct notification sending
+        LoadCredential = let
+          pushoverCfg = config.modules.notifications.backends.pushover;
+        in [
+          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+        ];
 
         # At boot: do nothing, just enter active (exited) state
         ExecStart = "${pkgs.coreutils}/bin/true";
