@@ -80,16 +80,13 @@ let
 in
 {
   config = lib.mkIf (cfg.enable && hcCfg.enable) {
-    # Validate configuration
+    # Validate configuration (at build time)
     assertions = [
       {
         assertion = hcCfg.uuidFile != null;
         message = "modules.notifications.healthchecks.uuidFile must be set when Healthchecks.io is enabled";
       }
-      {
-        assertion = hcCfg.uuidFile == null || builtins.pathExists (toString hcCfg.uuidFile);
-        message = "Healthchecks.io UUID file does not exist: ${toString hcCfg.uuidFile}";
-      }
+      # Note: We don't check pathExists here because sops secrets won't exist until runtime
     ];
 
     # Generic ping service template

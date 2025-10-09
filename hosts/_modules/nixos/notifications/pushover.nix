@@ -100,7 +100,7 @@ let
 in
 {
   config = lib.mkIf (cfg.enable && pushoverCfg.enable) {
-    # Validate configuration
+    # Validate configuration (at build time)
     assertions = [
       {
         assertion = pushoverCfg.tokenFile != null;
@@ -110,14 +110,7 @@ in
         assertion = pushoverCfg.userKeyFile != null;
         message = "modules.notifications.pushover.userKeyFile must be set when Pushover is enabled";
       }
-      {
-        assertion = pushoverCfg.tokenFile == null || builtins.pathExists (toString pushoverCfg.tokenFile);
-        message = "Pushover token file does not exist: ${toString pushoverCfg.tokenFile}";
-      }
-      {
-        assertion = pushoverCfg.userKeyFile == null || builtins.pathExists (toString pushoverCfg.userKeyFile);
-        message = "Pushover user key file does not exist: ${toString pushoverCfg.userKeyFile}";
-      }
+      # Note: We don't check pathExists here because sops secrets won't exist until runtime
     ];
 
     # Generic notification service template using Pushover
