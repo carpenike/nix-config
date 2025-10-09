@@ -114,13 +114,34 @@ in
         LoadCredential = [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+          "PAYLOAD:/run/notify/payloads/%i.json"
         ];
-      };      # Service receives parameters via environment variables:
-      # NOTIFY_TITLE, NOTIFY_MESSAGE, NOTIFY_PRIORITY, NOTIFY_URL, NOTIFY_URL_TITLE
+      };
+
+      # Pass %i as command-line argument for proper expansion
+      scriptArgs = "%i";
+
+      # Service reads parameters from JSON payload credential
       script = ''
-        TITLE="''${NOTIFY_TITLE:-%i}"
-        MESSAGE="''${NOTIFY_MESSAGE:-Notification from ${cfg.hostname}}"
-        PRIORITY="''${NOTIFY_PRIORITY:-normal}"
+        INSTANCE="$1"
+
+        # Read JSON payload from credential if available
+        if [ -n "''${CREDENTIALS_DIRECTORY:-}" ] && [ -r "$CREDENTIALS_DIRECTORY/PAYLOAD" ]; then
+          JSON=$(cat "$CREDENTIALS_DIRECTORY/PAYLOAD")
+          TITLE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.title')
+          MESSAGE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.message')
+          PRIORITY=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.priority // "normal"')
+
+          # Clean up payload file after reading
+          PAYLOAD_FILE="/run/notify/payloads/$INSTANCE.json"
+          rm -f "$PAYLOAD_FILE" 2>/dev/null || true
+        else
+          # Fallback to environment variables (backward compatibility)
+          TITLE="''${NOTIFY_TITLE:-$INSTANCE}"
+          MESSAGE="''${NOTIFY_MESSAGE:-Notification from ${cfg.hostname}}"
+          PRIORITY="''${NOTIFY_PRIORITY:-normal}"
+        fi
+
         URL="''${NOTIFY_URL:-}"
         URL_TITLE="''${NOTIFY_URL_TITLE:-}"
 

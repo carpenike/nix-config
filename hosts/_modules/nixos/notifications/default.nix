@@ -217,6 +217,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Create payload directory with proper permissions
+    systemd.tmpfiles.rules = [
+      "d /run/notify/payloads 0700 root root -"
+    ];
+
     # Generate a JSON file containing all registered template definitions
     # This is used by the generic dispatcher to look up template details
     environment.etc."notification-templates.json".text = builtins.toJSON (
@@ -329,45 +334,45 @@ in
         TITLE=$(echo "$TITLE" | envsubst)
         BODY=$(echo "$BODY" | envsubst)
 
-        echo "[notify] Title: $TITLE"
-        echo "[notify] Priority: $PRIORITY"
-        echo "[notify] Backend: $BACKEND"
+        echo "[notify] Dispatching to $BACKEND (template: $TEMPLATE_NAME, instance: $INSTANCE_INFO)"
 
-        # Escape the instance string for use in systemd unit names
-        ESCAPED_INSTANCE=$(systemd-escape "$TEMPLATE_NAME:$INSTANCE_INFO")
+        # Create escaped instance ID for systemd unit name
+        ESCAPED_ID=$(systemd-escape "$TEMPLATE_NAME:$INSTANCE_INFO")
+
+        # Create JSON payload with notification parameters
+        PAYLOAD_DIR="/run/notify/payloads"
+        mkdir -p "$PAYLOAD_DIR"
+        chmod 700 "$PAYLOAD_DIR"
+
+        PAYLOAD_FILE="$PAYLOAD_DIR/$ESCAPED_ID.json"
+
+        # Use jq to safely create JSON with proper escaping
+        ${pkgs.jq}/bin/jq -n \
+          --arg title "$TITLE" \
+          --arg message "$BODY" \
+          --arg priority "$PRIORITY" \
+          '{title: $title, message: $message, priority: $priority}' > "$PAYLOAD_FILE"
+        chmod 600 "$PAYLOAD_FILE"
 
         # Dispatch to enabled backend(s)
         ${lib.optionalString cfg.pushover.enable ''
           if [ "$BACKEND" == "pushover" ] || [ "$BACKEND" == "all" ]; then
             echo "[notify] Dispatching to Pushover..."
-            # Use systemd-run with --unit to start the service template directly
-            # This correctly passes environment variables to the backend service
-            systemd-run --no-block --quiet --collect \
-              --unit="notify-pushover@$ESCAPED_INSTANCE.service" \
-              --setenv="NOTIFY_TITLE=$TITLE" \
-              --setenv="NOTIFY_MESSAGE=$BODY" \
-              --setenv="NOTIFY_PRIORITY=$PRIORITY" || true
+            systemctl start "notify-pushover@$ESCAPED_ID.service" || true
           fi
         ''}
 
         ${lib.optionalString cfg.ntfy.enable ''
           if [ "$BACKEND" == "ntfy" ] || [ "$BACKEND" == "all" ]; then
             echo "[notify] Dispatching to ntfy..."
-            # Use systemd-run with --unit to start the service template directly
-            systemd-run --no-block --quiet --collect \
-              --unit="notify-ntfy@$ESCAPED_INSTANCE.service" \
-              --setenv="NOTIFY_TITLE=$TITLE" \
-              --setenv="NOTIFY_MESSAGE=$BODY" \
-              --setenv="NOTIFY_PRIORITY=$PRIORITY" || true
+            systemctl start "notify-ntfy@$ESCAPED_ID.service" || true
           fi
         ''}
 
         ${lib.optionalString cfg.healthchecks.enable ''
           if [ "$BACKEND" == "healthchecks" ] || [ "$BACKEND" == "all" ]; then
             echo "[notify] Dispatching to Healthchecks.io..."
-            # Healthchecks doesn't need dynamic parameters
-            ESCAPED_HC=$(systemd-escape "$TEMPLATE_NAME:$INSTANCE_INFO")
-            systemctl start "notify-healthchecks@$ESCAPED_HC.service" || true
+            systemctl start "notify-healthchecks@$ESCAPED_ID.service" || true
           fi
         ''}
 
