@@ -217,13 +217,16 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Create a dedicated group for notification services to share files securely
+    users.groups.notify = {};
+
     # Create payload directory for IPC between notification services
-    # Using 1777 (world-writable with sticky bit) for shared drop-box pattern:
-    # - Any DynamicUser service can create files (world-writable)
-    # - Only file owner or root can delete/rename files (sticky bit)
-    # - Files are created with 0644 (world-readable) via UMask=0022
+    # Using 1770 (rwxrwx--T with sticky bit) for secure shared drop-box pattern:
+    # - Only services in the 'notify' group can read/write files (group access only)
+    # - Sticky bit prevents services from deleting each other's files
+    # - Files are created with 0660 (rw-rw----) via UMask=0007
     systemd.tmpfiles.rules = [
-      "d /run/notify 1777 root root -"
+      "d /run/notify 1770 root notify -"
     ];
 
     # Generate a JSON file containing all registered template definitions
@@ -245,9 +248,10 @@ in
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
-        # Don't try to create RuntimeDirectory - tmpfiles already creates /run/notify
-        # Use standard umask to create world-readable files (0644) for IPC
-        UMask = "0022";
+        # Join the notify group to access the shared IPC directory
+        SupplementaryGroups = [ "notify" ];
+        # Create files with 0660 permissions (rw-rw----) for group-only access
+        UMask = "0007";
         # DynamicUser enables ProtectSystem=strict by default, making most paths read-only
         # Explicitly allow writes to /run/notify for IPC
         ReadWritePaths = [ "/run/notify" ];
@@ -357,29 +361,10 @@ in
           --arg message "$BODY" \
           --arg priority "$PRIORITY" \
           '{title: $title, message: $message, priority: $priority}' \
-          > "$PAYLOAD_FILE"        # Dispatch to enabled backend(s)
-        ${lib.optionalString cfg.pushover.enable ''
-          if [ "$BACKEND" == "pushover" ] || [ "$BACKEND" == "all" ]; then
-            echo "[notify] Dispatching to Pushover..."
-            systemctl start "notify-pushover@$ESCAPED_ID.service" || true
-          fi
-        ''}
+          > "$PAYLOAD_FILE"
 
-        ${lib.optionalString cfg.ntfy.enable ''
-          if [ "$BACKEND" == "ntfy" ] || [ "$BACKEND" == "all" ]; then
-            echo "[notify] Dispatching to ntfy..."
-            systemctl start "notify-ntfy@$ESCAPED_ID.service" || true
-          fi
-        ''}
-
-        ${lib.optionalString cfg.healthchecks.enable ''
-          if [ "$BACKEND" == "healthchecks" ] || [ "$BACKEND" == "all" ]; then
-            echo "[notify] Dispatching to Healthchecks.io..."
-            systemctl start "notify-healthchecks@$ESCAPED_ID.service" || true
-          fi
-        ''}
-
-        echo "[notify] Notification dispatch complete"
+        echo "[notify] Payload created at $PAYLOAD_FILE"
+        echo "[notify] Backend services will be triggered automatically by .path units"
       '';
     };
 

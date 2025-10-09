@@ -102,6 +102,20 @@ in
       # Note: We don't check pathExists here because sops secrets won't exist until runtime
     ];
 
+    # Systemd path unit that triggers the service when a payload file appears
+    # This eliminates race conditions and the need for root escalation in the dispatcher
+    systemd.paths."notify-pushover@" = {
+      description = "Pushover notification trigger for %i";
+      wantedBy = [ "multi-user.target" ];
+
+      pathConfig = {
+        # Trigger when a payload file is created (uses systemd-escaped instance name)
+        PathExists = "/run/notify/%i.json";
+        # Automatically start the corresponding service unit
+        Unit = "notify-pushover@%i.service";
+      };
+    };
+
     # Generic notification service template using Pushover
     systemd.services."notify-pushover@" = {
       description = "Send Pushover notification for %i";
@@ -111,8 +125,8 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-        # Don't manage RuntimeDirectory - tmpfiles creates /run/notify globally
-        UMask = "0022"; # Standard umask for consistent file permissions
+        # Join the notify group to read payload files from /run/notify
+        SupplementaryGroups = [ "notify" ];
         LoadCredential = [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
@@ -136,6 +150,16 @@ in
         if [ ! -f "$PAYLOAD_FILE" ]; then
           echo "[pushover] ERROR: Payload file not found at $PAYLOAD_FILE. Dispatcher may have failed." >&2
           exit 1
+        fi
+
+        # Check if this backend should handle this notification
+        # Extract template name from instance (format: template-name:instance-info)
+        TEMPLATE_NAME=$(echo "$INSTANCE" | cut -d: -f1)
+        BACKEND=$(${pkgs.jq}/bin/jq -r --arg name "$TEMPLATE_NAME" '.[$name].backend // "${cfg.defaultBackend}"' /etc/notification-templates.json)
+
+        if [[ "$BACKEND" != "pushover" && "$BACKEND" != "all" ]]; then
+          echo "[pushover] Skipping notification for template '$TEMPLATE_NAME' (configured for backend '$BACKEND')"
+          exit 0
         fi
 
         # Read and parse JSON payload from shared directory
