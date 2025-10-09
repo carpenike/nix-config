@@ -117,39 +117,44 @@ System is shutting down gracefully.
     # Shutdown notification service
     systemd.services.notify-shutdown = mkIf cfg.shutdown.enable {
       description = "Send system shutdown notification";
+
+      # Remove default dependencies for full control over shutdown ordering
+      defaultDependencies = false;
+
       wantedBy = [ "multi-user.target" ];
-      # Run before network is shut down but after normal services stop
+      # Run before network shuts down during shutdown sequence
       before = [ "network-pre.target" "shutdown.target" ];
-      after = [ "network.target" ];
-      conflicts = [ "shutdown.target" ];
 
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # Directory is created by tmpfiles rules with proper permissions
+
+        # At boot: do nothing, just enter active (exited) state
+        ExecStart = "${pkgs.coreutils}/bin/true";
+
+        # At shutdown: send notification while network is still up
+        ExecStop = pkgs.writeShellScript "notify-shutdown" ''
+          # Gather system information
+          NOTIFY_HOSTNAME="${config.networking.hostName}"
+          NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
+          NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
+
+          # Write environment variables to a file for the dispatcher
+          # Directory is created by tmpfiles (boot) and activationScripts (nixos-rebuild)
+          ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
+          {
+            echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
+            echo "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME"
+            echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
+          } > "$ENV_FILE"
+          chgrp notify-ipc "$ENV_FILE"
+          chmod 640 "$ENV_FILE"
+
+          # Trigger notification through generic dispatcher
+          # Note: Must complete quickly before network shuts down
+          ${pkgs.systemd}/bin/systemctl start "notify@system-shutdown:shutdown.service" || true
+        '';
       };
-
-      script = ''
-        # Gather system information
-        NOTIFY_HOSTNAME="${config.networking.hostName}"
-        NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
-        NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
-
-        # Write environment variables to a file for the dispatcher
-        # Directory is created by tmpfiles (boot) and activationScripts (nixos-rebuild)
-        ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
-        {
-          echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
-          echo "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME"
-          echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
-        } > "$ENV_FILE"
-        chgrp notify-ipc "$ENV_FILE"
-        chmod 640 "$ENV_FILE"
-
-        # Trigger notification through generic dispatcher
-        # Note: Must complete quickly before network shuts down
-        ${pkgs.systemd}/bin/systemctl start "notify@system-shutdown:shutdown.service" || true
-      '';
     };
   };
 }
