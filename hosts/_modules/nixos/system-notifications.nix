@@ -126,19 +126,21 @@ System is shutting down gracefully.
     };
 
     # Graceful shutdown marker service
-    # Creates a flag file late in shutdown to indicate graceful shutdown
+    # Creates a flag file during shutdown to indicate graceful shutdown
+    # Uses ExecStop pattern: service is active during runtime, creates marker when stopped
     systemd.services.graceful-shutdown-marker = mkIf cfg.shutdown.enable {
       description = "Create marker for graceful shutdown";
-      wantedBy = [ "shutdown.target" ];
-      before = [ "shutdown.target" "umount.target" "final.target" ];
+      wantedBy = [ "multi-user.target" ];
+      before = [ "umount.target" ];
       serviceConfig = {
         Type = "oneshot";
-        DefaultDependencies = false;
+        RemainAfterExit = true;
+        ExecStart = "${pkgs.coreutils}/bin/true";
+        ExecStop = pkgs.writeShellScript "create-shutdown-marker" ''
+          ${pkgs.coreutils}/bin/mkdir -p /persist/var/lib/shutdown-marker
+          ${pkgs.coreutils}/bin/touch /persist/var/lib/shutdown-marker/clean
+        '';
       };
-      script = ''
-        mkdir -p /persist/var/lib/shutdown-marker
-        touch /persist/var/lib/shutdown-marker/clean
-      '';
     };
 
     # Shutdown notification service
