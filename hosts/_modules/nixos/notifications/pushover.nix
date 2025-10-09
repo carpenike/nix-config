@@ -122,6 +122,8 @@ in
         PrivateTmp = true;
         # Join the notify-ipc group to read payload files from /run/notify
         SupplementaryGroups = [ "notify-ipc" ];
+        # Override ProtectSystem=strict to allow writing/deleting in /run/notify
+        ReadWritePaths = [ "/run/notify" ];
         LoadCredential = [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
