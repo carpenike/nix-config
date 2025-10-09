@@ -63,6 +63,22 @@ in
       example = "media";
     };
 
+    image = lib.mkOption {
+      type = lib.types.str;
+      default = "lscr.io/linuxserver/sonarr:latest";
+      description = ''
+        Full container image name including tag or digest.
+
+        Best practices:
+        - Pin to specific version tags (e.g., "4.0.4.1491-ls185")
+        - Use digest pinning for immutability (e.g., "4.0.4.1491-ls185@sha256:...")
+        - Avoid 'latest' tag for production systems
+
+        Use Renovate bot to automate version updates with digest pinning.
+      '';
+      example = "lscr.io/linuxserver/sonarr:4.0.4.1491-ls185@sha256:f3ad4f59e6e5e4a...";
+    };
+
     mediaGroup = lib.mkOption {
       type = lib.types.str;
       default = "media";
@@ -202,9 +218,11 @@ in
 
     users.groups.sonarr = {
       gid = lib.mkDefault (lib.toInt cfg.group);
-    };    # Sonarr container configuration
+    };
+
+    # Sonarr container configuration
     virtualisation.oci-containers.containers.sonarr = podmanLib.mkContainer "sonarr" {
-      image = "lscr.io/linuxserver/sonarr:latest";
+      image = cfg.image;
       environment = {
         PUID = cfg.user;
         PGID = cfg.group;

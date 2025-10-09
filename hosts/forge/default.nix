@@ -214,6 +214,24 @@ in
       # Media management services
       sonarr = {
         enable = true;
+
+        # -- Container Image Configuration --
+        # Pin to specific version tags for stability and reproducibility.
+        # Avoid ':latest' tag in production to prevent unexpected updates.
+        #
+        # Renovate bot will automatically update this when configured.
+        # Find available tags at: https://fleet.linuxserver.io/image?name=linuxserver/sonarr
+        #
+        # Example formats:
+        # 1. Version pin only:
+        #    image = "lscr.io/linuxserver/sonarr:4.0.10.2544-ls294";
+        #
+        # 2. Version + digest (recommended - immutable and reproducible):
+        #    image = "lscr.io/linuxserver/sonarr:4.0.10.2544-ls294@sha256:abc123...";
+        #
+        # Uncomment and set when ready to pin version:
+        # image = "lscr.io/linuxserver/sonarr:4.0.10.2544-ls294";
+
         # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
         nfsMountDependency = "media";  # Use shared NFS mount and auto-configure mediaDir
         healthcheck.enable = true;  # Enable container health monitoring
