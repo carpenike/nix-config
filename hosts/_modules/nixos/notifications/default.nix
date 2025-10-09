@@ -231,6 +231,16 @@ in
       "d /run/notify/env 0770 root notify-ipc -"
     ];
 
+    # Ensure directory exists during nixos-rebuild switch (activation time)
+    # This complements tmpfiles which runs at boot
+    system.activationScripts.createNotifyEnvDir = {
+      text = ''
+        # Ensure runtime directory exists for newly started services during activation
+        ${pkgs.coreutils}/bin/install -d -m 0770 -g notify-ipc /run/notify/env
+      '';
+      deps = [ "users" ]; # Ensures users/groups are created first
+    };
+
     # Generate a JSON file containing all registered template definitions
     # This is used by the generic dispatcher to look up template details
     environment.etc."notification-templates.json".text = builtins.toJSON (

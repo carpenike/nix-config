@@ -97,14 +97,7 @@ System is shutting down gracefully.
         sleep 5
 
         # Write environment variables to a file for the dispatcher
-        # Directory is created by tmpfiles with proper group ownership
-        # Ensure directory exists (handles new deployments before first reboot)
-        if [ ! -d /run/notify/env ]; then
-          mkdir -p /run/notify/env
-          chgrp notify-ipc /run/notify/env
-          chmod 770 /run/notify/env
-        fi
-
+        # Directory is created by tmpfiles (boot) and activationScripts (nixos-rebuild)
         ENV_FILE="/run/notify/env/system-boot:boot.env"
         {
           echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
@@ -140,14 +133,7 @@ System is shutting down gracefully.
         NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Write environment variables to a file for the dispatcher
-        # Directory is created by tmpfiles with proper group ownership
-        # Ensure directory exists (handles new deployments before first reboot)
-        if [ ! -d /run/notify/env ]; then
-          mkdir -p /run/notify/env
-          chgrp notify-ipc /run/notify/env
-          chmod 770 /run/notify/env
-        fi
-
+        # Directory is created by tmpfiles (boot) and activationScripts (nixos-rebuild)
         ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
         {
           echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
