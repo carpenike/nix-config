@@ -33,20 +33,9 @@ let
   }: ''
     set -euo pipefail
 
-    # Read tokens from files
-    if [ -f "${pushoverCfg.tokenFile}" ]; then
-      PUSHOVER_TOKEN=$(cat "${pushoverCfg.tokenFile}")
-    else
-      echo "ERROR: Pushover token file not found: ${pushoverCfg.tokenFile}" >&2
-      exit 1
-    fi
-
-    if [ -f "${pushoverCfg.userKeyFile}" ]; then
-      PUSHOVER_USER=$(cat "${pushoverCfg.userKeyFile}")
-    else
-      echo "ERROR: Pushover user key file not found: ${pushoverCfg.userKeyFile}" >&2
-      exit 1
-    fi
+    # Read tokens from systemd credentials
+    PUSHOVER_TOKEN=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_TOKEN)
+    PUSHOVER_USER=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_USER_KEY)
 
     # Build notification payload
     PRIORITY="${toString (getPriority priority)}"
@@ -122,9 +111,11 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-      };
-
-      # Service receives parameters via environment variables:
+        LoadCredential = [
+          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+        ];
+      };      # Service receives parameters via environment variables:
       # NOTIFY_TITLE, NOTIFY_MESSAGE, NOTIFY_PRIORITY, NOTIFY_URL, NOTIFY_URL_TITLE
       script = ''
         TITLE="''${NOTIFY_TITLE:-%i}"
@@ -154,9 +145,11 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-      };
-
-      script = mkPushoverScript {
+        LoadCredential = [
+          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+        ];
+      };      script = mkPushoverScript {
         title = "✅ Backup Success";
         message = "<b>Backup completed successfully</b><small>\n<b>Service:</b> %i\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')</small>";
         priority = cfg.templates.backup-success.priority;
@@ -173,9 +166,11 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-      };
-
-      script = mkPushoverScript {
+        LoadCredential = [
+          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+        ];
+      };      script = mkPushoverScript {
         title = "❌ Backup Failed";
         message = "<b>Backup failed</b><small>\n<b>Service:</b> %i\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n\n<b>Action:</b> Check logs with:\njournalctl -u %i</small>";
         priority = cfg.templates.backup-failure.priority;
@@ -192,9 +187,11 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-      };
-
-      script = mkPushoverScript {
+        LoadCredential = [
+          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+        ];
+      };      script = mkPushoverScript {
         title = "⚠️ Service Failed";
         message = "<b>Service %i failed</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n\n<b>Status:</b>\n$(${pkgs.systemd}/bin/systemctl status %i --no-pager -l || true)</small>";
         priority = cfg.templates.service-failure.priority;
@@ -214,9 +211,11 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-      };
-
-      script = mkPushoverScript {
+        LoadCredential = [
+          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+        ];
+      };      script = mkPushoverScript {
         title = "🚀 System Boot";
         message = "<b>${cfg.hostname} has booted</b><small>\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n<b>Kernel:</b> $(${pkgs.coreutils}/bin/uname -r)\n<b>Uptime:</b> $(${pkgs.coreutils}/bin/uptime -p)</small>";
         priority = cfg.templates.boot-notification.priority;
@@ -233,9 +232,11 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-      };
-
-      script = ''
+        LoadCredential = [
+          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+        ];
+      };      script = ''
         THRESHOLD=${toString cfg.templates.disk-alert.threshold}
 
         ${pkgs.coreutils}/bin/df -h | ${pkgs.gnugrep}/bin/grep -vE '^Filesystem|tmpfs|cdrom|loop' | \
