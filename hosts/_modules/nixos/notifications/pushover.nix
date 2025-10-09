@@ -157,12 +157,20 @@ in
         ];
       };
 
-      script = mkPushoverScript {
-        title = "⚠️ Service Failed";
-        message = "<b>Service %i failed</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n\n<b>Status:</b>\n$(${pkgs.systemd}/bin/systemctl status %i --no-pager -l || true)</small>";
-        priority = "high";
-        html = true;
-      };
+      # Pass %i as command-line argument so systemd expands it
+      scriptArgs = "%i";
+
+      script = ''
+        # Receive instance string as $1
+        INSTANCE_NAME="$1"
+
+        ${mkPushoverScript {
+          title = "⚠️ Service Failed";
+          message = "<b>Service $INSTANCE_NAME failed</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n\n<b>Status:</b>\n$(${pkgs.systemd}/bin/systemctl status $INSTANCE_NAME --no-pager -l || true)</small>";
+          priority = "high";
+          html = true;
+        }}
+      '';
     };
   };
 }

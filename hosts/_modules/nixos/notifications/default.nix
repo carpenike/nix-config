@@ -238,13 +238,15 @@ in
         DynamicUser = true;
       };
 
+      # Pass %i as command-line argument - systemd expands it in ExecStart directive
+      scriptArgs = "%i";
+
       script = ''
         set -euo pipefail
 
         # Parse the instance string: template-name:instance-info
-        # CRITICAL: Must assign %i directly first - systemd expands specifiers BEFORE script execution
-        # Using %i inside $(...) prevents expansion because it's in a future subshell context
-        INSTANCE_STRING="%i"
+        # Receive instance string as $1 (passed via scriptArgs)
+        INSTANCE_STRING="$1"
         TEMPLATE_NAME=$(echo "$INSTANCE_STRING" | cut -d: -f1)
         INSTANCE_INFO=$(echo "$INSTANCE_STRING" | cut -d: -f2-)
 
