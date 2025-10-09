@@ -16,6 +16,7 @@
     ./services/backup-services.nix
     ./monitoring.nix
     ./notifications
+    ./system-notifications.nix
   ];
 
   documentation.nixos.enable = false;

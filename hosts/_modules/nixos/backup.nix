@@ -490,6 +490,66 @@ with lib;
     hasCentralizedNotifications = notificationsCfg.enable or false;
   in mkIf cfg.enable {
 
+    # Register notification templates if notification system is enabled
+    modules.notifications.templates = mkIf hasCentralizedNotifications {
+      backup-success = {
+        enable = mkDefault true;
+        priority = mkDefault "low";  # Low priority to reduce noise
+        backend = mkDefault "pushover";
+        title = mkDefault ''<b><font color="green">✓ Backup Success: ''${jobName}</font></b>'';
+        body = mkDefault ''
+          <b>Host:</b> ''${hostname}
+          <b>Repository:</b> <code>''${repository}</code>
+
+          <b>Duration:</b>   ''${duration}
+          <b>Files Added:</b> ''${filesCount}
+          <b>Data Added:</b>  ''${dataSize}
+
+          <a href="https://grafana.holthome.net/d/backups?var-job=''${jobName}">View Trends →</a>
+        '';
+      };
+
+      backup-failure = {
+        enable = mkDefault true;
+        priority = mkDefault "high";  # High priority for failures
+        backend = mkDefault "pushover";
+        title = mkDefault ''<b><font color="red">✗ Backup Failed: ''${jobName}</font></b>'';
+        body = mkDefault ''
+          <b>Host:</b> ''${hostname}
+          <b>Repository:</b> <code>''${repository}</code>
+
+          <b>Error:</b>
+          <font color="#ff5733"><code>''${errorMessage}</code></font>
+
+          <b>Quick Actions:</b>
+          1. <a href="https://grafana.holthome.net/d/backups">View Dashboard</a>
+          2. Check logs:
+             <code>ssh ''${hostname} 'journalctl -u restic-backups-''${jobName} -n 100'</code>
+          3. Test repository:
+             <code>restic -r ''${repository} check --read-data-subset=5%</code>
+        '';
+      };
+
+      verification-failure = {
+        enable = mkDefault true;
+        priority = mkDefault "high";
+        backend = mkDefault "pushover";
+        title = mkDefault ''<b><font color="red">✗ Backup Verification Failed</font></b>'';
+        body = mkDefault ''
+          <b>Repository:</b> <code>''${repositoryName}</code>
+
+          <b>Issue:</b> Repository integrity check detected problems
+
+          <b>Actions Required:</b>
+          1. <a href="https://grafana.holthome.net/d/backups?var-repo=''${repositoryName}">View History</a>
+          2. Check details:
+             <code>restic -r ''${repository} check --read-data</code>
+          3. Review backup docs:
+             <code>cat /var/lib/backup/docs/troubleshooting.md</code>
+        '';
+      };
+    };
+
     # Ensure required packages are available
     environment.systemPackages = with pkgs; [
       restic
@@ -661,6 +721,11 @@ EOF
 
               [ "$STATUS" = "success" ]
             '';
+            unitConfig = {
+              # Notify on verification failures
+              OnFailure = mkIf (hasCentralizedNotifications && (notificationsCfg.templates.verification-failure.enable or false))
+                [ "notify@verification-failure:${repoName}.service" ];
+            };
             serviceConfig = {
               Type = "oneshot";
               User = "restic-backup";
@@ -1472,20 +1537,9 @@ EOF
         mkIf (jobConfig.enable && cfg.monitoring.onFailure.enable) {
           "restic-backups-${jobName}" = {
             unitConfig = {
-              # Use centralized notification system if available, otherwise fallback to legacy
-              OnFailure = lib.mkMerge [
-                # Legacy notification service (when centralized is not available)
-                (lib.mkIf (!hasCentralizedNotifications)
-                  "backup-failure-${jobName}.service")
-
-                # Centralized notification services (when enabled)
-                (lib.mkIf (hasCentralizedNotifications && notificationsCfg.pushover.enable or false)
-                  "notify-backup-failure@${jobName}.service")
-                (lib.mkIf (hasCentralizedNotifications && notificationsCfg.ntfy.enable or false)
-                  "notify-ntfy-backup-failure@${jobName}.service")
-                (lib.mkIf (hasCentralizedNotifications && notificationsCfg.healthchecks.enable or false)
-                  "healthcheck-backup-failure@${jobName}.service")
-              ];
+              # Use generic notification dispatcher if centralized notifications enabled
+              OnFailure = mkIf (hasCentralizedNotifications && (notificationsCfg.templates.backup-failure.enable or false))
+                [ "notify@backup-failure:${jobName}.service" ];
             };
           };
         }

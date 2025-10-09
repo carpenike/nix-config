@@ -75,7 +75,9 @@ in
 
       system.impermanence.enable = true;
 
-      # Centralized notification system
+      # Distributed notification system
+      # Templates auto-register from service modules (backup.nix, zfs-replication.nix, etc.)
+      # No need to explicitly enable individual templates here
       notifications = {
         enable = true;
         defaultBackend = "pushover";
@@ -87,28 +89,13 @@ in
           defaultPriority = 0;  # Normal priority
           enableHtml = true;
         };
+      };
 
-        # Enable notification templates
-        templates = {
-          backup-success.enable = true;
-          backup-failure = {
-            enable = true;
-            priority = "high";
-          };
-          service-failure = {
-            enable = true;
-            priority = "high";
-          };
-          boot-notification = {
-            enable = true;
-            priority = "normal";
-          };
-          disk-alert = {
-            enable = true;
-            threshold = 85;
-            priority = "high";
-          };
-        };
+      # System-level notifications (boot/shutdown)
+      systemNotifications = {
+        enable = true;
+        boot.enable = true;
+        shutdown.enable = true;
       };
 
       services = {

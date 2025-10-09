@@ -134,11 +134,17 @@ in
       '';
     };
 
-    # Pre-defined notification services for common events
+    # Legacy services removed - migrated to distributed architecture:
+    # - notify-backup-success@ -> backup.nix
+    # - notify-backup-failure@ -> backup.nix
+    # - notify-boot -> system-notifications.nix
+    # - notify-disk-alert -> system-notifications.nix (future)
+    # - notify-service-failure@ kept as generic utility (below)
 
-    # Backup success notification
-    systemd.services."notify-backup-success@" = lib.mkIf cfg.templates.backup-success.enable {
-      description = "Backup success notification for %i";
+    # Generic service failure notification - kept as utility for ad-hoc/manual use
+    # Can be triggered manually: systemctl start notify-service-failure@my-service
+    systemd.services."notify-service-failure@" = {
+      description = "Generic service failure notification for %i";
 
       serviceConfig = {
         Type = "oneshot";
@@ -149,117 +155,13 @@ in
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
         ];
-      };      script = mkPushoverScript {
-        title = "✅ Backup Success";
-        message = "<b>Backup completed successfully</b><small>\n<b>Service:</b> %i\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')</small>";
-        priority = cfg.templates.backup-success.priority;
-        html = true;
       };
-    };
 
-    # Backup failure notification
-    systemd.services."notify-backup-failure@" = lib.mkIf cfg.templates.backup-failure.enable {
-      description = "Backup failure notification for %i";
-
-      serviceConfig = {
-        Type = "oneshot";
-        DynamicUser = true;
-        PrivateNetwork = false;
-        PrivateTmp = true;
-        LoadCredential = [
-          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
-          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
-        ];
-      };      script = mkPushoverScript {
-        title = "❌ Backup Failed";
-        message = "<b>Backup failed</b><small>\n<b>Service:</b> %i\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n\n<b>Action:</b> Check logs with:\njournalctl -u %i</small>";
-        priority = cfg.templates.backup-failure.priority;
-        html = true;
-      };
-    };
-
-    # Service failure notification
-    systemd.services."notify-service-failure@" = lib.mkIf cfg.templates.service-failure.enable {
-      description = "Service failure notification for %i";
-
-      serviceConfig = {
-        Type = "oneshot";
-        DynamicUser = true;
-        PrivateNetwork = false;
-        PrivateTmp = true;
-        LoadCredential = [
-          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
-          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
-        ];
-      };      script = mkPushoverScript {
+      script = mkPushoverScript {
         title = "⚠️ Service Failed";
         message = "<b>Service %i failed</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n\n<b>Status:</b>\n$(${pkgs.systemd}/bin/systemctl status %i --no-pager -l || true)</small>";
-        priority = cfg.templates.service-failure.priority;
+        priority = "high";
         html = true;
-      };
-    };
-
-    # Boot notification
-    systemd.services."notify-boot" = lib.mkIf cfg.templates.boot-notification.enable {
-      description = "Send boot notification";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
-
-      serviceConfig = {
-        Type = "oneshot";
-        DynamicUser = true;
-        PrivateNetwork = false;
-        PrivateTmp = true;
-        LoadCredential = [
-          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
-          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
-        ];
-      };      script = mkPushoverScript {
-        title = "🚀 System Boot";
-        message = "<b>${cfg.hostname} has booted</b><small>\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n<b>Kernel:</b> $(${pkgs.coreutils}/bin/uname -r)\n<b>Uptime:</b> $(${pkgs.coreutils}/bin/uptime -p)</small>";
-        priority = cfg.templates.boot-notification.priority;
-        html = true;
-      };
-    };
-
-    # Disk alert monitoring (runs periodically)
-    systemd.services."notify-disk-alert" = lib.mkIf cfg.templates.disk-alert.enable {
-      description = "Check disk usage and send alerts";
-
-      serviceConfig = {
-        Type = "oneshot";
-        DynamicUser = true;
-        PrivateNetwork = false;
-        PrivateTmp = true;
-        LoadCredential = [
-          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
-          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
-        ];
-      };      script = ''
-        THRESHOLD=${toString cfg.templates.disk-alert.threshold}
-
-        ${pkgs.coreutils}/bin/df -h | ${pkgs.gnugrep}/bin/grep -vE '^Filesystem|tmpfs|cdrom|loop' | \
-        while read filesystem size used avail capacity mounted; do
-          usage=$(echo "$capacity" | ${pkgs.gnused}/bin/sed 's/%//')
-          if [ "$usage" -gt "$THRESHOLD" ]; then
-            ${mkPushoverScript {
-              title = "💾 Disk Space Alert";
-              message = "<b>Disk usage above threshold</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Mount:</b> $mounted\n<b>Usage:</b> $capacity\n<b>Available:</b> $avail</small>";
-              priority = cfg.templates.disk-alert.priority;
-              html = true;
-            }}
-          fi
-        done
-      '';
-    };
-
-    # Timer for periodic disk alerts (if enabled)
-    systemd.timers."notify-disk-alert" = lib.mkIf cfg.templates.disk-alert.enable {
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnCalendar = "hourly";
-        Persistent = true;
       };
     };
   };

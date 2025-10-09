@@ -1,7 +1,81 @@
-{ lib, ... }:
+{ lib, config, pkgs, ... }:
 
 {
   config = {
+    # Register ZFS replication notification templates if notification system is enabled
+    modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) {
+      zfs-replication-failure = {
+        enable = lib.mkDefault true;
+        priority = lib.mkDefault "high";
+        backend = lib.mkDefault "pushover";
+        title = lib.mkDefault ''<b><font color="red">✗ ZFS Replication Failed</font></b>'';
+        body = lib.mkDefault ''
+          <b>Dataset:</b> <code>''${dataset}</code>
+          <b>Target:</b> <code>nas-1.holthome.net</code>
+
+          <b>Error:</b>
+          <code>''${errorMessage}</code>
+
+          <b>Actions:</b>
+          1. Check Syncoid status:
+             <code>systemctl status syncoid-''${dataset}</code>
+          2. Test SSH connection:
+             <code>ssh zfs-replication@nas-1 'zfs list'</code>
+          3. Check recent snapshots:
+             <code>zfs list -t snapshot | grep ''${dataset}</code>
+        '';
+      };
+
+      zfs-snapshot-failure = {
+        enable = lib.mkDefault true;
+        priority = lib.mkDefault "high";
+        backend = lib.mkDefault "pushover";
+        title = lib.mkDefault ''<b><font color="red">✗ ZFS Snapshot Failed</font></b>'';
+        body = lib.mkDefault ''
+          <b>Dataset:</b> <code>''${dataset}</code>
+          <b>Host:</b> ''${hostname}
+
+          <b>Error:</b>
+          <code>''${errorMessage}</code>
+
+          <b>Actions:</b>
+          1. Check Sanoid status:
+             <code>systemctl status sanoid</code>
+          2. Check ZFS pool health:
+             <code>zpool status -v</code>
+          3. Review Sanoid logs:
+             <code>journalctl -u sanoid -n 50</code>
+        '';
+      };
+
+      pool-degraded = {
+        enable = lib.mkDefault true;
+        priority = lib.mkDefault "emergency";
+        backend = lib.mkDefault "pushover";
+        title = lib.mkDefault ''<b><font color="red">🚨 URGENT: ZFS Pool Degraded</font></b>'';
+        body = lib.mkDefault ''
+          <b>Pool:</b> <code>''${pool}</code>
+          <b>Host:</b> ''${hostname}
+          <b>State:</b> <font color=\"red\">''${state}</font>
+
+          <b>Pool Status:</b>
+          <code>''${status}</code>
+
+          <b>⚠️ IMMEDIATE ACTIONS REQUIRED:</b>
+          1. Check pool status:
+             <code>zpool status -v ''${pool}</code>
+          2. Identify failed devices:
+             <code>zpool list -v ''${pool}</code>
+          3. Check system logs:
+             <code>journalctl -u zfs-import.target -n 100</code>
+          4. If device failed, replace and resilver:
+             <code>zpool replace ''${pool} &lt;old_device&gt; &lt;new_device&gt;</code>
+
+          ⚠️ Data redundancy is compromised. Do NOT ignore this alert.
+        '';
+      };
+    };
+
     # Create static user for Sanoid (required for ZFS permissions)
     # By default, sanoid uses DynamicUser which creates an ephemeral user
     # We need a static user to grant ZFS permissions before the service starts
@@ -70,6 +144,11 @@
       Group = "sanoid";
     };
 
+    # Wire Sanoid to notification system
+    systemd.services.sanoid.unitConfig = {
+      OnFailure = "notify@zfs-snapshot-failure:sanoid.service";
+    };
+
     # Configure Sanoid for snapshot management
     services.sanoid = {
       enable = true;
@@ -115,6 +194,11 @@
       ];
     };
 
+    # Wire Syncoid services to notification system
+    systemd.services.syncoid-rpool-safe-home.unitConfig = {
+      OnFailure = "notify@zfs-replication-failure:rpool-safe-home.service";
+    };
+
     systemd.services.syncoid-rpool-safe-persist.serviceConfig = {
       BindReadOnlyPaths = lib.mkForce [
         "/nix/store"
@@ -124,6 +208,10 @@
         "/var/lib/zfs-replication/.ssh"
         "/run/secrets/zfs-replication"
       ];
+    };
+
+    systemd.services.syncoid-rpool-safe-persist.unitConfig = {
+      OnFailure = "notify@zfs-replication-failure:rpool-safe-persist.service";
     };    # Configure Syncoid for replication to nas-1
     services.syncoid = {
       enable = true;
@@ -152,6 +240,56 @@
           sendOptions = "w";
           recvOptions = "u";
         };
+      };
+    };
+
+    # ZFS pool health monitoring
+    systemd.services.zfs-health-check = {
+      description = "Check ZFS pool health and notify on degraded state";
+
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = let
+          checkScript = pkgs.writeShellScript "zfs-health-check" ''
+            set -euo pipefail
+
+            # Check each pool's health
+            for pool in $(${pkgs.zfs}/bin/zpool list -H -o name); do
+              state=$(${pkgs.zfs}/bin/zpool list -H -o health "$pool")
+
+              # Trigger notification if pool is not ONLINE
+              if [[ "$state" != "ONLINE" ]]; then
+                # Get detailed status for notification body
+                status=$(${pkgs.zfs}/bin/zpool status "$pool" 2>&1 || echo "Failed to get pool status")
+
+                # Export variables for notification template
+                export NOTIFY_POOL="$pool"
+                export NOTIFY_HOSTNAME="${config.networking.hostName}"
+                export NOTIFY_STATE="$state"
+                export NOTIFY_STATUS="$status"
+
+                # Trigger notification through dispatcher
+                ${pkgs.systemd}/bin/systemctl start "notify@pool-degraded:$pool.service"
+
+                echo "WARNING: Pool $pool is $state - notification sent"
+              else
+                echo "Pool $pool is ONLINE"
+              fi
+            done
+          '';
+        in "${checkScript}";
+      };
+    };
+
+    # Run health check every 15 minutes
+    systemd.timers.zfs-health-check = {
+      description = "Periodic ZFS pool health check";
+      wantedBy = [ "timers.target" ];
+
+      timerConfig = {
+        OnBootSec = "5min";        # Check 5 minutes after boot
+        OnUnitActiveSec = "15min"; # Then every 15 minutes
+        Unit = "zfs-health-check.service";
       };
     };
   };
