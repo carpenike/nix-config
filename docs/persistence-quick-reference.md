@@ -9,14 +9,20 @@ This is a condensed reference for the persistence implementation. For full detai
 ## Architecture Summary
 
 ```
-Current (Monolithic):
-  /persist → rpool/safe/persist (everything mixed together)
+System Persistence (all hosts):
+  /persist → rpool/safe/persist (SSH keys, machine configs, etc.)
+  /home → rpool/safe/home (user home directories)
 
-Target (Isolated):
-  /persist → tank/persist (forge) OR rpool/safe/persist (others)
-    ├── /persist/sonarr → tank/persist/sonarr (recordsize=16K)
-    ├── /persist/plex → tank/persist/plex (recordsize=1M)
-    ├── /persist/postgres → tank/persist/postgres (recordsize=8K)
+Service Data (forge - two disk):
+  tank/services (mountpoint=none - logical container)
+    ├── tank/services/sonarr → /var/lib/sonarr (recordsize=16K)
+    ├── tank/services/plex → /var/lib/plex (recordsize=1M)
+    ├── tank/services/postgresql → /var/lib/postgresql (recordsize=8K)
+    └── ...
+
+Service Data (other hosts - single disk):
+  rpool/safe/persist/services (mountpoint=none - logical container)
+    ├── rpool/safe/persist/services/sonarr → /var/lib/sonarr
     └── ...
 ```
 
@@ -148,11 +154,25 @@ rm -rf /persist/var/lib/sonarr
 
 ---
 
+## Implementation Status
+
+**Phase 1: Storage Module** ✅ Complete (2025-01-09)
+- Module: `hosts/_modules/nixos/storage/datasets.nix` (268 lines)
+- Features: Automatic dataset creation, type validation, shell escaping, configurable permissions
+- Code Review: 10/10 (Gemini Pro 2.5) - Production ready
+- Testing: dry-build passes
+
+**Phase 2: Pilot Service** 🔵 Next
+- Target: Sonarr migration
+- Configure: dataset declaration, dataDir, backup integration
+
+---
+
 ## Testing Checklist
 
 Per service:
 - [ ] Dataset created automatically
-- [ ] Properties correct (`zfs get all tank/persist/sonarr`)
+- [ ] Properties correct (`zfs get all tank/services/sonarr`)
 - [ ] Service starts
 - [ ] Data accessible
 - [ ] Backup runs
