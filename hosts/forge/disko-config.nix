@@ -106,7 +106,10 @@ in
             "safe/persist" = {
               type = "zfs_fs";
               mountpoint = "/persist";
-              options = { mountpoint = "legacy"; "com.sun:auto-snapshot" = "true"; };
+              options = {
+                mountpoint = "legacy";
+                "com.sun:auto-snapshot" = "true";
+              };
             };
           }
           // lib.optionalAttrs (!haveTwo) {
@@ -178,6 +181,16 @@ in
         };
 
         datasets = {
+          # Parent dataset for managed service data.
+          # Not mounted itself; children are mounted to FHS paths.
+          "services" = {
+            type = "zfs_fs";
+            options = {
+              mountpoint = "none";
+              "com.sun:auto-snapshot" = "true";
+            };
+          };
+
           "containers" = {
             type = "zfs_fs";
             mountpoint = "/var/lib/containers";

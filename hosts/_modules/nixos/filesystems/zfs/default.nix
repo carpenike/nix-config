@@ -15,6 +15,16 @@ in
       default = [];
       description = "List of ZFS pools to mount at boot";
     };
+    persistDataset = lib.mkOption {
+      type = lib.types.str;
+      default = "rpool/safe/persist";
+      description = "ZFS dataset to mount at /persist";
+    };
+    homeDataset = lib.mkOption {
+      type = lib.types.str;
+      default = "rpool/safe/home";
+      description = "ZFS dataset to mount at /home";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -29,14 +39,16 @@ in
     };
 
     # Use standard fileSystems configuration for ZFS mounts
-    fileSystems."/persist" = {
-      device = "rpool/safe/persist";
+    # These are typically defined by disko-config.nix, but we provide defaults
+    # Note: disko-config definitions take precedence over these
+    fileSystems."/persist" = lib.mkDefault {
+      device = cfg.persistDataset;
       fsType = "zfs";
       neededForBoot = true;
     };
 
-    fileSystems."/home" = {
-      device = "rpool/safe/home";
+    fileSystems."/home" = lib.mkDefault {
+      device = cfg.homeDataset;
       fsType = "zfs";
       neededForBoot = true;
     };

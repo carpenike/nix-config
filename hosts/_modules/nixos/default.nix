@@ -17,6 +17,7 @@
     ./monitoring.nix
     ./notifications
     ./system-notifications.nix
+    ./storage/datasets.nix
   ];
 
   documentation.nixos.enable = false;

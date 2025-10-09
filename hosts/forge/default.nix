@@ -71,6 +71,17 @@ in
       filesystems.zfs = {
         enable = true;
         mountPoolsAtBoot = [ "rpool" "tank" ];
+        # Use default rpool/safe/persist for system-level /persist
+      };
+
+      # Storage dataset management
+      # forge uses the tank pool (2x NVME) for service data
+      # tank/services acts as a logical parent (not mounted)
+      # Individual services mount to standard FHS paths
+      storage.datasets = {
+        enable = true;
+        parentDataset = "tank/services";
+        parentMount = "/srv";  # Fallback for services without explicit mountpoint
       };
 
       system.impermanence.enable = true;
