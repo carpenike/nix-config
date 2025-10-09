@@ -98,7 +98,7 @@ in
       enable = lib.mkEnableOption "container health check";
       interval = lib.mkOption {
         type = lib.types.str;
-        default = "1m";
+        default = "30s";
         description = "Frequency of health checks.";
       };
       timeout = lib.mkOption {
@@ -113,7 +113,7 @@ in
       };
       startPeriod = lib.mkOption {
         type = lib.types.str;
-        default = "90s";
+        default = "180s";
         description = "Grace period for the container to initialize before failures are counted.";
       };
     };
@@ -222,8 +222,9 @@ in
         "--pull=newer"  # Automatically pull newer images
       ] ++ lib.optionals cfg.healthcheck.enable [
         # Container-native health check using Podman health check options
-        # Use wget as primary with curl fallback for robustness
-        "--health-cmd=sh -c 'wget -q -O /dev/null http://localhost:8989/login || curl -fsS http://localhost:8989/login'"
+        # Use /ping endpoint which is more reliable than /login (no redirects)
+        # Check for any HTTP response (200-499) to consider the service running
+        "--health-cmd=sh -c 'wget --spider -q http://localhost:8989/ping 2>&1 || curl -sf http://localhost:8989/ping > /dev/null 2>&1 || wget --spider -q http://localhost:8989/ 2>&1'"
         "--health-interval=${cfg.healthcheck.interval}"
         "--health-timeout=${cfg.healthcheck.timeout}"
         "--health-retries=${toString cfg.healthcheck.retries}"
