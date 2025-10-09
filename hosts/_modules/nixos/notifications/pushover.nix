@@ -129,7 +129,7 @@ in
         INSTANCE="$1"
 
         # Construct payload file path - use systemd-escape for proper decoding
-        ESCAPED_ID=$(echo "$INSTANCE" | ${pkgs.systemd}/bin/systemd-escape)
+        ESCAPED_ID=$(${pkgs.systemd}/bin/systemd-escape "$INSTANCE")
         PAYLOAD_FILE="/run/notify/$ESCAPED_ID.json"
 
         # Read and parse JSON payload from shared directory

@@ -342,7 +342,7 @@ in
         echo "[notify] Dispatching to $BACKEND (template: $TEMPLATE_NAME, instance: $INSTANCE_INFO)"
 
         # Escape instance ID for safe use in filenames
-        ESCAPED_ID=$(echo "$INSTANCE_STRING" | ${pkgs.systemd}/bin/systemd-escape)
+        ESCAPED_ID=$(${pkgs.systemd}/bin/systemd-escape "$INSTANCE_STRING")
         PAYLOAD_FILE="/run/notify/$ESCAPED_ID.json"
 
         # Create JSON payload for the backend service
