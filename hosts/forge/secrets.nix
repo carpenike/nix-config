@@ -27,6 +27,7 @@
           mode = "0600";
           owner = "zfs-replication";
           group = "zfs-replication";
+          path = "/var/lib/zfs-replication/.ssh/id_ed25519";
         };
 
         # Pushover notification credentials

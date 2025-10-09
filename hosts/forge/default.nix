@@ -17,7 +17,6 @@ in
     ./secrets.nix
     ./systemPackages.nix
     ./backup.nix
-    ./zfs-replication.nix
     ./monitoring.nix
   ];
 
@@ -94,6 +93,78 @@ in
           group = "media";
           mode = "0775";  # Allow group write access
           mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
+        };
+      };
+
+      # ZFS snapshot and replication management (part of backup infrastructure)
+      backup.sanoid = {
+        enable = true;
+        sshKeyPath = config.sops.secrets."zfs-replication/ssh-key".path;
+        replicationInterval = "hourly";
+
+        # Retention templates for different data types
+        templates = {
+          production = {
+            hourly = 24;      # 24 hours
+            daily = 7;        # 1 week
+            weekly = 4;       # 1 month
+            monthly = 3;      # 3 months
+            autosnap = true;
+            autoprune = true;
+          };
+          services = {
+            hourly = 48;      # 2 days
+            daily = 14;       # 2 weeks
+            weekly = 8;       # 2 months
+            monthly = 6;      # 6 months
+            autosnap = true;
+            autoprune = true;
+          };
+        };
+
+        # Dataset snapshot and replication configuration
+        datasets = {
+          # Home directory - user data
+          "rpool/safe/home" = {
+            useTemplate = [ "production" ];
+            recursive = false;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/home";
+              sendOptions = "w";  # Raw encrypted send
+              recvOptions = "u";  # Don't mount on receive
+            };
+          };
+
+          # System persistence - configuration and state
+          "rpool/safe/persist" = {
+            useTemplate = [ "production" ];
+            recursive = false;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/persist";
+              sendOptions = "w";
+              recvOptions = "u";
+            };
+          };
+
+          # Service data - all *arr services and their data
+          "tank/services" = {
+            useTemplate = [ "services" ];
+            recursive = true;  # Snapshot all child datasets (sonarr, radarr, etc.)
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "tank/backup/forge/services";
+              sendOptions = "w";
+              recvOptions = "u";
+            };
+          };
+        };
+
+        # Monitor pool health and alert on degradation
+        healthChecks = {
+          enable = true;
+          interval = "15min";
         };
       };
 

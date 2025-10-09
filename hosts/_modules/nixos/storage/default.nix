@@ -3,5 +3,6 @@
   imports = [
     ./datasets.nix
     ./nfs-mounts.nix
+    ./sanoid.nix
   ];
 }
