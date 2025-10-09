@@ -32,7 +32,7 @@ in
 <b>Host:</b> ''${hostname}
 <b>Time:</b> ''${boottime}
 
-<b>Boot Status:</b> ''${boot_status}
+<b>Boot Status:</b> ''${bootstatus}
 
 <b>System Info:</b>
 • Kernel: ''${kernel}
