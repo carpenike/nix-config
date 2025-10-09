@@ -1498,7 +1498,8 @@ EOF
         "d ${cfg.monitoring.logDir} 0755 restic-backup restic-backup -"
       ])
       (mkIf cfg.monitoring.prometheus.enable [
-        "d ${cfg.monitoring.prometheus.metricsDir} 0755 node-exporter node-exporter -"
+        # Directory needs to be writable by restic-backup (creates metrics) and readable by node-exporter (scrapes metrics)
+        "d ${cfg.monitoring.prometheus.metricsDir} 0775 restic-backup node-exporter -"
       ])
       (mkIf cfg.restoreTesting.enable [
         "d ${cfg.restoreTesting.testDir} 0700 restic-backup restic-backup -"
