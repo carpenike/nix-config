@@ -113,13 +113,16 @@ System is shutting down gracefully.
 
       wantedBy = [ "multi-user.target" ];
       # Run before network shuts down during shutdown sequence
-      before = [ "network-pre.target" "shutdown.target" ];
+      before = [ "network.target" "network-pre.target" "shutdown.target" ];
+      # Require network to be up when this service is active
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
 
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # Disable default dependencies for full control over shutdown ordering
-        DefaultDependencies = false;
+        # Keep default dependencies but ensure we run early in shutdown
+        DefaultDependencies = true;
         # Ensure the ExecStop script isn't killed before completion
         KillMode = "none";
         # Give it plenty of time to send the notification
