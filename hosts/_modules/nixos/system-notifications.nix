@@ -128,27 +128,40 @@ System is shutting down gracefully.
         # At boot: do nothing, just enter active (exited) state
         ExecStart = "${pkgs.coreutils}/bin/true";
 
-        # At shutdown: send notification while network is still up
+        # At shutdown: send notification directly while network is still up
+        # Cannot use systemctl start during shutdown, must be self-contained
         ExecStop = pkgs.writeShellScript "notify-shutdown" ''
+          set -euo pipefail
+
           # Gather system information
-          NOTIFY_HOSTNAME="${config.networking.hostName}"
-          NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
-          NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
+          HOSTNAME="${config.networking.hostName}"
+          SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
+          UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
-          # Write environment variables to a file for the dispatcher
-          # Directory is created by tmpfiles (boot) and activationScripts (nixos-rebuild)
-          ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
-          {
-            echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
-            echo "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME"
-            echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
-          } > "$ENV_FILE"
-          chgrp notify-ipc "$ENV_FILE"
-          chmod 640 "$ENV_FILE"
+          # Build notification message from template
+          # Get template configuration
+          TITLE="⏸️ System Shutdown"
+          MESSAGE="<b>Host:</b> $HOSTNAME
+<b>Time:</b> $SHUTDOWNTIME
 
-          # Trigger notification through generic dispatcher
-          # Note: Must complete quickly before network shuts down
-          ${pkgs.systemd}/bin/systemctl start "notify@system-shutdown:shutdown.service" || true
+<b>Uptime:</b> $UPTIME
+
+System is shutting down gracefully."
+
+          # Read Pushover credentials from systemd-creds
+          PUSHOVER_TOKEN=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_TOKEN)
+          PUSHOVER_USER=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_USER_KEY)
+
+          # Send notification directly (cannot start services during shutdown)
+          ${pkgs.curl}/bin/curl -s -o /dev/null \
+            --max-time 10 \
+            --data-urlencode "token=$PUSHOVER_TOKEN" \
+            --data-urlencode "user=$PUSHOVER_USER" \
+            --data-urlencode "title=$TITLE" \
+            --data-urlencode "message=$MESSAGE" \
+            --data-urlencode "priority=-1" \
+            --data-urlencode "html=1" \
+            "https://api.pushover.net/1/messages.json" || true
         '';
       };
     };
