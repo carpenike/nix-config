@@ -241,6 +241,9 @@ in
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
+        # Create payload directory - systemd manages permissions automatically
+        RuntimeDirectory = "notify/payloads";
+        RuntimeDirectoryMode = "0700";
       };
 
       # Pass %i as command-line argument - systemd expands it in ExecStart directive
@@ -340,11 +343,8 @@ in
         ESCAPED_ID=$(systemd-escape "$TEMPLATE_NAME:$INSTANCE_INFO")
 
         # Create JSON payload with notification parameters
-        PAYLOAD_DIR="/run/notify/payloads"
-        mkdir -p "$PAYLOAD_DIR"
-        chmod 700 "$PAYLOAD_DIR"
-
-        PAYLOAD_FILE="$PAYLOAD_DIR/$ESCAPED_ID.json"
+        # Use RUNTIME_DIRECTORY which systemd provides automatically
+        PAYLOAD_FILE="$RUNTIME_DIRECTORY/$ESCAPED_ID.json"
 
         # Use jq to safely create JSON with proper escaping
         ${pkgs.jq}/bin/jq -n \
@@ -352,7 +352,6 @@ in
           --arg message "$BODY" \
           --arg priority "$PRIORITY" \
           '{title: $title, message: $message, priority: $priority}' > "$PAYLOAD_FILE"
-        chmod 600 "$PAYLOAD_FILE"
 
         # Dispatch to enabled backend(s)
         ${lib.optionalString cfg.pushover.enable ''
