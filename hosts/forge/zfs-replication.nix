@@ -8,7 +8,7 @@
         enable = lib.mkDefault true;
         priority = lib.mkDefault "high";
         backend = lib.mkDefault "pushover";
-        title = lib.mkDefault ''<b><font color="red">✗ ZFS Replication Failed</font></b>'';
+        title = lib.mkDefault ''✗ ZFS Replication Failed'';
         body = lib.mkDefault ''
 <b>Dataset:</b> ''${dataset}
 <b>Target:</b> nas-1.holthome.net
@@ -30,7 +30,7 @@
         enable = lib.mkDefault true;
         priority = lib.mkDefault "high";
         backend = lib.mkDefault "pushover";
-        title = lib.mkDefault ''<b><font color="red">✗ ZFS Snapshot Failed</font></b>'';
+        title = lib.mkDefault ''✗ ZFS Snapshot Failed'';
         body = lib.mkDefault ''
 <b>Dataset:</b> ''${dataset}
 <b>Host:</b> ''${hostname}
@@ -52,7 +52,7 @@
         enable = lib.mkDefault true;
         priority = lib.mkDefault "emergency";
         backend = lib.mkDefault "pushover";
-        title = lib.mkDefault ''<b><font color="red">🚨 URGENT: ZFS Pool Degraded</font></b>'';
+        title = lib.mkDefault ''🚨 URGENT: ZFS Pool Degraded'';
         body = lib.mkDefault ''
 <b>Pool:</b> ''${pool}
 <b>Host:</b> ''${hostname}

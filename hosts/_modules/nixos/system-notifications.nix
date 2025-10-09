@@ -27,7 +27,7 @@ in
         enable = mkDefault cfg.boot.enable;
         priority = mkDefault "low";  # Low priority to reduce noise
         backend = mkDefault "pushover";
-        title = mkDefault ''<b><font color="green">🚀 System Boot</font></b>'';
+        title = mkDefault ''🚀 System Boot'';
         body = mkDefault ''
 <b>Host:</b> ''${hostname}
 <b>Time:</b> ''${boottime}
@@ -43,7 +43,7 @@ System is online and ready.
         enable = mkDefault cfg.shutdown.enable;
         priority = mkDefault "low";
         backend = mkDefault "pushover";
-        title = mkDefault ''<b><font color="orange">⏸️ System Shutdown</font></b>'';
+        title = mkDefault ''⏸️ System Shutdown'';
         body = mkDefault ''
 <b>Host:</b> ''${hostname}
 <b>Time:</b> ''${shutdowntime}
