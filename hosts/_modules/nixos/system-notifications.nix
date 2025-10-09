@@ -69,17 +69,29 @@ System is shutting down gracefully.
 
       script = ''
         # Gather system information
-        export NOTIFY_HOSTNAME="${config.networking.hostName}"
-        export NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
-        export NOTIFY_KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
-        export NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/basename $(${pkgs.coreutils}/bin/readlink /run/current-system) | ${pkgs.gnused}/bin/sed 's/.*-//')"
-        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
+        NOTIFY_HOSTNAME="${config.networking.hostName}"
+        NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
+        NOTIFY_KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
+        NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/basename $(${pkgs.coreutils}/bin/readlink /run/current-system) | ${pkgs.gnused}/bin/sed 's/.*-//')"
+        NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Wait a bit for network to be fully ready
         sleep 5
 
+        # Set environment variables for the dispatcher service
+        ${pkgs.systemd}/bin/systemctl set-environment \
+          "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME" \
+          "NOTIFY_BOOTTIME=$NOTIFY_BOOTTIME" \
+          "NOTIFY_KERNEL=$NOTIFY_KERNEL" \
+          "NOTIFY_GENERATION=$NOTIFY_GENERATION" \
+          "NOTIFY_UPTIME=$NOTIFY_UPTIME"
+
         # Trigger notification through generic dispatcher
         ${pkgs.systemd}/bin/systemctl start "notify@system-boot:boot.service"
+
+        # Clean up environment variables
+        ${pkgs.systemd}/bin/systemctl unset-environment \
+          NOTIFY_HOSTNAME NOTIFY_BOOTTIME NOTIFY_KERNEL NOTIFY_GENERATION NOTIFY_UPTIME
       '';
     };
 
@@ -96,13 +108,23 @@ System is shutting down gracefully.
 
       script = ''
         # Gather system information
-        export NOTIFY_HOSTNAME="${config.networking.hostName}"
-        export NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
-        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
+        NOTIFY_HOSTNAME="${config.networking.hostName}"
+        NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
+        NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
+
+        # Set environment variables for the dispatcher service
+        ${pkgs.systemd}/bin/systemctl set-environment \
+          "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME" \
+          "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME" \
+          "NOTIFY_UPTIME=$NOTIFY_UPTIME"
 
         # Trigger notification through generic dispatcher
         # Note: Must complete quickly before network shuts down
         ${pkgs.systemd}/bin/systemctl start "notify@system-shutdown:shutdown.service" || true
+
+        # Clean up environment variables
+        ${pkgs.systemd}/bin/systemctl unset-environment \
+          NOTIFY_HOSTNAME NOTIFY_SHUTDOWNTIME NOTIFY_UPTIME || true
       '';
     };
   };
