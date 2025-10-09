@@ -35,7 +35,6 @@ in
 <b>System Info:</b>
 • Kernel: ''${kernel}
 • NixOS Generation: ''${generation}
-• Uptime: ''${uptime}
 
 System is online and ready.
         '';
@@ -91,7 +90,6 @@ System is shutting down gracefully.
         NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
         NOTIFY_KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
         NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/basename $(${pkgs.coreutils}/bin/readlink /run/current-system) | ${pkgs.gnused}/bin/sed 's/.*-//')"
-        NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Wait a bit for network to be fully ready
         sleep 5
@@ -104,7 +102,6 @@ System is shutting down gracefully.
           echo "NOTIFY_BOOTTIME=$NOTIFY_BOOTTIME"
           echo "NOTIFY_KERNEL=$NOTIFY_KERNEL"
           echo "NOTIFY_GENERATION=$NOTIFY_GENERATION"
-          echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
         } > "$ENV_FILE"
         chgrp notify-ipc "$ENV_FILE"
         chmod 640 "$ENV_FILE"
