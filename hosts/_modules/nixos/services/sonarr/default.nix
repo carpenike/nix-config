@@ -111,6 +111,11 @@ in
         default = 3;
         description = "Number of retries before marking as unhealthy.";
       };
+      startPeriod = lib.mkOption {
+        type = lib.types.str;
+        default = "90s";
+        description = "Grace period for the container to initialize before failures are counted.";
+      };
     };
 
     backup = {
@@ -213,6 +218,7 @@ in
         "--health-interval=${cfg.healthcheck.interval}"
         "--health-timeout=${cfg.healthcheck.timeout}"
         "--health-retries=${toString cfg.healthcheck.retries}"
+        "--health-start-period=${cfg.healthcheck.startPeriod}"
       ];
     };
 
