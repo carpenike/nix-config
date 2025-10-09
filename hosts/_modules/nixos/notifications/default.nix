@@ -378,8 +378,7 @@ in
         ENV_FILE="/run/notify/env/$INSTANCE_STRING.env"
         if [ -f "$ENV_FILE" ]; then
           rm -f "$ENV_FILE"
-          # Attempt to remove the parent directory if it's empty
-          rmdir "$(dirname "$ENV_FILE")" 2>/dev/null || true
+          # Note: We don't remove the parent directory as it's managed by tmpfiles
         fi
       '';
     };
