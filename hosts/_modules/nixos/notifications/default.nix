@@ -246,6 +246,10 @@ in
         DynamicUser = true;
         # Join shared group to access /run/notify directory
         SupplementaryGroups = [ "notify-ipc" ];
+        # Allow writes to /run/notify
+        RuntimeDirectory = "notify";
+        RuntimeDirectoryMode = "0770";
+        RuntimeDirectoryPreserve = true;
       };
 
       # Pass %i as command-line argument - systemd expands it in ExecStart directive

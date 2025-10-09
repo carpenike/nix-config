@@ -113,6 +113,10 @@ in
         PrivateTmp = true;
         # Join shared group to read payload files from /run/notify
         SupplementaryGroups = [ "notify-ipc" ];
+        # Allow access to /run/notify
+        RuntimeDirectory = "notify";
+        RuntimeDirectoryMode = "0770";
+        RuntimeDirectoryPreserve = true;
         LoadCredential = [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
@@ -128,26 +132,21 @@ in
 
         INSTANCE="$1"
 
-        # Construct payload file path - use systemd-escape for proper decoding
-        ESCAPED_ID=$(${pkgs.systemd}/bin/systemd-escape "$INSTANCE")
-        PAYLOAD_FILE="/run/notify/$ESCAPED_ID.json"
+        # Construct payload file path and ensure it's cleaned up on exit
+        PAYLOAD_FILE="/run/notify/$(${pkgs.systemd}/bin/systemd-escape "$INSTANCE").json"
+        trap 'rm -f "$PAYLOAD_FILE"' EXIT
+
+        # Verify payload file exists - fail fast if dispatcher didn't create it
+        if [ ! -f "$PAYLOAD_FILE" ]; then
+          echo "[pushover] ERROR: Payload file not found at $PAYLOAD_FILE. Dispatcher may have failed." >&2
+          exit 1
+        fi
 
         # Read and parse JSON payload from shared directory
-        if [ -f "$PAYLOAD_FILE" ]; then
-          JSON=$(cat "$PAYLOAD_FILE")
-          TITLE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.title')
-          MESSAGE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.message')
-          PRIORITY=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.priority // "normal"')
-
-          # Clean up payload file after reading
-          rm -f "$PAYLOAD_FILE"
-        else
-          # Fallback to environment variables (backward compatibility)
-          echo "[pushover] Warning: No payload file found at $PAYLOAD_FILE, using fallback" >&2
-          TITLE="''${NOTIFY_TITLE:-$INSTANCE}"
-          MESSAGE="''${NOTIFY_MESSAGE:-Notification from ${cfg.hostname}}"
-          PRIORITY="''${NOTIFY_PRIORITY:-normal}"
-        fi
+        JSON=$(cat "$PAYLOAD_FILE")
+        TITLE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.title')
+        MESSAGE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.message')
+        PRIORITY=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.priority // "normal"')
 
         URL="''${NOTIFY_URL:-}"
         URL_TITLE="''${NOTIFY_URL_TITLE:-}"
