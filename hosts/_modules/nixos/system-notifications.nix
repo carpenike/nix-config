@@ -88,7 +88,7 @@ System is shutting down gracefully.
       script = ''
         # Gather system information
         NOTIFY_HOSTNAME="${config.networking.hostName}"
-        NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
+        NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
         NOTIFY_KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
         NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/basename $(${pkgs.coreutils}/bin/readlink /run/current-system) | ${pkgs.gnused}/bin/sed 's/.*-//')"
         NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
@@ -132,7 +132,7 @@ System is shutting down gracefully.
       script = ''
         # Gather system information
         NOTIFY_HOSTNAME="${config.networking.hostName}"
-        NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
+        NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
         NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Write environment variables to a file for the dispatcher

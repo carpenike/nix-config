@@ -212,7 +212,7 @@ in
 
         ${mkPushoverScript {
           title = "⚠️ Service Failed";
-          message = "<b>Service $INSTANCE_NAME failed</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')\n\n<b>Status:</b>\n$(${pkgs.systemd}/bin/systemctl status $INSTANCE_NAME --no-pager -l || true)</small>";
+          message = "<b>Service $INSTANCE_NAME failed</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')\n\n<b>Status:</b>\n$(${pkgs.systemd}/bin/systemctl status $INSTANCE_NAME --no-pager -l || true)</small>";
           priority = "high";
           html = true;
         }}
