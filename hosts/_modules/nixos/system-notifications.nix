@@ -57,12 +57,19 @@ System is shutting down gracefully.
 
     # Enable path units for boot/shutdown notifications
     # These watch for payload files and trigger the backend services
+    # Must explicitly define PathExists since we're creating instances, not using the template
     systemd.paths."notify-pushover@system-boot:boot" = mkIf cfg.boot.enable {
       wantedBy = [ "multi-user.target" ];
+      pathConfig = {
+        PathExists = "/run/notify/system-boot:boot.json";
+      };
     };
 
     systemd.paths."notify-pushover@system-shutdown:shutdown" = mkIf cfg.shutdown.enable {
       wantedBy = [ "multi-user.target" ];
+      pathConfig = {
+        PathExists = "/run/notify/system-shutdown:shutdown.json";
+      };
     };
 
     # Boot notification service
@@ -88,20 +95,20 @@ System is shutting down gracefully.
         # Wait a bit for network to be fully ready
         sleep 5
 
-        # Set environment variables for the dispatcher service
-        ${pkgs.systemd}/bin/systemctl set-environment \
-          "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME" \
-          "NOTIFY_BOOTTIME=$NOTIFY_BOOTTIME" \
-          "NOTIFY_KERNEL=$NOTIFY_KERNEL" \
-          "NOTIFY_GENERATION=$NOTIFY_GENERATION" \
-          "NOTIFY_UPTIME=$NOTIFY_UPTIME"
+        # Write environment variables to a file for the dispatcher
+        ENV_FILE="/run/notify/env/system-boot:boot.env"
+        mkdir -p "$(dirname "$ENV_FILE")"
+        {
+          echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
+          echo "NOTIFY_BOOTTIME=$NOTIFY_BOOTTIME"
+          echo "NOTIFY_KERNEL=$NOTIFY_KERNEL"
+          echo "NOTIFY_GENERATION=$NOTIFY_GENERATION"
+          echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
+        } > "$ENV_FILE"
+        chmod 660 "$ENV_FILE"
 
         # Trigger notification through generic dispatcher
         ${pkgs.systemd}/bin/systemctl start "notify@system-boot:boot.service"
-
-        # Clean up environment variables
-        ${pkgs.systemd}/bin/systemctl unset-environment \
-          NOTIFY_HOSTNAME NOTIFY_BOOTTIME NOTIFY_KERNEL NOTIFY_GENERATION NOTIFY_UPTIME
       '';
     };
 
@@ -122,19 +129,19 @@ System is shutting down gracefully.
         NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
         NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
-        # Set environment variables for the dispatcher service
-        ${pkgs.systemd}/bin/systemctl set-environment \
-          "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME" \
-          "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME" \
-          "NOTIFY_UPTIME=$NOTIFY_UPTIME"
+        # Write environment variables to a file for the dispatcher
+        ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
+        mkdir -p "$(dirname "$ENV_FILE")"
+        {
+          echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
+          echo "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME"
+          echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
+        } > "$ENV_FILE"
+        chmod 660 "$ENV_FILE"
 
         # Trigger notification through generic dispatcher
         # Note: Must complete quickly before network shuts down
         ${pkgs.systemd}/bin/systemctl start "notify@system-shutdown:shutdown.service" || true
-
-        # Clean up environment variables
-        ${pkgs.systemd}/bin/systemctl unset-environment \
-          NOTIFY_HOSTNAME NOTIFY_SHUTDOWNTIME NOTIFY_UPTIME || true
       '';
     };
   };

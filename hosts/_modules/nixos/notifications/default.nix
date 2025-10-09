@@ -256,6 +256,9 @@ in
         # DynamicUser enables ProtectSystem=strict by default, making most paths read-only
         # Explicitly allow writes to /run/notify for IPC
         ReadWritePaths = [ "/run/notify" ];
+        # Load environment variables from instance-specific file
+        # The '-' prefix makes this optional, preventing errors if file doesn't exist
+        EnvironmentFile = "-/run/notify/env/%i.env";
       };
 
       # Pass %i as command-line argument - systemd expands it in ExecStart directive
@@ -369,6 +372,14 @@ in
 
         echo "[notify] Payload created at $PAYLOAD_FILE"
         echo "[notify] Backend services will be triggered automatically by .path units"
+
+        # Clean up the environment file now that it has been consumed
+        ENV_FILE="/run/notify/env/$INSTANCE_STRING.env"
+        if [ -f "$ENV_FILE" ]; then
+          rm -f "$ENV_FILE"
+          # Attempt to remove the parent directory if it's empty
+          rmdir "$(dirname "$ENV_FILE")" 2>/dev/null || true
+        fi
       '';
     };
 
