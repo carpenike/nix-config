@@ -333,34 +333,41 @@ in
         echo "[notify] Priority: $PRIORITY"
         echo "[notify] Backend: $BACKEND"
 
+        # Escape the instance string for use in systemd unit names
+        ESCAPED_INSTANCE=$(systemd-escape "$TEMPLATE_NAME:$INSTANCE_INFO")
+
         # Dispatch to enabled backend(s)
         ${lib.optionalString cfg.pushover.enable ''
           if [ "$BACKEND" == "pushover" ] || [ "$BACKEND" == "all" ]; then
             echo "[notify] Dispatching to Pushover..."
-            # Call pushover notification service
-            systemctl start "notify-pushover@$TEMPLATE_NAME:$INSTANCE_INFO.service" \
-              --setenv=NOTIFY_TITLE="$TITLE" \
-              --setenv=NOTIFY_MESSAGE="$BODY" \
-              --setenv=NOTIFY_PRIORITY="$PRIORITY" || true
+            # Use systemd-run with --unit to start the service template directly
+            # This correctly passes environment variables to the backend service
+            systemd-run --no-block --quiet --collect \
+              --unit="notify-pushover@$ESCAPED_INSTANCE.service" \
+              --setenv="NOTIFY_TITLE=$TITLE" \
+              --setenv="NOTIFY_MESSAGE=$BODY" \
+              --setenv="NOTIFY_PRIORITY=$PRIORITY" || true
           fi
         ''}
 
         ${lib.optionalString cfg.ntfy.enable ''
           if [ "$BACKEND" == "ntfy" ] || [ "$BACKEND" == "all" ]; then
             echo "[notify] Dispatching to ntfy..."
-            # Call ntfy notification service
-            systemctl start "notify-ntfy@$TEMPLATE_NAME:$INSTANCE_INFO.service" \
-              --setenv=NOTIFY_TITLE="$TITLE" \
-              --setenv=NOTIFY_MESSAGE="$BODY" \
-              --setenv=NOTIFY_PRIORITY="$PRIORITY" || true
+            # Use systemd-run with --unit to start the service template directly
+            systemd-run --no-block --quiet --collect \
+              --unit="notify-ntfy@$ESCAPED_INSTANCE.service" \
+              --setenv="NOTIFY_TITLE=$TITLE" \
+              --setenv="NOTIFY_MESSAGE=$BODY" \
+              --setenv="NOTIFY_PRIORITY=$PRIORITY" || true
           fi
         ''}
 
         ${lib.optionalString cfg.healthchecks.enable ''
           if [ "$BACKEND" == "healthchecks" ] || [ "$BACKEND" == "all" ]; then
             echo "[notify] Dispatching to Healthchecks.io..."
-            # Call healthchecks notification service
-            systemctl start "notify-healthchecks@$TEMPLATE_NAME:$INSTANCE_INFO.service" || true
+            # Healthchecks doesn't need dynamic parameters
+            ESCAPED_HC=$(systemd-escape "$TEMPLATE_NAME:$INSTANCE_INFO")
+            systemctl start "notify-healthchecks@$ESCAPED_HC.service" || true
           fi
         ''}
 

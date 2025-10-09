@@ -51,15 +51,15 @@ let
     while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
       HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /tmp/pushover-response.json \
         --max-time "$TIMEOUT" \
-        --form-string "token=$PUSHOVER_TOKEN" \
-        --form-string "user=$PUSHOVER_USER" \
-        --form-string "title=${title}" \
-        --form-string "message=${message}" \
-        --form-string "priority=$PRIORITY" \
-        ${lib.optionalString html ''--form-string "html=1"''} \
-        ${lib.optionalString (url != null) ''--form-string "url=${url}"''} \
-        ${lib.optionalString (urlTitle != null) ''--form-string "url_title=${urlTitle}"''} \
-        ${lib.optionalString (device != null || pushoverCfg.defaultDevice != null) ''--form-string "device=''${DEVICE:-}"''} \
+        --data-urlencode "token=$PUSHOVER_TOKEN" \
+        --data-urlencode "user=$PUSHOVER_USER" \
+        --data-urlencode "title=${title}" \
+        --data-urlencode "message=${message}" \
+        --data-urlencode "priority=$PRIORITY" \
+        ${lib.optionalString html ''--data-urlencode "html=1"''} \
+        ${lib.optionalString (url != null) ''--data-urlencode "url=${url}"''} \
+        ${lib.optionalString (urlTitle != null) ''--data-urlencode "url_title=${urlTitle}"''} \
+        ${lib.optionalString (device != null || pushoverCfg.defaultDevice != null) ''--data-urlencode "device=''${DEVICE:-}"''} \
         "https://api.pushover.net/1/messages.json" || echo "000")
 
       if [ "$HTTP_CODE" = "200" ]; then
