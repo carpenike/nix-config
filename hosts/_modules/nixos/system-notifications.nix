@@ -135,8 +135,10 @@ System is shutting down gracefully.
         in pkgs.writeShellScript "notify-shutdown" ''
           set -euo pipefail
 
-          # Debug: Log to stderr (captured by systemd journal)
+          # Debug: Log to both stderr and a persistent file
+          LOGFILE="/persist/var/log/shutdown-notify-debug.log"
           echo "[SHUTDOWN-NOTIFY] ExecStop started at $(${pkgs.coreutils}/bin/date)" >&2
+          echo "[SHUTDOWN-NOTIFY] ExecStop started at $(${pkgs.coreutils}/bin/date)" >> "$LOGFILE"
 
           # Gather system information
           HOSTNAME="${config.networking.hostName}"
@@ -156,10 +158,12 @@ System is shutting down gracefully."
           # Read Pushover credentials directly from sops secret files
           # LoadCredential doesn't work during shutdown due to permission issues
           echo "[SHUTDOWN-NOTIFY] Reading credentials..." >&2
+          echo "[SHUTDOWN-NOTIFY] Reading credentials..." >> "$LOGFILE"
           PUSHOVER_TOKEN=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.tokenFile})
           PUSHOVER_USER=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.userKeyFile})
 
           echo "[SHUTDOWN-NOTIFY] Sending notification to Pushover..." >&2
+          echo "[SHUTDOWN-NOTIFY] Sending notification to Pushover..." >> "$LOGFILE"
 
           # Send notification directly (cannot start services during shutdown)
           HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /dev/null \
@@ -173,6 +177,7 @@ System is shutting down gracefully."
             "https://api.pushover.net/1/messages.json" || echo "000")
 
           echo "[SHUTDOWN-NOTIFY] HTTP response: $HTTP_CODE" >&2
+          echo "[SHUTDOWN-NOTIFY] HTTP response: $HTTP_CODE" >> "$LOGFILE"
 
           # Return success even if notification fails (don't block shutdown)
           exit 0
