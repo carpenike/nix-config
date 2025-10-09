@@ -97,7 +97,14 @@ System is shutting down gracefully.
         sleep 5
 
         # Write environment variables to a file for the dispatcher
-        # Directory is created by RuntimeDirectory with proper group ownership
+        # Directory is created by tmpfiles with proper group ownership
+        # Ensure directory exists (handles new deployments before first reboot)
+        if [ ! -d /run/notify/env ]; then
+          mkdir -p /run/notify/env
+          chgrp notify-ipc /run/notify/env
+          chmod 770 /run/notify/env
+        fi
+
         ENV_FILE="/run/notify/env/system-boot:boot.env"
         {
           echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
@@ -134,6 +141,13 @@ System is shutting down gracefully.
 
         # Write environment variables to a file for the dispatcher
         # Directory is created by tmpfiles with proper group ownership
+        # Ensure directory exists (handles new deployments before first reboot)
+        if [ ! -d /run/notify/env ]; then
+          mkdir -p /run/notify/env
+          chgrp notify-ipc /run/notify/env
+          chmod 770 /run/notify/env
+        fi
+
         ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
         {
           echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
