@@ -1,3 +1,15 @@
+# ⚠️ DEPRECATED: This file is no longer used and will be removed in a future update
+#
+# This module has been replaced by helpers-lib.nix which uses a pure function
+# approach to avoid circular dependencies. The mkPreseedService function has
+# been moved to helpers-lib.nix and is imported directly in service modules.
+#
+# Migration: Import helpers-lib.nix directly instead of using this module:
+#   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+#
+# Last Updated: 2025-10-09
+# Deprecated By: helpers-lib.nix (pure function implementation)
+# Status: Safe to delete - no longer imported in default.nix
 {
   pkgs,
   lib,
@@ -7,6 +19,8 @@
 let
   storageHelpers = {
     /*
+      ⚠️ DEPRECATED: Use helpers-lib.nix instead
+
       Generates a systemd service to pre-seed a service's data directory.
 
       This service runs before the main application service starts. It checks if the
@@ -105,10 +119,16 @@ let
           # Step 3: Attempt Restic restore (slower, from remote)
           echo "Attempting Restic restore from repository '${resticRepoUrl}'..."
 
+          ${lib.optionalString (resticEnvironmentFile != null) ''
+            # Source environment file for restic credentials
+            set -a
+            . "${resticEnvironmentFile}"
+            set +a
+          ''}
+
           RESTIC_ARGS=(
             -r "${resticRepoUrl}"
             --password-file "${resticPasswordFile}"
-            ${lib.optionalString (resticEnvironmentFile != null) "--env-file ${resticEnvironmentFile}"}
             restore latest
             --target "${mountpoint}"
             ${lib.concatMapStringsSep " " (path: "--path \"${path}\"") resticPaths}
