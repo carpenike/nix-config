@@ -29,15 +29,15 @@ in
         backend = mkDefault "pushover";
         title = mkDefault ''<b><font color="green">🚀 System Boot</font></b>'';
         body = mkDefault ''
-          <b>Host:</b> ''${hostname}
-          <b>Time:</b> ''${boottime}
+<b>Host:</b> ''${hostname}
+<b>Time:</b> ''${boottime}
 
-          <b>System Info:</b>
-          • Kernel: <code>''${kernel}</code>
-          • NixOS Generation: <code>''${generation}</code>
-          • Uptime: ''${uptime}
+<b>System Info:</b>
+• Kernel: ''${kernel}
+• NixOS Generation: ''${generation}
+• Uptime: ''${uptime}
 
-          System is online and ready.
+System is online and ready.
         '';
       };      system-shutdown = {
         enable = mkDefault cfg.shutdown.enable;
@@ -45,12 +45,12 @@ in
         backend = mkDefault "pushover";
         title = mkDefault ''<b><font color="orange">⏸️ System Shutdown</font></b>'';
         body = mkDefault ''
-          <b>Host:</b> ''${hostname}
-          <b>Time:</b> ''${shutdowntime}
+<b>Host:</b> ''${hostname}
+<b>Time:</b> ''${shutdowntime}
 
-          <b>Uptime:</b> ''${uptime}
+<b>Uptime:</b> ''${uptime}
 
-          System is shutting down gracefully.
+System is shutting down gracefully.
         '';
       };
     };

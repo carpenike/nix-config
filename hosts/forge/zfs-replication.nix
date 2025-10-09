@@ -10,19 +10,19 @@
         backend = lib.mkDefault "pushover";
         title = lib.mkDefault ''<b><font color="red">✗ ZFS Replication Failed</font></b>'';
         body = lib.mkDefault ''
-          <b>Dataset:</b> <code>''${dataset}</code>
-          <b>Target:</b> <code>nas-1.holthome.net</code>
+<b>Dataset:</b> ''${dataset}
+<b>Target:</b> nas-1.holthome.net
 
-          <b>Error:</b>
-          <code>''${errorMessage}</code>
+<b>Error:</b>
+''${errorMessage}
 
-          <b>Actions:</b>
-          1. Check Syncoid status:
-             <code>systemctl status syncoid-''${dataset}</code>
-          2. Test SSH connection:
-             <code>ssh zfs-replication@nas-1 'zfs list'</code>
-          3. Check recent snapshots:
-             <code>zfs list -t snapshot | grep ''${dataset}</code>
+<b>Actions:</b>
+1. Check Syncoid status:
+   systemctl status syncoid-''${dataset}
+2. Test SSH connection:
+   ssh zfs-replication@nas-1 'zfs list'
+3. Check recent snapshots:
+   zfs list -t snapshot | grep ''${dataset}
         '';
       };
 
@@ -32,19 +32,19 @@
         backend = lib.mkDefault "pushover";
         title = lib.mkDefault ''<b><font color="red">✗ ZFS Snapshot Failed</font></b>'';
         body = lib.mkDefault ''
-          <b>Dataset:</b> <code>''${dataset}</code>
-          <b>Host:</b> ''${hostname}
+<b>Dataset:</b> ''${dataset}
+<b>Host:</b> ''${hostname}
 
-          <b>Error:</b>
-          <code>''${errorMessage}</code>
+<b>Error:</b>
+''${errorMessage}
 
-          <b>Actions:</b>
-          1. Check Sanoid status:
-             <code>systemctl status sanoid</code>
-          2. Check ZFS pool health:
-             <code>zpool status -v</code>
-          3. Review Sanoid logs:
-             <code>journalctl -u sanoid -n 50</code>
+<b>Actions:</b>
+1. Check Sanoid status:
+   systemctl status sanoid
+2. Check ZFS pool health:
+   zpool status -v
+3. Review Sanoid logs:
+   journalctl -u sanoid -n 50
         '';
       };
 
@@ -54,24 +54,24 @@
         backend = lib.mkDefault "pushover";
         title = lib.mkDefault ''<b><font color="red">🚨 URGENT: ZFS Pool Degraded</font></b>'';
         body = lib.mkDefault ''
-          <b>Pool:</b> <code>''${pool}</code>
-          <b>Host:</b> ''${hostname}
-          <b>State:</b> <font color=\"red\">''${state}</font>
+<b>Pool:</b> ''${pool}
+<b>Host:</b> ''${hostname}
+<b>State:</b> <font color="red">''${state}</font>
 
-          <b>Pool Status:</b>
-          <code>''${status}</code>
+<b>Pool Status:</b>
+''${status}
 
-          <b>⚠️ IMMEDIATE ACTIONS REQUIRED:</b>
-          1. Check pool status:
-             <code>zpool status -v ''${pool}</code>
-          2. Identify failed devices:
-             <code>zpool list -v ''${pool}</code>
-          3. Check system logs:
-             <code>journalctl -u zfs-import.target -n 100</code>
-          4. If device failed, replace and resilver:
-             <code>zpool replace ''${pool} &lt;old_device&gt; &lt;new_device&gt;</code>
+<b>⚠️ IMMEDIATE ACTIONS REQUIRED:</b>
+1. Check pool status:
+   zpool status -v ''${pool}
+2. Identify failed devices:
+   zpool list -v ''${pool}
+3. Check system logs:
+   journalctl -u zfs-import.target -n 100
+4. If device failed, replace and resilver:
+   zpool replace ''${pool} <old_device> <new_device>
 
-          ⚠️ Data redundancy is compromised. Do NOT ignore this alert.
+⚠️ Data redundancy is compromised. Do NOT ignore this alert.
         '';
       };
     };
