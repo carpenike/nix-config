@@ -118,9 +118,6 @@ System is shutting down gracefully.
     systemd.services.notify-shutdown = mkIf cfg.shutdown.enable {
       description = "Send system shutdown notification";
 
-      # Remove default dependencies for full control over shutdown ordering
-      defaultDependencies = false;
-
       wantedBy = [ "multi-user.target" ];
       # Run before network shuts down during shutdown sequence
       before = [ "network-pre.target" "shutdown.target" ];
@@ -128,6 +125,8 @@ System is shutting down gracefully.
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        # Remove default dependencies for full control over shutdown ordering
+        DefaultDependencies = false;
 
         # At boot: do nothing, just enter active (exited) state
         ExecStart = "${pkgs.coreutils}/bin/true";
