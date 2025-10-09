@@ -120,6 +120,10 @@ System is shutting down gracefully.
         RemainAfterExit = true;
         # Disable default dependencies for full control over shutdown ordering
         DefaultDependencies = false;
+        # Ensure the ExecStop script isn't killed before completion
+        KillMode = "none";
+        # Give it plenty of time to send the notification
+        TimeoutStopSec = "30s";
 
         # At boot: do nothing, just enter active (exited) state
         ExecStart = "${pkgs.coreutils}/bin/true";
@@ -130,6 +134,9 @@ System is shutting down gracefully.
           pushoverCfg = config.modules.notifications.pushover;
         in pkgs.writeShellScript "notify-shutdown" ''
           set -euo pipefail
+
+          # Debug: Log to stderr (captured by systemd journal)
+          echo "[SHUTDOWN-NOTIFY] ExecStop started at $(${pkgs.coreutils}/bin/date)" >&2
 
           # Gather system information
           HOSTNAME="${config.networking.hostName}"
@@ -148,11 +155,14 @@ System is shutting down gracefully."
 
           # Read Pushover credentials directly from sops secret files
           # LoadCredential doesn't work during shutdown due to permission issues
+          echo "[SHUTDOWN-NOTIFY] Reading credentials..." >&2
           PUSHOVER_TOKEN=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.tokenFile})
           PUSHOVER_USER=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.userKeyFile})
 
+          echo "[SHUTDOWN-NOTIFY] Sending notification to Pushover..." >&2
+
           # Send notification directly (cannot start services during shutdown)
-          ${pkgs.curl}/bin/curl -s -o /dev/null \
+          HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /dev/null \
             --max-time 10 \
             --data-urlencode "token=$PUSHOVER_TOKEN" \
             --data-urlencode "user=$PUSHOVER_USER" \
@@ -160,7 +170,12 @@ System is shutting down gracefully."
             --data-urlencode "message=$MESSAGE" \
             --data-urlencode "priority=-1" \
             --data-urlencode "html=1" \
-            "https://api.pushover.net/1/messages.json" || true
+            "https://api.pushover.net/1/messages.json" || echo "000")
+
+          echo "[SHUTDOWN-NOTIFY] HTTP response: $HTTP_CODE" >&2
+
+          # Return success even if notification fails (don't block shutdown)
+          exit 0
         '';
       };
     };
