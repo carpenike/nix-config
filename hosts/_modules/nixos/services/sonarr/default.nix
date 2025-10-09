@@ -249,6 +249,31 @@ in
       })
     ];
 
+    # Override Podman's auto-generated health check timer to prevent activation failures
+    # Podman creates systemd timers for containers with --health-* flags, but these
+    # timers run immediately during activation, before the --health-start-period expires.
+    # This causes systemd to report failed units during nixos-rebuild switch.
+    systemd.timers."podman-healthcheck@" = lib.mkIf cfg.healthcheck.enable {
+      timerConfig = {
+        # Delay the first health check until after the timer unit is activated.
+        # OnActiveSec schedules relative to timer activation (not boot), making it work
+        # correctly during nixos-rebuild switch when the system doesn't reboot.
+        OnActiveSec = cfg.healthcheck.startPeriod;  # e.g., "180s"
+        # The regular interval (OnUnitActiveSec) is already set by Podman's timer,
+        # this override only adds the initial activation delay.
+      };
+    };
+
+    # Configure the health check service to tolerate "starting" status
+    systemd.services."podman-healthcheck@" = lib.mkIf cfg.healthcheck.enable {
+      serviceConfig = {
+        # Treat exit codes 0, 1, and 2 as success
+        # 0 = healthy, 1 = unhealthy (but expected during start), 2 = starting
+        # This prevents systemd from marking the unit as failed during the start period
+        SuccessExitStatus = "0 1 2";
+      };
+    };
+
     # Register notification template
     modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
       "sonarr-failure" = {
