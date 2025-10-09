@@ -154,7 +154,7 @@ in
             recursive = true;  # Snapshot all child datasets (sonarr, radarr, etc.)
             replication = {
               targetHost = "nas-1.holthome.net";
-              targetDataset = "tank/backup/forge/services";
+              targetDataset = "backup/forge/services";
               sendOptions = "w";
               recvOptions = "u";
             };
