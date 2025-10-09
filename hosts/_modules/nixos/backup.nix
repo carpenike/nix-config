@@ -654,11 +654,17 @@ with lib;
               echo "Starting repository integrity check for ${repoName}..."
               START_TIME=$(date +%s)
 
+              ${optionalString (repoConfig.environmentFile != null) ''
+                # Source environment file for restic credentials
+                set -a
+                . "${repoConfig.environmentFile}"
+                set +a
+              ''}
+
               # Run repository check
               CHECK_ARGS=(
                 -r "${repoConfig.url}"
                 --password-file "${repoConfig.passwordFile}"
-                ${optionalString (repoConfig.environmentFile != null) "--env-file ${repoConfig.environmentFile}"}
                 check
                 ${optionalString cfg.verification.checkData "--read-data"}
                 ${optionalString (!cfg.verification.checkData) "--read-data-subset=${cfg.verification.checkDataSubset}"}
@@ -762,10 +768,16 @@ EOF
               TEST_DIR="${cfg.restoreTesting.testDir}/${repoName}-$(date +%Y%m%d-%H%M%S)"
               mkdir -p "$TEST_DIR"
 
+              ${optionalString (repoConfig.environmentFile != null) ''
+                # Source environment file for restic credentials
+                set -a
+                . "${repoConfig.environmentFile}"
+                set +a
+              ''}
+
               # Get list of snapshots
               SNAPSHOTS=$(restic -r "${repoConfig.url}" \
                 --password-file "${repoConfig.passwordFile}" \
-                ${optionalString (repoConfig.environmentFile != null) "--env-file ${repoConfig.environmentFile}"} \
                 snapshots --json)
 
               if [ -z "$SNAPSHOTS" ] || [ "$SNAPSHOTS" = "[]" ]; then
@@ -780,7 +792,6 @@ EOF
               # List files in snapshot and select random samples
               FILES_JSON=$(restic -r "${repoConfig.url}" \
                 --password-file "${repoConfig.passwordFile}" \
-                ${optionalString (repoConfig.environmentFile != null) "--env-file ${repoConfig.environmentFile}"} \
                 ls "$LATEST_SNAPSHOT" --json)
 
               # Select random files for testing
@@ -801,7 +812,6 @@ EOF
                   echo "Restoring file: $file"
                   if restic -r "${repoConfig.url}" \
                     --password-file "${repoConfig.passwordFile}" \
-                    ${optionalString (repoConfig.environmentFile != null) "--env-file ${repoConfig.environmentFile}"} \
                     restore "$LATEST_SNAPSHOT" --target "$TEST_DIR" --include "$file"; then
                     RESTORED_COUNT=$((RESTORED_COUNT + 1))
                   else
@@ -1674,11 +1684,17 @@ EOF
                   exit 1
                 fi
 
+                ${optionalString (repo.environmentFile != null) ''
+                  # Source environment file for restic credentials
+                  set -a
+                  . "${repo.environmentFile}"
+                  set +a
+                ''}
+
                 # Test repository connectivity
                 timeout ${toString cfg.validation.preFlightChecks.networkTimeout} ${pkgs.restic}/bin/restic \
                   -r "${repo.url}" \
                   --password-file "${repo.passwordFile}" \
-                  ${optionalString (repo.environmentFile != null) "--env-file ${repo.environmentFile}"} \
                   snapshots --latest 1 > /dev/null || {
                   echo "ERROR: Cannot connect to repository ${repo.url}"
                   exit 1

@@ -103,10 +103,16 @@
         # Step 3: Attempt Restic restore (slower, from remote)
         echo "Attempting Restic restore from repository '${resticRepoUrl}'..."
 
+        ${lib.optionalString (resticEnvironmentFile != null) ''
+          # Source environment file for restic credentials
+          set -a
+          . "${resticEnvironmentFile}"
+          set +a
+        ''}
+
         RESTIC_ARGS=(
           -r "${resticRepoUrl}"
           --password-file "${resticPasswordFile}"
-          ${lib.optionalString (resticEnvironmentFile != null) "--env-file ${resticEnvironmentFile}"}
           restore latest
           --target "${mountpoint}"
         )
