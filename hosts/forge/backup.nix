@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, primaryRepo, ... }:
 
 {
   config = {
@@ -74,10 +74,12 @@
         };
 
         # Define backup repositories
+        # Note: Repository details are passed via _module.args.primaryRepo from default.nix
+        # This ensures a single source of truth for repository configuration.
         repositories = {
-          nas-primary = {
-            url = "/mnt/nas-backup";
-            passwordFile = config.sops.secrets."restic/password".path;
+          ${primaryRepo.name} = {
+            url = primaryRepo.url;
+            passwordFile = primaryRepo.passwordFile;
             primary = true;
           };
         };
@@ -86,7 +88,7 @@
         jobs = {
           system = {
             enable = true;
-            repository = "nas-primary";
+            repository = primaryRepo.name;
             paths = [
               "/home"
               "/persist"
@@ -117,7 +119,7 @@
 
           nix-store = {
             enable = false;  # Optional: enable if you want to backup Nix store
-            repository = "nas-primary";
+            repository = primaryRepo.name;
             paths = [ "/nix" ];
             tags = [ "nix" "forge" ];
             resources = {

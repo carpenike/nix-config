@@ -121,9 +121,9 @@ in
     backup = {
       enable = lib.mkEnableOption "backup for Sonarr data";
       repository = lib.mkOption {
-        type = lib.types.str;
-        default = "nas-primary";
-        description = "Name of the Restic repository to use for backups.";
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Name of the Restic repository to use for backups. Should reference primaryRepo.name from host config.";
       };
     };
 
@@ -157,9 +157,17 @@ in
           assertion = nfsMountConfig != null;
           message = "Sonarr nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
         })
+        ++ (lib.optional cfg.backup.enable {
+          assertion = cfg.backup.repository != null;
+          message = "Sonarr backup.enable requires backup.repository to be set (use primaryRepo.name from host config).";
+        })
         ++ (lib.optional cfg.preseed.enable {
           assertion = cfg.preseed.repositoryUrl != "";
           message = "Sonarr preseed.enable requires preseed.repositoryUrl to be set.";
+        })
+        ++ (lib.optional cfg.preseed.enable {
+          assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
+          message = "Sonarr preseed.enable requires preseed.passwordFile to be set.";
         });
 
     # Automatically set mediaDir from the NFS mount configuration

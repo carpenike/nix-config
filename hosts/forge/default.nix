@@ -7,6 +7,18 @@
 }:
 let
   ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
+
+  # Centralized backup repository configuration
+  # This is the single source of truth for the primary backup repository.
+  # Referenced by:
+  #   - backup.nix: nas-primary repository definition
+  #   - Service preseed features: to restore from the same repository
+  # Maintaining this in one place ensures consistency and simplifies updates.
+  primaryRepo = {
+    name = "nas-primary";
+    url = "/mnt/nas-backup";
+    passwordFile = config.sops.secrets."restic/password".path;
+  };
 in
 {
   imports = [
@@ -21,6 +33,9 @@ in
   ];
 
   config = {
+    # Pass primaryRepo to modules via _module.args (following the podmanLib pattern)
+    _module.args.primaryRepo = primaryRepo;
+
     # Primary IP for DNS record generation
     my.hostIp = "10.20.0.30";
 
@@ -202,15 +217,18 @@ in
         # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
         nfsMountDependency = "media";  # Use shared NFS mount and auto-configure mediaDir
         healthcheck.enable = true;  # Enable container health monitoring
-        backup.enable = true;  # Enable Restic backups
+        backup = {
+          enable = true;
+          repository = primaryRepo.name;  # Reference centralized repository name
+        };
         notifications.enable = true;  # Enable failure notifications
         preseed = {
           enable = true;  # Enable self-healing restore
           # Pass repository config explicitly to avoid circular dependency
           # (preseed needs backup config, but sonarr also defines a backup job)
-          # These values must match the backup.nix repository configuration
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
+          # Uses centralized primaryRepo configuration (defined in let block above)
+          repositoryUrl = primaryRepo.url;
+          passwordFile = primaryRepo.passwordFile;
           # environmentFile not needed for local filesystem repository
         };
       };        # TODO: Add additional services as needed
