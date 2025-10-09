@@ -78,10 +78,23 @@ in
       # forge uses the tank pool (2x NVME) for service data
       # tank/services acts as a logical parent (not mounted)
       # Individual services mount to standard FHS paths
-      storage.datasets = {
-        enable = true;
-        parentDataset = "tank/services";
-        parentMount = "/srv";  # Fallback for services without explicit mountpoint
+      storage = {
+        datasets = {
+          enable = true;
+          parentDataset = "tank/services";
+          parentMount = "/srv";  # Fallback for services without explicit mountpoint
+        };
+
+        # Shared NFS mount for media access from NAS
+        nfsMounts.media = {
+          enable = true;
+          server = "nas.holthome.net";
+          remotePath = "/mnt/tank/share";
+          localPath = "/mnt/media";  # Use /mnt to avoid conflict with tank/media at /srv/media
+          group = "media";
+          mode = "0775";  # Allow group write access
+          mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
+        };
       };
 
       system.impermanence.enable = true;
@@ -112,17 +125,15 @@ in
       services = {
         openssh.enable = true;
 
-        # Media management services
-        sonarr = {
-          enable = true;
-          # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
-          # mediaDir defaults to /mnt/media (NFS mount)
-          healthcheck.enable = true;  # Enable container health monitoring
-          backup.enable = true;  # Enable Restic backups
-          notifications.enable = true;  # Enable failure notifications
-        };
-
-        # TODO: Add additional services as needed
+      # Media management services
+      sonarr = {
+        enable = true;
+        # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
+        nfsMountDependency = "media";  # Use shared NFS mount and auto-configure mediaDir
+        healthcheck.enable = true;  # Enable container health monitoring
+        backup.enable = true;  # Enable Restic backups
+        notifications.enable = true;  # Enable failure notifications
+      };        # TODO: Add additional services as needed
         # Example service configurations can be copied from luna when ready
       };
 
@@ -133,6 +144,10 @@ in
             members = [
               "ryan"
             ];
+          };
+          # Shared media group for *arr services NFS access
+          media = {
+            gid = 65537;  # High GID to avoid conflicts
           };
         };
       };

@@ -17,7 +17,7 @@
     ./monitoring.nix
     ./notifications
     ./system-notifications.nix
-    ./storage/datasets.nix
+    ./storage  # Import storage module (includes datasets.nix and nfs-mounts.nix)
   ];
 
   documentation.nixos.enable = false;

@@ -9,6 +9,13 @@ let
   notificationsCfg = config.modules.notifications;
   hasCentralizedNotifications = notificationsCfg.enable or false;
   sonarrPort = 8989;
+
+  # Look up the NFS mount configuration if a dependency is declared
+  nfsMountName = cfg.nfsMountDependency;
+  nfsMountConfig =
+    if nfsMountName != null
+    then config.modules.storage.nfsMounts.${nfsMountName} or null
+    else null;
 in
 {
   options.modules.services.sonarr = {
@@ -32,10 +39,21 @@ in
       description = "Group ID to own the data directory";
     };
 
+    # This option is now automatically configured by nfsMountDependency
     mediaDir = lib.mkOption {
       type = lib.types.path;
-      default = "/mnt/media";
-      description = "Path to media library (typically NFS mount)";
+      default = "/mnt/media"; # Kept for standalone use, but will be overridden
+      description = "Path to media library. Set automatically by nfsMountDependency.";
+    };
+
+    nfsMountDependency = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the NFS mount defined in `modules.storage.nfsMounts` to use for media.
+        This will automatically set `mediaDir` and systemd dependencies.
+      '';
+      example = "media";
     };
 
     mediaGroup = lib.mkOption {
@@ -103,6 +121,15 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Validate NFS mount dependency if specified
+    assertions = lib.optional (nfsMountName != null) {
+      assertion = nfsMountConfig != null;
+      message = "Sonarr nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
+    };
+
+    # Automatically set mediaDir from the NFS mount configuration
+    modules.services.sonarr.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
+
     # Declare dataset requirements for per-service ZFS isolation
     # This integrates with the storage.datasets module to automatically
     # create tank/services/sonarr with appropriate ZFS properties
@@ -126,17 +153,13 @@ in
       group = "sonarr";
       isSystemUser = true;
       description = "Sonarr service user";
-      extraGroups = [ cfg.mediaGroup ]; # Add to media group for NFS access
+      # Add to media group for NFS access if dependency is set
+      extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
     };
 
     users.groups.sonarr = {
       gid = lib.mkDefault (lib.toInt cfg.group);
-    };
-
-    # Ensure the media group exists
-    users.groups.${cfg.mediaGroup} = { };
-
-    # Sonarr container configuration
+    };    # Sonarr container configuration
     virtualisation.oci-containers.containers.sonarr = podmanLib.mkContainer "sonarr" {
       image = "lscr.io/linuxserver/sonarr:latest";
       environment = {
@@ -163,10 +186,17 @@ in
       ];
     };
 
-    # Add failure notifications via systemd
-    systemd.services."${config.virtualisation.oci-containers.backend}-sonarr".unitConfig = lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
-      OnFailure = [ "notify@sonarr-failure:%n.service" ];
-    };
+    # Add systemd dependencies for the NFS mount
+    systemd.services."${config.virtualisation.oci-containers.backend}-sonarr" = lib.mkMerge [
+      (lib.mkIf (nfsMountConfig != null) {
+        requires = [ nfsMountConfig.mountUnitName ];
+        after = [ nfsMountConfig.mountUnitName ];
+      })
+      # Add failure notifications via systemd
+      (lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
+        unitConfig.OnFailure = [ "notify@sonarr-failure:%n.service" ];
+      })
+    ];
 
     # Register notification template
     modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
