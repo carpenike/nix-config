@@ -32,6 +32,8 @@ in
 <b>Host:</b> ''${hostname}
 <b>Time:</b> ''${boottime}
 
+<b>Boot Status:</b> ''${boot_status}
+
 <b>System Info:</b>
 • Kernel: ''${kernel}
 • NixOS Generation: ''${generation}
@@ -81,6 +83,21 @@ System is shutting down gracefully.
       };
 
       script = ''
+        # Check for graceful shutdown marker
+        MARKER_FILE="/persist/var/lib/shutdown-marker/clean"
+        if [ -f "$MARKER_FILE" ]; then
+          NOTIFY_BOOT_STATUS="✅ Clean boot (graceful shutdown)"
+          # Clean up the marker so next boot is considered unclean by default
+          rm "$MARKER_FILE"
+        else
+          # Check if ZFS had to recover (additional confirmation of dirty boot)
+          if ${pkgs.systemd}/bin/journalctl -b 0 --no-pager | ${pkgs.gnugrep}/bin/grep -qi "zfs.*import"; then
+            NOTIFY_BOOT_STATUS="⚠️ Unclean boot (crash/power loss - ZFS recovery)"
+          else
+            NOTIFY_BOOT_STATUS="⚠️ Unclean boot (crash/power loss)"
+          fi
+        fi
+
         # Gather system information
         NOTIFY_HOSTNAME="${config.networking.hostName}"
         NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
@@ -98,12 +115,29 @@ System is shutting down gracefully.
           echo "NOTIFY_BOOTTIME=$NOTIFY_BOOTTIME"
           echo "NOTIFY_KERNEL=$NOTIFY_KERNEL"
           echo "NOTIFY_GENERATION=$NOTIFY_GENERATION"
+          echo "NOTIFY_BOOT_STATUS=$NOTIFY_BOOT_STATUS"
         } > "$ENV_FILE"
         chgrp notify-ipc "$ENV_FILE"
         chmod 640 "$ENV_FILE"
 
         # Trigger notification through generic dispatcher
         ${pkgs.systemd}/bin/systemctl start "notify@system-boot:boot.service"
+      '';
+    };
+
+    # Graceful shutdown marker service
+    # Creates a flag file late in shutdown to indicate graceful shutdown
+    systemd.services.graceful-shutdown-marker = mkIf cfg.shutdown.enable {
+      description = "Create marker for graceful shutdown";
+      wantedBy = [ "shutdown.target" ];
+      before = [ "shutdown.target" "umount.target" "final.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        DefaultDependencies = false;
+      };
+      script = ''
+        mkdir -p /persist/var/lib/shutdown-marker
+        touch /persist/var/lib/shutdown-marker/clean
       '';
     };
 
@@ -139,11 +173,6 @@ System is shutting down gracefully.
         in pkgs.writeShellScript "notify-shutdown" ''
           set -euo pipefail
 
-          # Debug: Log to both stderr and a persistent file
-          LOGFILE="/persist/var/log/shutdown-notify-debug.log"
-          echo "[SHUTDOWN-NOTIFY] ExecStop started at $(${pkgs.coreutils}/bin/date)" >&2
-          echo "[SHUTDOWN-NOTIFY] ExecStop started at $(${pkgs.coreutils}/bin/date)" >> "$LOGFILE"
-
           # Gather system information
           HOSTNAME="${config.networking.hostName}"
           SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
@@ -161,13 +190,8 @@ System is shutting down gracefully."
 
           # Read Pushover credentials directly from sops secret files
           # LoadCredential doesn't work during shutdown due to permission issues
-          echo "[SHUTDOWN-NOTIFY] Reading credentials..." >&2
-          echo "[SHUTDOWN-NOTIFY] Reading credentials..." >> "$LOGFILE"
           PUSHOVER_TOKEN=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.tokenFile})
           PUSHOVER_USER=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.userKeyFile})
-
-          echo "[SHUTDOWN-NOTIFY] Sending notification to Pushover..." >&2
-          echo "[SHUTDOWN-NOTIFY] Sending notification to Pushover..." >> "$LOGFILE"
 
           # Send notification directly (cannot start services during shutdown)
           HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /dev/null \
@@ -179,9 +203,6 @@ System is shutting down gracefully."
             --data-urlencode "priority=-1" \
             --data-urlencode "html=1" \
             "https://api.pushover.net/1/messages.json" || echo "000")
-
-          echo "[SHUTDOWN-NOTIFY] HTTP response: $HTTP_CODE" >&2
-          echo "[SHUTDOWN-NOTIFY] HTTP response: $HTTP_CODE" >> "$LOGFILE"
 
           # Return success even if notification fails (don't block shutdown)
           exit 0
