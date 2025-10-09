@@ -125,8 +125,8 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-        # Join the notify group to read payload files from /run/notify
-        SupplementaryGroups = [ "notify" ];
+        # Join the notify-ipc group to read payload files from /run/notify
+        SupplementaryGroups = [ "notify-ipc" ];
         LoadCredential = [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"

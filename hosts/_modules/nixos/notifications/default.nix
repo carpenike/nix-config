@@ -218,15 +218,16 @@ in
 
   config = lib.mkIf cfg.enable {
     # Create a dedicated group for notification services to share files securely
-    users.groups.notify = {};
+    # Using 'notify-ipc' to avoid conflicts with DynamicUser creating groups named 'notify'
+    users.groups.notify-ipc = {};
 
     # Create payload directory for IPC between notification services
     # Using 1770 (rwxrwx--T with sticky bit) for secure shared drop-box pattern:
-    # - Only services in the 'notify' group can read/write files (group access only)
+    # - Only services in the 'notify-ipc' group can read/write files (group access only)
     # - Sticky bit prevents services from deleting each other's files
     # - Files are created with 0660 (rw-rw----) via UMask=0007
     systemd.tmpfiles.rules = [
-      "d /run/notify 1770 root notify -"
+      "d /run/notify 1770 root notify-ipc -"
     ];
 
     # Generate a JSON file containing all registered template definitions
@@ -248,8 +249,8 @@ in
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
-        # Join the notify group to access the shared IPC directory
-        SupplementaryGroups = [ "notify" ];
+        # Join the notify-ipc group to access the shared IPC directory
+        SupplementaryGroups = [ "notify-ipc" ];
         # Create files with 0660 permissions (rw-rw----) for group-only access
         UMask = "0007";
         # DynamicUser enables ProtectSystem=strict by default, making most paths read-only
