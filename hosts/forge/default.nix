@@ -117,6 +117,9 @@ in
           enable = true;
           # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
           # mediaDir defaults to /mnt/media (NFS mount)
+          healthcheck.enable = true;  # Enable container health monitoring
+          backup.enable = true;  # Enable Restic backups
+          notifications.enable = true;  # Enable failure notifications
         };
 
         # TODO: Add additional services as needed
