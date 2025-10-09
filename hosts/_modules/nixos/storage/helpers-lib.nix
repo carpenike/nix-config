@@ -54,6 +54,7 @@
     systemd.services."preseed-${serviceName}" = {
       description = "Pre-seed data for ${serviceName} service";
       wantedBy = [ "multi-user.target" ];
+      wants = [ "network-online.target" ];  # Declare dependency to avoid warning
       after = [ "network-online.target" "zfs-import.target" ];
       before = [ mainServiceUnit ];
 
