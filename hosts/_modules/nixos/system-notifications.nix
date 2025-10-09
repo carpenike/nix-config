@@ -54,9 +54,9 @@ System is shutting down gracefully.
       };
     };
 
-    # Enable path units for boot/shutdown notifications
-    # These watch for payload files and trigger the backend services
-    # Must explicitly define PathExists since we're creating instances, not using the template
+    # Enable path unit for boot notifications
+    # Watches for payload file and triggers the backend service
+    # Must explicitly define PathExists since we're creating an instance, not using the template
     systemd.paths."notify-pushover@system-boot:boot" = mkIf cfg.boot.enable {
       wantedBy = [ "multi-user.target" ];
       pathConfig = {
@@ -64,12 +64,8 @@ System is shutting down gracefully.
       };
     };
 
-    systemd.paths."notify-pushover@system-shutdown:shutdown" = mkIf cfg.shutdown.enable {
-      wantedBy = [ "multi-user.target" ];
-      pathConfig = {
-        PathExists = "/run/notify/system-shutdown:shutdown.json";
-      };
-    };
+    # Note: No path unit for shutdown - it sends notifications directly in ExecStop
+    # to avoid systemd's restrictions on starting new services during shutdown
 
     # Boot notification service
     systemd.services.notify-boot = mkIf cfg.boot.enable {
@@ -125,20 +121,14 @@ System is shutting down gracefully.
         # Disable default dependencies for full control over shutdown ordering
         DefaultDependencies = false;
 
-        # Load Pushover credentials for direct notification sending
-        LoadCredential = let
-          pushoverCfg = config.modules.notifications.pushover;
-        in [
-          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
-          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
-        ];
-
         # At boot: do nothing, just enter active (exited) state
         ExecStart = "${pkgs.coreutils}/bin/true";
 
         # At shutdown: send notification directly while network is still up
         # Cannot use systemctl start during shutdown, must be self-contained
-        ExecStop = pkgs.writeShellScript "notify-shutdown" ''
+        ExecStop = let
+          pushoverCfg = config.modules.notifications.pushover;
+        in pkgs.writeShellScript "notify-shutdown" ''
           set -euo pipefail
 
           # Gather system information
@@ -146,8 +136,8 @@ System is shutting down gracefully.
           SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
           UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
-          # Build notification message from template
-          # Get template configuration
+          # Build notification message (hardcoded for reliability during shutdown)
+          # Note: Bypasses template system since we can't load JSON during shutdown
           TITLE="⏸️ System Shutdown"
           MESSAGE="<b>Host:</b> $HOSTNAME
 <b>Time:</b> $SHUTDOWNTIME
@@ -156,9 +146,10 @@ System is shutting down gracefully.
 
 System is shutting down gracefully."
 
-          # Read Pushover credentials from systemd-creds
-          PUSHOVER_TOKEN=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_TOKEN)
-          PUSHOVER_USER=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_USER_KEY)
+          # Read Pushover credentials directly from sops secret files
+          # LoadCredential doesn't work during shutdown due to permission issues
+          PUSHOVER_TOKEN=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.tokenFile})
+          PUSHOVER_USER=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.userKeyFile})
 
           # Send notification directly (cannot start services during shutdown)
           ${pkgs.curl}/bin/curl -s -o /dev/null \
