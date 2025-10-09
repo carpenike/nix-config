@@ -259,10 +259,6 @@ in
     ] ++ (lib.mapAttrsToList (dataset: conf:
       let
         serviceName = "syncoid-${sanitizeDatasetName dataset}";
-        sopsSecretPath =
-          if cfg.sshKeyPath != null && lib.hasPrefix "/run/secrets" cfg.sshKeyPath
-          then lib.head (lib.splitString "/" (lib.removePrefix "/run/secrets/" cfg.sshKeyPath))
-          else null;
       in
       {
         # Wire each syncoid job to the notification system and override sandboxing
@@ -272,14 +268,16 @@ in
           };
 
           # Override sandboxing to allow SSH key access, especially for SOPS-managed keys
+          # Both the symlink location (/var/lib/zfs-replication/.ssh) and the actual
+          # SOPS secret path (/run/secrets/zfs-replication) must be bound for resolution
           serviceConfig = lib.mkIf (cfg.sshKeyPath != null) {
-            BindReadOnlyPaths = lib.mkForce ([
+            BindReadOnlyPaths = lib.mkForce [
               "/nix/store"
               "/etc"
               "/bin/sh"
-              # Both the symlink location and the real secret path must be bound
-              (dirOf cfg.sshKeyPath)
-            ] ++ lib.optional (sopsSecretPath != null) "/run/secrets/${sopsSecretPath}");
+              "/var/lib/zfs-replication/.ssh"      # Symlink location
+              "/run/secrets/zfs-replication"        # SOPS secret directory
+            ];
           };
         };
       }
