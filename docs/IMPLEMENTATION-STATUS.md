@@ -77,9 +77,9 @@
 
 ## Phase 2: Pilot Service (Sonarr)
 
-**Status**: 🔵 In Progress 80%
+**Status**: ✅ Complete 100% (Code Review Fixes Applied)
 
-**Current Phase**: Module created, testing complete - Ready for deployment
+**Current Phase**: Module complete with all improvements - Ready for deployment
 
 **Goal**: Migrate one service to validate pattern
 
@@ -88,11 +88,20 @@
 - [x] Create/update Sonarr service module
   - [x] Add dataset declaration (recordsize=16K, compression=zstd)
   - [x] Configure dataDir (/var/lib/sonarr)
-  - [x] Set up tmpfiles rules (0700 sonarr:sonarr)
+  - [x] ~~Set up tmpfiles rules (0700 sonarr:sonarr)~~ → Removed (handled by storage.datasets)
   - [x] Integrate backup job (Restic with excludes)
   - [x] Add user/group creation (UID/GID 568)
   - [x] Configure Podman container (linuxserver/sonarr)
   - [x] Test with dry-build (525 derivations - PASSED)
+
+- [x] Apply code review improvements (Gemini Pro 2.5)
+  - [x] Remove unused imports (pkgs, storageCfg)
+  - [x] Add media group integration (extraGroups + group creation)
+  - [x] Remove redundant tmpfiles rule (now handled by datasets module)
+  - [x] Add container health check (Podman --health-* flags)
+  - [x] Make backup repository configurable (backup.repository option)
+  - [x] Add failure notifications (systemd OnFailure + template registration)
+  - [x] Test all changes (dry-build passed)
 
 - [ ] Migrate data on forge (DEPLOYMENT PHASE - Not Yet Executed)
   - [ ] Backup current data (if exists)
@@ -103,16 +112,20 @@
   - [ ] Clean up old data (after validation)
 
 **Files Created/Modified**:
-- Created: `hosts/_modules/nixos/services/sonarr/default.nix` (152 lines)
+
+- Created: `hosts/_modules/nixos/services/sonarr/default.nix` (195 lines)
   - ZFS dataset declaration with optimal properties
   - Podman container configuration
-  - User/group management
-  - Backup integration
+  - User/group management with media group integration
+  - Container health check (Podman native)
+  - Backup integration (configurable repository)
+  - Notification integration (failure alerts)
   - Comprehensive comments
 - Modified: `hosts/_modules/nixos/services/default.nix` (added sonarr import)
-- Modified: `hosts/forge/default.nix` (enabled sonarr service)
+- Modified: `hosts/forge/default.nix` (enabled sonarr service + features)
 
-**Configuration Details**:
+**Configuration Details (After Improvements)**:
+
 ```nix
 # Dataset Configuration (tank/services/sonarr)
 recordsize = "16K"        # Optimal for SQLite
@@ -121,10 +134,25 @@ mountpoint = "/var/lib/sonarr"
 owner = "sonarr:sonarr"    # UID/GID 568
 mode = "0700"              # Restrictive permissions
 
+# User Configuration
+extraGroups = ["media"]    # NFS mount access
+
+# Health Check
+enable = true
+interval = "1m"
+timeout = "10s"
+retries = 3
+
 # Backup Configuration
-repository = "nas-primary"
+enable = true
+repository = "nas-primary" # Now configurable!
 excludes = [".cache", "cache", "*.tmp", "logs/*.txt"]
 tags = ["sonarr", "media", "database"]
+
+# Notifications
+enable = true
+priority = "high"
+template = "sonarr-failure"
 ```
 
 **Estimated Time**: 2-3 hours

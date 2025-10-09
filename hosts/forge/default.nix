@@ -146,9 +146,9 @@ in
             ];
           };
           # Shared media group for *arr services NFS access
-          # Note: GID 985 matches existing group on forge (don't change)
+          # High GID to avoid conflicts with system/user GIDs
           media = {
-            gid = 985;
+            gid = 65537;
           };
         };
       };
