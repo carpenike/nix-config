@@ -228,6 +228,7 @@ in
     # - Files are created with 0660 (rw-rw----) via UMask=0007
     systemd.tmpfiles.rules = [
       "d /run/notify 0770 root notify-ipc -"
+      "d /run/notify/env 0770 root notify-ipc -"
     ];
 
     # Generate a JSON file containing all registered template definitions
