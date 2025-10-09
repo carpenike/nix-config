@@ -204,6 +204,15 @@ in
         healthcheck.enable = true;  # Enable container health monitoring
         backup.enable = true;  # Enable Restic backups
         notifications.enable = true;  # Enable failure notifications
+        preseed = {
+          enable = true;  # Enable self-healing restore
+          # Pass repository config explicitly to avoid circular dependency
+          # (preseed needs backup config, but sonarr also defines a backup job)
+          # These values must match the backup.nix repository configuration
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          # environmentFile not needed for local filesystem repository
+        };
       };        # TODO: Add additional services as needed
         # Example service configurations can be copied from luna when ready
       };

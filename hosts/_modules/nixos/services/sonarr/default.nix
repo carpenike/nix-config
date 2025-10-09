@@ -1,14 +1,21 @@
 {
   lib,
+  pkgs,
   config,
   podmanLib,
   ...
 }:
 let
+  # Import pure storage helpers library (not a module argument to avoid circular dependency)
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+
   cfg = config.modules.services.sonarr;
   notificationsCfg = config.modules.notifications;
+  storageCfg = config.modules.storage;
   hasCentralizedNotifications = notificationsCfg.enable or false;
   sonarrPort = 8989;
+  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-sonarr.service";
+  datasetPath = "${storageCfg.datasets.parentDataset}/sonarr";
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
@@ -118,14 +125,37 @@ in
     notifications = {
       enable = lib.mkEnableOption "failure notifications for the Sonarr service";
     };
+
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.path;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+    };
   };
 
-  config = lib.mkIf cfg.enable {
-    # Validate NFS mount dependency if specified
-    assertions = lib.optional (nfsMountName != null) {
-      assertion = nfsMountConfig != null;
-      message = "Sonarr nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
-    };
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      # Validate NFS mount dependency if specified
+      assertions =
+        (lib.optional (nfsMountName != null) {
+          assertion = nfsMountConfig != null;
+          message = "Sonarr nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
+        })
+        ++ (lib.optional cfg.preseed.enable {
+          assertion = cfg.preseed.repositoryUrl != "";
+          message = "Sonarr preseed.enable requires preseed.repositoryUrl to be set.";
+        });
 
     # Automatically set mediaDir from the NFS mount configuration
     modules.services.sonarr.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
@@ -196,6 +226,11 @@ in
       (lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
         unitConfig.OnFailure = [ "notify@sonarr-failure:%n.service" ];
       })
+      # Add dependency on the preseed service
+      (lib.mkIf cfg.preseed.enable {
+        wants = [ "preseed-sonarr.service" ];
+        after = [ "preseed-sonarr.service" ];
+      })
     ];
 
     # Register notification template
@@ -234,8 +269,26 @@ in
       tags = [ "sonarr" "media" "database" ];
     };
 
-    # Optional: Open firewall for Sonarr web UI
-    # Disabled by default since forge has firewall.enable = false
-    # networking.firewall.allowedTCPPorts = [ sonarrPort ];
-  };
+      # Optional: Open firewall for Sonarr web UI
+      # Disabled by default since forge has firewall.enable = false
+      # networking.firewall.allowedTCPPorts = [ sonarrPort ];
+    })
+
+    # Add the preseed service itself
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
+        serviceName = "sonarr";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
+  ];
 }
