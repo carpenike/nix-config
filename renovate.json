@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base"
+  ],
+  "nix": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "matchDatasources": ["docker"],
+      "pinDigests": true,
+      "separateMinorPatch": true,
+      "semanticCommits": "enabled",
+      "commitMessagePrefix": "feat(containers):",
+      "commitMessageTopic": "{{depName}}",
+      "commitMessageExtra": "to {{newVersion}}",
+      "prTitle": "Update {{depName}} to {{newVersion}}"
+    }
+  ],
+  "regexManagers": [
+    {
+      "fileMatch": ["\\.nix$"],
+      "matchStrings": [
+        "image\\s*=\\s*\"(?<depName>.+?):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?\""
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "prConcurrentLimit": 5,
+  "branchConcurrentLimit": 10,
+  "labels": ["dependencies", "containers"],
+  "assignees": [],
+  "reviewers": []
+}
