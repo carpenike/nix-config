@@ -222,7 +222,8 @@ in
         "--pull=newer"  # Automatically pull newer images
       ] ++ lib.optionals cfg.healthcheck.enable [
         # Container-native health check using Podman health check options
-        "--health-cmd=curl -f http://localhost:8989/login || exit 1"
+        # Use wget as primary with curl fallback for robustness
+        "--health-cmd=sh -c 'wget -q -O /dev/null http://localhost:8989/login || curl -fsS http://localhost:8989/login'"
         "--health-interval=${cfg.healthcheck.interval}"
         "--health-timeout=${cfg.healthcheck.timeout}"
         "--health-retries=${toString cfg.healthcheck.retries}"

@@ -587,10 +587,10 @@ with lib;
             ${concatMapStringsSep "\n" (dataset:
               let fullPath = if dataset == "" then cfg.zfs.pool else "${cfg.zfs.pool}/${dataset}";
               in ''
-                echo "Mounting snapshot ${fullPath}@$SNAPSHOT_NAME..."
+                echo "Mounting snapshot ${fullPath}@''$SNAPSHOT_NAME..."
                 MOUNT_DIR="/mnt/backup-snapshot/${dataset}"
                 mkdir -p "$MOUNT_DIR"
-                mount -t zfs ${fullPath}@$SNAPSHOT_NAME "$MOUNT_DIR" -o ro
+                mount -t zfs -o ro "${fullPath}@''$SNAPSHOT_NAME" "$MOUNT_DIR"
               ''
             ) cfg.zfs.datasets}
 
@@ -619,11 +619,14 @@ with lib;
               sleep 1
             fi
 
-            # Find and destroy backup snapshots from this run
-            for snapshot in $(zfs list -H -o name -t snapshot | grep "@backup-" 2>/dev/null || true); do
-              echo "Destroying snapshot: $snapshot"
-              zfs destroy "$snapshot" || true
-            done
+            # Find and destroy backup snapshots from this run only (not all @backup-* snapshots)
+            SNAPSHOT_NAME=$(cat /run/zfs-backup/current-snapshot 2>/dev/null || true)
+            if [ -n "$SNAPSHOT_NAME" ]; then
+              for snapshot in $(zfs list -H -o name -t snapshot | grep "@$SNAPSHOT_NAME$" 2>/dev/null || true); do
+                echo "Destroying snapshot: $snapshot"
+                zfs destroy "$snapshot" || true
+              done
+            fi
 
             # Clean up mount directories and runtime state
             if [ -d /mnt/backup-snapshot ]; then
@@ -954,11 +957,11 @@ EOF
                 cat > "$METRICS_TEMP" <<EOF
 # HELP restic_backup_last_failure_timestamp Last backup failure timestamp
 # TYPE restic_backup_last_failure_timestamp gauge
-restic_backup_last_failure_timestamp{job="${jobName}",repository="${repo.url}",hostname="${config.networking.hostName}"} $TIMESTAMP_UNIX
+restic_backup_last_failure_timestamp{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $TIMESTAMP_UNIX
 
 # HELP restic_backup_status Backup job status (1=success, 0=failure)
 # TYPE restic_backup_status gauge
-restic_backup_status{job="${jobName}",repository="${repo.url}",hostname="${config.networking.hostName}"} 0
+restic_backup_status{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} 0
 EOF
                 mv "$METRICS_TEMP" "$METRICS_FILE"
               ''}
@@ -1570,11 +1573,12 @@ EOF
     ];
 
     # Performance optimization: Restic cache configuration
+    # Note: RESTIC_COMPRESSION and RESTIC_READ_CONCURRENCY are passed via extraBackupArgs
+    # in services.restic.backups instead of as environment variables, as restic doesn't
+    # honor them when set globally.
     environment.variables = mkMerge [
       (mkIf cfg.restic.enable {
         RESTIC_CACHE_DIR = cfg.performance.cacheDir;
-        RESTIC_COMPRESSION = cfg.restic.globalSettings.compression;
-        RESTIC_READ_CONCURRENCY = toString cfg.restic.globalSettings.readConcurrency;
       })
       (mkIf cfg.performance.ioScheduling.enable {
         RESTIC_IONICE_CLASS = cfg.performance.ioScheduling.ioClass;
@@ -1603,6 +1607,11 @@ EOF
             environmentFile = repo.environmentFile;
             exclude = jobConfig.excludePatterns;
             initialize = true;
+            # Pass compression and read concurrency as backup arguments instead of env vars
+            extraBackupArgs = [
+              "--compression=${cfg.restic.globalSettings.compression}"
+              "--read-concurrency=${toString cfg.restic.globalSettings.readConcurrency}"
+            ];
             timerConfig = {
               OnCalendar = cfg.schedule;
               Persistent = true;
@@ -1734,15 +1743,15 @@ EOF
                 cat > "$METRICS_TEMP" <<EOF
 # HELP restic_backup_duration_seconds Duration of backup job in seconds
 # TYPE restic_backup_duration_seconds gauge
-restic_backup_duration_seconds{job="${jobName}",repository="${repo.url}",hostname="${config.networking.hostName}"} $DURATION
+restic_backup_duration_seconds{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $DURATION
 
 # HELP restic_backup_last_success_timestamp Last successful backup timestamp
 # TYPE restic_backup_last_success_timestamp gauge
-restic_backup_last_success_timestamp{job="${jobName}",repository="${repo.url}",hostname="${config.networking.hostName}"} $TIMESTAMP
+restic_backup_last_success_timestamp{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $TIMESTAMP
 
 # HELP restic_backup_status Backup job status (1=success, 0=failure)
 # TYPE restic_backup_status gauge
-restic_backup_status{job="${jobName}",repository="${repo.url}",hostname="${config.networking.hostName}"} 1
+restic_backup_status{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} 1
 EOF
                 ${pkgs.coreutils}/bin/mv "$METRICS_TEMP" "$METRICS_FILE"
               ''}

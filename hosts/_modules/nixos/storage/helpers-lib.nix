@@ -109,8 +109,11 @@
           ${lib.optionalString (resticEnvironmentFile != null) "--env-file ${resticEnvironmentFile}"}
           restore latest
           --target "${mountpoint}"
-          ${lib.concatMapStringsSep " " (path: "--path \"${path}\"") resticPaths}
         )
+        # Append --path arguments as discrete array elements to avoid word-splitting issues
+        ${lib.concatMapStringsSep "\n" (p: ''
+          RESTIC_ARGS+=( --path ${lib.escapeShellArg p} )
+        '') resticPaths}
 
         if restic "''${RESTIC_ARGS[@]}"; then
           echo "Restic restore successful."
