@@ -82,10 +82,7 @@ System is shutting down gracefully.
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # Create /run/notify/env with proper permissions for IPC
-        RuntimeDirectory = "notify/env";
-        RuntimeDirectoryGroup = "notify-ipc";
-        RuntimeDirectoryMode = "0770";
+        # Directory is created by tmpfiles rules with proper permissions
       };
 
       script = ''
@@ -126,10 +123,7 @@ System is shutting down gracefully.
       serviceConfig = {
         Type = "oneshot";
         DefaultDependencies = false;
-        # Create /run/notify/env with proper permissions for IPC
-        RuntimeDirectory = "notify/env";
-        RuntimeDirectoryGroup = "notify-ipc";
-        RuntimeDirectoryMode = "0770";
+        # Directory is created by tmpfiles rules with proper permissions
       };
 
       script = ''
@@ -139,7 +133,7 @@ System is shutting down gracefully.
         NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Write environment variables to a file for the dispatcher
-        # Directory is created by RuntimeDirectory with proper group ownership
+        # Directory is created by tmpfiles with proper group ownership
         ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
         {
           echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
