@@ -72,8 +72,8 @@ in
         export NOTIFY_HOSTNAME="${config.networking.hostName}"
         export NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
         export NOTIFY_KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
-        export NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/readlink /run/current-system | ${pkgs.coreutils}/bin/cut -d'-' -f2)"
-        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed 's/.*up \([^,]*\).*/\1/')"
+        export NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/basename $(${pkgs.coreutils}/bin/readlink /run/current-system) | ${pkgs.gnused}/bin/sed 's/.*-//')"
+        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Wait a bit for network to be fully ready
         sleep 5
@@ -98,7 +98,7 @@ in
         # Gather system information
         export NOTIFY_HOSTNAME="${config.networking.hostName}"
         export NOTIFY_SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%Y-%m-%d %H:%M:%S')"
-        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed 's/.*up \([^,]*\).*/\1/')"
+        export NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Trigger notification through generic dispatcher
         # Note: Must complete quickly before network shuts down

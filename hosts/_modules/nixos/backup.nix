@@ -723,8 +723,9 @@ EOF
             '';
             unitConfig = {
               # Notify on verification failures
+              # Pass %n (unit name) so dispatcher can extract logs
               OnFailure = mkIf (hasCentralizedNotifications && (notificationsCfg.templates.verification-failure.enable or false))
-                [ "notify@verification-failure:${repoName}.service" ];
+                [ "notify@verification-failure:%n.service" ];
             };
             serviceConfig = {
               Type = "oneshot";
@@ -1538,8 +1539,9 @@ EOF
           "restic-backups-${jobName}" = {
             unitConfig = {
               # Use generic notification dispatcher if centralized notifications enabled
+              # Pass %n (unit name) so dispatcher can extract logs and job name
               OnFailure = mkIf (hasCentralizedNotifications && (notificationsCfg.templates.backup-failure.enable or false))
-                [ "notify@backup-failure:${jobName}.service" ];
+                [ "notify@backup-failure:%n.service" ];
             };
           };
         }

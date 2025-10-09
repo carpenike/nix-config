@@ -231,7 +231,7 @@ in
     # Example: notify@backup-failure:system-job.service
     systemd.services."notify@" = {
       description = "Notification dispatcher for %I";
-      path = with pkgs; [ coreutils jq bash curl ];
+      path = with pkgs; [ coreutils jq bash curl gettext systemd gawk ];
 
       serviceConfig = {
         Type = "oneshot";
@@ -268,19 +268,62 @@ in
         BODY=$(echo "$TEMPLATE_JSON" | jq -r '.body // ""')
         BACKEND=$(echo "$TEMPLATE_JSON" | jq -r '.backend // "${cfg.defaultBackend}"')
 
-        # Substitute common placeholders
-        # Services can pass additional variables via NOTIFY_* environment variables
-        HOSTNAME="${cfg.hostname}"
-        TITLE=$(echo "$TITLE" | sed "s/\''${hostname}/$HOSTNAME/g" | sed "s/\''${serviceName}/$INSTANCE_INFO/g")
-        BODY=$(echo "$BODY" | sed "s/\''${hostname}/$HOSTNAME/g" | sed "s/\''${serviceName}/$INSTANCE_INFO/g")
+        # For OnFailure handlers, extract context from the failed unit
+        # INSTANCE_INFO will be the unit name when called with %n (e.g., restic-backups-system.service)
+        if [[ "$INSTANCE_INFO" == *.service ]] || [[ "$INSTANCE_INFO" == *.timer ]]; then
+          FAILED_UNIT="$INSTANCE_INFO"
+          echo "[notify] Detected failed unit: $FAILED_UNIT"
 
-        # Also substitute any NOTIFY_* environment variables passed by the service
+          # Extract last 10 lines of journal for error context
+          # Using awk to properly escape newlines for JSON/HTML
+          export NOTIFY_ERRORMESSAGE=$(journalctl --no-pager -n 10 -u "$FAILED_UNIT" 2>/dev/null | awk '{printf "%s\\n", $0}' || echo "No log available")
+
+          # Extract job/dataset names from unit name patterns
+          # Pattern: restic-backups-JOBNAME.service -> JOBNAME
+          if [[ "$FAILED_UNIT" =~ ^restic-backups-(.+)\.service$ ]]; then
+            export NOTIFY_JOBNAME="''${BASH_REMATCH[1]}"
+            echo "[notify] Extracted job name: $NOTIFY_JOBNAME"
+
+            # Try to extract repository URL from service environment
+            REPO_URL=$(systemctl show "$FAILED_UNIT" --property=Environment 2>/dev/null | \
+                       grep -oP 'RESTIC_REPOSITORY=\K[^ ]+' || echo "unknown")
+            if [ "$REPO_URL" != "unknown" ]; then
+              export NOTIFY_REPOSITORY="$REPO_URL"
+              echo "[notify] Extracted repository: $NOTIFY_REPOSITORY"
+            fi
+          fi
+
+          # Pattern: syncoid-DATASET.service -> DATASET (for ZFS replication)
+          # Example: syncoid-rpool-safe-home.service -> rpool-safe-home
+          if [[ "$FAILED_UNIT" =~ ^syncoid-(.+)\.service$ ]]; then
+            export NOTIFY_DATASET="''${BASH_REMATCH[1]}"
+            echo "[notify] Extracted dataset: $NOTIFY_DATASET"
+          fi
+
+          # Pattern: sanoid.service (no dataset in name, affects all datasets)
+          if [[ "$FAILED_UNIT" == "sanoid.service" ]]; then
+            export NOTIFY_DATASET="all-datasets"
+            echo "[notify] Sanoid failure affects all datasets"
+          fi
+        fi
+
+        # Export common variables for envsubst
+        export hostname="${cfg.hostname}"
+        export serviceName="$INSTANCE_INFO"
+
+        # Transform NOTIFY_* environment variables to placeholder format
+        # This allows services to use idiomatic names like NOTIFY_BOOT_TIME
+        # which get transformed to ''${boottime} placeholders (lowercase, no underscores)
         for var in $(env | grep '^NOTIFY_' | cut -d= -f1); do
-          value=$(eval echo \$$var)
-          placeholder=$(echo "$var" | sed 's/^NOTIFY_//' | tr '[:upper:]' '[:lower:]')
-          TITLE=$(echo "$TITLE" | sed "s/\''${$placeholder}/\''${value}/g")
-          BODY=$(echo "$BODY" | sed "s/\''${$placeholder}/\''${value}/g")
+          value=$(printenv "$var")
+          # Transform: NOTIFY_BOOT_TIME -> boottime
+          placeholder=$(echo "$var" | sed 's/^NOTIFY_//' | tr '[:upper:]' '[:lower:]' | tr -d '_')
+          export "$placeholder"="$value"
         done
+
+        # Use envsubst for safe variable substitution
+        TITLE=$(echo "$TITLE" | envsubst)
+        BODY=$(echo "$BODY" | envsubst)
 
         echo "[notify] Title: $TITLE"
         echo "[notify] Priority: $PRIORITY"

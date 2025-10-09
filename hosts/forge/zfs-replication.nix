@@ -145,8 +145,9 @@
     };
 
     # Wire Sanoid to notification system
+    # Pass %n so dispatcher can extract logs from the failed unit
     systemd.services.sanoid.unitConfig = {
-      OnFailure = "notify@zfs-snapshot-failure:sanoid.service";
+      OnFailure = "notify@zfs-snapshot-failure:%n.service";
     };
 
     # Configure Sanoid for snapshot management
@@ -195,8 +196,9 @@
     };
 
     # Wire Syncoid services to notification system
+    # Pass %n so dispatcher can extract logs and dataset info
     systemd.services.syncoid-rpool-safe-home.unitConfig = {
-      OnFailure = "notify@zfs-replication-failure:rpool-safe-home.service";
+      OnFailure = "notify@zfs-replication-failure:%n.service";
     };
 
     systemd.services.syncoid-rpool-safe-persist.serviceConfig = {
@@ -211,7 +213,7 @@
     };
 
     systemd.services.syncoid-rpool-safe-persist.unitConfig = {
-      OnFailure = "notify@zfs-replication-failure:rpool-safe-persist.service";
+      OnFailure = "notify@zfs-replication-failure:%n.service";
     };    # Configure Syncoid for replication to nas-1
     services.syncoid = {
       enable = true;
