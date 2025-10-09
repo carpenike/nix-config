@@ -111,32 +111,39 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
+        # Join shared group to read payload files from /run/notify
+        SupplementaryGroups = [ "notify-ipc" ];
         LoadCredential = [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
-          "PAYLOAD:/run/notify/payloads/%i.json"
         ];
       };
 
       # Pass %i as command-line argument for proper expansion
       scriptArgs = "%i";
 
-      # Service reads parameters from JSON payload credential
+      # Service reads parameters from JSON payload file via shared directory
       script = ''
+        set -euo pipefail
+
         INSTANCE="$1"
 
-        # Read JSON payload from credential if available
-        if [ -n "''${CREDENTIALS_DIRECTORY:-}" ] && [ -r "$CREDENTIALS_DIRECTORY/PAYLOAD" ]; then
-          JSON=$(cat "$CREDENTIALS_DIRECTORY/PAYLOAD")
+        # Construct payload file path - use systemd-escape for proper decoding
+        ESCAPED_ID=$(echo "$INSTANCE" | ${pkgs.systemd}/bin/systemd-escape)
+        PAYLOAD_FILE="/run/notify/$ESCAPED_ID.json"
+
+        # Read and parse JSON payload from shared directory
+        if [ -f "$PAYLOAD_FILE" ]; then
+          JSON=$(cat "$PAYLOAD_FILE")
           TITLE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.title')
           MESSAGE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.message')
           PRIORITY=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.priority // "normal"')
 
           # Clean up payload file after reading
-          PAYLOAD_FILE="/run/notify/payloads/$INSTANCE.json"
-          rm -f "$PAYLOAD_FILE" 2>/dev/null || true
+          rm -f "$PAYLOAD_FILE"
         else
           # Fallback to environment variables (backward compatibility)
+          echo "[pushover] Warning: No payload file found at $PAYLOAD_FILE, using fallback" >&2
           TITLE="''${NOTIFY_TITLE:-$INSTANCE}"
           MESSAGE="''${NOTIFY_MESSAGE:-Notification from ${cfg.hostname}}"
           PRIORITY="''${NOTIFY_PRIORITY:-normal}"

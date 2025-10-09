@@ -217,9 +217,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Create payload directory with proper permissions
+    # Create a shared group for IPC between notification services
+    users.groups.notify-ipc = {};
+
+    # Create payload directory with group permissions for shared access
     systemd.tmpfiles.rules = [
-      "d /run/notify/payloads 0700 root root -"
+      "d /run/notify 0770 root notify-ipc -"
     ];
 
     # Generate a JSON file containing all registered template definitions
@@ -241,9 +244,8 @@ in
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
-        # Create payload directory - systemd manages permissions automatically
-        RuntimeDirectory = "notify/payloads";
-        RuntimeDirectoryMode = "0700";
+        # Join shared group to access /run/notify directory
+        SupplementaryGroups = [ "notify-ipc" ];
       };
 
       # Pass %i as command-line argument - systemd expands it in ExecStart directive
@@ -339,21 +341,18 @@ in
 
         echo "[notify] Dispatching to $BACKEND (template: $TEMPLATE_NAME, instance: $INSTANCE_INFO)"
 
-        # Create escaped instance ID for systemd unit name
-        ESCAPED_ID=$(systemd-escape "$TEMPLATE_NAME:$INSTANCE_INFO")
+        # Escape instance ID for safe use in filenames
+        ESCAPED_ID=$(echo "$INSTANCE_STRING" | ${pkgs.systemd}/bin/systemd-escape)
+        PAYLOAD_FILE="/run/notify/$ESCAPED_ID.json"
 
-        # Create JSON payload with notification parameters
-        # Use RUNTIME_DIRECTORY which systemd provides automatically
-        PAYLOAD_FILE="$RUNTIME_DIRECTORY/$ESCAPED_ID.json"
-
-        # Use jq to safely create JSON with proper escaping
+        # Create JSON payload for the backend service
+        # File will be automatically group-readable (0660) via umask
         ${pkgs.jq}/bin/jq -n \
           --arg title "$TITLE" \
           --arg message "$BODY" \
           --arg priority "$PRIORITY" \
-          '{title: $title, message: $message, priority: $priority}' > "$PAYLOAD_FILE"
-
-        # Dispatch to enabled backend(s)
+          '{title: $title, message: $message, priority: $priority}' \
+          > "$PAYLOAD_FILE"        # Dispatch to enabled backend(s)
         ${lib.optionalString cfg.pushover.enable ''
           if [ "$BACKEND" == "pushover" ] || [ "$BACKEND" == "all" ]; then
             echo "[notify] Dispatching to Pushover..."
