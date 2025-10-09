@@ -364,6 +364,9 @@ in
           '{title: $title, message: $message, priority: $priority}' \
           > "$PAYLOAD_FILE"
 
+        # Set group ownership to notify-ipc so backend services can read it
+        chgrp notify-ipc "$PAYLOAD_FILE"
+
         echo "[notify] Payload created at $PAYLOAD_FILE"
         echo "[notify] Backend services will be triggered automatically by .path units"
       '';
