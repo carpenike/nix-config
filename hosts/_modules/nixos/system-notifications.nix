@@ -82,6 +82,10 @@ System is shutting down gracefully.
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        # Create /run/notify/env with proper permissions for IPC
+        RuntimeDirectory = "notify/env";
+        RuntimeDirectoryGroup = "notify-ipc";
+        RuntimeDirectoryMode = "0770";
       };
 
       script = ''
@@ -96,8 +100,8 @@ System is shutting down gracefully.
         sleep 5
 
         # Write environment variables to a file for the dispatcher
+        # Directory is created by RuntimeDirectory with proper group ownership
         ENV_FILE="/run/notify/env/system-boot:boot.env"
-        mkdir -p "$(dirname "$ENV_FILE")"
         {
           echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
           echo "NOTIFY_BOOTTIME=$NOTIFY_BOOTTIME"
@@ -106,7 +110,7 @@ System is shutting down gracefully.
           echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
         } > "$ENV_FILE"
         chgrp notify-ipc "$ENV_FILE"
-        chmod 660 "$ENV_FILE"
+        chmod 640 "$ENV_FILE"
 
         # Trigger notification through generic dispatcher
         ${pkgs.systemd}/bin/systemctl start "notify@system-boot:boot.service"
@@ -122,6 +126,10 @@ System is shutting down gracefully.
       serviceConfig = {
         Type = "oneshot";
         DefaultDependencies = false;
+        # Create /run/notify/env with proper permissions for IPC
+        RuntimeDirectory = "notify/env";
+        RuntimeDirectoryGroup = "notify-ipc";
+        RuntimeDirectoryMode = "0770";
       };
 
       script = ''
@@ -131,15 +139,15 @@ System is shutting down gracefully.
         NOTIFY_UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
         # Write environment variables to a file for the dispatcher
+        # Directory is created by RuntimeDirectory with proper group ownership
         ENV_FILE="/run/notify/env/system-shutdown:shutdown.env"
-        mkdir -p "$(dirname "$ENV_FILE")"
         {
           echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
           echo "NOTIFY_SHUTDOWNTIME=$NOTIFY_SHUTDOWNTIME"
           echo "NOTIFY_UPTIME=$NOTIFY_UPTIME"
         } > "$ENV_FILE"
         chgrp notify-ipc "$ENV_FILE"
-        chmod 660 "$ENV_FILE"
+        chmod 640 "$ENV_FILE"
 
         # Trigger notification through generic dispatcher
         # Note: Must complete quickly before network shuts down
