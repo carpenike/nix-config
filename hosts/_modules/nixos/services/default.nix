@@ -22,6 +22,7 @@
     ./openssh
     ./omada
     ./podman
+    ./sonarr
     ./unifi
   ];
 }

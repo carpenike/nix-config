@@ -112,7 +112,14 @@ in
       services = {
         openssh.enable = true;
 
-        # TODO: Add services as needed
+        # Media management services
+        sonarr = {
+          enable = true;
+          # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
+          # mediaDir defaults to /mnt/media (NFS mount)
+        };
+
+        # TODO: Add additional services as needed
         # Example service configurations can be copied from luna when ready
       };
 
