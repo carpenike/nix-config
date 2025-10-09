@@ -248,6 +248,9 @@ in
         # Don't try to create RuntimeDirectory - tmpfiles already creates /run/notify
         # Use standard umask to create world-readable files (0644) for IPC
         UMask = "0022";
+        # DynamicUser enables ProtectSystem=strict by default, making most paths read-only
+        # Explicitly allow writes to /run/notify for IPC
+        ReadWritePaths = [ "/run/notify" ];
       };
 
       # Pass %i as command-line argument - systemd expands it in ExecStart directive
