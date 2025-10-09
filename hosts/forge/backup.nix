@@ -42,14 +42,26 @@
     modules.backup = {
       enable = true;
 
-      # Configure ZFS snapshots for backup consistency
+      # Configure ZFS snapshots for backup consistency (multi-pool support)
       zfs = {
         enable = true;
-        pool = "rpool";
-        datasets = [
-          "safe/home"      # User home directories
-          "safe/persist"   # System state and persistent data
-          # local/nix excluded - fully reproducible from NixOS configuration
+        pools = [
+          # Boot pool datasets
+          {
+            pool = "rpool";
+            datasets = [
+              "safe/home"      # User home directories
+              "safe/persist"   # System state and persistent data
+              # local/nix excluded - fully reproducible from NixOS configuration
+            ];
+          }
+          # Service data pool
+          {
+            pool = "tank";
+            datasets = [
+              "services/sonarr"   # Sonarr media management service
+            ];
+          }
         ];
         retention = {
           daily = 7;

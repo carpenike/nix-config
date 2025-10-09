@@ -16,13 +16,35 @@ with lib;
       pool = mkOption {
         type = types.str;
         default = "rpool";
-        description = "ZFS pool to snapshot";
+        description = "ZFS pool to snapshot (legacy, use pools instead)";
       };
 
       datasets = mkOption {
         type = types.listOf types.str;
         default = [""];
-        description = "Datasets to snapshot (empty string for root dataset)";
+        description = "Datasets to snapshot (legacy, use pools instead)";
+      };
+
+      pools = mkOption {
+        type = types.listOf (types.submodule {
+          options = {
+            pool = mkOption {
+              type = types.str;
+              description = "ZFS pool name";
+            };
+            datasets = mkOption {
+              type = types.listOf types.str;
+              default = [""];
+              description = "Datasets to snapshot (empty string for root dataset)";
+            };
+          };
+        });
+        default = [];
+        description = ''
+          List of ZFS pools and datasets to snapshot.
+          This is the preferred option for multi-pool configurations.
+          If not specified, will use legacy pool/datasets options for backward compatibility.
+        '';
       };
 
       retention = mkOption {
@@ -488,6 +510,12 @@ with lib;
 
     # Check if centralized notifications are available
     hasCentralizedNotifications = notificationsCfg.enable or false;
+
+    # Derive pools list from either new or legacy config for backward compatibility
+    # If zfs.pools is specified, use it; otherwise build from legacy pool/datasets
+    zfsPools = if cfg.zfs.pools != []
+      then cfg.zfs.pools
+      else [{ pool = cfg.zfs.pool; datasets = cfg.zfs.datasets; }];
   in mkIf cfg.enable {
 
     # Register notification templates if notification system is enabled
@@ -563,7 +591,7 @@ with lib;
       (mkIf cfg.zfs.enable {
         zfs-snapshot = {
           description = "Create ZFS snapshots for backup";
-          path = with pkgs; [ zfs util-linux ];
+          path = [ config.boot.zfs.package pkgs.util-linux ];
           script = ''
             set -euo pipefail
 
@@ -572,27 +600,31 @@ with lib;
 
             echo "Creating ZFS snapshots with name: $SNAPSHOT_NAME"
 
-            # Create snapshots for each configured dataset
-            ${concatMapStringsSep "\n" (dataset:
-              let fullPath = if dataset == "" then cfg.zfs.pool else "${cfg.zfs.pool}/${dataset}";
-              in ''
-                echo "Creating snapshot for ${fullPath}..."
-                zfs snapshot ${fullPath}@$SNAPSHOT_NAME
-              ''
-            ) cfg.zfs.datasets}
+            # Create snapshots for each configured pool/dataset
+            ${concatMapStringsSep "\n" (poolConfig:
+              concatMapStringsSep "\n" (dataset:
+                let fullPath = if dataset == "" then poolConfig.pool else "${poolConfig.pool}/${dataset}";
+                in ''
+                  echo "Creating snapshot for ${fullPath}..."
+                  ${config.boot.zfs.package}/bin/zfs snapshot ${fullPath}@$SNAPSHOT_NAME
+                ''
+              ) poolConfig.datasets
+            ) zfsPools}
 
-            # Mount snapshots to /mnt/backup-snapshot for backup access
+            # Mount snapshots with pool-scoped structure: /mnt/backup-snapshot/<pool>/<dataset>
             # This is required for legacy mountpoints where .zfs/snapshot doesn't work
             mkdir -p /mnt/backup-snapshot
-            ${concatMapStringsSep "\n" (dataset:
-              let fullPath = if dataset == "" then cfg.zfs.pool else "${cfg.zfs.pool}/${dataset}";
-              in ''
-                echo "Mounting snapshot ${fullPath}@''$SNAPSHOT_NAME..."
-                MOUNT_DIR="/mnt/backup-snapshot/${dataset}"
-                mkdir -p "$MOUNT_DIR"
-                mount -t zfs -o ro "${fullPath}@''$SNAPSHOT_NAME" "$MOUNT_DIR"
-              ''
-            ) cfg.zfs.datasets}
+            ${concatMapStringsSep "\n" (poolConfig:
+              concatMapStringsSep "\n" (dataset:
+                let fullPath = if dataset == "" then poolConfig.pool else "${poolConfig.pool}/${dataset}";
+                in ''
+                  echo "Mounting snapshot ${fullPath}@''$SNAPSHOT_NAME..."
+                  MOUNT_DIR="/mnt/backup-snapshot/${poolConfig.pool}/${dataset}"
+                  mkdir -p "$MOUNT_DIR"
+                  ${pkgs.util-linux}/bin/mount -t zfs -o ro "${fullPath}@''$SNAPSHOT_NAME" "$MOUNT_DIR"
+                ''
+              ) poolConfig.datasets
+            ) zfsPools}
 
             # Store snapshot name for backup jobs to reference
             mkdir -p /run/zfs-backup
@@ -600,7 +632,7 @@ with lib;
 
             echo "ZFS snapshots created and mounted: $SNAPSHOT_NAME"
             echo "Snapshot mounts:"
-            mount | grep "$SNAPSHOT_NAME"
+            ${pkgs.util-linux}/bin/mount | grep "$SNAPSHOT_NAME"
           '';
           postStop = ''
             set +e  # Don't fail on cleanup errors
@@ -610,9 +642,9 @@ with lib;
             # Unmount all snapshot mounts in reverse order (deepest first)
             if [ -d /mnt/backup-snapshot ]; then
               echo "Unmounting snapshots..."
-              for mount in $(mount | grep "@backup-" | awk '{print $3}' | sort -r); do
+              for mount in $(${pkgs.util-linux}/bin/mount | grep "@backup-" | ${pkgs.gawk}/bin/awk '{print $3}' | sort -r); do
                 echo "Unmounting $mount"
-                umount -f "$mount" 2>/dev/null || umount -l "$mount" 2>/dev/null || true
+                ${pkgs.util-linux}/bin/umount -f "$mount" 2>/dev/null || ${pkgs.util-linux}/bin/umount -l "$mount" 2>/dev/null || true
               done
 
               # Wait a moment for unmounts to settle
@@ -622,9 +654,9 @@ with lib;
             # Find and destroy backup snapshots from this run only (not all @backup-* snapshots)
             SNAPSHOT_NAME=$(cat /run/zfs-backup/current-snapshot 2>/dev/null || true)
             if [ -n "$SNAPSHOT_NAME" ]; then
-              for snapshot in $(zfs list -H -o name -t snapshot | grep "@$SNAPSHOT_NAME$" 2>/dev/null || true); do
+              for snapshot in $(${config.boot.zfs.package}/bin/zfs list -H -o name -t snapshot | grep "@$SNAPSHOT_NAME$" 2>/dev/null || true); do
                 echo "Destroying snapshot: $snapshot"
-                zfs destroy "$snapshot" || true
+                ${config.boot.zfs.package}/bin/zfs destroy "$snapshot" || true
               done
             fi
 
@@ -1647,27 +1679,31 @@ EOF
                 SNAPSHOT_NAME=$(${pkgs.coreutils}/bin/cat /run/zfs-backup/current-snapshot)
                 echo "Created ZFS snapshots: $SNAPSHOT_NAME"
 
-                # Create paths file with snapshot mount locations
+                # Create paths file with dynamically discovered snapshot mount locations
                 ${pkgs.coreutils}/bin/mkdir -p /run/restic-backup
                 : > /run/restic-backup/${jobName}-paths.txt  # Truncate file
 
-                # Map each backup path to its mounted snapshot location
-                # /home -> /mnt/backup-snapshot/safe/home
-                # /persist -> /mnt/backup-snapshot/safe/persist
-                # /nix -> /mnt/backup-snapshot/local/nix
-                ${concatMapStringsSep "\n" (path:
-                  let
-                    # Map path to dataset - this is a simplified mapping
-                    # You may need to make this more sophisticated for complex setups
-                    datasetPath =
-                      if path == "/home" then "safe/home"
-                      else if path == "/persist" then "safe/persist"
-                      else if path == "/nix" then "local/nix"
-                      else path;  # fallback
-                  in ''
-                    echo "/mnt/backup-snapshot/${datasetPath}" >> /run/restic-backup/${jobName}-paths.txt
-                  ''
-                ) jobConfig.paths}
+                # Dynamically map each backup path to its ZFS dataset snapshot
+                # This replaces the hardcoded mapping with runtime dataset discovery
+                ${concatMapStringsSep "\n" (path: ''
+                  # Discover the ZFS dataset for this path
+                  DATASET=$(${config.boot.zfs.package}/bin/zfs list -H -o name,mountpoint -t filesystem | ${pkgs.gawk}/bin/awk -v p="${path}" '$2==p {print $1; exit}')
+
+                  if [ -n "$DATASET" ]; then
+                    # Extract pool and dataset suffix from the full dataset path
+                    POOL="''${DATASET%%/*}"
+                    DATASET_SUFFIX="''${DATASET#*/}"
+
+                    # Build the snapshot mount path: /mnt/backup-snapshot/<pool>/<dataset>
+                    SNAP_PATH="/mnt/backup-snapshot/$POOL/$DATASET_SUFFIX"
+                    echo "$SNAP_PATH" >> /run/restic-backup/${jobName}-paths.txt
+                    echo "Mapped ${path} -> $SNAP_PATH (dataset: $DATASET)"
+                  else
+                    # Path is not on ZFS - fall back to live path with warning
+                    echo "WARNING: Path ${path} is not on a ZFS dataset, using live path" >&2
+                    echo "${path}" >> /run/restic-backup/${jobName}-paths.txt
+                  fi
+                '') jobConfig.paths}
 
                 echo "Backup will use snapshot paths:"
                 ${pkgs.coreutils}/bin/cat /run/restic-backup/${jobName}-paths.txt
