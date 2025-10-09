@@ -111,12 +111,8 @@ in
         DynamicUser = true;
         PrivateNetwork = false;
         PrivateTmp = true;
-        # Join shared group to read payload files from /run/notify
-        SupplementaryGroups = [ "notify-ipc" ];
-        # Allow access to /run/notify
-        RuntimeDirectory = "notify";
-        RuntimeDirectoryMode = "0770";
-        RuntimeDirectoryPreserve = true;
+        # Don't manage RuntimeDirectory - tmpfiles creates /run/notify globally
+        UMask = "0022"; # Standard umask for consistent file permissions
         LoadCredential = [
           "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
           "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"

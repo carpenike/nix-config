@@ -217,12 +217,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Create a shared group for IPC between notification services
-    users.groups.notify-ipc = {};
-
-    # Create payload directory with group permissions for shared access
+    # Create payload directory for IPC between notification services
+    # Using 1777 (world-writable with sticky bit) for shared drop-box pattern:
+    # - Any DynamicUser service can create files (world-writable)
+    # - Only file owner or root can delete/rename files (sticky bit)
+    # - Files are created with 0644 (world-readable) via UMask=0022
     systemd.tmpfiles.rules = [
-      "d /run/notify 0770 root notify-ipc -"
+      "d /run/notify 1777 root root -"
     ];
 
     # Generate a JSON file containing all registered template definitions
@@ -244,12 +245,9 @@ in
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
-        # Join shared group to access /run/notify directory
-        SupplementaryGroups = [ "notify-ipc" ];
-        # Allow writes to /run/notify
-        RuntimeDirectory = "notify";
-        RuntimeDirectoryMode = "0770";
-        RuntimeDirectoryPreserve = true;
+        # Don't try to create RuntimeDirectory - tmpfiles already creates /run/notify
+        # Use standard umask to create world-readable files (0644) for IPC
+        UMask = "0022";
       };
 
       # Pass %i as command-line argument - systemd expands it in ExecStart directive
