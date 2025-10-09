@@ -76,8 +76,8 @@ System is shutting down gracefully.
     systemd.services.notify-boot = mkIf cfg.boot.enable {
       description = "Send system boot notification";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
+      after = [ "network-online.target" "systemd-tmpfiles-setup.service" ];
+      wants = [ "network-online.target" "systemd-tmpfiles-setup.service" ];
 
       serviceConfig = {
         Type = "oneshot";
