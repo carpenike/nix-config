@@ -392,6 +392,10 @@ in
         mountpoint = cfg.dataDir;
         mainServiceUnit = mainServiceUnit;
         replicationCfg = replicationConfig;  # Pass the auto-discovered replication config
+        datasetProperties = {
+          recordsize = "16K";    # Optimal for SQLite databases
+          compression = "zstd";  # Better compression for text/config files
+        };
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;
         resticEnvironmentFile = cfg.preseed.environmentFile;

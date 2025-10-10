@@ -36,6 +36,7 @@
     mountpoint,
     mainServiceUnit,
     replicationCfg ? null,
+    datasetProperties ? { recordsize = "128K"; compression = "lz4"; },  # Defaults for when not specified
     resticRepoUrl,
     resticPasswordFile,
     resticEnvironmentFile ? null,
@@ -92,6 +93,9 @@
         ${lib.optionalString hasReplication ''
           echo "Attempting ZFS receive via syncoid from ${replicationCfg.targetHost}:${replicationCfg.targetDataset}..."
 
+          # Track if we destroy the dataset so we can recreate it if all restores fail
+          DATASET_DESTROYED=false
+
           # Check if target dataset exists but is empty (created by config but never populated)
           # Syncoid requires target to NOT exist for initial replication
           if ${pkgs.zfs}/bin/zfs list "${dataset}" &>/dev/null; then
@@ -106,12 +110,11 @@
             if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$DATASET_USED_BYTES" -lt 67108864 ]; then
               echo "Target dataset has no snapshots and < 64MB used. Destroying for initial replication..."
               ${pkgs.zfs}/bin/zfs destroy -r "${dataset}"
+              DATASET_DESTROYED=true
             elif [ "$SNAPSHOT_COUNT" -eq 0 ]; then
               echo "WARNING: Target dataset has no snapshots but is $DATASET_USED in size. Skipping destroy for safety."
             fi
-          fi
-
-          # Use syncoid for robust replication with resume support and better error handling
+          fi          # Use syncoid for robust replication with resume support and better error handling
           if ${pkgs.sanoid}/bin/syncoid \
             --no-sync-snap \
             --no-privilege-elevation \
@@ -126,6 +129,16 @@
             # Explicitly set mountpoint and mount before chown.
             echo "Ensuring dataset is mounted at ${mountpoint}..."
             ${pkgs.zfs}/bin/zfs set mountpoint="${mountpoint}" "${dataset}"
+
+            # NOTE: ZFS send/receive may not preserve all properties depending on send flags.
+            # If source replication doesn't use -p flag, properties will be wrong.
+            # These are set explicitly to ensure declarative config is honored.
+            # TODO: Remove these if/when all replications use sendOptions="wp"
+            echo "Resetting dataset properties to match declarative config..."
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (prop: value:
+              ''${pkgs.zfs}/bin/zfs set ${prop}=${lib.escapeShellArg value} "${dataset}" || echo "Failed to set ${prop}"''
+            ) datasetProperties)}
+
             ${pkgs.zfs}/bin/zfs mount "${dataset}" || echo "Dataset already mounted or mount failed (may already be mounted)"
 
             chown -R ${owner}:${group} "${mountpoint}"
@@ -190,6 +203,24 @@
         # Step 5: All restore methods failed
         ${notify "preseed-failure" "All restore attempts for ${serviceName} failed. Service will start with an empty data directory."}
         echo "Allowing ${serviceName} to start with an empty data directory."
+
+        # If we destroyed the dataset earlier (for syncoid initial replication) but all restores failed,
+        # we need to recreate it so the service has a filesystem to write to.
+        ${lib.optionalString hasReplication ''
+          if [ "$DATASET_DESTROYED" = "true" ] && ! ${pkgs.zfs}/bin/zfs list "${dataset}" &>/dev/null; then
+            echo "Dataset was destroyed but restores failed. Recreating empty dataset with proper properties..."
+            ${pkgs.zfs}/bin/zfs create \
+              -o mountpoint="${mountpoint}" \
+              ${lib.concatStringsSep " \\\n              " (lib.mapAttrsToList (prop: value:
+                "-o ${prop}=${lib.escapeShellArg value}"
+              ) datasetProperties)} \
+              "${dataset}"
+            ${pkgs.zfs}/bin/zfs mount "${dataset}" || echo "Dataset already mounted"
+            chown -R ${owner}:${group} "${mountpoint}"
+            echo "Empty dataset created. Service can now start fresh."
+          fi
+        ''}
+
         exit 0 # Exit successfully to not block service start
       '';
     };

@@ -170,7 +170,7 @@ in
             replication = {
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/services";
-              sendOptions = "w";
+              sendOptions = "wp";  # w = raw send, p = preserve properties (recordsize, compression, etc.)
               recvOptions = "u";
             };
           };
