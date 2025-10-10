@@ -301,6 +301,9 @@ in
       resources = cfg.resources;
       extraOptions = [
         "--pull=newer"  # Automatically pull newer images
+        # Force container to run as the specified user:group
+        # This is required for containers that don't process PUID/PGID environment variables
+        "--user=${cfg.user}:${cfg.group}"
       ] ++ lib.optionals cfg.healthcheck.enable [
         # Define the health check on the container itself.
         # This allows `podman healthcheck run` to work and updates status in `podman ps`.
