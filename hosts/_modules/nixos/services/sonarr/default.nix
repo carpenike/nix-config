@@ -301,10 +301,17 @@ in
       resources = cfg.resources;
       extraOptions = [
         "--pull=newer"  # Automatically pull newer images
+      ] ++ lib.optionals cfg.healthcheck.enable [
+        # Define the health check on the container itself.
+        # This allows `podman healthcheck run` to work and updates status in `podman ps`.
+        "--health-cmd=curl -f http://127.0.0.1:8989/ping || exit 1"
+        # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
+        # Our own systemd timer will be the sole trigger for health checks.
+        "--health-interval=disable"
+        "--health-timeout=${cfg.healthcheck.timeout}"
+        "--health-retries=${toString cfg.healthcheck.retries}"
+        "--health-start-period=${cfg.healthcheck.startPeriod}"
       ];
-      # NOTE: We do NOT use Podman's --health-* flags here because they create
-      # transient systemd units that bypass our overrides and cause activation failures.
-      # Instead, we manage health checks via explicit systemd timers below.
     };
 
     # Add systemd dependencies for the NFS mount
@@ -346,26 +353,26 @@ in
       after = [ "podman-sonarr.service" ];
       serviceConfig = {
         Type = "oneshot";
-        # Treat exit codes 0 and 1 as success to avoid failures during startup
-        # 0 = healthy (HTTP 200), 1 = unhealthy/starting (but don't fail systemd unit)
-        SuccessExitStatus = "0 1";
+        # We allow the unit to fail for better observability. The timer's OnActiveSec
+        # provides the startup grace period, and after that we want genuine failures
+        # to be visible in systemctl --failed for monitoring.
         ExecStart = pkgs.writeShellScript "sonarr-healthcheck" ''
           set -euo pipefail
 
-          # Check if container is running
+          # 1. Check if container is running to avoid unnecessary errors
           if ! ${pkgs.podman}/bin/podman inspect sonarr --format '{{.State.Running}}' | grep -q true; then
-            echo "Container sonarr is not running"
+            echo "Container sonarr is not running, skipping health check."
             exit 1
           fi
 
-          # Perform HTTP health check using curl inside container
-          # Use 127.0.0.1 to avoid IPv6/resolver issues
-          if ${pkgs.podman}/bin/podman exec sonarr curl -sf --connect-timeout 3 --max-time 8 http://127.0.0.1:8989/ping > /dev/null 2>&1; then
-            echo "Health check passed: HTTP 200 OK"
+          # 2. Run the health check defined in the container.
+          # This updates the container's status for `podman ps` and exits with
+          # a proper status code for systemd.
+          if ${pkgs.podman}/bin/podman healthcheck run sonarr; then
+            echo "Health check passed."
             exit 0
           else
-            HTTP_CODE=$(${pkgs.podman}/bin/podman exec sonarr curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8989/ping 2>/dev/null || echo "000")
-            echo "Health check failed: HTTP $HTTP_CODE"
+            echo "Health check failed."
             exit 1
           fi
         '';
