@@ -95,6 +95,7 @@
           # Use syncoid for robust replication with resume support and better error handling
           if ${pkgs.sanoid}/bin/syncoid \
             --no-sync-snap \
+            --no-privilege-elevation \
             --sendoptions="${lib.escapeShellArg replicationCfg.sendOptions}" \
             --recvoptions="${lib.escapeShellArg replicationCfg.recvOptions}" \
             --sshkey="${lib.escapeShellArg replicationCfg.sshKeyPath}" \
