@@ -51,9 +51,9 @@ let
   foundReplication = findReplication datasetPath;
 
   # Build the final config attrset to pass to the preseed service.
-  # This only evaluates if sanoid is enabled, preventing errors.
+  # This only evaluates if replication is found and sanoid is enabled, preventing errors.
   replicationConfig =
-    if foundReplication == null || !config.modules.backup.sanoid.enable then
+    if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then
       null
     else
       let
@@ -68,8 +68,11 @@ let
             foundReplication.replication.targetDataset
           else
             "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-        sshUser = "root"; # Default user for ZFS receive on remote host
-        sshKeyPath = config.modules.backup.sanoid.sshKeyPath;
+        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
+        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+        # Pass through sendOptions and recvOptions for syncoid
+        sendOptions = foundReplication.replication.sendOptions or "w";
+        recvOptions = foundReplication.replication.recvOptions or "u";
       };
 in
 {

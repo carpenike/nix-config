@@ -88,29 +88,24 @@
 
         echo "Data directory is empty. Attempting restore..."
 
-        # Step 2: Attempt ZFS receive from replication target (fastest remote)
+        # Step 2: Attempt ZFS receive from replication target using syncoid (fastest remote)
         ${lib.optionalString hasReplication ''
-          echo "Attempting ZFS receive from ${replicationCfg.targetHost}:${replicationCfg.targetDataset}..."
-          SSH_CMD="${pkgs.openssh}/bin/ssh -i ${lib.escapeShellArg replicationCfg.sshKeyPath} -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+          echo "Attempting ZFS receive via syncoid from ${replicationCfg.targetHost}:${replicationCfg.targetDataset}..."
 
-          # Find the latest sanoid-created snapshot on the remote host.
-          LATEST_REMOTE_SNAPSHOT=$($SSH_CMD ${lib.escapeShellArg replicationCfg.sshUser}@${lib.escapeShellArg replicationCfg.targetHost} \
-            "${pkgs.zfs}/bin/zfs list -t snapshot -o name -s creation -r \"${replicationCfg.targetDataset}\" | ${pkgs.gnugrep}/bin/grep '@sanoid_' | ${pkgs.gawk}/bin/tail -n 1 || true")
-
-          if [ -n "$LATEST_REMOTE_SNAPSHOT" ]; then
-            echo "Found latest remote ZFS snapshot: $LATEST_REMOTE_SNAPSHOT"
-            echo "Attempting to receive snapshot..."
-            # Use -w for raw (encrypted) send, -F to force rollback on receive
-            if $SSH_CMD ${lib.escapeShellArg replicationCfg.sshUser}@${lib.escapeShellArg replicationCfg.targetHost} "${pkgs.zfs}/bin/zfs send -w \"$LATEST_REMOTE_SNAPSHOT\"" | ${pkgs.zfs}/bin/zfs receive -F "${dataset}"; then
-              echo "ZFS receive successful."
-              chown -R ${owner}:${group} "${mountpoint}"
-              ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS replication source ${replicationCfg.targetHost}."}
-              exit 0
-            else
-              echo "ZFS receive failed. Proceeding to next restore method."
-            fi
+          # Use syncoid for robust replication with resume support and better error handling
+          if ${pkgs.sanoid}/bin/syncoid \
+            --no-sync-snap \
+            --sendoptions="${lib.escapeShellArg replicationCfg.sendOptions}" \
+            --recvoptions="${lib.escapeShellArg replicationCfg.recvOptions}" \
+            --sshkey="${lib.escapeShellArg replicationCfg.sshKeyPath}" \
+            "${lib.escapeShellArg replicationCfg.sshUser}@${lib.escapeShellArg replicationCfg.targetHost}:${lib.escapeShellArg replicationCfg.targetDataset}" \
+            "${lib.escapeShellArg dataset}"; then
+            echo "Syncoid replication successful."
+            chown -R ${owner}:${group} "${mountpoint}"
+            ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS replication source ${replicationCfg.targetHost}."}
+            exit 0
           else
-            echo "No suitable ZFS snapshots found on remote ${replicationCfg.targetHost} for ${replicationCfg.targetDataset}."
+            echo "Syncoid replication failed. Proceeding to next restore method."
           fi
         ''}
 
