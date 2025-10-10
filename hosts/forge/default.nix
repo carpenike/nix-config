@@ -253,8 +253,15 @@ in
       };
 
       # IPTV stream management
+      # TODO: Re-enable dispatcharr once shared PostgreSQL instance is implemented
+      # ISSUE: Container runs multiple services as different users (postgres UID 102, dispatch UID 569)
+      #        which creates volume permission conflicts. The embedded PostgreSQL can't write to
+      #        /data/db because the volume is owned by UID 569. Need to either:
+      #        1. Use a shared PostgreSQL service instead of embedded one, OR
+      #        2. Implement proper multi-user volume permission strategy
+      # See: https://github.com/Dispatcharr/Dispatcharr for container architecture
       dispatcharr = {
-        enable = true;
+        enable = false;  # DISABLED - needs shared PostgreSQL implementation
 
         # -- Container Image Configuration --
         # Pin to specific version for stability
