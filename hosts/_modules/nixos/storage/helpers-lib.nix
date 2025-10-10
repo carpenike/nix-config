@@ -46,7 +46,7 @@
     group ? "root"
   }:
   let
-    hasReplication = replicationCfg != null && replicationCfg.targetHost != null;
+    hasReplication = replicationCfg != null && (replicationCfg.targetHost or null) != null;
 
     # Helper to trigger a notification
     notify = template: message: ''
