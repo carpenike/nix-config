@@ -66,7 +66,7 @@
       after = [ "network-online.target" "zfs-import.target" ];
       before = [ mainServiceUnit ];
 
-      path = with pkgs; [ zfs coreutils gnugrep gawk restic systemd openssh ];
+      path = with pkgs; [ zfs coreutils gnugrep gawk restic systemd openssh sanoid ];
 
       serviceConfig = {
         Type = "oneshot";
