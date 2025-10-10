@@ -188,6 +188,9 @@
           set +a
         ''}
 
+        # Ensure the target directory exists before restore
+        mkdir -p "${mountpoint}"
+
         RESTIC_ARGS=(
           -r "${resticRepoUrl}"
           --password-file "${resticPasswordFile}"
@@ -206,7 +209,16 @@
           ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
           exit 0
         else
-          echo "Restic restore failed."
+          echo "Restic restore failed on first attempt. Retrying once after transient failure..."
+          sleep 5
+          if restic "''${RESTIC_ARGS[@]}"; then
+            echo "Restic restore successful on retry."
+            chown -R ${owner}:${group} "${mountpoint}"
+            ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl} (retry)."}
+            exit 0
+          else
+            echo "Restic restore failed after retry."
+          fi
         fi
 
         # Step 5: All restore methods failed
