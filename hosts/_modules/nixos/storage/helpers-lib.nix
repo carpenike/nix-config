@@ -78,9 +78,9 @@
       script = ''
         set -euo pipefail
 
-        # Use system ZFS and syncoid binaries to avoid userland/kernel version mismatches
-        ZFS="/run/current-system/sw/bin/zfs"
-        SYNCOID="/run/current-system/sw/bin/syncoid"
+        # Use absolute paths from Nix store to ensure binaries are available
+        ZFS="${pkgs.zfs}/bin/zfs"
+        SYNCOID="${pkgs.sanoid}/bin/syncoid"
 
         echo "Starting preseed check for ${serviceName} at ${mountpoint}..."
 
