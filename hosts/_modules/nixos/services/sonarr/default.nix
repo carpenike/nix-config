@@ -213,6 +213,18 @@ in
         default = null;
         description = "Optional environment file for Restic (e.g., for B2 credentials)";
       };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds. Examples:
+          - [ "syncoid" "local" "restic" ] - Default, try replication first
+          - [ "local" "restic" ] - Skip replication, try local snapshots first
+          - [ "restic" ] - Restic-only (for air-gapped systems)
+          - [ "local" "restic" "syncoid" ] - Local-first for quick recovery
+        '';
+      };
     };
   };
 
@@ -395,11 +407,13 @@ in
         datasetProperties = {
           recordsize = "16K";    # Optimal for SQLite databases
           compression = "zstd";  # Better compression for text/config files
+          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots for this dataset
         };
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;
         resticEnvironmentFile = cfg.preseed.environmentFile;
         resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
         owner = cfg.user;
         group = cfg.group;
