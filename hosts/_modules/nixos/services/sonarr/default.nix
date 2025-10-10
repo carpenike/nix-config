@@ -32,8 +32,8 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        # Check if replication is defined for the current path
-        replicationInfo = lib.attrByPath (lib.splitString "/" dsPath ++ [ "replication" ]) null sanoidDatasets;
+        # Check if replication is defined for the current path (datasets are flat keys, not nested)
+        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
         # Determine the parent path for recursion
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
