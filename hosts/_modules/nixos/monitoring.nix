@@ -80,8 +80,11 @@ in
     networking.firewall.allowedTCPPorts = mkIf cfg.nodeExporter.openFirewall [ cfg.nodeExporter.port ];
 
     # Create textfile collector directory if enabled
+    # Permissions: 2770 = setgid + rwx for owner/group, none for others
+    # The setgid bit (2) ensures new files inherit the node-exporter group
+    # Group write (7) allows services with SupplementaryGroups=["node-exporter"] to write metrics
     systemd.tmpfiles.rules = mkIf cfg.nodeExporter.textfileCollector.enable [
-      "d ${cfg.nodeExporter.textfileCollector.directory} 0755 node-exporter node-exporter -"
+      "d ${cfg.nodeExporter.textfileCollector.directory} 2770 node-exporter node-exporter -"
     ];
   };
 }
