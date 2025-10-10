@@ -157,7 +157,8 @@
                 echo "Refusing to destroy: snapshots now present ($SNAPSHOT_COUNT) or receive in progress (token=$RESUME_TOKEN)."
               fi
             elif [ "$SNAPSHOT_COUNT" -eq 0 ]; then
-              echo "WARNING: Target dataset has no snapshots but is $DATASET_USED in size ($(numfmt --to=iec $DATASET_LOGICAL_BYTES 2>/dev/null || echo $DATASET_LOGICAL_BYTES) logical)."
+              FRIENDLY_LOGICAL=$("$NUMFMT" --to=iec "$DATASET_LOGICAL_BYTES" 2>/dev/null || echo "$DATASET_LOGICAL_BYTES")
+              echo "WARNING: Target dataset has no snapshots but is $DATASET_USED in size ($FRIENDLY_LOGICAL logical)."
               echo "Refusing to destroy - may contain user data."
               echo "If this is a fresh deployment and you want to restore from backup, manually run: zfs destroy -r ${dataset}"
             fi

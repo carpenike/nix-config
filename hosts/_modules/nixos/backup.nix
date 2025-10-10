@@ -1695,7 +1695,12 @@ EOF
                     DATASET_SUFFIX="''${DATASET#*/}"
 
                     # Build the snapshot mount path: /mnt/backup-snapshot/<pool>/<dataset>
-                    SNAP_PATH="/mnt/backup-snapshot/$POOL/$DATASET_SUFFIX"
+                    # Handle root datasets (where DATASET_SUFFIX equals POOL)
+                    if [ -z "$DATASET_SUFFIX" ] || [ "$DATASET_SUFFIX" = "$POOL" ]; then
+                      SNAP_PATH="/mnt/backup-snapshot/$POOL"
+                    else
+                      SNAP_PATH="/mnt/backup-snapshot/$POOL/$DATASET_SUFFIX"
+                    fi
                     echo "$SNAP_PATH" >> /run/restic-backup/${jobName}-paths.txt
                     echo "Mapped ${path} -> $SNAP_PATH (dataset: $DATASET)"
                   else
