@@ -117,25 +117,41 @@ in
   };
 
   config = {
-    # Generate fileSystems entries and tmpfiles rules from the definitions
+    # Generate fileSystems entries ONLY for automounted shares.
+    # This leverages NixOS's native support for generating .automount and .mount units.
     fileSystems = lib.mkMerge (lib.mapAttrsToList (name: mount:
-      lib.mkIf mount.enable {
+      lib.mkIf (mount.enable && mount.automount) {
         "${mount.localPath}" = {
           device = "${mount.server}:${mount.remotePath}";
           fsType = "nfs";
-          options = mount.mountOptions
-            ++ (lib.optionals mount.automount [
-              "x-systemd.automount"
-              "x-systemd.idle-timeout=${mount.idleTimeout}"
-              "x-systemd.mount-timeout=${mount.mountTimeout}"
-            ])
-            ++ (lib.optionals (!mount.automount) [
-              # For non-automount, ensure network is ready before mounting
-              "x-systemd.after=network-online.target"
-              "x-systemd.wants=network-online.target"
-            ]);
+          options = mount.mountOptions ++ [
+            "x-systemd.automount"
+            "x-systemd.idle-timeout=${mount.idleTimeout}"
+            "x-systemd.mount-timeout=${mount.mountTimeout}"
+          ];
         };
       }) cfg);
+
+    # Generate static systemd.mount units for non-automounted shares.
+    # This is more robust for "always-on" mounts, as it ensures the unit file
+    # exists during `nixos-rebuild switch`, preventing activation failures when
+    # other services depend on the mount.
+    systemd.mounts = lib.mapAttrsToList (name: mount:
+      lib.nameValuePair mount.mountUnitName (lib.mkIf (mount.enable && !mount.automount) {
+        description = "NFS mount for ${name} at ${mount.localPath}";
+        what = "${mount.server}:${mount.remotePath}";
+        where = mount.localPath;
+        type = "nfs";
+        # Options must be a comma-separated string for systemd units.
+        options = lib.concatStringsSep "," mount.mountOptions;
+        # Ensure the mount is attempted only after the network is available.
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        # Enable the mount unit to start at boot.
+        wantedBy = [ "multi-user.target" ];
+        # Prevent boot hangs if the NFS server is unreachable.
+        mountConfig.TimeoutSec = mount.mountTimeout;
+      })) cfg;
 
     systemd.tmpfiles.rules = lib.flatten (lib.mapAttrsToList (name: mount:
       lib.optional mount.enable
