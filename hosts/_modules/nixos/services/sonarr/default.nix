@@ -23,6 +23,54 @@ let
     if nfsMountName != null
     then config.modules.storage.nfsMounts.${nfsMountName} or null
     else null;
+
+  # Recursively find the replication config from the most specific dataset path upwards.
+  # This allows a service dataset (e.g., tank/services/sonarr) to inherit replication
+  # config from a parent dataset (e.g., tank/services) without duplication.
+  findReplication = dsPath:
+    if dsPath == "" || dsPath == "." then null
+    else
+      let
+        sanoidDatasets = config.modules.backup.sanoid.datasets;
+        # Check if replication is defined for the current path
+        replicationInfo = lib.attrByPath (lib.splitString "/" dsPath ++ [ "replication" ]) null sanoidDatasets;
+        # Determine the parent path for recursion
+        parentPath =
+          if lib.elem "/" (lib.stringToCharacters dsPath) then
+            lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
+          else
+            "";
+      in
+      # If found, return it. Otherwise, recurse to the parent.
+      if replicationInfo != null then
+        { sourcePath = dsPath; replication = replicationInfo; }
+      else
+        findReplication parentPath;
+
+  # Execute the search for the current service's dataset
+  foundReplication = findReplication datasetPath;
+
+  # Build the final config attrset to pass to the preseed service.
+  # This only evaluates if sanoid is enabled, preventing errors.
+  replicationConfig =
+    if foundReplication == null || !config.modules.backup.sanoid.enable then
+      null
+    else
+      let
+        # Get the suffix, e.g., "sonarr" from "tank/services/sonarr" relative to "tank/services"
+        datasetSuffix = lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+      in
+      {
+        targetHost = foundReplication.replication.targetHost;
+        # Construct the full target dataset path, e.g., "backup/forge/services/sonarr"
+        targetDataset =
+          if datasetSuffix == "" then
+            foundReplication.replication.targetDataset
+          else
+            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+        sshUser = "root"; # Default user for ZFS receive on remote host
+        sshKeyPath = config.modules.backup.sanoid.sshKeyPath;
+      };
 in
 {
   options.modules.services.sonarr = {
@@ -340,6 +388,7 @@ in
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = mainServiceUnit;
+        replicationCfg = replicationConfig;  # Pass the auto-discovered replication config
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;
         resticEnvironmentFile = cfg.preseed.environmentFile;
