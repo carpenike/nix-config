@@ -13,6 +13,7 @@
     ./chrony
     ./cloudflared
     ./coachiq
+    ./dispatcharr
     ./dnsdist
     ./glances
     ./haproxy

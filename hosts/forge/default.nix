@@ -249,7 +249,33 @@ in
           passwordFile = primaryRepo.passwordFile;
           # environmentFile not needed for local filesystem repository
         };
-      };        # TODO: Add additional services as needed
+      };
+
+      # IPTV stream management
+      dispatcharr = {
+        enable = true;
+
+        # -- Container Image Configuration --
+        # Pin to specific version for stability
+        # Find releases at: https://github.com/Dispatcharr/Dispatcharr/releases
+        image = "ghcr.io/dispatcharr/dispatcharr:latest";  # TODO: Pin to specific version when stable
+
+        # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
+        healthcheck.enable = true;  # Enable container health monitoring
+        backup = {
+          enable = true;
+          repository = primaryRepo.name;  # Reference centralized repository name
+        };
+        notifications.enable = true;  # Enable failure notifications
+        preseed = {
+          enable = true;  # Enable self-healing restore
+          repositoryUrl = primaryRepo.url;
+          passwordFile = primaryRepo.passwordFile;
+          # environmentFile not needed for local filesystem repository
+        };
+      };
+
+      # TODO: Add additional services as needed
         # Example service configurations can be copied from luna when ready
       };
 
