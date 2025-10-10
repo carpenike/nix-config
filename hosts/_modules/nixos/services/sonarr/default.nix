@@ -180,8 +180,8 @@ in
       };
       startPeriod = lib.mkOption {
         type = lib.types.str;
-        default = "180s";
-        description = "Grace period for the container to initialize before failures are counted.";
+        default = "300s";
+        description = "Grace period for the container to initialize before failures are counted. Allows time for DB migrations, preseed operations, and first-run initialization.";
       };
     };
 
@@ -303,9 +303,10 @@ in
         "--pull=newer"  # Automatically pull newer images
       ] ++ lib.optionals cfg.healthcheck.enable [
         # Container-native health check using Podman health check options
-        # Use /ping endpoint which is more reliable than /login (no redirects)
-        # Check for any HTTP response (200-499) to consider the service running
-        "--health-cmd=sh -c 'wget --spider -q http://localhost:8989/ping 2>&1 || curl -sf http://localhost:8989/ping > /dev/null 2>&1 || wget --spider -q http://localhost:8989/ 2>&1'"
+        # Use /ping endpoint - unauthenticated, stable endpoint for Sonarr v3/v4
+        # Requires exactly HTTP 200 to avoid counting redirects or auth pages as healthy
+        # Uses 127.0.0.1 to avoid IPv6/resolver issues; curl timeouts stay within the configured timeout
+        ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8989/ping)" = 200 ]' ''
         "--health-interval=${cfg.healthcheck.interval}"
         "--health-timeout=${cfg.healthcheck.timeout}"
         "--health-retries=${toString cfg.healthcheck.retries}"
