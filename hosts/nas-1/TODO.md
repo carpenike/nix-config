@@ -50,9 +50,15 @@ Configure the `zfs-replication` user to receive snapshots from forge.
     };
     script = ''
       # Grant receive permissions for forge backups
+      # IMPORTANT: Include 'destroy' permission to allow syncoid to clean up old snapshots
       /run/current-system/sw/bin/zfs allow zfs-replication \
-        compression,create,mount,mountpoint,receive,rollback \
+        compression,create,destroy,mount,mountpoint,receive,rollback \
         backup/forge/zfs-recv
+
+      # Also grant permissions for services dataset (recursive)
+      /run/current-system/sw/bin/zfs allow zfs-replication \
+        compression,create,destroy,mount,mountpoint,receive,rollback \
+        backup/forge/services
 
       echo "ZFS receive permissions applied successfully"
     '';
@@ -80,14 +86,30 @@ Configure the `zfs-replication` user to receive snapshots from forge.
 - ✅ Shell fix: Changed from `/usr/sbin/nologin` to `/usr/bin/bash`
 - ✅ Authorized keys fix: Removed forced command restriction
 
+**Current Issue (2025-10-10)**:
+
+⚠️ **Missing `destroy` permission on nas-1** - Syncoid is working and replicating data successfully, but logs show warnings about being unable to destroy old snapshots on the remote side. This doesn't block replication but prevents proper cleanup.
+
+**Fix Required**:
+```bash
+# On nas-1 (Ubuntu), grant destroy permission for cleanup:
+sudo zfs allow zfs-replication destroy backup/forge/zfs-recv
+sudo zfs allow zfs-replication destroy backup/forge/services
+
+# Or wait until nas-1 is migrated to NixOS and use the config above
+```
+
+**Impact**: Low - Data is replicating successfully, just accumulating extra snapshots on nas-1 that need manual cleanup.
+
 **Validation**:
 
 ```bash
 # Verify user exists
 getent passwd zfs-replication
 
-# Verify ZFS permissions
+# Verify ZFS permissions (should now include 'destroy')
 zfs allow backup/forge/zfs-recv
+zfs allow backup/forge/services
 
 # Test SSH from forge
 ssh -i /var/lib/zfs-replication/.ssh/id_ed25519 zfs-replication@nas-1.holthome.net 'echo OK'
