@@ -80,13 +80,13 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "568";
+      default = "569";
       description = "User ID to own the data directory (dispatcharr:dispatcharr in container)";
     };
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "568";
+      default = "569";
       description = "Group ID to own the data directory";
     };
 
