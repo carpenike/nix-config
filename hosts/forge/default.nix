@@ -102,6 +102,7 @@ in
         # Shared NFS mount for media access from NAS
         nfsMounts.media = {
           enable = true;
+          automount = false;  # Disable automount for always-on media services (prevents idle timeout cascade stops)
           server = "nas.holthome.net";
           remotePath = "/mnt/tank/share";
           localPath = "/mnt/media";  # Use /mnt to avoid conflict with tank/media at /srv/media
