@@ -304,10 +304,11 @@ in
       ] ++ lib.optionals cfg.healthcheck.enable [
         # Define the health check on the container itself.
         # This allows `podman healthcheck run` to work and updates status in `podman ps`.
-        "--health-cmd=curl -f http://127.0.0.1:8989/ping || exit 1"
+        # Use explicit HTTP 200 check to avoid false positives from redirects
+        ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8989/ping)" = 200 ]' ''
         # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
-        # Our own systemd timer will be the sole trigger for health checks.
-        "--health-interval=disable"
+        # Use "0s" instead of "disable" for better Podman version compatibility
+        "--health-interval=0s"
         "--health-timeout=${cfg.healthcheck.timeout}"
         "--health-retries=${toString cfg.healthcheck.retries}"
         "--health-start-period=${cfg.healthcheck.startPeriod}"
@@ -337,7 +338,7 @@ in
     systemd.timers.sonarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
       description = "Sonarr Container Health Check Timer";
       wantedBy = [ "timers.target" ];
-      after = [ "podman-sonarr.service" ];
+      after = [ mainServiceUnit ];
       timerConfig = {
         # Delay first check to allow container initialization
         OnActiveSec = cfg.healthcheck.startPeriod;  # e.g., "300s"
@@ -350,7 +351,7 @@ in
 
     systemd.services.sonarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
       description = "Sonarr Container Health Check";
-      after = [ "podman-sonarr.service" ];
+      after = [ mainServiceUnit ];
       serviceConfig = {
         Type = "oneshot";
         # We allow the unit to fail for better observability. The timer's OnActiveSec
