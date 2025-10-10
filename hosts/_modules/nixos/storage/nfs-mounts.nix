@@ -123,11 +123,17 @@ in
         "${mount.localPath}" = {
           device = "${mount.server}:${mount.remotePath}";
           fsType = "nfs";
-          options = mount.mountOptions ++ (lib.optionals mount.automount [
-            "x-systemd.automount"
-            "x-systemd.idle-timeout=${mount.idleTimeout}"
-            "x-systemd.mount-timeout=${mount.mountTimeout}"
-          ]);
+          options = mount.mountOptions
+            ++ (lib.optionals mount.automount [
+              "x-systemd.automount"
+              "x-systemd.idle-timeout=${mount.idleTimeout}"
+              "x-systemd.mount-timeout=${mount.mountTimeout}"
+            ])
+            ++ (lib.optionals (!mount.automount) [
+              # For non-automount, ensure network is ready before mounting
+              "x-systemd.after=network-online.target"
+              "x-systemd.wants=network-online.target"
+            ]);
         };
       }) cfg);
 

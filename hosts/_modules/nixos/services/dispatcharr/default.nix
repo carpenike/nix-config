@@ -238,6 +238,8 @@ in
       group = "dispatcharr";
       isSystemUser = true;
       description = "Dispatcharr service user";
+      # Note: Dispatcharr doesn't need NFS media access (IPTV streams only)
+      # If you add media library integration later, add: extraGroups = [ "media" ];
     };
 
     users.groups.dispatcharr = {

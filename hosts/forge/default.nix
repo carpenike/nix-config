@@ -107,7 +107,7 @@ in
           remotePath = "/mnt/tank/share";
           localPath = "/mnt/media";  # Use /mnt to avoid conflict with tank/media at /srv/media
           group = "media";
-          mode = "0775";  # Allow group write access
+          mode = "02775";  # setgid bit ensures new files inherit media group
           mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
         };
       };

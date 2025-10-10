@@ -290,6 +290,7 @@ in
         PUID = cfg.user;
         PGID = cfg.group;
         TZ = cfg.timezone;
+        UMASK = "002";  # Ensure group-writable files on shared media
       };
       volumes = [
         "${cfg.dataDir}:/config:rw"
@@ -304,6 +305,10 @@ in
         # Force container to run as the specified user:group
         # This is required for containers that don't process PUID/PGID environment variables
         "--user=${cfg.user}:${cfg.group}"
+      ] ++ lib.optionals (nfsMountConfig != null) [
+        # Add media group to container so process can write to group-owned NFS mount
+        # Host user's extraGroups doesn't propagate into container namespace
+        "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
       ] ++ lib.optionals cfg.healthcheck.enable [
         # Define the health check on the container itself.
         # This allows `podman healthcheck run` to work and updates status in `podman ps`.
