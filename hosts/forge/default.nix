@@ -230,7 +230,7 @@ in
         #    image = "lscr.io/linuxserver/sonarr:4.0.10.2544-ls294@sha256:abc123...";
         #
         # Uncomment and set when ready to pin version:
-        # image = "lscr.io/linuxserver/sonarr:4.0.10.2544-ls294";
+        image = "ghcr.io/home-operations/sonarr:4.0.15.2940@sha256:ca6c735014bdfb04ce043bf1323a068ab1d1228eea5bab8305ca0722df7baf78";
 
         # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
         nfsMountDependency = "media";  # Use shared NFS mount and auto-configure mediaDir
