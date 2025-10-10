@@ -82,13 +82,64 @@
         ZFS="${pkgs.zfs}/bin/zfs"
         SYNCOID="${pkgs.sanoid}/bin/syncoid"
 
+        # Helper function to ensure dataset is mounted before file operations
+        ensure_mounted() {
+          if "$ZFS" list "${dataset}" &>/dev/null; then
+            mkdir -p "${mountpoint}"
+            "$ZFS" set mountpoint="${mountpoint}" "${dataset}" 2>/dev/null || true
+            "$ZFS" mount "${dataset}" 2>/dev/null || true
+          fi
+        }
+
+        # Helper function to clean up old protective snapshots (keep last 2)
+        cleanup_protective_snapshots() {
+          "$ZFS" list -H -t snapshot -o name -s creation -r "${dataset}" 2>/dev/null | \
+            ${pkgs.gnugrep}/bin/grep '@preseed_protect_' | \
+            ${pkgs.coreutils}/bin/head -n -2 | \
+            while read -r snap; do
+              "$ZFS" destroy "$snap" 2>/dev/null || true
+            done
+        }
+
         echo "Starting preseed check for ${serviceName} at ${mountpoint}..."
 
-        # Step 1: Check if data directory is empty.
+        # Step 1: Check if data directory is empty AND verify dataset state
         # Using `ls -A` to account for hidden files.
         if [ -n "$(ls -A "${mountpoint}" 2>/dev/null)" ]; then
+          # If dataset exists and has zero snapshots, take a protective one to close vulnerability window
+          if "$ZFS" list "${dataset}" &>/dev/null; then
+            SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+            if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+              echo "Dataset has data but no snapshots. Taking protective snapshot..."
+              "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
+              cleanup_protective_snapshots
+            fi
+          fi
           ${notify "preseed-skipped" "Data for ${serviceName} already exists. Skipping restore."}
           exit 0
+        fi
+
+        # Additional safety: If dataset exists and is mounted with ANY data, skip restore
+        # This protects against race conditions where mountpoint appears empty but dataset has data
+        if "$ZFS" list "${dataset}" &>/dev/null; then
+          DATASET_USED_BYTES=$("$ZFS" get -H -o value -p used "${dataset}" 2>/dev/null || echo "0")
+          # Use logicalreferenced to account for compression/dedup (fallback to used)
+          DATASET_LOGICAL_BYTES=$("$ZFS" get -H -o value -p logicalreferenced "${dataset}" 2>/dev/null || echo "0")
+          # Fallback if logicalreferenced isn't supported or non-numeric
+          if ! echo "$DATASET_LOGICAL_BYTES" | ${pkgs.gnugrep}/bin/grep -qE '^[0-9]+$'; then
+            DATASET_LOGICAL_BYTES="$DATASET_USED_BYTES"
+          fi
+          IS_MOUNTED=$("$ZFS" get -H -o value mounted "${dataset}" 2>/dev/null || echo "no")
+
+          # If dataset is mounted and has ANY logical data beyond ZFS metadata (>192KB), skip restore
+          # 192KB threshold accounts for empty ZFS filesystem overhead
+          # Using logicalreferenced prevents compression from hiding real data size
+          if [ "$IS_MOUNTED" = "yes" ] && [ "$DATASET_LOGICAL_BYTES" -gt 196608 ]; then
+            echo "Dataset ${dataset} is mounted with $DATASET_LOGICAL_BYTES logical bytes. Skipping restore for safety."
+            FRIENDLY_SIZE=$("$NUMFMT" --to=iec "$DATASET_LOGICAL_BYTES" 2>/dev/null || echo "$DATASET_LOGICAL_BYTES bytes")
+            ${notify "preseed-skipped" "Dataset ${serviceName} exists with data ($FRIENDLY_SIZE logical). Skipping restore."}
+            exit 0
+          fi
         fi
 
         echo "Data directory is empty. Attempting restore..."
@@ -107,30 +158,49 @@
             SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
             DATASET_USED=$("$ZFS" get -H -o value used "${dataset}" 2>/dev/null || echo "unknown")
             DATASET_USED_BYTES=$("$ZFS" get -H -o value -p used "${dataset}" 2>/dev/null || echo "0")
-            echo "Target dataset ${dataset} exists with $SNAPSHOT_COUNT snapshots (used: $DATASET_USED)"
+            # Use logicalreferenced to account for compression/dedup (fallback to used)
+            DATASET_LOGICAL_BYTES=$("$ZFS" get -H -o value -p logicalreferenced "${dataset}" 2>/dev/null || echo "0")
+            if ! echo "$DATASET_LOGICAL_BYTES" | ${pkgs.gnugrep}/bin/grep -qE '^[0-9]+$'; then
+              DATASET_LOGICAL_BYTES="$DATASET_USED_BYTES"
+            fi
+            echo "Target dataset ${dataset} exists with $SNAPSHOT_COUNT snapshots (used: $DATASET_USED, logical: $(numfmt --to=iec $DATASET_LOGICAL_BYTES 2>/dev/null || echo $DATASET_LOGICAL_BYTES))"
 
-            # Only destroy if dataset has no snapshots AND is very small (< 64MB)
-            # This mirrors syncoid's own safety check
-            if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$DATASET_USED_BYTES" -lt 67108864 ]; then
-              echo "Target dataset has no snapshots and < 64MB used. Destroying for initial replication..."
-              "$ZFS" destroy -r "${dataset}"
-              DATASET_DESTROYED=true
+            # Only destroy if dataset has no snapshots AND is essentially empty (< 1MB logical)
+            # SAFETY: Use conservative 1MB threshold on LOGICAL size to protect against race conditions where:
+            # - New service creates data but no snapshot exists yet (first sanoid run is hourly)
+            # - Service restarts before first snapshot, preseed runs again
+            # - Compression/dedup makes physical size misleading (10MB data might show as 1MB used)
+            # Original syncoid check was 64MB physical, we use 1MB logical for maximum safety
+            if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$DATASET_LOGICAL_BYTES" -lt 1048576 ]; then
+              # Double-check immediately before destroy to avoid racing with sanoid
+              SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+              RESUME_TOKEN=$("$ZFS" get -H -o value receive_resume_token "${dataset}" 2>/dev/null || echo "-")
+
+              if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$RESUME_TOKEN" = "-" ]; then
+                echo "Target dataset still has no snapshots and < 1MB logical data. Destroying for initial replication..."
+                "$ZFS" destroy -r "${dataset}"
+                DATASET_DESTROYED=true
+              else
+                echo "Refusing to destroy: snapshots now present ($SNAPSHOT_COUNT) or receive in progress (token=$RESUME_TOKEN)."
+              fi
             elif [ "$SNAPSHOT_COUNT" -eq 0 ]; then
-              echo "WARNING: Target dataset has no snapshots but is $DATASET_USED in size. Skipping destroy for safety."
+              echo "WARNING: Target dataset has no snapshots but is $DATASET_USED in size ($(numfmt --to=iec $DATASET_LOGICAL_BYTES 2>/dev/null || echo $DATASET_LOGICAL_BYTES) logical)."
+              echo "Refusing to destroy - may contain user data."
+              echo "If this is a fresh deployment and you want to restore from backup, manually run: zfs destroy -r ${dataset}"
             fi
           fi          # Use syncoid for robust replication with resume support and better error handling
           if "$SYNCOID" \
             --no-sync-snap \
             --no-privilege-elevation \
-            --sshkey="${lib.escapeShellArg replicationCfg.sshKeyPath}" \
+            --sshkey=${lib.escapeShellArg replicationCfg.sshKeyPath} \
             --sshoption=ConnectTimeout=10 \
             --sshoption=ServerAliveInterval=10 \
             --sshoption=ServerAliveCountMax=3 \
             --sshoption=StrictHostKeyChecking=accept-new \
-            --sendoptions="${lib.escapeShellArg replicationCfg.sendOptions}" \
-            --recvoptions="${lib.escapeShellArg replicationCfg.recvOptions}" \
-            "${lib.escapeShellArg replicationCfg.sshUser}@${lib.escapeShellArg replicationCfg.targetHost}:${lib.escapeShellArg replicationCfg.targetDataset}" \
-            "${lib.escapeShellArg dataset}"; then
+            --sendoptions=${lib.escapeShellArg replicationCfg.sendOptions} \
+            --recvoptions=${lib.escapeShellArg replicationCfg.recvOptions} \
+            ${lib.escapeShellArg (replicationCfg.sshUser + "@" + replicationCfg.targetHost + ":" + replicationCfg.targetDataset)} \
+            ${lib.escapeShellArg dataset}; then
             echo "Syncoid replication successful."
 
             # CRITICAL: Dataset may be unmounted due to recvOptions='u'.
@@ -151,6 +221,15 @@
             "$ZFS" mount "${dataset}" || echo "Dataset already mounted or mount failed (may already be mounted)"
 
             chown -R ${owner}:${group} "${mountpoint}"
+
+            # Take protective snapshot if none exist to close vulnerability window
+            SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+            if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+              echo "Taking protective snapshot after successful restore..."
+              "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
+              cleanup_protective_snapshots
+            fi
+
             ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS replication source ${replicationCfg.targetHost}."}
             exit 0
           else
@@ -159,19 +238,46 @@
         ''}
 
         # Step 3: Attempt ZFS snapshot rollback (fastest local)
-        # Find the latest sanoid-created snapshot for this dataset.
+        # Prefer sanoid-created snapshots, but fall back to any snapshot if none exist
         LATEST_SNAPSHOT=$("$ZFS" list -H -t snapshot -o name -s creation -r "${dataset}" | ${pkgs.gnugrep}/bin/grep '@sanoid_' | ${pkgs.gawk}/bin/tail -n 1 || true)
+
+        # If no sanoid snapshots, try any snapshot
+        if [ -z "$LATEST_SNAPSHOT" ]; then
+          LATEST_SNAPSHOT=$("$ZFS" list -H -t snapshot -o name -s creation -r "${dataset}" | ${pkgs.gawk}/bin/tail -n 1 || true)
+        fi
 
         if [ -n "$LATEST_SNAPSHOT" ]; then
           echo "Found latest ZFS snapshot: $LATEST_SNAPSHOT"
           echo "Attempting to roll back..."
+
+          # Ensure dataset is mounted before rollback
+          ensure_mounted
+
+          # Hold snapshot to prevent sanoid from pruning during rollback
+          "$ZFS" hold preseed "$LATEST_SNAPSHOT" 2>/dev/null || true
+
           if "$ZFS" rollback -r "$LATEST_SNAPSHOT"; then
             echo "ZFS rollback successful."
+
+            # Release the hold
+            "$ZFS" release preseed "$LATEST_SNAPSHOT" 2>/dev/null || true
+
             # Ensure correct ownership after rollback
             chown -R ${owner}:${group} "${mountpoint}"
+
+            # Take protective snapshot if none exist (shouldn't happen after rollback, but safety first)
+            SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+            if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+              echo "Taking protective snapshot after successful rollback..."
+              "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
+              cleanup_protective_snapshots
+            fi
+
             ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS snapshot $LATEST_SNAPSHOT."}
             exit 0
           else
+            # Release hold on failure
+            "$ZFS" release preseed "$LATEST_SNAPSHOT" 2>/dev/null || true
             echo "ZFS rollback failed. Proceeding to next restore method."
           fi
         else
@@ -188,8 +294,14 @@
           set +a
         ''}
 
-        # Ensure the target directory exists before restore
-        mkdir -p "${mountpoint}"
+        # Ensure dataset exists and is mounted before Restic restore
+        # If syncoid destroyed the dataset, we need to recreate it
+        if ! "$ZFS" list "${dataset}" &>/dev/null; then
+          echo "Dataset ${dataset} does not exist. Creating for Restic restore..."
+          mkdir -p "${mountpoint}"
+          "$ZFS" create -o mountpoint="${mountpoint}" ${lib.concatStringsSep " " (lib.mapAttrsToList (prop: value: "-o ${prop}=${lib.escapeShellArg value}") datasetProperties)} "${dataset}"
+        fi
+        ensure_mounted
 
         RESTIC_ARGS=(
           -r "${resticRepoUrl}"
@@ -206,6 +318,15 @@
           echo "Restic restore successful."
           # Ensure correct ownership after restore
           chown -R ${owner}:${group} "${mountpoint}"
+
+          # Take protective snapshot if none exist to close vulnerability window
+          SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+          if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+            echo "Taking protective snapshot after successful Restic restore..."
+            "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
+            cleanup_protective_snapshots
+          fi
+
           ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
           exit 0
         else
@@ -214,6 +335,15 @@
           if restic "''${RESTIC_ARGS[@]}"; then
             echo "Restic restore successful on retry."
             chown -R ${owner}:${group} "${mountpoint}"
+
+            # Take protective snapshot if none exist to close vulnerability window
+            SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+            if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+              echo "Taking protective snapshot after successful Restic restore (retry)..."
+              "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
+              cleanup_protective_snapshots
+            fi
+
             ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl} (retry)."}
             exit 0
           else
