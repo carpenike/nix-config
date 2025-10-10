@@ -63,7 +63,7 @@
       description = "Pre-seed data for ${serviceName} service";
       wantedBy = [ "multi-user.target" ];
       wants = [ "network-online.target" ];  # Declare dependency to avoid warning
-      after = [ "network-online.target" "zfs-import.target" ];
+      after = [ "network-online.target" "zfs-import.target" "zfs-mount.service" ];
       before = [ mainServiceUnit ];
 
       path = with pkgs; [ zfs coreutils gnugrep gawk restic systemd openssh sanoid ];
@@ -92,6 +92,25 @@
         ${lib.optionalString hasReplication ''
           echo "Attempting ZFS receive via syncoid from ${replicationCfg.targetHost}:${replicationCfg.targetDataset}..."
 
+          # Check if target dataset exists but is empty (created by config but never populated)
+          # Syncoid requires target to NOT exist for initial replication
+          if ${pkgs.zfs}/bin/zfs list "${dataset}" &>/dev/null; then
+            # Use headerless output for robust snapshot counting
+            SNAPSHOT_COUNT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+            DATASET_USED=$(${pkgs.zfs}/bin/zfs get -H -o value used "${dataset}" 2>/dev/null || echo "unknown")
+            DATASET_USED_BYTES=$(${pkgs.zfs}/bin/zfs get -H -o value -p used "${dataset}" 2>/dev/null || echo "0")
+            echo "Target dataset ${dataset} exists with $SNAPSHOT_COUNT snapshots (used: $DATASET_USED)"
+
+            # Only destroy if dataset has no snapshots AND is very small (< 64MB)
+            # This mirrors syncoid's own safety check
+            if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$DATASET_USED_BYTES" -lt 67108864 ]; then
+              echo "Target dataset has no snapshots and < 64MB used. Destroying for initial replication..."
+              ${pkgs.zfs}/bin/zfs destroy -r "${dataset}"
+            elif [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+              echo "WARNING: Target dataset has no snapshots but is $DATASET_USED in size. Skipping destroy for safety."
+            fi
+          fi
+
           # Use syncoid for robust replication with resume support and better error handling
           if ${pkgs.sanoid}/bin/syncoid \
             --no-sync-snap \
@@ -102,6 +121,13 @@
             "${lib.escapeShellArg replicationCfg.sshUser}@${lib.escapeShellArg replicationCfg.targetHost}:${lib.escapeShellArg replicationCfg.targetDataset}" \
             "${lib.escapeShellArg dataset}"; then
             echo "Syncoid replication successful."
+
+            # CRITICAL: Dataset may be unmounted due to recvOptions='u'.
+            # Explicitly set mountpoint and mount before chown.
+            echo "Ensuring dataset is mounted at ${mountpoint}..."
+            ${pkgs.zfs}/bin/zfs set mountpoint="${mountpoint}" "${dataset}"
+            ${pkgs.zfs}/bin/zfs mount "${dataset}" || echo "Dataset already mounted or mount failed (may already be mounted)"
+
             chown -R ${owner}:${group} "${mountpoint}"
             ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS replication source ${replicationCfg.targetHost}."}
             exit 0
