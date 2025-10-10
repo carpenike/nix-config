@@ -78,6 +78,10 @@
       script = ''
         set -euo pipefail
 
+        # Use system ZFS and syncoid binaries to avoid userland/kernel version mismatches
+        ZFS="/run/current-system/sw/bin/zfs"
+        SYNCOID="/run/current-system/sw/bin/syncoid"
+
         echo "Starting preseed check for ${serviceName} at ${mountpoint}..."
 
         # Step 1: Check if data directory is empty.
@@ -98,29 +102,33 @@
 
           # Check if target dataset exists but is empty (created by config but never populated)
           # Syncoid requires target to NOT exist for initial replication
-          if ${pkgs.zfs}/bin/zfs list "${dataset}" &>/dev/null; then
+          if "$ZFS" list "${dataset}" &>/dev/null; then
             # Use headerless output for robust snapshot counting
-            SNAPSHOT_COUNT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
-            DATASET_USED=$(${pkgs.zfs}/bin/zfs get -H -o value used "${dataset}" 2>/dev/null || echo "unknown")
-            DATASET_USED_BYTES=$(${pkgs.zfs}/bin/zfs get -H -o value -p used "${dataset}" 2>/dev/null || echo "0")
+            SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+            DATASET_USED=$("$ZFS" get -H -o value used "${dataset}" 2>/dev/null || echo "unknown")
+            DATASET_USED_BYTES=$("$ZFS" get -H -o value -p used "${dataset}" 2>/dev/null || echo "0")
             echo "Target dataset ${dataset} exists with $SNAPSHOT_COUNT snapshots (used: $DATASET_USED)"
 
             # Only destroy if dataset has no snapshots AND is very small (< 64MB)
             # This mirrors syncoid's own safety check
             if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$DATASET_USED_BYTES" -lt 67108864 ]; then
               echo "Target dataset has no snapshots and < 64MB used. Destroying for initial replication..."
-              ${pkgs.zfs}/bin/zfs destroy -r "${dataset}"
+              "$ZFS" destroy -r "${dataset}"
               DATASET_DESTROYED=true
             elif [ "$SNAPSHOT_COUNT" -eq 0 ]; then
               echo "WARNING: Target dataset has no snapshots but is $DATASET_USED in size. Skipping destroy for safety."
             fi
           fi          # Use syncoid for robust replication with resume support and better error handling
-          if ${pkgs.sanoid}/bin/syncoid \
+          if "$SYNCOID" \
             --no-sync-snap \
             --no-privilege-elevation \
+            --sshkey="${lib.escapeShellArg replicationCfg.sshKeyPath}" \
+            --sshoption=ConnectTimeout=10 \
+            --sshoption=ServerAliveInterval=10 \
+            --sshoption=ServerAliveCountMax=3 \
+            --sshoption=StrictHostKeyChecking=accept-new \
             --sendoptions="${lib.escapeShellArg replicationCfg.sendOptions}" \
             --recvoptions="${lib.escapeShellArg replicationCfg.recvOptions}" \
-            --sshkey="${lib.escapeShellArg replicationCfg.sshKeyPath}" \
             "${lib.escapeShellArg replicationCfg.sshUser}@${lib.escapeShellArg replicationCfg.targetHost}:${lib.escapeShellArg replicationCfg.targetDataset}" \
             "${lib.escapeShellArg dataset}"; then
             echo "Syncoid replication successful."
@@ -128,7 +136,8 @@
             # CRITICAL: Dataset may be unmounted due to recvOptions='u'.
             # Explicitly set mountpoint and mount before chown.
             echo "Ensuring dataset is mounted at ${mountpoint}..."
-            ${pkgs.zfs}/bin/zfs set mountpoint="${mountpoint}" "${dataset}"
+            mkdir -p "${mountpoint}"
+            "$ZFS" set mountpoint="${mountpoint}" "${dataset}"
 
             # NOTE: ZFS send/receive may not preserve all properties depending on send flags.
             # If source replication doesn't use -p flag, properties will be wrong.
@@ -136,10 +145,10 @@
             # TODO: Remove these if/when all replications use sendOptions="wp"
             echo "Resetting dataset properties to match declarative config..."
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (prop: value:
-              ''${pkgs.zfs}/bin/zfs set ${prop}=${lib.escapeShellArg value} "${dataset}" || echo "Failed to set ${prop}"''
+              ''"$ZFS" set ${prop}=${lib.escapeShellArg value} "${dataset}" || echo "Failed to set ${prop}"''
             ) datasetProperties)}
 
-            ${pkgs.zfs}/bin/zfs mount "${dataset}" || echo "Dataset already mounted or mount failed (may already be mounted)"
+            "$ZFS" mount "${dataset}" || echo "Dataset already mounted or mount failed (may already be mounted)"
 
             chown -R ${owner}:${group} "${mountpoint}"
             ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS replication source ${replicationCfg.targetHost}."}
@@ -151,12 +160,12 @@
 
         # Step 3: Attempt ZFS snapshot rollback (fastest local)
         # Find the latest sanoid-created snapshot for this dataset.
-        LATEST_SNAPSHOT=$(${pkgs.zfs}/bin/zfs list -t snapshot -o name -s creation -r "${dataset}" | ${pkgs.gnugrep}/bin/grep '@sanoid_' | ${pkgs.gawk}/bin/tail -n 1 || true)
+        LATEST_SNAPSHOT=$("$ZFS" list -H -t snapshot -o name -s creation -r "${dataset}" | ${pkgs.gnugrep}/bin/grep '@sanoid_' | ${pkgs.gawk}/bin/tail -n 1 || true)
 
         if [ -n "$LATEST_SNAPSHOT" ]; then
           echo "Found latest ZFS snapshot: $LATEST_SNAPSHOT"
           echo "Attempting to roll back..."
-          if zfs rollback -r "$LATEST_SNAPSHOT"; then
+          if "$ZFS" rollback -r "$LATEST_SNAPSHOT"; then
             echo "ZFS rollback successful."
             # Ensure correct ownership after rollback
             chown -R ${owner}:${group} "${mountpoint}"
@@ -207,15 +216,16 @@
         # If we destroyed the dataset earlier (for syncoid initial replication) but all restores failed,
         # we need to recreate it so the service has a filesystem to write to.
         ${lib.optionalString hasReplication ''
-          if [ "$DATASET_DESTROYED" = "true" ] && ! ${pkgs.zfs}/bin/zfs list "${dataset}" &>/dev/null; then
+          if [ "$DATASET_DESTROYED" = "true" ] && ! "$ZFS" list "${dataset}" &>/dev/null; then
             echo "Dataset was destroyed but restores failed. Recreating empty dataset with proper properties..."
-            ${pkgs.zfs}/bin/zfs create \
+            mkdir -p "${mountpoint}"
+            "$ZFS" create \
               -o mountpoint="${mountpoint}" \
               ${lib.concatStringsSep " \\\n              " (lib.mapAttrsToList (prop: value:
                 "-o ${prop}=${lib.escapeShellArg value}"
               ) datasetProperties)} \
               "${dataset}"
-            ${pkgs.zfs}/bin/zfs mount "${dataset}" || echo "Dataset already mounted"
+            "$ZFS" mount "${dataset}" || echo "Dataset already mounted"
             chown -R ${owner}:${group} "${mountpoint}"
             echo "Empty dataset created. Service can now start fresh."
           fi
