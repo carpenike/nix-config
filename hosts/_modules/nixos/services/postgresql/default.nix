@@ -740,4 +740,7 @@ in
       };
     })
   ];
+
+  # Import database provisioning module
+  imports = [ ./databases.nix ];
 }

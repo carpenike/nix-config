@@ -196,10 +196,112 @@ in
         '';
       };
     };
+
+    database = {
+      host = lib.mkOption {
+        type = lib.types.str;
+        default = "localhost";
+        description = "PostgreSQL host address";
+      };
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 5432;
+        description = "PostgreSQL port";
+      };
+
+      name = lib.mkOption {
+        type = lib.types.str;
+        default = "dispatcharr";
+        description = "Database name";
+      };
+
+      user = lib.mkOption {
+        type = lib.types.str;
+        default = "dispatcharr";
+        description = "Database user";
+      };
+
+      passwordFile = lib.mkOption {
+        type = lib.types.path;
+        description = ''
+          Path to file containing database password for the application.
+
+          CRITICAL: Dispatcharr does NOT support DATABASE_PASSWORD_FILE.
+          The password must be injected into DATABASE_URL at runtime.
+          This uses systemd's LoadCredential to securely pass the password.
+
+          Should reference a SOPS secret:
+            config.sops.secrets."dispatcharr/app_db_password".path
+        '';
+      };
+    };
   };
 
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
+      # Declare PostgreSQL database requirements
+      # This integrates with the database provisioning system to automatically
+      # create the database, user, and required extensions.
+      #
+      # IMPORTANT: Based on Dispatcharr source code analysis, these extensions are REQUIRED:
+      # - btree_gin: For GIN index support (used in Django migrations)
+      # - pg_trgm: For trigram similarity searches (improves text searching)
+      #
+      # NOTE: The modules.services.postgresql.databases option is declared in
+      # database-interface.nix which is imported by all NixOS hosts. This allows
+      # service modules to declare database requirements without evaluation errors,
+      # following the NixOS best practice of separating interface from implementation.
+      # (Per GPT-5 and Gemini Pro consensus review)
+      modules.services.postgresql.databases.dispatcharr = {
+        owner = cfg.database.user;
+        # NOTE: This is the database OWNER password for provisioning
+        # The application uses the same password (single role in Phase 2)
+        # Use cfg.database.passwordFile directly since SOPS secret path doesn't exist at eval time
+        ownerPasswordFile = cfg.database.passwordFile;
+
+        extensions = [
+          "btree_gin"  # REQUIRED: GIN index support for Django queries
+          "pg_trgm"    # REQUIRED: Trigram matching for text search
+        ];
+
+        # Phase 2: Full privilege hierarchy
+
+        # Database-level permissions (connection and schema creation)
+        databasePermissions = {
+          dispatcharr = [ "ALL" ];  # Owner gets full database access
+        };
+
+        # Schema-level permissions (public schema access)
+        schemaPermissions = {
+          public = {
+            dispatcharr = [ "ALL" ];     # Owner can create objects in public schema
+            readonly = [ "USAGE" ];       # Read-only needs USAGE to access schema objects
+          };
+        };
+
+        # Table-level permissions (for existing and future tables)
+        tablePermissions = {
+          "public.*" = {
+            dispatcharr = [ "ALL" ];     # Owner has full access to all tables
+            readonly = [ "SELECT" ];      # Read-only can SELECT from all tables
+          };
+        };
+
+        # Default privileges (for tables created in the future by dispatcharr owner)
+        defaultPrivileges = {
+          dispatcharr_defaults = {
+            owner = cfg.database.user;    # When this role creates objects...
+            schema = "public";
+            tables = {
+              readonly = [ "SELECT" ];    # ...automatically grant SELECT to readonly
+            };
+            sequences = {
+              readonly = [ "SELECT" "USAGE" ];  # ...and sequence access
+            };
+          };
+        };
+      };
       # Validate configuration
       assertions =
         (lib.optional cfg.backup.enable {
@@ -213,7 +315,24 @@ in
         ++ (lib.optional cfg.preseed.enable {
           assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
           message = "Dispatcharr preseed.enable requires preseed.passwordFile to be set.";
-        });
+        })
+        ++ [
+          {
+            assertion = config.modules.services.postgresql.instances.main.enable or false;
+            message = "Dispatcharr requires PostgreSQL to be enabled (modules.services.postgresql.instances.main.enable).";
+          }
+        ];
+
+    # Define SOPS secret for database password
+    # NOTE: Must be readable by both postgres (provisioning) and root (container preStart)
+    sops.secrets = lib.mkIf cfg.enable {
+      "dispatcharr/db_password" = {
+        sopsFile = ./secrets.sops.yaml;
+        mode = "0440";  # Readable by owner and group
+        owner = "root";
+        group = "postgres";  # Postgres can read for provisioning
+      };
+    };
 
     # Declare dataset requirements for per-service ZFS isolation
     # This integrates with the storage.datasets module to automatically
@@ -247,22 +366,29 @@ in
     };
 
     # Dispatcharr container configuration
+    # NOTE: Dispatcharr does NOT support DATABASE_PASSWORD_FILE environment variable
+    # The password must be embedded in DATABASE_URL, which is handled via systemd
+    # LoadCredential + environmentFile that builds the URL at runtime
     virtualisation.oci-containers.containers.dispatcharr = podmanLib.mkContainer "dispatcharr" {
       image = cfg.image;
+      environmentFiles = [
+        # This file is generated by systemd service with DATABASE_URL containing the password
+        "/run/dispatcharr/env"
+      ];
       environment = {
         PUID = cfg.user;
         PGID = cfg.group;
         TZ = cfg.timezone;
-        # Explicitly set All-In-One mode to ensure the container's entrypoint
-        # script initializes the embedded Postgres, Redis, and Celery services.
-        # This aligns with the official `docker-compose.aio.yml` and makes
-        # the deployment more robust against changes in image defaults.
-        DISPATCHARR_ENV = "aio";
+        DISPATCHARR_ENV = "production";  # Always use external PostgreSQL
+        # Use embedded Redis for caching/queuing (Dispatcharr container includes Redis via s6-overlay)
         CELERY_BROKER_URL = "redis://localhost:6379/0";
         CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
       };
       volumes = [
-        "${cfg.dataDir}:/data:rw"
+        # Use ':Z' for SELinux systems to ensure the container can write to the volume
+        "${cfg.dataDir}:/data:rw,Z"
+        # Mount the PostgreSQL socket for direct, secure, and reliable communication
+        "/run/postgresql:/run/postgresql:ro"
       ];
       ports = [
         "${toString dispatcharrPort}:9191"
@@ -301,6 +427,48 @@ in
         wants = [ "preseed-dispatcharr.service" ];
         after = [ "preseed-dispatcharr.service" ];
       })
+      # Add dependency on PostgreSQL and database provisioning
+      {
+        # Use 'requires' for robustness. If provisioning fails, this service won't start.
+        requires = [ "postgresql-database-provisioning.service" ];
+        after = [ "postgresql.service" "postgresql-database-provisioning.service" ];
+
+        # Securely load the database password using systemd's native credential handling.
+        # The password will be available at $CREDENTIALS_DIRECTORY/db_password
+        serviceConfig.LoadCredential = [ "db_password:${cfg.database.passwordFile}" ];
+
+        # Generate environment file with DATABASE_URL at runtime
+        # SECURITY: This implementation prevents password leaks via process list and journal
+        preStart = let
+          # This script reads the password from stdin to avoid leaking it to the process list
+          urlEncoderScript = pkgs.writeShellScript "url-encode-password" ''
+            ${pkgs.python3}/bin/python3 -c 'import urllib.parse; import sys; print(urllib.parse.quote(sys.stdin.read().strip(), safe=""))'
+          '';
+        in ''
+          # Fail fast on any error
+          set -euo pipefail
+
+          # Create runtime directory for the environment file
+          mkdir -p /run/dispatcharr
+          chmod 700 /run/dispatcharr
+
+          # URL-encode the password by reading from the systemd-managed credential file
+          # and piping it to the encoder. This avoids command-line argument leaks.
+          ENCODED_PASSWORD=$(cat "$CREDENTIALS_DIRECTORY/db_password" | ${urlEncoderScript})
+
+          # Use printf to generate the DATABASE_URL. This avoids leaking the password
+          # to the journal if 'set -x' is ever enabled.
+          # The URL format is for a Unix socket connection.
+          printf "DATABASE_URL=postgresql://%s:%s@/%s?host=%s\n" \
+            "${cfg.database.user}" \
+            "$ENCODED_PASSWORD" \
+            "${cfg.database.name}" \
+            "/run/postgresql" > /run/dispatcharr/env
+
+          # Secure permissions (only root can read)
+          chmod 600 /run/dispatcharr/env
+        '';
+      }
     ];
 
     # Create explicit health check timer/service that we control

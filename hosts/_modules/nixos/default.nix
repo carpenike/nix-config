@@ -12,6 +12,7 @@
     ./hardware
     ./services
     ./services/attic.nix
+    ./services/postgresql/database-interface.nix  # PostgreSQL database interface (option declaration only)
     ./backup.nix
     ./services/backup-services.nix
     ./monitoring.nix
