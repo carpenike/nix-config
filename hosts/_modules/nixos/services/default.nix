@@ -23,6 +23,7 @@
     ./openssh
     ./omada
     ./podman
+    ./postgresql
     ./sonarr
     ./unifi
   ];
