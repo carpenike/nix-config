@@ -674,13 +674,12 @@ in
       # User should only enable one instance due to NixOS services.postgresql constraints
     }
 
-    # FIXME: Cannot use mapAttrsToList over config.modules.services.postgresql
-    # because it creates circular dependency (reading the config we're defining)
-    # Temporarily disabled to test if module evaluates
-    # (lib.mkMerge (lib.mapAttrsToList (name: instanceCfg:
-    #   lib.mkIf instanceCfg.enable (mkInstanceConfig name instanceCfg)
-    # ) config.modules.services.postgresql))
-    {}
+    # Apply configuration for each enabled instance
+    # We can't use mapAttrsToList over config.modules.services.postgresql (circular dependency)
+    # Instead, we explicitly handle each instance by name
+    (lib.mkIf (config.modules.services.postgresql.main.enable or false)
+      (mkInstanceConfig "main" config.modules.services.postgresql.main)
+    )
 
     # Notification templates
     (lib.mkIf (config.modules.notifications.enable or false) {
