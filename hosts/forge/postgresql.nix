@@ -11,6 +11,12 @@
 # - ZFS dataset with PostgreSQL-optimal settings (8K recordsize)
 # - Backup integration via restic
 # - Health monitoring and notifications
+let
+  # Secret paths that will be evaluated after config is built
+  # This breaks the circular dependency by deferring the path resolution
+  resticPasswordPath = config.sops.secrets."restic/password".path;
+  dispatcharrPasswordPath = config.sops.secrets."postgresql/dispatcharr_password".path;
+in
 {
   config = {
     # Enable PostgreSQL service
@@ -73,7 +79,7 @@
           preseed = {
             enable = true;
             repositoryUrl = "/mnt/nas-backup";  # Direct reference to avoid circular dependency
-            passwordFile = config.sops.secrets."restic/password".path;
+            passwordFile = resticPasswordPath;
           };
         };
       };
@@ -83,7 +89,7 @@
         # Dispatcharr database
         dispatcharr = {
           owner = "dispatcharr";
-          ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
+          ownerPasswordFile = dispatcharrPasswordPath;
           extensions = [ "uuid-ossp" ];  # Common UUID extension
 
           # Use the owner-readwrite+readonly-select preset for flexibility
