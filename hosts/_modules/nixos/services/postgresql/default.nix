@@ -401,7 +401,7 @@ let
 in
 {
   options.modules.services.postgresql = lib.mkOption {
-    type = lib.types.attrsOf (lib.types.submodule {
+    type = lib.types.attrsOf (lib.types.submodule ({ name, config, ... }: {
       options = {
         enable = lib.mkEnableOption "PostgreSQL instance";
 
@@ -661,7 +661,10 @@ in
           description = "Additional PostgreSQL configuration settings";
         };
       };
-    });
+
+      # Submodule config - generates configuration when this instance is enabled
+      config = lib.mkIf config.enable (mkInstanceConfig name config);
+    }));
     default = {};
     description = "PostgreSQL instances with PITR support";
   };
@@ -674,12 +677,9 @@ in
       # User should only enable one instance due to NixOS services.postgresql constraints
     }
 
-    # Apply configuration for each enabled instance
-    # We can't use mapAttrsToList over config.modules.services.postgresql (circular dependency)
-    # Instead, we explicitly handle each instance by name
-    (lib.mkIf (config.modules.services.postgresql.main.enable or false)
-      (mkInstanceConfig "main" config.modules.services.postgresql.main)
-    )
+    # Configuration is now generated inside each submodule's config section
+    # This avoids circular dependency by not iterating over config.modules.services.postgresql
+    {}
 
     # Notification templates
     (lib.mkIf (config.modules.notifications.enable or false) {
