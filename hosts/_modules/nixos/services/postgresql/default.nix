@@ -662,8 +662,8 @@ in
         };
       };
 
-      # Submodule config - generates configuration when this instance is enabled
-      config = lib.mkIf config.enable (mkInstanceConfig name config);
+      # NOTE: Submodule config can't set top-level options like services.postgresql
+      # Configuration is generated at parent module level instead
     }));
     default = {};
     description = "PostgreSQL instances with PITR support";
@@ -677,8 +677,8 @@ in
       # User should only enable one instance due to NixOS services.postgresql constraints
     }
 
-    # Configuration is now generated inside each submodule's config section
-    # This avoids circular dependency by not iterating over config.modules.services.postgresql
+    # NOTE: Config generation moved to implementation.nix (separate module)
+    # This avoids circular dependency by splitting options and config into separate modules
     {}
 
     # Notification templates
