@@ -1,5 +1,12 @@
-{ config, primaryRepo, ... }:
+{ config, ... }:
 
+let
+  # Reference centralized primary backup repository config from default.nix
+  # See hosts/forge/default.nix for the single source of truth
+  primaryRepoName = "nas-primary";
+  primaryRepoUrl = "/mnt/nas-backup";
+  primaryRepoPasswordFile = config.sops.secrets."restic/password".path;
+in
 {
   config = {
     # Create restic-backup user and group
@@ -86,12 +93,11 @@
         };
 
         # Define backup repositories
-        # Note: Repository details are passed via _module.args.primaryRepo from default.nix
-        # This ensures a single source of truth for repository configuration.
+        # Note: Repository details defined inline from config.sops.secrets to avoid _module.args circular dependency
         repositories = {
-          ${primaryRepo.name} = {
-            url = primaryRepo.url;
-            passwordFile = primaryRepo.passwordFile;
+          ${primaryRepoName} = {
+            url = primaryRepoUrl;
+            passwordFile = primaryRepoPasswordFile;
             primary = true;
           };
         };
@@ -100,7 +106,7 @@
         jobs = {
           system = {
             enable = true;
-            repository = primaryRepo.name;
+            repository = primaryRepoName;
             paths = [
               "/home"
               "/persist"
@@ -131,7 +137,7 @@
 
           nix-store = {
             enable = false;  # Optional: enable if you want to backup Nix store
-            repository = primaryRepo.name;
+            repository = primaryRepoName;
             paths = [ "/nix" ];
             tags = [ "nix" "forge" ];
             resources = {

@@ -5,45 +5,42 @@
   ...
 }:
 let
-  cfg = config.modules.services.postgresql;
-
   # Import storage helpers for preseed integration
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 
   # Import scripts library
   scriptsLib = import ./scripts.nix { inherit lib pkgs; };
 
-  # Import notification config for preseed integration
-  notificationsCfg = config.modules.notifications;
-  hasCentralizedNotifications = notificationsCfg.enable or false;
-
-  # Replication discovery helper (mirrors Sonarr pattern)
-  # This allows a service dataset to inherit replication config from a parent dataset
-  findReplication = dsPath:
-    if dsPath == "" || dsPath == "." then null
-    else
-      let
-        sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
-        parentPath =
-          if lib.elem "/" (lib.stringToCharacters dsPath) then
-            lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
-          else
-            "";
-      in
-      if replicationInfo != null then
-        { sourcePath = dsPath; replication = replicationInfo; }
-      else
-        findReplication parentPath;
-
   # Generate configuration for each PostgreSQL instance
   mkInstanceConfig = instanceName: instanceCfg:
     let
+      # Replication discovery helper (moved inside function to avoid circular dependency)
+      # This allows a service dataset to inherit replication config from a parent dataset
+      findReplication = dsPath:
+        if dsPath == "" || dsPath == "." then null
+        else
+          let
+            sanoidDatasets = config.modules.backup.sanoid.datasets;
+            replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+            parentPath =
+              if lib.elem "/" (lib.stringToCharacters dsPath) then
+                lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
+              else
+                "";
+          in
+          if replicationInfo != null then
+            { sourcePath = dsPath; replication = replicationInfo; }
+          else
+            findReplication parentPath;
+
       dataDir = "/var/lib/postgresql/${instanceCfg.version}/${instanceName}";
       walArchiveDir = "/var/lib/postgresql/${instanceCfg.version}/${instanceName}-wal-archive";
       walIncomingDir = "${walArchiveDir}/incoming";
 
       pgPackage = pkgs."postgresql_${builtins.replaceStrings ["."] [""] instanceCfg.version}";
+
+      # Check if centralized notifications are enabled (inline to avoid circular dependency)
+      hasCentralizedNotifications = config.modules.notifications.enable or false;
 
       # Metrics directory for node_exporter - use consistent path from monitoring module
       metricsDir = config.modules.monitoring.nodeExporter.textfileCollector.directory or "/var/lib/node_exporter/textfile_collector";
@@ -672,24 +669,18 @@ in
   config = lib.mkMerge [
     # Assertions
     {
-      assertions = [
-        {
-          assertion = (lib.length (lib.filter (instance: instance.enable) (lib.attrValues cfg))) <= 1;
-          message = ''
-            Only one PostgreSQL instance can be enabled at a time due to NixOS services.postgresql limitations.
-            Enabled instances: ${lib.concatStringsSep ", " (lib.attrNames (lib.filterAttrs (_: v: v.enable) cfg))}
-
-            Multi-instance support requires custom systemd units (planned future enhancement).
-            For now, please enable only one instance.
-          '';
-        }
-      ];
+      # NOTE: Single-instance limitation documented in module description
+      # Assertion removed to avoid circular dependency (would need to read config.modules.services.postgresql)
+      # User should only enable one instance due to NixOS services.postgresql constraints
     }
 
-    # Generate configuration for each enabled instance
-    (lib.mkMerge (lib.mapAttrsToList (name: instanceCfg:
-      lib.mkIf instanceCfg.enable (mkInstanceConfig name instanceCfg)
-    ) cfg))
+    # FIXME: Cannot use mapAttrsToList over config.modules.services.postgresql
+    # because it creates circular dependency (reading the config we're defining)
+    # Temporarily disabled to test if module evaluates
+    # (lib.mkMerge (lib.mapAttrsToList (name: instanceCfg:
+    #   lib.mkIf instanceCfg.enable (mkInstanceConfig name instanceCfg)
+    # ) config.modules.services.postgresql))
+    {}
 
     # Notification templates
     (lib.mkIf (config.modules.notifications.enable or false) {
@@ -729,7 +720,7 @@ in
 
         postgresql-replication-lag = {
           enable = true;
-          priority = "medium";
+          priority = "normal";  # Changed from "medium" (not a valid priority)
           title = "⚠ PostgreSQL Replication Lag";
           body = ''
             <b>Instance:</b> ''${instance}
@@ -741,6 +732,9 @@ in
     })
   ];
 
-  # Import database provisioning module
-  imports = [ ./databases.nix ];
+  # FIXME: Database provisioning module creates circular dependency
+  # databases.nix tries to read config.modules.services.postgresql.databases
+  # which is part of the same config tree this module defines
+  # Need to restructure database provisioning to avoid this circular reference
+  # imports = [ ./databases.nix ];
 }

@@ -11,91 +11,80 @@
 # - ZFS dataset with PostgreSQL-optimal settings (8K recordsize)
 # - Backup integration via restic
 # - Health monitoring and notifications
-let
-  # Secret paths that will be evaluated after config is built
-  # This breaks the circular dependency by deferring the path resolution
-  resticPasswordPath = config.sops.secrets."restic/password".path;
-  dispatcharrPasswordPath = config.sops.secrets."postgresql/dispatcharr_password".path;
-in
+#
+# Secret paths are passed via postgresSecrets parameter (defined in forge/default.nix)
+# to avoid circular dependencies in module evaluation
 {
   config = {
     # Enable PostgreSQL service
     modules.services.postgresql = {
-      instances = {
-        main = {
+      # Main PostgreSQL instance (no .instances wrapper needed)
+      main = {
+        enable = true;
+        version = "16";
+        port = 5432;
+
+        # Listen only on localhost for security (services connect locally)
+        listenAddresses = "localhost";
+
+        # Memory settings (tune based on available RAM)
+        sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
+        effectiveCacheSize = "1GB";     # ~50% of available RAM
+        maintenanceWorkMem = "128MB";
+        workMem = "16MB";
+
+        # Additional settings via extraSettings
+        extraSettings = {
+          # WAL settings for better durability and performance
+          wal_level = "replica";  # Enable for potential future replication
+          max_wal_size = "2GB";
+          min_wal_size = "512MB";
+
+          # Checkpoint settings
+          checkpoint_completion_target = "0.9";
+
+          # Query planner (optimized for SSD/NVMe)
+          random_page_cost = "1.1";
+          effective_io_concurrency = "200";
+
+          # Logging configuration
+          log_destination = "stderr";
+          logging_collector = true;
+          log_directory = "log";
+          log_filename = "postgresql-%Y-%m-%d.log";
+          log_rotation_age = "1d";
+          log_rotation_size = 0;
+          log_line_prefix = "%m [%p] %q%u@%d ";
+          log_timezone = "UTC";
+        };
+
+        # Enable backup via restic
+        backup = {
           enable = true;
-          version = "16";
-          port = 5432;
+          repository = "nas-primary";
+          schedule = "daily";  # Base backups daily at 01:00
+        };
 
-          # Listen only on localhost for security (services connect locally)
-          listen_addresses = "localhost";
+        # Enable health monitoring
+        healthCheck.enable = true;
 
-          # Performance tuning (adjust based on available RAM)
-          # forge has significant RAM, so we can be generous
-          settings = {
-            # Memory settings (conservative defaults)
-            shared_buffers = "256MB";  # 25% of RAM for a dedicated DB server
-            effective_cache_size = "1GB";  # ~50% of available RAM
-            maintenance_work_mem = "128MB";
-            work_mem = "16MB";
+        # Enable notifications
+        notifications.enable = true;
 
-            # WAL settings for better durability and performance
-            wal_level = "replica";  # Enable for potential future replication
-            max_wal_size = "2GB";
-            min_wal_size = "512MB";
-
-            # Checkpoint settings
-            checkpoint_completion_target = "0.9";
-
-            # Query planner
-            random_page_cost = "1.1";  # Lower for SSD/NVMe
-            effective_io_concurrency = "200";  # Higher for NVMe
-
-            # Logging
-            log_destination = "stderr";
-            logging_collector = true;
-            log_directory = "log";
-            log_filename = "postgresql-%Y-%m-%d.log";
-            log_rotation_age = "1d";
-            log_rotation_size = 0;
-            log_line_prefix = "%m [%p] %q%u@%d ";
-            log_timezone = "UTC";
-          };
-
-          # Enable backup via restic
-          backup = {
-            enable = true;
-            repository = "nas-primary";  # Direct reference to repository name
-            schedule = "daily";  # Base backups daily at 01:00
-          };
-
-          # Enable health monitoring
-          healthcheck.enable = true;
-
-          # Enable notifications
-          notifications.enable = true;
-
-          # Enable preseed for disaster recovery
-          preseed = {
-            enable = true;
-            repositoryUrl = "/mnt/nas-backup";  # Direct reference to avoid circular dependency
-            passwordFile = resticPasswordPath;
-          };
+        # Enable preseed for disaster recovery
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
         };
       };
 
       # Declarative database provisioning
       databases = {
-        # Dispatcharr database
         dispatcharr = {
           owner = "dispatcharr";
-          ownerPasswordFile = dispatcharrPasswordPath;
-          extensions = [ "uuid-ossp" ];  # Common UUID extension
-
-          # Use the owner-readwrite+readonly-select preset for flexibility
-          # This creates:
-          # - Full permissions for dispatcharr user
-          # - readonly role with SELECT for monitoring/reporting
+          ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
+          extensions = [ "uuid-ossp" ];
           permissionsPolicy = "owner-readwrite+readonly-select";
         };
       };

@@ -7,18 +7,6 @@
 }:
 let
   ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
-
-  # Centralized backup repository configuration
-  # This is the single source of truth for the primary backup repository.
-  # Referenced by:
-  #   - backup.nix: nas-primary repository definition
-  #   - Service preseed features: to restore from the same repository
-  # Maintaining this in one place ensures consistency and simplifies updates.
-  primaryRepo = {
-    name = "nas-primary";
-    url = "/mnt/nas-backup";
-    passwordFile = config.sops.secrets."restic/password".path;
-  };
 in
 {
   imports = [
@@ -34,9 +22,6 @@ in
   ];
 
   config = {
-    # Pass primaryRepo to modules via _module.args (following the podmanLib pattern)
-    _module.args.primaryRepo = primaryRepo;
-
     # Primary IP for DNS record generation
     my.hostIp = "10.20.0.30";
 
@@ -239,16 +224,14 @@ in
         healthcheck.enable = true;  # Enable container health monitoring
         backup = {
           enable = true;
-          repository = primaryRepo.name;  # Reference centralized repository name
+          repository = "nas-primary";  # Primary NFS backup repository
         };
         notifications.enable = true;  # Enable failure notifications
         preseed = {
           enable = true;  # Enable self-healing restore
-          # Pass repository config explicitly to avoid circular dependency
-          # (preseed needs backup config, but sonarr also defines a backup job)
-          # Uses centralized primaryRepo configuration (defined in let block above)
-          repositoryUrl = primaryRepo.url;
-          passwordFile = primaryRepo.passwordFile;
+          # Pass repository config explicitly (reading from config.sops.secrets to avoid circular dependency)
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
           # environmentFile not needed for local filesystem repository
         };
       };
@@ -273,13 +256,13 @@ in
         healthcheck.enable = true;  # Enable container health monitoring
         backup = {
           enable = true;
-          repository = primaryRepo.name;  # Reference centralized repository name
+          repository = "nas-primary";  # Primary NFS backup repository
         };
         notifications.enable = true;  # Enable failure notifications
         preseed = {
           enable = true;  # Enable self-healing restore
-          repositoryUrl = primaryRepo.url;
-          passwordFile = primaryRepo.passwordFile;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
           # environmentFile not needed for local filesystem repository
         };
       };

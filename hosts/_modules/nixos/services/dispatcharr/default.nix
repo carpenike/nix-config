@@ -318,8 +318,8 @@ in
         })
         ++ [
           {
-            assertion = config.modules.services.postgresql.instances.main.enable or false;
-            message = "Dispatcharr requires PostgreSQL to be enabled (modules.services.postgresql.instances.main.enable).";
+            assertion = config.modules.services.postgresql.main.enable or false;
+            message = "Dispatcharr requires PostgreSQL to be enabled (modules.services.postgresql.main.enable).";
           }
         ];
 
