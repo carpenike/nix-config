@@ -45,8 +45,8 @@ let
 
       pgPackage = pkgs."postgresql_${builtins.replaceStrings ["."] [""] instanceCfg.version}";
 
-      # Metrics directory for node_exporter
-      metricsDir = config.modules.backup.monitoring.prometheus.metricsDir or "/var/lib/node_exporter/textfile_collector";
+      # Metrics directory for node_exporter - use consistent path from monitoring module
+      metricsDir = config.modules.monitoring.nodeExporter.textfileCollector.directory or "/var/lib/node_exporter/textfile_collector";
 
       # Compute dataset path and replication config (FIX: CRITICAL #1 - Preseed integration)
       storageCfg = config.modules.storage;

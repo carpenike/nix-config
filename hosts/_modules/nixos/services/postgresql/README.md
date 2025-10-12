@@ -40,7 +40,49 @@ Declarative NixOS module for managing PostgreSQL databases, roles, permissions, 
 
 ## Usage
 
-### Basic Example
+### Quick Start: Permission Presets (Recommended)
+
+For most common use cases, use permission presets instead of manually configuring permissions:
+
+```nix
+{
+  modules.services.postgresql = {
+    instances.main = {
+      enable = true;
+      port = 5432;
+    };
+
+    databases = {
+      # Simple app with only owner access
+      simple_app = {
+        owner = "simple_user";
+        ownerPasswordFile = "/run/secrets/simple_db_password";
+        extensions = [ "uuid-ossp" ];
+        permissionsPolicy = "owner-only";  # Most restrictive
+      };
+
+      # App with owner + readonly role
+      production_app = {
+        owner = "myapp_user";
+        ownerPasswordFile = "/run/secrets/myapp_db_password";
+        extensions = [ "pg_trgm" "btree_gin" ];
+        permissionsPolicy = "owner-readwrite+readonly-select";  # Recommended
+        # This automatically creates:
+        # - 'readonly' role with SELECT on all tables
+        # - Full permissions for owner
+        # - Default privileges for future objects
+      };
+    };
+  };
+}
+```
+
+**Available Presets:**
+- `owner-only`: Only the database owner has access (most restrictive)
+- `owner-readwrite+readonly-select`: Owner has full access + auto-created `readonly` role with SELECT
+- `custom`: Manual permission configuration (for advanced use cases)
+
+### Basic Example (Custom Permissions)
 ```nix
 {
   modules.services.postgresql = {
@@ -54,6 +96,7 @@ Declarative NixOS module for managing PostgreSQL databases, roles, permissions, 
         owner = "myapp_user";
         ownerPasswordFile = "/run/secrets/myapp_db_password";
         extensions = [ "uuid-ossp" "pg_trgm" ];
+        permissionsPolicy = "custom";  # Use manual permissions below
       };
     };
   };
@@ -140,6 +183,63 @@ Declarative NixOS module for managing PostgreSQL databases, roles, permissions, 
         };
       };
     };
+  };
+}
+```
+
+### Function Permissions (Separate from Tables)
+
+Function and procedure permissions are now handled separately for clarity:
+
+```nix
+{
+  modules.services.postgresql.databases.myapp = {
+    owner = "myapp_user";
+
+    # Function-level permissions
+    functionPermissions = {
+      # Wildcard: all functions in schema
+      "public.*" = {
+        myapp_user = [ "EXECUTE" ];
+        app_worker = [ "EXECUTE" ];
+      };
+
+      # Specific function
+      "public.admin_only_function" = {
+        admin = [ "EXECUTE" ];
+        # myapp_user doesn't get EXECUTE (wildcard overridden)
+      };
+    };
+
+    # Table permissions (no longer includes EXECUTE)
+    tablePermissions = {
+      "public.*" = {
+        myapp_user = [ "SELECT" "INSERT" "UPDATE" "DELETE" ];
+      };
+    };
+  };
+}
+```
+
+### Database Metadata Options
+
+Control database creation parameters:
+
+```nix
+{
+  modules.services.postgresql.databases.myapp = {
+    owner = "myapp_user";
+    ownerPasswordFile = "/run/secrets/myapp_db_password";
+
+    # Database metadata (optional)
+    encoding = "UTF8";
+    lcCtype = "en_US.UTF-8";     # Character classification (letters, digits, etc.)
+    collation = "en_US.UTF-8";   # String sort order (LC_COLLATE)
+    template = "template0";      # Use template0 for custom encoding/locale
+    tablespace = "fast_ssd";     # Custom tablespace (must exist)
+
+    # Skip provisioning for existing databases
+    managed = true;  # default; set to false to skip this database
   };
 }
 ```
@@ -379,42 +479,19 @@ sudo rm /var/lib/postgresql/provisioning/provisioned.sha256
 sudo systemctl start postgresql-database-provisioning.service
 ```
 
-## Migration Guide
+## Permission Override Behavior
 
-### From Legacy List to Declarative API
+When using permission presets with manual permissions:
 
-**Old (Legacy)**:
-```nix
-modules.services.postgresql.instances.main = {
-  enable = true;
-  databases = [ "db1" "db2" ];  # Just names
-};
-```
-
-**New (Declarative)**:
-```nix
-modules.services.postgresql = {
-  instances.main.enable = true;
-
-  databases = {
-    db1 = {
-      owner = "db1_user";
-      ownerPasswordFile = "/run/secrets/db1_password";
-      extensions = [ "uuid-ossp" ];
-    };
-    db2 = {
-      owner = "db2_user";
-      ownerPasswordFile = "/run/secrets/db2_password";
-    };
-  };
-};
-```
-
-**Backward Compatibility**: The new API takes precedence, but legacy lists still work.
+- **Manual permissions REPLACE preset permissions** for the same role/key
+- NOT additive: manual entries completely override preset entries for that specific role
+- Example: If preset grants `readonly = ["SELECT"]` on a table, and you manually specify `readonly = ["SELECT", "INSERT"]`, the manual list wins
+- To combine: explicitly include all desired privileges in manual configuration
 
 ## Limitations
 
 ### Current
+
 - **Single PostgreSQL instance**: Multi-instance support planned
 - **Local only**: External PostgreSQL servers not yet supported (use `provider = "local"`)
 - **No sequence-specific patterns**: Sequences only granted via wildcards

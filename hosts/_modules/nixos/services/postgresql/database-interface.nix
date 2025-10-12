@@ -66,6 +66,31 @@
           example = [ "pg_trgm" "btree_gin" ];
         };
 
+        # Permission preset for common patterns
+        permissionsPolicy = lib.mkOption {
+          type = lib.types.enum [ "owner-only" "owner-readwrite+readonly-select" "custom" ];
+          default = "custom";
+          description = ''
+            Opinionated permission presets for common use cases. Simplifies configuration
+            by automatically generating schema, table, and default privilege grants.
+
+            - owner-only: Only the database owner has access (most restrictive)
+            - owner-readwrite+readonly-select: Owner has full access, creates a 'readonly'
+              role with SELECT on all tables/sequences in public schema
+            - custom: Use manual databasePermissions, schemaPermissions, tablePermissions
+
+            When using a preset, the following permissions are auto-generated:
+            - Database-level: CONNECT, CREATE, TEMP for owner (and readonly if applicable)
+            - Schema-level: USAGE, CREATE for owner (USAGE only for readonly)
+            - Table-level: ALL for owner (SELECT for readonly on public.*)
+            - Default privileges: Automatic grants for future objects
+
+            NOTE: Presets can be combined with manual permissions. The preset generates
+            base permissions, and you can add additional grants via the manual options.
+          '';
+          example = "owner-readwrite+readonly-select";
+        };
+
         # Database metadata options
         encoding = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
@@ -74,17 +99,23 @@
           example = "UTF8";
         };
 
-        locale = lib.mkOption {
+        lcCtype = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
-          description = "Database locale (default: cluster default)";
+          description = ''
+            LC_CTYPE locale setting for character classification (default: cluster default).
+            This determines character classification: which characters are letters, digits, etc.
+          '';
           example = "en_US.UTF-8";
         };
 
         collation = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;
-          description = "Database collation (default: cluster default)";
+          description = ''
+            LC_COLLATE locale setting for string sorting (default: cluster default).
+            This determines the sort order for strings.
+          '';
           example = "en_US.UTF-8";
         };
 
@@ -295,6 +326,38 @@
           };
         };
 
+        # Function-level permissions (Phase 2 - separated from tablePermissions)
+        functionPermissions = lib.mkOption {
+          type = lib.types.attrsOf (lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+            "ALL"       # All function privileges
+            "EXECUTE"   # Execute functions/procedures
+          ])));
+          default = {};
+          description = ''
+            Function-level permissions to grant to roles.
+            Structure: { schema_name.function_pattern = { role_name = [ privileges ]; }; }
+
+            Use "*" as function_pattern to match all functions in a schema.
+            Use specific function names for granular control.
+
+            Valid PostgreSQL function privileges:
+            - ALL: All function privileges (just EXECUTE currently)
+            - EXECUTE: Execute functions and procedures
+
+            NOTE: This is separate from tablePermissions for clarity. Previously,
+            EXECUTE was handled implicitly in tablePermissions with wildcards.
+          '';
+          example = {
+            "public.*" = {
+              myapp = [ "EXECUTE" ];
+              readonly = [ "EXECUTE" ];
+            };
+            "public.admin_function" = {
+              admin = [ "EXECUTE" ];
+            };
+          };
+        };
+
         # Default privileges (Phase 2)
         defaultPrivileges = lib.mkOption {
           type = lib.types.attrsOf (lib.types.submodule {
@@ -350,16 +413,6 @@
               sequences.readonly = [ "SELECT" "USAGE" ];
             };
           };
-        };
-
-        # Backward compatibility: old "permissions" option renamed to databasePermissions
-        permissions = lib.mkOption {
-          type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-            "ALL" "CONNECT" "CREATE" "TEMP" "TEMPORARY"
-          ]));
-          default = {};
-          visible = false;  # Hide from documentation
-          description = "DEPRECATED: Use databasePermissions instead";
         };
       };
     });

@@ -430,8 +430,8 @@ in
       # Add dependency on PostgreSQL and database provisioning
       {
         # Use 'requires' for robustness. If provisioning fails, this service won't start.
-        requires = [ "postgresql-database-provisioning.service" ];
-        after = [ "postgresql.service" "postgresql-database-provisioning.service" ];
+        requires = [ "postgresql-provision-databases.service" ];
+        after = [ "postgresql.service" "postgresql-provision-databases.service" ];
 
         # Securely load the database password using systemd's native credential handling.
         # The password will be available at $CREDENTIALS_DIRECTORY/db_password

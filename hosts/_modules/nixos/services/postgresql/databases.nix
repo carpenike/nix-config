@@ -32,8 +32,7 @@
 # - Role creation with SOPS-integrated passwords
 # - Database creation with ownership
 # - Extension installation
-# - Basic database-level permissions
-# - Backward compatibility with existing databases = [ ... ] list
+# - Declarative database-level permissions
 #
 # Future Enhancements (Phase 2+):
 # - Multi-instance support (requires custom per-instance systemd units)
@@ -68,8 +67,8 @@ let
   notificationsCfg = config.modules.notifications;
   hasCentralizedNotifications = notificationsCfg.enable or false;
 
-  # Metrics directory
-  metricsDir = config.modules.backup.monitoring.prometheus.metricsDir or "/var/lib/node_exporter/textfile_collector";
+  # Metrics directory - use consistent path from monitoring module
+  metricsDir = config.modules.monitoring.nodeExporter.textfileCollector.directory or "/var/lib/node_exporter/textfile_collector";
 
   # SQL Identifier and String Quoting Functions (Security Fix)
   #
@@ -131,28 +130,90 @@ let
       else if m8 != null then { schema = builtins.elemAt m8 0; table = unescape (builtins.elemAt m8 1); }
       else { schema = "public"; table = pattern; }; # Fallback
 
-  # Merge databases from both new declarative API and legacy list
-  # This provides backward compatibility
+  # Expand permission presets into actual permission configurations
+  # This allows users to use opinionated presets (owner-only, owner-readwrite+readonly-select)
+  # while still supporting custom fine-grained permissions
+  expandPermissionsPolicy = dbName: dbCfg:
+    let
+      owner = dbCfg.owner;
+      policy = dbCfg.permissionsPolicy or "custom";
+
+      # Base permissions from preset
+      presetPerms =
+        if policy == "owner-only" then {
+          databasePermissions = { ${owner} = [ "ALL" ]; };
+          schemaPermissions = {
+            public = { ${owner} = [ "ALL" ]; };
+          };
+          tablePermissions = {
+            "public.*" = { ${owner} = [ "ALL" ]; };
+          };
+          defaultPrivileges = {
+            "${owner}_defaults" = {
+              inherit owner;
+              schema = "public";
+              tables = { };
+              sequences = { };
+              functions = { };
+            };
+          };
+        }
+        else if policy == "owner-readwrite+readonly-select" then {
+          databasePermissions = {
+            ${owner} = [ "ALL" ];
+            readonly = [ "CONNECT" ];
+          };
+          schemaPermissions = {
+            public = {
+              ${owner} = [ "ALL" ];
+              readonly = [ "USAGE" ];
+            };
+          };
+          tablePermissions = {
+            "public.*" = {
+              ${owner} = [ "ALL" ];
+              readonly = [ "SELECT" ];
+            };
+          };
+          defaultPrivileges = {
+            "${owner}_defaults" = {
+              inherit owner;
+              schema = "public";
+              tables = { readonly = [ "SELECT" ]; };
+              sequences = { readonly = [ "SELECT" "USAGE" ]; };
+              functions = { };
+            };
+          };
+        }
+        else { }; # custom = empty preset
+    in
+    dbCfg // {
+      # Merge preset permissions with manual permissions (manual overrides preset)
+      databasePermissions =
+        (presetPerms.databasePermissions or {}) //
+        (dbCfg.databasePermissions or {});
+
+      schemaPermissions =
+        (presetPerms.schemaPermissions or {}) //
+        (dbCfg.schemaPermissions or {});
+
+      tablePermissions =
+        (presetPerms.tablePermissions or {}) //
+        (dbCfg.tablePermissions or {});
+
+      defaultPrivileges =
+        (presetPerms.defaultPrivileges or {}) //
+        (dbCfg.defaultPrivileges or {});
+    };
+
+  # Process databases: expand permission presets and filter to managed databases only
   mergedDatabases =
     let
-      # Databases from new declarative API
-      declarativeDbs = cfg.databases;
-
-      # Databases from legacy list (if any instance has them)
-      legacyDbs = if singleInstance != null && singleInstance.databases != [] then
-        lib.listToAttrs (map (dbName: {
-          name = dbName;
-          value = {
-            owner = "postgres";  # Default owner for legacy DBs
-            ownerPasswordFile = null;
-            extensions = [];
-            permissions = {};
-          };
-        }) singleInstance.databases)
-      else {};
+      # Expand permission presets for all declarative databases
+      expanded = lib.mapAttrs expandPermissionsPolicy cfg.databases;
     in
-    # Declarative takes precedence over legacy
-    legacyDbs // declarativeDbs;
+    # Filter to only managed databases (managed = true)
+    lib.filterAttrs (_: dbCfg: dbCfg.managed or true) expanded;
 
   # SQL generation helpers (module-generated idempotent SQL)
   # SECURITY: All SQL identifiers use quoteSqlIdentifier to prevent injection
@@ -182,12 +243,24 @@ let
     ''}
   '';
 
-  # Generate safe database creation SQL with exception handling
-  mkDatabaseSQL = dbName: owner: ''
+  # Generate safe database creation SQL with exception handling and metadata options
+  mkDatabaseSQL = dbName: dbCfg:
+    let
+      owner = dbCfg.owner;
+      # Build CREATE DATABASE with optional parameters
+      createParams = lib.concatStringsSep " " (lib.filter (x: x != "") [
+        "OWNER ${quoteSqlIdentifier owner}"
+        (lib.optionalString (dbCfg.encoding != null) "ENCODING ${quoteSqlString dbCfg.encoding}")
+        (lib.optionalString (dbCfg.lcCtype != null) "LC_CTYPE ${quoteSqlString dbCfg.lcCtype}")
+        (lib.optionalString (dbCfg.collation != null) "LC_COLLATE ${quoteSqlString dbCfg.collation}")
+        (lib.optionalString (dbCfg.template != null) "TEMPLATE ${quoteSqlIdentifier dbCfg.template}")
+        (lib.optionalString (dbCfg.tablespace != null) "TABLESPACE ${quoteSqlIdentifier dbCfg.tablespace}")
+      ]);
+    in ''
     -- Create database if it doesn't exist (using exception handling)
     DO $db$
     BEGIN
-      CREATE DATABASE ${quoteSqlIdentifier dbName} OWNER ${quoteSqlIdentifier owner};
+      CREATE DATABASE ${quoteSqlIdentifier dbName} ${createParams};
       RAISE NOTICE 'Created database: %', ${quoteSqlString dbName};
     EXCEPTION WHEN duplicate_database THEN
       RAISE NOTICE 'Database already exists: %', ${quoteSqlString dbName};
@@ -256,10 +329,9 @@ let
         table = patternInfo.parsed.table;
         isWildcard = patternInfo.isWildcard;
 
-        # For wildcards, grant on ALL TABLES, ALL SEQUENCES, and ALL FUNCTIONS
+        # For wildcards, grant on ALL TABLES and ALL SEQUENCES (functions handled separately)
         tableClause = if isWildcard then "ALL TABLES IN SCHEMA ${quoteSqlIdentifier schema}" else "TABLE ${quoteSqlIdentifier schema}.${quoteSqlIdentifier table}";
         sequenceClause = if isWildcard then "ALL SEQUENCES IN SCHEMA ${quoteSqlIdentifier schema}" else "SEQUENCE ${quoteSqlIdentifier schema}.${quoteSqlIdentifier table}";
-        functionClause = if isWildcard then "ALL FUNCTIONS IN SCHEMA ${quoteSqlIdentifier schema}" else null;
       in
       lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms:
         if perms == [] then ''
@@ -267,21 +339,65 @@ let
           \c ${quoteSqlIdentifier dbName}
           REVOKE ALL ON ${tableClause} FROM ${quoteSqlIdentifier role};
           ${lib.optionalString isWildcard "REVOKE ALL ON ${sequenceClause} FROM ${quoteSqlIdentifier role};"}
-          ${lib.optionalString (isWildcard && functionClause != null) "REVOKE ALL ON ${functionClause} FROM ${quoteSqlIdentifier role};"}
           \echo Revoked all permissions from ${role} on ${patternInfo.pattern}
         '' else
           let
-            # Filter sequence-relevant permissions
+            # Filter sequence-relevant permissions (SELECT, USAGE, UPDATE for sequences)
             seqPerms = lib.filter (p: p == "SELECT" || p == "USAGE" || p == "UPDATE") perms;
-            # Check if EXECUTE permission is present
-            hasExecute = lib.any (p: p == "EXECUTE") perms;
+            # Filter out EXECUTE (now handled by functionPermissions)
+            tableOnlyPerms = lib.filter (p: p != "EXECUTE") perms;
           in ''
           -- Grant table permissions on ${patternInfo.pattern} to role ${role}
-          GRANT ${lib.concatStringsSep ", " perms} ON ${tableClause} TO ${quoteSqlIdentifier role};
+          -- NOTE: EXECUTE permissions should now be in functionPermissions
+          ${lib.optionalString (tableOnlyPerms != []) "GRANT ${lib.concatStringsSep ", " tableOnlyPerms} ON ${tableClause} TO ${quoteSqlIdentifier role};"}
           ${lib.optionalString (isWildcard && seqPerms != []) "GRANT ${lib.concatStringsSep ", " seqPerms} ON ${sequenceClause} TO ${quoteSqlIdentifier role};"}
-          ${lib.optionalString (isWildcard && hasExecute) "GRANT EXECUTE ON ${functionClause} TO ${quoteSqlIdentifier role};"}
-          ${lib.optionalString (isWildcard && hasExecute) "GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA ${quoteSqlIdentifier schema} TO ${quoteSqlIdentifier role};"}
           \echo Granted permissions to ${role} on ${patternInfo.pattern}
+        ''
+      ) patternInfo.rolePerms)
+    ) orderedPatterns;
+
+  # Generate function-level permission grants (Phase 2 - separate from tablePermissions)
+  # NOTE: Caller must ensure correct database context (\c) before calling this helper
+  mkFunctionPermissionsSQL = dbName: functionPerms:
+    let
+      # Parse all patterns and group by schema
+      parsedPatterns = lib.mapAttrsToList (pattern: rolePerms:
+        let
+          parsed = parseTablePattern pattern;  # Reuse table pattern parser
+        in {
+          inherit pattern rolePerms parsed;
+          isWildcard = (parsed.table == "*");
+        }) functionPerms;
+
+      # Process wildcards first, then specific functions (precedence)
+      wildcardPatterns = lib.filter (p: p.isWildcard) parsedPatterns;
+      specificPatterns = lib.filter (p: !p.isWildcard) parsedPatterns;
+      orderedPatterns = wildcardPatterns ++ specificPatterns;
+    in
+    lib.concatMapStringsSep "\n" (patternInfo:
+      let
+        schema = patternInfo.parsed.schema;
+        func = patternInfo.parsed.table;  # Reuse 'table' field for function name
+        isWildcard = patternInfo.isWildcard;
+
+        functionClause = if isWildcard
+          then "ALL FUNCTIONS IN SCHEMA ${quoteSqlIdentifier schema}"
+          else "FUNCTION ${quoteSqlIdentifier schema}.${quoteSqlIdentifier func}";
+        procedureClause = if isWildcard
+          then "ALL PROCEDURES IN SCHEMA ${quoteSqlIdentifier schema}"
+          else null;  # Specific procedures need different syntax
+      in
+      lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms:
+        if perms == [] then ''
+          -- REVOKE: Empty permissions list for role ${role} on functions ${patternInfo.pattern}
+          REVOKE ALL ON ${functionClause} FROM ${quoteSqlIdentifier role};
+          ${lib.optionalString (isWildcard && procedureClause != null) "REVOKE ALL ON ${procedureClause} FROM ${quoteSqlIdentifier role};"}
+          \echo Revoked all function permissions from ${role} on ${patternInfo.pattern}
+        '' else ''
+          -- Grant function permissions on ${patternInfo.pattern} to role ${role}
+          GRANT ${lib.concatStringsSep ", " perms} ON ${functionClause} TO ${quoteSqlIdentifier role};
+          ${lib.optionalString (isWildcard && procedureClause != null) "GRANT ${lib.concatStringsSep ", " perms} ON ${procedureClause} TO ${quoteSqlIdentifier role};"}
+          \echo Granted function permissions to ${role} on ${patternInfo.pattern}
         ''
       ) patternInfo.rolePerms)
     ) orderedPatterns;
@@ -437,11 +553,29 @@ let
     ) mergedDatabases)}
 
     -- ========================================
+    -- Create readonly role (if any database uses owner-readwrite+readonly-select preset)
+    -- ========================================
+    ${lib.optionalString (lib.any (dbCfg: (dbCfg.permissionsPolicy or "custom") == "owner-readwrite+readonly-select") (lib.attrValues mergedDatabases)) ''
+    -- Create readonly role if it doesn't exist (NOLOGIN - grant to actual login roles)
+    -- SECURITY: NOLOGIN prevents direct authentication; grant this role to service accounts
+    DO $role$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'readonly') THEN
+        CREATE ROLE readonly WITH NOLOGIN;
+        RAISE NOTICE 'Created readonly role (NOLOGIN - grant to actual login roles for read-only access)';
+      ELSE
+        RAISE NOTICE 'Readonly role already exists';
+      END IF;
+    END
+    $role$;
+    ''}
+
+    -- ========================================
     -- PHASE 2: Create all databases (still in postgres database)
     -- ========================================
 
     ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-      mkDatabaseSQL dbName dbCfg.owner
+      mkDatabaseSQL dbName dbCfg
     ) mergedDatabases)}
 
     -- ========================================
@@ -450,17 +584,14 @@ let
 
     ${lib.concatStringsSep "\n\n" (lib.mapAttrsToList (dbName: dbCfg:
       let
-        # Merge old "permissions" with new "databasePermissions" for backward compatibility
-        # New API (databasePermissions) takes precedence over legacy (permissions)
-        effectiveDbPerms = (dbCfg.permissions or {}) // (dbCfg.databasePermissions or {});
-
         hasExtensions = dbCfg.extensions != [];
-        hasDbPerms = effectiveDbPerms != {};
+        hasDbPerms = (dbCfg.databasePermissions or {}) != {};
         hasSchemaPerms = (dbCfg.schemaPermissions or {}) != {};
         hasTablePerms = (dbCfg.tablePermissions or {}) != {};
+        hasFunctionPerms = (dbCfg.functionPermissions or {}) != {};
         hasDefaultPrivs = (dbCfg.defaultPrivileges or {}) != {};
 
-        needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasDefaultPrivs;
+        needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasFunctionPerms || hasDefaultPrivs;
       in
       lib.optionalString needsConfig ''
       -- ----------------------------------------
@@ -495,13 +626,15 @@ let
       ${lib.optionalString hasDbPerms ''
       -- Database-level permissions for ${dbName}
       \c postgres
-      ${mkPermissionsSQL dbName effectiveDbPerms}
+      ${mkPermissionsSQL dbName dbCfg.databasePermissions}
       \c ${quoteSqlIdentifier dbName}
       ''}
 
       ${lib.optionalString hasSchemaPerms (mkSchemaPermissionsSQL dbName dbCfg.schemaPermissions)}
 
       ${lib.optionalString hasTablePerms (mkTablePermissionsSQL dbName dbCfg.tablePermissions)}
+
+      ${lib.optionalString hasFunctionPerms (mkFunctionPermissionsSQL dbName dbCfg.functionPermissions)}
 
       ${lib.optionalString hasDefaultPrivs (mkDefaultPrivilegesSQL dbName dbCfg.defaultPrivileges)}
       ''
@@ -561,7 +694,7 @@ in
   # This module only implements the provisioning logic (config block)
   # See: hosts/_modules/nixos/services/postgresql/database-interface.nix
 
-  config = lib.mkIf (cfg.databases != {} || (singleInstance != null && singleInstance.databases != [])) {
+  config = lib.mkIf (cfg.databases != {}) {
     # Assertions
     assertions = [
       {
@@ -586,33 +719,21 @@ in
           ${lib.concatStringsSep ", " (lib.filter (name: mergedDatabases.${name}.provider != "local") (lib.attrNames mergedDatabases))}
         '';
       }
-    ]
-    # Conflict detection: Check for duplicate database declarations with divergent settings
-    # This catches cases where two services try to declare the same database with different owners/settings
-    ++ (lib.concatLists (lib.mapAttrsToList (dbName: dbConfig:
-      let
-        # Check if this database appears in both declarative and legacy lists with different settings
-        declarativeDb = cfg.databases.${dbName} or null;
-        legacyDbs = if singleInstance != null then singleInstance.databases else [];
-        inLegacy = lib.elem dbName legacyDbs;
-
-        # If in both, the declarative one wins (as designed), but warn about conflict
-        hasConflict = declarativeDb != null && inLegacy && declarativeDb.owner != "postgres";
-      in
-      lib.optional hasConflict {
-        assertion = false;
+      # Validate that functionPermissions only use wildcard patterns (specific functions require signatures)
+      {
+        assertion = lib.all (db:
+          lib.all (pattern: lib.hasSuffix ".*" pattern)
+            (lib.attrNames (db.functionPermissions or {}))
+        ) (lib.attrValues mergedDatabases);
         message = ''
-          Database "${dbName}" declared in both legacy (instances.*.databases list) and
-          new declarative API (databases.${dbName}) with different owners.
+          Function permissions currently only support wildcard patterns (e.g., "public.*").
+          Specific function grants require full signatures (name + argument types) which is not yet implemented.
 
-          The declarative API takes precedence, but this may indicate a configuration error.
-          Remove "${dbName}" from the legacy databases list if using declarative provisioning.
-
-          Declarative owner: ${declarativeDb.owner}
-          Legacy owner: postgres (default)
+          Use wildcard patterns to grant EXECUTE on all functions in a schema.
+          For fine-grained control, consider schema-level separation of functions.
         '';
       }
-    ) mergedDatabases));
+    ];
 
     # Provisioning systemd service
     systemd.services."postgresql-provision-databases" = {
