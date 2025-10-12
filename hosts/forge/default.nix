@@ -30,6 +30,7 @@ in
     ./systemPackages.nix
     ./backup.nix
     ./monitoring.nix
+    ./postgresql.nix
   ];
 
   config = {

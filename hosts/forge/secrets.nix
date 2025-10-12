@@ -41,6 +41,13 @@
           owner = "root";
           group = "root";
         };
+
+        # PostgreSQL database passwords
+        "postgresql/dispatcharr_password" = {
+          mode = "0400";
+          owner = "postgres";
+          group = "postgres";
+        };
       };
     };
   };
