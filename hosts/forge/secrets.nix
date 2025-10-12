@@ -43,10 +43,11 @@
         };
 
         # PostgreSQL database passwords
+        # Root-owned, PostgreSQL server process has sufficient privileges to read via pg_read_file()
         "postgresql/dispatcharr_password" = {
           mode = "0400";
-          owner = "postgres";
-          group = "postgres";
+          owner = "root";
+          group = "root";
         };
       };
     };
