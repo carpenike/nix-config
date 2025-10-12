@@ -1,4 +1,4 @@
-{ config, primaryRepo, ... }:
+{ config, ... }:
 # PostgreSQL Configuration for forge
 #
 # Provides a shared PostgreSQL instance for services on forge that need a database backend.
@@ -59,7 +59,7 @@
           # Enable backup via restic
           backup = {
             enable = true;
-            repository = primaryRepo.name;  # Reference centralized repository name
+            repository = "nas-primary";  # Direct reference to repository name
             schedule = "daily";  # Base backups daily at 01:00
           };
 
@@ -72,8 +72,8 @@
           # Enable preseed for disaster recovery
           preseed = {
             enable = true;
-            repositoryUrl = primaryRepo.url;
-            passwordFile = primaryRepo.passwordFile;
+            repositoryUrl = "/mnt/nas-backup";  # Direct reference to avoid circular dependency
+            passwordFile = config.sops.secrets."restic/password".path;
           };
         };
       };
