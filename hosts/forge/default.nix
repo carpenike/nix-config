@@ -312,7 +312,7 @@ in
       repo2-s3-bucket=nix-homelab-prod-servers
       repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
       repo2-s3-region=auto
-      repo2-s3-key-type=auto
+      repo2-s3-key-type=shared
       repo2-retention-full=30
       repo2-retention-diff=14
 
@@ -339,19 +339,53 @@ in
 
     # pgBackRest systemd services
     systemd.services = {
+      # Create AWS credentials file for postgres user from SOPS secrets
+      # Required for repo2-s3-key-type=shared to work with Cloudflare R2
+      pgbackrest-aws-credentials = {
+        description = "Generate AWS credentials file for pgBackRest";
+        wantedBy = [ "multi-user.target" ];
+        before = [ "pgbackrest-stanza-create.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          set -euo pipefail
+
+          # Read credentials from SOPS secret
+          AWS_ACCESS_KEY_ID=$(grep AWS_ACCESS_KEY_ID ${config.sops.secrets."restic/r2-prod-env".path} | cut -d= -f2)
+          AWS_SECRET_ACCESS_KEY=$(grep AWS_SECRET_ACCESS_KEY ${config.sops.secrets."restic/r2-prod-env".path} | cut -d= -f2)
+
+          # Create .aws directory
+          mkdir -p /var/lib/postgresql/.aws
+          chown postgres:postgres /var/lib/postgresql/.aws
+          chmod 700 /var/lib/postgresql/.aws
+
+          # Create credentials file
+          cat > /var/lib/postgresql/.aws/credentials <<EOF
+[default]
+aws_access_key_id = $AWS_ACCESS_KEY_ID
+aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+EOF
+
+          chown postgres:postgres /var/lib/postgresql/.aws/credentials
+          chmod 600 /var/lib/postgresql/.aws/credentials
+
+          echo "AWS credentials file created successfully"
+        '';
+      };
+
       # Stanza creation (runs once at setup)
       pgbackrest-stanza-create = {
         description = "pgBackRest stanza initialization";
-        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-aws-credentials.service" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-aws-credentials.service" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
         serviceConfig = {
           Type = "oneshot";
           User = "postgres";
           Group = "postgres";
-          SupplementaryGroups = [ "restic-backup" ];
           RemainAfterExit = true;
-          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
         };
         script = ''
           set -euo pipefail
