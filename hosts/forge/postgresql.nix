@@ -18,7 +18,7 @@
   config = {
     # Enable PostgreSQL service
     modules.services.postgresql = {
-      # Main PostgreSQL instance (no .instances wrapper needed)
+      # Main PostgreSQL instance
       main = {
         enable = true;
         version = "16";
@@ -77,15 +77,15 @@
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;
         };
-      };
 
-      # Declarative database provisioning
-      databases = {
-        dispatcharr = {
-          owner = "dispatcharr";
-          ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
-          extensions = [ "uuid-ossp" ];
-          permissionsPolicy = "owner-readwrite+readonly-select";
+        # Declarative database provisioning (nested inside instance)
+        databases = {
+          dispatcharr = {
+            owner = "dispatcharr";
+            ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
+            extensions = [ "uuid-ossp" ];
+            permissionsPolicy = "owner-readwrite+readonly-select";
+          };
         };
       };
     };
