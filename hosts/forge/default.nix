@@ -327,11 +327,14 @@ in
       pg1-user=postgres
     '';
 
-    # Declaratively manage pgBackRest repository directory
+    # Declaratively manage pgBackRest repository directory and metrics file
     # Format: Type, Path, Mode, User, Group, Age, Argument
-    # This ensures the directory exists on boot with correct ownership/permissions
+    # This ensures directories/files exist on boot with correct ownership/permissions
     systemd.tmpfiles.rules = [
       "d /mnt/nas-backup/pgbackrest 0750 postgres postgres - -"
+      # Create metrics file and set ownership so postgres user can write to it
+      # and node-exporter group can read it.
+      "z /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
     ];
 
     # pgBackRest systemd services
@@ -607,76 +610,128 @@ HEADER3
     };
 
     # =============================================================================
-    # pgBackRest Monitoring Metrics
+    # pgBackRest Monitoring Metrics (REVISED)
     # =============================================================================
-
     systemd.services.pgbackrest-metrics = {
       description = "Collect pgBackRest backup metrics for Prometheus";
+      path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest ];
       serviceConfig = {
         Type = "oneshot";
-        User = "root";
-        ExecStart = pkgs.writeShellScript "pgbackrest-metrics" ''
-          set -euo pipefail
-
-          METRICS_FILE="/var/lib/node_exporter/textfile_collector/pgbackrest.prom"
-          METRICS_TEMP="''${METRICS_FILE}.tmp"
-
-          mkdir -p "$(dirname "$METRICS_FILE")"
-
-          # Get pgBackRest info in JSON format
-          INFO_JSON=$(${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --output=json info 2>/dev/null || echo '[]')
-
-          # Write Prometheus metrics
-          cat > "$METRICS_TEMP" <<'HEADER'
-# HELP pgbackrest_last_full_backup_timestamp Timestamp of last full backup (Unix epoch)
-# TYPE pgbackrest_last_full_backup_timestamp gauge
-# HELP pgbackrest_last_incr_backup_timestamp Timestamp of last incremental backup (Unix epoch)
-# TYPE pgbackrest_last_incr_backup_timestamp gauge
-# HELP pgbackrest_last_diff_backup_timestamp Timestamp of last differential backup (Unix epoch)
-# TYPE pgbackrest_last_diff_backup_timestamp gauge
-# HELP pgbackrest_backup_count Total number of backups in repository
-# TYPE pgbackrest_backup_count gauge
-# HELP pgbackrest_repo_size_bytes Total size of repository in bytes
-# TYPE pgbackrest_repo_size_bytes gauge
-# HELP pgbackrest_repo_backup_size_bytes Size of latest backup in bytes
-# TYPE pgbackrest_repo_backup_size_bytes gauge
-HEADER
-
-          # Parse JSON and extract metrics for each repository
-          for repo in 1 2; do
-            REPO_NAME=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r ".[0].backup[] | select(.label | contains(\"repo$repo\")) | .label" 2>/dev/null | head -n1 || echo "repo$repo")
-
-            # Last full backup timestamp
-            LAST_FULL=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[] | select(.type==\"full\")] | sort_by(.timestamp.start) | .[-1].timestamp.stop // 0" 2>/dev/null || echo 0)
-            echo "pgbackrest_last_full_backup_timestamp{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $LAST_FULL" >> "$METRICS_TEMP"
-
-            # Last incremental backup timestamp
-            LAST_INCR=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[] | select(.type==\"incr\")] | sort_by(.timestamp.start) | .[-1].timestamp.stop // 0" 2>/dev/null || echo 0)
-            echo "pgbackrest_last_incr_backup_timestamp{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $LAST_INCR" >> "$METRICS_TEMP"
-
-            # Last differential backup timestamp
-            LAST_DIFF=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[] | select(.type==\"diff\")] | sort_by(.timestamp.start) | .[-1].timestamp.stop // 0" 2>/dev/null || echo 0)
-            echo "pgbackrest_last_diff_backup_timestamp{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $LAST_DIFF" >> "$METRICS_TEMP"
-
-            # Total backup count
-            BACKUP_COUNT=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r ".[0].backup | length // 0" 2>/dev/null || echo 0)
-            echo "pgbackrest_backup_count{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $BACKUP_COUNT" >> "$METRICS_TEMP"
-
-            # Repository size (repo1 only - local repo)
-            if [ "$repo" -eq 1 ]; then
-              REPO_SIZE=$(${pkgs.coreutils}/bin/du -sb /mnt/nas-backup/pgbackrest 2>/dev/null | ${pkgs.gawk}/bin/awk '{print $1}' || echo 0)
-              echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $REPO_SIZE" >> "$METRICS_TEMP"
-            fi
-
-            # Latest backup size
-            BACKUP_SIZE=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[]] | sort_by(.timestamp.start) | .[-1].info.size // 0" 2>/dev/null || echo 0)
-            echo "pgbackrest_repo_backup_size_bytes{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $BACKUP_SIZE" >> "$METRICS_TEMP"
-          done
-
-          mv "$METRICS_TEMP" "$METRICS_FILE"
-        '';
+        User = "postgres";
+        Group = "postgres";
+        # Load AWS credentials from SOPS secret for repo2 access
+        EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+        # Block access to EC2 metadata service to prevent timeout
+        IPAddressDeny = [ "169.254.169.254" ];
       };
-      after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+      script = ''
+        set -euo pipefail
+
+        METRICS_FILE="/var/lib/node_exporter/textfile_collector/pgbackrest.prom"
+        METRICS_TEMP="''${METRICS_FILE}.tmp"
+
+        # Transform AWS env vars to pgBackRest format for S3 repo access
+        export PGBACKREST_REPO2_S3_KEY="''${AWS_ACCESS_KEY_ID:-}"
+        export PGBACKREST_REPO2_S3_KEY_SECRET="''${AWS_SECRET_ACCESS_KEY:-}"
+
+        # Run pgbackrest info, capturing JSON. Timeout prevents hangs on network issues.
+        # All repo2 parameters must be passed for info command to check both repositories.
+        INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json \
+          --repo2-type=s3 \
+          --repo2-path=/pgbackrest \
+          --repo2-s3-bucket=nix-homelab-prod-servers \
+          --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
+          --repo2-s3-region=auto \
+          info)
+
+        # Exit gracefully if command fails or returns empty/invalid JSON
+        if ! echo "$INFO_JSON" | jq -e '.[0].name == "main"' > /dev/null; then
+          echo "Failed to get valid pgBackRest info. Writing failure metric." >&2
+          cat > "$METRICS_TEMP" <<EOF
+# HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
+# TYPE pgbackrest_scrape_success gauge
+pgbackrest_scrape_success{stanza="main",hostname="forge"} 0
+EOF
+          mv "$METRICS_TEMP" "$METRICS_FILE"
+          exit 0 # Exit successfully so systemd timer doesn't mark as failed
+        fi
+
+        # Prepare metrics file
+        cat > "$METRICS_TEMP" <<'EOF'
+# HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
+# TYPE pgbackrest_scrape_success gauge
+# HELP pgbackrest_stanza_status Stanza status code (0: ok, 1: warning, 2: error).
+# TYPE pgbackrest_stanza_status gauge
+# HELP pgbackrest_repo_status Repository status code (0: ok, 1: missing, 2: error).
+# TYPE pgbackrest_repo_status gauge
+# HELP pgbackrest_repo_size_bytes Size of the repository in bytes.
+# TYPE pgbackrest_repo_size_bytes gauge
+# HELP pgbackrest_backup_last_good_completion_seconds Timestamp of the last successful backup.
+# TYPE pgbackrest_backup_last_good_completion_seconds gauge
+# HELP pgbackrest_backup_last_duration_seconds Duration of the last successful backup in seconds.
+# TYPE pgbackrest_backup_last_duration_seconds gauge
+# HELP pgbackrest_backup_last_size_bytes Total size of the database for the last successful backup.
+# TYPE pgbackrest_backup_last_size_bytes gauge
+# HELP pgbackrest_backup_last_delta_bytes Amount of data backed up for the last successful backup.
+# TYPE pgbackrest_backup_last_delta_bytes gauge
+# HELP pgbackrest_wal_max_lsn The last WAL segment archived, converted to decimal for graphing.
+# TYPE pgbackrest_wal_max_lsn gauge
+EOF
+
+        echo 'pgbackrest_scrape_success{stanza="main",hostname="forge"} 1' >> "$METRICS_TEMP"
+
+        STANZA_JSON=$(echo "$INFO_JSON" | jq '.[0]')
+
+        # Stanza-level metrics
+        STANZA_STATUS=$(echo "$STANZA_JSON" | jq '.status.code')
+        echo "pgbackrest_stanza_status{stanza=\"main\",hostname=\"forge\"} $STANZA_STATUS" >> "$METRICS_TEMP"
+
+        # WAL archive metrics
+        MAX_WAL=$(echo "$STANZA_JSON" | jq -r '.archive[0].max // "0"')
+        if [ "$MAX_WAL" != "0" ]; then
+            # Convert WAL hex (e.g., 00000001000000000000000A) to decimal for basic progress monitoring
+            MAX_WAL_DEC=$((16#''${MAX_WAL:8}))
+            echo "pgbackrest_wal_max_lsn{stanza=\"main\",hostname=\"forge\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
+        fi
+
+        # Per-repo and per-backup-type metrics
+        echo "$STANZA_JSON" | jq -c '.repo[]' | while read -r repo_json; do
+          REPO_ID=$(echo "$repo_json" | jq '.id')
+          REPO_KEY=$(echo "$repo_json" | jq '.key') # This is the repo number as a string
+
+          REPO_STATUS=$(echo "$repo_json" | jq '.status.code')
+          echo "pgbackrest_repo_status{stanza=\"main\",repo_key=$REPO_KEY,hostname=\"forge\"} $REPO_STATUS" >> "$METRICS_TEMP"
+
+          REPO_SIZE=$(echo "$repo_json" | jq '.size // 0')
+          if [ "$REPO_SIZE" -ne 0 ]; then
+            echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,hostname=\"forge\"} $REPO_SIZE" >> "$METRICS_TEMP"
+          fi
+
+          for backup_type in full diff incr; do
+            LAST_BACKUP_JSON=$(echo "$STANZA_JSON" | jq \
+              --argjson repo_id "$REPO_ID" \
+              --arg backup_type "$backup_type" \
+              '.backup[] | select(.repo.id == $repo_id and .type == $backup_type and .status.code == 0) | sort_by(.timestamp.start) | .[-1] // empty')
+
+            if [ -n "$LAST_BACKUP_JSON" ]; then
+              LAST_COMPLETION=$(echo "$LAST_BACKUP_JSON" | jq '.timestamp.stop')
+              START_TIME=$(echo "$LAST_BACKUP_JSON" | jq '.timestamp.start')
+              DURATION=$((LAST_COMPLETION - START_TIME))
+              DB_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.size')
+              DELTA_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.delta')
+
+              echo "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $LAST_COMPLETION" >> "$METRICS_TEMP"
+              echo "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DURATION" >> "$METRICS_TEMP"
+              echo "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DB_SIZE" >> "$METRICS_TEMP"
+              echo "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DELTA_SIZE" >> "$METRICS_TEMP"
+            fi
+          done
+        done
+
+        # Atomically replace the old metrics file
+        mv "$METRICS_TEMP" "$METRICS_FILE"
+      '';
+      after = [ "postgresql.service" "pgbackrest-stanza-create.service" "mnt-nas\\x2dbackup.mount" ];
       wants = [ "postgresql.service" ];
     };
 
