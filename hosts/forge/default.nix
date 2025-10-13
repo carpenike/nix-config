@@ -376,14 +376,15 @@ in
           # stanza-create is idempotent - safe to run multiple times
           # It will create if missing, validate if exists, or repair if broken
 
-          echo "[$(date -Iseconds)] Creating/validating stanza 'main'..."
+          echo "[$(date -Iseconds)] Creating/validating stanza 'main' for both repos..."
           # stanza-create uses config from /etc/pgbackrest.conf
           # This will create/validate both repo1 and repo2
           pgbackrest --stanza=main stanza-create
 
-          echo "[$(date -Iseconds)] Running check..."
-          # check command validates all configured repos
-          pgbackrest --stanza=main check
+          echo "[$(date -Iseconds)] Running check on repo1 only..."
+          # Only check repo1 because archive_command only writes to repo1
+          # (repo2 is offsite backup, not used for WAL archiving)
+          pgbackrest --stanza=main --repo=1 check
         '';
         wantedBy = [ "multi-user.target" ];
       };
