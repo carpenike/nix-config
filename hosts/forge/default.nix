@@ -374,13 +374,9 @@ in
             stanza-create
 
           echo "[$(date -Iseconds)] Running check..."
-          pgbackrest --stanza=main \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            check
+          # Only check repo1 since archive_command only pushes to repo1
+          # Backup jobs will handle repo2 separately
+          pgbackrest --stanza=main --repo=1 check
         '';
         wantedBy = [ "multi-user.target" ];
       };
