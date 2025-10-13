@@ -103,8 +103,7 @@ pkgs.stdenv.mkDerivation {
     # 6. Take PostgreSQL out of backup mode. This writes the 'backup end' WAL record.
     echo "[$(date -Iseconds)] Exiting backup mode..."
     echo "SELECT * FROM pg_backup_stop();" >&3
-    # Read the multi-line output from the FIFO to prevent psql from blocking.
-    while read -r -t 1 line <&4; do :; done
+    echo "\\q" >&3  # Tell psql to quit
 
     # --- End Critical Section ---
 
