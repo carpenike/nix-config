@@ -106,7 +106,7 @@ For most common use cases, use permission presets instead of manually configurin
 ### Schema Permissions
 ```nix
 {
-  modules.services.postgresql.databases.myapp = {
+  modules.services.postgresql.instances.main.databases.myapp = {
     owner = "myapp_user";
     ownerPasswordFile = "/run/secrets/myapp_db_password";
 
@@ -127,7 +127,7 @@ For most common use cases, use permission presets instead of manually configurin
 ### Table Permissions
 ```nix
 {
-  modules.services.postgresql.databases.myapp = {
+  modules.services.postgresql.instances.main.databases.myapp = {
     owner = "myapp_user";
 
     # Table-level permissions
@@ -161,7 +161,7 @@ For most common use cases, use permission presets instead of manually configurin
 ### Default Privileges (Future Objects)
 ```nix
 {
-  modules.services.postgresql.databases.myapp = {
+  modules.services.postgresql.instances.main.databases.myapp = {
     owner = "myapp_user";
 
     # Permissions for future objects created by myapp_user
@@ -193,7 +193,7 @@ Function and procedure permissions are now handled separately for clarity:
 
 ```nix
 {
-  modules.services.postgresql.databases.myapp = {
+  modules.services.postgresql.instances.main.databases.myapp = {
     owner = "myapp_user";
 
     # Function-level permissions
@@ -227,7 +227,7 @@ Control database creation parameters:
 
 ```nix
 {
-  modules.services.postgresql.databases.myapp = {
+  modules.services.postgresql.instances.main.databases.myapp = {
     owner = "myapp_user";
     ownerPasswordFile = "/run/secrets/myapp_db_password";
 

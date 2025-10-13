@@ -23,8 +23,7 @@
     ./openssh
     ./omada
     ./podman
-    ./postgresql          # Options only
-    ./postgresql/implementation.nix  # Config generation (separate to avoid circular deps)
+    ./postgresql          # Options only (config generation removed - was causing circular deps with nested databases)
     ./sonarr
     ./unifi
   ];

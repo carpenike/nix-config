@@ -425,286 +425,36 @@ in
       # allows the module system to determine what this module contributes
       # before fully resolving these values.
 
-      # FIXME: Reading config.modules.services.postgresql.databases creates circular dependency
-      # Need to restructure how databases are aggregated
-      dbDecls = {}; #config.modules.services.postgresql.databases or {};
+      # Read PostgreSQL instances with their nested databases
+      # FIXED: Now reads from the nested structure postgresql.<instance>.databases
+      instances = config.modules.services.postgresql or {};
 
-      # Read stable outputs from NixOS PostgreSQL service
-      # This avoids circular dependency by not reading config.modules.services.postgresql.instances
-      pgPackage = config.services.postgresql.package or pkgs.postgresql_16;
-      dataDir = config.services.postgresql.dataDir or null;
-
-      # Derive instance label from dataDir for metrics/logs
-      # Example: /var/lib/postgresql/16/main -> "main"
-      instanceLabel = if dataDir != null
-        then lib.last (lib.splitString "/" dataDir)
-        else "default";
+      # Flatten all databases from all instances into a single structure
+      # Structure: { "<instance>:<dbname>" = { instanceName, dbName, dbConfig }; }
+      allDatabases = lib.foldl' (acc: instanceName:
+        let
+          instance = instances.${instanceName};
+          instanceDatabases = instance.databases or {};
+        in
+        acc // lib.mapAttrs' (dbName: dbConfig: {
+          name = "${instanceName}:${dbName}";
+          value = {
+            inherit instanceName dbName;
+            dbConfig = dbConfig;
+            pgPackage = pkgs."postgresql_${builtins.replaceStrings ["."] [""] instance.version}";
+            dataDir = "/var/lib/postgresql/${instance.version}/${instanceName}";
+          };
+        }) instanceDatabases
+      ) {} (lib.attrNames instances);
 
       # Metrics directory - use consistent path from monitoring module
       metricsDir = config.modules.monitoring.nodeExporter.textfileCollector.directory or "/var/lib/node_exporter/textfile_collector";
 
-      # Process databases: expand permission presets and filter to managed databases only
-      mergedDatabases =
-        let
-          # Expand permission presets for all declarative databases
-          expanded = lib.mapAttrs expandPermissionsPolicy dbDecls;
-        in
-        # Filter to only managed databases (managed = true)
-        lib.filterAttrs (_: dbCfg: dbCfg.managed or true) expanded;
-
-      # Generate complete provisioning script
-      # NOW IN LAZY CONTEXT: Can safely reference config-dependent variables
-      mkProvisionScript = pkgs.writeShellScript "postgresql-provision-databases" ''
-        set -euo pipefail
-
-        # Provisioning state tracking
-        STATE_DIR="/var/lib/postgresql/provisioning"
-        STAMP_FILE="$STATE_DIR/provisioned.sha256"
-        METRICS_FILE="${metricsDir}/postgresql_database_provisioning.prom"
-
-        mkdir -p "$STATE_DIR"
-        chmod 0700 "$STATE_DIR"
-
-        echo "=== PostgreSQL Database Provisioning ==="
-        echo "Instance: ${instanceLabel}"
-        echo "Databases: ${toString (lib.length (lib.attrNames mergedDatabases))}"
-
-        # Compute hash of current configuration AND secret file contents
-        # This includes all database declarations to detect any changes
-        CONFIG_HASH="${builtins.hashString "sha256" (builtins.toJSON mergedDatabases)}"
-
-        # Compute hash of all password files to detect secret rotation
-        # This ensures password changes trigger re-provisioning
-        SECRETS_HASH=""
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-          lib.optionalString (dbCfg.ownerPasswordFile or null != null) ''
-            if [ -f "${dbCfg.ownerPasswordFile}" ]; then
-              SECRETS_HASH="$SECRETS_HASH$(sha256sum "${dbCfg.ownerPasswordFile}" | cut -d' ' -f1)"
-            fi
-          ''
-        ) mergedDatabases)}
-        COMBINED_HASH=$(echo "$CONFIG_HASH$SECRETS_HASH" | sha256sum | cut -d' ' -f1)
-
-        # Check if provisioning is needed
-        if [ -f "$STAMP_FILE" ] && [ "$(cat "$STAMP_FILE")" = "$COMBINED_HASH" ]; then
-          echo "✓ Database configuration and secrets unchanged - skipping provisioning"
-          ${lib.optionalString (config.modules.monitoring.enable or false) ''
-            # Update metrics
-            cat > "$METRICS_FILE" <<METRICS
-            # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
-            # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-            postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="skipped"} $(date +%s)
-            METRICS
-          ''}
-          exit 0
-        fi
-
-        echo "→ Configuration changed - running provisioning"
-
-        # Wait for PostgreSQL to be ready
-        echo "Waiting for PostgreSQL to be ready..."
-        MAX_RETRIES=30
-        RETRY_COUNT=0
-        until ${pgPackage}/bin/pg_isready -h localhost -U postgres -d postgres; do
-          RETRY_COUNT=$((RETRY_COUNT + 1))
-          if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-            echo "✗ PostgreSQL failed to become ready after $MAX_RETRIES attempts"
-            ${lib.optionalString (config.modules.monitoring.enable or false) ''
-              cat > "$METRICS_FILE" <<METRICS
-              # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
-              # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-              postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="failed"} $(date +%s)
-              METRICS
-            ''}
-            exit 1
-          fi
-          echo "  Retry $RETRY_COUNT/$MAX_RETRIES..."
-          sleep 2
-        done
-        echo "✓ PostgreSQL is ready"
-
-        # Create temporary SQL file with restrictive permissions
-        SQL_FILE="$(mktemp -p "$STATE_DIR" provision.XXXXXX.sql)"
-        chmod 0600 "$SQL_FILE"
-        trap "rm -f $SQL_FILE" EXIT
-
-        # Generate provisioning SQL with improved execution grouping
-        cat > "$SQL_FILE" <<'PROVISION_SQL'
-        -- PostgreSQL Database Provisioning Script
-        -- Generated by NixOS modules.services.postgresql.databases
-        -- This script is idempotent and safe to run multiple times
-        --
-        -- SECURITY: All identifiers properly quoted to prevent SQL injection
-        -- EXECUTION: Grouped by database to minimize connection changes
-
-        \set ON_ERROR_STOP on
-        \set VERBOSITY verbose
-
-        -- Provisioning timestamp
-        SELECT NOW() AS provisioning_started;
-
-        -- ========================================
-        -- SESSION CONFIGURATION (Security hardening)
-        -- ========================================
-        SET statement_timeout = 60000;  -- 60 seconds
-        SET lock_timeout = 10000;       -- 10 seconds
-        SET search_path = pg_catalog, public;  -- Prevent function shadowing attacks
-
-        -- ========================================
-        -- PHASE 1: Create all roles first (connect to postgres database)
-        -- ========================================
-        \c postgres
-
-        -- Reset session config after connection change
-        SET statement_timeout = 60000;
-        SET lock_timeout = 10000;
-        SET search_path = pg_catalog, public;
-
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-          mkRoleSQL dbCfg.owner dbCfg.ownerPasswordFile
-        ) mergedDatabases)}
-
-        -- ========================================
-        -- Create readonly role (if any database uses owner-readwrite+readonly-select preset)
-        -- ========================================
-        ${lib.optionalString (lib.any (dbCfg: (dbCfg.permissionsPolicy or "custom") == "owner-readwrite+readonly-select") (lib.attrValues mergedDatabases)) ''
-        -- Create readonly role if it doesn't exist (NOLOGIN - grant to actual login roles)
-        -- SECURITY: NOLOGIN prevents direct authentication; grant this role to service accounts
-        DO $role$
-        BEGIN
-          IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'readonly') THEN
-            CREATE ROLE readonly WITH NOLOGIN;
-            RAISE NOTICE 'Created readonly role (NOLOGIN - grant to actual login roles for read-only access)';
-          ELSE
-            RAISE NOTICE 'Readonly role already exists';
-          END IF;
-        END
-        $role$;
-        ''}
-
-        -- ========================================
-        -- PHASE 2: Create all databases (still in postgres database)
-        -- ========================================
-
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-          mkDatabaseSQL dbName dbCfg
-        ) mergedDatabases)}
-
-        -- ========================================
-        -- PHASE 3: Configure each database (one \c per database)
-        -- ========================================
-
-        ${lib.concatStringsSep "\n\n" (lib.mapAttrsToList (dbName: dbCfg:
-          let
-            hasExtensions = dbCfg.extensions != [];
-            hasDbPerms = (dbCfg.databasePermissions or {}) != {};
-            hasSchemaPerms = (dbCfg.schemaPermissions or {}) != {};
-            hasTablePerms = (dbCfg.tablePermissions or {}) != {};
-            hasFunctionPerms = (dbCfg.functionPermissions or {}) != {};
-            hasDefaultPrivs = (dbCfg.defaultPrivileges or {}) != {};
-
-            needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasFunctionPerms || hasDefaultPrivs;
-          in
-          lib.optionalString needsConfig ''
-          -- ----------------------------------------
-          -- Database: ${dbName}
-          -- Owner: ${dbCfg.owner}
-          -- ----------------------------------------
-          \c ${quoteSqlIdentifier dbName}
-
-          -- Reset session config after connection change
-          SET statement_timeout = 60000;
-          SET lock_timeout = 10000;
-          SET search_path = pg_catalog, public;
-
-          -- Security hardening: Revoke PUBLIC permissions
-          \c postgres
-          REVOKE ALL ON DATABASE ${quoteSqlIdentifier dbName} FROM PUBLIC;
-          \c ${quoteSqlIdentifier dbName}
-          REVOKE ALL ON SCHEMA public FROM PUBLIC;
-          REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
-          REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
-          REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
-          \echo Revoked default PUBLIC permissions for security hardening
-
-          ${lib.optionalString hasExtensions ''
-          -- Extensions for ${dbName}
-          ${lib.concatMapStringsSep "\n" (ext: ''
-          CREATE EXTENSION IF NOT EXISTS ${quoteSqlIdentifier ext};
-          \echo Extension ${ext} ready
-          '') dbCfg.extensions}
-          ''}
-
-          ${lib.optionalString hasDbPerms ''
-          -- Database-level permissions for ${dbName}
-          \c postgres
-          ${mkPermissionsSQL dbName dbCfg.databasePermissions}
-          \c ${quoteSqlIdentifier dbName}
-          ''}
-
-          ${lib.optionalString hasSchemaPerms (mkSchemaPermissionsSQL dbName dbCfg.schemaPermissions)}
-
-          ${lib.optionalString hasTablePerms (mkTablePermissionsSQL dbName dbCfg.tablePermissions)}
-
-          ${lib.optionalString hasFunctionPerms (mkFunctionPermissionsSQL dbName dbCfg.functionPermissions)}
-
-          ${lib.optionalString hasDefaultPrivs (mkDefaultPrivilegesSQL dbName dbCfg.defaultPrivileges)}
-          ''
-        ) mergedDatabases)}
-
-        -- ========================================
-        -- SUMMARY
-        -- ========================================
-        \c postgres
-
-        SELECT
-          COUNT(*) FILTER (WHERE datname != 'postgres' AND datname != 'template0' AND datname != 'template1') as user_databases,
-          NOW() as provisioning_completed
-        FROM pg_database;
-        PROVISION_SQL
-
-        # Execute provisioning with no secrets on the command-line
-        echo "→ Executing provisioning SQL..."
-
-        # Run psql (passwords are read inside the SQL script via \set)
-        if ${pgPackage}/bin/psql -U postgres -d postgres -f "$SQL_FILE"; then
-
-          echo "✓ Provisioning completed successfully"
-
-          # Record successful provisioning (includes config + secrets hash)
-          echo "$COMBINED_HASH" > "$STAMP_FILE"
-
-          ${lib.optionalString (config.modules.monitoring.enable or false) ''
-            # Update metrics
-            cat > "$METRICS_FILE" <<METRICS
-            # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
-            # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-            postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="success"} $(date +%s)
-
-            # HELP postgresql_database_count Number of user databases
-            # TYPE postgresql_database_count gauge
-            postgresql_database_count{instance="${instanceLabel}"} ${toString (lib.length (lib.attrNames mergedDatabases))}
-            METRICS
-          ''}
-
-        else
-          echo "✗ Provisioning failed"
-          ${lib.optionalString (config.modules.monitoring.enable or false) ''
-            cat > "$METRICS_FILE" <<METRICS
-            # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
-            # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-            postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="failed"} $(date +%s)
-            METRICS
-          ''}
-          exit 1
-        fi
-      '';
-
-    in lib.mkIf (dbDecls != {}) {
+    in lib.mkIf (allDatabases != {}) {
     # Assertions
     assertions = [
       {
-        assertion = mergedDatabases != {};
+        assertion = allDatabases != {};
         message = "Database provisioning enabled but no databases declared";
       }
       {
@@ -714,94 +464,342 @@ in
           The PostgreSQL service must be running before database provisioning can occur.
         '';
       }
-      # Validate that all databases use "local" provider (external not yet implemented)
-      {
-        assertion = lib.all (db: db.provider == "local") (lib.attrValues mergedDatabases);
-        message = ''
-          External PostgreSQL provider is not yet implemented.
-          All databases must use provider = "local" (the default).
-
-          Found database(s) with provider = "external":
-          ${lib.concatStringsSep ", " (lib.filter (name: mergedDatabases.${name}.provider != "local") (lib.attrNames mergedDatabases))}
-        '';
-      }
-      # Validate that functionPermissions only use wildcard patterns (specific functions require signatures)
-      {
-        assertion = lib.all (db:
-          lib.all (pattern: lib.hasSuffix ".*" pattern)
-            (lib.attrNames (db.functionPermissions or {}))
-        ) (lib.attrValues mergedDatabases);
-        message = ''
-          Function permissions currently only support wildcard patterns (e.g., "public.*").
-          Specific function grants require full signatures (name + argument types) which is not yet implemented.
-
-          Use wildcard patterns to grant EXECUTE on all functions in a schema.
-          For fine-grained control, consider schema-level separation of functions.
-        '';
-      }
+      # NOTE: Provider validation moved inside mkInstanceProvisioning where mergedDatabases is available
+      # NOTE: Function permission validation moved inside mkInstanceProvisioning where mergedDatabases is available
     ];
 
-    # Provisioning systemd service
-    systemd.services."postgresql-provision-databases" = {
-      description = "Provision PostgreSQL databases";
-      after = [ "postgresql.service" ];
-      requires = [ "postgresql.service" ];
-      wantedBy = [ "multi-user.target" ];
+    # Generate systemd services for each instance with databases
+    # Each instance gets its own provisioning service
+    systemd.services = lib.mkMerge (lib.mapAttrsToList (instanceName: instanceData:
+      let
+        inherit (instanceData) pgPackage;
+        instanceDatabases = instances.${instanceName}.databases or {};
 
-      # Run once per boot, but only if config changed
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        User = "postgres";
-        Group = "postgres";
+        # Process databases: expand permission presets and filter to managed databases only
+        mergedDatabases =
+          let
+            # Expand permission presets for all declarative databases
+            expanded = lib.mapAttrs expandPermissionsPolicy instanceDatabases;
+          in
+          # Filter to only managed databases (managed = true)
+          lib.filterAttrs (_: dbCfg: dbCfg.managed or true) expanded;
 
-        # Security hardening
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        PrivateTmp = true;
-        NoNewPrivileges = true;
+        instanceLabel = instanceName;
 
-        # Allow writing to state dir and metrics
-        ReadWritePaths = [
-          "/var/lib/postgresql/provisioning"
-        ] ++ lib.optional (config.modules.monitoring.enable or false) metricsDir;
+        # Generate complete provisioning script for this instance
+        mkProvisionScript = pkgs.writeShellScript "postgresql-provision-databases-${instanceName}" ''
+          set -euo pipefail
 
-        # Secrets access
-        SupplementaryGroups = lib.optional (config.modules.monitoring.enable or false) "node-exporter";
+          # Provisioning state tracking
+          STATE_DIR="/var/lib/postgresql/provisioning/${instanceName}"
+          STAMP_FILE="$STATE_DIR/provisioned.sha256"
+          METRICS_FILE="${metricsDir}/postgresql_database_provisioning_${instanceName}.prom"
 
-        ExecStart = "${mkProvisionScript}";
-      };
+          mkdir -p "$STATE_DIR"
+          chmod 0700 "$STATE_DIR"
 
-      # Notification on failure
-      unitConfig = lib.mkIf (config.modules.notifications.enable or false) {
-        OnFailure = [ "notify@postgresql-provision-failure.service" ];
-      };
-    };
+          echo "=== PostgreSQL Database Provisioning ==="
+          echo "Instance: ${instanceLabel}"
+          echo "Databases: ${toString (lib.length (lib.attrNames mergedDatabases))}"
 
-    # Notification templates (MOVED inside main mkIf block to avoid circular dependency)
-    # Previously used // operator which forced eager evaluation
-    modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) {
-      "postgresql-provision-success" = {
-        enable = true;
-        priority = "normal";
-        title = "✅ PostgreSQL Provisioning Complete";
-        body = ''
-          <b>Instance:</b> ${instanceLabel}
-          <b>Databases:</b> ${toString (lib.length (lib.attrNames mergedDatabases))}
-          <b>Status:</b> All databases provisioned successfully
+          # Compute hash of current configuration AND secret file contents
+          # This includes all database declarations to detect any changes
+          CONFIG_HASH="${builtins.hashString "sha256" (builtins.toJSON mergedDatabases)}"
+
+          # Compute hash of all password files to detect secret rotation
+          # This ensures password changes trigger re-provisioning
+          SECRETS_HASH=""
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+            lib.optionalString (dbCfg.ownerPasswordFile or null != null) ''
+              if [ -f "${dbCfg.ownerPasswordFile}" ]; then
+                SECRETS_HASH="$SECRETS_HASH$(sha256sum "${dbCfg.ownerPasswordFile}" | cut -d' ' -f1)"
+              fi
+            ''
+          ) mergedDatabases)}
+          COMBINED_HASH=$(echo "$CONFIG_HASH$SECRETS_HASH" | sha256sum | cut -d' ' -f1)
+
+          # Check if provisioning is needed
+          if [ -f "$STAMP_FILE" ] && [ "$(cat "$STAMP_FILE")" = "$COMBINED_HASH" ]; then
+            echo "✓ Database configuration and secrets unchanged - skipping provisioning"
+            ${lib.optionalString (config.modules.monitoring.enable or false) ''
+              # Update metrics
+              cat > "$METRICS_FILE" <<METRICS
+              # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
+              # TYPE postgresql_database_provisioning_last_run_timestamp gauge
+              postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="skipped"} $(date +%s)
+              METRICS
+            ''}
+            exit 0
+          fi
+
+          echo "→ Configuration changed - running provisioning"
+
+          # Wait for PostgreSQL to be ready
+          echo "Waiting for PostgreSQL to be ready..."
+          MAX_RETRIES=30
+          RETRY_COUNT=0
+          until ${pgPackage}/bin/pg_isready -h localhost -U postgres -d postgres; do
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "✗ PostgreSQL failed to become ready after $MAX_RETRIES attempts"
+              ${lib.optionalString (config.modules.monitoring.enable or false) ''
+                cat > "$METRICS_FILE" <<METRICS
+                # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
+                # TYPE postgresql_database_provisioning_last_run_timestamp gauge
+                postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="failed"} $(date +%s)
+                METRICS
+              ''}
+              exit 1
+            fi
+            echo "  Retry $RETRY_COUNT/$MAX_RETRIES..."
+            sleep 2
+          done
+          echo "✓ PostgreSQL is ready"
+
+          # Create temporary SQL file with restrictive permissions
+          SQL_FILE="$(mktemp -p "$STATE_DIR" provision.XXXXXX.sql)"
+          chmod 0600 "$SQL_FILE"
+          trap "rm -f $SQL_FILE" EXIT
+
+          # Generate provisioning SQL with improved execution grouping
+          cat > "$SQL_FILE" <<'PROVISION_SQL'
+          -- PostgreSQL Database Provisioning Script
+          -- Generated by NixOS modules.services.postgresql (instance: ${instanceName})
+          -- This script is idempotent and safe to run multiple times
+          --
+          -- SECURITY: All identifiers properly quoted to prevent SQL injection
+          -- EXECUTION: Grouped by database to minimize connection changes
+
+          \set ON_ERROR_STOP on
+          \set VERBOSITY verbose
+
+          -- Provisioning timestamp
+          SELECT NOW() AS provisioning_started;
+
+          -- ========================================
+          -- SESSION CONFIGURATION (Security hardening)
+          -- ========================================
+          SET statement_timeout = 60000;  -- 60 seconds
+          SET lock_timeout = 10000;       -- 10 seconds
+          SET search_path = pg_catalog, public;  -- Prevent function shadowing attacks
+
+          -- ========================================
+          -- PHASE 1: Create all roles first (connect to postgres database)
+          -- ========================================
+          \c postgres
+
+          -- Reset session config after connection change
+          SET statement_timeout = 60000;
+          SET lock_timeout = 10000;
+          SET search_path = pg_catalog, public;
+
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+            mkRoleSQL dbCfg.owner dbCfg.ownerPasswordFile
+          ) mergedDatabases)}
+
+          -- ========================================
+          -- Create readonly role (if any database uses owner-readwrite+readonly-select preset)
+          -- ========================================
+          ${lib.optionalString (lib.any (dbCfg: (dbCfg.permissionsPolicy or "custom") == "owner-readwrite+readonly-select") (lib.attrValues mergedDatabases)) ''
+          -- Create readonly role if it doesn't exist (NOLOGIN - grant to actual login roles)
+          -- SECURITY: NOLOGIN prevents direct authentication; grant this role to service accounts
+          DO $role$
+          BEGIN
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'readonly') THEN
+              CREATE ROLE readonly WITH NOLOGIN;
+              RAISE NOTICE 'Created readonly role (NOLOGIN - grant to actual login roles for read-only access)';
+            ELSE
+              RAISE NOTICE 'Readonly role already exists';
+            END IF;
+          END
+          $role$;
+          ''}
+
+          -- ========================================
+          -- PHASE 2: Create all databases (still in postgres database)
+          -- ========================================
+
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+            mkDatabaseSQL dbName dbCfg
+          ) mergedDatabases)}
+
+          -- ========================================
+          -- PHASE 3: Configure each database (one \c per database)
+          -- ========================================
+
+          ${lib.concatStringsSep "\n\n" (lib.mapAttrsToList (dbName: dbCfg:
+            let
+              hasExtensions = dbCfg.extensions != [];
+              hasDbPerms = (dbCfg.databasePermissions or {}) != {};
+              hasSchemaPerms = (dbCfg.schemaPermissions or {}) != {};
+              hasTablePerms = (dbCfg.tablePermissions or {}) != {};
+              hasFunctionPerms = (dbCfg.functionPermissions or {}) != {};
+              hasDefaultPrivs = (dbCfg.defaultPrivileges or {}) != {};
+
+              needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasFunctionPerms || hasDefaultPrivs;
+            in
+            lib.optionalString needsConfig ''
+            -- ----------------------------------------
+            -- Database: ${dbName}
+            -- Owner: ${dbCfg.owner}
+            -- ----------------------------------------
+            \c ${quoteSqlIdentifier dbName}
+
+            -- Reset session config after connection change
+            SET statement_timeout = 60000;
+            SET lock_timeout = 10000;
+            SET search_path = pg_catalog, public;
+
+            -- Security hardening: Revoke PUBLIC permissions
+            \c postgres
+            REVOKE ALL ON DATABASE ${quoteSqlIdentifier dbName} FROM PUBLIC;
+            \c ${quoteSqlIdentifier dbName}
+            REVOKE ALL ON SCHEMA public FROM PUBLIC;
+            REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+            REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
+            REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
+            \echo Revoked default PUBLIC permissions for security hardening
+
+            ${lib.optionalString hasExtensions ''
+            -- Extensions for ${dbName}
+            ${lib.concatMapStringsSep "\n" (ext: ''
+            CREATE EXTENSION IF NOT EXISTS ${quoteSqlIdentifier ext};
+            \echo Extension ${ext} ready
+            '') dbCfg.extensions}
+            ''}
+
+            ${lib.optionalString hasDbPerms ''
+            -- Database-level permissions for ${dbName}
+            \c postgres
+            ${mkPermissionsSQL dbName dbCfg.databasePermissions}
+            \c ${quoteSqlIdentifier dbName}
+            ''}
+
+            ${lib.optionalString hasSchemaPerms (mkSchemaPermissionsSQL dbName dbCfg.schemaPermissions)}
+
+            ${lib.optionalString hasTablePerms (mkTablePermissionsSQL dbName dbCfg.tablePermissions)}
+
+            ${lib.optionalString hasFunctionPerms (mkFunctionPermissionsSQL dbName dbCfg.functionPermissions)}
+
+            ${lib.optionalString hasDefaultPrivs (mkDefaultPrivilegesSQL dbName dbCfg.defaultPrivileges)}
+            ''
+          ) mergedDatabases)}
+
+          -- ========================================
+          -- SUMMARY
+          -- ========================================
+          \c postgres
+
+          SELECT
+            COUNT(*) FILTER (WHERE datname != 'postgres' AND datname != 'template0' AND datname != 'template1') as user_databases,
+            NOW() as provisioning_completed
+          FROM pg_database;
+          PROVISION_SQL
+
+          # Execute provisioning with no secrets on the command-line
+          echo "→ Executing provisioning SQL..."
+
+          # Run psql (passwords are read inside the SQL script via \set)
+          if ${pgPackage}/bin/psql -U postgres -d postgres -f "$SQL_FILE"; then
+
+            echo "✓ Provisioning completed successfully"
+
+            # Record successful provisioning (includes config + secrets hash)
+            echo "$COMBINED_HASH" > "$STAMP_FILE"
+
+            ${lib.optionalString (config.modules.monitoring.enable or false) ''
+              # Update metrics
+              cat > "$METRICS_FILE" <<METRICS
+              # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
+              # TYPE postgresql_database_provisioning_last_run_timestamp gauge
+              postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="success"} $(date +%s)
+
+              # HELP postgresql_database_count Number of user databases
+              # TYPE postgresql_database_count gauge
+              postgresql_database_count{instance="${instanceLabel}"} ${toString (lib.length (lib.attrNames mergedDatabases))}
+              METRICS
+            ''}
+
+          else
+            echo "✗ Provisioning failed"
+            ${lib.optionalString (config.modules.monitoring.enable or false) ''
+              cat > "$METRICS_FILE" <<METRICS
+              # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
+              # TYPE postgresql_database_provisioning_last_run_timestamp gauge
+              postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="failed"} $(date +%s)
+              METRICS
+            ''}
+            exit 1
+          fi
         '';
-      };
+      in
+      lib.mkIf (mergedDatabases != {}) {
+        "postgresql-provision-databases-${instanceName}" = {
+          description = "Provision PostgreSQL databases for instance ${instanceName}";
+          after = [ "postgresql.service" ];
+          requires = [ "postgresql.service" ];
+          wantedBy = [ "multi-user.target" ];
 
-      "postgresql-provision-failure" = {
-        enable = true;
-        priority = "high";
-        title = "✗ PostgreSQL Provisioning Failed";
-        body = ''
-          <b>Instance:</b> ${instanceLabel}
-          <b>Error:</b> Database provisioning encountered an error
-          <b>Action Required:</b> Check systemd logs: journalctl -u postgresql-provision-databases
-        '';
-      };
-    };
+          # Run once per boot, but only if config changed
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            User = "postgres";
+            Group = "postgres";
+
+            # Security hardening
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            PrivateTmp = true;
+            NoNewPrivileges = true;
+
+            # Allow writing to state dir and metrics
+            ReadWritePaths = [
+              "/var/lib/postgresql/provisioning"
+            ] ++ lib.optional (config.modules.monitoring.enable or false) metricsDir;
+
+            # Secrets access
+            SupplementaryGroups = lib.optional (config.modules.monitoring.enable or false) "node-exporter";
+
+            ExecStart = "${mkProvisionScript}";
+          };
+
+          # Notification on failure
+          unitConfig = lib.mkIf (config.modules.notifications.enable or false) {
+            OnFailure = [ "notify@postgresql-provision-failure:${instanceName}.service" ];
+          };
+        };
+      }
+    ) allDatabases);
+
+    # Notification templates (per-instance)
+    # Generate notification templates for each instance
+    modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) (
+      lib.mkMerge (lib.mapAttrsToList (instanceName: _:
+        {
+          "postgresql-provision-success:${instanceName}" = {
+            enable = true;
+            priority = "normal";
+            title = "✅ PostgreSQL Provisioning Complete (${instanceName})";
+            body = ''
+              <b>Instance:</b> ${instanceName}
+              <b>Status:</b> All databases provisioned successfully
+              <b>Service:</b> postgresql-provision-databases-${instanceName}
+            '';
+          };
+
+          "postgresql-provision-failure:${instanceName}" = {
+            enable = true;
+            priority = "high";
+            title = "✗ PostgreSQL Provisioning Failed (${instanceName})";
+            body = ''
+              <b>Instance:</b> ${instanceName}
+              <b>Error:</b> Database provisioning encountered an error
+              <b>Action Required:</b> Check systemd logs: journalctl -u postgresql-provision-databases-${instanceName}
+            '';
+          };
+        }
+      ) allDatabases)
+    );
   };
 }

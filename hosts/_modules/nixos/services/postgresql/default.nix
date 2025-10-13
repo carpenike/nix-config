@@ -454,12 +454,289 @@ in
           description = "Memory for maintenance operations";
         };
 
-        # Database initialization
+        # Database declarations (nested approach - replaces simple list and global databases option)
         databases = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [];
-          description = "List of databases to create on initialization";
-          example = [ "app1" "app2" ];
+          type = lib.types.attrsOf (lib.types.submodule {
+            options = {
+              owner = lib.mkOption {
+                type = lib.types.str;
+                description = "Database owner role name";
+              };
+
+              ownerPasswordFile = lib.mkOption {
+                type = lib.types.str;
+                apply = p:
+                  assert lib.assertMsg
+                    (!lib.hasPrefix "/nix/store" p)
+                    "ownerPasswordFile must not be in the Nix store (would leak secrets). Use a runtime path like /run/secrets/...";
+                  p;
+                description = ''
+                  Runtime path to file containing the database owner's password.
+                  Must be a runtime path (e.g., /run/secrets/..., /run/agenix/...)
+                  that is NOT copied to the Nix store.
+
+                  SECURITY: Never use a literal path that would be copied to /nix/store.
+                  Use SOPS, agenix, or systemd LoadCredential for secret management.
+                '';
+                example = "/run/secrets/myapp/db_password";
+              };
+
+              extensions = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [];
+                description = ''
+                  List of PostgreSQL extensions to enable for this database.
+                  Extension names are validated at runtime against available extensions.
+
+                  Common extensions: pg_trgm, btree_gin, btree_gist, pgcrypto, uuid-ossp, hstore
+                '';
+                example = [ "pg_trgm" "btree_gin" ];
+              };
+
+              # Permission preset for common patterns
+              permissionsPolicy = lib.mkOption {
+                type = lib.types.enum [ "owner-only" "owner-readwrite+readonly-select" "custom" ];
+                default = "custom";
+                description = ''
+                  Opinionated permission presets for common use cases. Simplifies configuration
+                  by automatically generating schema, table, and default privilege grants.
+
+                  - owner-only: Only the database owner has access (most restrictive)
+                  - owner-readwrite+readonly-select: Owner has full access, creates a 'readonly'
+                    role with SELECT on all tables/sequences in public schema
+                  - custom: Use manual databasePermissions, schemaPermissions, tablePermissions
+
+                  When using a preset, the following permissions are auto-generated:
+                  - Database-level: CONNECT, CREATE, TEMP for owner (and readonly if applicable)
+                  - Schema-level: USAGE, CREATE for owner (USAGE only for readonly)
+                  - Table-level: ALL for owner (SELECT for readonly on public.*)
+                  - Default privileges: Automatic grants for future objects
+
+                  NOTE: Presets can be combined with manual permissions. The preset generates
+                  base permissions, and you can add additional grants via the manual options.
+                '';
+                example = "owner-readwrite+readonly-select";
+              };
+
+              # Database metadata options
+              encoding = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "Database encoding (default: UTF8)";
+                example = "UTF8";
+              };
+
+              lcCtype = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = ''
+                  LC_CTYPE locale setting for character classification (default: cluster default).
+                  This determines character classification: which characters are letters, digits, etc.
+                '';
+                example = "en_US.UTF-8";
+              };
+
+              collation = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = ''
+                  LC_COLLATE locale setting for string sorting (default: cluster default).
+                  This determines the sort order for strings.
+                '';
+                example = "en_US.UTF-8";
+              };
+
+              template = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "Template database to copy from (default: template1)";
+                example = "template0";
+              };
+
+              tablespace = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                description = "Tablespace to use for this database";
+                example = "fast_ssd";
+              };
+
+              managed = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = ''
+                  Whether this database is managed by the provisioning system.
+                  If false, the database is expected to exist but won't be created or modified.
+                '';
+              };
+
+              # Database-level permissions
+              databasePermissions = lib.mkOption {
+                type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+                  "ALL" "CONNECT" "CREATE" "TEMP" "TEMPORARY"
+                ]));
+                default = {};
+                description = ''
+                  Database-level permissions to grant to additional roles.
+
+                  Valid PostgreSQL database privileges:
+                  - ALL: All database-level privileges (CONNECT + CREATE + TEMP)
+                  - CONNECT: Allow connections to this database
+                  - CREATE: Allow creating new schemas in this database
+                  - TEMP/TEMPORARY: Allow creating temporary tables
+                '';
+                example = {
+                  myapp = [ "ALL" ];
+                  monitoring = [ "CONNECT" ];
+                };
+              };
+
+              # Schema-level permissions
+              schemaPermissions = lib.mkOption {
+                type = lib.types.attrsOf (lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+                  "ALL" "USAGE" "CREATE"
+                ])));
+                default = {};
+                description = ''
+                  Schema-level permissions to grant to roles.
+                  Structure: { schema_name = { role_name = [ privileges ]; }; }
+
+                  Valid PostgreSQL schema privileges:
+                  - ALL: All schema privileges (USAGE + CREATE)
+                  - USAGE: Allow using objects in the schema (required for SELECT/INSERT/etc)
+                  - CREATE: Allow creating new objects in the schema
+                '';
+                example = {
+                  public = {
+                    readonly = [ "USAGE" ];
+                    myapp = [ "ALL" ];
+                  };
+                };
+              };
+
+              # Table-level permissions
+              tablePermissions = lib.mkOption {
+                type = lib.types.attrsOf (lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+                  "ALL" "SELECT" "INSERT" "UPDATE" "DELETE" "TRUNCATE" "REFERENCES" "TRIGGER" "EXECUTE"
+                ])));
+                default = {};
+                description = ''
+                  Table-level permissions to grant to roles.
+                  Structure: { schema_name.table_pattern = { role_name = [ privileges ]; }; }
+
+                  Use "*" as table_pattern to match all tables in a schema.
+                  Use specific table names for granular control.
+
+                  Valid PostgreSQL table privileges:
+                  - ALL: All table privileges
+                  - SELECT: Read data from tables
+                  - INSERT: Insert new rows
+                  - UPDATE: Modify existing rows
+                  - DELETE: Remove rows
+                  - TRUNCATE: Empty tables
+                  - REFERENCES: Create foreign key constraints
+                  - TRIGGER: Create triggers
+                  - EXECUTE: Execute functions/procedures (only valid with wildcard patterns)
+                '';
+                example = {
+                  "public.*" = {
+                    readonly = [ "SELECT" ];
+                    myapp = [ "ALL" ];
+                  };
+                };
+              };
+
+              # Function-level permissions
+              functionPermissions = lib.mkOption {
+                type = lib.types.attrsOf (lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+                  "ALL" "EXECUTE"
+                ])));
+                default = {};
+                description = ''
+                  Function-level permissions to grant to roles.
+                  Structure: { schema_name.function_pattern = { role_name = [ privileges ]; }; }
+
+                  Use "*" as function_pattern to match all functions in a schema.
+
+                  Valid PostgreSQL function privileges:
+                  - ALL: All function privileges (just EXECUTE currently)
+                  - EXECUTE: Execute functions and procedures
+                '';
+                example = {
+                  "public.*" = {
+                    myapp = [ "EXECUTE" ];
+                  };
+                };
+              };
+
+              # Default privileges
+              defaultPrivileges = lib.mkOption {
+                type = lib.types.attrsOf (lib.types.submodule {
+                  options = {
+                    owner = lib.mkOption {
+                      type = lib.types.str;
+                      description = "Role that creates the objects";
+                    };
+
+                    schema = lib.mkOption {
+                      type = lib.types.str;
+                      default = "public";
+                      description = "Schema where privileges apply";
+                    };
+
+                    tables = lib.mkOption {
+                      type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+                        "ALL" "SELECT" "INSERT" "UPDATE" "DELETE" "TRUNCATE" "REFERENCES" "TRIGGER"
+                      ]));
+                      default = {};
+                      description = "Default table privileges for each role";
+                    };
+
+                    sequences = lib.mkOption {
+                      type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+                        "ALL" "SELECT" "UPDATE" "USAGE"
+                      ]));
+                      default = {};
+                      description = "Default sequence privileges for each role";
+                    };
+
+                    functions = lib.mkOption {
+                      type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
+                        "ALL" "EXECUTE"
+                      ]));
+                      default = {};
+                      description = "Default function privileges for each role";
+                    };
+                  };
+                });
+                default = {};
+                description = ''
+                  Default privileges for future objects created by specific roles.
+                  This ensures permissions persist when tables/sequences are created/recreated.
+                '';
+                example = {
+                  app_defaults = {
+                    owner = "myapp";
+                    schema = "public";
+                    tables.readonly = [ "SELECT" ];
+                    sequences.readonly = [ "SELECT" "USAGE" ];
+                  };
+                };
+              };
+            };
+          });
+          default = {};
+          description = ''
+            Databases to provision for this PostgreSQL instance.
+            Each database is declaratively configured with owner, extensions, and permissions.
+
+            Example:
+              modules.services.postgresql.main.databases.myapp = {
+                owner = "myapp";
+                ownerPasswordFile = "/run/secrets/myapp-db-password";
+                extensions = [ "pg_trgm" "btree_gin" ];
+                permissionsPolicy = "owner-readwrite+readonly-select";
+              };
+          '';
         };
 
         # WAL archiving configuration
