@@ -11,6 +11,12 @@
 # - Least privilege principle per environment tier
 # - Separate lifecycle policies per bucket
 #
+# Security Note: Account ID vs Secrets
+# - Account ID in URL: NOT sensitive (identifier, like AWS Account ID)
+# - API credentials below: SENSITIVE (actual secrets)
+# - Hardcoding account ID in Nix config is industry standard practice
+# - Defense in depth: API keys (sops) + scoped IAM policies + Restic encryption
+#
 # Setup Instructions:
 # 1. Create R2 bucket: "nix-homelab-prod-servers" in Cloudflare dashboard
 # 2. Generate R2 API token with CUSTOM POLICY (see below)

@@ -149,6 +149,11 @@ in
           # Security: Each bucket has scoped API token (least privilege)
           # - Compromised workstation cannot access server backups
           # - Separate credentials per environment tier
+          #
+          # Security Note: Account ID in URL is NOT sensitive (identifier, not secret)
+          # - Industry standard: account IDs are public (like AWS Account IDs)
+          # - Actual secrets (API keys) are in sops: restic/r2-prod-env
+          # - Defense in depth: scoped IAM + API credentials + Restic encryption
           r2-offsite = {
             url = "s3:https://<ACCOUNT_ID>.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
             passwordFile = primaryRepoPasswordFile;  # Reuse same Restic encryption password
