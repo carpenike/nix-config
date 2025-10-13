@@ -306,13 +306,22 @@ in
     environment.systemPackages = [ pkgs.pgbackrest ];
 
     # pgBackRest configuration
-    # Note: repo2 (R2) is NOT configured here to avoid credential requirements in archive_command
-    # Backup services configure repo2 via command-line options with credentials from environment
+    # Note: repo2 credentials are provided via environment variables:
+    # PGBACKREST_REPO2_S3_KEY and PGBACKREST_REPO2_S3_KEY_SECRET
+    # These are loaded from SOPS secrets in backup/archive services
     environment.etc."pgbackrest.conf".text = ''
       [global]
       repo1-path=/mnt/nas-backup/pgbackrest
       repo1-retention-full=7
       repo1-retention-diff=4
+
+      repo2-type=s3
+      repo2-path=/pgbackrest
+      repo2-s3-bucket=nix-homelab-prod-servers
+      repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
+      repo2-s3-region=auto
+      repo2-retention-full=30
+      repo2-retention-diff=14
 
       process-max=2
       log-level-console=info
@@ -368,18 +377,12 @@ in
           # It will create if missing, validate if exists, or repair if broken
 
           echo "[$(date -Iseconds)] Creating/validating stanza 'main'..."
-          # NOTE: retention options NOT valid for stanza-create (only for backup command)
-          pgbackrest --stanza=main \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            stanza-create
+          # stanza-create uses config from /etc/pgbackrest.conf
+          # This will create/validate both repo1 and repo2
+          pgbackrest --stanza=main stanza-create
 
           echo "[$(date -Iseconds)] Running check..."
-          # check command does not accept --repo flag
-          # Will naturally check only repo1 since it's the only repo in global config
+          # check command validates all configured repos
           pgbackrest --stanza=main check
         '';
         wantedBy = [ "multi-user.target" ];
@@ -405,18 +408,13 @@ in
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
-          echo "[$(date -Iseconds)] Starting full backup to both repos..."
-          pgbackrest --stanza=main --type=full \
-            --repo=1 --repo=2 \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            --repo2-retention-full=30 \
-            --repo2-retention-diff=14 \
-            backup
-          echo "[$(date -Iseconds)] Full backup completed"
+          echo "[$(date -Iseconds)] Starting full backup to repo1 (NFS)..."
+          pgbackrest --stanza=main --type=full --repo=1 backup
+          echo "[$(date -Iseconds)] Repo1 backup completed"
+
+          echo "[$(date -Iseconds)] Starting full backup to repo2 (R2)..."
+          pgbackrest --stanza=main --type=full --repo=2 backup
+          echo "[$(date -Iseconds)] Full backup to both repos completed"
         '';
       };
 
@@ -440,18 +438,13 @@ in
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
-          echo "[$(date -Iseconds)] Starting incremental backup to both repos..."
-          pgbackrest --stanza=main --type=incr \
-            --repo=1 --repo=2 \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            --repo2-retention-full=30 \
-            --repo2-retention-diff=14 \
-            backup
-          echo "[$(date -Iseconds)] Incremental backup completed"
+          echo "[$(date -Iseconds)] Starting incremental backup to repo1 (NFS)..."
+          pgbackrest --stanza=main --type=incr --repo=1 backup
+          echo "[$(date -Iseconds)] Repo1 backup completed"
+
+          echo "[$(date -Iseconds)] Starting incremental backup to repo2 (R2)..."
+          pgbackrest --stanza=main --type=incr --repo=2 backup
+          echo "[$(date -Iseconds)] Incremental backup to both repos completed"
         '';
       };
 
@@ -475,18 +468,13 @@ in
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
-          echo "[$(date -Iseconds)] Starting differential backup to both repos..."
-          pgbackrest --stanza=main --type=diff \
-            --repo=1 --repo=2 \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            --repo2-retention-full=30 \
-            --repo2-retention-diff=14 \
-            backup
-          echo "[$(date -Iseconds)] Differential backup completed"
+          echo "[$(date -Iseconds)] Starting differential backup to repo1 (NFS)..."
+          pgbackrest --stanza=main --type=diff --repo=1 backup
+          echo "[$(date -Iseconds)] Repo1 backup completed"
+
+          echo "[$(date -Iseconds)] Starting differential backup to repo2 (R2)..."
+          pgbackrest --stanza=main --type=diff --repo=2 backup
+          echo "[$(date -Iseconds)] Differential backup to both repos completed"
         '';
       };
     };
@@ -639,15 +627,9 @@ HEADER3
         export PGBACKREST_REPO2_S3_KEY_SECRET="''${AWS_SECRET_ACCESS_KEY:-}"
 
         # Run pgbackrest info, capturing JSON. Timeout prevents hangs on network issues.
-        # All repo2 parameters must be passed for info command to check both repositories.
-        # Note: When passing --repo2-* options, pgBackRest uses environment variables for credentials
-        INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json \
-          --repo2-type=s3 \
-          --repo2-path=/pgbackrest \
-          --repo2-s3-bucket=nix-homelab-prod-servers \
-          --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-          --repo2-s3-region=auto \
-          info 2>&1)
+        # Get info for all configured repos (repo1 and repo2)
+        # Credentials are provided via environment variables (see EnvironmentFile)
+        INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json info 2>&1)
 
         # Exit gracefully if command fails or returns empty/invalid JSON
         if ! echo "$INFO_JSON" | jq -e '.[0].name == "main"' > /dev/null; then
