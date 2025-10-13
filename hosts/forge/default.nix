@@ -437,7 +437,9 @@ in
           echo "[$(date -Iseconds)] Repo1 backup completed"
 
           echo "[$(date -Iseconds)] Starting full backup to repo2 (R2)..."
+          # repo2 doesn't have WAL archiving, so use --no-archive-check
           pgbackrest --stanza=main --type=full --repo=2 \
+            --no-archive-check \
             --repo2-type=s3 \
             --repo2-path=/pgbackrest \
             --repo2-s3-bucket=nix-homelab-prod-servers \
@@ -475,7 +477,9 @@ in
           echo "[$(date -Iseconds)] Repo1 backup completed"
 
           echo "[$(date -Iseconds)] Starting incremental backup to repo2 (R2)..."
+          # repo2 doesn't have WAL archiving, so use --no-archive-check
           pgbackrest --stanza=main --type=incr --repo=2 \
+            --no-archive-check \
             --repo2-type=s3 \
             --repo2-path=/pgbackrest \
             --repo2-s3-bucket=nix-homelab-prod-servers \
@@ -513,7 +517,9 @@ in
           echo "[$(date -Iseconds)] Repo1 backup completed"
 
           echo "[$(date -Iseconds)] Starting differential backup to repo2 (R2)..."
+          # repo2 doesn't have WAL archiving, so use --no-archive-check
           pgbackrest --stanza=main --type=diff --repo=2 \
+            --no-archive-check \
             --repo2-type=s3 \
             --repo2-path=/pgbackrest \
             --repo2-s3-bucket=nix-homelab-prod-servers \
