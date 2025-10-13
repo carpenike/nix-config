@@ -740,6 +740,10 @@ in
           PrivateTmp = true;
           NoNewPrivileges = true;
 
+          # Create state directory for provisioning
+          StateDirectory = "postgresql/provisioning";
+          StateDirectoryMode = "0755";
+
           # Allow writing to state dir and metrics
           ReadWritePaths = [
             "/var/lib/postgresql/provisioning"
