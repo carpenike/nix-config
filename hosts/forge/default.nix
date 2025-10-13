@@ -349,6 +349,7 @@ in
           Type = "oneshot";
           User = "postgres";
           Group = "postgres";
+          SupplementaryGroups = [ "restic-backup" ];
           RemainAfterExit = true;
           EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
         };

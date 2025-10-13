@@ -26,8 +26,9 @@
         # Bucket: nix-homelab-prod-servers (forge, luna, nas-1)
         # Contains: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (R2 is S3-compatible)
         # Security: Scoped token with access ONLY to production-servers bucket
+        # Used by: restic-backup service AND pgBackRest (postgres user needs read access)
         "restic/r2-prod-env" = {
-          mode = "0400";
+          mode = "0440";
           owner = "restic-backup";
           group = "restic-backup";
         };
