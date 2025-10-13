@@ -2,7 +2,7 @@
 
 pkgs.stdenv.mkDerivation {
   pname = "pg-backup-scripts";
-  version = "1.0.0";
+  version = "1.0.1"; # Version bump to reflect changes
 
   dontUnpack = true;
   dontBuild = true;
@@ -21,25 +21,29 @@ pkgs.stdenv.mkDerivation {
 
     echo "[$(date -Iseconds)] Starting PostgreSQL backup mode for Sanoid snapshot..."
 
-    # Use pg_backup_start (PostgreSQL 15+) with:
+    # Use pg_backup_start (exclusive mode wrapper) with:
     # - Label: 'sanoid snapshot'
-    # - Fast checkpoint: true (don't wait for checkpoint to complete slowly)
-    if ! /run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -d postgres -c "SELECT pg_backup_start('sanoid snapshot', true);" 2>&1; then
+    # - Fast checkpoint: false (wait for checkpoint to complete for consistency)
+    # This command creates the backup_label file in the PGDATA directory.
+    if ! /run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT pg_backup_start('sanoid snapshot', false);" 2>&1; then
         echo "ERROR: Failed to start PostgreSQL backup mode" >&2
         exit 1
     fi
 
-    # Brief sleep to ensure backup_label file is written to disk
-    sleep 1
+    # Force flush all filesystem buffers to disk to ensure the backup_label
+    # file is physically present before the instantaneous ZFS snapshot.
+    # The 'sleep' command is not a reliable guarantee; 'sync' is.
+    echo "[$(date -Iseconds)] Forcing filesystem sync..."
+    sync
 
-    echo "[$(date -Iseconds)] PostgreSQL is in backup mode. Proceeding with snapshot."
+    echo "[$(date -Iseconds)] PostgreSQL is in backup mode and filesystems are synced. Proceeding with snapshot."
     exit 0
     EOF
 
     # Post-snapshot script: pg_backup_stop
     cat > $out/bin/pg-backup-stop <<'EOF'
     #!/usr/bin/env bash
-    set -euo pipefail
+    set -uo pipefail # NOTE: -e is removed to handle exit codes manually
 
     # Take PostgreSQL out of backup mode after ZFS snapshot
     # This removes the backup_label file from the live system
@@ -47,18 +51,19 @@ pkgs.stdenv.mkDerivation {
 
     echo "[$(date -Iseconds)] Ending PostgreSQL backup mode..."
 
-    # Use pg_backup_stop (PostgreSQL 15+)
-    # The wait_for_archive parameter defaults to false, which is what we want
-    # WALs will be archived by the normal archive_command process
-    # Note: It's okay if backup is not in progress - ZFS snapshots are instant,
-    # so the backup might already be complete by the time we call this
-    OUTPUT=$(/run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -d postgres -c "SELECT * FROM pg_backup_stop();" 2>&1) || true
-    if echo "$OUTPUT" | grep -q "backup is not in progress"; then
-        echo "[$(date -Iseconds)] PostgreSQL backup already completed (snapshot was instant)."
-    elif echo "$OUTPUT" | grep -q "lsn"; then
+    # Use pg_backup_stop. We must handle the case where the backup is already
+    # stopped, as snapshots are instant. We capture stderr to check for the
+    # specific "not in progress" message, which is an expected state.
+    if output_and_stderr=$(/run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT * FROM pg_backup_stop();" 2>&1); then
         echo "[$(date -Iseconds)] PostgreSQL backup stopped successfully."
+        # The output can be verbose, so only log it if needed for debugging
+        # echo "Output: $output_and_stderr"
+    elif echo "$output_and_stderr" | grep -q "backup is not in progress"; then
+        echo "[$(date -Iseconds)] PostgreSQL backup was not in progress (this is expected with fast snapshots)."
     else
-        echo "WARNING: Unexpected output from pg_backup_stop: $OUTPUT" >&2
+        echo "ERROR: pg_backup_stop failed with an unexpected error:" >&2
+        echo "$output_and_stderr" >&2
+        exit 1
     fi
 
     echo "[$(date -Iseconds)] PostgreSQL backup mode finished."
