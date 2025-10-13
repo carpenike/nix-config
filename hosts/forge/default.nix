@@ -305,24 +305,13 @@ in
     environment.systemPackages = [ pkgs.pgbackrest ];
 
     # pgBackRest configuration
+    # Note: repo2 (R2) is NOT configured here to avoid credential requirements in archive_command
+    # Backup services configure repo2 via command-line options with credentials from environment
     environment.etc."pgbackrest.conf".text = ''
       [global]
       repo1-path=/mnt/nas-backup/pgbackrest
       repo1-retention-full=7
       repo1-retention-diff=4
-
-      repo2-type=s3
-      repo2-path=/pgbackrest
-      repo2-s3-bucket=nix-homelab-prod-servers
-      repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
-      repo2-s3-region=auto
-      # Credentials provided via PGBACKREST_REPO2_S3_KEY and PGBACKREST_REPO2_S3_KEY_SECRET
-      # environment variables (transformed from AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in service scripts)
-      repo2-retention-full=30
-      repo2-retention-diff=14
-      # Disable continuous WAL archiving to repo2 - backup jobs handle syncing WALs to R2
-      # This avoids needing credentials in PostgreSQL's archive_command process
-      repo2-archive-push-queue-max=0
 
       process-max=2
       log-level-console=info
@@ -375,10 +364,24 @@ in
           # It will create if missing, validate if exists, or repair if broken
 
           echo "[$(date -Iseconds)] Creating/validating stanza 'main'..."
-          pgbackrest --stanza=main stanza-create
+          pgbackrest --stanza=main \
+            --repo2-type=s3 \
+            --repo2-path=/pgbackrest \
+            --repo2-s3-bucket=nix-homelab-prod-servers \
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
+            --repo2-s3-region=auto \
+            --repo2-retention-full=30 \
+            --repo2-retention-diff=14 \
+            stanza-create
 
           echo "[$(date -Iseconds)] Running check..."
-          pgbackrest --stanza=main check
+          pgbackrest --stanza=main \
+            --repo2-type=s3 \
+            --repo2-path=/pgbackrest \
+            --repo2-s3-bucket=nix-homelab-prod-servers \
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
+            --repo2-s3-region=auto \
+            check
         '';
         wantedBy = [ "multi-user.target" ];
       };
@@ -404,7 +407,15 @@ in
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
           echo "[$(date -Iseconds)] Starting full backup..."
-          pgbackrest --stanza=main --type=full backup
+          pgbackrest --stanza=main --type=full \
+            --repo2-type=s3 \
+            --repo2-path=/pgbackrest \
+            --repo2-s3-bucket=nix-homelab-prod-servers \
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
+            --repo2-s3-region=auto \
+            --repo2-retention-full=30 \
+            --repo2-retention-diff=14 \
+            backup
           echo "[$(date -Iseconds)] Full backup completed"
         '';
       };
@@ -430,7 +441,15 @@ in
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
           echo "[$(date -Iseconds)] Starting incremental backup..."
-          pgbackrest --stanza=main --type=incr backup
+          pgbackrest --stanza=main --type=incr \
+            --repo2-type=s3 \
+            --repo2-path=/pgbackrest \
+            --repo2-s3-bucket=nix-homelab-prod-servers \
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
+            --repo2-s3-region=auto \
+            --repo2-retention-full=30 \
+            --repo2-retention-diff=14 \
+            backup
           echo "[$(date -Iseconds)] Incremental backup completed"
         '';
       };
@@ -456,7 +475,15 @@ in
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
           echo "[$(date -Iseconds)] Starting differential backup..."
-          pgbackrest --stanza=main --type=diff backup
+          pgbackrest --stanza=main --type=diff \
+            --repo2-type=s3 \
+            --repo2-path=/pgbackrest \
+            --repo2-s3-bucket=nix-homelab-prod-servers \
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
+            --repo2-s3-region=auto \
+            --repo2-retention-full=30 \
+            --repo2-retention-diff=14 \
+            backup
           echo "[$(date -Iseconds)] Differential backup completed"
         '';
       };
