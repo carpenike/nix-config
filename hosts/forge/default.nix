@@ -328,7 +328,6 @@ in
       # Background process flushes to repo1 when NFS is available
       archive-async=y
       spool-path=/var/lib/pgbackrest/spool
-      repo1-archive-push-queue-max=4096
 
       process-max=2
       log-level-console=info
