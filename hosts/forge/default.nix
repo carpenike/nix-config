@@ -707,9 +707,9 @@ EOF
             LAST_BACKUP_JSON=$(echo "$STANZA_JSON" | jq \
               --argjson repo_key "$REPO_KEY" \
               --arg backup_type "$backup_type" \
-              '.backup[] | select(.database["repo-key"] == $repo_key and .type == $backup_type and .error == false) | sort_by(.timestamp.start) | .[-1] // empty')
+              '[.backup[] | select(.database["repo-key"] == $repo_key and .type == $backup_type and .error == false)] | sort_by(.timestamp.start) | .[-1] // empty')
 
-            if [ -n "$LAST_BACKUP_JSON" ]; then
+            if [ -n "$LAST_BACKUP_JSON" ] && [ "$LAST_BACKUP_JSON" != "null" ]; then
               LAST_COMPLETION=$(echo "$LAST_BACKUP_JSON" | jq '.timestamp.stop')
               START_TIME=$(echo "$LAST_BACKUP_JSON" | jq '.timestamp.start')
               DURATION=$((LAST_COMPLETION - START_TIME))
