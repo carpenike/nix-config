@@ -21,7 +21,6 @@
           enable = true;
           version = "16";
           port = 5432;
-          dataDir = "/var/lib/postgresql/16";  # Explicit path without /main suffix
 
           # Listen only on localhost for security (services connect locally)
           listenAddresses = "localhost";      # Memory settings (tune based on available RAM)
