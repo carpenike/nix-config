@@ -24,7 +24,7 @@ pkgs.stdenv.mkDerivation {
     # Use pg_backup_start (PostgreSQL 15+) with:
     # - Label: 'sanoid snapshot'
     # - Fast checkpoint: true (don't wait for checkpoint to complete slowly)
-    if ! runuser -u postgres -- psql -d postgres -c "SELECT pg_backup_start('sanoid snapshot', true);" >/dev/null 2>&1; then
+    if ! /run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -d postgres -c "SELECT pg_backup_start('sanoid snapshot', true);" 2>&1; then
         echo "ERROR: Failed to start PostgreSQL backup mode" >&2
         exit 1
     fi
@@ -50,7 +50,7 @@ pkgs.stdenv.mkDerivation {
     # Use pg_backup_stop (PostgreSQL 15+)
     # The wait_for_archive parameter defaults to false, which is what we want
     # WALs will be archived by the normal archive_command process
-    if ! runuser -u postgres -- psql -d postgres -c "SELECT * FROM pg_backup_stop();" >/dev/null 2>&1; then
+    if ! /run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -d postgres -c "SELECT * FROM pg_backup_stop();" 2>&1; then
         echo "ERROR: Failed to stop PostgreSQL backup mode" >&2
         exit 1
     fi
