@@ -18,7 +18,7 @@ in
   config = lib.mkIf (cfg.enable && (cfg.integration.storage.enable or true)) {
     modules.storage.datasets.services = {
       # Data dataset with PostgreSQL-optimal settings
-      "postgresql/main" = {
+      "postgresql" = {
         mountpoint = cfg.dataDir;
         recordsize = "8K";  # PostgreSQL page size
         compression = "lz4";
@@ -32,21 +32,8 @@ in
         mode = "0700";
       };
 
-      # WAL archive dataset with sequential write optimization
-      # Only create if WAL archiving is explicitly enabled
-      "postgresql/main-wal" = lib.mkIf (cfg.backup.walArchive.enable or false) {
-        mountpoint = cfg.walArchiveDir;
-        recordsize = "128K";  # Sequential writes
-        compression = "lz4";
-        properties = {
-          atime = "off";
-          logbias = "throughput";
-          sync = "standard";
-        };
-        owner = "postgres";
-        group = "postgres";
-        mode = "0700";
-      };
+      # WAL archive dataset removed - obsolete with pgBackRest
+      # pgBackRest now handles all WAL archiving directly to its own repository
     };
   };
 }

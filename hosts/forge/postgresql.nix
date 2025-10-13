@@ -15,17 +15,16 @@
 # Secret paths are passed via postgresSecrets parameter (defined in forge/default.nix)
 # to avoid circular dependencies in module evaluation
 {
-  config = {
-    # Enable PostgreSQL service
-    modules.services.postgresql = {
-      enable = true;
-      version = "16";
-      port = 5432;
+      config = {
+        # Enable PostgreSQL service
+        modules.services.postgresql = {
+          enable = true;
+          version = "16";
+          port = 5432;
+          dataDir = "/var/lib/postgresql/16";  # Explicit path without /main suffix
 
-      # Listen only on localhost for security (services connect locally)
-      listenAddresses = "localhost";
-
-      # Memory settings (tune based on available RAM)
+          # Listen only on localhost for security (services connect locally)
+          listenAddresses = "localhost";      # Memory settings (tune based on available RAM)
       sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
       effectiveCacheSize = "1GB";     # ~50% of available RAM
       maintenanceWorkMem = "128MB";

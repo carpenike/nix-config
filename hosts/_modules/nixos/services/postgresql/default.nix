@@ -66,7 +66,7 @@
       # Computed paths (read-only, derived from version)
       dataDir = lib.mkOption {
         type = lib.types.str;
-        default = "/var/lib/postgresql/${config.modules.services.postgresql.version}/main";
+        default = "/var/lib/postgresql/${config.modules.services.postgresql.version}";
         readOnly = true;
         description = "PostgreSQL data directory";
       };

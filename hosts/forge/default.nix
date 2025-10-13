@@ -191,12 +191,21 @@ in
           # ZFS snapshots of PGDATA are crash-consistent (less reliable)
           # For recovery, use pgBackRest exclusively
 
-          # Removed tank/services/postgresql/main-wal from snapshots
+                    # Removed tank/services/postgresql/main-wal from snapshots
           # Rationale: This directory (/var/lib/postgresql/16/main-wal-archive/) is obsolete
           # pgBackRest archives WALs directly to /mnt/nas-backup/pgbackrest/archive/
           # The main-wal ZFS dataset is not being written to (last activity 7+ hours ago)
           # Safe to remove after verifying old WAL files are not needed
+
+          # Explicitly disable snapshots on PostgreSQL dataset (rely on pgBackRest)
+          "tank/services/postgresql" = {
+            autosnap = false;
+            autoprune = false;
+            recursive = false;
+          };
         };
+
+        # Restic backup jobs configuration
 
         # Monitor pool health and alert on degradation
         healthChecks = {
@@ -330,7 +339,7 @@ in
       compress-level=3
 
       [main]
-      pg1-path=/var/lib/postgresql/16/main
+      pg1-path=/var/lib/postgresql/16
       pg1-port=5432
       pg1-user=postgres
     '';
@@ -361,7 +370,7 @@ in
       compress-level=3
 
       [main]
-      pg1-path=/var/lib/postgresql/16/main
+      pg1-path=/var/lib/postgresql/16
       pg1-port=5432
       pg1-user=postgres
     '';
