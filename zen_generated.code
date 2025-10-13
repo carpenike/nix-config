@@ -1,3 +1,15 @@
+<GENERATED-CODE>
+1. Update `pkgs/pg-backup-scripts.nix` to replace the existing `pg-zfs-snapshot` script with a new version that correctly handles non-exclusive backups. This version will:
+    - Use two named pipes (FIFOs) for two-way communication with a background `psql` process.
+    - Query for necessary metadata (`PGDATA` path, timeline ID, start LSN).
+    - Manually construct the `backup_label` file content.
+    - Write `backup_label` to the `PGDATA` directory before the snapshot.
+    - Take the snapshot.
+    - Remove `backup_label` from the live `PGDATA` directory.
+    - Properly call `pg_backup_stop()` to end the backup.
+
+<UPDATED_EXISTING_FILE: pkgs/pg-backup-scripts.nix>
+```nix
 { pkgs, ... }:
 
 pkgs.stdenv.mkDerivation {
@@ -64,9 +76,6 @@ pkgs.stdenv.mkDerivation {
     echo "SELECT timeline_id FROM pg_control_checkpoint();" >&3
     read -r TIMELINE_ID <&4
 
-    echo "SELECT checkpoint_lsn FROM pg_control_checkpoint();" >&3
-    read -r CHECKPOINT_LSN <&4
-
     echo "SELECT pg_backup_start('zfs-snapshot', false);" >&3
     read -r LSN <&4
 
@@ -79,7 +88,7 @@ pkgs.stdenv.mkDerivation {
     # This file makes the snapshot a valid base backup instead of just crash-consistent.
     echo "[$(date -Iseconds)] Writing backup_label to ''${BACKUP_LABEL_PATH}..."
     LABEL_CONTENT=$(printf "START WAL LOCATION: %s (file %s)\nCHECKPOINT LOCATION: %s\nBACKUP METHOD: streamed\nBACKUP FROM: primary\nSTART TIME: %s\nLABEL: zfs-snapshot\nSTART TIMELINE: %s\n" \
-        "''${LSN}" "''${WAL_FILE_NAME}" "''${CHECKPOINT_LSN}" "$(date -u +"%Y-%m-%d %H:%M:%S %Z")" "''${TIMELINE_ID}")
+        "''${LSN}" "''${WAL_FILE_NAME}" "''${LSN}" "$(date -u +"%Y-%m-%d %H:%M:%S %Z")" "''${TIMELINE_ID}")
 
     /run/current-system/sw/bin/runuser -u postgres -- bash -c "printf '%s' \"''${LABEL_CONTENT}\" > \"''${BACKUP_LABEL_PATH}\""
 
@@ -130,3 +139,6 @@ pkgs.stdenv.mkDerivation {
     platforms = platforms.linux;
   };
 }
+```
+</UPDATED_EXISTING_FILE>
+</GENERATED-CODE>
