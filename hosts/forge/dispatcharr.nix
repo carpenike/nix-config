@@ -16,7 +16,7 @@
     # IMPORTANT: Based on Dispatcharr source code analysis, these extensions are REQUIRED:
     # - btree_gin: For GIN index support (used in Django migrations)
     # - pg_trgm: For trigram similarity searches (improves text searching)
-    modules.services.postgresql.main.databases.dispatcharr = {
+    modules.services.postgresql.databases.dispatcharr = {
       owner = "dispatcharr";
       ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
       extensions = [ "btree_gin" "pg_trgm" ];

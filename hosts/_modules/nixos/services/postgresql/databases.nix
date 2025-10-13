@@ -434,39 +434,23 @@ in
       # allows the module system to determine what this module contributes
       # before fully resolving these values.
 
-      # Read PostgreSQL instances with their nested databases
-      # FIXED: Now reads from the nested structure postgresql.<instance>.databases
-      instances = config.modules.services.postgresql or {};
+      # Read PostgreSQL configuration (simplified single-instance structure)
+      cfg = config.modules.services.postgresql;
 
-      # Filter to only enabled instances to avoid provisioning disabled instances
-      enabledInstances = lib.filterAttrs (_: inst: inst.enable or false) instances;
+      # Get databases from the simplified structure
+      databases = cfg.databases or {};
 
-      # Flatten all databases from all instances into a single structure
-      # Structure: { "<instance>:<dbname>" = { instanceName, dbName, dbConfig }; }
-      allDatabases = lib.foldl' (acc: instanceName:
-        let
-          instance = enabledInstances.${instanceName};
-          instanceDatabases = instance.databases or {};
-        in
-        acc // lib.mapAttrs' (dbName: dbConfig: {
-          name = "${instanceName}:${dbName}";
-          value = {
-            inherit instanceName dbName;
-            dbConfig = dbConfig;
-            pgPackage = pkgs."postgresql_${builtins.replaceStrings ["."] [""] instance.version}";
-            dataDir = "/var/lib/postgresql/${instance.version}/${instanceName}";
-          };
-        }) instanceDatabases
-      ) {} (lib.attrNames enabledInstances);
+      # PostgreSQL package
+      pgPackage = if cfg.enable then pkgs."postgresql_${builtins.replaceStrings ["."] [""] cfg.version}" else null;
 
       # Metrics directory - use consistent path from monitoring module
       metricsDir = config.modules.monitoring.nodeExporter.textfileCollector.directory or "/var/lib/node_exporter/textfile_collector";
 
-    in lib.mkIf (allDatabases != {}) {
+    in lib.mkIf (cfg.enable && databases != {}) {
     # Assertions
     assertions = [
       {
-        assertion = allDatabases != {};
+        assertion = databases != {};
         message = "Database provisioning enabled but no databases declared";
       }
       {
@@ -476,42 +460,34 @@ in
           The PostgreSQL service must be running before database provisioning can occur.
         '';
       }
-      # NOTE: Provider validation moved inside mkInstanceProvisioning where mergedDatabases is available
-      # NOTE: Function permission validation moved inside mkInstanceProvisioning where mergedDatabases is available
     ];
 
-    # Generate systemd services for each instance with databases
-    # Each instance gets its own provisioning service
-    systemd.services = lib.mkMerge (lib.mapAttrsToList (instanceName: instanceData:
-      let
-        inherit (instanceData) pgPackage;
-        instanceDatabases = instances.${instanceName}.databases or {};
-
+    # Generate systemd service for database provisioning
+    # Single service for the single PostgreSQL instance
+    systemd.services.postgresql-provision-databases = let
         # Process databases: expand permission presets and filter to managed databases only
         mergedDatabases =
           let
             # Expand permission presets for all declarative databases
-            expanded = lib.mapAttrs expandPermissionsPolicy instanceDatabases;
+            expanded = lib.mapAttrs expandPermissionsPolicy databases;
           in
           # Filter to only managed databases (managed = true)
           lib.filterAttrs (_: dbCfg: dbCfg.managed or true) expanded;
 
-        instanceLabel = instanceName;
-
-        # Generate complete provisioning script for this instance
-        mkProvisionScript = pkgs.writeShellScript "postgresql-provision-databases-${instanceName}" ''
+        # Generate complete provisioning script
+        mkProvisionScript = pkgs.writeShellScript "postgresql-provision-databases" ''
           set -euo pipefail
 
           # Provisioning state tracking
-          STATE_DIR="/var/lib/postgresql/provisioning/${instanceName}"
+          STATE_DIR="/var/lib/postgresql/provisioning/main"
           STAMP_FILE="$STATE_DIR/provisioned.sha256"
-          METRICS_FILE="${metricsDir}/postgresql_database_provisioning_${instanceName}.prom"
+          METRICS_FILE="${metricsDir}/postgresql_database_provisioning.prom"
 
           mkdir -p "$STATE_DIR"
           chmod 0700 "$STATE_DIR"
 
           echo "=== PostgreSQL Database Provisioning ==="
-          echo "Instance: ${instanceLabel}"
+          echo "Instance: main"
           echo "Databases: ${toString (lib.length (lib.attrNames mergedDatabases))}"
 
           # Compute hash of current configuration AND secret file contents
@@ -538,7 +514,7 @@ in
               cat > "$METRICS_FILE" <<METRICS
               # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
               # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-              postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="skipped"} $(date +%s)
+              postgresql_database_provisioning_last_run_timestamp{status="skipped"} $(date +%s)
               METRICS
             ''}
             exit 0
@@ -558,7 +534,7 @@ in
                 cat > "$METRICS_FILE" <<METRICS
                 # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
                 # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-                postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="failed"} $(date +%s)
+                postgresql_database_provisioning_last_run_timestamp{status="failed"} $(date +%s)
                 METRICS
               ''}
               exit 1
@@ -576,7 +552,7 @@ in
           # Generate provisioning SQL with improved execution grouping
           cat > "$SQL_FILE" <<'PROVISION_SQL'
           -- PostgreSQL Database Provisioning Script
-          -- Generated by NixOS modules.services.postgresql (instance: ${instanceName})
+          -- Generated by NixOS modules.services.postgresql
           -- This script is idempotent and safe to run multiple times
           --
           -- SECURITY: All identifiers properly quoted to prevent SQL injection
@@ -724,95 +700,84 @@ in
               cat > "$METRICS_FILE" <<METRICS
               # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
               # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-              postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="success"} $(date +%s)
+              postgresql_database_provisioning_last_run_timestamp{status="success"} $(date +%s)
 
               # HELP postgresql_database_count Number of user databases
               # TYPE postgresql_database_count gauge
-              postgresql_database_count{instance="${instanceLabel}"} ${toString (lib.length (lib.attrNames mergedDatabases))}
+              postgresql_database_count ${toString (lib.length (lib.attrNames mergedDatabases))}
               METRICS
             ''}
 
           else
-            echo "✗ Provisioning failed for PostgreSQL instance '${instanceName}'"
+            echo "✗ Provisioning failed for PostgreSQL"
             echo "   Databases affected: ${lib.concatStringsSep ", " (lib.attrNames mergedDatabases)}"
             ${lib.optionalString (config.modules.monitoring.enable or false) ''
               cat > "$METRICS_FILE" <<METRICS
               # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
               # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-              postgresql_database_provisioning_last_run_timestamp{instance="${instanceLabel}",status="failed"} $(date +%s)
+              postgresql_database_provisioning_last_run_timestamp{status="failed"} $(date +%s)
               METRICS
             ''}
             exit 1
           fi
         '';
-      in
-      lib.mkIf (mergedDatabases != {}) {
-        "postgresql-provision-databases-${instanceName}" = {
-          description = "Provision PostgreSQL databases for instance ${instanceName}";
-          after = [ "postgresql.service" ];
-          requires = [ "postgresql.service" ];
-          wantedBy = [ "multi-user.target" ];
+      in {
+        description = "Provision PostgreSQL databases";
+        after = [ "postgresql.service" ];
+        requires = [ "postgresql.service" ];
+        wantedBy = [ "multi-user.target" ];
 
-          # Run once per boot, but only if config changed
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            User = "postgres";
-            Group = "postgres";
+        # Run once per boot, but only if config changed
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          User = "postgres";
+          Group = "postgres";
 
-            # Security hardening
-            ProtectSystem = "strict";
-            ProtectHome = true;
-            PrivateTmp = true;
-            NoNewPrivileges = true;
+          # Security hardening
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          NoNewPrivileges = true;
 
-            # Allow writing to state dir and metrics
-            ReadWritePaths = [
-              "/var/lib/postgresql/provisioning"
-            ] ++ lib.optional (config.modules.monitoring.enable or false) metricsDir;
+          # Allow writing to state dir and metrics
+          ReadWritePaths = [
+            "/var/lib/postgresql/provisioning"
+          ] ++ lib.optional (config.modules.monitoring.enable or false) metricsDir;
 
-            # Secrets access
-            SupplementaryGroups = lib.optional (config.modules.monitoring.enable or false) "node-exporter";
+          # Secrets access
+          SupplementaryGroups = lib.optional (config.modules.monitoring.enable or false) "node-exporter";
 
-            ExecStart = "${mkProvisionScript}";
-          };
-
-          # Notification on failure
-          unitConfig = lib.mkIf (config.modules.notifications.enable or false) {
-            OnFailure = [ "notify@postgresql-provision-failure:${instanceName}.service" ];
-          };
+          ExecStart = "${mkProvisionScript}";
         };
-      }
-    ) allDatabases);
 
-    # Notification templates (per-instance)
-    # Generate notification templates for each instance
-    modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) (
-      lib.mkMerge (lib.mapAttrsToList (instanceName: _:
-        {
-          "postgresql-provision-success:${instanceName}" = {
-            enable = true;
-            priority = "normal";
-            title = "✅ PostgreSQL Provisioning Complete (${instanceName})";
-            body = ''
-              <b>Instance:</b> ${instanceName}
-              <b>Status:</b> All databases provisioned successfully
-              <b>Service:</b> postgresql-provision-databases-${instanceName}
-            '';
-          };
+        # Notification on failure
+        unitConfig = lib.mkIf (config.modules.notifications.enable or false) {
+          OnFailure = [ "notify@postgresql-provision-failure.service" ];
+        };
+      };
 
-          "postgresql-provision-failure:${instanceName}" = {
-            enable = true;
-            priority = "high";
-            title = "✗ PostgreSQL Provisioning Failed (${instanceName})";
-            body = ''
-              <b>Instance:</b> ${instanceName}
-              <b>Error:</b> Database provisioning encountered an error
-              <b>Action Required:</b> Check systemd logs: journalctl -u postgresql-provision-databases-${instanceName}
-            '';
-          };
-        }
-      ) allDatabases)
-    );
+    # Notification templates
+    modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) {
+      postgresql-provision-success = {
+        enable = true;
+        priority = "normal";
+        title = "✅ PostgreSQL Provisioning Complete";
+        body = ''
+          <b>Status:</b> All databases provisioned successfully
+          <b>Service:</b> postgresql-provision-databases
+        '';
+      };
+
+      postgresql-provision-failure = {
+        enable = true;
+        priority = "high";
+        title = "✗ PostgreSQL Provisioning Failed";
+        body = ''
+          <b>Error:</b> Database provisioning encountered an error
+          <b>Action Required:</b> Check systemd logs: journalctl -u postgresql-provision-databases
+        '';
+      };
+    };
   };
 }

@@ -1,66 +1,85 @@
-{ lib, config, ... }:
-# PostgreSQL Module - Options Only
+{ lib, pkgs, config, ... }:
+# PostgreSQL Module - Simplified Single-Instance Design
 #
-# This module ONLY defines options for PostgreSQL instances.
-# Service generation is handled by implementation.nix.
+# This module defines options and generates PostgreSQL service configuration.
 # Integration with storage/backup is handled by respective integration modules.
+#
+# Architecture: Single PostgreSQL instance with multiple databases
+# - Options defined as a single submodule (not attrsOf)
+# - Service generation included in this file (no separate implementation.nix)
+# - Storage/backup integration remains in separate modules
 {
   options.modules.services.postgresql = lib.mkOption {
-    type = lib.types.attrsOf (lib.types.submodule ({ name, config, ... }: {
+    type = lib.types.submodule {
       options = {
-        enable = lib.mkEnableOption "PostgreSQL instance";
+      enable = lib.mkEnableOption "PostgreSQL service";
 
-        version = lib.mkOption {
-          type = lib.types.enum [ "14" "15" "16" ];
-          default = "16";
-          description = "PostgreSQL major version";
-        };
+      version = lib.mkOption {
+        type = lib.types.enum [ "14" "15" "16" ];
+        default = "16";
+        description = "PostgreSQL major version";
+      };
 
-        port = lib.mkOption {
-          type = lib.types.port;
-          default = 5432;
-          description = "PostgreSQL port";
-        };
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 5432;
+        description = "PostgreSQL port";
+      };
 
-        listenAddresses = lib.mkOption {
-          type = lib.types.str;
-          default = "localhost";
-          description = "Addresses to listen on (comma-separated)";
-        };
+      listenAddresses = lib.mkOption {
+        type = lib.types.str;
+        default = "localhost";
+        description = "Addresses to listen on (comma-separated)";
+      };
 
-        maxConnections = lib.mkOption {
-          type = lib.types.int;
-          default = 100;
-          description = "Maximum number of concurrent connections";
-        };
+      maxConnections = lib.mkOption {
+        type = lib.types.int;
+        default = 100;
+        description = "Maximum number of concurrent connections";
+      };
 
-        # Memory tuning
-        sharedBuffers = lib.mkOption {
-          type = lib.types.str;
-          default = "256MB";
-          description = "Amount of memory for shared buffers";
-        };
+      # Memory tuning
+      sharedBuffers = lib.mkOption {
+        type = lib.types.str;
+        default = "256MB";
+        description = "Amount of memory for shared buffers";
+      };
 
-        effectiveCacheSize = lib.mkOption {
-          type = lib.types.str;
-          default = "1GB";
-          description = "Planner's assumption of effective cache size";
-        };
+      effectiveCacheSize = lib.mkOption {
+        type = lib.types.str;
+        default = "1GB";
+        description = "Planner's assumption of effective cache size";
+      };
 
-        workMem = lib.mkOption {
-          type = lib.types.str;
-          default = "4MB";
-          description = "Memory for internal sort operations and hash tables";
-        };
+      workMem = lib.mkOption {
+        type = lib.types.str;
+        default = "4MB";
+        description = "Memory for internal sort operations and hash tables";
+      };
 
-        maintenanceWorkMem = lib.mkOption {
-          type = lib.types.str;
-          default = "64MB";
-          description = "Memory for maintenance operations";
-        };
+      maintenanceWorkMem = lib.mkOption {
+        type = lib.types.str;
+        default = "64MB";
+        description = "Memory for maintenance operations";
+      };
 
-        # Database declarations (nested approach - replaces simple list and global databases option)
-        databases = lib.mkOption {
+      # Computed paths (read-only, derived from version)
+      dataDir = lib.mkOption {
+        type = lib.types.str;
+        default = "/var/lib/postgresql/${config.modules.services.postgresql.version}/main";
+        readOnly = true;
+        description = "PostgreSQL data directory";
+      };
+
+      walArchiveDir = lib.mkOption {
+        type = lib.types.str;
+        default = "${config.modules.services.postgresql.dataDir}-wal-archive";
+        readOnly = true;
+        description = "PostgreSQL WAL archive directory";
+      };
+
+      # Database declarations
+      databases = lib.mkOption {
           type = lib.types.attrsOf (lib.types.submodule {
             options = {
               owner = lib.mkOption {
@@ -568,25 +587,91 @@
           };
         };
       };
-
-      # NOTE: Submodule config can't set top-level options like services.postgresql
-      # Configuration is generated at parent module level instead
-    }));
+    };
     default = {};
-    description = "PostgreSQL instances with PITR support";
+    description = "PostgreSQL service with PITR support";
   };
 
-  config = lib.mkMerge [
-    # Assertions
-    {
-      # NOTE: Single-instance limitation documented in module description
-      # User should only enable one instance due to NixOS services.postgresql constraints
-    }
+  config =
+    let
+      cfg = config.modules.services.postgresql;
+      pgPackage = if cfg.enable then pkgs.${"postgresql_${lib.replaceStrings ["."] [""] cfg.version}"} else null;
+    in
+    lib.mkMerge [
+    # PostgreSQL service implementation
+    (lib.mkIf cfg.enable {
+      # Enable the base PostgreSQL service
+      services.postgresql = {
+        enable = true;
+        package = pgPackage;
+        dataDir = cfg.dataDir;
 
-    # NOTE: Config generation must be in a separate module (implementation.nix) to avoid circular dependency
-    # Keeping the config generation here causes infinite recursion because we'd be reading
-    # config.modules.services.postgresql while also defining it
-    {}
+        # Basic configuration
+        settings = lib.mkMerge [
+          {
+            port = cfg.port;
+            listen_addresses = lib.mkDefault cfg.listenAddresses;
+            max_connections = lib.mkDefault cfg.maxConnections;
+
+            # Memory settings
+            shared_buffers = lib.mkDefault cfg.sharedBuffers;
+            effective_cache_size = lib.mkDefault cfg.effectiveCacheSize;
+            work_mem = lib.mkDefault cfg.workMem;
+            maintenance_work_mem = lib.mkDefault cfg.maintenanceWorkMem;
+
+            # Logging
+            log_destination = lib.mkDefault "stderr";
+            logging_collector = lib.mkDefault true;
+            log_directory = lib.mkDefault "log";
+            log_filename = lib.mkDefault "postgresql-%Y-%m-%d_%H%M%S.log";
+            log_rotation_age = lib.mkDefault "1d";
+            log_rotation_size = lib.mkDefault "100MB";
+            log_line_prefix = lib.mkDefault "%m [%p] %u@%d ";
+            log_timezone = lib.mkDefault "UTC";
+          }
+
+          # WAL archiving for Point-in-Time Recovery (PITR)
+          (lib.mkIf (cfg.backup.walArchive.enable or false) {
+            # Enable WAL archiving
+            archive_mode = "on";
+
+            # Compress WAL files to reduce storage and I/O overhead
+            wal_compression = "on";
+
+            # Archive command uses atomic write pattern (cp to temp, then mv)
+            archive_command = "test ! -f ${cfg.walArchiveDir}/%f && cp %p ${cfg.walArchiveDir}/.tmp.%f && mv ${cfg.walArchiveDir}/.tmp.%f ${cfg.walArchiveDir}/%f";
+
+            # Archive timeout - force WAL segment switch after this interval
+            archive_timeout = toString cfg.backup.walArchive.archiveTimeout;
+          })
+
+          # Merge in user's extra settings (can override defaults)
+          cfg.extraSettings
+        ];
+
+        # Enable authentication
+        authentication = lib.mkDefault ''
+          local all postgres peer
+          local all all peer
+          host all all 127.0.0.1/32 scram-sha-256
+          host all all ::1/128 scram-sha-256
+        '';
+      };
+
+      # Extend systemd service configuration
+      systemd.services.postgresql = {
+        # Ensure PostgreSQL doesn't start until required directories are mounted
+        unitConfig = {
+          RequiresMountsFor = [ cfg.dataDir ] ++ lib.optional (cfg.backup.walArchive.enable or false) cfg.walArchiveDir;
+        };
+
+        # Ensure ZFS mounts are complete before starting
+        after = [ "zfs-mount.service" ];
+
+        # Allow write access to WAL archive directory when PITR is enabled
+        serviceConfig.ReadWritePaths = lib.optionals (cfg.backup.walArchive.enable or false) [ cfg.walArchiveDir ];
+      };
+    })
 
     # Notification templates
     (lib.mkIf (config.modules.notifications.enable or false) {
@@ -596,7 +681,6 @@
           priority = "normal";
           title = "✅ PostgreSQL Backup Complete";
           body = ''
-            <b>Instance:</b> ''${instance}
             <b>Backup Path:</b> ''${backuppath}
             <b>Status:</b> Success
           '';
@@ -607,7 +691,6 @@
           priority = "high";
           title = "✗ PostgreSQL Backup Failed";
           body = ''
-            <b>Instance:</b> ''${instance}
             <b>Error:</b> ''${errormessage}
             <b>Action Required:</b> Check backup logs
           '';
@@ -618,7 +701,6 @@
           priority = "high";
           title = "⚠ PostgreSQL Health Check Failed";
           body = ''
-            <b>Instance:</b> ''${instance}
             <b>Error:</b> ''${errormessage}
             <b>Action Required:</b> Check PostgreSQL service status
           '';
@@ -626,10 +708,9 @@
 
         postgresql-replication-lag = {
           enable = true;
-          priority = "normal";  # Changed from "medium" (not a valid priority)
+          priority = "normal";
           title = "⚠ PostgreSQL Replication Lag";
           body = ''
-            <b>Instance:</b> ''${instance}
             <b>Lag:</b> ''${lag} seconds
             <b>Status:</b> Replication is falling behind
           '';
@@ -637,10 +718,4 @@
       };
     })
   ];
-
-  # FIXME: Database provisioning module creates circular dependency
-  # databases.nix tries to read config.modules.services.postgresql.databases
-  # which is part of the same config tree this module defines
-  # Need to restructure database provisioning to avoid this circular reference
-  # imports = [ ./databases.nix ];
 }

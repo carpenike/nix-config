@@ -241,8 +241,8 @@ in
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
       # NOTE: Database requirements are declared at the host level
-      # (e.g., in hosts/forge/dispatcharr.nix) using the per-instance path:
-      # modules.services.postgresql.main.databases.dispatcharr
+      # (e.g., in hosts/forge/dispatcharr.nix) using:
+      # modules.services.postgresql.databases.dispatcharr
       #
       # This follows the pattern where hosts compose services and declare
       # infrastructure dependencies, while service modules focus on the
@@ -264,8 +264,8 @@ in
         })
         ++ [
           {
-            assertion = config.modules.services.postgresql.main.enable or false;
-            message = "Dispatcharr requires PostgreSQL to be enabled (modules.services.postgresql.main.enable).";
+            assertion = config.modules.services.postgresql.enable or false;
+            message = "Dispatcharr requires PostgreSQL to be enabled (modules.services.postgresql.enable).";
           }
         ];
 

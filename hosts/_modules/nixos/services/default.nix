@@ -23,8 +23,7 @@
     ./openssh
     ./omada
     ./podman
-    ./postgresql                              # PostgreSQL module (options)
-    ./postgresql/implementation.nix           # Service generation (services.postgresql)
+    ./postgresql                              # PostgreSQL module (simplified single-instance)
     ./postgresql/databases.nix                # Database provisioning (systemd units)
     ./postgresql/storage-integration.nix      # ZFS dataset creation (one-way integration)
     ./postgresql/backup-integration.nix       # Backup job creation (one-way integration)
