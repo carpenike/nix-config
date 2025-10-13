@@ -123,6 +123,15 @@ in
             autosnap = true;
             autoprune = true;
           };
+          # High-frequency snapshots for PostgreSQL WAL archives
+          # Provides 5-minute RPO for database point-in-time recovery
+          wal-frequent = {
+            frequently = 12;  # Every 5 minutes (12 per hour)
+            hourly = 48;      # 2 days of hourly rollup
+            daily = 7;        # 1 week of daily rollup
+            autosnap = true;
+            autoprune = true;
+          };
         };
 
         # Dataset snapshot and replication configuration
@@ -159,6 +168,20 @@ in
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/services";
               sendOptions = "wp";  # w = raw send, p = preserve properties (recordsize, compression, etc.)
+              recvOptions = "u";
+            };
+          };
+
+          # PostgreSQL WAL archive - high-frequency snapshots for PITR
+          # Override the parent template with more frequent snapshots
+          # This provides 5-minute RPO for database recovery
+          "tank/services/postgresql/main-wal" = {
+            useTemplate = [ "wal-frequent" ];
+            recursive = false;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/services/postgresql/main-wal";
+              sendOptions = "wp";
               recvOptions = "u";
             };
           };

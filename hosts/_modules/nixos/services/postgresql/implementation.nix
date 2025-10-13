@@ -63,6 +63,10 @@
             # Enable WAL archiving
             archive_mode = "on";
 
+            # Compress WAL files to reduce storage and I/O overhead
+            # Typically achieves 50-80% compression ratio
+            wal_compression = "on";
+
             # Archive command uses atomic write pattern (cp to temp, then mv)
             # This prevents corrupted archives from interrupted transfers
             # PostgreSQL will retry automatically if the command fails
