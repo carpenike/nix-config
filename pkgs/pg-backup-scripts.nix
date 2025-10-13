@@ -112,9 +112,11 @@ pkgs.stdenv.mkDerivation {
     exec 3>&-
     exec 4<&-
 
-    # Wait for the psql process to terminate cleanly and check its exit code.
-    if ! wait "$PSQL_PID"; then
-        echo "ERROR: psql process exited with an error." >&2
+    # Wait for the psql process to terminate. Ignore exit code 141 (SIGPIPE) which
+    # is expected when psql tries to write after we close the read end of the pipe.
+    wait "$PSQL_PID" || PSQL_EXIT=$?
+    if [[ -n "$PSQL_EXIT" && "$PSQL_EXIT" != "141" ]]; then
+        echo "ERROR: psql process exited with code $PSQL_EXIT" >&2
         exit 1
     fi
 
