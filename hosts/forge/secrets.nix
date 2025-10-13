@@ -15,8 +15,18 @@
         "/etc/ssh/ssh_host_ed25519_key"
       ];
       secrets = {
-        # Restic backup password
+        # Restic backup password (used for local NFS and R2 encryption)
         "restic/password" = {
+          mode = "0400";
+          owner = "restic-backup";
+          group = "restic-backup";
+        };
+
+        # Cloudflare R2 API credentials for offsite backups
+        # Bucket: nix-homelab-prod-servers (forge, luna, nas-1)
+        # Contains: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY (R2 is S3-compatible)
+        # Security: Scoped token with access ONLY to production-servers bucket
+        "restic/r2-prod-env" = {
           mode = "0400";
           owner = "restic-backup";
           group = "restic-backup";

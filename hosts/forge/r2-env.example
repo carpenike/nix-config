@@ -1,0 +1,38 @@
+# Cloudflare R2 API Credentials for Restic Backups
+# Bucket Organization Strategy: Per-Environment (Gemini Pro recommendation)
+#
+# Three buckets with scoped credentials:
+# 1. nix-homelab-prod-servers  → forge, luna, nas-1 (this file)
+# 2. nix-homelab-edge-devices  → nixpi
+# 3. nix-homelab-workstations  → rydev, rymac
+#
+# Security Benefits:
+# - Compromised workstation cannot access server backups
+# - Least privilege principle per environment tier
+# - Separate lifecycle policies per bucket
+#
+# Setup Instructions:
+# 1. Create R2 bucket: "nix-homelab-prod-servers" in Cloudflare dashboard
+# 2. Generate R2 API token with CUSTOM POLICY (see below)
+# 3. Add these values to secrets.sops.yaml under "restic/r2-prod-env"
+#
+# Custom IAM Policy for Production Servers Token:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": ["s3:ListBucket"],
+#       "Resource": ["arn:aws:s3:::nix-homelab-prod-servers"]
+#     },
+#     {
+#       "Effect": "Allow",
+#       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+#       "Resource": ["arn:aws:s3:::nix-homelab-prod-servers/*"]
+#     }
+#   ]
+# }
+#
+# Format (AWS S3-compatible environment variables):
+AWS_ACCESS_KEY_ID=your_prod_servers_access_key_id
+AWS_SECRET_ACCESS_KEY=your_prod_servers_secret_access_key

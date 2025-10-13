@@ -1,5 +1,40 @@
 { config, ... }:
 
+# Forge Backup Configuration
+#
+# This configuration integrates PostgreSQL into the existing Restic-based backup system
+# instead of using pgBackRest, leveraging our sophisticated backup infrastructure.
+#
+# Key Decision: Extend Restic vs Add pgBackRest
+# After critical evaluation (see conversation with Gemini Pro), we chose to extend
+# our existing Restic system because:
+# 1. We already have PITR-compliant PostgreSQL snapshots (pg-backup-scripts)
+# 2. Unified operational model: single dashboard, alerting, verification
+# 3. Existing monitoring/notifications/verification infrastructure
+# 4. Monthly restore testing already validates end-to-end recovery
+# 5. Simpler to operate: add 1 repo + 1 job vs entire new tool stack
+#
+# PostgreSQL Backup Strategy:
+# - Local: ZFS snapshots every 5 minutes via pg-zfs-snapshot.service
+# - Local DR: Syncoid replication to nas-1 every 15 minutes
+# - Offsite DR: Restic to Cloudflare R2 (this file)
+#
+# PITR Recovery Process from R2:
+# 1. restic restore <snapshot_id> --target /var/lib/postgresql/16/main
+# 2. restic restore latest --target /tmp/wal --include /var/lib/postgresql/16/main-wal-archive
+# 3. Create recovery.signal in PGDATA
+# 4. Set restore_command and recovery_target_time in postgresql.conf
+# 5. Start PostgreSQL
+#
+# Setup Requirements:
+# 1. Create Cloudflare R2 bucket: "nix-homelab-backups"
+# 2. Generate R2 API token (read/write access)
+# 3. Add to secrets.sops.yaml:
+#    restic/r2-env: |
+#      AWS_ACCESS_KEY_ID=<your_key>
+#      AWS_SECRET_ACCESS_KEY=<your_secret>
+# 4. Deploy configuration and verify first backup succeeds
+
 let
   # Reference centralized primary backup repository config from default.nix
   # See hosts/forge/default.nix for the single source of truth
@@ -66,7 +101,9 @@ in
           {
             pool = "tank";
             datasets = [
-              "services/sonarr"   # Sonarr media management service
+              "services/sonarr"           # Sonarr media management service
+              "services/postgresql/main"  # PostgreSQL PGDATA (PITR-compliant snapshots via pg-zfs-snapshot)
+              "services/postgresql/main-wal"  # PostgreSQL WAL archive for point-in-time recovery
             ];
           }
         ];
@@ -99,6 +136,24 @@ in
             url = primaryRepoUrl;
             passwordFile = primaryRepoPasswordFile;
             primary = true;
+          };
+
+          # Cloudflare R2 for offsite geographic redundancy
+          # Zero egress fees make restore testing and actual DR affordable
+          #
+          # Bucket Organization: Per-Environment Strategy
+          # - production-servers: forge, luna, nas-1 (critical infrastructure)
+          # - edge-devices: nixpi (monitoring/edge services)
+          # - workstations: rydev, rymac (development machines)
+          #
+          # Security: Each bucket has scoped API token (least privilege)
+          # - Compromised workstation cannot access server backups
+          # - Separate credentials per environment tier
+          r2-offsite = {
+            url = "s3:https://<ACCOUNT_ID>.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
+            passwordFile = primaryRepoPasswordFile;  # Reuse same Restic encryption password
+            environmentFile = config.sops.secrets."restic/r2-prod-env".path;  # Production bucket credentials
+            primary = false;  # Secondary repository for DR
           };
         };
 
@@ -144,6 +199,32 @@ in
               memory = "1g";
               memoryReservation = "512m";
               cpus = "1.0";
+            };
+          };
+
+          # PostgreSQL offsite backup to Cloudflare R2
+          # Leverages existing ZFS snapshot coordination via backup.zfs.pools
+          # pg-zfs-snapshot.service already ensures PITR-compliant snapshots with backup_label
+          # Restic backs up: PGDATA + WAL archive for complete point-in-time recovery
+          postgresql-offsite = {
+            enable = true;
+            repository = "r2-offsite";
+            paths = [
+              "/var/lib/postgresql/16"  # Includes both main and main-wal-archive subdirectories
+            ];
+            excludePatterns = [
+              # Exclude PostgreSQL runtime files that don't need backup
+              "**/postmaster.pid"
+              "**/postmaster.opts"
+              # Exclude temporary files
+              "**/*.tmp"
+              "**/pgsql_tmp/*"
+            ];
+            tags = [ "postgresql" "database" "pitr" "offsite" ];
+            resources = {
+              memory = "512m";
+              memoryReservation = "256m";
+              cpus = "0.5";
             };
           };
         };
