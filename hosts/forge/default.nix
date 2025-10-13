@@ -374,9 +374,9 @@ in
             stanza-create
 
           echo "[$(date -Iseconds)] Running check..."
-          # Only check repo1 since archive_command only pushes to repo1
-          # Backup jobs will handle repo2 separately
-          pgbackrest --stanza=main --repo=1 check
+          # check command does not accept --repo flag
+          # Will naturally check only repo1 since it's the only repo in global config
+          pgbackrest --stanza=main check
         '';
         wantedBy = [ "multi-user.target" ];
       };
