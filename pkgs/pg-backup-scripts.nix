@@ -101,8 +101,9 @@ pkgs.stdenv.mkDerivation {
     /run/current-system/sw/bin/runuser -u postgres -- rm -f "''${BACKUP_LABEL_PATH}"
 
     # 6. Take PostgreSQL out of backup mode. This writes the 'backup end' WAL record.
+    # wait_for_archive=true ensures all required WAL is archived before returning.
     echo "[$(date -Iseconds)] Exiting backup mode..."
-    echo "SELECT * FROM pg_backup_stop();" >&3
+    echo "SELECT * FROM pg_backup_stop(true);" >&3
     echo "\\q" >&3  # Tell psql to quit
     sleep 1  # Give psql time to process the quit command before closing FIFOs
 
