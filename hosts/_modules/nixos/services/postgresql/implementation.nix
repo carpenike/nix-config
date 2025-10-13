@@ -95,6 +95,10 @@
 
         # Ensure ZFS mounts are complete before starting
         after = [ "zfs-mount.service" ];
+
+        # Allow write access to WAL archive directory when PITR is enabled
+        # Note: We must append to the existing ReadWritePaths, not replace it
+        serviceConfig.ReadWritePaths = lib.mkIf (mainInstance.backup.walArchive.enable or false) [ walArchiveDir ];
       };
 
       # Assertion to ensure only one instance
