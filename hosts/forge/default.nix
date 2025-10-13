@@ -637,13 +637,14 @@ HEADER3
 
         # Run pgbackrest info, capturing JSON. Timeout prevents hangs on network issues.
         # All repo2 parameters must be passed for info command to check both repositories.
+        # Note: When passing --repo2-* options, pgBackRest uses environment variables for credentials
         INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json \
           --repo2-type=s3 \
           --repo2-path=/pgbackrest \
           --repo2-s3-bucket=nix-homelab-prod-servers \
           --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
           --repo2-s3-region=auto \
-          info)
+          info 2>&1)
 
         # Exit gracefully if command fails or returns empty/invalid JSON
         if ! echo "$INFO_JSON" | jq -e '.[0].name == "main"' > /dev/null; then
@@ -697,22 +698,16 @@ EOF
 
         # Per-repo and per-backup-type metrics
         echo "$STANZA_JSON" | jq -c '.repo[]' | while read -r repo_json; do
-          REPO_ID=$(echo "$repo_json" | jq '.id')
-          REPO_KEY=$(echo "$repo_json" | jq '.key') # This is the repo number as a string
+          REPO_KEY=$(echo "$repo_json" | jq '.key')
 
           REPO_STATUS=$(echo "$repo_json" | jq '.status.code')
           echo "pgbackrest_repo_status{stanza=\"main\",repo_key=$REPO_KEY,hostname=\"forge\"} $REPO_STATUS" >> "$METRICS_TEMP"
 
-          REPO_SIZE=$(echo "$repo_json" | jq '.size // 0')
-          if [ "$REPO_SIZE" -ne 0 ]; then
-            echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,hostname=\"forge\"} $REPO_SIZE" >> "$METRICS_TEMP"
-          fi
-
           for backup_type in full diff incr; do
             LAST_BACKUP_JSON=$(echo "$STANZA_JSON" | jq \
-              --argjson repo_id "$REPO_ID" \
+              --argjson repo_key "$REPO_KEY" \
               --arg backup_type "$backup_type" \
-              '.backup[] | select(.repo.id == $repo_id and .type == $backup_type and .status.code == 0) | sort_by(.timestamp.start) | .[-1] // empty')
+              '.backup[] | select(.database["repo-key"] == $repo_key and .type == $backup_type and .error == false) | sort_by(.timestamp.start) | .[-1] // empty')
 
             if [ -n "$LAST_BACKUP_JSON" ]; then
               LAST_COMPLETION=$(echo "$LAST_BACKUP_JSON" | jq '.timestamp.stop')
@@ -720,11 +715,13 @@ EOF
               DURATION=$((LAST_COMPLETION - START_TIME))
               DB_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.size')
               DELTA_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.delta')
+              REPO_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.repository.size')
 
               echo "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $LAST_COMPLETION" >> "$METRICS_TEMP"
               echo "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DURATION" >> "$METRICS_TEMP"
               echo "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DB_SIZE" >> "$METRICS_TEMP"
               echo "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DELTA_SIZE" >> "$METRICS_TEMP"
+              echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $REPO_SIZE" >> "$METRICS_TEMP"
             fi
           done
         done
