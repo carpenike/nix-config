@@ -61,6 +61,8 @@
 
       # Disable old backup integration (now using pgBackRest directly)
       integration.backup.enable = false;
+      backup.walArchive.enable = false;  # Disable module's archive_command (using pgBackRest instead)
+      backup.baseBackup.enable = false;  # Disable module's base backup (using pgBackRest instead)
 
       # Enable health monitoring
       healthCheck.enable = true;
