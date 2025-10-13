@@ -363,6 +363,10 @@ in
         script = ''
           set -euo pipefail
 
+          # Transform AWS env vars to pgBackRest format
+          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
+          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
+
           # Directory is managed by systemd.tmpfiles.rules
           # stanza-create is idempotent - safe to run multiple times
           # It will create if missing, validate if exists, or repair if broken
@@ -391,6 +395,11 @@ in
         };
         script = ''
           set -euo pipefail
+
+          # Transform AWS env vars to pgBackRest format
+          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
+          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
+
           echo "[$(date -Iseconds)] Starting full backup..."
           pgbackrest --stanza=main --type=full backup
           echo "[$(date -Iseconds)] Full backup completed"
@@ -412,6 +421,11 @@ in
         };
         script = ''
           set -euo pipefail
+
+          # Transform AWS env vars to pgBackRest format
+          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
+          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
+
           echo "[$(date -Iseconds)] Starting incremental backup..."
           pgbackrest --stanza=main --type=incr backup
           echo "[$(date -Iseconds)] Incremental backup completed"
@@ -433,6 +447,11 @@ in
         };
         script = ''
           set -euo pipefail
+
+          # Transform AWS env vars to pgBackRest format
+          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
+          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
+
           echo "[$(date -Iseconds)] Starting differential backup..."
           pgbackrest --stanza=main --type=diff backup
           echo "[$(date -Iseconds)] Differential backup completed"
