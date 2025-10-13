@@ -104,6 +104,7 @@ pkgs.stdenv.mkDerivation {
     echo "[$(date -Iseconds)] Exiting backup mode..."
     echo "SELECT * FROM pg_backup_stop();" >&3
     echo "\\q" >&3  # Tell psql to quit
+    sleep 1  # Give psql time to process the quit command before closing FIFOs
 
     # --- End Critical Section ---
 
