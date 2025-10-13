@@ -33,12 +33,6 @@
         package = pgPackage;
         dataDir = dataDir;
 
-        # Ensure required filesystems are mounted before PostgreSQL starts
-        # This prevents startup failures if ZFS datasets aren't ready
-        initialScript = lib.mkAfter ''
-          # Systemd will handle mount dependencies via RequiresMountsFor
-        '';
-
         # Basic configuration
         settings = lib.mkMerge [
           {
@@ -96,10 +90,7 @@
         # Ensure PostgreSQL doesn't start until required directories are mounted
         # This is critical for ZFS datasets
         unitConfig = {
-          RequiresMountsFor = lib.mkIf (mainInstance.backup.walArchive.enable or false) [
-            dataDir
-            walArchiveDir
-          ];
+          RequiresMountsFor = [ dataDir ] ++ lib.optional (mainInstance.backup.walArchive.enable or false) walArchiveDir;
         };
 
         # Ensure ZFS mounts are complete before starting
