@@ -63,8 +63,9 @@ in
     };
 
     # Add postgres user to restic-backup group for R2 secret access
-    # Required for pgBackRest to read AWS credentials from SOPS secret
-    users.users.postgres.extraGroups = [ "restic-backup" ];
+    # and node-exporter group for metrics file write access
+    # Required for pgBackRest to read AWS credentials and write Prometheus metrics
+    users.users.postgres.extraGroups = [ "restic-backup" "node-exporter" ];
 
     system.activationScripts.postActivation.text = ''
       # Must match what is in /etc/shells
