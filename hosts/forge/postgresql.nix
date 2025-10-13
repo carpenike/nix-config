@@ -38,9 +38,9 @@
         max_wal_size = "2GB";
         min_wal_size = "512MB";
         archive_mode = "on";
-        # Archive to repo1 (local NFS) only - repo2 (R2) gets WALs via backup jobs
-        # This is the industry-standard pattern: fast local archiving, scheduled remote sync
-        archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --repo=1 archive-push %p";
+        # Archive to repo1 only (repo2-archive-push-queue-max=0 disables repo2 for archive-push)
+        # Backup jobs will sync WALs to repo2 - industry standard for multi-repo setups
+        archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main archive-push %p";
         archive_timeout = "300";  # Force WAL switch every 5 minutes (bounds RPO)
 
         # Checkpoint settings

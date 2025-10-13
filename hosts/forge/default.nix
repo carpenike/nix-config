@@ -320,6 +320,9 @@ in
       # environment variables (transformed from AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in service scripts)
       repo2-retention-full=30
       repo2-retention-diff=14
+      # Disable continuous WAL archiving to repo2 - backup jobs handle syncing WALs to R2
+      # This avoids needing credentials in PostgreSQL's archive_command process
+      repo2-archive-push-queue-max=0
 
       process-max=2
       log-level-console=info
