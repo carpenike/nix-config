@@ -112,10 +112,11 @@ pkgs.stdenv.mkDerivation {
     exec 3>&-
     exec 4<&-
 
-    # Wait for the psql process to terminate. Ignore exit code 141 (SIGPIPE) which
-    # is expected when psql tries to write after we close the read end of the pipe.
+    # Wait for the psql process to terminate. Exit code 3 means psql encountered
+    # a "Broken pipe" error when trying to print, which is expected when we close
+    # the FIFO. Exit code 0 is success, exit code 141 (SIGPIPE) is also acceptable.
     wait "$PSQL_PID" || PSQL_EXIT=$?
-    if [[ -n "$PSQL_EXIT" && "$PSQL_EXIT" != "141" ]]; then
+    if [[ -n "$PSQL_EXIT" && "$PSQL_EXIT" != "3" && "$PSQL_EXIT" != "141" ]]; then
         echo "ERROR: psql process exited with code $PSQL_EXIT" >&2
         exit 1
     fi
