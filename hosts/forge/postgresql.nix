@@ -38,8 +38,9 @@
         max_wal_size = "2GB";
         min_wal_size = "512MB";
         archive_mode = "on";
-        # Archive to repo1 only (repo2-archive-push-queue-max=0 disables repo2 for archive-push)
-        # Backup jobs will sync WALs to repo2 - industry standard for multi-repo setups
+        # The archive_command uses the global config (/etc/pgbackrest.conf), which only defines repo1.
+        # Therefore, WALs are archived only to the primary NFS repo.
+        # Backup jobs separately push to repo2 (R2) using command-line flags with --no-archive-check.
         archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main archive-push %p";
         archive_timeout = "300";  # Force WAL switch every 5 minutes (bounds RPO)
 
@@ -74,11 +75,16 @@
       databases = {};
     };
 
-    # Override PostgreSQL systemd service to allow writes to NFS mount for pgBackRest
+    # Override PostgreSQL systemd service to allow writes to NFS mount and local spool for pgBackRest
     systemd.services.postgresql.serviceConfig = {
-      # Add /mnt/nas-backup to ReadWritePaths to allow archive_command to write WAL segments
-      # Without this, ProtectSystem=strict blocks writes outside /var/lib/postgresql
-      ReadWritePaths = [ "/mnt/nas-backup" ];
+      # Add paths to ReadWritePaths to allow archive_command to write WAL segments
+      # Without these, ProtectSystem=strict blocks writes outside /var/lib/postgresql
+      # 1. /mnt/nas-backup: NFS repo1 (used by pgBackRest background process)
+      # 2. /var/lib/pgbackrest/spool: Local async spool (archive_command writes here first)
+      ReadWritePaths = [
+        "/mnt/nas-backup"
+        "/var/lib/pgbackrest/spool"
+      ];
     };
   };
 }
