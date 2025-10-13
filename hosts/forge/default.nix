@@ -104,6 +104,7 @@ in
         enable = true;
         sshKeyPath = config.sops.secrets."zfs-replication/ssh-key".path;
         replicationInterval = "hourly";
+        interval = "*:0/5";  # Run snapshots every 5 minutes (for high-frequency datasets)
 
         # Retention templates for different data types
         templates = {
@@ -126,7 +127,7 @@ in
           # High-frequency snapshots for PostgreSQL WAL archives
           # Provides 5-minute RPO for database point-in-time recovery
           wal-frequent = {
-            frequently = 12;  # Every 5 minutes (12 per hour)
+            minutely = 12;    # Keep 12 five-minute snapshots (1 hour of minutely retention)
             hourly = 48;      # 2 days of hourly rollup
             daily = 7;        # 1 week of daily rollup
             autosnap = true;
