@@ -104,7 +104,7 @@ in
         enable = true;
         sshKeyPath = config.sops.secrets."zfs-replication/ssh-key".path;
         snapshotInterval = "*:0/5";  # Run snapshots every 5 minutes (for high-frequency datasets)
-        replicationInterval = "hourly";
+        replicationInterval = "*:0/15";  # Run replication every 15 minutes for faster DR
 
         # Retention templates for different data types
         templates = {
@@ -169,6 +169,23 @@ in
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/services";
               sendOptions = "wp";  # w = raw send, p = preserve properties (recordsize, compression, etc.)
+              recvOptions = "u";
+            };
+          };
+
+          # PostgreSQL data directory - high-frequency snapshots with pg_backup coordination
+          # Uses pg_backup_start/stop to create proper base backups (not just crash-consistent)
+          # This provides 5-minute RPO for database recovery
+          "tank/services/postgresql/main" = {
+            useTemplate = [ "wal-frequent" ];
+            recursive = false;
+            # Coordinate with PostgreSQL backup API for proper base backups
+            preSnapshotScript = "${pkgs.pg-backup-scripts}/bin/pg-backup-start";
+            postSnapshotScript = "${pkgs.pg-backup-scripts}/bin/pg-backup-stop";
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/services/postgresql/main";
+              sendOptions = "wp";
               recvOptions = "u";
             };
           };

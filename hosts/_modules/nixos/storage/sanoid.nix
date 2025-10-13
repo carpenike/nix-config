@@ -78,6 +78,19 @@ in
           autosnap = lib.mkOption { type = lib.types.bool; default = true; };
           autoprune = lib.mkOption { type = lib.types.bool; default = true; };
 
+          # -- Script Hooks --
+          preSnapshotScript = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+            description = "Script to run before taking a snapshot (e.g., pg_backup_start).";
+          };
+
+          postSnapshotScript = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+            description = "Script to run after taking a snapshot (e.g., pg_backup_stop).";
+          };
+
           # -- Replication Options --
           replication = lib.mkOption {
             type = lib.types.nullOr (lib.types.submodule {
@@ -257,6 +270,20 @@ in
           DynamicUser = lib.mkForce false;
           User = "sanoid";
           Group = "sanoid";
+        };
+      }
+      # Add pre/post snapshot script hooks for datasets that need them
+      {
+        services.sanoid.serviceConfig = let
+          datasetsWithPreScript = lib.filterAttrs (name: conf: conf.preSnapshotScript != null) cfg.datasets;
+          datasetsWithPostScript = lib.filterAttrs (name: conf: conf.postSnapshotScript != null) cfg.datasets;
+        in {
+          ExecStartPre = lib.mkIf (datasetsWithPreScript != {}) (
+            lib.mkBefore (lib.mapAttrsToList (name: conf: toString conf.preSnapshotScript) datasetsWithPreScript)
+          );
+          ExecStartPost = lib.mkIf (datasetsWithPostScript != {}) (
+            lib.mkAfter (lib.mapAttrsToList (name: conf: toString conf.postSnapshotScript) datasetsWithPostScript)
+          );
         };
       }
       # Wire Sanoid to notification system
