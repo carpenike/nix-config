@@ -329,6 +329,37 @@ in
       pg1-user=postgres
     '';
 
+    # Temporary config for one-time stanza initialization
+    # stanza-create command doesn't accept --repo flag, it operates on ALL repos in config
+    # After stanzas are created in both repos, backup commands can use --repo=2 with flags
+    environment.etc."pgbackrest-init.conf".text = ''
+      [global]
+      repo1-path=/mnt/nas-backup/pgbackrest
+      repo1-retention-full=7
+      repo1-retention-diff=4
+
+      repo2-type=s3
+      repo2-path=/pgbackrest
+      repo2-s3-bucket=nix-homelab-prod-servers
+      repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
+      repo2-s3-region=auto
+      repo2-retention-full=30
+      repo2-retention-diff=14
+
+      process-max=2
+      log-level-console=info
+      log-level-file=detail
+      start-fast=y
+      delta=y
+      compress-type=lz4
+      compress-level=3
+
+      [main]
+      pg1-path=/var/lib/postgresql/16/main
+      pg1-port=5432
+      pg1-user=postgres
+    '';
+
     # Declaratively manage pgBackRest repository directory and metrics file
     # Format: Type, Path, Mode, User, Group, Age, Argument
     # This ensures directories/files exist on boot with correct ownership/permissions
@@ -368,23 +399,14 @@ in
           # stanza-create is idempotent - safe to run multiple times
           # It will create if missing, validate if exists, or repair if broken
 
-          echo "[$(date -Iseconds)] Creating/validating stanza 'main' for repo1..."
-          # stanza-create for repo1 (from global config)
-          pgbackrest --stanza=main stanza-create
+          echo "[$(date -Iseconds)] Creating/validating stanza 'main' for all repositories..."
+          # stanza-create doesn't accept --repo flag (error code 031)
+          # It automatically operates on ALL repos defined in the config file
+          # Using temporary config that includes both repo1 and repo2
+          pgbackrest --config=/etc/pgbackrest-init.conf --stanza=main stanza-create
 
-          echo "[$(date -Iseconds)] Creating/validating stanza 'main' for repo2..."
-          # stanza-create for repo2 (pass config via flags)
-          pgbackrest --stanza=main \
-            --repo=2 \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            stanza-create
-
-          echo "[$(date -Iseconds)] Running check..."
-          # check validates all repos in global config (just repo1)
+          echo "[$(date -Iseconds)] Running check with production config (repo1 only)..."
+          # check validates all repos in global config (just repo1 where WAL archiving goes)
           pgbackrest --stanza=main check
         '';
         wantedBy = [ "multi-user.target" ];
