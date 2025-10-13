@@ -82,7 +82,7 @@ pkgs.stdenv.mkDerivation {
     LABEL_CONTENT=$(printf "START WAL LOCATION: %s (file %s)\nCHECKPOINT LOCATION: %s\nBACKUP METHOD: streamed\nBACKUP FROM: primary\nSTART TIME: %s\nLABEL: zfs-snapshot\nSTART TIMELINE: %s\n" \
         "''${LSN}" "''${WAL_FILE_NAME}" "''${CHECKPOINT_LSN}" "$(date -u +"%Y-%m-%d %H:%M:%S %Z")" "''${TIMELINE_ID}")
 
-    /run/current-system/sw/bin/runuser -u postgres -- bash -c "printf '%s' \"''${LABEL_CONTENT}\" > \"''${BACKUP_LABEL_PATH}\""
+    /run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/bash -c "printf '%s' \"''${LABEL_CONTENT}\" > \"''${BACKUP_LABEL_PATH}\""
 
     # Update trap to ensure the backup_label is removed if the script fails.
     trap 'kill ''${PSQL_PID} 2>/dev/null || true; /run/current-system/sw/bin/runuser -u postgres -- rm -f "''${BACKUP_LABEL_PATH}"; rm -f "$FIFO_IN" "$FIFO_OUT"' EXIT
