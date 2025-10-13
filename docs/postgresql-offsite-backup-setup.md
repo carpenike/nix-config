@@ -122,13 +122,13 @@ nixos-rebuild switch --flake .#forge --target-host forge.holthome.net
 ssh forge.holthome.net
 
 # Set environment variables for testing (use actual account ID)
-export RESTIC_REPOSITORY="s3:https://<account_id>.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge"
+export RESTIC_REPOSITORY="s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge"
 export RESTIC_PASSWORD_FILE="/run/secrets/restic/password"
 export AWS_ACCESS_KEY_ID="<from_sops>"
 export AWS_SECRET_ACCESS_KEY="<from_sops>"
 
 # Or use the systemd service environment:
-sudo -u restic-backup restic -r s3:https://<account_id>.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge snapshots
+sudo -u restic-backup restic -r s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge snapshots
 
 # Trigger manual backup to test
 systemctl start backup-postgresql-offsite.service
@@ -138,7 +138,7 @@ systemctl status backup-postgresql-offsite.service
 journalctl -u backup-postgresql-offsite.service -n 50
 
 # Verify backup in R2
-sudo -u restic-backup restic -r s3:https://<account_id>.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge snapshots
+sudo -u restic-backup restic -r s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge snapshots
 ```
 
 ### 6. Verify Integration with Existing Systems
@@ -158,10 +158,10 @@ In case of disaster recovery:
 
 ```bash
 # 1. Find latest snapshot
-restic -r s3:https://<account_id>.r2.cloudflarestorage.com/nix-homelab-backups/forge snapshots --tag postgresql
+restic -r s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge snapshots --tag postgresql
 
 # 2. Restore PGDATA
-restic -r s3:... restore <snapshot_id> \
+restic -r s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge restore <snapshot_id> \
   --target /var/lib/postgresql/16/main \
   --include /var/lib/postgresql/16/main
 

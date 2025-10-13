@@ -155,7 +155,7 @@ in
           # - Actual secrets (API keys) are in sops: restic/r2-prod-env
           # - Defense in depth: scoped IAM + API credentials + Restic encryption
           r2-offsite = {
-            url = "s3:https://<ACCOUNT_ID>.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
+            url = "s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
             passwordFile = primaryRepoPasswordFile;  # Reuse same Restic encryption password
             environmentFile = config.sops.secrets."restic/r2-prod-env".path;  # Production bucket credentials
             primary = false;  # Secondary repository for DR
