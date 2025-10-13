@@ -22,13 +22,13 @@ pkgs.stdenv.mkDerivation {
     # --- Configuration ---
     # The ZFS dataset containing the PostgreSQL PGDATA directory.
     # This should be passed as the first argument to the script.
-    if [[ -z "${1:-}" ]]; then
+    if [[ -z "''${1:-}" ]]; then
         echo "ERROR: ZFS dataset must be provided as the first argument." >&2
         exit 1
     fi
     PG_DATASET="$1"
     # Sanoid uses a specific format, which we mimic for pruning compatibility.
-    SNAPSHOT_NAME="${PG_DATASET}@autosnap_$(date -u +%Y-%m-%d_%H:%M:%S)_frequently"
+    SNAPSHOT_NAME="''${PG_DATASET}@autosnap_$(date -u +%Y-%m-%d_%H:%M:%S)_frequently"
 
     # --- Script Body ---
     # Use a temporary named pipe (FIFO) to communicate with a background psql process.
@@ -36,7 +36,7 @@ pkgs.stdenv.mkDerivation {
     mkfifo "$FIFO"
     trap 'rm -f "$FIFO"' EXIT
 
-    echo "[$(date -Iseconds)] Starting coordinated PostgreSQL snapshot for ${PG_DATASET}..."
+    echo "[$(date -Iseconds)] Starting coordinated PostgreSQL snapshot for ''${PG_DATASET}..."
 
     # Start psql in the background, reading commands from our FIFO.
     # The session stays open as long as the FIFO is open for writing on our end.
@@ -45,7 +45,7 @@ pkgs.stdenv.mkDerivation {
     PSQL_PID=$!
 
     # Ensure the background process is terminated on script exit/error.
-    trap 'kill ${PSQL_PID} 2>/dev/null || true; rm -f "$FIFO"' EXIT
+    trap 'kill ''${PSQL_PID} 2>/dev/null || true; rm -f "$FIFO"' EXIT
 
     # Open the FIFO for writing on file descriptor 3.
     # This will block until the background psql process starts reading from it.
@@ -62,8 +62,8 @@ pkgs.stdenv.mkDerivation {
     sync
 
     # 3. Take the atomic ZFS snapshot. This is the actual backup moment.
-    echo "[$(date -Iseconds)] Creating snapshot: ${SNAPSHOT_NAME}"
-    ${pkgs.zfs}/bin/zfs snapshot "${SNAPSHOT_NAME}"
+    echo "[$(date -Iseconds)] Creating snapshot: ''${SNAPSHOT_NAME}"
+    ${pkgs.zfs}/bin/zfs snapshot "''${SNAPSHOT_NAME}"
 
     # 4. Take PostgreSQL out of backup mode.
     echo "[$(date -Iseconds)] Exiting backup mode..."
@@ -80,7 +80,7 @@ pkgs.stdenv.mkDerivation {
         exit 1
     fi
 
-    echo "[$(date -Iseconds)] Snapshot process for ${PG_DATASET} complete."
+    echo "[$(date -Iseconds)] Snapshot process for ''${PG_DATASET} complete."
     exit 0
     EOF
 
