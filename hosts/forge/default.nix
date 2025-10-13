@@ -312,7 +312,7 @@ in
       repo2-s3-bucket=nix-homelab-prod-servers
       repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
       repo2-s3-region=auto
-      repo2-s3-key-type=env
+      repo2-s3-key-type=auto
       repo2-retention-full=30
       repo2-retention-diff=14
 
