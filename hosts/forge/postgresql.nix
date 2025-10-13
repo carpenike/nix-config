@@ -58,35 +58,32 @@
           log_timezone = "UTC";
         };
 
-        # Enable backup via restic
-        backup = {
+        # Enable PITR backups via Restic
+        backup.restic = {
           enable = true;
-          repository = "nas-primary";
+          repositoryName = "nas-primary";
+          repositoryUrl = "/mnt/nas-backup";  # Local NFS mount path
+          passwordFile = config.sops.secrets."restic/password".path;
+        };
+
+        # Enable base backups
+        backup.baseBackup = {
+          enable = true;
           schedule = "daily";  # Base backups daily at 01:00
         };
+
+        # Enable WAL archiving
+        backup.walArchive.enable = true;
 
         # Enable health monitoring
         healthCheck.enable = true;
 
-        # Enable notifications
-        notifications.enable = true;
-
         # Enable preseed for disaster recovery
-        preseed = {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-        };
+        preseed.enable = true;
 
-        # Declarative database provisioning (nested inside instance)
-        databases = {
-          dispatcharr = {
-            owner = "dispatcharr";
-            ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
-            extensions = [ "uuid-ossp" ];
-            permissionsPolicy = "owner-readwrite+readonly-select";
-          };
-        };
+        # Note: Individual databases are declared by their respective service modules
+        # See dispatcharr.nix, etc. for database provisioning
+        databases = {};
       };
     };
   };
