@@ -10,6 +10,35 @@ pkgs.stdenv.mkDerivation {
   installPhase = ''
     mkdir -p $out/bin
 
+    # Boot-time check for stale backup_label
+    cat > $out/bin/pg-check-stale-backup-label <<'EOF'
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # This script checks for a stale backup_label file that may have been left
+    # behind due to a script crash or system failure. A stale backup_label
+    # will prevent PostgreSQL from starting.
+
+    PGDATA="/var/lib/postgresql/16/main"
+    BACKUP_LABEL="''${PGDATA}/backup_label"
+
+    if [[ -f "$BACKUP_LABEL" ]]; then
+        echo "WARNING: Stale backup_label detected at ''${BACKUP_LABEL}" >&2
+        echo "This may prevent PostgreSQL from starting." >&2
+        echo "Content of backup_label:" >&2
+        cat "$BACKUP_LABEL" >&2
+        echo "" >&2
+        echo "Removing stale backup_label..." >&2
+        rm -f "$BACKUP_LABEL"
+        echo "Stale backup_label removed. PostgreSQL should start normally." >&2
+        exit 0
+    fi
+
+    echo "No stale backup_label found. PostgreSQL data directory is clean."
+    exit 0
+    EOF
+    chmod +x $out/bin/pg-check-stale-backup-label
+
     # Coordinated snapshot script that holds a PG connection open
     cat > $out/bin/pg-zfs-snapshot <<'EOF'
     #!/usr/bin/env bash

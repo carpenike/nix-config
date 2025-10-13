@@ -302,6 +302,20 @@ in
       };
     };
 
+    # Boot-time check for stale backup_label before PostgreSQL starts
+    systemd.services.pg-check-stale-backup-label = {
+      description = "Check for stale PostgreSQL backup_label before startup";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.pg-backup-scripts}/bin/pg-check-stale-backup-label";
+        RemainAfterExit = true;
+      };
+      # Run before PostgreSQL starts, after ZFS mounts
+      before = [ "postgresql.service" ];
+      after = [ "zfs-mount.service" ];
+      wantedBy = [ "multi-user.target" ];
+    };
+
     # Custom service for taking application-consistent PostgreSQL snapshots
     systemd.services.pg-zfs-snapshot = {
       description = "Take coordinated ZFS snapshots of PostgreSQL";
