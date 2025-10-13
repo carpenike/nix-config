@@ -62,6 +62,10 @@ in
       gid = 1000;
     };
 
+    # Add postgres user to restic-backup group for R2 secret access
+    # Required for pgBackRest to read AWS credentials from SOPS secret
+    users.users.postgres.extraGroups = [ "restic-backup" ];
+
     system.activationScripts.postActivation.text = ''
       # Must match what is in /etc/shells
       chsh -s /run/current-system/sw/bin/fish ryan
@@ -312,7 +316,8 @@ in
       repo2-s3-bucket=nix-homelab-prod-servers
       repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
       repo2-s3-region=auto
-      repo2-s3-key-type=shared
+      # Remove key-type entirely - let pgBackRest use environment variables
+      # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from EnvironmentFile
       repo2-retention-full=30
       repo2-retention-diff=14
 
@@ -339,53 +344,21 @@ in
 
     # pgBackRest systemd services
     systemd.services = {
-      # Create AWS credentials file for postgres user from SOPS secrets
-      # Required for repo2-s3-key-type=shared to work with Cloudflare R2
-      pgbackrest-aws-credentials = {
-        description = "Generate AWS credentials file for pgBackRest";
-        wantedBy = [ "multi-user.target" ];
-        before = [ "pgbackrest-stanza-create.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-        script = ''
-          set -euo pipefail
-
-          # Read credentials from SOPS secret
-          AWS_ACCESS_KEY_ID=$(grep AWS_ACCESS_KEY_ID ${config.sops.secrets."restic/r2-prod-env".path} | cut -d= -f2)
-          AWS_SECRET_ACCESS_KEY=$(grep AWS_SECRET_ACCESS_KEY ${config.sops.secrets."restic/r2-prod-env".path} | cut -d= -f2)
-
-          # Create .aws directory
-          mkdir -p /var/lib/postgresql/.aws
-          chown postgres:postgres /var/lib/postgresql/.aws
-          chmod 700 /var/lib/postgresql/.aws
-
-          # Create credentials file
-          cat > /var/lib/postgresql/.aws/credentials <<EOF
-[default]
-aws_access_key_id = $AWS_ACCESS_KEY_ID
-aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
-EOF
-
-          chown postgres:postgres /var/lib/postgresql/.aws/credentials
-          chmod 600 /var/lib/postgresql/.aws/credentials
-
-          echo "AWS credentials file created successfully"
-        '';
-      };
-
       # Stanza creation (runs once at setup)
       pgbackrest-stanza-create = {
         description = "pgBackRest stanza initialization";
-        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-aws-credentials.service" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-aws-credentials.service" ];
+        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
         serviceConfig = {
           Type = "oneshot";
           User = "postgres";
           Group = "postgres";
           RemainAfterExit = true;
+          # Load AWS credentials from SOPS secret
+          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+          # Block access to EC2 metadata service to prevent timeout
+          IPAddressDeny = [ "169.254.169.254" ];
         };
         script = ''
           set -euo pipefail
@@ -414,6 +387,7 @@ EOF
           User = "postgres";
           Group = "postgres";
           EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+          IPAddressDeny = [ "169.254.169.254" ];
         };
         script = ''
           set -euo pipefail
@@ -434,6 +408,7 @@ EOF
           User = "postgres";
           Group = "postgres";
           EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+          IPAddressDeny = [ "169.254.169.254" ];
         };
         script = ''
           set -euo pipefail
@@ -454,6 +429,7 @@ EOF
           User = "postgres";
           Group = "postgres";
           EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+          IPAddressDeny = [ "169.254.169.254" ];
         };
         script = ''
           set -euo pipefail
