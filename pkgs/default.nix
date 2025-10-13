@@ -13,7 +13,6 @@
   kubectl-netshoot = pkgs.callPackage ./kubectl-netshoot.nix {};
   kubectl-pgo = pkgs.callPackage ./kubectl-pgo.nix {};
   nvim = pkgs.callPackage ./nvim.nix _inputs;
-  pg-backup-scripts = pkgs.callPackage ./pg-backup-scripts.nix {};
   shcopy = pkgs.callPackage ./shcopy.nix {};
   # talhelper = inputs.talhelper.packages.${pkgs.system}.default;
   usage = pkgs.callPackage ./usage.nix {};

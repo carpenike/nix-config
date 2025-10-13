@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, pkgs, ... }:
 # PostgreSQL Configuration for forge
 #
 # Provides a shared PostgreSQL instance for services on forge that need a database backend.
@@ -9,7 +9,7 @@
 # - Databases provisioned declaratively via modules.services.postgresql.databases
 # - Automatic role creation with SOPS-managed passwords
 # - ZFS dataset with PostgreSQL-optimal settings (8K recordsize)
-# - Backup integration via restic
+# - Backup integration via pgBackRest (replaces custom Restic approach)
 # - Health monitoring and notifications
 #
 # Secret paths are passed via postgresSecrets parameter (defined in forge/default.nix)
@@ -33,10 +33,13 @@
 
       # Additional settings via extraSettings
       extraSettings = {
-        # WAL settings for better durability and performance
-        wal_level = "replica";  # Enable for potential future replication
+        # WAL settings for pgBackRest PITR
+        wal_level = "replica";  # Required for pgBackRest
         max_wal_size = "2GB";
         min_wal_size = "512MB";
+        archive_mode = "on";
+        archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main archive-push %p";
+        archive_timeout = "300";  # Force WAL switch every 5 minutes (bounds RPO)
 
         # Checkpoint settings
         checkpoint_completion_target = "0.9";
@@ -56,28 +59,11 @@
         log_timezone = "UTC";
       };
 
-      # Enable PITR backups via Restic
-      backup.restic = {
-        enable = true;
-        repositoryName = "nas-primary";
-        repositoryUrl = "/mnt/nas-backup";  # Local NFS mount path
-        passwordFile = config.sops.secrets."restic/password".path;
-      };
-
-      # Enable base backups
-      backup.baseBackup = {
-        enable = true;
-        schedule = "daily";  # Base backups daily at 01:00
-      };
-
-      # Enable WAL archiving
-      backup.walArchive.enable = true;
+      # Disable old backup integration (now using pgBackRest directly)
+      integration.backup.enable = false;
 
       # Enable health monitoring
       healthCheck.enable = true;
-
-      # Enable preseed for disaster recovery
-      preseed.enable = true;
 
       # Note: Individual databases are declared by their respective service modules
       # See dispatcharr.nix, etc. for database provisioning

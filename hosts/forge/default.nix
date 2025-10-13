@@ -173,17 +173,12 @@ in
             };
           };
 
-          # PostgreSQL data directory - high-frequency snapshots with pg_backup coordination
-          # Snapshots are handled by a dedicated systemd service to ensure the database
-          # connection is held open, which is required for pg_backup_start.
-          # Sanoid is configured to NOT snapshot this dataset directly, but it WILL
-          # still manage pruning of the snapshots created by our custom service.
+          # PostgreSQL data directory - Simple Sanoid snapshots for quick local rollback
+          # pgBackRest handles application-consistent backups and PITR
+          # ZFS snapshots provide fast local recovery (< 1 minute) for "oops" moments
           "tank/services/postgresql/main" = {
-            useTemplate = [ "wal-frequent" ]; # For pruning policy
+            useTemplate = [ "wal-frequent" ];
             recursive = false;
-            autosnap = false; # IMPORTANT: Handled by pg-zfs-snapshot.service
-            autoprune = true; # Sanoid will still prune snapshots
-            # pre/post snapshot scripts are removed.
             replication = {
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/services/postgresql/main";
@@ -192,9 +187,8 @@ in
             };
           };
 
-          # PostgreSQL WAL archive - high-frequency snapshots for PITR
-          # Override the parent template with more frequent snapshots
-          # This provides 5-minute RPO for database recovery
+          # PostgreSQL WAL archive - Simple Sanoid snapshots
+          # pgBackRest archives WALs directly, ZFS snapshots are for fast local recovery only
           "tank/services/postgresql/main-wal" = {
             useTemplate = [ "wal-frequent" ];
             recursive = false;
@@ -302,41 +296,167 @@ in
       };
     };
 
-    # Boot-time check for stale backup_label before PostgreSQL starts
-    systemd.services.pg-check-stale-backup-label = {
-      description = "Check for stale PostgreSQL backup_label before startup";
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.pg-backup-scripts}/bin/pg-check-stale-backup-label";
-        RemainAfterExit = true;
+    # pgBackRest - PostgreSQL Backup & Recovery
+    # Replaces custom pg-backup-scripts with industry-standard tooling
+    environment.systemPackages = [ pkgs.pgbackrest ];
+
+    # pgBackRest configuration
+    environment.etc."pgbackrest.conf".text = ''
+      [global]
+      repo1-path=/mnt/nas-backup/pgbackrest
+      repo1-retention-full=7
+      repo1-retention-diff=4
+
+      repo2-type=s3
+      repo2-path=/pgbackrest
+      repo2-s3-bucket=nix-homelab-prod-servers
+      repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
+      repo2-s3-region=auto
+      repo2-s3-key-type=web-id
+      repo2-retention-full=30
+      repo2-retention-diff=14
+
+      process-max=2
+      log-level-console=info
+      log-level-file=detail
+      start-fast=y
+      delta=y
+      compress-type=lz4
+      compress-level=3
+
+      [main]
+      pg1-path=/var/lib/postgresql/16/main
+      pg1-port=5432
+      pg1-user=postgres
+    '';
+
+    # pgBackRest systemd services
+    systemd.services = {
+      # Stanza creation (runs once at setup)
+      pgbackrest-stanza-create = {
+        description = "pgBackRest stanza initialization";
+        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = "postgres";
+          Group = "postgres";
+          RemainAfterExit = true;
+        };
+        script = ''
+          set -euo pipefail
+
+          # Check if stanza already exists
+          if ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main info >/dev/null 2>&1; then
+            echo "Stanza 'main' already exists, skipping creation"
+            exit 0
+          fi
+
+          echo "[$(date -Iseconds)] Creating stanza 'main'..."
+          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main stanza-create
+
+          echo "[$(date -Iseconds)] Running check..."
+          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main check
+        '';
+        wantedBy = [ "multi-user.target" ];
       };
-      # Run before PostgreSQL starts, after ZFS mounts
-      before = [ "postgresql.service" ];
-      after = [ "zfs-mount.service" ];
-      wantedBy = [ "multi-user.target" ];
+
+      # Full backup
+      pgbackrest-full-backup = {
+        description = "pgBackRest full backup";
+        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = "postgres";
+          Group = "postgres";
+          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+        };
+        script = ''
+          set -euo pipefail
+          echo "[$(date -Iseconds)] Starting full backup..."
+          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --type=full backup
+          echo "[$(date -Iseconds)] Full backup completed"
+        '';
+      };
+
+      # Incremental backup
+      pgbackrest-incr-backup = {
+        description = "pgBackRest incremental backup";
+        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = "postgres";
+          Group = "postgres";
+          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+        };
+        script = ''
+          set -euo pipefail
+          echo "[$(date -Iseconds)] Starting incremental backup..."
+          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --type=incr backup
+          echo "[$(date -Iseconds)] Incremental backup completed"
+        '';
+      };
+
+      # Differential backup
+      pgbackrest-diff-backup = {
+        description = "pgBackRest differential backup";
+        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = "postgres";
+          Group = "postgres";
+          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+        };
+        script = ''
+          set -euo pipefail
+          echo "[$(date -Iseconds)] Starting differential backup..."
+          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --type=diff backup
+          echo "[$(date -Iseconds)] Differential backup completed"
+        '';
+      };
     };
 
-    # Custom service for taking application-consistent PostgreSQL snapshots
-    systemd.services.pg-zfs-snapshot = {
-      description = "Take coordinated ZFS snapshots of PostgreSQL";
-      serviceConfig = {
-        Type = "oneshot";
-        User = "root";
-        ExecStart = "${pkgs.pg-backup-scripts}/bin/pg-zfs-snapshot tank/services/postgresql/main";
+    # pgBackRest backup timers
+    systemd.timers = {
+      pgbackrest-full-backup = {
+        description = "pgBackRest full backup timer";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "02:00";  # Daily at 2 AM
+          Persistent = true;
+          RandomizedDelaySec = "15m";
+        };
       };
-      # Ensure postgres and zfs are ready
-      after = [ "postgresql.service" "zfs-mount.service" ];
-      wants = [ "postgresql.service" "zfs-mount.service" ];
+
+      pgbackrest-incr-backup = {
+        description = "pgBackRest incremental backup timer";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "hourly";  # Every hour
+          Persistent = true;
+          RandomizedDelaySec = "5m";
+        };
+      };
+
+      pgbackrest-diff-backup = {
+        description = "pgBackRest differential backup timer";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*-*-* 00/6:00:00";  # Every 6 hours
+          Persistent = true;
+          RandomizedDelaySec = "10m";
+        };
+      };
     };
 
-    systemd.timers.pg-zfs-snapshot = {
-      description = "Run coordinated PostgreSQL ZFS snapshot every 5 minutes";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnCalendar = "*:0/5";
-        Persistent = true; # Run on next boot if a run was missed
-      };
-    };
+
 
     # General ZFS snapshot metrics exporter for all backup datasets
     # Monitors all datasets from backup.zfs.pools configuration
@@ -422,6 +542,90 @@ HEADER3
         # Run 1 minute after snapshots (avoids race condition with pg-zfs-snapshot)
         OnCalendar = "*:1/5";
         Persistent = true;
+      };
+    };
+
+    # =============================================================================
+    # pgBackRest Monitoring Metrics
+    # =============================================================================
+
+    systemd.services.pgbackrest-metrics = {
+      description = "Collect pgBackRest backup metrics for Prometheus";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+        ExecStart = pkgs.writeShellScript "pgbackrest-metrics" ''
+          set -euo pipefail
+
+          METRICS_FILE="/var/lib/node_exporter/textfile_collector/pgbackrest.prom"
+          METRICS_TEMP="''${METRICS_FILE}.tmp"
+
+          mkdir -p "$(dirname "$METRICS_FILE")"
+
+          # Get pgBackRest info in JSON format
+          INFO_JSON=$(${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --output=json info 2>/dev/null || echo '[]')
+
+          # Write Prometheus metrics
+          cat > "$METRICS_TEMP" <<'HEADER'
+# HELP pgbackrest_last_full_backup_timestamp Timestamp of last full backup (Unix epoch)
+# TYPE pgbackrest_last_full_backup_timestamp gauge
+# HELP pgbackrest_last_incr_backup_timestamp Timestamp of last incremental backup (Unix epoch)
+# TYPE pgbackrest_last_incr_backup_timestamp gauge
+# HELP pgbackrest_last_diff_backup_timestamp Timestamp of last differential backup (Unix epoch)
+# TYPE pgbackrest_last_diff_backup_timestamp gauge
+# HELP pgbackrest_backup_count Total number of backups in repository
+# TYPE pgbackrest_backup_count gauge
+# HELP pgbackrest_repo_size_bytes Total size of repository in bytes
+# TYPE pgbackrest_repo_size_bytes gauge
+# HELP pgbackrest_repo_backup_size_bytes Size of latest backup in bytes
+# TYPE pgbackrest_repo_backup_size_bytes gauge
+HEADER
+
+          # Parse JSON and extract metrics for each repository
+          for repo in 1 2; do
+            REPO_NAME=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r ".[0].backup[] | select(.label | contains(\"repo$repo\")) | .label" 2>/dev/null | head -n1 || echo "repo$repo")
+
+            # Last full backup timestamp
+            LAST_FULL=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[] | select(.type==\"full\")] | sort_by(.timestamp.start) | .[-1].timestamp.stop // 0" 2>/dev/null || echo 0)
+            echo "pgbackrest_last_full_backup_timestamp{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $LAST_FULL" >> "$METRICS_TEMP"
+
+            # Last incremental backup timestamp
+            LAST_INCR=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[] | select(.type==\"incr\")] | sort_by(.timestamp.start) | .[-1].timestamp.stop // 0" 2>/dev/null || echo 0)
+            echo "pgbackrest_last_incr_backup_timestamp{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $LAST_INCR" >> "$METRICS_TEMP"
+
+            # Last differential backup timestamp
+            LAST_DIFF=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[] | select(.type==\"diff\")] | sort_by(.timestamp.start) | .[-1].timestamp.stop // 0" 2>/dev/null || echo 0)
+            echo "pgbackrest_last_diff_backup_timestamp{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $LAST_DIFF" >> "$METRICS_TEMP"
+
+            # Total backup count
+            BACKUP_COUNT=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r ".[0].backup | length // 0" 2>/dev/null || echo 0)
+            echo "pgbackrest_backup_count{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $BACKUP_COUNT" >> "$METRICS_TEMP"
+
+            # Repository size (repo1 only - local repo)
+            if [ "$repo" -eq 1 ]; then
+              REPO_SIZE=$(${pkgs.coreutils}/bin/du -sb /mnt/nas-backup/pgbackrest 2>/dev/null | ${pkgs.gawk}/bin/awk '{print $1}' || echo 0)
+              echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $REPO_SIZE" >> "$METRICS_TEMP"
+            fi
+
+            # Latest backup size
+            BACKUP_SIZE=$(echo "$INFO_JSON" | ${pkgs.jq}/bin/jq -r "[.[0].backup[]] | sort_by(.timestamp.start) | .[-1].info.size // 0" 2>/dev/null || echo 0)
+            echo "pgbackrest_repo_backup_size_bytes{stanza=\"main\",repo=\"$REPO_NAME\",hostname=\"forge\"} $BACKUP_SIZE" >> "$METRICS_TEMP"
+          done
+
+          mv "$METRICS_TEMP" "$METRICS_FILE"
+        '';
+      };
+      after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+      wants = [ "postgresql.service" ];
+    };
+
+    systemd.timers.pgbackrest-metrics = {
+      description = "Collect pgBackRest metrics every 15 minutes";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*:0/15";  # Every 15 minutes
+        Persistent = true;
+        RandomizedDelaySec = "2m";
       };
     };
 
