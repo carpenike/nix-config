@@ -215,7 +215,8 @@ in
             enable = true;
             repository = "r2-offsite";
             paths = [
-              "/var/lib/postgresql/16"  # Includes both main and main-wal-archive subdirectories
+              "/var/lib/postgresql/16/main"             # PGDATA (tank/services/postgresql/main)
+              "/var/lib/postgresql/16/main-wal-archive" # WAL archive (tank/services/postgresql/main-wal)
             ];
             excludePatterns = [
               # Exclude PostgreSQL runtime files that don't need backup
