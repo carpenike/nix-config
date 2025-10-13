@@ -312,7 +312,7 @@ in
       repo2-s3-bucket=nix-homelab-prod-servers
       repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
       repo2-s3-region=auto
-      repo2-s3-key-type=web-id
+      repo2-s3-key-type=auto
       repo2-retention-full=30
       repo2-retention-diff=14
 
@@ -355,15 +355,10 @@ in
           set -euo pipefail
 
           # Directory is managed by systemd.tmpfiles.rules
-          # We just handle the application-level setup
+          # stanza-create is idempotent - safe to run multiple times
+          # It will create if missing, validate if exists, or repair if broken
 
-          # Check if stanza already exists
-          if pgbackrest --stanza=main info >/dev/null 2>&1; then
-            echo "Stanza 'main' already exists, skipping creation"
-            exit 0
-          fi
-
-          echo "[$(date -Iseconds)] Creating stanza 'main'..."
+          echo "[$(date -Iseconds)] Creating/validating stanza 'main'..."
           pgbackrest --stanza=main stanza-create
 
           echo "[$(date -Iseconds)] Running check..."
