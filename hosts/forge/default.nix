@@ -324,6 +324,49 @@ in
         # Pass the dataset as an argument to the script
         ExecStart = "${pkgs.pg-backup-scripts}/bin/pg-zfs-snapshot tank/services/postgresql/main";
       };
+      # Export Prometheus metrics after snapshot completes (success or failure)
+      script = ''
+        # Run the snapshot
+        ${pkgs.pg-backup-scripts}/bin/pg-zfs-snapshot tank/services/postgresql/main
+
+        # Export success metrics
+        METRICS_FILE="/var/lib/node_exporter/textfile_collector/pg_zfs_snapshot.prom"
+        METRICS_TEMP="$METRICS_FILE.tmp"
+        TIMESTAMP=$(date +%s)
+
+        # Count PostgreSQL snapshots
+        SNAPSHOT_COUNT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name | ${pkgs.gnugrep}/bin/grep 'tank/services/postgresql/main@autosnap' | wc -l)
+
+        # Get most recent snapshot info
+        LATEST_SNAPSHOT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name,creation -s creation tank/services/postgresql/main | ${pkgs.gnugrep}/bin/grep '@autosnap' | tail -n 1 | awk '{print $1}')
+
+        # Get snapshot space usage in bytes
+        SNAPSHOT_USED_BYTES=$(${pkgs.zfs}/bin/zfs list -Hp -t snapshot -o used "$LATEST_SNAPSHOT")
+        SNAPSHOT_REFER_BYTES=$(${pkgs.zfs}/bin/zfs list -Hp -t snapshot -o refer "$LATEST_SNAPSHOT")
+
+        cat > "$METRICS_TEMP" <<EOF
+# HELP pg_zfs_snapshot_last_success_timestamp Last successful PostgreSQL snapshot timestamp
+# TYPE pg_zfs_snapshot_last_success_timestamp gauge
+pg_zfs_snapshot_last_success_timestamp{dataset="tank/services/postgresql/main",hostname="forge"} $TIMESTAMP
+
+# HELP pg_zfs_snapshot_count Total number of PostgreSQL snapshots
+# TYPE pg_zfs_snapshot_count gauge
+pg_zfs_snapshot_count{dataset="tank/services/postgresql/main",hostname="forge"} $SNAPSHOT_COUNT
+
+# HELP pg_zfs_snapshot_used_bytes Space used by snapshots (changed data)
+# TYPE pg_zfs_snapshot_used_bytes gauge
+pg_zfs_snapshot_used_bytes{dataset="tank/services/postgresql/main",snapshot="latest",hostname="forge"} $SNAPSHOT_USED_BYTES
+
+# HELP pg_zfs_snapshot_referenced_bytes Total data referenced by snapshot
+# TYPE pg_zfs_snapshot_referenced_bytes gauge
+pg_zfs_snapshot_referenced_bytes{dataset="tank/services/postgresql/main",snapshot="latest",hostname="forge"} $SNAPSHOT_REFER_BYTES
+
+# HELP pg_zfs_snapshot_status PostgreSQL snapshot status (1=success, 0=failure)
+# TYPE pg_zfs_snapshot_status gauge
+pg_zfs_snapshot_status{dataset="tank/services/postgresql/main",hostname="forge"} 1
+EOF
+        mv "$METRICS_TEMP" "$METRICS_FILE"
+      '';
       # Ensure postgres and zfs are ready
       after = [ "postgresql.service" "zfs-mount.service" ];
       wants = [ "postgresql.service" "zfs-mount.service" ];
