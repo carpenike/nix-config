@@ -364,14 +364,13 @@ in
           # It will create if missing, validate if exists, or repair if broken
 
           echo "[$(date -Iseconds)] Creating/validating stanza 'main'..."
+          # NOTE: retention options NOT valid for stanza-create (only for backup command)
           pgbackrest --stanza=main \
             --repo2-type=s3 \
             --repo2-path=/pgbackrest \
             --repo2-s3-bucket=nix-homelab-prod-servers \
             --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
             --repo2-s3-region=auto \
-            --repo2-retention-full=30 \
-            --repo2-retention-diff=14 \
             stanza-create
 
           echo "[$(date -Iseconds)] Running check..."
