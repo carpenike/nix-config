@@ -34,7 +34,9 @@ pkgs.stdenv.mkDerivation {
 
     echo "[$(date -Iseconds)] PostgreSQL is in backup mode. Proceeding with snapshot."
     exit 0
-    EOF    # Post-snapshot script: pg_backup_stop
+    EOF
+
+    # Post-snapshot script: pg_backup_stop
     cat > $out/bin/pg-backup-stop <<'EOF'
     #!/usr/bin/env bash
     set -euo pipefail
