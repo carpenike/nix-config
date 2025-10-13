@@ -273,16 +273,17 @@ in
         };
       }
       # Add pre/post snapshot script hooks for datasets that need them
+      # Use "+" prefix to run scripts with root privileges (systemd feature)
       {
         services.sanoid.serviceConfig = let
           datasetsWithPreScript = lib.filterAttrs (name: conf: conf.preSnapshotScript != null) cfg.datasets;
           datasetsWithPostScript = lib.filterAttrs (name: conf: conf.postSnapshotScript != null) cfg.datasets;
         in {
           ExecStartPre = lib.mkIf (datasetsWithPreScript != {}) (
-            lib.mkBefore (lib.mapAttrsToList (name: conf: toString conf.preSnapshotScript) datasetsWithPreScript)
+            lib.mkBefore (lib.mapAttrsToList (name: conf: "+${toString conf.preSnapshotScript}") datasetsWithPreScript)
           );
           ExecStartPost = lib.mkIf (datasetsWithPostScript != {}) (
-            lib.mkAfter (lib.mapAttrsToList (name: conf: toString conf.postSnapshotScript) datasetsWithPostScript)
+            lib.mkAfter (lib.mapAttrsToList (name: conf: "+${toString conf.postSnapshotScript}") datasetsWithPostScript)
           );
         };
       }
