@@ -405,8 +405,9 @@ in
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
-          echo "[$(date -Iseconds)] Starting full backup..."
+          echo "[$(date -Iseconds)] Starting full backup to both repos..."
           pgbackrest --stanza=main --type=full \
+            --repo=1 --repo=2 \
             --repo2-type=s3 \
             --repo2-path=/pgbackrest \
             --repo2-s3-bucket=nix-homelab-prod-servers \
@@ -439,8 +440,9 @@ in
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
-          echo "[$(date -Iseconds)] Starting incremental backup..."
+          echo "[$(date -Iseconds)] Starting incremental backup to both repos..."
           pgbackrest --stanza=main --type=incr \
+            --repo=1 --repo=2 \
             --repo2-type=s3 \
             --repo2-path=/pgbackrest \
             --repo2-s3-bucket=nix-homelab-prod-servers \
@@ -473,8 +475,9 @@ in
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
-          echo "[$(date -Iseconds)] Starting differential backup..."
+          echo "[$(date -Iseconds)] Starting differential backup to both repos..."
           pgbackrest --stanza=main --type=diff \
+            --repo=1 --repo=2 \
             --repo2-type=s3 \
             --repo2-path=/pgbackrest \
             --repo2-s3-bucket=nix-homelab-prod-servers \
