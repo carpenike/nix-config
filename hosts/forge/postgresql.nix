@@ -68,6 +68,10 @@
 
       # Enable health monitoring
       healthCheck.enable = true;
+
+      # Note: Individual databases are declared by their respective service modules
+      # See dispatcharr.nix, etc. for database provisioning
+      databases = {};
     };
 
     # Override PostgreSQL systemd service to allow writes to NFS mount for pgBackRest
@@ -75,10 +79,6 @@
       # Add /mnt/nas-backup to ReadWritePaths to allow archive_command to write WAL segments
       # Without this, ProtectSystem=strict blocks writes outside /var/lib/postgresql
       ReadWritePaths = [ "/mnt/nas-backup" ];
-
-      # Note: Individual databases are declared by their respective service modules
-      # See dispatcharr.nix, etc. for database provisioning
-      databases = {};
     };
   };
 }
