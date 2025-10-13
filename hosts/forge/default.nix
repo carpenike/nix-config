@@ -330,6 +330,13 @@ in
       pg1-user=postgres
     '';
 
+    # Declaratively manage pgBackRest repository directory
+    # Format: Type, Path, Mode, User, Group, Age, Argument
+    # This ensures the directory exists on boot with correct ownership/permissions
+    systemd.tmpfiles.rules = [
+      "d /mnt/nas-backup/pgbackrest 0750 postgres postgres - -"
+    ];
+
     # pgBackRest systemd services
     systemd.services = {
       # Stanza creation (runs once at setup)
@@ -347,17 +354,20 @@ in
         script = ''
           set -euo pipefail
 
+          # Directory is managed by systemd.tmpfiles.rules
+          # We just handle the application-level setup
+
           # Check if stanza already exists
-          if ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main info >/dev/null 2>&1; then
+          if pgbackrest --stanza=main info >/dev/null 2>&1; then
             echo "Stanza 'main' already exists, skipping creation"
             exit 0
           fi
 
           echo "[$(date -Iseconds)] Creating stanza 'main'..."
-          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main stanza-create
+          pgbackrest --stanza=main stanza-create
 
           echo "[$(date -Iseconds)] Running check..."
-          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main check
+          pgbackrest --stanza=main check
         '';
         wantedBy = [ "multi-user.target" ];
       };
@@ -377,7 +387,7 @@ in
         script = ''
           set -euo pipefail
           echo "[$(date -Iseconds)] Starting full backup..."
-          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --type=full backup
+          pgbackrest --stanza=main --type=full backup
           echo "[$(date -Iseconds)] Full backup completed"
         '';
       };
@@ -397,7 +407,7 @@ in
         script = ''
           set -euo pipefail
           echo "[$(date -Iseconds)] Starting incremental backup..."
-          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --type=incr backup
+          pgbackrest --stanza=main --type=incr backup
           echo "[$(date -Iseconds)] Incremental backup completed"
         '';
       };
@@ -417,7 +427,7 @@ in
         script = ''
           set -euo pipefail
           echo "[$(date -Iseconds)] Starting differential backup..."
-          ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --type=diff backup
+          pgbackrest --stanza=main --type=diff backup
           echo "[$(date -Iseconds)] Differential backup completed"
         '';
       };
