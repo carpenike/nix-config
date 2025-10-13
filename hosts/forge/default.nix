@@ -316,8 +316,8 @@ in
       repo2-s3-bucket=nix-homelab-prod-servers
       repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
       repo2-s3-region=auto
-      # Remove key-type entirely - let pgBackRest use environment variables
-      # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from EnvironmentFile
+      # Credentials provided via PGBACKREST_REPO2_S3_KEY and PGBACKREST_REPO2_S3_KEY_SECRET
+      # environment variables (transformed from AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in service scripts)
       repo2-retention-full=30
       repo2-retention-diff=14
 
