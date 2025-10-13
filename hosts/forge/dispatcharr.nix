@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, lib, ... }:
 # Dispatcharr Configuration for forge
 #
 # IPTV stream management service
@@ -10,18 +10,25 @@
 # - ZFS dataset for application data
 # - Backup integration via restic
 # - Health monitoring and notifications
+let
+  # Centralize enable flag so database provisioning is conditional
+  dispatcharrEnabled = false;  # DISABLED - needs shared PostgreSQL implementation
+in
 {
-  config = {
-    # Declare database requirements for dispatcharr
-    # IMPORTANT: Based on Dispatcharr source code analysis, these extensions are REQUIRED:
-    # - btree_gin: For GIN index support (used in Django migrations)
-    # - pg_trgm: For trigram similarity searches (improves text searching)
-    modules.services.postgresql.databases.dispatcharr = {
-      owner = "dispatcharr";
-      ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
-      extensions = [ "btree_gin" "pg_trgm" ];
-      permissionsPolicy = "owner-readwrite+readonly-select";
-    };
+  config = lib.mkMerge [
+    # Database provisioning (only when dispatcharr is enabled)
+    (lib.mkIf dispatcharrEnabled {
+      # Declare database requirements for dispatcharr
+      # IMPORTANT: Based on Dispatcharr source code analysis, these extensions are REQUIRED:
+      # - btree_gin: For GIN index support (used in Django migrations)
+      # - pg_trgm: For trigram similarity searches (improves text searching)
+      modules.services.postgresql.databases.dispatcharr = {
+        owner = "dispatcharr";
+        ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
+        extensions = [ "btree_gin" "pg_trgm" ];
+        permissionsPolicy = "owner-readwrite+readonly-select";
+      };
+    })
 
     # Dispatcharr container service configuration
     # IPTV stream management
@@ -32,8 +39,9 @@
     #        1. Use a shared PostgreSQL service instead of embedded one, OR
     #        2. Implement proper multi-user volume permission strategy
     # See: https://github.com/Dispatcharr/Dispatcharr for container architecture
-    modules.services.dispatcharr = {
-      enable = false;  # DISABLED - needs shared PostgreSQL implementation
+    {
+      modules.services.dispatcharr = {
+        enable = dispatcharrEnabled;
 
       # -- Container Image Configuration --
       # Pin to specific version for stability
@@ -54,5 +62,6 @@
         # environmentFile not needed for local filesystem repository
       };
     };
-  };
+    }
+  ];
 }

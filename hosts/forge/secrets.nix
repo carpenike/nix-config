@@ -53,11 +53,13 @@
         };
 
         # PostgreSQL database passwords
-        # Root-owned, PostgreSQL server process has sufficient privileges to read via pg_read_file()
+        # Group-readable so postgresql-provision-databases.service (runs as postgres user)
+        # can hash the file for change detection. PostgreSQL server reads via pg_read_file()
+        # which has superuser privileges and doesn't need filesystem permissions.
         "postgresql/dispatcharr_password" = {
-          mode = "0400";
+          mode = "0440";  # owner+group read
           owner = "root";
-          group = "root";
+          group = "postgres";
         };
       };
     };
