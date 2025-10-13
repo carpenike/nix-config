@@ -19,12 +19,11 @@
 # - Service configurations
 # - Documentation
 #
-# PITR Recovery Process from R2:
-# 1. restic restore <snapshot_id> --target /var/lib/postgresql/16/main
-# 2. restic restore latest --target /tmp/wal --include /var/lib/postgresql/16/main-wal-archive
-# 3. Create recovery.signal in PGDATA
-# 4. Set restore_command and recovery_target_time in postgresql.conf
-# 5. Start PostgreSQL
+# PostgreSQL Recovery Process:
+# PostgreSQL backups are now handled entirely by pgBackRest (not Restic)
+# For recovery procedures, see: /Users/ryan/src/nix-config/docs/postgresql-pitr-guide.md
+# WAL archive is managed by pgBackRest at: /mnt/nas-backup/pgbackrest/archive/
+# No separate WAL restoration needed - pgBackRest handles this automatically
 #
 # Setup Requirements:
 # 1. Create Cloudflare R2 bucket: "nix-homelab-backups"
@@ -110,8 +109,8 @@ in
           {
             pool = "tank";
             datasets = [
-              "services/sonarr"           # Sonarr media management service
-              "services/postgresql/main-wal"  # PostgreSQL WAL archive (PGDATA relies on pgBackRest)
+              "services/dispatcharr"          # dispatcharr application data
+              # Removed services/postgresql/main-wal - obsolete directory not used by pgBackRest
             ];
           }
         ];

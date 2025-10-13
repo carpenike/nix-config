@@ -186,16 +186,16 @@ in
           # - ZFS snapshots of PGDATA are crash-consistent (less reliable)
           # - Reduces complexity and potential confusion during recovery
           # - WAL archive snapshots still useful for quick rollback of archive directory
-          "tank/services/postgresql/main-wal" = {
-            useTemplate = [ "wal-frequent" ];
-            recursive = false;
-            replication = {
-              targetHost = "nas-1.holthome.net";
-              targetDataset = "backup/forge/services/postgresql/main-wal";
-              sendOptions = "wp";
-              recvOptions = "u";
-            };
-          };
+                    # Removed tank/services/postgresql/main from snapshots
+          # Rationale: pgBackRest provides proper application-consistent backups
+          # ZFS snapshots of PGDATA are crash-consistent (less reliable)
+          # For recovery, use pgBackRest exclusively
+
+          # Removed tank/services/postgresql/main-wal from snapshots
+          # Rationale: This directory (/var/lib/postgresql/16/main-wal-archive/) is obsolete
+          # pgBackRest archives WALs directly to /mnt/nas-backup/pgbackrest/archive/
+          # The main-wal ZFS dataset is not being written to (last activity 7+ hours ago)
+          # Safe to remove after verifying old WAL files are not needed
         };
 
         # Monitor pool health and alert on degradation
