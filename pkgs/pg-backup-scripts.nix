@@ -2,7 +2,7 @@
 
 pkgs.stdenv.mkDerivation {
   pname = "pg-backup-scripts";
-  version = "1.0.1"; # Version bump to reflect changes
+  version = "1.1.0"; # Version bump for new stateful approach
 
   dontUnpack = true;
   dontBuild = true;
@@ -10,72 +10,85 @@ pkgs.stdenv.mkDerivation {
   installPhase = ''
     mkdir -p $out/bin
 
-    # Pre-snapshot script: pg_backup_start
-    cat > $out/bin/pg-backup-start <<'EOF'
+    # Coordinated snapshot script that holds a PG connection open
+    cat > $out/bin/pg-zfs-snapshot <<'EOF'
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Put PostgreSQL into backup mode before ZFS snapshot
-    # This creates a backup_label file that makes the snapshot a proper base backup
-    # Note: This script is run as root by systemd (via "+" prefix in ExecStartPre)
+    # This script performs a ZFS snapshot of a PostgreSQL data directory
+    # while holding a database connection open to ensure the backup is
+    # consistent and contains the required backup_label file.
 
-    echo "[$(date -Iseconds)] Starting PostgreSQL backup mode for Sanoid snapshot..."
-
-    # Use pg_backup_start (exclusive mode wrapper) with:
-    # - Label: 'sanoid snapshot'
-    # - Fast checkpoint: false (wait for checkpoint to complete for consistency)
-    # This command creates the backup_label file in the PGDATA directory.
-    if ! /run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT pg_backup_start('sanoid snapshot', false);" 2>&1; then
-        echo "ERROR: Failed to start PostgreSQL backup mode" >&2
+    # --- Configuration ---
+    # The ZFS dataset containing the PostgreSQL PGDATA directory.
+    # This should be passed as the first argument to the script.
+    if [[ -z "${1:-}" ]]; then
+        echo "ERROR: ZFS dataset must be provided as the first argument." >&2
         exit 1
     fi
+    PG_DATASET="$1"
+    # Sanoid uses a specific format, which we mimic for pruning compatibility.
+    SNAPSHOT_NAME="${PG_DATASET}@autosnap_$(date -u +%Y-%m-%d_%H:%M:%S)_frequently"
 
-    # Force flush all filesystem buffers to disk to ensure the backup_label
-    # file is physically present before the instantaneous ZFS snapshot.
-    # The 'sleep' command is not a reliable guarantee; 'sync' is.
-    echo "[$(date -Iseconds)] Forcing filesystem sync..."
+    # --- Script Body ---
+    # Use a temporary named pipe (FIFO) to communicate with a background psql process.
+    FIFO=$(mktemp -u)
+    mkfifo "$FIFO"
+    trap 'rm -f "$FIFO"' EXIT
+
+    echo "[$(date -Iseconds)] Starting coordinated PostgreSQL snapshot for ${PG_DATASET}..."
+
+    # Start psql in the background, reading commands from our FIFO.
+    # The session stays open as long as the FIFO is open for writing on our end.
+    /run/current-system/sw/bin/runuser -u postgres -- \
+        /run/current-system/sw/bin/psql -v ON_ERROR_STOP=1 --quiet -d postgres < "$FIFO" &
+    PSQL_PID=$!
+
+    # Ensure the background process is terminated on script exit/error.
+    trap 'kill ${PSQL_PID} 2>/dev/null || true; rm -f "$FIFO"' EXIT
+
+    # Open the FIFO for writing on file descriptor 3.
+    # This will block until the background psql process starts reading from it.
+    exec 3>"$FIFO"
+
+    # --- Critical Section: Start, Sync, Snapshot, Stop ---
+
+    # 1. Put PostgreSQL into backup mode.
+    echo "[$(date -Iseconds)] Entering backup mode..."
+    echo "SELECT pg_backup_start('zfs-snapshot', false);" >&3
+
+    # 2. Force all OS filesystem buffers to disk. This is critical.
+    echo "[$(date -Iseconds)] Syncing filesystems..."
     sync
 
-    echo "[$(date -Iseconds)] PostgreSQL is in backup mode and filesystems are synced. Proceeding with snapshot."
-    exit 0
-    EOF
+    # 3. Take the atomic ZFS snapshot. This is the actual backup moment.
+    echo "[$(date -Iseconds)] Creating snapshot: ${SNAPSHOT_NAME}"
+    ${pkgs.zfs}/bin/zfs snapshot "${SNAPSHOT_NAME}"
 
-    # Post-snapshot script: pg_backup_stop
-    cat > $out/bin/pg-backup-stop <<'EOF'
-    #!/usr/bin/env bash
-    set -uo pipefail # NOTE: -e is removed to handle exit codes manually
+    # 4. Take PostgreSQL out of backup mode.
+    echo "[$(date -Iseconds)] Exiting backup mode..."
+    echo "SELECT * FROM pg_backup_stop();" >&3
 
-    # Take PostgreSQL out of backup mode after ZFS snapshot
-    # This removes the backup_label file from the live system
-    # Note: This script is run as root by systemd (via "+" prefix in ExecStartPost)
+    # --- End Critical Section ---
 
-    echo "[$(date -Iseconds)] Ending PostgreSQL backup mode..."
+    # Close the FIFO. This sends EOF to the psql process, causing it to exit.
+    exec 3>&-
 
-    # Use pg_backup_stop. We must handle the case where the backup is already
-    # stopped, as snapshots are instant. We capture stderr to check for the
-    # specific "not in progress" message, which is an expected state.
-    if output_and_stderr=$(/run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT * FROM pg_backup_stop();" 2>&1); then
-        echo "[$(date -Iseconds)] PostgreSQL backup stopped successfully."
-        # The output can be verbose, so only log it if needed for debugging
-        # echo "Output: $output_and_stderr"
-    elif echo "$output_and_stderr" | grep -q "backup is not in progress"; then
-        echo "[$(date -Iseconds)] PostgreSQL backup was not in progress (this is expected with fast snapshots)."
-    else
-        echo "ERROR: pg_backup_stop failed with an unexpected error:" >&2
-        echo "$output_and_stderr" >&2
+    # Wait for the psql process to terminate cleanly and check its exit code.
+    if ! wait "$PSQL_PID"; then
+        echo "ERROR: psql process exited with an error." >&2
         exit 1
     fi
 
-    echo "[$(date -Iseconds)] PostgreSQL backup mode finished."
+    echo "[$(date -Iseconds)] Snapshot process for ${PG_DATASET} complete."
     exit 0
     EOF
 
-    chmod +x $out/bin/pg-backup-start
-    chmod +x $out/bin/pg-backup-stop
+    chmod +x $out/bin/pg-zfs-snapshot
   '';
 
   meta = with pkgs.lib; {
-    description = "PostgreSQL backup coordination scripts for ZFS snapshots";
+    description = "A coordinated script for creating application-consistent PostgreSQL ZFS snapshots.";
     license = licenses.mit;
     platforms = platforms.linux;
   };

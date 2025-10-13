@@ -174,14 +174,16 @@ in
           };
 
           # PostgreSQL data directory - high-frequency snapshots with pg_backup coordination
-          # Uses pg_backup_start/stop to create proper base backups (not just crash-consistent)
-          # This provides 5-minute RPO for database recovery
+          # Snapshots are handled by a dedicated systemd service to ensure the database
+          # connection is held open, which is required for pg_backup_start.
+          # Sanoid is configured to NOT snapshot this dataset directly, but it WILL
+          # still manage pruning of the snapshots created by our custom service.
           "tank/services/postgresql/main" = {
-            useTemplate = [ "wal-frequent" ];
+            useTemplate = [ "wal-frequent" ]; # For pruning policy
             recursive = false;
-            # Coordinate with PostgreSQL backup API for proper base backups
-            preSnapshotScript = "${pkgs.pg-backup-scripts}/bin/pg-backup-start";
-            postSnapshotScript = "${pkgs.pg-backup-scripts}/bin/pg-backup-stop";
+            autosnap = false; # IMPORTANT: Handled by pg-zfs-snapshot.service
+            autoprune = true; # Sanoid will still prune snapshots
+            # pre/post snapshot scripts are removed.
             replication = {
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/services/postgresql/main";
@@ -297,6 +299,28 @@ in
             gid = 65537;
           };
         };
+      };
+    };
+
+    # Custom service for taking application-consistent PostgreSQL snapshots
+    systemd.services.pg-zfs-snapshot = {
+      description = "Take coordinated ZFS snapshots of PostgreSQL";
+      serviceConfig = {
+        Type = "oneshot";
+        # Pass the dataset as an argument to the script
+        ExecStart = "${pkgs.pg-backup-scripts}/bin/pg-zfs-snapshot tank/services/postgresql/main";
+      };
+      # Ensure postgres and zfs are ready
+      after = [ "postgresql.service" "zfs-mount.service" ];
+      wants = [ "postgresql.service" "zfs-mount.service" ];
+    };
+
+    systemd.timers.pg-zfs-snapshot = {
+      description = "Run coordinated PostgreSQL ZFS snapshot every 5 minutes";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*:0/5";
+        Persistent = true; # Run on next boot if a run was missed
       };
     };
 
