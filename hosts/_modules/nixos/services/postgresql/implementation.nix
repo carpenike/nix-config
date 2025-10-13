@@ -74,7 +74,7 @@
 
             # Archive timeout - force WAL segment switch after this interval
             # Ensures regular archiving even during low write activity
-            archive_timeout = mainInstance.backup.walArchive.archiveTimeout or "300"; # 5 minutes default
+            archive_timeout = toString mainInstance.backup.walArchive.archiveTimeout; # Default: 300 seconds (5 minutes)
           })
 
           # Merge in user's extra settings (can override defaults)
@@ -82,8 +82,11 @@
         ];
 
         # Enable authentication
+        # peer = Unix user must match database role (secure for local admin)
+        # scram-sha-256 = Password required over TCP/IP
         authentication = lib.mkDefault ''
-          local all all trust
+          local all postgres peer
+          local all all peer
           host all all 127.0.0.1/32 scram-sha-256
           host all all ::1/128 scram-sha-256
         '';
@@ -101,8 +104,8 @@
         after = [ "zfs-mount.service" ];
 
         # Allow write access to WAL archive directory when PITR is enabled
-        # Note: We must append to the existing ReadWritePaths, not replace it
-        serviceConfig.ReadWritePaths = lib.mkIf (mainInstance.backup.walArchive.enable or false) [ walArchiveDir ];
+        # Note: Using lib.optionals for list construction is cleaner than mkIf for this pattern
+        serviceConfig.ReadWritePaths = lib.optionals (mainInstance.backup.walArchive.enable or false) [ walArchiveDir ];
       };
 
       # Assertion to ensure only one instance

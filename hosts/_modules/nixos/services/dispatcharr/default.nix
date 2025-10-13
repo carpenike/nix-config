@@ -240,68 +240,14 @@ in
 
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
-      # Declare PostgreSQL database requirements
-      # This integrates with the database provisioning system to automatically
-      # create the database, user, and required extensions.
+      # NOTE: Database requirements are declared at the host level
+      # (e.g., in hosts/forge/dispatcharr.nix) using the per-instance path:
+      # modules.services.postgresql.main.databases.dispatcharr
       #
-      # IMPORTANT: Based on Dispatcharr source code analysis, these extensions are REQUIRED:
-      # - btree_gin: For GIN index support (used in Django migrations)
-      # - pg_trgm: For trigram similarity searches (improves text searching)
-      #
-      # NOTE: The modules.services.postgresql.databases option is declared in
-      # database-interface.nix which is imported by all NixOS hosts. This allows
-      # service modules to declare database requirements without evaluation errors,
-      # following the NixOS best practice of separating interface from implementation.
-      # (Per GPT-5 and Gemini Pro consensus review)
-      modules.services.postgresql.databases.dispatcharr = {
-        owner = cfg.database.user;
-        # NOTE: This is the database OWNER password for provisioning
-        # The application uses the same password (single role in Phase 2)
-        # Use cfg.database.passwordFile directly since SOPS secret path doesn't exist at eval time
-        ownerPasswordFile = cfg.database.passwordFile;
+      # This follows the pattern where hosts compose services and declare
+      # infrastructure dependencies, while service modules focus on the
+      # service implementation itself.
 
-        extensions = [
-          "btree_gin"  # REQUIRED: GIN index support for Django queries
-          "pg_trgm"    # REQUIRED: Trigram matching for text search
-        ];
-
-        # Phase 2: Full privilege hierarchy
-
-        # Database-level permissions (connection and schema creation)
-        databasePermissions = {
-          dispatcharr = [ "ALL" ];  # Owner gets full database access
-        };
-
-        # Schema-level permissions (public schema access)
-        schemaPermissions = {
-          public = {
-            dispatcharr = [ "ALL" ];     # Owner can create objects in public schema
-            readonly = [ "USAGE" ];       # Read-only needs USAGE to access schema objects
-          };
-        };
-
-        # Table-level permissions (for existing and future tables)
-        tablePermissions = {
-          "public.*" = {
-            dispatcharr = [ "ALL" ];     # Owner has full access to all tables
-            readonly = [ "SELECT" ];      # Read-only can SELECT from all tables
-          };
-        };
-
-        # Default privileges (for tables created in the future by dispatcharr owner)
-        defaultPrivileges = {
-          dispatcharr_defaults = {
-            owner = cfg.database.user;    # When this role creates objects...
-            schema = "public";
-            tables = {
-              readonly = [ "SELECT" ];    # ...automatically grant SELECT to readonly
-            };
-            sequences = {
-              readonly = [ "SELECT" "USAGE" ];  # ...and sequence access
-            };
-          };
-        };
-      };
       # Validate configuration
       assertions =
         (lib.optional cfg.backup.enable {

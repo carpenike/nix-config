@@ -40,7 +40,8 @@ in
         };
 
         # WAL archive dataset with sequential write optimization
-        "postgresql/${instanceName}-wal" = lib.mkIf (instanceCfg.backup.walArchive.enable or true) {
+        # Only create if WAL archiving is explicitly enabled
+        "postgresql/${instanceName}-wal" = lib.mkIf (instanceCfg.backup.walArchive.enable or false) {
           mountpoint = walArchiveDir;
           recordsize = "128K";  # Sequential writes
           compression = "lz4";

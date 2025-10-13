@@ -53,6 +53,8 @@ let
 
   # Quote SQL identifier (column, table, schema, role names)
   # Wraps in double quotes and escapes internal double quotes by doubling them
+  # Example: quoteSqlIdentifier "my\"table" -> "\"my\"\"table\""
+  # Example: quoteSqlIdentifier "schema.table" -> "\"schema.table\"" (preserves dot)
   quoteSqlIdentifier = identifier:
     let
       # Escape double quotes by doubling them: my"table -> my""table
@@ -60,8 +62,9 @@ let
     in ''"${escaped}"'';
 
   # Quote SQL string literal (for values, not identifiers)
-  # Uses dollar-quoting with unique tag to avoid conflicts
-  # If input contains $$, use a unique tag based on hash
+  # Uses dollar-quoting with unique tag to avoid conflicts and escape issues
+  # Example: quoteSqlString "O'Reilly" -> "$sql_abc123$O'Reilly$sql_abc123$"
+  # Example: quoteSqlString "a$$b" -> "$sql_def456$a$$b$sql_def456$"
   quoteSqlString = str:
     let
       # Generate a unique tag using hash to avoid collisions
@@ -72,7 +75,11 @@ let
 
   # Parse schema.table pattern, handling quoted identifiers with dots
   # Returns { schema = "..."; table = "..."; }
-  # Handles: "schema.with.dots"."table", unquoted.identifiers, wildcards
+  # Handles complex patterns:
+  #   "schema.with.dots"."table" -> { schema = "schema.with.dots"; table = "table"; }
+  #   public.users -> { schema = "public"; table = "users"; }
+  #   "audit".* -> { schema = "audit"; table = "*"; }
+  #   users -> { schema = "public"; table = "users"; } (implicit public schema)
   parseTablePattern = pattern:
     let
       # Helper to unescape doubled quotes
@@ -203,6 +210,8 @@ let
       -- Set/update password (runs every time config changes)
       -- Read password from file server-side using pg_read_file (runs as superuser)
       -- Uses fixed 'pw' alias to avoid psql variable naming edge cases with exotic role names
+      -- Explicitly set password encryption to scram-sha-256 for security
+      SET password_encryption = 'scram-sha-256';
       SELECT trim(both E'\n\r' FROM pg_read_file(${quoteSqlString passwordFile})) AS pw \gset
       ALTER ROLE ${quoteSqlIdentifier owner} WITH PASSWORD :'pw';
       \unset pw
@@ -429,11 +438,14 @@ in
       # FIXED: Now reads from the nested structure postgresql.<instance>.databases
       instances = config.modules.services.postgresql or {};
 
+      # Filter to only enabled instances to avoid provisioning disabled instances
+      enabledInstances = lib.filterAttrs (_: inst: inst.enable or false) instances;
+
       # Flatten all databases from all instances into a single structure
       # Structure: { "<instance>:<dbname>" = { instanceName, dbName, dbConfig }; }
       allDatabases = lib.foldl' (acc: instanceName:
         let
-          instance = instances.${instanceName};
+          instance = enabledInstances.${instanceName};
           instanceDatabases = instance.databases or {};
         in
         acc // lib.mapAttrs' (dbName: dbConfig: {
@@ -445,7 +457,7 @@ in
             dataDir = "/var/lib/postgresql/${instance.version}/${instanceName}";
           };
         }) instanceDatabases
-      ) {} (lib.attrNames instances);
+      ) {} (lib.attrNames enabledInstances);
 
       # Metrics directory - use consistent path from monitoring module
       metricsDir = config.modules.monitoring.nodeExporter.textfileCollector.directory or "/var/lib/node_exporter/textfile_collector";
@@ -721,7 +733,8 @@ in
             ''}
 
           else
-            echo "✗ Provisioning failed"
+            echo "✗ Provisioning failed for PostgreSQL instance '${instanceName}'"
+            echo "   Databases affected: ${lib.concatStringsSep ", " (lib.attrNames mergedDatabases)}"
             ${lib.optionalString (config.modules.monitoring.enable or false) ''
               cat > "$METRICS_FILE" <<METRICS
               # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
