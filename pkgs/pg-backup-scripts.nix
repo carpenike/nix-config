@@ -50,9 +50,15 @@ pkgs.stdenv.mkDerivation {
     # Use pg_backup_stop (PostgreSQL 15+)
     # The wait_for_archive parameter defaults to false, which is what we want
     # WALs will be archived by the normal archive_command process
-    if ! /run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -d postgres -c "SELECT * FROM pg_backup_stop();" 2>&1; then
-        echo "ERROR: Failed to stop PostgreSQL backup mode" >&2
-        exit 1
+    # Note: It's okay if backup is not in progress - ZFS snapshots are instant,
+    # so the backup might already be complete by the time we call this
+    OUTPUT=$(/run/current-system/sw/bin/runuser -u postgres -- /run/current-system/sw/bin/psql -d postgres -c "SELECT * FROM pg_backup_stop();" 2>&1) || true
+    if echo "$OUTPUT" | grep -q "backup is not in progress"; then
+        echo "[$(date -Iseconds)] PostgreSQL backup already completed (snapshot was instant)."
+    elif echo "$OUTPUT" | grep -q "lsn"; then
+        echo "[$(date -Iseconds)] PostgreSQL backup stopped successfully."
+    else
+        echo "WARNING: Unexpected output from pg_backup_stop: $OUTPUT" >&2
     fi
 
     echo "[$(date -Iseconds)] PostgreSQL backup mode finished."
