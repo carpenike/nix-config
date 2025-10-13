@@ -221,9 +221,9 @@ in
               "/var/lib/postgresql/16/main"             # PGDATA (tank/services/postgresql/main)
               "/var/lib/postgresql/16/main-wal-archive" # WAL archive (tank/services/postgresql/main-wal)
             ];
-            # Custom prepare command: Use most recent PostgreSQL-coordinated snapshot
+            # Custom prepare script: Use most recent PostgreSQL-coordinated snapshot
             # instead of creating new generic ZFS snapshots without backup_label
-            backupPrepareCommand = ''
+            preBackupScript = ''
               set -euo pipefail
 
               # Capture start time for duration calculation
@@ -298,7 +298,7 @@ in
                 }' >> "$LOG_FILE" || true
             '';
             # Custom cleanup: Unmount PostgreSQL snapshots after backup
-            backupCleanupCommand = ''
+            postBackupScript = ''
               echo "Unmounting PostgreSQL backup snapshots..."
               ${pkgs.util-linux}/bin/umount /mnt/pg-backup-snapshot/main 2>/dev/null || true
               ${pkgs.util-linux}/bin/umount /mnt/pg-backup-snapshot/main-wal 2>/dev/null || true
