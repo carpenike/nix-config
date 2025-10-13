@@ -381,6 +381,92 @@ EOF
       };
     };
 
+    # General ZFS snapshot metrics exporter for all backup datasets
+    # Complements the PostgreSQL-specific pg_zfs_snapshot.prom metrics
+    systemd.services.zfs-snapshot-metrics = {
+      description = "Export ZFS snapshot metrics for all backup datasets";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+      };
+      script = ''
+        set -euo pipefail
+
+        METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs_snapshots.prom"
+        METRICS_TEMP="$METRICS_FILE.tmp"
+        TIMESTAMP=$(date +%s)
+
+        # Start metrics file
+        cat > "$METRICS_TEMP" <<'HEADER'
+# HELP zfs_snapshot_count Number of snapshots per dataset
+# TYPE zfs_snapshot_count gauge
+HEADER
+
+        # Datasets to monitor (from backup.nix configuration)
+        DATASETS=(
+          "rpool/safe/home"
+          "rpool/safe/persist"
+          "tank/services/sonarr"
+          "tank/services/postgresql/main"
+          "tank/services/postgresql/main-wal"
+        )
+
+        # Count snapshots per dataset
+        for dataset in "''${DATASETS[@]}"; do
+          SNAPSHOT_COUNT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name | ${pkgs.gnugrep}/bin/grep -c "^$dataset@" || echo 0)
+          echo "zfs_snapshot_count{dataset=\"$dataset\",hostname=\"forge\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
+        done
+
+        # Add latest snapshot age metrics
+        cat >> "$METRICS_TEMP" <<'HEADER2'
+
+# HELP zfs_snapshot_latest_timestamp Creation time of most recent snapshot per dataset
+# TYPE zfs_snapshot_latest_timestamp gauge
+HEADER2
+
+        for dataset in "''${DATASETS[@]}"; do
+          LATEST=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name,creation -s creation "$dataset" 2>/dev/null | tail -n 1 | awk '{print $2, $3, $4, $5}' || echo "")
+          if [ -n "$LATEST" ]; then
+            LATEST_TIMESTAMP=$(date -d "$LATEST" +%s 2>/dev/null || echo 0)
+            echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\",hostname=\"forge\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
+          fi
+        done
+
+        # Add total space used by all snapshots per dataset
+        cat >> "$METRICS_TEMP" <<'HEADER3'
+
+# HELP zfs_snapshot_total_used_bytes Total space used by all snapshots for a dataset
+# TYPE zfs_snapshot_total_used_bytes gauge
+HEADER3
+
+        for dataset in "''${DATASETS[@]}"; do
+          TOTAL_USED=$(${pkgs.zfs}/bin/zfs list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | ${pkgs.gawk}/bin/awk '{sum+=$1} END {print sum}' || echo 0)
+          echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\",hostname=\"forge\"} $TOTAL_USED" >> "$METRICS_TEMP"
+        done
+
+        # Add metrics collection timestamp
+        cat >> "$METRICS_TEMP" <<EOF
+
+# HELP zfs_snapshot_metrics_timestamp Last time ZFS snapshot metrics were collected
+# TYPE zfs_snapshot_metrics_timestamp gauge
+zfs_snapshot_metrics_timestamp{hostname="forge"} $TIMESTAMP
+EOF
+
+        mv "$METRICS_TEMP" "$METRICS_FILE"
+      '';
+      after = [ "zfs-mount.service" ];
+      wants = [ "zfs-mount.service" ];
+    };
+
+    systemd.timers.zfs-snapshot-metrics = {
+      description = "Collect ZFS snapshot metrics every 5 minutes";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*:0/5";
+        Persistent = true;
+      };
+    };
+
     system.stateVersion = "25.05";  # Set to the version being installed (new system, never had 23.11)
   };
 }
