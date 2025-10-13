@@ -103,8 +103,8 @@ in
       backup.sanoid = {
         enable = true;
         sshKeyPath = config.sops.secrets."zfs-replication/ssh-key".path;
+        snapshotInterval = "*:0/5";  # Run snapshots every 5 minutes (for high-frequency datasets)
         replicationInterval = "hourly";
-        interval = "*:0/5";  # Run snapshots every 5 minutes (for high-frequency datasets)
 
         # Retention templates for different data types
         templates = {

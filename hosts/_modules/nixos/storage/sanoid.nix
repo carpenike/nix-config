@@ -38,6 +38,7 @@ in
     templates = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule {
         options = {
+          minutely = lib.mkOption { type = lib.types.int; default = 0; };
           hourly = lib.mkOption { type = lib.types.int; default = 0; };
           daily = lib.mkOption { type = lib.types.int; default = 0; };
           weekly = lib.mkOption { type = lib.types.int; default = 0; };
@@ -121,6 +122,12 @@ in
       description = "How often to run all Syncoid replication tasks.";
     };
 
+    snapshotInterval = lib.mkOption {
+      type = lib.types.str;
+      default = "hourly";
+      description = "How often to run Sanoid snapshot creation (systemd OnCalendar format). Use '*:0/5' for every 5 minutes.";
+    };
+
     # -- Health Check Configuration --
     healthChecks = {
       enable = lib.mkEnableOption "ZFS pool health checks";
@@ -187,6 +194,7 @@ in
     # -- Sanoid Service Configuration --
     services.sanoid = {
       enable = true;
+      interval = cfg.snapshotInterval;
       templates = cfg.templates;
       datasets = lib.mapAttrs (name: conf: {
         inherit (conf) recursive useTemplate autosnap autoprune;
