@@ -127,7 +127,7 @@ in
           # High-frequency snapshots for PostgreSQL WAL archives
           # Provides 5-minute RPO for database point-in-time recovery
           wal-frequent = {
-            minutely = 12;    # Keep 12 five-minute snapshots (1 hour of minutely retention)
+            frequently = 12;  # Keep 12 five-minute snapshots (1 hour of frequent retention)
             hourly = 48;      # 2 days of hourly rollup
             daily = 7;        # 1 week of daily rollup
             autosnap = true;

@@ -38,7 +38,7 @@ in
     templates = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule {
         options = {
-          minutely = lib.mkOption { type = lib.types.int; default = 0; };
+          frequently = lib.mkOption { type = lib.types.int; default = 0; };
           hourly = lib.mkOption { type = lib.types.int; default = 0; };
           daily = lib.mkOption { type = lib.types.int; default = 0; };
           weekly = lib.mkOption { type = lib.types.int; default = 0; };
