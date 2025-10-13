@@ -23,7 +23,11 @@
     ./openssh
     ./omada
     ./podman
-    ./postgresql          # Options only (config generation removed - was causing circular deps with nested databases)
+    ./postgresql                              # PostgreSQL module (options)
+    ./postgresql/implementation.nix           # Service generation (services.postgresql)
+    ./postgresql/databases.nix                # Database provisioning (systemd units)
+    ./postgresql/storage-integration.nix      # ZFS dataset creation (one-way integration)
+    ./postgresql/backup-integration.nix       # Backup job creation (one-way integration)
     ./sonarr
     ./unifi
   ];
