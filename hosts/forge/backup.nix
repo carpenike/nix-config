@@ -2,22 +2,22 @@
 
 # Forge Backup Configuration
 #
-# This configuration integrates PostgreSQL into the existing Restic-based backup system
-# instead of using pgBackRest, leveraging our sophisticated backup infrastructure.
-#
-# Key Decision: Extend Restic vs Add pgBackRest
-# After critical evaluation (see conversation with Gemini Pro), we chose to extend
-# our existing Restic system because:
-# 1. We already have PITR-compliant PostgreSQL snapshots (pg-backup-scripts)
-# 2. Unified operational model: single dashboard, alerting, verification
-# 3. Existing monitoring/notifications/verification infrastructure
-# 4. Monthly restore testing already validates end-to-end recovery
-# 5. Simpler to operate: add 1 repo + 1 job vs entire new tool stack
+# PostgreSQL backups are handled by pgBackRest (see postgresql.nix and default.nix)
+# - Application-consistent backups with Point-in-Time Recovery (PITR)
+# - Multi-repo: Local NFS (repo1) + Offsite R2 (repo2)
+# - Integrated with monitoring and Prometheus metrics
+# - Archive-async with local spool for high availability
 #
 # PostgreSQL Backup Strategy:
-# - Local: ZFS snapshots every 5 minutes via pg-zfs-snapshot.service
-# - Local DR: Syncoid replication to nas-1 every 15 minutes
-# - Offsite DR: Restic to Cloudflare R2 (this file)
+# - pgBackRest repo1 (NFS): Full/diff/incr backups + continuous WAL archiving
+# - pgBackRest repo2 (R2): Full/diff/incr backups (WALs synced during backup jobs)
+# - ZFS snapshots: PostgreSQL WAL archive only (PGDATA relies on pgBackRest)
+# - ZFS replication: WAL archive to nas-1 every 15 minutes
+#
+# This file manages Restic backups for non-database services:
+# - System state (/home, /persist)
+# - Service configurations
+# - Documentation
 #
 # PITR Recovery Process from R2:
 # 1. restic restore <snapshot_id> --target /var/lib/postgresql/16/main
@@ -57,15 +57,21 @@ in
     users.groups.restic-backup = {};
 
     # Mount NFS shares from nas-1 for backups
+    # Hardened for pgBackRest WAL archiving reliability
     fileSystems."/mnt/nas-backup" = {
       device = "nas-1.holthome.net:/mnt/backup/forge/restic";
       fsType = "nfs";
       options = [
         "nfsvers=4.2"
+        "hard"              # Retry indefinitely on timeout (don't fail)
+        "intr"              # Allow interrupts (can kill hung processes)
+        "timeo=600"         # 60-second timeout (10× default of 6s)
+        "retrans=3"         # Retry 3 times before reporting error
+        "_netdev"           # Wait for network before mounting
         "rw"
         "noatime"
         "x-systemd.automount"
-        "x-systemd.idle-timeout=600"  # Unmount after 10 minutes idle
+        # REMOVED: x-systemd.idle-timeout - Don't auto-unmount (pgBackRest needs stable mount)
         "x-systemd.mount-timeout=30s"
       ];
     };
@@ -105,8 +111,7 @@ in
             pool = "tank";
             datasets = [
               "services/sonarr"           # Sonarr media management service
-              "services/postgresql/main"  # PostgreSQL PGDATA (PITR-compliant snapshots via pg-zfs-snapshot)
-              "services/postgresql/main-wal"  # PostgreSQL WAL archive for point-in-time recovery
+              "services/postgresql/main-wal"  # PostgreSQL WAL archive (PGDATA relies on pgBackRest)
             ];
           }
         ];

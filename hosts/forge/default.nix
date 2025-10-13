@@ -178,22 +178,14 @@ in
             };
           };
 
-          # PostgreSQL data directory - Simple Sanoid snapshots for quick local rollback
-          # pgBackRest handles application-consistent backups and PITR
-          # ZFS snapshots provide fast local recovery (< 1 minute) for "oops" moments
-          "tank/services/postgresql/main" = {
-            useTemplate = [ "wal-frequent" ];
-            recursive = false;
-            replication = {
-              targetHost = "nas-1.holthome.net";
-              targetDataset = "backup/forge/services/postgresql/main";
-              sendOptions = "wp";
-              recvOptions = "u";
-            };
-          };
-
-          # PostgreSQL WAL archive - Simple Sanoid snapshots
-          # pgBackRest archives WALs directly, ZFS snapshots are for fast local recovery only
+          # PostgreSQL WAL archive - ZFS snapshots for fast local recovery
+          # Note: PGDATA (main) is NOT snapshotted - we rely entirely on pgBackRest
+          # for application-consistent, PITR-capable database backups.
+          # Rationale:
+          # - pgBackRest provides proper application-consistent backups
+          # - ZFS snapshots of PGDATA are crash-consistent (less reliable)
+          # - Reduces complexity and potential confusion during recovery
+          # - WAL archive snapshots still useful for quick rollback of archive directory
           "tank/services/postgresql/main-wal" = {
             useTemplate = [ "wal-frequent" ];
             recursive = false;
@@ -309,11 +301,25 @@ in
     # Note: Only repo1 is in the global config because it's used for WAL archiving
     # repo2 (R2 S3) is configured via command-line flags in backup services only
     # This allows 'check' command to validate only repo1 (where WAL actually goes)
+    #
+    # WAL archiving strategy:
+    # - Repo1 (NFS): Continuous WAL archiving for PITR
+    # - Repo2 (R2): Receives WALs during backup jobs only (via --no-archive-check)
+    # Trade-off: R2 has up to 1-hour RPO (limited by hourly incremental frequency)
+    # Decision: Acceptable for homelab; reduces S3 API calls and complexity
+    # Future consideration: Enable WAL archiving to R2 if offsite PITR becomes critical
     environment.etc."pgbackrest.conf".text = ''
       [global]
       repo1-path=/mnt/nas-backup/pgbackrest
       repo1-retention-full=7
-      repo1-retention-diff=4
+      # Note: No differential backups (simplified schedule)
+
+      # Archive async with local spool to decouple DB availability from NFS
+      # If NFS is down, archive_command succeeds by writing to local spool
+      # Background process flushes to repo1 when NFS is available
+      archive-async=y
+      spool-path=/var/lib/pgbackrest/spool
+      repo1-archive-push-queue-max=4096
 
       process-max=2
       log-level-console=info
@@ -365,6 +371,10 @@ in
     # This ensures directories/files exist on boot with correct ownership/permissions
     systemd.tmpfiles.rules = [
       "d /mnt/nas-backup/pgbackrest 0750 postgres postgres - -"
+      # Create local spool directory for async WAL archiving
+      # Critical: Allows archive_command to succeed even when NFS is down
+      "d /var/lib/pgbackrest 0750 postgres postgres - -"
+      "d /var/lib/pgbackrest/spool 0750 postgres postgres - -"
       # Create metrics file and set ownership so postgres user can write to it
       # and node-exporter group can read it.
       "z /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
@@ -446,7 +456,6 @@ in
             --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
             --repo2-s3-region=auto \
             --repo2-retention-full=30 \
-            --repo2-retention-diff=14 \
             backup
           echo "[$(date -Iseconds)] Full backup to both repos completed"
         '';
@@ -486,51 +495,15 @@ in
             --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
             --repo2-s3-region=auto \
             --repo2-retention-full=30 \
-            --repo2-retention-diff=14 \
             backup
           echo "[$(date -Iseconds)] Incremental backup to both repos completed"
         '';
       };
 
       # Differential backup
-      pgbackrest-diff-backup = {
-        description = "pgBackRest differential backup";
-        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-stanza-create.service" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
-        path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
-        serviceConfig = {
-          Type = "oneshot";
-          User = "postgres";
-          Group = "postgres";
-          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
-          IPAddressDeny = [ "169.254.169.254" ];
-        };
-        script = ''
-          set -euo pipefail
-
-          # Transform AWS env vars to pgBackRest format
-          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
-          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
-
-          echo "[$(date -Iseconds)] Starting differential backup to repo1 (NFS)..."
-          pgbackrest --stanza=main --type=diff --repo=1 backup
-          echo "[$(date -Iseconds)] Repo1 backup completed"
-
-          echo "[$(date -Iseconds)] Starting differential backup to repo2 (R2)..."
-          # repo2 doesn't have WAL archiving, so use --no-archive-check
-          pgbackrest --stanza=main --type=diff --repo=2 \
-            --no-archive-check \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            --repo2-retention-full=30 \
-            --repo2-retention-diff=14 \
-            backup
-          echo "[$(date -Iseconds)] Differential backup to both repos completed"
-        '';
-      };
+      # Differential backups removed - simplified to daily full + hourly incremental
+      # Reduces backup window contention and operational complexity
+      # Retention still appropriate: 7 daily fulls + hourly incrementals
     };
 
     # pgBackRest backup timers
@@ -555,15 +528,8 @@ in
         };
       };
 
-      pgbackrest-diff-backup = {
-        description = "pgBackRest differential backup timer";
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = "*-*-* 00/6:00:00";  # Every 6 hours
-          Persistent = true;
-          RandomizedDelaySec = "10m";
-        };
-      };
+      # Differential backup timer removed - using simplified schedule
+      # Daily full (2 AM) + Hourly incremental is sufficient for homelab
     };
 
 
