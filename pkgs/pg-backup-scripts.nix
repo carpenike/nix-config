@@ -70,7 +70,8 @@ pkgs.stdenv.mkDerivation {
     echo "SELECT pg_backup_start('zfs-snapshot', false);" >&3
     read -r LSN <&4
 
-    echo "SELECT pg_walfile_name('''\${LSN}''');" >&3
+    LSN_QUOTED="'$LSN'"
+    echo "SELECT pg_walfile_name($LSN_QUOTED);" >&3
     read -r WAL_FILE_NAME <&4
 
     BACKUP_LABEL_PATH="''${PGDATA}/backup_label"
