@@ -19,6 +19,10 @@
     listenAddress = "127.0.0.1";
     port = 9090;
 
+    # External URL for Prometheus (used in alert links and UI)
+    # Can be overridden in host-specific configuration if alerting module sets it
+    webExternalUrl = config.modules.alerting.prometheus.externalUrl or null;
+
     # Explicit retention policy (multi-model consensus recommendation)
     # 15 days provides sufficient history for homelab troubleshooting, capacity trends, and dashboards
     # Longer retention not needed: configs in Git, metrics are disposable/regenerate automatically

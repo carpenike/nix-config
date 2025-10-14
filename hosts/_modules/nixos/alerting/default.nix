@@ -192,6 +192,18 @@ in
       description = "Alertmanager base URL used by am-postalert.";
     };
 
+    alertmanager.externalUrl = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "External URL for Alertmanager (used in alert links). If null, uses alertmanager.url.";
+    };
+
+    prometheus.externalUrl = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "External URL for Prometheus (used in alert links and UI). Example: https://prometheus.example.com";
+    };
+
     receivers.pushover.tokenSecret = mkOption {
       type = types.str;
       default = "pushover_token";
@@ -267,6 +279,8 @@ in
     # Alertmanager configuration using native *_file pattern for secrets
     services.prometheus.alertmanager = {
       enable = true;
+      # Set external URL if configured (for alert links)
+      webExternalUrl = mkIf (cfg.alertmanager.externalUrl != null) cfg.alertmanager.externalUrl;
       configuration = {
         route = {
           receiver = "pushover-medium";
