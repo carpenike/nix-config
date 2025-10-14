@@ -109,6 +109,32 @@ in
                 sync = "standard";  # Use ZIL for synchronous writes (PostgreSQL WAL)
               };
             };
+
+            # Prometheus time-series database
+            # GPT-5 validated: 128K recordsize optimal for Prometheus 2.x append-heavy workload
+            prometheus = {
+              recordsize = "128K";  # Aligned with Prometheus WAL segments and 2h block files
+              compression = "lz4";  # Minimal overhead; TSDB chunks already compressed
+              mountpoint = "/var/lib/prometheus2";
+              owner = "prometheus";
+              group = "prometheus";
+              mode = "0755";
+              properties = {
+                # Conservative snapshot schedule: TSDB compaction with frequent snapshots causes CoW amplification
+                "com.sun:auto-snapshot" = "true";  # Sanoid will use "services" template (48h/14d/8w/6m)
+                logbias = "throughput";  # Optimize for streaming writes, not low-latency sync
+                primarycache = "metadata";  # Avoid ARC pollution; Prometheus has its own caching
+                atime = "off";  # Reduce metadata writes on read-heavy query workloads
+              };
+            };
+
+            # Alertmanager: Using ephemeral root filesystem storage
+            # Rationale (GPT-5 validated):
+            # - Only stores silences and notification deduplication state
+            # - Homelab acceptable to lose silences on restart
+            # - Duplicate notifications after restart are tolerable
+            # - Dedicated dataset unnecessary for minimal administrative state
+            # Location: /var/lib/alertmanager on rpool/local/root (not snapshotted)
           };
         };
 
