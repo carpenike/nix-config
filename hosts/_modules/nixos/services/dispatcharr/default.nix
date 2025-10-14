@@ -39,25 +39,15 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ "''${POSTGRES_HOST}" != "127.0.0
   cp /app/docker/entrypoint.sh /tmp/entrypoint-modified.sh
   chmod +x /tmp/entrypoint-modified.sh
 
-  # Comment out the PostgreSQL initialization in the init script sourcing
-  sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh\necho "⏭️  Skipping embedded PostgreSQL init (using external DB)"|g' /tmp/entrypoint-modified.sh
+  # Comment out the PostgreSQL initialization in the init script sourcing (appears twice)
+  sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED: . /app/docker/init/02-postgres.sh|g' /tmp/entrypoint-modified.sh
 
-  # Comment out the PostgreSQL startup command
-  sed -i 's|^echo "Starting Postgres\.\.\."$|# DISABLED (external DB): echo "Starting Postgres..."|g' /tmp/entrypoint-modified.sh
-  sed -i 's|^su - postgres -c.*pg_ctl.*start.*$|# DISABLED (external DB): PostgreSQL startup|g' /tmp/entrypoint-modified.sh
+  # Comment out the entire PostgreSQL startup block (lines 110-119)
+  # This includes: "Starting Postgres...", pg_ctl start, until loop, postgres_pid, pids+=
+  sed -i '/^echo "Starting Postgres\.\.\."$/,/^pids+=("\$postgres_pid")$/ s|^|# DISABLED: |' /tmp/entrypoint-modified.sh
 
-  # Replace the PostgreSQL readiness check with an external DB connection check
-  # The original uses pg_isready against POSTGRES_HOST/POSTGRES_PORT
-  # We replace it with a psql connection test to the external database
-  sed -i 's|^until su - postgres -c.*pg_isready.*$|# Wait for external PostgreSQL to be ready\nuntil PGPASSWORD="''${POSTGRES_PASSWORD}" psql -h "''${POSTGRES_HOST}" -U "''${POSTGRES_USER}" -d "''${POSTGRES_DB}" -c "SELECT 1" >/dev/null 2>\&1|g' /tmp/entrypoint-modified.sh
-
-  # Comment out the postgres PID extraction (since we're not starting postgres)
-  sed -i 's|^postgres_pid=.*$|# DISABLED (external DB): postgres_pid tracking|g' /tmp/entrypoint-modified.sh
-  sed -i 's|^pids+=("\$postgres_pid")$|# DISABLED (external DB): pids+=("$postgres_pid")|g' /tmp/entrypoint-modified.sh
-
-  # Comment out the second call to 02-postgres.sh for UTF8 encoding check
-  sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh|g' /tmp/entrypoint-modified.sh
-  sed -i 's|^ensure_utf8_encoding$|# DISABLED (external DB): ensure_utf8_encoding - assuming external DB is UTF8|g' /tmp/entrypoint-modified.sh
+  # Comment out ensure_utf8_encoding call
+  sed -i 's|^ensure_utf8_encoding$|# DISABLED: ensure_utf8_encoding|g' /tmp/entrypoint-modified.sh
 
   echo "   Modified entrypoint created successfully"
 
