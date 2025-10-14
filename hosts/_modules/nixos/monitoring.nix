@@ -85,10 +85,10 @@ in
 
     # Create textfile collector directory if enabled
     # Permissions: 2770 = setgid + rwx for owner/group, none for others
-    # The setgid bit (2) ensures new files inherit the prometheus-node-exporter group
-    # Group write (7) allows services with SupplementaryGroups=["prometheus-node-exporter"] to write metrics
+    # The setgid bit (2) ensures new files inherit the node-exporter group
+    # Group write (7) allows services with SupplementaryGroups=["node-exporter"] to write metrics
     systemd.tmpfiles.rules = mkIf cfg.nodeExporter.textfileCollector.enable [
-      "d ${cfg.nodeExporter.textfileCollector.directory} 2770 prometheus-node-exporter prometheus-node-exporter -"
+      "d ${cfg.nodeExporter.textfileCollector.directory} 2770 node-exporter node-exporter -"
     ];
   };
 }
