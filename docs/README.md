@@ -19,6 +19,15 @@ This directory contains comprehensive documentation for the NixOS configuration 
   - Integration with backup system
   - Troubleshooting and best practices
 
+### PostgreSQL & Database
+
+- **[PostgreSQL Auto-Restore (Quick Start)](./postgresql-auto-restore-quickstart.md)** - ⚡ **Automatic disaster recovery** for homelab servers - PostgreSQL restores from backup automatically when you rebuild
+- **[PostgreSQL Auto-Restore (Full Guide)](./postgresql-auto-restore-homelab.md)** - Complete documentation for automatic PostgreSQL restore on server rebuild
+- **[PostgreSQL Repository Selection](./postgresql-preseed-repository-selection.md)** - repo1 (NFS) vs repo2 (R2) comparison and decision guide
+- **[PostgreSQL PITR Guide](./postgresql-pitr-guide.md)** - Manual point-in-time recovery procedures
+- **[PostgreSQL pgBackRest Migration](./postgresql-pgbackrest-migration.md)** - Migration from custom backup scripts to pgBackRest
+- **[PostgreSQL pgBackRest Offsite Backup Setup](./postgresql-offsite-backup-setup.md)** - Setting up Cloudflare R2 offsite backups
+
 ### Network Services
 
 - **[AdGuard Modular Config](./adguard-modular-config.md)** - Modular AdGuard Home configuration patterns
