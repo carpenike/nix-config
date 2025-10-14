@@ -19,7 +19,7 @@ in
     ./backup.nix
     ./monitoring.nix
     ./monitoring-ui.nix  # Web UI exposure for Prometheus/Alertmanager
-    ./alerting.nix  # New Alertmanager-based alerting
+    ./alerting.nix
     ./postgresql.nix
     ./dispatcharr.nix
   ];
