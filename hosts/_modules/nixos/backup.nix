@@ -654,7 +654,7 @@ with lib;
 
             echo "ZFS snapshots created and mounted: $SNAPSHOT_NAME"
             echo "Snapshot mounts:"
-            ${pkgs.util-linux}/bin/mount | grep "$SNAPSHOT_NAME"
+            ${pkgs.util-linux}/bin/mount | grep "$SNAPSHOT_NAME" || true
           '';
           postStop = ''
             set +e  # Don't fail on cleanup errors
@@ -1708,8 +1708,19 @@ EOF
                 # Dynamically map each backup path to its ZFS dataset snapshot
                 # This replaces the hardcoded mapping with runtime dataset discovery
                 ${concatMapStringsSep "\n" (path: ''
-                  # Discover the ZFS dataset for this path
-                  DATASET=$(${config.boot.zfs.package}/bin/zfs list -H -o name,mountpoint -t filesystem | ${pkgs.gawk}/bin/awk -v p="${path}" '$2==p {print $1; exit}')
+                  # Discover the ZFS dataset for this path using longest-prefix match
+                  # This correctly handles subdirectories (e.g., /var/lib/postgresql/16 -> dataset mounted at /var/lib/postgresql)
+                  DATASET=$(${config.boot.zfs.package}/bin/zfs list -H -o name,mountpoint -t filesystem | ${pkgs.gawk}/bin/awk -v p="${path}" '
+                    {
+                      mp=$2
+                      # Match if path equals mountpoint OR path starts with mountpoint/
+                      if (p == mp || (index(p, mp) == 1 && (substr(p, length(mp)+1, 1) == "/" || mp == "/"))) {
+                        # Keep the longest matching mountpoint
+                        if (length(mp) > max) { max = length(mp); best = $1 }
+                      }
+                    }
+                    END { if (best) print best }
+                  ')
 
                   if [ -n "$DATASET" ]; then
                     # Extract pool and dataset suffix from the full dataset path
