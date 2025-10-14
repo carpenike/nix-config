@@ -297,14 +297,10 @@ in
     # Alertmanager service ordering and flags
     services.prometheus.alertmanager = {
       enable = true;
-      # Use minimal valid config to satisfy module requirements
-      # Actual config with secrets is managed by alertmanager-config.service
-      configuration = {
-        route.receiver = "dummy";
-        receivers = [{ name = "dummy"; }];
-      };
-      checkConfig = false;  # Disable build-time validation since we override config at runtime
-      extraFlags = [ "--config.file=/etc/alertmanager/alertmanager.yml" ];
+      # Override config file location to use our runtime-rendered config
+      # The module requires configFile to be set, so we point it to our location
+      configFile = lib.mkForce "/etc/alertmanager/alertmanager.yml";
+      checkConfig = false;  # Disable build-time validation since config has placeholders at build time
     };
     systemd.services.prometheus-alertmanager = {
       requires = [ "alertmanager-config.service" ];
