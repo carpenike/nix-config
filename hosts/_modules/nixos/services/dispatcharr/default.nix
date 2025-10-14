@@ -31,7 +31,8 @@ echo "🔧 Dispatcharr Entrypoint Wrapper"
 echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
 
 # Check if we're using an external PostgreSQL database
-if [ "''${POSTGRES_HOST}" != "localhost" ] && [ "''${POSTGRES_HOST}" != "127.0.0.1" ] && [ -n "''${POSTGRES_HOST}" ]; then
+# Detect external DB if POSTGRES_HOST is set to 127.0.0.1 (TCP) or a Unix socket path (not localhost/127.0.0.1)
+if [ "''${POSTGRES_HOST}" = "127.0.0.1" ] || ([ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]); then
   echo "✅ External PostgreSQL detected (''${POSTGRES_HOST})"
   echo "   Disabling embedded PostgreSQL initialization..."
 
@@ -388,8 +389,10 @@ in
         PGID = cfg.group;
         TZ = cfg.timezone;
         # PostgreSQL connection configuration
-        # Dispatcharr uses Unix socket connection when POSTGRES_HOST is set to the socket directory
-        POSTGRES_HOST = "/run/postgresql";  # Unix socket directory for secure, direct connection
+        # Use TCP localhost connection to avoid Unix socket peer authentication issues
+        # The container user "dispatcharr" (UID 569) doesn't exist on the host, causing peer auth to fail
+        POSTGRES_HOST = "127.0.0.1";  # TCP connection avoids peer authentication issues
+        POSTGRES_PORT = "5432";
         POSTGRES_DB = cfg.database.name;
         POSTGRES_USER = cfg.database.user;
         # POSTGRES_PASSWORD is provided via environmentFiles (generated in preStart)
@@ -403,9 +406,6 @@ in
       volumes = [
         # Use ':Z' for SELinux systems to ensure the container can write to the volume
         "${cfg.dataDir}:/data:rw,Z"
-        # Mount the PostgreSQL socket directory as read-write (required for domain socket connections)
-        # Clients need write access to the socket file to establish connections
-        "/run/postgresql:/run/postgresql:rw"
         # Mount custom entrypoint wrapper to disable embedded PostgreSQL
         # Use :Z for SELinux compatibility to allow container to execute the script
         "${customEntrypoint}:/entrypoint-wrapper.sh:ro,Z"
