@@ -152,6 +152,7 @@ let
   # Alertmanager config template (no secrets baked in; rendered at runtime)
   amTmpl = pkgs.writeText "alertmanager.tmpl.yml" ''
 route:
+  receiver: 'pushover-medium'
   group_by: ['alertname','service']
   group_wait: 0s
   group_interval: 1m
@@ -259,42 +260,36 @@ in
         }
       ) ruleNames);
 
+    # Create directory with proper ownership via tmpfiles
+    systemd.tmpfiles.rules = [
+      "d /etc/alertmanager 0750 alertmanager alertmanager -"
+    ];
+
     # Render Alertmanager config with secrets at runtime
-    # Runs as root to read root-owned SOPS secrets, then sets proper ownership
+    # Runs as root to read root-owned SOPS secrets
     systemd.services.alertmanager-config = {
       description = "Render Alertmanager config with secrets";
       wantedBy = [ "multi-user.target" ];
       wants = [ "network-online.target" ];
-      after = [ "network-online.target" ];
+      after = [ "network-online.target" "systemd-tmpfiles-setup.service" "sops-nix.service" ];
+      requires = [ "sops-nix.service" ];
       serviceConfig = {
         Type = "oneshot";
       };
-      path = [ pkgs.coreutils pkgs.gnused pkgs.shadow ];
+      path = [ pkgs.coreutils pkgs.gnused ];
       script = ''
-        # Create directory with root ownership first, then chown after user is guaranteed to exist
-        install -d -m 0750 /etc/alertmanager
-
-        # Wait for alertmanager user to be created (may not exist on first activation)
-        if ! getent passwd alertmanager >/dev/null 2>&1; then
-          echo "Waiting for alertmanager user to be created..."
-          sleep 2
-        fi
-
-        # Now set ownership
-        if getent passwd alertmanager >/dev/null 2>&1 && getent group alertmanager >/dev/null 2>&1; then
-          chown alertmanager:alertmanager /etc/alertmanager
-        fi
-
+        # Read and validate secrets
         token="$(tr -d '\r\n' < ${config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path})"
+        [ -n "$token" ] || { echo "Error: Pushover token is empty"; exit 1; }
+
         user="$(tr -d '\r\n' < ${config.sops.secrets.${cfg.receivers.pushover.userSecret}.path})"
+        [ -n "$user" ] || { echo "Error: Pushover user key is empty"; exit 1; }
+
+        # Render config
         sed -e "s|__PUSHOVER_TOKEN__|$token|g" \
             -e "s|__PUSHOVER_USER__|$user|g" \
             ${amTmpl} > /etc/alertmanager/alertmanager.yml
 
-        # Set ownership if user exists
-        if getent passwd alertmanager >/dev/null 2>&1 && getent group alertmanager >/dev/null 2>&1; then
-          chown alertmanager:alertmanager /etc/alertmanager/alertmanager.yml
-        fi
         chmod 0640 /etc/alertmanager/alertmanager.yml
       '';
     };
@@ -302,12 +297,13 @@ in
     # Alertmanager service ordering and flags
     services.prometheus.alertmanager = {
       enable = true;
-      # Use our runtime-rendered config file instead of NixOS-generated one
+      # Intentionally disable module-generated config to avoid --config.file duplication.
+      # configFile/configuration write into the store; we need runtime secrets.
       configText = lib.mkForce "";
       extraFlags = [ "--config.file=/etc/alertmanager/alertmanager.yml" ];
     };
     systemd.services.prometheus-alertmanager = {
-      wants = [ "alertmanager-config.service" ];
+      requires = [ "alertmanager-config.service" ];
       after = [ "alertmanager-config.service" ];
     };
 
