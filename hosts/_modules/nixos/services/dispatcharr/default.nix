@@ -392,21 +392,23 @@ in
       volumes = [
         # Use ':Z' for SELinux systems to ensure the container can write to the volume
         "${cfg.dataDir}:/data:rw,Z"
-        # Mount the PostgreSQL socket for direct, secure, and reliable communication
-        "/run/postgresql:/run/postgresql:ro"
+        # Mount the PostgreSQL socket directory as read-write (required for domain socket connections)
+        # Clients need write access to the socket file to establish connections
+        "/run/postgresql:/run/postgresql:rw"
         # Mount custom entrypoint wrapper to disable embedded PostgreSQL
         "${customEntrypoint}:/entrypoint-wrapper.sh:ro"
       ];
       ports = [
         "${toString dispatcharrPort}:9191"
       ];
-      # Override the container's entrypoint to use our custom wrapper that disables embedded PostgreSQL
-      # We use cmd instead of entrypoint to execute the wrapper via /bin/sh
-      # The wrapper script is mounted via volume at /entrypoint-wrapper.sh
-      cmd = [ "/entrypoint-wrapper.sh" ];
       resources = cfg.resources;
       extraOptions = [
         "--pull=newer"  # Automatically pull newer images
+        # Override the container's entrypoint to use our custom wrapper
+        # CRITICAL: Must use two separate list items for proper option ordering
+        # The wrapper script is bind-mounted as executable at /entrypoint-wrapper.sh
+        "--entrypoint"
+        "/entrypoint-wrapper.sh"
         # NOTE: Don't use --user flag here! The dispatcharr container's entrypoint
         # script needs to run as root initially to set up /etc/profile.d and other
         # system files, then it drops privileges to PUID/PGID. Using --user prevents
