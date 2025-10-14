@@ -203,6 +203,13 @@ in
         }
       ) ruleNames);
 
+    # Ensure alertmanager user/group exists before SOPS tries to install secrets
+    users.users.alertmanager = {
+      isSystemUser = true;
+      group = "alertmanager";
+    };
+    users.groups.alertmanager = {};
+
     # Alertmanager configuration using native *_file pattern for secrets
     services.prometheus.alertmanager = {
       enable = true;
