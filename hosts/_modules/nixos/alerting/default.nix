@@ -240,6 +240,7 @@ in
     systemd.services.alertmanager-config = {
       description = "Render Alertmanager config with secrets";
       wantedBy = [ "multi-user.target" ];
+      wants = [ "network-online.target" ];
       after = [ "network-online.target" ];
       serviceConfig = {
         Type = "oneshot";
@@ -281,6 +282,7 @@ in
         alert-boot = {
           description = "Send boot event to Alertmanager";
           wantedBy = [ "multi-user.target" ];
+          wants = [ "network-online.target" ];
           after = [ "network-online.target" "prometheus-alertmanager.service" ];
           serviceConfig = {
             Type = "oneshot";
