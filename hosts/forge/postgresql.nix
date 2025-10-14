@@ -23,21 +23,7 @@
           port = 5432;
 
           # Listen only on localhost for security (services connect locally)
-          listenAddresses = "localhost";
-
-          # Automatic restore from backup on server rebuild (disaster recovery)
-          # This enables automatic PostgreSQL restore when PGDATA is empty (e.g., fresh install, hardware migration)
-          # See docs/postgresql-auto-restore-homelab.md for details
-          preSeed = {
-            enable = true;
-            source = {
-              stanza = "main";
-              repository = 1;  # Use repo1 (NFS) - faster, has WALs, local network
-              backupSet = "latest";
-            };
-            # Optional: Switch to R2 if NAS is unavailable
-            # source.repository = 2;
-          };      # Memory settings (tune based on available RAM)
+          listenAddresses = "localhost";      # Memory settings (tune based on available RAM)
       sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
       effectiveCacheSize = "1GB";     # ~50% of available RAM
       maintenanceWorkMem = "128MB";
@@ -97,6 +83,21 @@
         "/mnt/nas-backup"
         "/var/lib/pgbackrest/spool"
       ];
+    };
+
+    # Automatic restore from backup on server rebuild (disaster recovery)
+    # This enables automatic PostgreSQL restore when PGDATA is empty (e.g., fresh install, hardware migration)
+    # Uses the standard NixOS services.postgresql namespace (not modules.services.postgresql)
+    # See docs/postgresql-auto-restore-homelab.md for details
+    services.postgresql.preSeed = {
+      enable = true;
+      source = {
+        stanza = "main";
+        repository = 1;  # Use repo1 (NFS) - faster, has WALs, local network
+        backupSet = "latest";
+      };
+      # Optional: Switch to R2 if NAS is unavailable
+      # source.repository = 2;
     };
   };
 }
