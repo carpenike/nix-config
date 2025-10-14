@@ -18,10 +18,7 @@
     extraFlags = [ "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector" ];
   };
 
-  # Ensure the textfile collector directory exists.
-  systemd.tmpfiles.rules = [
-    "d /var/lib/node_exporter/textfile_collector 0755 root root -"
-  ];
+  # Note: The monitoring module creates the textfile_collector directory with correct permissions (2770 prometheus-node-exporter)
 
   # Define the scrape targets for this instance of the monitoring hub.
   # If the hub were moved to another host, this block would move with it.
