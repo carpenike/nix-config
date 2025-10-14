@@ -602,8 +602,10 @@
     (lib.mkIf cfg.enable {
       # Operational safety warnings
       warnings =
-        (lib.optional (!(cfg.backup.walArchive.enable or false) && !(cfg.backup.baseBackup.enable or false))
-          "modules.services.postgresql: Both WAL archiving and base backups are disabled - no PITR capability")
+        (lib.optional (!(cfg.backup.walArchive.enable or false)
+                    && !(cfg.backup.baseBackup.enable or false)
+                    && !(cfg.extraSettings.archive_mode or false == "on"))
+          "modules.services.postgresql: Both WAL archiving and base backups are disabled, and no custom archive_mode is configured - no PITR capability")
         ++ (lib.optional (cfg.databases == {})
           "modules.services.postgresql: No databases configured - PostgreSQL is enabled but no databases will be provisioned");
       # Enable the base PostgreSQL service
