@@ -25,10 +25,10 @@ let
     name = "dispatcharr-entrypoint-wrapper";
     executable = true;
     text = ''
-      #!/bin/bash
-      set -e
+      #!/usr/bin/env bash
+      set -euo pipefail
 
-    echo "🔧 Dispatcharr Entrypoint Wrapper"
+      echo "🔧 Dispatcharr Entrypoint Wrapper"
     echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
 
     # Check if we're using an external PostgreSQL database
@@ -61,6 +61,14 @@ let
       sed -i 's|^ensure_utf8_encoding$|# DISABLED (external DB): ensure_utf8_encoding - assuming external DB is UTF8|g' /tmp/entrypoint-modified.sh
 
       echo "   Modified entrypoint created successfully"
+
+      # Validate the modified entrypoint syntax before executing
+      if ! bash -n /tmp/entrypoint-modified.sh; then
+        echo "❌ Syntax error in modified entrypoint script!"
+        echo "   First 50 lines of modified script:"
+        head -50 /tmp/entrypoint-modified.sh | cat -n
+        exit 1
+      fi
 
       # Execute the modified entrypoint
       echo "🚀 Starting Dispatcharr with external PostgreSQL..."
@@ -401,7 +409,8 @@ in
         # Clients need write access to the socket file to establish connections
         "/run/postgresql:/run/postgresql:rw"
         # Mount custom entrypoint wrapper to disable embedded PostgreSQL
-        "${customEntrypoint}:/entrypoint-wrapper.sh:ro"
+        # Use :Z for SELinux compatibility to allow container to execute the script
+        "${customEntrypoint}:/entrypoint-wrapper.sh:ro,Z"
       ];
       ports = [
         "${toString dispatcharrPort}:9191"
