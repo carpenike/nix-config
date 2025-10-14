@@ -17,6 +17,57 @@ let
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-dispatcharr.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/dispatcharr";
 
+  # Custom entrypoint wrapper that skips embedded PostgreSQL when using external database
+  # This wraps the original Dispatcharr entrypoint to conditionally disable the embedded
+  # PostgreSQL service when POSTGRES_HOST is set to a non-localhost value
+  customEntrypoint = pkgs.writeShellScript "dispatcharr-entrypoint-wrapper" ''
+    #!/bin/bash
+    set -e
+
+    echo "🔧 Dispatcharr Entrypoint Wrapper"
+    echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
+
+    # Check if we're using an external PostgreSQL database
+    if [ "''${POSTGRES_HOST}" != "localhost" ] && [ "''${POSTGRES_HOST}" != "127.0.0.1" ] && [ -n "''${POSTGRES_HOST}" ]; then
+      echo "✅ External PostgreSQL detected (''${POSTGRES_HOST})"
+      echo "   Disabling embedded PostgreSQL initialization..."
+
+      # Create a modified entrypoint that skips PostgreSQL
+      cp /app/docker/entrypoint.sh /tmp/entrypoint-modified.sh
+      chmod +x /tmp/entrypoint-modified.sh
+
+      # Comment out the PostgreSQL initialization in the init script sourcing
+      sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh\necho "⏭️  Skipping embedded PostgreSQL init (using external DB)"|g' /tmp/entrypoint-modified.sh
+
+      # Comment out the PostgreSQL startup command
+      sed -i 's|^echo "Starting Postgres\.\.\."$|# DISABLED (external DB): echo "Starting Postgres..."|g' /tmp/entrypoint-modified.sh
+      sed -i 's|^su - postgres -c.*pg_ctl.*start.*$|# DISABLED (external DB): PostgreSQL startup|g' /tmp/entrypoint-modified.sh
+
+      # Replace the PostgreSQL readiness check with an external DB connection check
+      # The original uses pg_isready against POSTGRES_HOST/POSTGRES_PORT
+      # We replace it with a psql connection test to the external database
+      sed -i 's|^until su - postgres -c.*pg_isready.*$|# Wait for external PostgreSQL to be ready\nuntil PGPASSWORD="''${POSTGRES_PASSWORD}" psql -h "''${POSTGRES_HOST}" -U "''${POSTGRES_USER}" -d "''${POSTGRES_DB}" -c "SELECT 1" >/dev/null 2>\&1|g' /tmp/entrypoint-modified.sh
+
+      # Comment out the postgres PID extraction (since we're not starting postgres)
+      sed -i 's|^postgres_pid=.*$|# DISABLED (external DB): postgres_pid tracking|g' /tmp/entrypoint-modified.sh
+      sed -i 's|^pids+=("\$postgres_pid")$|# DISABLED (external DB): pids+=("$postgres_pid")|g' /tmp/entrypoint-modified.sh
+
+      # Comment out the second call to 02-postgres.sh for UTF8 encoding check
+      sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh|g' /tmp/entrypoint-modified.sh
+      sed -i 's|^ensure_utf8_encoding$|# DISABLED (external DB): ensure_utf8_encoding - assuming external DB is UTF8|g' /tmp/entrypoint-modified.sh
+
+      echo "   Modified entrypoint created successfully"
+
+      # Execute the modified entrypoint
+      echo "🚀 Starting Dispatcharr with external PostgreSQL..."
+      exec /tmp/entrypoint-modified.sh "$@"
+    else
+      echo "ℹ️  Using embedded PostgreSQL (localhost)"
+      # Execute the original entrypoint
+      exec /app/docker/entrypoint.sh "$@"
+    fi
+  '';
+
   # Recursively find the replication config from the most specific dataset path upwards.
   # This allows a service dataset (e.g., tank/services/dispatcharr) to inherit replication
   # config from a parent dataset (e.g., tank/services) without duplication.
@@ -314,6 +365,7 @@ in
     # Dispatcharr container configuration
     # NOTE: Dispatcharr uses individual PostgreSQL environment variables (POSTGRES_HOST, POSTGRES_DB, etc.)
     # The password must be injected at runtime via environmentFiles to avoid leaking it in process list
+    # CRITICAL: Uses custom entrypoint wrapper to disable embedded PostgreSQL when using external database
     virtualisation.oci-containers.containers.dispatcharr = podmanLib.mkContainer "dispatcharr" {
       image = cfg.image;
       environmentFiles = [
@@ -342,6 +394,8 @@ in
         "${cfg.dataDir}:/data:rw,Z"
         # Mount the PostgreSQL socket for direct, secure, and reliable communication
         "/run/postgresql:/run/postgresql:ro"
+        # Mount custom entrypoint wrapper to disable embedded PostgreSQL
+        "${customEntrypoint}:/entrypoint-wrapper.sh:ro"
       ];
       ports = [
         "${toString dispatcharrPort}:9191"
@@ -349,6 +403,8 @@ in
       resources = cfg.resources;
       extraOptions = [
         "--pull=newer"  # Automatically pull newer images
+        # Override the container's entrypoint to use our wrapper that disables embedded PostgreSQL
+        "--entrypoint=/entrypoint-wrapper.sh"
         # NOTE: Don't use --user flag here! The dispatcharr container's entrypoint
         # script needs to run as root initially to set up /etc/profile.d and other
         # system files, then it drops privileges to PUID/PGID. Using --user prevents
