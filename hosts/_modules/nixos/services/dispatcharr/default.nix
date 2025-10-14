@@ -403,7 +403,7 @@ in
       # Override the container's entrypoint to use our custom wrapper that disables embedded PostgreSQL
       # This is the idiomatic NixOS way - more declarative than using --entrypoint in extraOptions
       # The wrapper script is mounted via volume at /entrypoint-wrapper.sh
-      entrypoint = [ "/entrypoint-wrapper.sh" ];
+      entrypoint = "/entrypoint-wrapper.sh";
       resources = cfg.resources;
       extraOptions = [
         "--pull=newer"  # Automatically pull newer images
