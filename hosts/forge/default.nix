@@ -89,6 +89,25 @@ in
           enable = true;
           parentDataset = "tank/services";
           parentMount = "/srv";  # Fallback for services without explicit mountpoint
+
+          services = {
+            # PostgreSQL data on dedicated dataset with optimized recordsize
+            postgres = {
+              recordsize = "8K";  # Match PostgreSQL page size for optimal performance
+              compression = "lz4";
+              mountpoint = "/var/lib/postgresql/16";  # Standard PostgreSQL data directory
+              owner = "postgres";
+              group = "postgres";
+              mode = "0700";  # PostgreSQL requires 0700 permissions
+              properties = {
+                "com.sun:auto-snapshot" = "false";  # PostgreSQL backups via pgBackRest (application-consistent)
+                logbias = "throughput";  # Optimize for database throughput over latency
+                primarycache = "metadata";  # ARC caches metadata only; PostgreSQL handles data caching
+                redundant_metadata = "most";  # Balance between redundancy and performance
+                sync = "standard";  # Use ZIL for synchronous writes (PostgreSQL WAL)
+              };
+            };
+          };
         };
 
         # Shared NFS mount for media access from NAS

@@ -19,19 +19,29 @@ let
     echo "Backup Set: ${cfg.source.backupSet}"
     echo "Repository: ${toString cfg.source.repository}"
 
-    # Safety check: Ensure PGDATA is empty
-    if [ -d "${pgDataPath}" ] && [ "$(ls -A ${pgDataPath} 2>/dev/null)" ]; then
-      echo "ERROR: PGDATA directory is not empty: ${pgDataPath}"
-      echo "Pre-seed restore can only run on an empty database directory."
-      exit 1
+    # Safety check: Decide what to do if PGDATA is not empty
+    if [ -d "${pgDataPath}" ] && [ "$(ls -A "${pgDataPath}" 2>/dev/null)" ]; then
+      # If it looks like a healthy, initialized PGDATA, this is a no-op.
+      # This handles enabling pre-seed on an existing server without errors.
+      if [ -f "${pgDataPath}/postgresql.conf" ] && [ -f "${pgDataPath}/PG_VERSION" ]; then
+        echo "PGDATA is already initialized. Skipping pre-seed restore."
+        # Create the completion marker to ensure this check is skipped on future boots.
+        touch "${pgDataPath}/.preseed-completed"
+        echo "Completion marker created. Pre-seed service will be skipped in the future."
+        exit 0
+      else
+        # If it's not empty but doesn't look initialized, it's a failed restore.
+        echo "ERROR: PGDATA directory is not empty but appears incomplete."
+        echo "This may indicate a previously failed restore."
+        echo "To force a re-seed, stop postgresql, clear PGDATA, and reboot."
+        exit 1
+      fi
     fi
 
     # Create PGDATA directory if it doesn't exist
     mkdir -p "${pgDataPath}"
     chown postgres:postgres "${pgDataPath}"
-    chmod 0700 "${pgDataPath}"
-
-    # Execute the restore
+    chmod 0700 "${pgDataPath}"    # Execute the restore
     echo "Running pgBackRest restore..."
     ${pkgs.pgbackrest}/bin/pgbackrest \
       --stanza=${cfg.source.stanza} \
