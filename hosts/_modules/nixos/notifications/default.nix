@@ -382,7 +382,14 @@ in
         chgrp notify-ipc "$PAYLOAD_FILE"
 
         echo "[notify] Payload created at $PAYLOAD_FILE"
-        echo "[notify] Backend services will be triggered automatically by .path units"
+
+        # Explicitly trigger the backend service
+        # The .path unit pattern doesn't work with templated services, so we start directly
+        BACKEND_SERVICE="notify-$BACKEND@$INSTANCE_STRING.service"
+        echo "[notify] Starting backend service: $BACKEND_SERVICE"
+        ${pkgs.systemd}/bin/systemctl start "$BACKEND_SERVICE" || {
+          echo "[notify] WARNING: Failed to start $BACKEND_SERVICE" >&2
+        }
 
         # Clean up the environment file now that it has been consumed
         ENV_FILE="/run/notify/env/$INSTANCE_STRING.env"

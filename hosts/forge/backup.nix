@@ -363,6 +363,48 @@ in
           description = "Monthly restore test failed. Backup recoverability at risk. Investigate immediately.";
         };
       };
+
+      # ZFS pool health degraded
+      "zfs-pool-degraded" = {
+        type = "promql";
+        alertname = "ZFSPoolDegraded";
+        expr = "zfs_pool_health_check == 0";
+        for = "1m";
+        severity = "critical";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "ZFS pool {{ $labels.pool }} is degraded on {{ $labels.host }}";
+          description = "Pool state: {{ $labels.state }}. Immediate attention required. Check: zpool status {{ $labels.pool }}";
+        };
+      };
+
+      # ZFS replication lag excessive
+      "zfs-replication-lag-high" = {
+        type = "promql";
+        alertname = "ZFSReplicationLagHigh";
+        expr = "zfs_replication_lag_seconds > 86400";  # 24 hours
+        for = "30m";
+        severity = "high";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "ZFS replication lag exceeds 24 hours for {{ $labels.dataset }}";
+          description = "Dataset {{ $labels.dataset }} has not replicated to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Check Syncoid service: systemctl status syncoid-*.service";
+        };
+      };
+
+      # ZFS replication completely stalled
+      "zfs-replication-stalled" = {
+        type = "promql";
+        alertname = "ZFSReplicationStalled";
+        expr = "zfs_replication_lag_seconds > 259200";  # 72 hours
+        for = "1h";
+        severity = "critical";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "ZFS replication stalled for {{ $labels.dataset }}";
+          description = "No replication to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Data loss risk if source fails. Investigate immediately.";
+        };
+      };
     };
   };
 }

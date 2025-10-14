@@ -91,9 +91,10 @@ in
       };
 
       # -- Container Image Configuration --
-      # Pin to specific version for stability
+      # Pin to specific version for stability and prevent unexpected changes
       # Find releases at: https://github.com/Dispatcharr/Dispatcharr/releases
-      image = "ghcr.io/dispatcharr/dispatcharr:latest";  # TODO: Pin to specific version after testing
+      # Check latest digest: docker pull ghcr.io/dispatcharr/dispatcharr:v0.x.x && docker inspect --format='{{index .RepoDigests 0}}'
+      image = "ghcr.io/dispatcharr/dispatcharr:v0.10.4";  # Pinned to v0.10.4 for stability
 
       # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
       healthcheck.enable = true;  # Enable container health monitoring

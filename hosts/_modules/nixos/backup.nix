@@ -1,3 +1,28 @@
+# Comprehensive Backup System with ZFS Snapshot Integration
+#
+# This module provides a unified backup solution that coordinates:
+#   - Restic encrypted backups to S3-compatible storage
+#   - ZFS snapshot management via Sanoid (when enabled)
+#   - Pre/post backup hooks with ZFS hold/release coordination
+#   - Health monitoring and alerting via Prometheus
+#   - Notification dispatch for backup events
+#
+# ZFS SNAPSHOT COORDINATION:
+#   To prevent race conditions between Restic backups and Sanoid snapshot pruning,
+#   this module implements a ZFS "hold" mechanism:
+#   1. Before backup: Places holds on latest ZFS snapshots
+#   2. During backup: Snapshots are protected from pruning
+#   3. After backup: Releases holds to allow normal snapshot lifecycle
+#
+#   This ensures Restic never encounters missing snapshots mid-backup.
+#
+# INTEGRATION NOTES:
+#   - Requires modules.backup.sanoid.enable for ZFS snapshot integration
+#   - Uses notification system (modules.notifications) for event dispatch
+#   - Exports metrics to Prometheus textfile collector
+#   - Supports multiple backup repositories per job
+#   - Environment files validated before use for security
+#
 {
   config,
   lib,
@@ -94,7 +119,22 @@ with lib;
               daily = mkOption {
                 type = types.int;
                 default = 14;
-                description = "Number of daily backups to keep";
+                description = ''
+                  Number of daily backups to keep.
+
+                  RETENTION STRATEGY:
+                  The default 14-8-6-2 policy provides approximately 3 months of coverage:
+                  - Daily (14): Two weeks of granular recovery points
+                  - Weekly (8): Two months of weekly snapshots
+                  - Monthly (6): Six months of monthly archives
+                  - Yearly (2): Two years for compliance/audit
+
+                  This balances storage costs with recovery flexibility. Adjust based on:
+                  - RPO (Recovery Point Objective) requirements
+                  - Storage capacity and costs
+                  - Compliance requirements (e.g., GDPR, SOX)
+                  - Data change rate and importance
+                '';
               };
               weekly = mkOption {
                 type = types.int;
@@ -618,6 +658,16 @@ with lib;
             IOSchedulingPriority = cfg.performance.ioScheduling.priority;
             CPUSchedulingPolicy = "idle";
             CPUQuota = "50%";
+
+            # Automatic retry on transient failures (network issues, temporary I/O errors)
+            # Restart=on-failure: Retry if the service exits with non-zero status
+            # RestartSec=5m: Wait 5 minutes before retry to avoid hammering failed resources
+            # StartLimitBurst=3: Allow up to 3 restart attempts
+            # StartLimitIntervalSec=24h: Reset the attempt counter after 24 hours
+            Restart = "on-failure";
+            RestartSec = "5m";
+            StartLimitBurst = 3;
+            StartLimitIntervalSec = "24h";
           };
         }
       ) cfg.restic.jobs))
@@ -1642,6 +1692,16 @@ EOF
                       # Extract snapshot name (everything after @)
                       SNAPNAME="''${LATEST_SNAP#*@}"
 
+                      # Place a ZFS hold to prevent Sanoid from pruning this snapshot during backup
+                      HOLD_TAG="restic-${jobName}"
+                      echo "Placing ZFS hold '$HOLD_TAG' on $LATEST_SNAP"
+                      ${config.boot.zfs.package}/bin/zfs hold "$HOLD_TAG" "$LATEST_SNAP" || {
+                        echo "WARNING: Failed to place hold on $LATEST_SNAP" >&2
+                      }
+
+                      # Store snapshot name for cleanup
+                      echo "$LATEST_SNAP" >> /run/restic-backup/${jobName}-snapshots.txt
+
                       # Calculate relative path from mountpoint
                       REL=$(${pkgs.coreutils}/bin/realpath -m --relative-to="$MOUNTPOINT" "${path}")
 
@@ -1688,7 +1748,15 @@ EOF
                 fi
 
                 ${optionalString (repo.environmentFile != null) ''
-                  # Source environment file for restic credentials
+                  # Validate and source environment file for restic credentials
+                  if [ ! -f "${repo.environmentFile}" ]; then
+                    echo "ERROR: Environment file not found: ${repo.environmentFile}"
+                    exit 1
+                  fi
+                  if [ ! -r "${repo.environmentFile}" ]; then
+                    echo "ERROR: Environment file not readable: ${repo.environmentFile}"
+                    exit 1
+                  fi
                   set -a
                   . "${repo.environmentFile}"
                   set +a
@@ -1726,6 +1794,21 @@ EOF
               ''}
             '';
             backupCleanupCommand = ''
+              ${optionalString cfg.zfs.enable ''
+                # Release ZFS holds placed during backup preparation
+                HOLD_TAG="restic-${jobName}"
+                if [ -f /run/restic-backup/${jobName}-snapshots.txt ]; then
+                  while IFS= read -r snapshot; do
+                    if [ -n "$snapshot" ]; then
+                      echo "Releasing ZFS hold '$HOLD_TAG' on $snapshot"
+                      ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snapshot" 2>/dev/null || {
+                        echo "WARNING: Failed to release hold on $snapshot (may have been already released)" >&2
+                      }
+                    fi
+                  done < /run/restic-backup/${jobName}-snapshots.txt
+                  rm -f /run/restic-backup/${jobName}-snapshots.txt
+                fi
+              ''}
               ${optionalString cfg.monitoring.enable ''
                 # Log backup completion and export metrics
                 TIMESTAMP=$(${pkgs.coreutils}/bin/date --iso-8601=seconds)
@@ -1885,6 +1968,26 @@ EOF
     ] ++ (mapAttrsToList (jobName: jobConfig: {
       assertion = jobConfig.enable -> (hasAttr jobConfig.repository cfg.restic.repositories);
       message = "Backup job '${jobName}' references unknown repository '${jobConfig.repository}'";
-    }) cfg.restic.jobs);
+    }) cfg.restic.jobs) ++ (mapAttrsToList (jobName: jobConfig:
+      let
+        repo = cfg.restic.repositories.${jobConfig.repository} or {};
+      in {
+        assertion = jobConfig.enable && (repo.environmentFile != null) ->
+          (builtins.match ".*[[:space:]].*" (toString repo.environmentFile) == null);
+        message = "Backup job '${jobName}': environmentFile path '${toString repo.environmentFile}' contains whitespace which may cause parsing errors";
+      }
+    ) cfg.restic.jobs) ++ (mapAttrsToList (jobName: jobConfig: {
+      assertion = jobConfig.enable && (jobConfig.paths != []) ->
+        (builtins.all (path: builtins.match "^/.*" path != null) jobConfig.paths);
+      message = "Backup job '${jobName}': All backup paths must be absolute paths starting with /";
+    }) cfg.restic.jobs) ++ (mapAttrsToList (jobName: jobConfig:
+      let
+        repo = cfg.restic.repositories.${jobConfig.repository} or {};
+      in {
+        assertion = jobConfig.enable ->
+          (repo.passwordFile != null || repo.environmentFile != null);
+        message = "Backup job '${jobName}': Repository must have either passwordFile or environmentFile configured for authentication";
+      }
+    ) cfg.restic.jobs);
   };
 }

@@ -265,7 +265,23 @@ in
         { assertion = (cfg.rules.${r}.alertname != "");
           message = "modules.alerting.rules.${r}: 'alertname' must not be empty.";
         }
-      ) ruleNames);
+      ) ruleNames)
+      ++
+      # Check for duplicate alertnames across all rules
+      (let
+        allAlertnames = builtins.filter (a: a != "") (map (r: cfg.rules.${r}.alertname) ruleNames);
+        uniqueAlertnames = lib.unique allAlertnames;
+        hasDuplicates = (builtins.length allAlertnames) != (builtins.length uniqueAlertnames);
+        findDuplicates = names:
+          let
+            counts = lib.listToAttrs (map (name: { name = name; value = builtins.length (builtins.filter (n: n == name) names); }) (lib.unique names));
+            duplicates = builtins.filter (name: counts.${name} > 1) (builtins.attrNames counts);
+          in duplicates;
+        duplicateList = if hasDuplicates then (builtins.concatStringsSep ", " (findDuplicates allAlertnames)) else "";
+      in [{
+        assertion = !hasDuplicates;
+        message = "modules.alerting: Duplicate alertname labels found: ${duplicateList}. Each alert must have a unique alertname to avoid confusing grouping in Alertmanager.";
+      }]);
 
     # Ensure alertmanager user/group exists before SOPS tries to install secrets
     users.users.alertmanager = {

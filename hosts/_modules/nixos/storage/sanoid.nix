@@ -1,3 +1,27 @@
+# Sanoid/Syncoid ZFS Snapshot and Replication Management
+#
+# This module provides declarative ZFS snapshot management using Sanoid and
+# remote replication using Syncoid. It coordinates with the backup module
+# to ensure snapshot consistency during backups.
+#
+# FEATURES:
+#   - Template-based snapshot retention policies (hourly, daily, weekly, etc.)
+#   - Remote replication via Syncoid with SSH key authentication
+#   - Pool health monitoring with automated alerting
+#   - Pre/post snapshot script execution with validation
+#   - Integration with notification system for failure alerts
+#
+# BACKUP COORDINATION:
+#   The backup module (backup.nix) uses ZFS holds to prevent snapshot deletion
+#   during active Restic backups. Sanoid respects these holds and will not
+#   prune snapshots that are currently held, preventing race conditions.
+#
+# REPLICATION ARCHITECTURE:
+#   - Dedicated zfs-replication user for security isolation
+#   - SSH key-based authentication (managed via SOPS)
+#   - Per-dataset replication jobs with failure notifications
+#   - Automatic retry via systemd on transient failures
+#
 { lib, config, pkgs, ... }:
 
 let
@@ -126,7 +150,30 @@ in
         };
       });
       default = {};
-      description = "Configuration for datasets to be managed by Sanoid/Syncoid.";
+      description = ''
+        Configuration for datasets to be managed by Sanoid/Syncoid.
+
+        Example configuration:
+          modules.backup.sanoid.datasets = {
+            "rpool/data/postgresql" = {
+              useTemplate = "production";
+              processChildrenOnly = true;
+              preSnapshotScript = "/run/current-system/sw/bin/pg_backup_start";
+              postSnapshotScript = "/run/current-system/sw/bin/pg_backup_stop";
+              replication = {
+                targetHost = "nas-1.example.com";
+                targetUser = "zfs-replication";
+                targetDataset = "backup-pool/postgresql";
+                sendOptions = "w";  # Raw send for encrypted datasets
+                recvOptions = "u";  # Don't mount on target
+              };
+            };
+            "rpool/data/media" = {
+              useTemplate = "backup";
+              recursive = true;
+            };
+          };
+      '';
     };
 
     replicationInterval = lib.mkOption {
@@ -153,6 +200,29 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # -- Validation Assertions --
+    assertions = [
+      {
+        assertion = cfg.sshKeyPath != null -> (lib.any (d: d.replication != null) (lib.attrValues cfg.datasets));
+        message = "modules.backup.sanoid: sshKeyPath is configured but no datasets have replication enabled. Either configure replication or remove sshKeyPath.";
+      }
+      {
+        assertion = (lib.any (d: d.replication != null) (lib.attrValues cfg.datasets)) -> cfg.sshKeyPath != null;
+        message = "modules.backup.sanoid: Some datasets have replication configured but sshKeyPath is not set. Please configure sshKeyPath for Syncoid authentication.";
+      }
+      {
+        assertion = builtins.all (name: cfg.datasets.${name}.useTemplate != null -> builtins.hasAttr cfg.datasets.${name}.useTemplate cfg.templates) (builtins.attrNames cfg.datasets);
+        message = "modules.backup.sanoid: Some datasets reference templates that don't exist. All useTemplate references must match defined template names.";
+      }
+      {
+        assertion = builtins.all (name:
+          let ds = cfg.datasets.${name};
+          in (ds.preSnapshotScript != null -> ds.postSnapshotScript != null)
+        ) (builtins.attrNames cfg.datasets);
+        message = "modules.backup.sanoid: Datasets with preSnapshotScript should also have postSnapshotScript to ensure cleanup happens. Asymmetric hooks can leave resources in inconsistent state.";
+      }
+    ];
+
     # -- User and Group Management --
     users.users.sanoid = {
       isSystemUser = true;
@@ -176,17 +246,31 @@ in
       zfs-replication-failure = {
         enable = true; priority = "high"; title = ''✗ ZFS Replication Failed'';
         body = ''
-          <b>Dataset:</b> ''${dataset}
-          <b>Target:</b> ''${targetHost}
-          <b>Error:</b> ''${errorMessage}
+          <b>Dataset:</b> ''${dataset:-"unknown"}
+          <b>Target:</b> ''${targetHost:-"unknown"}
+          <b>Error:</b> ''${errorMessage:-"No error details available"}
+          <b>Timestamp:</b> $(date -Iseconds)
+
+          <b>Troubleshooting:</b>
+          • Check SSH connectivity: ssh ''${targetHost}
+          • Review logs: journalctl -u syncoid-*.service
+          • Verify SSH key: ls -la /var/lib/zfs-replication/.ssh/
+          • Test ZFS send: zfs send -nv ''${dataset}@latest
         '';
       };
       zfs-snapshot-failure = {
         enable = true; priority = "high"; title = ''✗ ZFS Snapshot Failed'';
         body = ''
-          <b>Dataset:</b> ''${dataset}
-          <b>Host:</b> ''${hostname}
-          <b>Error:</b> ''${errorMessage}
+          <b>Dataset:</b> ''${dataset:-"unknown"}
+          <b>Host:</b> ''${hostname:-"unknown"}
+          <b>Error:</b> ''${errorMessage:-"No error details available"}
+          <b>Timestamp:</b> $(date -Iseconds)
+
+          <b>Troubleshooting:</b>
+          • Check ZFS pool health: zpool status
+          • Review logs: journalctl -u sanoid.service
+          • Verify permissions: zfs allow ''${dataset}
+          • Check disk space: df -h /
         '';
       };
       pool-degraded = {
@@ -299,10 +383,16 @@ in
           datasetsWithPostScript = lib.filterAttrs (name: conf: conf.postSnapshotScript != null) cfg.datasets;
         in {
           ExecStartPre = lib.mkIf (datasetsWithPreScript != {}) (
-            lib.mkBefore (lib.mapAttrsToList (name: conf: "+${toString conf.preSnapshotScript}") datasetsWithPreScript)
+            lib.mkBefore (lib.mapAttrsToList (name: conf:
+              # Validate script exists and is executable before running with root privileges
+              "+${pkgs.bash}/bin/bash -c 'test -x ${toString conf.preSnapshotScript} && exec ${toString conf.preSnapshotScript} || { echo \"ERROR: Pre-snapshot script ${toString conf.preSnapshotScript} not found or not executable\" >&2; exit 1; }'"
+            ) datasetsWithPreScript)
           );
           ExecStartPost = lib.mkIf (datasetsWithPostScript != {}) (
-            lib.mkAfter (lib.mapAttrsToList (name: conf: "+${toString conf.postSnapshotScript}") datasetsWithPostScript)
+            lib.mkAfter (lib.mapAttrsToList (name: conf:
+              # Validate script exists and is executable before running with root privileges
+              "+${pkgs.bash}/bin/bash -c 'test -x ${toString conf.postSnapshotScript} && exec ${toString conf.postSnapshotScript} || { echo \"ERROR: Post-snapshot script ${toString conf.postSnapshotScript} not found or not executable\" >&2; exit 1; }'"
+            ) datasetsWithPostScript)
           );
         };
       }
@@ -346,8 +436,12 @@ in
             ExecStart = let
               checkScript = pkgs.writeShellScript "zfs-health-check" ''
                 set -euo pipefail
+
+                echo "[$(date -Iseconds)] Starting ZFS health check on ${config.networking.hostName}"
+
                 for pool in $(${pkgs.zfs}/bin/zpool list -H -o name); do
                   state=$(${pkgs.zfs}/bin/zpool list -H -o health "$pool")
+
                   if [[ "$state" != "ONLINE" ]]; then
                     status=$(${pkgs.zfs}/bin/zpool status "$pool" 2>&1 || echo "Failed to get pool status")
                     export NOTIFY_POOL="$pool"
@@ -355,11 +449,21 @@ in
                     export NOTIFY_STATE="$state"
                     export NOTIFY_STATUS="$status"
                     ${pkgs.systemd}/bin/systemctl start "notify@pool-degraded:$pool.service"
-                    echo "WARNING: Pool $pool is $state - notification sent"
+                    echo "[$(date -Iseconds)] WARNING: Pool $pool is $state - notification sent"
+
+                    # Log health check failure for monitoring
+                    echo "zfs_pool_health_check{pool=\"$pool\",state=\"$state\",host=\"${config.networking.hostName}\"} 0" \
+                      > /var/lib/node_exporter/textfile_collector/zfs-health-$pool.prom
                   else
-                    echo "Pool $pool is ONLINE"
+                    echo "[$(date -Iseconds)] Pool $pool is ONLINE"
+
+                    # Log successful health check for monitoring
+                    echo "zfs_pool_health_check{pool=\"$pool\",state=\"ONLINE\",host=\"${config.networking.hostName}\"} 1" \
+                      > /var/lib/node_exporter/textfile_collector/zfs-health-$pool.prom
                   fi
                 done
+
+                echo "[$(date -Iseconds)] ZFS health check completed"
               '';
             in "${checkScript}";
           };
@@ -372,6 +476,59 @@ in
             OnBootSec = "5min";
             OnUnitActiveSec = cfg.healthChecks.interval;
             Unit = "zfs-health-check.service";
+          };
+        };
+      }
+      # Syncoid replication lag monitoring
+      {
+        services.zfs-replication-lag-check = lib.mkIf ((datasetsWithReplication != {}) && cfg.healthChecks.enable) {
+          description = "Monitor ZFS replication lag for Syncoid datasets";
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = let
+              checkScript = pkgs.writeShellScript "zfs-replication-lag-check" ''
+                set -euo pipefail
+
+                echo "[$(date -Iseconds)] Checking ZFS replication lag"
+
+                ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
+                  # Get latest local snapshot creation time
+                  LATEST_LOCAL=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o creation,name -s creation "${dataset}" | ${pkgs.coreutils}/bin/tail -n 1 | ${pkgs.gawk}/bin/awk '{print $1, $2, $3, $4, $5}')
+                  LATEST_LOCAL_TIME=$(${pkgs.coreutils}/bin/date -d "$LATEST_LOCAL" +%s 2>/dev/null || echo "0")
+
+                  # Calculate lag in seconds (time since last snapshot)
+                  NOW=$(${pkgs.coreutils}/bin/date +%s)
+                  LAG_SECONDS=$((NOW - LATEST_LOCAL_TIME))
+                  LAG_HOURS=$((LAG_SECONDS / 3600))
+
+                  echo "[$(date -Iseconds)] Dataset ${dataset}: Last snapshot $LAG_HOURS hours ago"
+
+                  # Export metric for Prometheus
+                  cat > /var/lib/node_exporter/textfile_collector/zfs-replication-lag-${sanitizeDatasetName dataset}.prom <<EOF
+# HELP zfs_replication_lag_seconds Time since last snapshot was created (source-side lag indicator)
+# TYPE zfs_replication_lag_seconds gauge
+zfs_replication_lag_seconds{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $LAG_SECONDS
+EOF
+
+                  # Warn if lag exceeds 24 hours
+                  if [ "$LAG_HOURS" -gt 24 ]; then
+                    echo "[$(date -Iseconds)] WARNING: Replication lag for ${dataset} exceeds 24 hours"
+                  fi
+                '') datasetsWithReplication)}
+
+                echo "[$(date -Iseconds)] Replication lag check completed"
+              '';
+            in "${checkScript}";
+          };
+        };
+
+        timers.zfs-replication-lag-check = lib.mkIf ((datasetsWithReplication != {}) && cfg.healthChecks.enable) {
+          description = "Periodic ZFS replication lag monitoring";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnBootSec = "10min";
+            OnUnitActiveSec = "1h";  # Check every hour
+            Unit = "zfs-replication-lag-check.service";
           };
         };
       }

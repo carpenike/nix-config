@@ -215,6 +215,20 @@
         };
       };
 
+      # Local spool usage high (archive-async backlog)
+      "pgbackrest-spool-usage-high" = {
+        type = "promql";
+        alertname = "PgBackRestSpoolUsageHigh";
+        expr = ''(node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} - node_filesystem_avail_bytes{mountpoint="/var/lib/pgbackrest"}) / node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} > 0.8'';
+        for = "10m";
+        severity = "high";
+        labels = { service = "postgresql"; category = "backup"; };
+        annotations = {
+          summary = "pgBackRest spool usage high on {{ $labels.instance }}";
+          description = "Local spool >80% used ({{ $value | humanizePercentage }}). WAL archiving backlog likely. Check NFS repo1 health.";
+        };
+      };
+
       # PostgreSQL service down
       "postgresql-service-down" = {
         type = "promql";
