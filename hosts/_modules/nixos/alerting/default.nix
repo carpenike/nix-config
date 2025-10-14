@@ -297,10 +297,13 @@ in
     # Alertmanager service ordering and flags
     services.prometheus.alertmanager = {
       enable = true;
-      # Intentionally disable module-generated config to avoid --config.file duplication.
-      # configFile/configuration write into the store; we need runtime secrets.
-      configText = lib.mkForce "";
-      checkConfig = false;  # Disable build-time validation since template has placeholders
+      # Use minimal valid config to satisfy module requirements
+      # Actual config with secrets is managed by alertmanager-config.service
+      configuration = {
+        route.receiver = "dummy";
+        receivers = [{ name = "dummy"; }];
+      };
+      checkConfig = false;  # Disable build-time validation since we override config at runtime
       extraFlags = [ "--config.file=/etc/alertmanager/alertmanager.yml" ];
     };
     systemd.services.prometheus-alertmanager = {
