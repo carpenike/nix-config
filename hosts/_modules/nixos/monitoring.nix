@@ -90,5 +90,14 @@ in
     systemd.tmpfiles.rules = mkIf cfg.nodeExporter.textfileCollector.enable [
       "d ${cfg.nodeExporter.textfileCollector.directory} 2770 node-exporter node-exporter -"
     ];
+
+    # Build-time assertion to ensure node-exporter group exists
+    # This catches any future NixOS channel changes where the group name might change
+    assertions = [
+      {
+        assertion = config.users.groups ? "node-exporter";
+        message = "Expected users.groups.node-exporter to exist (Node Exporter group). This is required for textfile collector permissions.";
+      }
+    ];
   };
 }

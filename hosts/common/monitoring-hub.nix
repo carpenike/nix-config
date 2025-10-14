@@ -8,7 +8,7 @@
 #
 # NOTE: This does NOT enable Alertmanager. The alerting module should be
 # enabled and configured in the host-specific alerting.nix file.
-{ config, ... }:
+{ config, lib, ... }:
 
 {
   # Central Prometheus SERVER configuration.
@@ -18,10 +18,6 @@
     # Prometheus listens on localhost only (not exposed externally via this service).
     listenAddress = "127.0.0.1";
     port = 9090;
-
-    # External URL for Prometheus (used in alert links and UI)
-    # Can be overridden in host-specific configuration if alerting module sets it
-    webExternalUrl = config.modules.alerting.prometheus.externalUrl or null;
 
     # Explicit retention policy (multi-model consensus recommendation)
     # 15 days provides sufficient history for homelab troubleshooting, capacity trends, and dashboards
@@ -42,5 +38,8 @@
     # ruleFiles should be set in the host-specific configuration
     # to avoid circular dependencies with the alerting module.
     # See hosts/forge/monitoring.nix for an example.
+  } // lib.optionalAttrs (config.modules.alerting.prometheus.externalUrl or null != null) {
+    # Set external URL if configured (for alert links and UI)
+    webExternalUrl = config.modules.alerting.prometheus.externalUrl;
   };
 }

@@ -677,9 +677,9 @@ in
       "d /var/lib/pgbackrest/spool 0750 postgres postgres - -"
       # Create pgBackRest log directory
       "d /var/log/pgbackrest 0750 postgres postgres - -"
-      # Create metrics file and set ownership so postgres user can write to it
-      # and node-exporter group can read it.
-      "z /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
+      # Create metrics file at boot with correct ownership so postgres user can write to it
+      # and node-exporter group can read it. Type "f" creates the file if it doesn't exist.
+      "f /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
     ];
 
     # pgBackRest systemd services

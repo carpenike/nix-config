@@ -279,8 +279,6 @@ in
     # Alertmanager configuration using native *_file pattern for secrets
     services.prometheus.alertmanager = {
       enable = true;
-      # Set external URL if configured (for alert links)
-      webExternalUrl = mkIf (cfg.alertmanager.externalUrl != null) cfg.alertmanager.externalUrl;
       configuration = {
         route = {
           receiver = "pushover-medium";
@@ -374,6 +372,9 @@ in
           }];
         });
       };
+    } // lib.optionalAttrs (cfg.alertmanager.externalUrl != null) {
+      # Set external URL if configured (for alert links)
+      webExternalUrl = cfg.alertmanager.externalUrl;
     };
 
     # Override Alertmanager service to use static user instead of DynamicUser

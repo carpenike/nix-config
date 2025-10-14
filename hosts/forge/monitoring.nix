@@ -8,17 +8,22 @@
     ../common/monitoring-hub.nix
   ];
 
-  # Host-specific overrides for the node-exporter agent on 'forge'.
-  # This is kept here because the backup metrics are specific to 'forge'.
-  services.prometheus.exporters.node = {
-    # Add the textfile collector for custom backup metrics.
-    # Note: monitoring-agent.nix already enables [ "systemd" "zfs" ], so we override with all three
-    enabledCollectors = lib.mkForce [ "systemd" "textfile" "zfs" ];
-    # Specify the directory for the textfile collector.
-    extraFlags = [ "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector" ];
+  # Enable textfile collector via the monitoring module
+  # This ensures the directory is created with correct permissions (2770 node-exporter:node-exporter)
+  modules.monitoring = {
+    enable = true;
+    nodeExporter = {
+      enable = true;
+      textfileCollector.enable = true;
+    };
   };
 
-  # Note: The monitoring module creates the textfile_collector directory with correct permissions (2770 prometheus-node-exporter)
+  # Host-specific overrides for the node-exporter agent on 'forge'.
+  # Add ZFS collector since this host has ZFS pools (monitoring module adds textfile).
+  services.prometheus.exporters.node = {
+    # Note: monitoring-agent.nix enables [ "systemd" ], monitoring module adds "textfile"
+    enabledCollectors = lib.mkForce [ "systemd" "textfile" "zfs" ];
+  };
 
   # Define the scrape targets for this instance of the monitoring hub.
   # If the hub were moved to another host, this block would move with it.
