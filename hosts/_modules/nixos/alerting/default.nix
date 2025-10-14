@@ -288,6 +288,14 @@ in
       };
     };
 
+    # Override Alertmanager service to use static user instead of DynamicUser
+    # This is required for reading SOPS secrets with group=alertmanager ownership
+    systemd.services.prometheus-alertmanager = {
+      serviceConfig = {
+        DynamicUser = lib.mkForce false;
+      };
+    };
+
     # Boot and shutdown system events
     systemd.services = {
         alert-boot = {
