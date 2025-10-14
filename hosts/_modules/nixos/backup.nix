@@ -511,13 +511,9 @@ with lib;
     # Check if centralized notifications are available
     hasCentralizedNotifications = notificationsCfg.enable or false;
 
-    # Derive pools list from either new or legacy config for backward compatibility
-    # If zfs.pools is specified, use it; otherwise build from legacy pool/datasets
-    zfsPools = if cfg.zfs.pools != []
-      then cfg.zfs.pools
-      else [{ pool = cfg.zfs.pool; datasets = cfg.zfs.datasets; }];
-
     # Detect if using legacy default configuration (likely misconfigured)
+    # Note: zfsPools variable removed during Sanoid migration (2025-10-14)
+    # ZFS snapshot management is now handled by Sanoid, not this module
     zfsLegacyFallback = (cfg.zfs.pools == [])
                      && (cfg.zfs.pool == "rpool")
                      && (cfg.zfs.datasets == [""]);
@@ -607,95 +603,11 @@ with lib;
       curl
     ];
 
-    # ZFS snapshot service and Phase 3 services combined
+    # ZFS snapshots are managed by Sanoid (see hosts/_modules/nixos/storage/sanoid.nix)
+    # Restic backups use .zfs/snapshot path resolution (see backupPrepareCommand below)
+    # Legacy zfs-snapshot service removed 2025-10-14 during Sanoid migration
+
     systemd.services = mkMerge [
-      # ZFS snapshot service (simplified)
-      (mkIf cfg.zfs.enable {
-        zfs-snapshot = {
-          description = "Create ZFS snapshots for backup";
-          path = [ config.boot.zfs.package pkgs.util-linux ];
-          script = ''
-            set -euo pipefail
-
-            TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
-            SNAPSHOT_NAME="backup-$TIMESTAMP"
-
-            echo "Creating ZFS snapshots with name: $SNAPSHOT_NAME"
-
-            # Create snapshots for each configured pool/dataset
-            ${concatMapStringsSep "\n" (poolConfig:
-              concatMapStringsSep "\n" (dataset:
-                let fullPath = if dataset == "" then poolConfig.pool else "${poolConfig.pool}/${dataset}";
-                in ''
-                  echo "Creating snapshot for ${fullPath}..."
-                  ${config.boot.zfs.package}/bin/zfs snapshot ${fullPath}@$SNAPSHOT_NAME
-                ''
-              ) poolConfig.datasets
-            ) zfsPools}
-
-            # Mount snapshots with pool-scoped structure: /mnt/backup-snapshot/<pool>/<dataset>
-            # This is required for legacy mountpoints where .zfs/snapshot doesn't work
-            mkdir -p /mnt/backup-snapshot
-            ${concatMapStringsSep "\n" (poolConfig:
-              concatMapStringsSep "\n" (dataset:
-                let fullPath = if dataset == "" then poolConfig.pool else "${poolConfig.pool}/${dataset}";
-                in ''
-                  echo "Mounting snapshot ${fullPath}@''$SNAPSHOT_NAME..."
-                  MOUNT_DIR="/mnt/backup-snapshot/${poolConfig.pool}/${dataset}"
-                  mkdir -p "$MOUNT_DIR"
-                  ${pkgs.util-linux}/bin/mount -t zfs -o ro "${fullPath}@''$SNAPSHOT_NAME" "$MOUNT_DIR"
-                ''
-              ) poolConfig.datasets
-            ) zfsPools}
-
-            # Store snapshot name for backup jobs to reference
-            mkdir -p /run/zfs-backup
-            echo "$SNAPSHOT_NAME" > /run/zfs-backup/current-snapshot
-
-            echo "ZFS snapshots created and mounted: $SNAPSHOT_NAME"
-            echo "Snapshot mounts:"
-            ${pkgs.util-linux}/bin/mount | grep "$SNAPSHOT_NAME" || true
-          '';
-          postStop = ''
-            set +e  # Don't fail on cleanup errors
-
-            echo "Cleaning up ZFS snapshots..."
-
-            # Unmount all snapshot mounts in reverse order (deepest first)
-            if [ -d /mnt/backup-snapshot ]; then
-              echo "Unmounting snapshots..."
-              for mount in $(${pkgs.util-linux}/bin/mount | grep "@backup-" | ${pkgs.gawk}/bin/awk '{print $3}' | sort -r); do
-                echo "Unmounting $mount"
-                ${pkgs.util-linux}/bin/umount -f "$mount" 2>/dev/null || ${pkgs.util-linux}/bin/umount -l "$mount" 2>/dev/null || true
-              done
-
-              # Wait a moment for unmounts to settle
-              sleep 1
-            fi
-
-            # Find and destroy backup snapshots from this run only (not all @backup-* snapshots)
-            SNAPSHOT_NAME=$(cat /run/zfs-backup/current-snapshot 2>/dev/null || true)
-            if [ -n "$SNAPSHOT_NAME" ]; then
-              for snapshot in $(${config.boot.zfs.package}/bin/zfs list -H -o name -t snapshot | grep "@$SNAPSHOT_NAME$" 2>/dev/null || true); do
-                echo "Destroying snapshot: $snapshot"
-                ${config.boot.zfs.package}/bin/zfs destroy "$snapshot" || true
-              done
-            fi
-
-            # Clean up mount directories and runtime state
-            if [ -d /mnt/backup-snapshot ]; then
-              rm -rf /mnt/backup-snapshot 2>/dev/null || true
-            fi
-            rm -f /run/zfs-backup/current-snapshot
-          '';
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            User = "root";
-          };
-        };
-      })
-
       # Phase 3 services: Repository verification services
       (mkMerge (mapAttrsToList (repoName: repoConfig:
         mkIf cfg.verification.enable {
