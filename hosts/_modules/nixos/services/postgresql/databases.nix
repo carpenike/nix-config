@@ -217,7 +217,8 @@ let
     ''}
   '';
 
-  # Generate safe database creation SQL with exception handling and metadata options
+  # Generate safe database creation SQL with idempotent pre-check
+  # NOTE: CREATE DATABASE cannot run inside a transaction block, so we use \gexec instead of DO blocks
   mkDatabaseSQL = dbName: dbCfg:
     let
       owner = dbCfg.owner;
@@ -231,15 +232,18 @@ let
         (lib.optionalString (dbCfg.tablespace != null) "TABLESPACE ${quoteSqlIdentifier dbCfg.tablespace}")
       ]);
     in ''
-    -- Create database if it doesn't exist (using exception handling)
-    DO $db$
-    BEGIN
-      CREATE DATABASE ${quoteSqlIdentifier dbName} ${createParams};
-      RAISE NOTICE 'Created database: %', ${quoteSqlString dbName};
-    EXCEPTION WHEN duplicate_database THEN
-      RAISE NOTICE 'Database already exists: %', ${quoteSqlString dbName};
-    END
-    $db$;
+    -- Idempotently create database: ${dbName}
+    -- Uses \gexec to conditionally execute CREATE DATABASE based on existence check
+    -- This avoids transaction blocks which are incompatible with CREATE DATABASE
+    \echo "--> Checking/Creating database: ${dbName}"
+    SELECT 'CREATE DATABASE ${quoteSqlIdentifier dbName} ${createParams};'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = ${quoteSqlString dbName})
+    \gexec
+
+    -- Ensure owner is correct, even if database already existed
+    -- This handles cases where the database exists but with the wrong owner from a previous run
+    ALTER DATABASE ${quoteSqlIdentifier dbName} OWNER TO ${quoteSqlIdentifier owner};
+    \echo "--> Ensured owner of ${dbName} is ${owner}"
   '';
 
   # Generate database-level permission grants (backward compatible)
