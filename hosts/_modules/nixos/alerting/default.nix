@@ -300,6 +300,7 @@ in
       # Intentionally disable module-generated config to avoid --config.file duplication.
       # configFile/configuration write into the store; we need runtime secrets.
       configText = lib.mkForce "";
+      checkConfig = false;  # Disable build-time validation since template has placeholders
       extraFlags = [ "--config.file=/etc/alertmanager/alertmanager.yml" ];
     };
     systemd.services.prometheus-alertmanager = {
