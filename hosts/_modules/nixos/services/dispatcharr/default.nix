@@ -31,8 +31,8 @@ echo "🔧 Dispatcharr Entrypoint Wrapper"
 echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
 
 # Check if we're using an external PostgreSQL database
-# Detect external DB if POSTGRES_HOST is set to 127.0.0.1 (TCP) or a Unix socket path (not localhost/127.0.0.1)
-if [ "''${POSTGRES_HOST}" = "127.0.0.1" ] || ([ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]); then
+# Detect external DB if POSTGRES_HOST is set to a host address (not localhost)
+if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
   echo "✅ External PostgreSQL detected (''${POSTGRES_HOST})"
   echo "   Disabling embedded PostgreSQL initialization..."
 
@@ -389,9 +389,10 @@ in
         PGID = cfg.group;
         TZ = cfg.timezone;
         # PostgreSQL connection configuration
-        # Use TCP localhost connection to avoid Unix socket peer authentication issues
+        # Use TCP host connection to avoid Unix socket peer authentication issues
         # The container user "dispatcharr" (UID 569) doesn't exist on the host, causing peer auth to fail
-        POSTGRES_HOST = "127.0.0.1";  # TCP connection avoids peer authentication issues
+        # 127.0.0.1 inside container is container loopback, not host - use host.containers.internal instead
+        POSTGRES_HOST = "host.containers.internal";  # Podman DNS alias for host
         POSTGRES_PORT = "5432";
         POSTGRES_DB = cfg.database.name;
         POSTGRES_USER = cfg.database.user;

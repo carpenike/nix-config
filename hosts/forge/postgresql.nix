@@ -22,8 +22,9 @@
           version = "16";
           port = 5432;
 
-          # Listen only on localhost for security (services connect locally)
-          listenAddresses = "localhost";      # Memory settings (tune based on available RAM)
+          # Listen on localhost and all interfaces for container access
+          # Containers use host.containers.internal to reach the host
+          listenAddresses = "localhost,0.0.0.0";      # Memory settings (tune based on available RAM)
       sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
       effectiveCacheSize = "1GB";     # ~50% of available RAM
       maintenanceWorkMem = "128MB";
