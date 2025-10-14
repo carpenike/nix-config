@@ -269,16 +269,15 @@ in
           }
         ];
 
-    # Define SOPS secret for database password
-    # NOTE: Must be readable by both postgres (provisioning) and root (container preStart)
-    sops.secrets = lib.mkIf cfg.enable {
-      "dispatcharr/db_password" = {
-        sopsFile = ./secrets.sops.yaml;
-        mode = "0440";  # Readable by owner and group
-        owner = "root";
-        group = "postgres";  # Postgres can read for provisioning
-      };
-    };
+    # SOPS secret for database password is managed at the host level
+    # NOTE: Host must define the secret with mode 0440, owner root, group postgres
+    # Example in hosts/forge/secrets.nix:
+    #   "postgresql/dispatcharr_password" or "dispatcharr/db_password" = {
+    #     mode = "0440";
+    #     owner = "root";
+    #     group = "postgres";
+    #   };
+    # The passwordFile path is provided via cfg.database.passwordFile
 
     # Declare dataset requirements for per-service ZFS isolation
     # This integrates with the storage.datasets module to automatically

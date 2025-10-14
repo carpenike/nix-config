@@ -12,7 +12,7 @@
 # - Health monitoring and notifications
 let
   # Centralize enable flag so database provisioning is conditional
-  dispatcharrEnabled = false;  # DISABLED - needs shared PostgreSQL implementation
+  dispatcharrEnabled = true;  # ENABLED - shared PostgreSQL integration complete
 in
 {
   config = lib.mkMerge [
@@ -32,21 +32,21 @@ in
 
     # Dispatcharr container service configuration
     # IPTV stream management
-    # TODO: Re-enable dispatcharr once shared PostgreSQL instance is implemented
-    # ISSUE: Container runs multiple services as different users (postgres UID 102, dispatch UID 569)
-    #        which creates volume permission conflicts. The embedded PostgreSQL can't write to
-    #        /data/db because the volume is owned by UID 569. Need to either:
-    #        1. Use a shared PostgreSQL service instead of embedded one, OR
-    #        2. Implement proper multi-user volume permission strategy
-    # See: https://github.com/Dispatcharr/Dispatcharr for container architecture
+    # Now using shared PostgreSQL instance with proper integration
     {
       modules.services.dispatcharr = {
         enable = dispatcharrEnabled;
 
+      # Database connection configuration
+      database = {
+        passwordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
+        # Other database settings use defaults: host=localhost, port=5432, name=dispatcharr, user=dispatcharr
+      };
+
       # -- Container Image Configuration --
       # Pin to specific version for stability
       # Find releases at: https://github.com/Dispatcharr/Dispatcharr/releases
-      image = "ghcr.io/dispatcharr/dispatcharr:latest";  # TODO: Pin to specific version when stable
+      image = "ghcr.io/dispatcharr/dispatcharr:latest";  # TODO: Pin to specific version after testing
 
       # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
       healthcheck.enable = true;  # Enable container health monitoring
