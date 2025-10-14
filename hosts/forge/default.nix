@@ -65,9 +65,9 @@ in
     };
 
     # Add postgres user to restic-backup group for R2 secret access
-    # and prometheus-node-exporter group for metrics file write access
+    # and node-exporter group for metrics file write access
     # Required for pgBackRest to read AWS credentials and write Prometheus metrics
-    users.users.postgres.extraGroups = [ "restic-backup" "prometheus-node-exporter" ];
+    users.users.postgres.extraGroups = [ "restic-backup" "node-exporter" ];
 
     system.activationScripts.postActivation.text = ''
       # Must match what is in /etc/shells
@@ -678,8 +678,8 @@ in
       # Create pgBackRest log directory
       "d /var/log/pgbackrest 0750 postgres postgres - -"
       # Create metrics file and set ownership so postgres user can write to it
-      # and prometheus-node-exporter group can read it.
-      "z /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres prometheus-node-exporter - -"
+      # and node-exporter group can read it.
+      "z /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
     ];
 
     # pgBackRest systemd services
