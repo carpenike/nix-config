@@ -43,7 +43,7 @@ in
           scheme = "http";
           host = "localhost";
           port = dispatcharrPort;
-          tls.verify = true;
+          # tls.verify not applicable for http backends
         };
 
         # Structured security headers (backend-agnostic)
@@ -63,6 +63,9 @@ in
         };
 
         auth = null;  # Add authentication if needed
+
+        # NOTE: Caddy handles WebSocket proxying automatically.
+        # No explicit configuration needed in reverseProxyBlock.
       };
     })
 
@@ -77,6 +80,14 @@ in
       database = {
         passwordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
         # Other database settings use defaults: host=localhost, port=5432, name=dispatcharr, user=dispatcharr
+      };
+
+      # Reverse proxy integration
+      # CRITICAL: Required for Django to trust X-Forwarded-* headers from Caddy
+      # Without this, WebSockets and HTTPS detection will not work correctly
+      reverseProxy = {
+        enable = true;
+        hostName = "iptv.${config.networking.domain}";
       };
 
       # -- Container Image Configuration --

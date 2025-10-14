@@ -299,6 +299,15 @@ in
         '';
       };
     };
+
+    reverseProxy = {
+      enable = lib.mkEnableOption "reverse proxy integration";
+      hostName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "The FQDN used to access Dispatcharr via the reverse proxy. Required for proper CSRF and host header validation.";
+      };
+    };
   };
 
   config = lib.mkMerge [
@@ -324,6 +333,10 @@ in
         ++ (lib.optional cfg.preseed.enable {
           assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
           message = "Dispatcharr preseed.enable requires preseed.passwordFile to be set.";
+        })
+        ++ (lib.optional cfg.reverseProxy.enable {
+          assertion = cfg.reverseProxy.hostName != null;
+          message = "Dispatcharr reverseProxy.enable requires reverseProxy.hostName to be set.";
         })
         ++ [
           {
@@ -403,7 +416,15 @@ in
         CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
         # Logging
         DISPATCHARR_LOG_LEVEL = "info";
-      };
+      } // (lib.optionalAttrs cfg.reverseProxy.enable {
+        # Reverse proxy configuration for Django
+        # Tells Django to trust X-Forwarded-Host from the proxy
+        USE_X_FORWARDED_HOST = "true";
+        # Adds the public hostname to Django's allowed hosts list
+        ALLOWED_HOSTS = "localhost,127.0.0.1,${cfg.reverseProxy.hostName}";
+        # Trusts the public origin for secure (HTTPS) CSRF validation
+        CSRF_TRUSTED_ORIGINS = "https://${cfg.reverseProxy.hostName}";
+      });
       volumes = [
         # Use ':Z' for SELinux systems to ensure the container can write to the volume
         "${cfg.dataDir}:/data:rw,Z"
