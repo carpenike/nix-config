@@ -243,8 +243,8 @@ in
               token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 2;
-              title = ''{{ index .Annotations "summary" }}'';
-              message = ''{{ index .Annotations "description" }}'';
+              title = ''{{ .CommonAnnotations.summary }}'';
+              message = ''{{ .CommonAnnotations.description }}'';
             }];
           }
           {
@@ -253,8 +253,8 @@ in
               token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 1;
-              title = ''{{ index .Annotations "summary" }}'';
-              message = ''{{ index .Annotations "description" }}'';
+              title = ''{{ .CommonAnnotations.summary }}'';
+              message = ''{{ .CommonAnnotations.description }}'';
             }];
           }
           {
@@ -263,8 +263,8 @@ in
               token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 0;
-              title = ''{{ index .Annotations "summary" }}'';
-              message = ''{{ index .Annotations "description" }}'';
+              title = ''{{ .CommonAnnotations.summary }}'';
+              message = ''{{ .CommonAnnotations.description }}'';
             }];
           }
           {
@@ -273,8 +273,8 @@ in
               token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = -1;
-              title = ''{{ index .Annotations "summary" }}'';
-              message = ''{{ index .Annotations "description" }}'';
+              title = ''{{ .CommonAnnotations.summary }}'';
+              message = ''{{ .CommonAnnotations.description }}'';
             }];
           }
         ];
