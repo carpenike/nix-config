@@ -111,7 +111,8 @@ in
             };
 
             # Prometheus time-series database
-            # GPT-5 validated: 128K recordsize optimal for Prometheus 2.x append-heavy workload
+            # Multi-model consensus (GPT-5 + Gemini 2.5 Pro + Gemini 2.5 Flash): 8.7/10 confidence
+            # Verdict: Prometheus TSDB is correct tool; ZFS snapshots are excessive for disposable metrics
             prometheus = {
               recordsize = "128K";  # Aligned with Prometheus WAL segments and 2h block files
               compression = "lz4";  # Minimal overhead; TSDB chunks already compressed
@@ -120,8 +121,10 @@ in
               group = "prometheus";
               mode = "0755";
               properties = {
-                # Conservative snapshot schedule: TSDB compaction with frequent snapshots causes CoW amplification
-                "com.sun:auto-snapshot" = "true";  # Sanoid will use "services" template (48h/14d/8w/6m)
+                # Industry best practice: Do NOT snapshot Prometheus TSDB (metrics are disposable)
+                # Reasoning: 15-day retention doesn't justify 6-month snapshots; configs in Git, data replaceable
+                # CoW amplification during TSDB compaction significantly impacts performance under snapshots
+                "com.sun:auto-snapshot" = "false";  # Disable snapshots (was: true)
                 logbias = "throughput";  # Optimize for streaming writes, not low-latency sync
                 primarycache = "metadata";  # Avoid ARC pollution; Prometheus has its own caching
                 atime = "off";  # Reduce metadata writes on read-heavy query workloads
@@ -246,6 +249,18 @@ in
 
           # Explicitly disable snapshots on PostgreSQL dataset (rely on pgBackRest)
           "tank/services/postgresql" = {
+            autosnap = false;
+            autoprune = false;
+            recursive = false;
+          };
+
+          # Explicitly disable snapshots/replication on Prometheus dataset (metrics are disposable)
+          # Rationale (multi-model consensus 8.7/10 confidence):
+          # - Industry best practice: Don't backup Prometheus TSDB, only configs/dashboards
+          # - 15-day metric retention doesn't justify 6-month snapshot policy
+          # - CoW amplification during TSDB compaction degrades performance
+          # - Losing metrics on rebuild is acceptable; alerting/monitoring continues immediately
+          "tank/services/prometheus" = {
             autosnap = false;
             autoprune = false;
             recursive = false;
