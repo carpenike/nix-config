@@ -215,7 +215,7 @@ in {
     environment.etc."postgresql-preseed-info".text = ''
       PostgreSQL Pre-Seed Configuration
       ==================================
-      Environment: ${cfg.environment}
+      Environment: ${if cfg.environment != null then cfg.environment else "homelab (unspecified)"}
       Stanza: ${cfg.source.stanza}
       Repository: repo${toString cfg.source.repository}
       Backup Set: ${cfg.source.backupSet}
