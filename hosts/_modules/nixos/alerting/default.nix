@@ -89,26 +89,49 @@ let
     INSTANCE="$(hostname -f 2>/dev/null || hostname)"
 
     # Build payload using jq for safe JSON construction
-    payload="$(${pkgs.jq}/bin/jq -n \
-      --arg alertname "''${ALERTNAME}" \
-      --arg severity "''${SEVERITY}" \
-      --arg service "''${SERVICE}" \
-      --arg instance "''${INSTANCE}" \
-      --arg title "''${TITLE}" \
-      --arg body "''${BODY}" \
-      --arg unit "''${UNIT}" \
-      '[{
-        labels: {
-          alertname: $alertname,
-          severity: $severity,
-          service: $service,
-          instance: $instance
-        } + (if $unit != "" then {unit: $unit} else {} end),
-        annotations: {
-          summary: $title,
-          description: $body
-        }
-      }]')"
+    if [ -n "''${UNIT}" ]; then
+      payload="$(${pkgs.jq}/bin/jq -n \
+        --arg alertname "''${ALERTNAME}" \
+        --arg severity "''${SEVERITY}" \
+        --arg service "''${SERVICE}" \
+        --arg instance "''${INSTANCE}" \
+        --arg title "''${TITLE}" \
+        --arg body "''${BODY}" \
+        --arg unit "''${UNIT}" \
+        '[{
+          labels: {
+            alertname: $alertname,
+            severity: $severity,
+            service: $service,
+            instance: $instance,
+            unit: $unit
+          },
+          annotations: {
+            summary: $title,
+            description: $body
+          }
+        }]')"
+    else
+      payload="$(${pkgs.jq}/bin/jq -n \
+        --arg alertname "''${ALERTNAME}" \
+        --arg severity "''${SEVERITY}" \
+        --arg service "''${SERVICE}" \
+        --arg instance "''${INSTANCE}" \
+        --arg title "''${TITLE}" \
+        --arg body "''${BODY}" \
+        '[{
+          labels: {
+            alertname: $alertname,
+            severity: $severity,
+            service: $service,
+            instance: $instance
+          },
+          annotations: {
+            summary: $title,
+            description: $body
+          }
+        }]')"
+    fi
 
     attempt=0
     max_attempts=3
@@ -237,7 +260,7 @@ in
       ) ruleNames);
 
     # Render Alertmanager config with secrets at runtime
-    # Runs as root to read root-owned SOPS secrets, then chowns output to alertmanager
+    # Runs as root to read root-owned SOPS secrets, then sets proper ownership
     systemd.services.alertmanager-config = {
       description = "Render Alertmanager config with secrets";
       wantedBy = [ "multi-user.target" ];
@@ -246,15 +269,32 @@ in
       serviceConfig = {
         Type = "oneshot";
       };
-      path = [ pkgs.coreutils pkgs.gnused ];
+      path = [ pkgs.coreutils pkgs.gnused pkgs.shadow ];
       script = ''
-        install -d -m 0750 -o alertmanager -g alertmanager /etc/alertmanager
+        # Create directory with root ownership first, then chown after user is guaranteed to exist
+        install -d -m 0750 /etc/alertmanager
+
+        # Wait for alertmanager user to be created (may not exist on first activation)
+        if ! getent passwd alertmanager >/dev/null 2>&1; then
+          echo "Waiting for alertmanager user to be created..."
+          sleep 2
+        fi
+
+        # Now set ownership
+        if getent passwd alertmanager >/dev/null 2>&1 && getent group alertmanager >/dev/null 2>&1; then
+          chown alertmanager:alertmanager /etc/alertmanager
+        fi
+
         token="$(tr -d '\r\n' < ${config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path})"
         user="$(tr -d '\r\n' < ${config.sops.secrets.${cfg.receivers.pushover.userSecret}.path})"
         sed -e "s|__PUSHOVER_TOKEN__|$token|g" \
             -e "s|__PUSHOVER_USER__|$user|g" \
             ${amTmpl} > /etc/alertmanager/alertmanager.yml
-        chown alertmanager:alertmanager /etc/alertmanager/alertmanager.yml
+
+        # Set ownership if user exists
+        if getent passwd alertmanager >/dev/null 2>&1 && getent group alertmanager >/dev/null 2>&1; then
+          chown alertmanager:alertmanager /etc/alertmanager/alertmanager.yml
+        fi
         chmod 0640 /etc/alertmanager/alertmanager.yml
       '';
     };
