@@ -24,14 +24,19 @@
 
           # Listen on localhost and all interfaces for container access
           # Containers use host.containers.internal to reach the host
-          listenAddresses = "localhost,0.0.0.0";      # Memory settings (tune based on available RAM)
-      sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
+          listenAddresses = "localhost,0.0.0.0";
+
+          # Memory settings (tune based on available RAM)
+          sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
       effectiveCacheSize = "1GB";     # ~50% of available RAM
       maintenanceWorkMem = "128MB";
       workMem = "16MB";
 
       # Additional settings via extraSettings
       extraSettings = {
+        # Force listen on all interfaces for container access (overrides listenAddresses above)
+        listen_addresses = config.lib.mkForce "localhost,0.0.0.0";
+
         # WAL settings for pgBackRest PITR
         wal_level = "replica";  # Required for pgBackRest
         max_wal_size = "2GB";
