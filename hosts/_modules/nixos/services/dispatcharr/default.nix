@@ -52,16 +52,14 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ "''${POSTGRES_HOST}" != "127.0.0
   # Fix nginx.conf to specify both user and group (01-user-setup.sh creates group "dispatch" but user "$POSTGRES_USER")
   # After 01-user-setup.sh runs, it sets: user dispatcharr;
   # But the group is named "dispatch", not "dispatcharr", causing nginx to fail with getgrnam error
-  # We need to change it to: user dispatcharr dispatch;
+  # Insert fix right before nginx starts
   echo "   Fixing nginx.conf group specification..."
-  cat >> /tmp/entrypoint-modified.sh << 'NGINX_FIX'
-
-# Fix nginx.conf to use correct group name after user setup
-if grep -q "^user ''${POSTGRES_USER};$" /etc/nginx/nginx.conf 2>/dev/null; then
-  sed -i "s|^user ''${POSTGRES_USER};|user ''${POSTGRES_USER} dispatch;|" /etc/nginx/nginx.conf
-  echo "   Fixed nginx.conf to use group 'dispatch'"
-fi
-NGINX_FIX
+  sed -i '/^echo "🚀 Starting nginx\.\.\."/ i\
+# Fix nginx.conf group name\
+if grep -q "^user ''\${POSTGRES_USER};$" /etc/nginx/nginx.conf 2>/dev/null; then\
+  sed -i "s|^user ''\${POSTGRES_USER};|user ''\${POSTGRES_USER} dispatch;|" /etc/nginx/nginx.conf\
+  echo "Fixed nginx.conf to use group dispatch"\
+fi' /tmp/entrypoint-modified.sh
 
   echo "   Modified entrypoint created successfully"
 
