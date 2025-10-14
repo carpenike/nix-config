@@ -404,7 +404,9 @@ in
       extraOptions = [
         "--pull=newer"  # Automatically pull newer images
         # Override the container's entrypoint to use our wrapper that disables embedded PostgreSQL
-        "--entrypoint=/entrypoint-wrapper.sh"
+        # The entrypoint file is mounted via volume, so it's available at /entrypoint-wrapper.sh
+        "--entrypoint"
+        "/entrypoint-wrapper.sh"
         # NOTE: Don't use --user flag here! The dispatcharr container's entrypoint
         # script needs to run as root initially to set up /etc/profile.d and other
         # system files, then it drops privileges to PUID/PGID. Using --user prevents
