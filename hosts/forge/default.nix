@@ -789,6 +789,18 @@ EOF
       };
     };
 
+    # Configure Caddy to load environment file with Cloudflare API token
+    systemd.services.caddy.serviceConfig.EnvironmentFile = "/run/secrets/rendered/caddy-env";
+
+    # Create environment file from SOPS secrets
+    sops.templates."caddy-env" = {
+      content = ''
+        CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
+      '';
+      owner = config.services.caddy.user;
+      group = config.services.caddy.group;
+    };
+
     system.stateVersion = "25.05";  # Set to the version being installed (new system, never had 23.11)
   };
 }

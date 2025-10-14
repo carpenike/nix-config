@@ -62,6 +62,14 @@
           owner = "root";
           group = "postgres";
         };
+
+        # Cloudflare API token for Caddy DNS-01 ACME challenges
+        # Reusing the same token structure as Luna for consistency
+        "networking/cloudflare/ddns/apiToken" = {
+          mode = "0400";
+          owner = "caddy";
+          group = "caddy";
+        };
       };
     };
   };
