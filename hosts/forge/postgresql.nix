@@ -78,6 +78,12 @@
       databases = {};
     };
 
+    # Override native PostgreSQL settings to ensure listen_addresses is applied
+    # The custom module's listenAddresses may not be taking effect, so we force it here
+    services.postgresql.settings = {
+      listen_addresses = config.lib.mkForce "0.0.0.0";
+    };
+
     # Override authentication to allow container connections from Podman bridge
     # GPT-5 recommendation: Use password-based auth (scram-sha-256) for network connections
     services.postgresql.authentication = ''
