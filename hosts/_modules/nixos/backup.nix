@@ -516,7 +516,29 @@ with lib;
     zfsPools = if cfg.zfs.pools != []
       then cfg.zfs.pools
       else [{ pool = cfg.zfs.pool; datasets = cfg.zfs.datasets; }];
+
+    # Detect if using legacy default configuration (likely misconfigured)
+    zfsLegacyFallback = (cfg.zfs.pools == [])
+                     && (cfg.zfs.pool == "rpool")
+                     && (cfg.zfs.datasets == [""]);
   in mkIf cfg.enable {
+
+    # Operational safety warnings
+    warnings =
+      (optional (!cfg.zfs.enable && (cfg.restic.jobs == {}))
+        "modules.backup is enabled but no backup jobs are configured (both ZFS snapshots and Restic jobs are disabled)")
+      ++ (optional (cfg.zfs.enable && zfsLegacyFallback)
+        "modules.backup.zfs is enabled and using legacy defaults (pool=rpool, root dataset). If this is intended, ignore this warning. Otherwise configure modules.backup.zfs.pools for explicit datasets.")
+      ++ (optional (cfg.restic.enable && cfg.restic.jobs == {})
+        "modules.backup.restic is enabled but no backup jobs are configured");
+
+    # Create restic-backup system user and group
+    users.users.restic-backup = {
+      isSystemUser = true;
+      group = "restic-backup";
+      description = "Restic backup service user";
+    };
+    users.groups.restic-backup = {};
 
     # Register notification templates if notification system is enabled
     modules.notifications.templates = mkIf hasCentralizedNotifications {
@@ -1562,7 +1584,7 @@ EOF
             Type = "oneshot";
             User = "restic-backup";
             Group = "restic-backup";
-            SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
+            SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "prometheus-node-exporter" ];
             PrivateTmp = true;
             ProtectSystem = "strict";
             ProtectHome = true;
@@ -1600,8 +1622,8 @@ EOF
         "d ${cfg.monitoring.logDir} 0755 restic-backup restic-backup -"
       ])
       (mkIf cfg.monitoring.prometheus.enable [
-        # Directory needs to be writable by restic-backup (creates metrics) and readable by node-exporter (scrapes metrics)
-        "d ${cfg.monitoring.prometheus.metricsDir} 0775 restic-backup node-exporter -"
+        # Directory needs to be writable by restic-backup (creates metrics) and readable by prometheus-node-exporter (scrapes metrics)
+        "d ${cfg.monitoring.prometheus.metricsDir} 0775 restic-backup prometheus-node-exporter -"
       ])
       (mkIf cfg.restoreTesting.enable [
         "d ${cfg.restoreTesting.testDir} 0700 restic-backup restic-backup -"

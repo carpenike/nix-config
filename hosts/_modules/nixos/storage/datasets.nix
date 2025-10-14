@@ -153,6 +153,9 @@ in
       deps = [ "specialfs" ];
 
       text = ''
+        set -euo pipefail
+        IFS=$'\n\t'
+
         echo "=== ZFS Service Datasets Activation ==="
 
         ${lib.concatStringsSep "\n" (lib.mapAttrsToList (serviceName: serviceConfig:

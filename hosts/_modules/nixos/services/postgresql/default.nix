@@ -600,6 +600,12 @@
     lib.mkMerge [
     # PostgreSQL service implementation
     (lib.mkIf cfg.enable {
+      # Operational safety warnings
+      warnings =
+        (lib.optional (!(cfg.backup.walArchive.enable or false) && !(cfg.backup.baseBackup.enable or false))
+          "modules.services.postgresql: Both WAL archiving and base backups are disabled - no PITR capability")
+        ++ (lib.optional (cfg.databases == {})
+          "modules.services.postgresql: No databases configured - PostgreSQL is enabled but no databases will be provisioned");
       # Enable the base PostgreSQL service
       services.postgresql = {
         enable = true;
@@ -658,6 +664,11 @@
         '';
       };
 
+      # Ensure WAL archive directory exists with correct permissions
+      systemd.tmpfiles.rules = lib.optionals (cfg.backup.walArchive.enable or false) [
+        "d ${cfg.walArchiveDir} 0750 postgres postgres -"
+      ];
+
       # Extend systemd service configuration
       systemd.services.postgresql = {
         # Ensure PostgreSQL doesn't start until required directories are mounted
@@ -668,8 +679,15 @@
         # Ensure ZFS mounts are complete before starting
         after = [ "zfs-mount.service" ];
 
-        # Allow write access to WAL archive directory when PITR is enabled
-        serviceConfig.ReadWritePaths = lib.optionals (cfg.backup.walArchive.enable or false) [ cfg.walArchiveDir ];
+        # Runtime checks for WAL archive directory
+        serviceConfig = {
+          ExecStartPre = lib.optionals (cfg.backup.walArchive.enable or false) [
+            "${pkgs.coreutils}/bin/test -d '${cfg.walArchiveDir}'"
+            "${pkgs.coreutils}/bin/test -w '${cfg.walArchiveDir}'"
+          ];
+          # Allow write access to WAL archive directory when PITR is enabled
+          ReadWritePaths = lib.optionals (cfg.backup.walArchive.enable or false) [ cfg.walArchiveDir ];
+        };
       };
     })
 
