@@ -149,63 +149,6 @@ let
     exit 1
   '';
 
-  # Alertmanager config template (no secrets baked in; rendered at runtime)
-  amTmpl = pkgs.writeText "alertmanager.tmpl.yml" ''
-route:
-  receiver: 'pushover-medium'
-  group_by: ['alertname','service']
-  group_wait: 0s
-  group_interval: 1m
-  repeat_interval: 2h
-  routes:
-    - matchers:
-        - severity="critical"
-      receiver: 'pushover-critical'
-      group_wait: 0s
-      repeat_interval: 15m
-    - matchers:
-        - severity="high"
-      receiver: 'pushover-high'
-      group_wait: 0s
-      repeat_interval: 30m
-    - matchers:
-        - severity="medium"
-      receiver: 'pushover-medium'
-    - matchers:
-        - severity="low"
-      receiver: 'pushover-low'
-
-receivers:
-  - name: pushover-critical
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: 2
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  - name: pushover-high
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: 1
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  - name: pushover-medium
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: 0
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  - name: pushover-low
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: -1
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  '';
-
 in
 {
   options.modules.alerting = {
@@ -260,51 +203,82 @@ in
         }
       ) ruleNames);
 
-    # Create directory with proper ownership via tmpfiles
-    systemd.tmpfiles.rules = [
-      "d /etc/alertmanager 0750 alertmanager alertmanager -"
-    ];
-
-    # Render Alertmanager config with secrets at runtime
-    # Runs as root to read root-owned SOPS secrets
-    systemd.services.alertmanager-config = {
-      description = "Render Alertmanager config with secrets";
-      wantedBy = [ "multi-user.target" ];
-      wants = [ "network-online.target" ];
-      after = [ "network-online.target" "systemd-tmpfiles-setup.service" "sops-nix.service" ];
-      requires = [ "sops-nix.service" ];
-      serviceConfig = {
-        Type = "oneshot";
-      };
-      path = [ pkgs.coreutils pkgs.gnused ];
-      script = ''
-        # Read and validate secrets
-        token="$(tr -d '\r\n' < ${config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path})"
-        [ -n "$token" ] || { echo "Error: Pushover token is empty"; exit 1; }
-
-        user="$(tr -d '\r\n' < ${config.sops.secrets.${cfg.receivers.pushover.userSecret}.path})"
-        [ -n "$user" ] || { echo "Error: Pushover user key is empty"; exit 1; }
-
-        # Render config
-        sed -e "s|__PUSHOVER_TOKEN__|$token|g" \
-            -e "s|__PUSHOVER_USER__|$user|g" \
-            ${amTmpl} > /etc/alertmanager/alertmanager.yml
-
-        chmod 0640 /etc/alertmanager/alertmanager.yml
-      '';
-    };
-
-    # Alertmanager service ordering and flags
+    # Alertmanager configuration using native *_file pattern for secrets
     services.prometheus.alertmanager = {
       enable = true;
-      # Override config file location to use our runtime-rendered config
-      # The module requires configFile to be set, so we point it to our location
-      configFile = lib.mkForce "/etc/alertmanager/alertmanager.yml";
-      checkConfig = false;  # Disable build-time validation since config has placeholders at build time
-    };
-    systemd.services.prometheus-alertmanager = {
-      requires = [ "alertmanager-config.service" ];
-      after = [ "alertmanager-config.service" ];
+      configuration = {
+        route = {
+          receiver = "pushover-medium";
+          group_by = [ "alertname" "service" ];
+          group_wait = "0s";
+          group_interval = "1m";
+          repeat_interval = "2h";
+          routes = [
+            {
+              matchers = [ "severity=\"critical\"" ];
+              receiver = "pushover-critical";
+              group_wait = "0s";
+              repeat_interval = "15m";
+            }
+            {
+              matchers = [ "severity=\"high\"" ];
+              receiver = "pushover-high";
+              group_wait = "0s";
+              repeat_interval = "30m";
+            }
+            {
+              matchers = [ "severity=\"medium\"" ];
+              receiver = "pushover-medium";
+            }
+            {
+              matchers = [ "severity=\"low\"" ];
+              receiver = "pushover-low";
+            }
+          ];
+        };
+        receivers = [
+          {
+            name = "pushover-critical";
+            pushover_configs = [{
+              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
+              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
+              priority = 2;
+              title = ''{{ index .Annotations "summary" }}'';
+              message = ''{{ index .Annotations "description" }}'';
+            }];
+          }
+          {
+            name = "pushover-high";
+            pushover_configs = [{
+              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
+              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
+              priority = 1;
+              title = ''{{ index .Annotations "summary" }}'';
+              message = ''{{ index .Annotations "description" }}'';
+            }];
+          }
+          {
+            name = "pushover-medium";
+            pushover_configs = [{
+              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
+              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
+              priority = 0;
+              title = ''{{ index .Annotations "summary" }}'';
+              message = ''{{ index .Annotations "description" }}'';
+            }];
+          }
+          {
+            name = "pushover-low";
+            pushover_configs = [{
+              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
+              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
+              priority = -1;
+              title = ''{{ index .Annotations "summary" }}'';
+              message = ''{{ index .Annotations "description" }}'';
+            }];
+          }
+        ];
+      };
     };
 
     # Boot and shutdown system events
