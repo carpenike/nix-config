@@ -151,62 +151,60 @@ let
 
   # Alertmanager config template (no secrets baked in; rendered at runtime)
   amTmpl = pkgs.writeText "alertmanager.tmpl.yml" ''
-route:
-  receiver: 'pushover-medium'
-  group_by: ['alertname','service']
-  group_wait: 0s
-  group_interval: 1m
-  repeat_interval: 2h
-  routes:
-    - matchers:
-        - severity="critical"
-      receiver: 'pushover-critical'
-      group_wait: 0s
-      repeat_interval: 15m
-    - matchers:
-        - severity="high"
-      receiver: 'pushover-high'
-      group_wait: 0s
-      repeat_interval: 30m
-    - matchers:
-        - severity="medium"
+    route:
       receiver: 'pushover-medium'
-    - matchers:
-        - severity="low"
-      receiver: 'pushover-low'
+      group_by: ['alertname','service']
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 2h
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: 'pushover-critical'
+          group_wait: 0s
+          repeat_interval: 15m
+        - matchers:
+            - severity="high"
+          receiver: 'pushover-high'
+          group_wait: 0s
+          repeat_interval: 30m
+        - matchers:
+            - severity="medium"
+          receiver: 'pushover-medium'
+        - matchers:
+            - severity="low"
+          receiver: 'pushover-low'
 
-receivers:
-  - name: pushover-critical
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: 2
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  - name: pushover-high
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: 1
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  - name: pushover-medium
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: 0
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  - name: pushover-low
-    pushover_configs:
-      - token: "__PUSHOVER_TOKEN__"
-        user_key: "__PUSHOVER_USER__"
-        priority: -1
-        title: '{{ index .Annotations "summary" }}'
-        message: '{{ index .Annotations "description" }}'
-  '';
-
-in
+    receivers:
+      - name: pushover-critical
+        pushover_configs:
+          - token: "__PUSHOVER_TOKEN__"
+            user_key: "__PUSHOVER_USER__"
+            priority: 2
+            title: '{{ index .Annotations "summary" }}'
+            message: '{{ index .Annotations "description" }}'
+      - name: pushover-high
+        pushover_configs:
+          - token: "__PUSHOVER_TOKEN__"
+            user_key: "__PUSHOVER_USER__"
+            priority: 1
+            title: '{{ index .Annotations "summary" }}'
+            message: '{{ index .Annotations "description" }}'
+      - name: pushover-medium
+        pushover_configs:
+          - token: "__PUSHOVER_TOKEN__"
+            user_key: "__PUSHOVER_USER__"
+            priority: 0
+            title: '{{ index .Annotations "summary" }}'
+            message: '{{ index .Annotations "description" }}'
+      - name: pushover-low
+        pushover_configs:
+          - token: "__PUSHOVER_TOKEN__"
+            user_key: "__PUSHOVER_USER__"
+            priority: -1
+            title: '{{ index .Annotations "summary" }}'
+            message: '{{ index .Annotations "description" }}'
+  '';in
 {
   options.modules.alerting = {
     enable = mkOption {
