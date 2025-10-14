@@ -302,16 +302,8 @@ in
     # Alertmanager service ordering and flags
     services.prometheus.alertmanager = {
       enable = true;
-      # Placeholder config - actual config loaded from /etc/alertmanager/alertmanager.yml
-      configuration = {
-        route = {
-          receiver = "pushover-medium";
-          group_by = [ "alertname" ];
-        };
-        receivers = [
-          { name = "pushover-medium"; }
-        ];
-      };
+      # Use our runtime-rendered config file instead of NixOS-generated one
+      configText = lib.mkForce "";
       extraFlags = [ "--config.file=/etc/alertmanager/alertmanager.yml" ];
     };
     systemd.services.prometheus-alertmanager = {
