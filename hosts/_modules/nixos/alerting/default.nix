@@ -2,9 +2,37 @@
 { lib, config, pkgs, ... }:
 
 let
-  inherit (lib) mkOption types mkIf length;
+  inherit (lib) mkOption types mkIf length filterAttrs mapAttrsToList;
 
   cfg = config.modules.alerting;
+
+  # Filter for PromQL rules only
+  promqlRules = filterAttrs (_: rule: rule.type == "promql") cfg.rules;
+
+  # Generate Prometheus YAML rule file from PromQL rules
+  # This aggregates all co-located alert definitions into a single rule file
+  prometheusRuleFile = pkgs.writeText "prometheus-alert-rules.yml" (
+    lib.generators.toYAML {} {
+      groups = [{
+        name = "homelab-alerts";
+        interval = "15s";  # Match Prometheus evaluation interval
+        rules = mapAttrsToList (name: rule: {
+          alert = rule.alertname;
+          expr = rule.expr;
+          for = rule.for;
+          labels = rule.labels // {
+            severity = rule.severity;
+            alertname = rule.alertname;
+          };
+          annotations = rule.annotations // {
+            # Ensure summary and description exist for Alertmanager templates
+            summary = rule.annotations.summary or "Alert ${rule.alertname} fired";
+            description = rule.annotations.description or "Alert ${rule.alertname} requires attention";
+          };
+        }) promqlRules;
+      }];
+    }
+  );
 
   # Helper: severity enumeration
   severityEnum = types.enum [ "critical" "high" "medium" "low" ];
@@ -154,7 +182,7 @@ in
   options.modules.alerting = {
     enable = mkOption {
       type = types.bool;
-      default = true;
+      default = false;
       description = "Enable the alerting module.";
     };
 
@@ -182,13 +210,33 @@ in
       description = "Alert rules keyed by rule ID (e.g., \"sonarr-failure\").";
     };
 
+    prometheus.ruleFilePath = mkOption {
+      type = types.path;
+      readOnly = true;
+      description = "Path to the generated Prometheus alert rules file.";
+    };
+
   };
 
   config = mkIf cfg.enable {
+    # Expose the generated Prometheus rule file path
+    modules.alerting.prometheus.ruleFilePath = prometheusRuleFile;
     # Assertions for rule correctness to keep things type-safe
     assertions =
       let ruleNames = builtins.attrNames (cfg.rules or {});
       in
+      [
+        # Pushover secrets must exist when alerting is enabled
+        {
+          assertion = builtins.hasAttr cfg.receivers.pushover.tokenSecret config.sops.secrets;
+          message = "modules.alerting: Pushover token secret '${cfg.receivers.pushover.tokenSecret}' not found in sops.secrets. Either define the secret or disable alerting.";
+        }
+        {
+          assertion = builtins.hasAttr cfg.receivers.pushover.userSecret config.sops.secrets;
+          message = "modules.alerting: Pushover user secret '${cfg.receivers.pushover.userSecret}' not found in sops.secrets. Either define the secret or disable alerting.";
+        }
+      ]
+      ++
       # PromQL rules must have expr set
       (map (r:
         { assertion = (cfg.rules.${r}.type != "promql") || (cfg.rules.${r}.expr != null);

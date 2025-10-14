@@ -126,5 +126,108 @@
       # Optional: Switch to R2 if NAS is unavailable
       # source.repository = 2;
     };
+
+    # Co-located alert rules for PostgreSQL and pgBackRest
+    # These rules are automatically enabled when PostgreSQL is enabled
+    # and are aggregated by the alerting module into Prometheus rule files
+    modules.alerting.rules = {
+      # Metrics scraping failure
+      "pgbackrest-metrics-scrape-failed" = {
+        type = "promql";
+        alertname = "PgBackRestMetricsScrapeFailure";
+        expr = "pgbackrest_scrape_success == 0";
+        for = "5m";
+        severity = "high";
+        labels = { service = "postgresql"; category = "monitoring"; };
+        annotations = {
+          summary = "pgBackRest metrics collection failed on {{ $labels.instance }}";
+          description = "Unable to scrape pgBackRest metrics. Check pgbackrest-metrics.service logs.";
+        };
+      };
+
+      # Stanza unhealthy
+      "pgbackrest-stanza-unhealthy" = {
+        type = "promql";
+        alertname = "PgBackRestStanzaUnhealthy";
+        expr = "pgbackrest_stanza_status > 0";
+        for = "5m";
+        severity = "critical";
+        labels = { service = "postgresql"; category = "backup"; };
+        annotations = {
+          summary = "pgBackRest stanza unhealthy on {{ $labels.instance }}";
+          description = "Stanza status code: {{ $value }}. Check pgBackRest configuration and logs.";
+        };
+      };
+
+      # Repository status error
+      "pgbackrest-repo-error" = {
+        type = "promql";
+        alertname = "PgBackRestRepositoryError";
+        expr = "pgbackrest_repo_status > 0";
+        for = "5m";
+        severity = "critical";
+        labels = { service = "postgresql"; category = "backup"; };
+        annotations = {
+          summary = "pgBackRest repository error on {{ $labels.instance }}";
+          description = "Repository {{ $labels.repo_key }} status code: {{ $value }}. Verify NFS mount and R2 connectivity.";
+        };
+      };
+
+      # Full backup stale (>26 hours)
+      "pgbackrest-full-backup-stale" = {
+        type = "promql";
+        alertname = "PgBackRestFullBackupStale";
+        expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"}) > 93600";
+        for = "1h";
+        severity = "high";
+        labels = { service = "postgresql"; category = "backup"; };
+        annotations = {
+          summary = "pgBackRest full backup is stale (>26h) on {{ $labels.instance }}";
+          description = "Last full backup for repo {{ $labels.repo_key }} was {{ $value | humanizeDuration }} ago. Daily full backups should complete within 26 hours.";
+        };
+      };
+
+      # Incremental backup stale (>2 hours)
+      "pgbackrest-incremental-backup-stale" = {
+        type = "promql";
+        alertname = "PgBackRestIncrementalBackupStale";
+        expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"incr\"}) > 7200";
+        for = "30m";
+        severity = "high";
+        labels = { service = "postgresql"; category = "backup"; };
+        annotations = {
+          summary = "pgBackRest incremental backup is stale (>2h) on {{ $labels.instance }}";
+          description = "Last incremental backup for repo {{ $labels.repo_key }} was {{ $value | humanizeDuration }} ago. Hourly incrementals should complete within 2 hours.";
+        };
+      };
+
+      # WAL archiving stalled (no progress in 15 minutes)
+      "pgbackrest-wal-archiving-stalled" = {
+        type = "promql";
+        alertname = "PgBackRestWALArchivingStalled";
+        expr = "rate(pgbackrest_wal_max_lsn[15m]) == 0";
+        for = "15m";
+        severity = "high";
+        labels = { service = "postgresql"; category = "backup"; };
+        annotations = {
+          summary = "pgBackRest WAL archiving appears stalled on {{ $labels.instance }}";
+          description = "No WAL progress detected in 15 minutes. Check archive_command and NFS mount health.";
+        };
+      };
+
+      # PostgreSQL service down
+      "postgresql-service-down" = {
+        type = "promql";
+        alertname = "PostgreSQLServiceDown";
+        expr = "up{job=\"node\",systemd_unit=\"postgresql.service\"} == 0";
+        for = "2m";
+        severity = "critical";
+        labels = { service = "postgresql"; category = "service"; };
+        annotations = {
+          summary = "PostgreSQL service is down on {{ $labels.instance }}";
+          description = "PostgreSQL service failed or is not running. Check systemctl status postgresql.service.";
+        };
+      };
+    };
   };
 }

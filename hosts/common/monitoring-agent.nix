@@ -11,6 +11,9 @@
     openFirewall = true;
     # A sane set of default collectors for all hosts.
     # Host-specific collectors can be appended in the host's configuration.
-    enabledCollectors = [ "systemd" ];
+    enabledCollectors = [
+      "systemd"  # SystemD unit status
+      "zfs"      # ZFS pool health and metrics
+    ];
   };
 }

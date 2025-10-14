@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, lib, ... }:
 
 # Forge Backup Configuration
 #
@@ -275,6 +275,94 @@ in
 
       # Backup schedule
       schedule = "daily";
+    };
+
+    # Co-located Restic backup monitoring alerts
+    # These alerts track the health of non-database backups (system state, configs, docs)
+    modules.alerting.rules = lib.mkIf config.modules.backup.enable {
+      # Backup job failed
+      "restic-backup-failed" = {
+        type = "promql";
+        alertname = "ResticBackupFailed";
+        expr = "restic_backup_status == 0";
+        for = "5m";
+        severity = "critical";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic backup job {{ $labels.job }} failed on {{ $labels.instance }}";
+          description = "Backup to repository {{ $labels.repository }} failed. Check systemd logs: journalctl -u restic-backups-{{ $labels.job }}.service";
+        };
+      };
+
+      # Backup hasn't run in expected timeframe
+      "restic-backup-stale" = {
+        type = "promql";
+        alertname = "ResticBackupStale";
+        expr = "(time() - restic_backup_last_success_timestamp) > 86400";
+        for = "1h";
+        severity = "high";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic backup job {{ $labels.job }} is stale on {{ $labels.instance }}";
+          description = "No successful backup in 24+ hours for repository {{ $labels.repository }}. Last success: {{ $value | humanizeDuration }} ago.";
+        };
+      };
+
+      # Backup duration anomaly (significantly longer than baseline)
+      "restic-backup-slow" = {
+        type = "promql";
+        alertname = "ResticBackupSlow";
+        expr = "restic_backup_duration_seconds > (avg_over_time(restic_backup_duration_seconds[7d]) * 2)";
+        for = "30m";
+        severity = "medium";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic backup job {{ $labels.job }} is running slowly on {{ $labels.instance }}";
+          description = "Duration {{ $value | humanizeDuration }} is 2x the 7-day average. Check for performance issues.";
+        };
+      };
+
+      # High error count
+      "restic-backup-errors" = {
+        type = "promql";
+        alertname = "ResticBackupErrors";
+        expr = "backup_errors_by_severity_total{severity=\"critical\"} > 0";
+        for = "5m";
+        severity = "high";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic backup errors detected on {{ $labels.instance }}";
+          description = "{{ $value }} critical backup errors. Check logs: /var/log/backup/";
+        };
+      };
+
+      # Repository verification failed
+      "restic-verification-failed" = {
+        type = "promql";
+        alertname = "ResticVerificationFailed";
+        expr = "restic_verification_status == 0";
+        for = "5m";
+        severity = "high";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic repository verification failed for {{ $labels.repository }} on {{ $labels.instance }}";
+          description = "Repository integrity check failed. Data corruption possible. Run manual 'restic check'.";
+        };
+      };
+
+      # Restore test failed
+      "restic-restore-test-failed" = {
+        type = "promql";
+        alertname = "ResticRestoreTestFailed";
+        expr = "restic_restore_test_status == 0";
+        for = "5m";
+        severity = "medium";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic restore test failed for {{ $labels.repository }} on {{ $labels.instance }}";
+          description = "Monthly restore test failed. Backup recoverability at risk. Investigate immediately.";
+        };
+      };
     };
   };
 }

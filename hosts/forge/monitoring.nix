@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, config, ... }:
 
 {
   imports = [
@@ -23,7 +23,20 @@
   # Define the scrape targets for this instance of the monitoring hub.
   # If the hub were moved to another host, this block would move with it.
   services.prometheus = {
+    # Wire Prometheus to Alertmanager for alert delivery
+    alertmanagers = [{
+      static_configs = [{
+        targets = [ "127.0.0.1:9093" ];
+      }];
+      scheme = "http";
+    }];
+
+    # Load alert rules from the alerting module
+    # Rules are co-located with services and automatically aggregated
+    ruleFiles = [ config.modules.alerting.prometheus.ruleFilePath ];
+
     scrapeConfigs = [
+      # Node exporter (system metrics + textfile collectors)
       {
         job_name = "node";
         # List all hosts that this Prometheus instance should scrape.
@@ -34,9 +47,22 @@
           # { targets = [ "nas-1.holthome.net:9100" ]; labels = { instance = "nas-1"; }; }
         ];
       }
-    ];
 
-    # Alert rules can be added here if needed
-    # ruleFiles = [ ];
+      # Prometheus self-monitoring
+      {
+        job_name = "prometheus";
+        static_configs = [
+          { targets = [ "127.0.0.1:9090" ]; labels = { instance = "forge"; }; }
+        ];
+      }
+
+      # Alertmanager monitoring
+      {
+        job_name = "alertmanager";
+        static_configs = [
+          { targets = [ "127.0.0.1:9093" ]; labels = { instance = "forge"; }; }
+        ];
+      }
+    ];
   };
 }

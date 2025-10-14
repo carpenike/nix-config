@@ -82,6 +82,206 @@ in
         # Use default rpool/safe/persist for system-level /persist
       };
 
+      # Co-located monitoring alerts for forge
+      # Using lib.mkMerge to combine multiple alert rule sets
+      alerting.rules = lib.mkMerge [
+        # ZFS monitoring alerts (conditional on ZFS being enabled)
+        (lib.mkIf config.modules.filesystems.zfs.enable {
+        # ZFS pool health degraded
+        "zfs-pool-degraded" = {
+          type = "promql";
+          alertname = "ZFSPoolDegraded";
+          expr = "node_zfs_zpool_state{state!=\"online\"} > 0";
+          for = "5m";
+          severity = "critical";
+          labels = { service = "zfs"; category = "storage"; };
+          annotations = {
+            summary = "ZFS pool {{ $labels.zpool }} is degraded on {{ $labels.instance }}";
+            description = "Pool state: {{ $labels.state }}. Check 'zpool status {{ $labels.zpool }}' for details.";
+          };
+        };
+
+        # ZFS snapshot age violations
+        "zfs-snapshot-stale" = {
+          type = "promql";
+          alertname = "ZFSSnapshotStale";
+          expr = "(time() - zfs_snapshot_latest_timestamp) > 3600";
+          for = "30m";
+          severity = "high";
+          labels = { service = "zfs"; category = "backup"; };
+          annotations = {
+            summary = "ZFS snapshots are stale for {{ $labels.dataset }} on {{ $labels.instance }}";
+            description = "Last snapshot was {{ $value | humanizeDuration }} ago. Check sanoid service.";
+          };
+        };
+
+        # ZFS snapshot count too low
+        "zfs-snapshot-count-low" = {
+          type = "promql";
+          alertname = "ZFSSnapshotCountLow";
+          expr = "zfs_snapshot_count < 2";
+          for = "1h";
+          severity = "high";
+          labels = { service = "zfs"; category = "backup"; };
+          annotations = {
+            summary = "ZFS snapshot count is low for {{ $labels.dataset }} on {{ $labels.instance }}";
+            description = "Only {{ $value }} snapshots exist. Sanoid autosnap may be failing.";
+          };
+        };
+
+        # ZFS pool space usage high
+        "zfs-pool-space-high" = {
+          type = "promql";
+          alertname = "ZFSPoolSpaceHigh";
+          expr = "(node_zfs_zpool_used_bytes / node_zfs_zpool_size_bytes) > 0.80";
+          for = "15m";
+          severity = "high";
+          labels = { service = "zfs"; category = "storage"; };
+          annotations = {
+            summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
+            description = "Pool usage exceeds 80%. Consider expanding pool or cleaning up data.";
+          };
+        };
+
+        # ZFS pool space critical
+        "zfs-pool-space-critical" = {
+          type = "promql";
+          alertname = "ZFSPoolSpaceCritical";
+          expr = "(node_zfs_zpool_used_bytes / node_zfs_zpool_size_bytes) > 0.90";
+          for = "5m";
+          severity = "critical";
+          labels = { service = "zfs"; category = "storage"; };
+          annotations = {
+            summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
+            description = "CRITICAL: Pool usage exceeds 90%. Immediate action required to prevent write failures.";
+          };
+        };
+        })  # End ZFS alerts mkIf
+
+        # System health monitoring alerts (always enabled)
+        {
+          # Node exporter down
+          "node-exporter-down" = {
+            type = "promql";
+            alertname = "NodeExporterDown";
+            expr = "up{job=\"node\"} == 0";
+            for = "2m";
+            severity = "critical";
+            labels = { service = "system"; category = "monitoring"; };
+            annotations = {
+              summary = "Node exporter is down on {{ $labels.instance }}";
+              description = "Cannot collect system metrics. Check prometheus-node-exporter.service status.";
+            };
+          };
+
+          # Prometheus self-monitoring
+          "prometheus-down" = {
+            type = "promql";
+            alertname = "PrometheusDown";
+            expr = "up{job=\"prometheus\"} == 0";
+            for = "5m";
+            severity = "critical";
+            labels = { service = "monitoring"; category = "prometheus"; };
+            annotations = {
+              summary = "Prometheus is down on {{ $labels.instance }}";
+              description = "Monitoring system is not functioning. Check prometheus.service status.";
+            };
+          };
+
+          # Alertmanager down
+          "alertmanager-down" = {
+            type = "promql";
+            alertname = "AlertmanagerDown";
+            expr = "up{job=\"alertmanager\"} == 0";
+            for = "5m";
+            severity = "high";
+            labels = { service = "monitoring"; category = "alertmanager"; };
+            annotations = {
+              summary = "Alertmanager is down on {{ $labels.instance }}";
+              description = "Alert delivery system is not functioning. Check alertmanager.service status.";
+            };
+          };
+
+          # Disk space critical
+          "filesystem-space-critical" = {
+            type = "promql";
+            alertname = "FilesystemSpaceCritical";
+            expr = ''
+              (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes) < 0.10
+            '';
+            for = "5m";
+            severity = "critical";
+            labels = { service = "system"; category = "storage"; };
+            annotations = {
+              summary = "Filesystem {{ $labels.mountpoint }} is critically low on space on {{ $labels.instance }}";
+              description = "Only {{ $value | humanizePercentage }} available. Immediate cleanup required.";
+            };
+          };
+
+          # Disk space warning
+          "filesystem-space-low" = {
+            type = "promql";
+            alertname = "FilesystemSpaceLow";
+            expr = ''
+              (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes) < 0.20
+            '';
+            for = "15m";
+            severity = "high";
+            labels = { service = "system"; category = "storage"; };
+            annotations = {
+              summary = "Filesystem {{ $labels.mountpoint }} is low on space on {{ $labels.instance }}";
+              description = "Only {{ $value | humanizePercentage }} available. Plan cleanup or expansion.";
+            };
+          };
+
+          # High CPU load
+          "high-cpu-load" = {
+            type = "promql";
+            alertname = "HighCPULoad";
+            expr = "node_load15 > (count(node_cpu_seconds_total{mode=\"idle\"}) * 0.8)";
+            for = "15m";
+            severity = "medium";
+            labels = { service = "system"; category = "performance"; };
+            annotations = {
+              summary = "High CPU load on {{ $labels.instance }}";
+              description = "15-minute load average is {{ $value }}. Investigate resource-intensive processes.";
+            };
+          };
+
+          # High memory usage
+          "high-memory-usage" = {
+            type = "promql";
+            alertname = "HighMemoryUsage";
+            expr = ''
+              (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.90
+            '';
+            for = "10m";
+            severity = "high";
+            labels = { service = "system"; category = "performance"; };
+            annotations = {
+              summary = "High memory usage on {{ $labels.instance }}";
+              description = "Memory usage is {{ $value | humanizePercentage }}. Risk of OOM kills.";
+            };
+          };
+
+          # SystemD unit failed
+          "systemd-unit-failed" = {
+            type = "promql";
+            alertname = "SystemdUnitFailed";
+            expr = ''
+              node_systemd_unit_state{state="failed"} == 1
+            '';
+            for = "5m";
+            severity = "high";
+            labels = { service = "system"; category = "systemd"; };
+            annotations = {
+              summary = "SystemD unit {{ $labels.name }} failed on {{ $labels.instance }}";
+              description = "Service is in failed state. Check: systemctl status {{ $labels.name }}";
+            };
+          };
+        }  # End system health alerts
+      ];  # End alerting.rules mkMerge
+
       # Storage dataset management
       # forge uses the tank pool (2x NVME) for service data
       # tank/services acts as a logical parent (not mounted)
@@ -277,6 +477,9 @@ in
       };
 
       system.impermanence.enable = true;
+
+      # System health monitoring alerts are defined above in the alerting.rules mkMerge block
+      # See line ~85 for the complete alert rule definitions including system health metrics
 
       # Distributed notification system
       # Templates auto-register from service modules (backup.nix, zfs-replication.nix, etc.)
