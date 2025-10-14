@@ -24,61 +24,60 @@ let
   customEntrypoint = pkgs.writeTextFile {
     name = "dispatcharr-entrypoint-wrapper";
     executable = true;
-    text = ''
-      #!/usr/bin/env bash
-      set -euo pipefail
+    text = ''#!/usr/bin/env bash
+set -euo pipefail
 
-      echo "🔧 Dispatcharr Entrypoint Wrapper"
-    echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
+echo "🔧 Dispatcharr Entrypoint Wrapper"
+echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
 
-    # Check if we're using an external PostgreSQL database
-    if [ "''${POSTGRES_HOST}" != "localhost" ] && [ "''${POSTGRES_HOST}" != "127.0.0.1" ] && [ -n "''${POSTGRES_HOST}" ]; then
-      echo "✅ External PostgreSQL detected (''${POSTGRES_HOST})"
-      echo "   Disabling embedded PostgreSQL initialization..."
+# Check if we're using an external PostgreSQL database
+if [ "''${POSTGRES_HOST}" != "localhost" ] && [ "''${POSTGRES_HOST}" != "127.0.0.1" ] && [ -n "''${POSTGRES_HOST}" ]; then
+  echo "✅ External PostgreSQL detected (''${POSTGRES_HOST})"
+  echo "   Disabling embedded PostgreSQL initialization..."
 
-      # Create a modified entrypoint that skips PostgreSQL
-      cp /app/docker/entrypoint.sh /tmp/entrypoint-modified.sh
-      chmod +x /tmp/entrypoint-modified.sh
+  # Create a modified entrypoint that skips PostgreSQL
+  cp /app/docker/entrypoint.sh /tmp/entrypoint-modified.sh
+  chmod +x /tmp/entrypoint-modified.sh
 
-      # Comment out the PostgreSQL initialization in the init script sourcing
-      sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh\necho "⏭️  Skipping embedded PostgreSQL init (using external DB)"|g' /tmp/entrypoint-modified.sh
+  # Comment out the PostgreSQL initialization in the init script sourcing
+  sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh\necho "⏭️  Skipping embedded PostgreSQL init (using external DB)"|g' /tmp/entrypoint-modified.sh
 
-      # Comment out the PostgreSQL startup command
-      sed -i 's|^echo "Starting Postgres\.\.\."$|# DISABLED (external DB): echo "Starting Postgres..."|g' /tmp/entrypoint-modified.sh
-      sed -i 's|^su - postgres -c.*pg_ctl.*start.*$|# DISABLED (external DB): PostgreSQL startup|g' /tmp/entrypoint-modified.sh
+  # Comment out the PostgreSQL startup command
+  sed -i 's|^echo "Starting Postgres\.\.\."$|# DISABLED (external DB): echo "Starting Postgres..."|g' /tmp/entrypoint-modified.sh
+  sed -i 's|^su - postgres -c.*pg_ctl.*start.*$|# DISABLED (external DB): PostgreSQL startup|g' /tmp/entrypoint-modified.sh
 
-      # Replace the PostgreSQL readiness check with an external DB connection check
-      # The original uses pg_isready against POSTGRES_HOST/POSTGRES_PORT
-      # We replace it with a psql connection test to the external database
-      sed -i 's|^until su - postgres -c.*pg_isready.*$|# Wait for external PostgreSQL to be ready\nuntil PGPASSWORD="''${POSTGRES_PASSWORD}" psql -h "''${POSTGRES_HOST}" -U "''${POSTGRES_USER}" -d "''${POSTGRES_DB}" -c "SELECT 1" >/dev/null 2>\&1|g' /tmp/entrypoint-modified.sh
+  # Replace the PostgreSQL readiness check with an external DB connection check
+  # The original uses pg_isready against POSTGRES_HOST/POSTGRES_PORT
+  # We replace it with a psql connection test to the external database
+  sed -i 's|^until su - postgres -c.*pg_isready.*$|# Wait for external PostgreSQL to be ready\nuntil PGPASSWORD="''${POSTGRES_PASSWORD}" psql -h "''${POSTGRES_HOST}" -U "''${POSTGRES_USER}" -d "''${POSTGRES_DB}" -c "SELECT 1" >/dev/null 2>\&1|g' /tmp/entrypoint-modified.sh
 
-      # Comment out the postgres PID extraction (since we're not starting postgres)
-      sed -i 's|^postgres_pid=.*$|# DISABLED (external DB): postgres_pid tracking|g' /tmp/entrypoint-modified.sh
-      sed -i 's|^pids+=("\$postgres_pid")$|# DISABLED (external DB): pids+=("$postgres_pid")|g' /tmp/entrypoint-modified.sh
+  # Comment out the postgres PID extraction (since we're not starting postgres)
+  sed -i 's|^postgres_pid=.*$|# DISABLED (external DB): postgres_pid tracking|g' /tmp/entrypoint-modified.sh
+  sed -i 's|^pids+=("\$postgres_pid")$|# DISABLED (external DB): pids+=("$postgres_pid")|g' /tmp/entrypoint-modified.sh
 
-      # Comment out the second call to 02-postgres.sh for UTF8 encoding check
-      sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh|g' /tmp/entrypoint-modified.sh
-      sed -i 's|^ensure_utf8_encoding$|# DISABLED (external DB): ensure_utf8_encoding - assuming external DB is UTF8|g' /tmp/entrypoint-modified.sh
+  # Comment out the second call to 02-postgres.sh for UTF8 encoding check
+  sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED (external DB): . /app/docker/init/02-postgres.sh|g' /tmp/entrypoint-modified.sh
+  sed -i 's|^ensure_utf8_encoding$|# DISABLED (external DB): ensure_utf8_encoding - assuming external DB is UTF8|g' /tmp/entrypoint-modified.sh
 
-      echo "   Modified entrypoint created successfully"
+  echo "   Modified entrypoint created successfully"
 
-      # Validate the modified entrypoint syntax before executing
-      if ! bash -n /tmp/entrypoint-modified.sh; then
-        echo "❌ Syntax error in modified entrypoint script!"
-        echo "   First 50 lines of modified script:"
-        head -50 /tmp/entrypoint-modified.sh | cat -n
-        exit 1
-      fi
+  # Validate the modified entrypoint syntax before executing
+  if ! bash -n /tmp/entrypoint-modified.sh; then
+    echo "❌ Syntax error in modified entrypoint script!"
+    echo "   First 50 lines of modified script:"
+    head -50 /tmp/entrypoint-modified.sh | cat -n
+    exit 1
+  fi
 
-      # Execute the modified entrypoint
-      echo "🚀 Starting Dispatcharr with external PostgreSQL..."
-      exec /tmp/entrypoint-modified.sh "$@"
-    else
-      echo "ℹ️  Using embedded PostgreSQL (localhost)"
-      # Execute the original entrypoint
-      exec /app/docker/entrypoint.sh "$@"
-    fi
-    '';
+  # Execute the modified entrypoint
+  echo "🚀 Starting Dispatcharr with external PostgreSQL..."
+  exec /tmp/entrypoint-modified.sh "$@"
+else
+  echo "ℹ️  Using embedded PostgreSQL (localhost)"
+  # Execute the original entrypoint
+  exec /app/docker/entrypoint.sh "$@"
+fi
+'';
   };
 
   # Recursively find the replication config from the most specific dataset path upwards.
