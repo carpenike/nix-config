@@ -186,8 +186,9 @@ in {
       description = "PostgreSQL Pre-Seed Restore (New Server Provisioning)";
       wantedBy = [ "multi-user.target" ];
       before = [ "postgresql.service" ];
-      after = [ "network-online.target" ];
+      after = [ "network-online.target" "systemd-tmpfiles-setup.service" ];
       wants = [ "network-online.target" ];
+      requires = [ "systemd-tmpfiles-setup.service" ];
 
       # Only run if PGDATA doesn't contain the completion marker
       unitConfig = {
@@ -205,7 +206,12 @@ in {
         NoNewPrivileges = true;
         ProtectSystem = "strict";
         ProtectHome = true;
-        ReadWritePaths = [ pgDataPath ];
+        ReadWritePaths = [
+          pgDataPath                      # PostgreSQL data directory
+          "/var/lib/pgbackrest"           # pgBackRest working directory and spool
+          "/var/log/pgbackrest"           # pgBackRest log directory
+          "/mnt/nas-backup"               # NFS backup repository (repo1)
+        ];
 
         # Timeout: Restores can take a while for large databases
         TimeoutStartSec = "2h";
