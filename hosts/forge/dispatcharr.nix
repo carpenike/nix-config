@@ -10,9 +10,11 @@
 # - ZFS dataset for application data
 # - Backup integration via restic
 # - Health monitoring and notifications
+# - Caddy reverse proxy with automatic DNS registration
 let
   # Centralize enable flag so database provisioning is conditional
   dispatcharrEnabled = true;  # ENABLED - shared PostgreSQL integration complete
+  dispatcharrPort = 9191;
 in
 {
   config = lib.mkMerge [
@@ -27,6 +29,26 @@ in
         ownerPasswordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
         extensions = [ "btree_gin" "pg_trgm" ];
         permissionsPolicy = "owner-readwrite+readonly-select";
+      };
+    })
+
+    # Reverse proxy registration
+    (lib.mkIf dispatcharrEnabled {
+      modules.reverseProxy.virtualHosts.iptv = {
+        enable = true;
+        hostName = "iptv.${config.networking.domain}";  # iptv.holthome.net
+        proxyTo = "localhost:${toString dispatcharrPort}";
+        httpsBackend = false;
+        auth = null;  # Add authentication if needed
+        extraConfig = ''
+          # Security headers for web application
+          header {
+            X-Frame-Options "SAMEORIGIN"
+            X-Content-Type-Options "nosniff"
+            X-XSS-Protection "1; mode=block"
+            Referrer-Policy "strict-origin-when-cross-origin"
+          }
+        '';
       };
     })
 

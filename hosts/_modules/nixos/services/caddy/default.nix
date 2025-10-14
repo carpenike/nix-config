@@ -40,7 +40,13 @@ ${optionalString vhost.httpsBackend ''            transport http {
     ) vhosts);
 in
 {
-  imports = [ ./dns-records.nix ];
+  imports = [
+    ./dns-records.nix
+    # Backward compatibility: redirect old path to new registry
+    (lib.mkRenamedOptionModule
+      [ "modules" "services" "caddy" "virtualHosts" ]
+      [ "modules" "reverseProxy" "virtualHosts" ])
+  ];
 
   options.modules.services.caddy = {
     enable = mkEnableOption "Caddy web server";
@@ -54,66 +60,12 @@ in
     domain = mkOption {
       type = types.str;
       default = config.networking.domain or "holthome.net";
-      description = "Base domain for auto-generated virtual hosts";
+      description = "Base domain for auto-generated virtual hosts (deprecated - use modules.reverseProxy.domain)";
     };
 
-    # Service registration interface - other modules register their services here
-    virtualHosts = mkOption {
-      type = types.attrsOf (types.submodule ({ name, ... }: {
-        options = {
-          enable = mkEnableOption "this virtual host";
-
-          hostName = mkOption {
-            type = types.str;
-            description = "The fully qualified domain name for this virtual host";
-            example = "omada.holthome.net";
-          };
-
-          proxyTo = mkOption {
-            type = types.str;
-            description = "The backend address to proxy to";
-            example = "localhost:8043";
-          };
-
-          httpsBackend = mkOption {
-            type = types.bool;
-            default = false;
-            description = "Whether backend uses HTTPS and requires TLS skip verification";
-          };
-
-          headers = mkOption {
-            type = types.lines;
-            default = "";
-            description = "Header directives to include inside the reverse_proxy block";
-          };
-
-          auth = mkOption {
-            type = types.nullOr (types.submodule {
-              options = {
-                user = mkOption {
-                  type = types.str;
-                  description = "Username for basic authentication";
-                };
-                passwordHashEnvVar = mkOption {
-                  type = types.str;
-                  description = "Name of environment variable containing bcrypt password hash";
-                };
-              };
-            });
-            default = null;
-            description = "Optional basic authentication configuration";
-          };
-
-          extraConfig = mkOption {
-            type = types.lines;
-            default = "";
-            description = "Extra Caddyfile directives for this virtual host";
-          };
-        };
-      }));
-      default = {};
-      description = "Declarative virtual hosts registered by services";
-    };
+    # NOTE: virtualHosts option moved to modules.reverseProxy.virtualHosts
+    # See: hosts/_modules/nixos/services/reverse-proxy/registry.nix
+    # Backward compatibility provided via mkRenamedOptionModule in imports
 
     # Legacy support for manual reverse proxy configuration
     reverseProxy = mkOption {
@@ -156,11 +108,11 @@ in
         assertion = proxy.auth == null || (proxy.auth.user != "" && proxy.auth.passwordHashEnvVar != "");
         message = "Legacy reverse proxy host '${hostname}' has incomplete authentication configuration.";
       }) cfg.reverseProxy) ++
-      # Virtual hosts validation
+      # Virtual hosts validation (now from registry)
       (mapAttrsToList (hostname: vhost: {
         assertion = !vhost.enable || (vhost.auth == null || (vhost.auth.user != "" && vhost.auth.passwordHashEnvVar != ""));
         message = "Virtual host '${hostname}' has incomplete authentication configuration.";
-      }) cfg.virtualHosts);
+      }) config.modules.reverseProxy.virtualHosts);
 
     # Enable the standard NixOS Caddy service
     services.caddy = {
@@ -170,7 +122,7 @@ in
       # Generate configuration from registered virtual hosts
       # Note: DNS provider and resolvers are configured per-site in tls blocks
       extraConfig =
-        (generateVhostConfig cfg.virtualHosts) +
+        (generateVhostConfig config.modules.reverseProxy.virtualHosts) +
         # Legacy support for manual reverse proxy config
         (concatStringsSep "\n\n" (mapAttrsToList (hostname: proxy: ''
           ${hostname} {

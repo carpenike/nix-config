@@ -261,6 +261,12 @@ in
       services = {
         openssh.enable = true;
 
+        # Caddy reverse proxy
+        caddy = {
+          enable = true;
+          # Domain defaults to networking.domain (holthome.net)
+        };
+
       # Media management services
       sonarr = {
         enable = true;
