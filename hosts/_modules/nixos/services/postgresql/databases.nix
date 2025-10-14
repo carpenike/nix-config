@@ -62,16 +62,14 @@ let
     in ''"${escaped}"'';
 
   # Quote SQL string literal (for values, not identifiers)
-  # Uses dollar-quoting with unique tag to avoid conflicts and escape issues
-  # Example: quoteSqlString "O'Reilly" -> "$sql_abc123$O'Reilly$sql_abc123$"
-  # Example: quoteSqlString "a$$b" -> "$sql_def456$a$$b$sql_def456$"
+  # Uses single quotes with proper escaping for PostgreSQL
+  # Example: quoteSqlString "O'Reilly" -> "'O''Reilly'"
+  # Example: quoteSqlString "test" -> "'test'"
   quoteSqlString = str:
     let
-      # Generate a unique tag using hash to avoid collisions
-      hash = builtins.hashString "sha256" str;
-      # Take first 8 chars of hash for uniqueness
-      tag = "sql_${builtins.substring 0 8 hash}";
-    in "$${tag}$${str}$${tag}$";
+      # Escape single quotes by doubling them: O'Reilly -> O''Reilly
+      escaped = builtins.replaceStrings ["'"] ["''"] str;
+    in "'${escaped}'";
 
   # Parse schema.table pattern, handling quoted identifiers with dots
   # Returns { schema = "..."; table = "..."; }
