@@ -42,15 +42,16 @@
         };
 
         # Pushover notification credentials
+        # Alertmanager needs to read these files
         "pushover/token" = {
-          mode = "0400";
+          mode = "0440";
           owner = "root";
-          group = "root";
+          group = "alertmanager";
         };
         "pushover/user-key" = {
-          mode = "0400";
+          mode = "0440";
           owner = "root";
-          group = "root";
+          group = "alertmanager";
         };
 
         # PostgreSQL database passwords
