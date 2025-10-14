@@ -20,6 +20,7 @@
     ./backup.nix
     ./services/backup-services.nix
     ./monitoring.nix
+    ./alerting  # New Alertmanager-based alerting system
     ./notifications
     ./system-notifications.nix
     ./storage  # Import storage module (includes datasets.nix and nfs-mounts.nix)
