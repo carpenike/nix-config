@@ -65,9 +65,9 @@ in
     };
 
     # Add postgres user to restic-backup group for R2 secret access
-    # and node-exporter group for metrics file write access
+    # and prometheus-node-exporter group for metrics file write access
     # Required for pgBackRest to read AWS credentials and write Prometheus metrics
-    users.users.postgres.extraGroups = [ "restic-backup" "node-exporter" ];
+    users.users.postgres.extraGroups = [ "restic-backup" "prometheus-node-exporter" ];
 
     system.activationScripts.postActivation.text = ''
       # Must match what is in /etc/shells
@@ -199,6 +199,22 @@ in
             annotations = {
               summary = "Alertmanager is down on {{ $labels.instance }}";
               description = "Alert delivery system is not functioning. Check alertmanager.service status.";
+            };
+          };
+
+          # Dead Man's Switch / Watchdog
+          # This alert always fires to test the entire monitoring pipeline
+          # It's routed to an external service (healthchecks.io) to detect total system failure
+          "watchdog" = {
+            type = "promql";
+            alertname = "Watchdog";
+            expr = "vector(1)";
+            # No 'for' needed - should always be firing
+            severity = "critical";
+            labels = { service = "monitoring"; category = "meta"; };
+            annotations = {
+              summary = "Watchdog alert for monitoring pipeline";
+              description = "This alert is always firing to test the entire monitoring pipeline. It should be routed to an external dead man's switch service.";
             };
           };
 
@@ -657,8 +673,8 @@ in
       # Create pgBackRest log directory
       "d /var/log/pgbackrest 0750 postgres postgres - -"
       # Create metrics file and set ownership so postgres user can write to it
-      # and node-exporter group can read it.
-      "z /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
+      # and prometheus-node-exporter group can read it.
+      "z /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres prometheus-node-exporter - -"
     ];
 
     # pgBackRest systemd services
@@ -854,7 +870,7 @@ HEADER
           # Count snapshots per dataset
           for dataset in "''${DATASETS[@]}"; do
             SNAPSHOT_COUNT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name | ${pkgs.gnugrep}/bin/grep -c "^$dataset@" || echo 0)
-            echo "zfs_snapshot_count{dataset=\"$dataset\",hostname=\"forge\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
+            echo "zfs_snapshot_count{dataset=\"$dataset\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
           done
 
           # Add latest snapshot age metrics (using locale-safe Unix timestamps)
@@ -870,7 +886,7 @@ HEADER2
             if [ -n "$LATEST_SNAPSHOT" ]; then
               # Get creation time as Unix timestamp (locale-safe, uses -p for parseable output)
               LATEST_TIMESTAMP=$(${pkgs.zfs}/bin/zfs get -H -p -o value creation "$LATEST_SNAPSHOT" 2>/dev/null || echo 0)
-              echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\",hostname=\"forge\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
+              echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
             fi
           done
 
@@ -883,7 +899,7 @@ HEADER3
 
           for dataset in "''${DATASETS[@]}"; do
             TOTAL_USED=$(${pkgs.zfs}/bin/zfs list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | ${pkgs.gawk}/bin/awk '{sum+=$1} END {print sum}' || echo 0)
-            echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\",hostname=\"forge\"} $TOTAL_USED" >> "$METRICS_TEMP"
+            echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\"} $TOTAL_USED" >> "$METRICS_TEMP"
           done
 
           mv "$METRICS_TEMP" "$METRICS_FILE"
@@ -944,7 +960,7 @@ HEADER3
           cat > "$METRICS_TEMP" <<EOF
 # HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
 # TYPE pgbackrest_scrape_success gauge
-pgbackrest_scrape_success{stanza="main",hostname="forge"} 0
+pgbackrest_scrape_success{stanza="main"} 0
 EOF
           mv "$METRICS_TEMP" "$METRICS_FILE"
           exit 0 # Exit successfully so systemd timer doesn't mark as failed
@@ -972,20 +988,20 @@ EOF
 # TYPE pgbackrest_wal_max_lsn gauge
 EOF
 
-        echo 'pgbackrest_scrape_success{stanza="main",hostname="forge"} 1' >> "$METRICS_TEMP"
+        echo 'pgbackrest_scrape_success{stanza="main"} 1' >> "$METRICS_TEMP"
 
         STANZA_JSON=$(echo "$INFO_JSON" | jq '.[0]')
 
         # Stanza-level metrics
         STANZA_STATUS=$(echo "$STANZA_JSON" | jq '.status.code')
-        echo "pgbackrest_stanza_status{stanza=\"main\",hostname=\"forge\"} $STANZA_STATUS" >> "$METRICS_TEMP"
+        echo "pgbackrest_stanza_status{stanza=\"main\"} $STANZA_STATUS" >> "$METRICS_TEMP"
 
         # WAL archive metrics
         MAX_WAL=$(echo "$STANZA_JSON" | jq -r '.archive[0].max // "0"')
         if [ "$MAX_WAL" != "0" ]; then
             # Convert WAL hex (e.g., 00000001000000000000000A) to decimal for basic progress monitoring
             MAX_WAL_DEC=$((16#''${MAX_WAL:8}))
-            echo "pgbackrest_wal_max_lsn{stanza=\"main\",hostname=\"forge\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
+            echo "pgbackrest_wal_max_lsn{stanza=\"main\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
         fi
 
         # Per-repo and per-backup-type metrics
@@ -993,7 +1009,7 @@ EOF
           REPO_KEY=$(echo "$repo_json" | jq '.key')
 
           REPO_STATUS=$(echo "$repo_json" | jq '.status.code')
-          echo "pgbackrest_repo_status{stanza=\"main\",repo_key=$REPO_KEY,hostname=\"forge\"} $REPO_STATUS" >> "$METRICS_TEMP"
+          echo "pgbackrest_repo_status{stanza=\"main\",repo_key=$REPO_KEY} $REPO_STATUS" >> "$METRICS_TEMP"
 
           for backup_type in full diff incr; do
             LAST_BACKUP_JSON=$(echo "$STANZA_JSON" | jq \
@@ -1009,11 +1025,11 @@ EOF
               DELTA_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.delta')
               REPO_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.repository.size')
 
-              echo "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $LAST_COMPLETION" >> "$METRICS_TEMP"
-              echo "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DURATION" >> "$METRICS_TEMP"
-              echo "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DB_SIZE" >> "$METRICS_TEMP"
-              echo "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $DELTA_SIZE" >> "$METRICS_TEMP"
-              echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\",hostname=\"forge\"} $REPO_SIZE" >> "$METRICS_TEMP"
+              echo "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $LAST_COMPLETION" >> "$METRICS_TEMP"
+              echo "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $DURATION" >> "$METRICS_TEMP"
+              echo "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $DB_SIZE" >> "$METRICS_TEMP"
+              echo "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $DELTA_SIZE" >> "$METRICS_TEMP"
+              echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $REPO_SIZE" >> "$METRICS_TEMP"
             fi
           done
         done

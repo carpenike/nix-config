@@ -204,6 +204,12 @@ in
       description = "SOPS secret name that contains the Pushover user key.";
     };
 
+    receivers.healthchecks.urlSecret = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "SOPS secret name that contains the Healthchecks.io (or similar) webhook URL for dead man's switch.";
+    };
+
     rules = mkOption {
       type = types.attrsOf ruleSubmodule;
       default = {};
@@ -268,7 +274,17 @@ in
           group_wait = "0s";
           group_interval = "1m";
           repeat_interval = "2h";
-          routes = [
+          routes =
+            # Prepend a route for the Dead Man's Switch to ensure it's handled first
+            (lib.optional (cfg.receivers.healthchecks.urlSecret != null) {
+              matchers = [ "alertname=\"Watchdog\"" ];
+              receiver = "healthchecks-io";
+              # Do not continue to other routes
+              continue = false;
+              # Send frequently to maintain heartbeat
+              repeat_interval = "1m";
+            })
+            ++ [
             {
               matchers = [ "severity=\"critical\"" ];
               receiver = "pushover-critical";
@@ -332,7 +348,17 @@ in
               message = ''{{ .CommonAnnotations.description }}'';
             }];
           }
-        ];
+        ]
+        # Append the healthchecks receiver if configured
+        ++ (lib.optional (cfg.receivers.healthchecks.urlSecret != null) {
+          name = "healthchecks-io";
+          webhook_configs = [{
+            url_file = config.sops.secrets.${cfg.receivers.healthchecks.urlSecret}.path;
+            # Send resolved notifications to signal "OK" state, though most services
+            # infer this from the absence of alerts.
+            send_resolved = true;
+          }];
+        });
       };
     };
 
