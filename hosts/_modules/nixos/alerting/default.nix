@@ -78,6 +78,7 @@ let
   # Helper script to post an alert to Alertmanager (robust retries, no secrets in store)
   amPost = pkgs.writeShellScriptBin "am-postalert" ''
     set -euo pipefail
+    PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.nettools pkgs.curl pkgs.jq ]}"
     AM_URL="''${1:?}"          # e.g., http://127.0.0.1:9093
     ALERTNAME="''${2:?}"       # e.g., systemd_unit_failed
     SEVERITY="''${3:?}"        # e.g., high
@@ -244,17 +245,18 @@ in
       after = [ "network-online.target" ];
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = ''
-          install -d -m 0750 -o alertmanager -g alertmanager /etc/alertmanager
-          token="$(cat ${config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path})"
-          user="$(cat ${config.sops.secrets.${cfg.receivers.pushover.userSecret}.path})"
-          sed -e "s/__PUSHOVER_TOKEN__/${lib.escapeShellArg "$token"}/g" \
-              -e "s/__PUSHOVER_USER__/${lib.escapeShellArg "$user"}/g" \
-              ${amTmpl} > /etc/alertmanager/alertmanager.yml
-          chown alertmanager:alertmanager /etc/alertmanager/alertmanager.yml
-          chmod 0640 /etc/alertmanager/alertmanager.yml
-        '';
       };
+      path = [ pkgs.coreutils pkgs.gnused ];
+      script = ''
+        install -d -m 0750 -o alertmanager -g alertmanager /etc/alertmanager
+        token="$(cat ${config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path})"
+        user="$(cat ${config.sops.secrets.${cfg.receivers.pushover.userSecret}.path})"
+        sed -e "s/__PUSHOVER_TOKEN__/${lib.escapeShellArg "$token"}/g" \
+            -e "s/__PUSHOVER_USER__/${lib.escapeShellArg "$user"}/g" \
+            ${amTmpl} > /etc/alertmanager/alertmanager.yml
+        chown alertmanager:alertmanager /etc/alertmanager/alertmanager.yml
+        chmod 0640 /etc/alertmanager/alertmanager.yml
+      '';
     };
 
     # Alertmanager service ordering and flags

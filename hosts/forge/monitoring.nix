@@ -1,3 +1,5 @@
+{ lib, ... }:
+
 {
   imports = [
     # This host is a standard monitored agent.
@@ -10,8 +12,8 @@
   # This is kept here because the backup metrics are specific to 'forge'.
   services.prometheus.exporters.node = {
     # Add the textfile collector for custom backup metrics.
-    # Note: monitoring-agent.nix already enables [ "systemd" ], so we add to that
-    enabledCollectors = [ "systemd" "textfile" ];
+    # Note: monitoring-agent.nix already enables [ "systemd" ], so we override with both
+    enabledCollectors = lib.mkForce [ "systemd" "textfile" ];
     # Specify the directory for the textfile collector.
     extraFlags = [ "--collector.textfile.directory=/var/lib/node_exporter/textfile_collector" ];
   };

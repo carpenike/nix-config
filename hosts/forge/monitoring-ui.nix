@@ -79,10 +79,24 @@
     restartUnits = [ "caddy.service" ];
   };
 
-  # Pass the secret to Caddy as an environment variable
-  systemd.services.caddy.serviceConfig.EnvironmentFile = [
-    (pkgs.writeText "caddy-monitoring-auth.env" ''
-      MONITORING_BASIC_AUTH_PASSWORD=${config.sops.secrets."monitoring/basic-auth-password".path}
-    '')
-  ];
+  # Create environment file that Caddy can read
+  # This service runs before Caddy and writes the password hash to an env file
+  systemd.services.caddy-monitoring-env = {
+    description = "Prepare Caddy monitoring authentication environment";
+    before = [ "caddy.service" ];
+    wantedBy = [ "caddy.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    path = [ pkgs.coreutils ];
+    script = ''
+      mkdir -p /run/caddy
+      echo "MONITORING_BASIC_AUTH_PASSWORD=$(cat ${config.sops.secrets."monitoring/basic-auth-password".path})" > /run/caddy/monitoring-auth.env
+      chmod 600 /run/caddy/monitoring-auth.env
+    '';
+  };
+
+  # Pass the environment file to Caddy
+  systemd.services.caddy.serviceConfig.EnvironmentFile = [ "/run/caddy/monitoring-auth.env" ];
 }
