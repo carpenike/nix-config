@@ -653,21 +653,26 @@ with lib;
       # the systemd service config directly
       (mkMerge (mapAttrsToList (jobName: jobConfig:
         mkIf (jobConfig.enable && cfg.performance.ioScheduling.enable) {
-          "restic-backups-${jobName}".serviceConfig = {
-            IOSchedulingClass = cfg.performance.ioScheduling.ioClass;
-            IOSchedulingPriority = cfg.performance.ioScheduling.priority;
-            CPUSchedulingPolicy = "idle";
-            CPUQuota = "50%";
+          "restic-backups-${jobName}" = {
+            serviceConfig = {
+              IOSchedulingClass = cfg.performance.ioScheduling.ioClass;
+              IOSchedulingPriority = cfg.performance.ioScheduling.priority;
+              CPUSchedulingPolicy = "idle";
+              CPUQuota = "50%";
 
-            # Automatic retry on transient failures (network issues, temporary I/O errors)
-            # Restart=on-failure: Retry if the service exits with non-zero status
-            # RestartSec=5m: Wait 5 minutes before retry to avoid hammering failed resources
-            # StartLimitBurst=3: Allow up to 3 restart attempts
-            # StartLimitIntervalSec=24h: Reset the attempt counter after 24 hours
-            Restart = "on-failure";
-            RestartSec = "5m";
-            StartLimitBurst = 3;
-            StartLimitIntervalSec = "24h";
+              # Automatic retry on transient failures (network issues, temporary I/O errors)
+              # Restart=on-failure: Retry if the service exits with non-zero status
+              # RestartSec=5m: Wait 5 minutes before retry to avoid hammering failed resources
+              # Restart on transient failures with exponential backoff
+              Restart = "on-failure";
+              RestartSec = "5m";
+            };
+            unitConfig = {
+              # StartLimitBurst=3: Allow up to 3 restart attempts
+              # StartLimitIntervalSec=24h: Reset the attempt counter after 24 hours
+              StartLimitBurst = 3;
+              StartLimitIntervalSec = "24h";
+            };
           };
         }
       ) cfg.restic.jobs))
@@ -770,6 +775,8 @@ EOF
               Type = "oneshot";
               User = "restic-backup";
               Group = "restic-backup";
+              # Add node-exporter group to allow writing metrics
+              SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
               PrivateTmp = true;
               ProtectSystem = "strict";
               ProtectHome = true;
@@ -935,6 +942,8 @@ EOF
               Type = "oneshot";
               User = "restic-backup";
               Group = "restic-backup";
+              # Add node-exporter group to allow writing metrics
+              SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
               PrivateTmp = true;
               ProtectSystem = "strict";
               ProtectHome = true;
@@ -1693,11 +1702,19 @@ EOF
                       SNAPNAME="''${LATEST_SNAP#*@}"
 
                       # Place a ZFS hold to prevent Sanoid from pruning this snapshot during backup
+                      # CRITICAL: Make hold placement fail-fast to prevent inconsistent backups
                       HOLD_TAG="restic-${jobName}"
                       echo "Placing ZFS hold '$HOLD_TAG' on $LATEST_SNAP"
-                      ${config.boot.zfs.package}/bin/zfs hold "$HOLD_TAG" "$LATEST_SNAP" || {
-                        echo "WARNING: Failed to place hold on $LATEST_SNAP" >&2
-                      }
+                      if ! ${config.boot.zfs.package}/bin/zfs hold "$HOLD_TAG" "$LATEST_SNAP"; then
+                        echo "ERROR: Failed to place ZFS hold on $LATEST_SNAP" >&2
+                        exit 1
+                      fi
+
+                      # Verify snapshot still exists after hold (defensive against concurrent prune)
+                      if ! ${config.boot.zfs.package}/bin/zfs list -H -t snapshot "$LATEST_SNAP" >/dev/null 2>&1; then
+                        echo "ERROR: Snapshot $LATEST_SNAP disappeared before hold took effect" >&2
+                        exit 1
+                      fi
 
                       # Store snapshot name for cleanup
                       echo "$LATEST_SNAP" >> /run/restic-backup/${jobName}-snapshots.txt
@@ -1715,13 +1732,15 @@ EOF
                       echo "$SNAP_PATH" >> /run/restic-backup/${jobName}-paths.txt
                       echo "Mapped ${path} -> $SNAP_PATH (dataset: $DATASET, snapshot: $SNAPNAME)"
                     else
-                      echo "WARNING: No snapshots found for dataset $DATASET" >&2
-                      echo "WARNING: Falling back to live path (consistent backups not guaranteed)" >&2
-                      echo "${path}" >> /run/restic-backup/${jobName}-paths.txt
+                      # CRITICAL: Fail backup if snapshot is missing to avoid inconsistent backups
+                      echo "ERROR: No snapshots found for dataset $DATASET" >&2
+                      echo "ERROR: Cannot proceed with consistent backup. Check Sanoid service: systemctl status sanoid.service" >&2
+                      exit 1
                     fi
                   else
-                    # Path is not on ZFS - fall back to live path with warning
-                    echo "WARNING: Path ${path} is not on a ZFS dataset, using live path" >&2
+                    # Path is not on ZFS - this is acceptable for non-ZFS paths
+                    # (e.g., /boot, /tmp, or explicitly mounted non-ZFS filesystems)
+                    echo "INFO: Path ${path} is not on a ZFS dataset, using live path" >&2
                     echo "${path}" >> /run/restic-backup/${jobName}-paths.txt
                   fi
                 '') jobConfig.paths}

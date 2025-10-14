@@ -211,7 +211,11 @@ in
         message = "modules.backup.sanoid: Some datasets have replication configured but sshKeyPath is not set. Please configure sshKeyPath for Syncoid authentication.";
       }
       {
-        assertion = builtins.all (name: cfg.datasets.${name}.useTemplate != null -> builtins.hasAttr cfg.datasets.${name}.useTemplate cfg.templates) (builtins.attrNames cfg.datasets);
+        # Fix: useTemplate is a list, so we need to iterate over it and check each template name
+        assertion = builtins.all (name:
+          let ts = cfg.datasets.${name}.useTemplate;
+          in (ts != []) -> builtins.all (t: lib.hasAttr t cfg.templates) ts
+        ) (builtins.attrNames cfg.datasets);
         message = "modules.backup.sanoid: Some datasets reference templates that don't exist. All useTemplate references must match defined template names.";
       }
       {

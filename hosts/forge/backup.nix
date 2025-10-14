@@ -11,8 +11,8 @@
 # PostgreSQL Backup Strategy:
 # - pgBackRest repo1 (NFS): Full/diff/incr backups + continuous WAL archiving
 # - pgBackRest repo2 (R2): Full/diff/incr backups (WALs synced during backup jobs)
-# - ZFS snapshots: PostgreSQL WAL archive only (PGDATA relies on pgBackRest)
-# - ZFS replication: WAL archive to nas-1 every 15 minutes
+# - ZFS snapshots: Service data only (tank/services excluding PostgreSQL PGDATA)
+# - ZFS replication: Service data to nas-1 every 15 minutes (excludes PostgreSQL)
 #
 # This file manages Restic backups for non-database services:
 # - System state (/home, /persist)
@@ -46,14 +46,8 @@ let
 in
 {
   config = {
-    # Create restic-backup user and group
-    users.users.restic-backup = {
-      isSystemUser = true;
-      group = "restic-backup";
-      description = "Restic backup service user";
-    };
-
-    users.groups.restic-backup = {};
+    # Note: restic-backup user/group created by backup module
+    # (hosts/_modules/nixos/backup.nix - no need to duplicate here)
 
     # Mount NFS shares from nas-1 for backups
     # Hardened for pgBackRest WAL archiving reliability
@@ -63,7 +57,6 @@ in
       options = [
         "nfsvers=4.2"
         "hard"              # Retry indefinitely on timeout (don't fail)
-        "intr"              # Allow interrupts (can kill hung processes)
         "timeo=600"         # 60-second timeout (10× default of 6s)
         "retrans=3"         # Retry 3 times before reporting error
         "_netdev"           # Wait for network before mounting
@@ -71,6 +64,7 @@ in
         "noatime"
         "x-systemd.automount"
         # REMOVED: x-systemd.idle-timeout - Don't auto-unmount (pgBackRest needs stable mount)
+        # REMOVED: "intr" - Deprecated and ignored in NFSv4
         "x-systemd.mount-timeout=30s"
       ];
     };
@@ -364,19 +358,8 @@ in
         };
       };
 
-      # ZFS pool health degraded
-      "zfs-pool-degraded" = {
-        type = "promql";
-        alertname = "ZFSPoolDegraded";
-        expr = "zfs_pool_health_check == 0";
-        for = "1m";
-        severity = "critical";
-        labels = { service = "storage"; category = "zfs"; };
-        annotations = {
-          summary = "ZFS pool {{ $labels.pool }} is degraded on {{ $labels.host }}";
-          description = "Pool state: {{ $labels.state }}. Immediate attention required. Check: zpool status {{ $labels.pool }}";
-        };
-      };
+      # Note: ZFS pool health alert is defined in default.nix using standard node_exporter metrics
+      # (zfs-pool-degraded alert removed to avoid duplication)
 
       # ZFS replication lag excessive
       "zfs-replication-lag-high" = {
