@@ -83,8 +83,12 @@ in
       };
 
       # Co-located monitoring alerts for forge
-      # Using lib.mkMerge to combine multiple alert rule sets
-      alerting.rules = lib.mkMerge [
+      alerting = {
+        # Enable dead man's switch via Healthchecks.io
+        receivers.healthchecks.urlSecret = "monitoring/healthchecks-url";
+
+        # Using lib.mkMerge to combine multiple alert rule sets
+        rules = lib.mkMerge [
         # ZFS monitoring alerts (conditional on ZFS being enabled)
         (lib.mkIf config.modules.filesystems.zfs.enable {
         # ZFS pool health degraded
@@ -296,7 +300,8 @@ in
             };
           };
         }  # End system health alerts
-      ];  # End alerting.rules mkMerge
+        ];  # End alerting.rules mkMerge
+      };  # End alerting block
 
       # Storage dataset management
       # forge uses the tank pool (2x NVME) for service data

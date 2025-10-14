@@ -54,6 +54,13 @@
           group = "alertmanager";
         };
 
+        # Healthchecks.io webhook URL for dead man's switch
+        "monitoring/healthchecks-url" = {
+          mode = "0440";
+          owner = "root";
+          group = "alertmanager";
+        };
+
         # PostgreSQL database passwords
         # Group-readable so postgresql-provision-databases.service (runs as postgres user)
         # can hash the file for change detection. PostgreSQL server reads via pg_read_file()
