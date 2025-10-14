@@ -1013,8 +1013,8 @@ EOF
               ''}
 
               ${optionalString cfg.monitoring.prometheus.enable ''
-                # Export failure metrics
-                METRICS_FILE="${cfg.monitoring.prometheus.metricsDir}/restic_backup_${jobName}_failure.prom"
+                # Export failure metrics to the same file as success (avoids duplicate series)
+                METRICS_FILE="${cfg.monitoring.prometheus.metricsDir}/restic_backup_${jobName}.prom"
                 METRICS_TEMP="$METRICS_FILE.tmp"
                 TIMESTAMP_UNIX=$(date +%s)
 
