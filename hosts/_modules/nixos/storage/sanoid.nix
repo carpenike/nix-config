@@ -264,6 +264,25 @@ in
           '';
         };
       }
+      # Ensure snapdir is visible for Sanoid-managed datasets
+      {
+        services.zfs-set-snapdir-visible = {
+          description = "Ensure ZFS snapdir is visible for Sanoid datasets";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "zfs-import.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          script = ''
+            echo "Setting snapdir=visible for Sanoid datasets..."
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: _: ''
+              ${pkgs.zfs}/bin/zfs set snapdir=visible ${lib.escapeShellArg dataset}
+            '') cfg.datasets)}
+            echo "snapdir visibility configured successfully."
+          '';
+        };
+      }
       # Use a static user for sanoid to allow pre-boot permission delegation
       {
         services.sanoid.serviceConfig = {

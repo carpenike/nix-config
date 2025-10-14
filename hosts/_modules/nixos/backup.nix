@@ -1694,22 +1694,13 @@ EOF
                 ${pkgs.coreutils}/bin/date +%s > /run/restic-backups-${jobName}/start-time
               ''}
               ${optionalString cfg.zfs.enable ''
-                # Create ZFS snapshots for consistent backup
-                ${pkgs.systemd}/bin/systemctl start zfs-snapshot.service
-
-                # Read the snapshot name that was just created
-                SNAPSHOT_NAME=$(${pkgs.coreutils}/bin/cat /run/zfs-backup/current-snapshot)
-                echo "Created ZFS snapshots: $SNAPSHOT_NAME"
-
-                # Create paths file with dynamically discovered snapshot mount locations
+                # Resolve paths to Sanoid snapshots via .zfs/snapshot
                 ${pkgs.coreutils}/bin/mkdir -p /run/restic-backup
                 : > /run/restic-backup/${jobName}-paths.txt  # Truncate file
 
-                # Dynamically map each backup path to its ZFS dataset snapshot
-                # This replaces the hardcoded mapping with runtime dataset discovery
+                # Dynamically map each backup path to its latest Sanoid snapshot
                 ${concatMapStringsSep "\n" (path: ''
                   # Discover the ZFS dataset for this path using longest-prefix match
-                  # This correctly handles subdirectories (e.g., /var/lib/postgresql/16 -> dataset mounted at /var/lib/postgresql)
                   DATASET=$(${config.boot.zfs.package}/bin/zfs list -H -o name,mountpoint -t filesystem | ${pkgs.gawk}/bin/awk -v p="${path}" '
                     {
                       mp=$2
@@ -1723,25 +1714,45 @@ EOF
                   ')
 
                   if [ -n "$DATASET" ]; then
-                    # Extract pool and dataset suffix from the full dataset path
-                    POOL="''${DATASET%%/*}"
-                    DATASET_SUFFIX="''${DATASET#*/}"
+                    # Get the dataset mountpoint
+                    MOUNTPOINT=$(${config.boot.zfs.package}/bin/zfs list -H -o mountpoint "$DATASET")
 
-                    # Build the snapshot mount path: /mnt/backup-snapshot/<pool>/<dataset>
-                    # Handle root datasets (where DATASET_SUFFIX equals POOL)
-                    if [ -z "$DATASET_SUFFIX" ] || [ "$DATASET_SUFFIX" = "$POOL" ]; then
-                      SNAP_PATH="/mnt/backup-snapshot/$POOL"
+                    # Find the latest Sanoid snapshot for this dataset
+                    LATEST_SNAP=$(${config.boot.zfs.package}/bin/zfs list -H -t snapshot -o name -s creation "$DATASET" | ${pkgs.coreutils}/bin/tail -n 1)
+
+                    if [ -n "$LATEST_SNAP" ]; then
+                      # Extract snapshot name (everything after @)
+                      SNAPNAME="''${LATEST_SNAP#*@}"
+
+                      # Calculate relative path from mountpoint
+                      REL=$(${pkgs.coreutils}/bin/realpath -m --relative-to="$MOUNTPOINT" "${path}")
+
+                      # Build snapshot path: mountpoint/.zfs/snapshot/snapname/relative-path
+                      if [ "$REL" = "." ]; then
+                        SNAP_PATH="$MOUNTPOINT/.zfs/snapshot/$SNAPNAME"
+                      else
+                        SNAP_PATH="$MOUNTPOINT/.zfs/snapshot/$SNAPNAME/$REL"
+                      fi
+
+                      echo "$SNAP_PATH" >> /run/restic-backup/${jobName}-paths.txt
+                      echo "Mapped ${path} -> $SNAP_PATH (dataset: $DATASET, snapshot: $SNAPNAME)"
                     else
-                      SNAP_PATH="/mnt/backup-snapshot/$POOL/$DATASET_SUFFIX"
+                      echo "ERROR: No snapshots found for dataset $DATASET" >&2
+                      echo "ERROR: Ensure Sanoid is creating snapshots for this dataset" >&2
+                      exit 1
                     fi
-                    echo "$SNAP_PATH" >> /run/restic-backup/${jobName}-paths.txt
-                    echo "Mapped ${path} -> $SNAP_PATH (dataset: $DATASET)"
                   else
                     # Path is not on ZFS - fall back to live path with warning
                     echo "WARNING: Path ${path} is not on a ZFS dataset, using live path" >&2
                     echo "${path}" >> /run/restic-backup/${jobName}-paths.txt
                   fi
                 '') jobConfig.paths}
+
+                # Validate that paths file is not empty
+                if ! [ -s /run/restic-backup/${jobName}-paths.txt ]; then
+                  echo "ERROR: No paths resolved for job ${jobName}" >&2
+                  exit 1
+                fi
 
                 echo "Backup will use snapshot paths:"
                 ${pkgs.coreutils}/bin/cat /run/restic-backup/${jobName}-paths.txt
@@ -1797,9 +1808,6 @@ EOF
               ''}
             '';
             backupCleanupCommand = ''
-              ${optionalString cfg.zfs.enable ''
-                ${pkgs.systemd}/bin/systemctl stop zfs-snapshot.service
-              ''}
               ${optionalString cfg.monitoring.enable ''
                 # Log backup completion and export metrics
                 TIMESTAMP=$(${pkgs.coreutils}/bin/date --iso-8601=seconds)

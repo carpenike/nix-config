@@ -365,6 +365,7 @@ in
       compression = "lz4";  # Fast compression suitable for database workloads
       properties = {
         "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
+        snapdir = "visible";  # Make .zfs/snapshot accessible for backups
       };
       # Ownership matches the container user/group
       owner = "dispatcharr";

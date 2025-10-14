@@ -261,6 +261,7 @@ in
       compression = "zstd";  # Better compression for text/config files
       properties = {
         "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
+        snapdir = "visible";  # Make .zfs/snapshot accessible for backups
       };
       # Ownership matches the container user/group
       owner = "sonarr";

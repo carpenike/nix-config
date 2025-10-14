@@ -17,7 +17,6 @@
       user ? "restic-backup",
       group ? "restic-backup",
       environmentFile ? "/run/secrets/restic-${name}.env",
-      useZfsSnapshot ? true,
       readConcurrency ? 2,
       compression ? "auto",
       ...
@@ -27,8 +26,7 @@
           description = "Restic backup for ${name}";
           wants = [ "backup.target" ];
           wantedBy = [ "backup.target" ];  # Fix: Actually start when backup.target is started
-          after = [ "network-online.target" ] ++ lib.optional useZfsSnapshot "zfs-snapshot.service";
-          requires = lib.optional useZfsSnapshot "zfs-snapshot.service";  # Fix: Make ZFS dependency conditional
+          after = [ "network-online.target" ];
 
           serviceConfig = {
             Type = "oneshot";
@@ -96,97 +94,6 @@
           onFailure = [ "backup-notify-failure@${name}.service" ];
         };
       };
-
-    # Create ZFS snapshot with proper naming and retention
-    mkZfsSnapshot = {
-      pool,
-      datasets ? [""],
-      retention ? {
-        daily = 7;
-        weekly = 4;
-        monthly = 3;
-      },
-      ...
-    }: {
-      systemd.services.zfs-snapshot = {
-        description = "Create ZFS snapshots for backup";
-        before = [ "backup.target" ];
-        wants = [ "pre-backup-tasks.target" ];
-
-        serviceConfig = {
-          Type = "oneshot";
-          User = "root";
-          Group = "root";
-        };
-
-        script = let
-          timestamp = "$(date +%Y-%m-%d_%H-%M-%S)";
-          snapshotName = "backup-${timestamp}";
-        in ''
-          set -euo pipefail
-
-          echo "Creating ZFS snapshots..."
-
-          # Create snapshots for each dataset
-          ${lib.concatMapStringsSep "\n" (dataset:
-            let fullPath = if dataset == "" then pool else "${pool}/${dataset}";
-            in ''
-              echo "Snapshotting ${fullPath}..."
-              ${pkgs.zfs}/bin/zfs snapshot ${fullPath}@${snapshotName}
-            ''
-          ) datasets}
-
-          # Mount latest snapshot for backup access
-          mkdir -p /mnt/backup-snapshot
-          ${pkgs.zfs}/bin/zfs clone ${pool}@${snapshotName} ${pool}/backup-temp
-          ${pkgs.util-linux}/bin/mount -t zfs ${pool}/backup-temp /mnt/backup-snapshot
-
-          echo "ZFS snapshots created and mounted at /mnt/backup-snapshot"
-        '';
-      };
-
-      # Cleanup old snapshots based on retention policy
-      systemd.services.zfs-snapshot-cleanup = {
-        description = "Clean up old ZFS backup snapshots";
-        after = [ "backup.target" ];
-        wants = [ "post-backup-tasks.target" ];
-
-        serviceConfig = {
-          Type = "oneshot";
-          User = "root";
-          Group = "root";
-        };
-
-        script = ''
-          set -euo pipefail
-
-          echo "Cleaning up old snapshots..."
-
-          # Unmount and destroy temporary clone
-          if mountpoint -q /mnt/backup-snapshot; then
-            ${pkgs.util-linux}/bin/umount /mnt/backup-snapshot
-          fi
-
-          if ${pkgs.zfs}/bin/zfs list ${pool}/backup-temp &>/dev/null; then
-            ${pkgs.zfs}/bin/zfs destroy ${pool}/backup-temp
-          fi
-
-          # Clean up old backup snapshots based on retention policy
-          ${lib.concatMapStringsSep "\n" (dataset:
-            let fullPath = if dataset == "" then pool else "${pool}/${dataset}";
-            in ''
-              # Keep daily snapshots for ${toString retention.daily} days
-              ${pkgs.zfs}/bin/zfs list -H -o name -t snapshot ${fullPath} | \
-                grep '@backup-' | sort -r | tail -n +$((${toString retention.daily} + 1)) | \
-                head -n -${toString (retention.weekly + retention.monthly)} | \
-                xargs -r -n1 ${pkgs.zfs}/bin/zfs destroy
-            ''
-          ) datasets}
-
-          echo "Snapshot cleanup completed"
-        '';
-      };
-    };
 
     # Create monitoring notifications
     mkBackupMonitoring = {
