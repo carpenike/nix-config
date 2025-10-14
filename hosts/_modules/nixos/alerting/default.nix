@@ -290,7 +290,7 @@ in
 
     # Override Alertmanager service to use static user instead of DynamicUser
     # This is required for reading SOPS secrets with group=alertmanager ownership
-    systemd.services.prometheus-alertmanager = {
+    systemd.services.alertmanager = {
       serviceConfig = {
         DynamicUser = lib.mkForce false;
       };
