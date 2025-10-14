@@ -219,13 +219,13 @@
       "postgresql-service-down" = {
         type = "promql";
         alertname = "PostgreSQLServiceDown";
-        expr = "up{job=\"node\",systemd_unit=\"postgresql.service\"} == 0";
+        expr = ''node_systemd_unit_state{name="postgresql.service",state="active"} == 0'';
         for = "2m";
         severity = "critical";
         labels = { service = "postgresql"; category = "service"; };
         annotations = {
           summary = "PostgreSQL service is down on {{ $labels.instance }}";
-          description = "PostgreSQL service failed or is not running. Check systemctl status postgresql.service.";
+          description = "PostgreSQL service is not active. Check systemctl status postgresql.service.";
         };
       };
     };

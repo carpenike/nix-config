@@ -165,6 +165,8 @@ in
         - Avoid 'latest' tag for production systems
 
         Use Renovate bot to automate version updates with digest pinning.
+
+        TODO: Pin to specific version/digest instead of :latest tag (improves operational stability)
       '';
       example = "ghcr.io/dispatcharr/dispatcharr:v0.10.4@sha256:f3ad4f59e6e5e4a...";
     };

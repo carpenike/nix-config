@@ -608,6 +608,20 @@ with lib;
     # Legacy zfs-snapshot service removed 2025-10-14 during Sanoid migration
 
     systemd.services = mkMerge [
+      # Apply I/O and CPU scheduling to restic backup services
+      # Note: restic doesn't honor RESTIC_IONICE_* environment variables, so we override
+      # the systemd service config directly
+      (mkMerge (mapAttrsToList (jobName: jobConfig:
+        mkIf (jobConfig.enable && cfg.performance.ioScheduling.enable) {
+          "restic-backups-${jobName}".serviceConfig = {
+            IOSchedulingClass = cfg.performance.ioScheduling.ioClass;
+            IOSchedulingPriority = cfg.performance.ioScheduling.priority;
+            CPUSchedulingPolicy = "idle";
+            CPUQuota = "50%";
+          };
+        }
+      ) cfg.restic.jobs))
+
       # Phase 3 services: Repository verification services
       (mkMerge (mapAttrsToList (repoName: repoConfig:
         mkIf cfg.verification.enable {
@@ -1496,7 +1510,7 @@ EOF
             Type = "oneshot";
             User = "restic-backup";
             Group = "restic-backup";
-            SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "prometheus-node-exporter" ];
+            SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
             PrivateTmp = true;
             ProtectSystem = "strict";
             ProtectHome = true;
@@ -1533,10 +1547,8 @@ EOF
       (mkIf cfg.monitoring.enable [
         "d ${cfg.monitoring.logDir} 0755 restic-backup restic-backup -"
       ])
-      (mkIf cfg.monitoring.prometheus.enable [
-        # Directory needs to be writable by restic-backup (creates metrics) and readable by prometheus-node-exporter (scrapes metrics)
-        "d ${cfg.monitoring.prometheus.metricsDir} 0775 restic-backup prometheus-node-exporter -"
-      ])
+      # Note: Metrics directory creation handled by monitoring.nix module
+      # Do not create duplicate tmpfiles rules here to avoid conflicts
       (mkIf cfg.restoreTesting.enable [
         "d ${cfg.restoreTesting.testDir} 0700 restic-backup restic-backup -"
       ])
@@ -1552,15 +1564,9 @@ EOF
     # Note: RESTIC_COMPRESSION and RESTIC_READ_CONCURRENCY are passed via extraBackupArgs
     # in services.restic.backups instead of as environment variables, as restic doesn't
     # honor them when set globally.
-    environment.variables = mkMerge [
-      (mkIf cfg.restic.enable {
-        RESTIC_CACHE_DIR = cfg.performance.cacheDir;
-      })
-      (mkIf cfg.performance.ioScheduling.enable {
-        RESTIC_IONICE_CLASS = cfg.performance.ioScheduling.ioClass;
-        RESTIC_IONICE_PRIORITY = toString cfg.performance.ioScheduling.priority;
-      })
-    ];
+    environment.variables = mkIf cfg.restic.enable {
+      RESTIC_CACHE_DIR = cfg.performance.cacheDir;
+    };
 
     # Use built-in NixOS restic service - truxnell's approach with Phase 3 enhancements
     services.restic.backups = mkMerge (mapAttrsToList (jobName: jobConfig:
@@ -1649,9 +1655,9 @@ EOF
                       echo "$SNAP_PATH" >> /run/restic-backup/${jobName}-paths.txt
                       echo "Mapped ${path} -> $SNAP_PATH (dataset: $DATASET, snapshot: $SNAPNAME)"
                     else
-                      echo "ERROR: No snapshots found for dataset $DATASET" >&2
-                      echo "ERROR: Ensure Sanoid is creating snapshots for this dataset" >&2
-                      exit 1
+                      echo "WARNING: No snapshots found for dataset $DATASET" >&2
+                      echo "WARNING: Falling back to live path (consistent backups not guaranteed)" >&2
+                      echo "${path}" >> /run/restic-backup/${jobName}-paths.txt
                     fi
                   else
                     # Path is not on ZFS - fall back to live path with warning

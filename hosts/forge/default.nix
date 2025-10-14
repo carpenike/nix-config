@@ -604,11 +604,22 @@ in
     # This allows 'check' command to validate only repo1 (where WAL actually goes)
     #
     # WAL archiving strategy:
-    # - Repo1 (NFS): Continuous WAL archiving for PITR
-    # - Repo2 (R2): Receives WALs during backup jobs only (via --no-archive-check)
-    # Trade-off: R2 has up to 1-hour RPO (limited by hourly incremental frequency)
-    # Decision: Acceptable for homelab; reduces S3 API calls and complexity
-    # Future consideration: Enable WAL archiving to R2 if offsite PITR becomes critical
+    # - Repo1 (NFS): Continuous WAL archiving for Point-in-Time Recovery (PITR)
+    # - Repo2 (R2): Full/differential/incremental backups only (--no-archive-check)
+    #
+    # IMPORTANT: R2 does NOT receive continuous WAL archives
+    # - WALs are only pushed to R2 during backup jobs (hourly incrementals)
+    # - Recovery Point Objective (RPO) from R2: up to 1 hour of data loss
+    # - R2 backups ARE restorable, but only to the backup completion timestamp
+    # - NO Point-in-Time Recovery (PITR) available from R2
+    #
+    # Decision rationale:
+    # - Acceptable for homelab disaster recovery scenario
+    # - Reduces S3 API calls and associated costs
+    # - NFS repo1 provides PITR for local failures
+    # - If NAS is completely lost, R2 provides recent backup (hourly granularity)
+    #
+    # Future consideration: Enable archive-async to R2 if offsite PITR becomes critical
     environment.etc."pgbackrest.conf".text = ''
       [global]
       repo1-path=/mnt/nas-backup/pgbackrest

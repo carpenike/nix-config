@@ -6,34 +6,6 @@ let
 
   cfg = config.modules.alerting;
 
-  # Filter for PromQL rules only
-  promqlRules = filterAttrs (_: rule: rule.type == "promql") cfg.rules;
-
-  # Generate Prometheus YAML rule file from PromQL rules
-  # This aggregates all co-located alert definitions into a single rule file
-  prometheusRuleFile = pkgs.writeText "prometheus-alert-rules.yml" (
-    lib.generators.toYAML {} {
-      groups = [{
-        name = "homelab-alerts";
-        interval = "15s";  # Match Prometheus evaluation interval
-        rules = mapAttrsToList (name: rule: {
-          alert = rule.alertname;
-          expr = rule.expr;
-          for = rule.for;
-          labels = rule.labels // {
-            severity = rule.severity;
-            alertname = rule.alertname;
-          };
-          annotations = rule.annotations // {
-            # Ensure summary and description exist for Alertmanager templates
-            summary = rule.annotations.summary or "Alert ${rule.alertname} fired";
-            description = rule.annotations.description or "Alert ${rule.alertname} requires attention";
-          };
-        }) promqlRules;
-      }];
-    }
-  );
-
   # Helper: severity enumeration
   severityEnum = types.enum [ "critical" "high" "medium" "low" ];
 
@@ -236,7 +208,33 @@ in
 
   };
 
-  config = mkIf cfg.enable {
+  config = mkIf cfg.enable (let
+    # Move promqlRules and prometheusRuleFile computation inside config block
+    # to avoid infinite recursion when referencing cfg.rules
+    promqlRules = filterAttrs (_: rule: rule.type == "promql") cfg.rules;
+
+    prometheusRuleFile = pkgs.writeText "prometheus-alert-rules.yml" (
+      lib.generators.toYAML {} {
+        groups = [{
+          name = "homelab-alerts";
+          interval = "15s";
+          rules = mapAttrsToList (name: rule: {
+            alert = rule.alertname;
+            expr = rule.expr;
+            for = rule.for;
+            labels = rule.labels // {
+              severity = rule.severity;
+              alertname = rule.alertname;
+            };
+            annotations = rule.annotations // {
+              summary = rule.annotations.summary or "Alert ${rule.alertname} fired";
+              description = rule.annotations.description or "Alert ${rule.alertname} requires attention";
+            };
+          }) promqlRules;
+        }];
+      }
+    );
+  in {
     # Expose the generated Prometheus rule file path
     modules.alerting.prometheus.ruleFilePath = prometheusRuleFile;
     # Assertions for rule correctness to keep things type-safe
@@ -426,5 +424,5 @@ in
         };
       };
     };
-  };
+  });
 }
