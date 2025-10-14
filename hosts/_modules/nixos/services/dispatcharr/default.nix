@@ -20,9 +20,13 @@ let
   # Custom entrypoint wrapper that skips embedded PostgreSQL when using external database
   # This wraps the original Dispatcharr entrypoint to conditionally disable the embedded
   # PostgreSQL service when POSTGRES_HOST is set to a non-localhost value
-  customEntrypoint = pkgs.writeShellScript "dispatcharr-entrypoint-wrapper" ''
-    #!/bin/bash
-    set -e
+  # NOTE: Use writeTextFile instead of writeShellScript because the container needs /bin/bash shebang, not Nix store bash
+  customEntrypoint = pkgs.writeTextFile {
+    name = "dispatcharr-entrypoint-wrapper";
+    executable = true;
+    text = ''
+      #!/bin/bash
+      set -e
 
     echo "🔧 Dispatcharr Entrypoint Wrapper"
     echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
@@ -66,7 +70,8 @@ let
       # Execute the original entrypoint
       exec /app/docker/entrypoint.sh "$@"
     fi
-  '';
+    '';
+  };
 
   # Recursively find the replication config from the most specific dataset path upwards.
   # This allows a service dataset (e.g., tank/services/dispatcharr) to inherit replication
