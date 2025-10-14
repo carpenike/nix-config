@@ -30,7 +30,7 @@ let
       # Check Caddy is enabled (if caddy module is loaded) or if registry has vhosts
       if hostIp != null && registryCfg != null && (caddyCfg == null || caddyCfg.enable or false) then
         lib.mapAttrsToList (vhostName: vhost:
-          if vhost.enable or false then
+          if (vhost.enable or false) && (vhost.publishDns or true) then
             let
               subdomain = dnsLib.extractSubdomain vhost.hostName domain;
               # Use relative name for zone file

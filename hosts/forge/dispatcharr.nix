@@ -32,23 +32,37 @@ in
       };
     })
 
-    # Reverse proxy registration
+    # Reverse proxy registration using new structured config
     (lib.mkIf dispatcharrEnabled {
       modules.reverseProxy.virtualHosts.iptv = {
         enable = true;
         hostName = "iptv.${config.networking.domain}";  # iptv.holthome.net
-        proxyTo = "localhost:${toString dispatcharrPort}";
-        httpsBackend = false;
+
+        # Structured backend configuration
+        backend = {
+          scheme = "http";
+          host = "localhost";
+          port = dispatcharrPort;
+          tls.verify = true;
+        };
+
+        # Structured security headers (backend-agnostic)
+        securityHeaders = {
+          X-Frame-Options = "SAMEORIGIN";
+          X-Content-Type-Options = "nosniff";
+          X-XSS-Protection = "1; mode=block";
+          Referrer-Policy = "strict-origin-when-cross-origin";
+        };
+
+        # HSTS with standard settings
+        security.hsts = {
+          enable = true;
+          maxAge = 15552000;  # 6 months
+          includeSubDomains = true;
+          preload = false;
+        };
+
         auth = null;  # Add authentication if needed
-        extraConfig = ''
-          # Security headers for web application
-          header {
-            X-Frame-Options "SAMEORIGIN"
-            X-Content-Type-Options "nosniff"
-            X-XSS-Protection "1; mode=block"
-            Referrer-Policy "strict-origin-when-cross-origin"
-          }
-        '';
       };
     })
 

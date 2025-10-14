@@ -8,6 +8,33 @@ The reverse proxy configuration has been refactored to support modular service r
 
 This design decouples service registration from the Caddy implementation, preventing circular dependencies and enabling clean separation of concerns.
 
+### Version 2.0 Improvements (2025-10)
+
+The configuration has been enhanced with structured types and security improvements based on comprehensive code review:
+
+✅ **Security Enhancements**:
+- Safe TLS backend handling with explicit verification defaults
+- Structured backend configuration (no more string-based `proxyTo`)
+- Required acknowledgment for insecure TLS (`acknowledgeInsecure`)
+- Configurable HSTS per-service with sensible defaults
+- Comprehensive validation and assertions
+
+✅ **Backend Agnosticism**:
+- Structured `securityHeaders` (attrset, not string blobs)
+- Vendor extensions for Caddy-specific config (`vendorExtensions.caddy`)
+- Generic options that can translate to any proxy backend
+
+✅ **DRY Improvements**:
+- Centralized ACME configuration (no per-vhost duplication)
+- Specialized helpers (`mkPublicService`, `mkAuthenticatedService`, `mkSecureWebApp`)
+- Consistent pattern matching storage and backup modules
+
+✅ **Validation**:
+- FQDN validation with regex
+- Port range validation
+- Uniqueness checks across virtual hosts
+- Security acknowledgment requirements
+
 ## Key Components
 
 ### 1. Registry Module
