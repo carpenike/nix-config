@@ -22,21 +22,20 @@
           version = "16";
           port = 5432;
 
-          # Listen on localhost and all interfaces for container access
-          # Containers use host.containers.internal to reach the host
-          listenAddresses = "localhost,0.0.0.0";
+          # Listen on localhost and Podman bridge for container access
+          # Containers connect via host.containers.internal (10.88.0.1)
+          # Using 0.0.0.0 for operational simplicity (avoids interface availability race)
+          # Security enforced via pg_hba.conf (password auth) and firewall (interface restriction)
+          listenAddresses = "0.0.0.0";
 
           # Memory settings (tune based on available RAM)
           sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
-      effectiveCacheSize = "1GB";     # ~50% of available RAM
-      maintenanceWorkMem = "128MB";
-      workMem = "16MB";
+          effectiveCacheSize = "1GB";     # ~50% of available RAM
+          maintenanceWorkMem = "128MB";
+          workMem = "16MB";
 
-      # Additional settings via extraSettings
-      extraSettings = {
-        # Force listen on all interfaces for container access (overrides listenAddresses above)
-        listen_addresses = config.lib.mkForce "localhost,0.0.0.0";
-
+          # Additional settings via extraSettings
+          extraSettings = {
         # WAL settings for pgBackRest PITR
         wal_level = "replica";  # Required for pgBackRest
         max_wal_size = "2GB";
@@ -78,6 +77,22 @@
       # See dispatcharr.nix, etc. for database provisioning
       databases = {};
     };
+
+    # Override authentication to allow container connections from Podman bridge
+    # GPT-5 recommendation: Use password-based auth (scram-sha-256) for network connections
+    services.postgresql.authentication = ''
+      # Local Unix socket connections
+      local   all   postgres  peer
+      local   all   all       peer
+
+      # Localhost TCP connections
+      host    all   all       127.0.0.1/32        scram-sha-256
+      host    all   all       ::1/128             scram-sha-256
+
+      # Podman container network (host.containers.internal = 10.88.0.1)
+      # Allow password-authenticated connections from containers
+      host    all   all       10.88.0.0/16        scram-sha-256
+    '';
 
     # Override PostgreSQL systemd service to allow writes to NFS mount and local spool for pgBackRest
     systemd.services.postgresql.serviceConfig = {
