@@ -1703,11 +1703,18 @@ EOF
 
                       # Place a ZFS hold to prevent Sanoid from pruning this snapshot during backup
                       # CRITICAL: Make hold placement fail-fast to prevent inconsistent backups
+                      # IDEMPOTENCY: Check if hold already exists to avoid duplicate hold errors
                       HOLD_TAG="restic-${jobName}"
-                      echo "Placing ZFS hold '$HOLD_TAG' on $LATEST_SNAP"
-                      if ! ${config.boot.zfs.package}/bin/zfs hold "$HOLD_TAG" "$LATEST_SNAP"; then
-                        echo "ERROR: Failed to place ZFS hold on $LATEST_SNAP" >&2
-                        exit 1
+
+                      # Check if hold already exists
+                      if ${config.boot.zfs.package}/bin/zfs holds "$LATEST_SNAP" 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q "^$HOLD_TAG"; then
+                        echo "ZFS hold '$HOLD_TAG' already exists on $LATEST_SNAP (idempotent)"
+                      else
+                        echo "Placing ZFS hold '$HOLD_TAG' on $LATEST_SNAP"
+                        if ! ${config.boot.zfs.package}/bin/zfs hold "$HOLD_TAG" "$LATEST_SNAP"; then
+                          echo "ERROR: Failed to place ZFS hold on $LATEST_SNAP" >&2
+                          exit 1
+                        fi
                       fi
 
                       # Verify snapshot still exists after hold (defensive against concurrent prune)

@@ -240,7 +240,7 @@ in
       group = cfg.replicationGroup;
       home = "/var/lib/${cfg.replicationUser}";
       createHome = true;
-      shell = "/run/current-system/sw/bin/nologin";
+      shell = pkgs.bash;  # Syncoid requires a real shell for SSH operations
       description = "ZFS replication service user";
     };
     users.groups.${cfg.replicationGroup} = {};
@@ -380,7 +380,8 @@ in
         };
       }
       # Add pre/post snapshot script hooks for datasets that need them
-      # Use "+" prefix to run scripts with root privileges (systemd feature)
+      # SECURITY: Scripts run as sanoid user, not root. Use sudo for privileged operations.
+      # If scripts need elevated privileges, configure sudoers with NOPASSWD for specific commands.
       {
         services.sanoid.serviceConfig = let
           datasetsWithPreScript = lib.filterAttrs (name: conf: conf.preSnapshotScript != null) cfg.datasets;
@@ -388,14 +389,14 @@ in
         in {
           ExecStartPre = lib.mkIf (datasetsWithPreScript != {}) (
             lib.mkBefore (lib.mapAttrsToList (name: conf:
-              # Validate script exists and is executable before running with root privileges
-              "+${pkgs.bash}/bin/bash -c 'test -x ${toString conf.preSnapshotScript} && exec ${toString conf.preSnapshotScript} || { echo \"ERROR: Pre-snapshot script ${toString conf.preSnapshotScript} not found or not executable\" >&2; exit 1; }'"
+              # Validate script exists and is executable before running (no root privileges)
+              "${pkgs.bash}/bin/bash -c 'test -x ${toString conf.preSnapshotScript} && exec ${toString conf.preSnapshotScript} || { echo \"ERROR: Pre-snapshot script ${toString conf.preSnapshotScript} not found or not executable\" >&2; exit 1; }'"
             ) datasetsWithPreScript)
           );
           ExecStartPost = lib.mkIf (datasetsWithPostScript != {}) (
             lib.mkAfter (lib.mapAttrsToList (name: conf:
-              # Validate script exists and is executable before running with root privileges
-              "+${pkgs.bash}/bin/bash -c 'test -x ${toString conf.postSnapshotScript} && exec ${toString conf.postSnapshotScript} || { echo \"ERROR: Post-snapshot script ${toString conf.postSnapshotScript} not found or not executable\" >&2; exit 1; }'"
+              # Validate script exists and is executable before running (no root privileges)
+              "${pkgs.bash}/bin/bash -c 'test -x ${toString conf.postSnapshotScript} && exec ${toString conf.postSnapshotScript} || { echo \"ERROR: Post-snapshot script ${toString conf.postSnapshotScript} not found or not executable\" >&2; exit 1; }'"
             ) datasetsWithPostScript)
           );
         };
@@ -480,6 +481,72 @@ in
             OnBootSec = "5min";
             OnUnitActiveSec = cfg.healthChecks.interval;
             Unit = "zfs-health-check.service";
+          };
+        };
+      }
+      # ZFS Hold Garbage Collector
+      # Releases stale restic-* holds that weren't cleaned up due to backup failures
+      # This prevents disk space exhaustion from accumulated snapshot holds
+      {
+        services.zfs-hold-gc = {
+          description = "Clean up stale ZFS holds from failed backup jobs";
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = let
+              gcScript = pkgs.writeShellScript "zfs-hold-gc" ''
+                set -euo pipefail
+
+                echo "[$(date -Iseconds)] Starting ZFS hold garbage collection on ${config.networking.hostName}"
+
+                # Find all holds with restic- prefix older than 24 hours
+                STALE_HOLD_COUNT=0
+
+                # Iterate through all ZFS datasets
+                ${pkgs.zfs}/bin/zfs list -H -o name | while read -r dataset; do
+                  # Get holds for this dataset
+                  ${pkgs.zfs}/bin/zfs holds -H "$dataset" 2>/dev/null | while read -r hold_name creation_time dataset_name; do
+                    # Check if hold starts with restic-
+                    if [[ "$hold_name" =~ ^restic- ]]; then
+                      # Convert creation time to seconds since epoch
+                      HOLD_TIME=$(${pkgs.coreutils}/bin/date -d "$creation_time" +%s 2>/dev/null || echo "0")
+                      NOW=$(${pkgs.coreutils}/bin/date +%s)
+                      AGE_HOURS=$(( (NOW - HOLD_TIME) / 3600 ))
+
+                      # Release holds older than 24 hours
+                      if [ "$AGE_HOURS" -gt 24 ]; then
+                        echo "[$(date -Iseconds)] WARNING: Releasing stale hold '$hold_name' on $dataset (age: $AGE_HOURS hours)"
+                        ${pkgs.zfs}/bin/zfs release "$hold_name" "$dataset" || echo "Failed to release hold $hold_name"
+                        STALE_HOLD_COUNT=$((STALE_HOLD_COUNT + 1))
+                      fi
+                    fi
+                  done
+                done
+
+                if [ "$STALE_HOLD_COUNT" -gt 0 ]; then
+                  echo "[$(date -Iseconds)] Released $STALE_HOLD_COUNT stale ZFS holds"
+
+                  # Export metric for monitoring
+                  echo "zfs_hold_gc_released_total{host=\"${config.networking.hostName}\"} $STALE_HOLD_COUNT" \
+                    > /var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom
+                else
+                  echo "[$(date -Iseconds)] No stale holds found"
+                  echo "zfs_hold_gc_released_total{host=\"${config.networking.hostName}\"} 0" \
+                    > /var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom
+                fi
+
+                echo "[$(date -Iseconds)] ZFS hold garbage collection completed"
+              '';
+            in "${gcScript}";
+          };
+        };
+
+        timers.zfs-hold-gc = {
+          description = "Daily ZFS hold garbage collection";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnCalendar = "daily";
+            Persistent = true;
+            RandomizedDelaySec = "1h";
           };
         };
       }

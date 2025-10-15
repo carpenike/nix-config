@@ -41,9 +41,21 @@
         max_wal_size = "2GB";
         min_wal_size = "512MB";
         archive_mode = "on";
+        # DESIGN DECISION: WAL archiving to repo1 (NFS) only - repo2 (R2) is for DR backups
+        #
         # The archive_command uses the global config (/etc/pgbackrest.conf), which only defines repo1.
-        # Therefore, WALs are archived only to the primary NFS repo.
-        # Backup jobs separately push to repo2 (R2) using command-line flags with --no-archive-check.
+        # WALs are archived continuously to the primary NFS repo for fast local PITR.
+        #
+        # Repo2 (Cloudflare R2) is intentionally configured as a pure DR repository:
+        # - Receives full/diff/incr backups via scheduled jobs (--no-archive-check)
+        # - Does NOT receive continuous WAL archiving
+        # - Provides geographic redundancy for disaster recovery scenarios
+        # - RPO for R2 recovery: last successful backup job (hourly incremental = ~1 hour RPO)
+        #
+        # This design optimizes for:
+        # 1. Fast local recovery (repo1: continuous WALs, low-latency NFS)
+        # 2. Cost-effective cloud DR (repo2: backup jobs only, no continuous WAL transfer costs)
+        # 3. Operational simplicity (single archive_command, no multi-repo coordination)
         archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main archive-push %p";
         archive_timeout = "300";  # Force WAL switch every 5 minutes (bounds RPO)
 

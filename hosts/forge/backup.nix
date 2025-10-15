@@ -9,8 +9,10 @@
 # - Archive-async with local spool for high availability
 #
 # PostgreSQL Backup Strategy:
-# - pgBackRest repo1 (NFS): Full/diff/incr backups + continuous WAL archiving
-# - pgBackRest repo2 (R2): Full/diff/incr backups (WALs synced during backup jobs)
+# - pgBackRest repo1 (NFS): Full/diff/incr backups + continuous WAL archiving (primary recovery)
+# - pgBackRest repo2 (R2): Full/diff/incr backups ONLY - pure DR repository (no continuous WALs)
+#   * RPO for R2 recovery: ~1 hour (last incremental backup)
+#   * Design rationale: Cost optimization, operational simplicity, fast local recovery priority
 # - ZFS snapshots: Service data only (tank/services excluding PostgreSQL PGDATA)
 # - ZFS replication: Service data to nas-1 every 15 minutes (excludes PostgreSQL)
 #
