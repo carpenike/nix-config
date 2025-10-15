@@ -1694,6 +1694,63 @@ EOF
                 }
                 trap cleanup_prepare_holds ERR
 
+                # STALE HOLD CLEANUP: Release any orphaned holds from previous crashed runs
+                # This prevents leaked holds from blocking Sanoid's pruning operations
+                # Note: We check hold timestamp, not snapshot creation time, to identify truly stale holds
+                # Safety: Runs inside this job's prepare phase; only releases holds older than 24h with
+                # this job's specific tag, preventing interference with currently running backups.
+                echo "Checking for stale ZFS holds from previous runs..."
+                HOLD_TAG="restic-${jobName}"
+                STALE_THRESHOLD=$(($(${pkgs.coreutils}/bin/date +%s) - 86400))  # 24 hours ago
+                SCANNED_DATASETS=""  # Track datasets to avoid duplicate scans
+
+                ${concatMapStringsSep "\n" (path: ''
+                  # Find dataset for this path to check its holds
+                  DATASET=$(${config.boot.zfs.package}/bin/zfs list -H -o name,mountpoint -t filesystem | ${pkgs.gawk}/bin/awk -v p="${path}" '
+                    {
+                      mp=$2
+                      if (p == mp || (index(p, mp) == 1 && (substr(p, length(mp)+1, 1) == "/" || mp == "/"))) {
+                        if (length(mp) > max) { max = length(mp); best = $1 }
+                      }
+                    }
+                    END { if (best) print best }
+                  ')
+
+                  if [ -n "$DATASET" ]; then
+                    # Skip if we've already scanned this dataset (deduplicate)
+                    if ! printf "%s\n" "$SCANNED_DATASETS" | ${pkgs.gnugrep}/bin/grep -Fxq "$DATASET" 2>/dev/null; then
+                      SCANNED_DATASETS="$SCANNED_DATASETS"$'\n'"$DATASET"
+
+                      # Check all snapshots on this dataset for stale holds with our tag
+                      # Format: NAME<TAB>TAG<TAB>CREATED (NAME is filesystem@snapshot)
+                      # Pre-filter with grep to reduce awk workload
+                      ${config.boot.zfs.package}/bin/zfs holds -H -r "$DATASET" 2>/dev/null | \
+                        ${pkgs.gnugrep}/bin/grep -F "$HOLD_TAG" | \
+                        ${pkgs.gawk}/bin/awk -F "\t" -v tag="$HOLD_TAG" -v threshold="$STALE_THRESHOLD" '
+                        $2 == tag {
+                          # Parse hold creation timestamp with explicit locale/timezone
+                          # Format: "Mon Oct 14 02:05:23 2025"
+                          cmd = "LC_ALL=C TZ=UTC date -d \"" $3 "\" +%s 2>/dev/null"
+                          cmd | getline hold_epoch
+                          close(cmd)
+
+                          # Validate numeric and compare
+                          if (hold_epoch ~ /^[0-9]+$/ && hold_epoch < threshold) {
+                            print $1
+                          }
+                        }
+                      ' | while IFS= read -r snap_with_hold; do
+                        if [ -n "$snap_with_hold" ]; then
+                          echo "Releasing stale hold '$HOLD_TAG' on $snap_with_hold (hold older than 24h)"
+                          if ! ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snap_with_hold" 2>/dev/null; then
+                            echo "WARNING: Could not release hold '$HOLD_TAG' on $snap_with_hold (already released or permission denied)" >&2
+                          fi
+                        fi
+                      done
+                    fi
+                  fi
+                '') jobConfig.paths}
+
                 # Resolve paths to Sanoid snapshots via .zfs/snapshot
                 ${pkgs.coreutils}/bin/mkdir -p /run/restic-backup
                 : > /run/restic-backup/${jobName}-paths.txt  # Truncate file
