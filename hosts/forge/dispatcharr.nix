@@ -93,8 +93,9 @@ in
       # -- Container Image Configuration --
       # Pin to specific version for stability and prevent unexpected changes
       # Find releases at: https://github.com/Dispatcharr/Dispatcharr/releases
-      # Check latest digest: docker pull ghcr.io/dispatcharr/dispatcharr:v0.x.x && docker inspect --format='{{index .RepoDigests 0}}'
-      image = "ghcr.io/dispatcharr/dispatcharr:v0.10.4";  # Pinned to v0.10.4 for stability
+      # Note: Dispatcharr uses timestamped tags (e.g., 0.10.4-20251014192218)
+      # Using digest pinning for immutable references (Renovate will update both tag and digest)
+      image = "ghcr.io/dispatcharr/dispatcharr:0.10.4-20251014192218@sha256:10312911e005ae39a3e814fc03cc8e36f4a92112a96dd5d898ef3cbf13791bf3";
 
       # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
       healthcheck.enable = true;  # Enable container health monitoring
