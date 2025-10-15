@@ -356,8 +356,9 @@ in
             '') cfg.datasets)}
 
             # Grant permissions for Syncoid to send snapshots for replication
+            # NOTE: 'hold' permission removed - syncoid only needs send,snapshot for replication
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
-              ${pkgs.zfs}/bin/zfs allow ${cfg.replicationUser} send,snapshot,hold ${lib.escapeShellArg dataset}
+              ${pkgs.zfs}/bin/zfs allow ${cfg.replicationUser} send,snapshot ${lib.escapeShellArg dataset}
             '') datasetsWithReplication)}
             echo "ZFS delegated permissions applied successfully."
           '';
@@ -550,32 +551,49 @@ EOF
 
                 echo "[$(date -Iseconds)] Starting ZFS hold garbage collection on ${config.networking.hostName}"
 
+                # CRITICAL: Skip GC if any restic backup is currently running
+                # This prevents releasing holds during long-running backups (>=24h)
+                if ${pkgs.systemd}/bin/systemctl list-units --type=service --state=running "restic-backups-*" 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q "restic-backups-"; then
+                  echo "[$(date -Iseconds)] Active restic backup detected; skipping hold GC to avoid releasing in-use holds"
+                  exit 0
+                fi
+
                 # Find all holds with restic- prefix older than 24 hours
                 STALE_HOLD_COUNT=0
-                TOTAL_RESTIC_HOLDS=0
 
                 # Iterate through all ZFS snapshots (not datasets - holds are on snapshots)
                 ${pkgs.zfs}/bin/zfs list -H -t snapshot -o name | while read -r snapshot; do
                   # Get holds for this snapshot
-                  ${pkgs.zfs}/bin/zfs holds -H "$snapshot" 2>/dev/null | while read -r hold_name creation_time; do
-                    # Check if hold starts with restic-
-                    if [[ "$hold_name" =~ ^restic- ]]; then
-                      TOTAL_RESTIC_HOLDS=$((TOTAL_RESTIC_HOLDS + 1))
+                  # zfs holds -H output format: FILESYSTEM<TAB>TAG<TAB>TIMESTAMP
+                  ${pkgs.zfs}/bin/zfs holds -H "$snapshot" 2>/dev/null \
+                  | ${pkgs.gawk}/bin/awk -F "\t" '{print $2 "\t" $3}' \
+                  | while IFS=$'\t' read -r tag when; do
+                      # Check if hold starts with restic-
+                      case "$tag" in
+                        restic-*)
+                          # Convert creation time to seconds since epoch
+                          hold_epoch=$(${pkgs.coreutils}/bin/date -d "$when" +%s 2>/dev/null || echo 0)
+                          now=$(${pkgs.coreutils}/bin/date +%s)
+                          age_hours=$(( (now - hold_epoch) / 3600 ))
 
-                      # Convert creation time to seconds since epoch
-                      HOLD_TIME=$(${pkgs.coreutils}/bin/date -d "$creation_time" +%s 2>/dev/null || echo "0")
-                      NOW=$(${pkgs.coreutils}/bin/date +%s)
-                      AGE_HOURS=$(( (NOW - HOLD_TIME) / 3600 ))
-
-                      # Release holds older than 24 hours
-                      if [ "$AGE_HOURS" -gt 24 ]; then
-                        echo "[$(date -Iseconds)] WARNING: Releasing stale hold '$hold_name' on $snapshot (age: $AGE_HOURS hours)"
-                        ${pkgs.zfs}/bin/zfs release "$hold_name" "$snapshot" || echo "Failed to release hold $hold_name"
-                        STALE_HOLD_COUNT=$((STALE_HOLD_COUNT + 1))
-                      fi
-                    fi
-                  done
+                          # Release holds older than 24 hours
+                          if [ "$age_hours" -gt 24 ]; then
+                            echo "[$(date -Iseconds)] Releasing stale hold '$tag' on $snapshot (age: $age_hours hours)"
+                            if ${pkgs.zfs}/bin/zfs release "$tag" "$snapshot"; then
+                              STALE_HOLD_COUNT=$((STALE_HOLD_COUNT + 1))
+                            else
+                              echo "WARNING: Failed to release hold $tag on $snapshot" >&2
+                            fi
+                          fi
+                          ;;
+                      esac
+                    done
                 done
+
+                # Recompute active restic holds after GC
+                ACTIVE_HOLDS=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name \
+                  | xargs -r -n1 ${pkgs.zfs}/bin/zfs holds -H 2>/dev/null \
+                  | ${pkgs.gnugrep}/bin/grep -c $'^restic-' || echo 0)
 
                 # Export metrics for monitoring (both released count and active hold count)
                 mkdir -p /var/lib/node_exporter/textfile_collector
@@ -585,7 +603,7 @@ EOF
 zfs_hold_gc_released_total{host="${config.networking.hostName}"} $STALE_HOLD_COUNT
 # HELP zfs_active_restic_holds_total Current number of active restic-* holds across all snapshots
 # TYPE zfs_active_restic_holds_total gauge
-zfs_active_restic_holds_total{host="${config.networking.hostName}"} $((TOTAL_RESTIC_HOLDS - STALE_HOLD_COUNT))
+zfs_active_restic_holds_total{host="${config.networking.hostName}"} $ACTIVE_HOLDS
 EOF
 
                 if [ "$STALE_HOLD_COUNT" -gt 0 ]; then
@@ -594,7 +612,6 @@ EOF
                   echo "[$(date -Iseconds)] No stale holds found"
                 fi
 
-                ACTIVE_HOLDS=$((TOTAL_RESTIC_HOLDS - STALE_HOLD_COUNT))
                 echo "[$(date -Iseconds)] ZFS hold garbage collection completed: $ACTIVE_HOLDS active holds remaining"
               '';
             in "${gcScript}";
@@ -624,9 +641,15 @@ EOF
                 echo "[$(date -Iseconds)] Checking ZFS replication lag"
 
                 ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
-                  # Get latest local snapshot creation time
-                  LATEST_LOCAL=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o creation,name -s creation "${dataset}" | ${pkgs.coreutils}/bin/tail -n 1 | ${pkgs.gawk}/bin/awk '{print $1, $2, $3, $4, $5}')
-                  LATEST_LOCAL_TIME=$(${pkgs.coreutils}/bin/date -d "$LATEST_LOCAL" +%s 2>/dev/null || echo "0")
+                  # Get latest local snapshot using locale-independent epoch timestamp
+                  LATEST_SNAPSHOT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name -s creation "${dataset}" | ${pkgs.coreutils}/bin/tail -n 1 || echo "")
+
+                  if [ -n "$LATEST_SNAPSHOT" ]; then
+                    # Use -p flag for parseable (numeric epoch) format
+                    LATEST_LOCAL_TIME=$(${pkgs.zfs}/bin/zfs get -H -p -o value creation "$LATEST_SNAPSHOT" 2>/dev/null || echo 0)
+                  else
+                    LATEST_LOCAL_TIME=0
+                  fi
 
                   # Calculate lag in seconds (time since last snapshot)
                   NOW=$(${pkgs.coreutils}/bin/date +%s)

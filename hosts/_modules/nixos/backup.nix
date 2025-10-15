@@ -658,7 +658,13 @@ with lib;
               IOSchedulingClass = cfg.performance.ioScheduling.ioClass;
               IOSchedulingPriority = cfg.performance.ioScheduling.priority;
               CPUSchedulingPolicy = "idle";
-              CPUQuota = "50%";
+
+              # Apply per-job resource limits from configuration
+              MemoryMax = jobConfig.resources.memory;
+              MemoryLow = jobConfig.resources.memoryReservation;
+              # Convert CPUs string (e.g., "0.5") to percentage for CPUQuota
+              # Use builtins.fromJSON to parse string as number (Nix doesn't have toFloat)
+              CPUQuota = "${toString (builtins.floor ((builtins.fromJSON jobConfig.resources.cpus) * 100))}%";
 
               # Automatic retry on transient failures (network issues, temporary I/O errors)
               # Restart=on-failure: Retry if the service exits with non-zero status
@@ -1671,9 +1677,27 @@ EOF
                 ${pkgs.coreutils}/bin/date +%s > /run/restic-backups-${jobName}/start-time
               ''}
               ${optionalString cfg.zfs.enable ''
+                set -euo pipefail
+
+                # Cleanup function to release holds on prepare failure
+                cleanup_prepare_holds() {
+                  local HOLD_TAG="restic-${jobName}"
+                  if [ -f /run/restic-backup/${jobName}-snapshots.txt ]; then
+                    echo "ERROR: Prepare failed, releasing any holds placed..." >&2
+                    while IFS= read -r snapshot; do
+                      if [ -n "$snapshot" ]; then
+                        ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snapshot" 2>/dev/null || true
+                      fi
+                    done < /run/restic-backup/${jobName}-snapshots.txt
+                    rm -f /run/restic-backup/${jobName}-snapshots.txt
+                  fi
+                }
+                trap cleanup_prepare_holds ERR
+
                 # Resolve paths to Sanoid snapshots via .zfs/snapshot
                 ${pkgs.coreutils}/bin/mkdir -p /run/restic-backup
                 : > /run/restic-backup/${jobName}-paths.txt  # Truncate file
+                : > /run/restic-backup/${jobName}-snapshots.txt  # Truncate file
 
                 # Dynamically map each backup path to its latest Sanoid snapshot
                 ${concatMapStringsSep "\n" (path: ''
@@ -1706,8 +1730,9 @@ EOF
                       # IDEMPOTENCY: Check if hold already exists to avoid duplicate hold errors
                       HOLD_TAG="restic-${jobName}"
 
-                      # Check if hold already exists
-                      if ${config.boot.zfs.package}/bin/zfs holds "$LATEST_SNAP" 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q "^$HOLD_TAG"; then
+                      # Check if hold already exists using proper tab-separated parsing
+                      if ${config.boot.zfs.package}/bin/zfs holds -H "$LATEST_SNAP" 2>/dev/null \
+                        | ${pkgs.gawk}/bin/awk -F "\t" -v tag="$HOLD_TAG" '$2==tag {found=1} END {exit found?0:1}'; then
                         echo "ZFS hold '$HOLD_TAG' already exists on $LATEST_SNAP (idempotent)"
                       else
                         echo "Placing ZFS hold '$HOLD_TAG' on $LATEST_SNAP"
@@ -1827,8 +1852,14 @@ EOF
                   while IFS= read -r snapshot; do
                     if [ -n "$snapshot" ]; then
                       echo "Releasing ZFS hold '$HOLD_TAG' on $snapshot"
-                      ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snapshot" 2>/dev/null || {
+                      if ! ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snapshot" 2>/dev/null; then
                         echo "WARNING: Failed to release hold on $snapshot (may have been already released)" >&2
+                        ${optionalString cfg.monitoring.prometheus.enable ''
+                          # Emit metric on hold release failure for monitoring
+                          mkdir -p ${cfg.monitoring.prometheus.metricsDir}
+                          echo "restic_hold_release_failure{job=\"${jobName}\",snapshot=\"$snapshot\",host=\"${config.networking.hostName}\"} 1" \
+                            >> ${cfg.monitoring.prometheus.metricsDir}/backup_internal.prom || true
+                        ''}
                       }
                     fi
                   done < /run/restic-backup/${jobName}-snapshots.txt
