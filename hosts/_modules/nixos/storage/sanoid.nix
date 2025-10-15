@@ -179,7 +179,18 @@ in
     replicationInterval = lib.mkOption {
       type = lib.types.str;
       default = "hourly";
-      description = "How often to run all Syncoid replication tasks.";
+      description = ''
+        How often to run all Syncoid replication tasks.
+
+        Default is "hourly" for most hosts. For faster DR/lower RPO, override to
+        systemd OnCalendar format, e.g., "*:0/15" for every 15 minutes.
+
+        Examples:
+          - "hourly" - Once per hour (default)
+          - "*:0/15" - Every 15 minutes
+          - "*:0/5" - Every 5 minutes
+          - "daily" - Once per day
+      '';
     };
 
     snapshotInterval = lib.mkOption {
@@ -429,6 +440,47 @@ in
               "/run/secrets/zfs-replication"        # SOPS secret directory
             ];
           };
+
+          # Export success/failure metrics for monitoring
+          preStart = ''
+            mkdir -p /var/lib/node_exporter/textfile_collector
+            cat > /var/lib/node_exporter/textfile_collector/syncoid-${sanitizeDatasetName dataset}.prom <<EOF
+# HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
+# TYPE syncoid_replication_status gauge
+syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} -1
+# HELP syncoid_replication_last_run_timestamp Unix timestamp of last Syncoid run
+# TYPE syncoid_replication_last_run_timestamp gauge
+syncoid_replication_last_run_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $(date +%s)
+EOF
+          '';
+
+          postStart = ''
+            # Record successful completion
+            mkdir -p /var/lib/node_exporter/textfile_collector
+            cat > /var/lib/node_exporter/textfile_collector/syncoid-${sanitizeDatasetName dataset}.prom <<EOF
+# HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
+# TYPE syncoid_replication_status gauge
+syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} 1
+# HELP syncoid_replication_last_success_timestamp Unix timestamp of last successful Syncoid replication
+# TYPE syncoid_replication_last_success_timestamp gauge
+syncoid_replication_last_success_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $(date +%s)
+EOF
+          '';
+
+          postStop = ''
+            # Check if service failed (exit code != 0)
+            if [ "$SERVICE_RESULT" != "success" ]; then
+              mkdir -p /var/lib/node_exporter/textfile_collector
+              cat > /var/lib/node_exporter/textfile_collector/syncoid-${sanitizeDatasetName dataset}.prom <<EOF
+# HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
+# TYPE syncoid_replication_status gauge
+syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} 0
+# HELP syncoid_replication_last_failure_timestamp Unix timestamp of last Syncoid failure
+# TYPE syncoid_replication_last_failure_timestamp gauge
+syncoid_replication_last_failure_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $(date +%s)
+EOF
+            fi
+          '';
         };
       }
     ) datasetsWithReplication) ++ [
@@ -500,13 +552,16 @@ in
 
                 # Find all holds with restic- prefix older than 24 hours
                 STALE_HOLD_COUNT=0
+                TOTAL_RESTIC_HOLDS=0
 
-                # Iterate through all ZFS datasets
-                ${pkgs.zfs}/bin/zfs list -H -o name | while read -r dataset; do
-                  # Get holds for this dataset
-                  ${pkgs.zfs}/bin/zfs holds -H "$dataset" 2>/dev/null | while read -r hold_name creation_time dataset_name; do
+                # Iterate through all ZFS snapshots (not datasets - holds are on snapshots)
+                ${pkgs.zfs}/bin/zfs list -H -t snapshot -o name | while read -r snapshot; do
+                  # Get holds for this snapshot
+                  ${pkgs.zfs}/bin/zfs holds -H "$snapshot" 2>/dev/null | while read -r hold_name creation_time; do
                     # Check if hold starts with restic-
                     if [[ "$hold_name" =~ ^restic- ]]; then
+                      TOTAL_RESTIC_HOLDS=$((TOTAL_RESTIC_HOLDS + 1))
+
                       # Convert creation time to seconds since epoch
                       HOLD_TIME=$(${pkgs.coreutils}/bin/date -d "$creation_time" +%s 2>/dev/null || echo "0")
                       NOW=$(${pkgs.coreutils}/bin/date +%s)
@@ -514,27 +569,33 @@ in
 
                       # Release holds older than 24 hours
                       if [ "$AGE_HOURS" -gt 24 ]; then
-                        echo "[$(date -Iseconds)] WARNING: Releasing stale hold '$hold_name' on $dataset (age: $AGE_HOURS hours)"
-                        ${pkgs.zfs}/bin/zfs release "$hold_name" "$dataset" || echo "Failed to release hold $hold_name"
+                        echo "[$(date -Iseconds)] WARNING: Releasing stale hold '$hold_name' on $snapshot (age: $AGE_HOURS hours)"
+                        ${pkgs.zfs}/bin/zfs release "$hold_name" "$snapshot" || echo "Failed to release hold $hold_name"
                         STALE_HOLD_COUNT=$((STALE_HOLD_COUNT + 1))
                       fi
                     fi
                   done
                 done
 
+                # Export metrics for monitoring (both released count and active hold count)
+                mkdir -p /var/lib/node_exporter/textfile_collector
+                cat > /var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom <<EOF
+# HELP zfs_hold_gc_released_total Number of stale ZFS holds released in last GC run
+# TYPE zfs_hold_gc_released_total gauge
+zfs_hold_gc_released_total{host="${config.networking.hostName}"} $STALE_HOLD_COUNT
+# HELP zfs_active_restic_holds_total Current number of active restic-* holds across all snapshots
+# TYPE zfs_active_restic_holds_total gauge
+zfs_active_restic_holds_total{host="${config.networking.hostName}"} $((TOTAL_RESTIC_HOLDS - STALE_HOLD_COUNT))
+EOF
+
                 if [ "$STALE_HOLD_COUNT" -gt 0 ]; then
                   echo "[$(date -Iseconds)] Released $STALE_HOLD_COUNT stale ZFS holds"
-
-                  # Export metric for monitoring
-                  echo "zfs_hold_gc_released_total{host=\"${config.networking.hostName}\"} $STALE_HOLD_COUNT" \
-                    > /var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom
                 else
                   echo "[$(date -Iseconds)] No stale holds found"
-                  echo "zfs_hold_gc_released_total{host=\"${config.networking.hostName}\"} 0" \
-                    > /var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom
                 fi
 
-                echo "[$(date -Iseconds)] ZFS hold garbage collection completed"
+                ACTIVE_HOLDS=$((TOTAL_RESTIC_HOLDS - STALE_HOLD_COUNT))
+                echo "[$(date -Iseconds)] ZFS hold garbage collection completed: $ACTIVE_HOLDS active holds remaining"
               '';
             in "${gcScript}";
           };

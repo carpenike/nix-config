@@ -14,7 +14,7 @@
 #   * RPO for R2 recovery: ~1 hour (last incremental backup)
 #   * Design rationale: Cost optimization, operational simplicity, fast local recovery priority
 # - ZFS snapshots: Service data only (tank/services excluding PostgreSQL PGDATA)
-# - ZFS replication: Service data to nas-1 every 15 minutes (excludes PostgreSQL)
+# - ZFS replication: Service data to nas-1 every 15 minutes (configured in default.nix, excludes PostgreSQL)
 #
 # This file manages Restic backups for non-database services:
 # - System state (/home, /persist)
@@ -388,6 +388,62 @@ in
         annotations = {
           summary = "ZFS replication stalled for {{ $labels.dataset }}";
           description = "No replication to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Data loss risk if source fails. Investigate immediately.";
+        };
+      };
+
+      # ZFS holds accumulating (potential GC failure)
+      "zfs-holds-accumulating" = {
+        type = "promql";
+        alertname = "ZFSHoldsAccumulating";
+        expr = "zfs_active_restic_holds_total > 10";  # More than 10 active holds is suspicious
+        for = "2h";
+        severity = "medium";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "Excessive ZFS holds detected on {{ $labels.host }}";
+          description = "{{ $value }} active restic-* holds detected. This may indicate hold GC is failing or backups are not cleaning up. Check: zfs list -t snapshot | while read snap; do zfs holds $snap; done | grep restic-";
+        };
+      };
+
+      # ZFS hold GC not releasing holds
+      "zfs-hold-gc-ineffective" = {
+        type = "promql";
+        alertname = "ZFSHoldGCIneffective";
+        expr = "zfs_hold_gc_released_total == 0 and zfs_active_restic_holds_total > 5";
+        for = "48h";  # GC runs daily, so 2 days of no releases with active holds is concerning
+        severity = "medium";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "ZFS hold garbage collector appears ineffective on {{ $labels.host }}";
+          description = "No stale holds released in 48h despite {{ $value }} active holds. Verify hold GC service: systemctl status zfs-hold-gc.service";
+        };
+      };
+
+      # Syncoid replication failed
+      "syncoid-replication-failed" = {
+        type = "promql";
+        alertname = "SyncoidReplicationFailed";
+        expr = "syncoid_replication_status == 0";
+        for = "5m";
+        severity = "high";
+        labels = { service = "storage"; category = "syncoid"; };
+        annotations = {
+          summary = "Syncoid replication failed for {{ $labels.dataset }}";
+          description = "Replication to {{ $labels.target_host }} failed. Check logs: journalctl -u syncoid-*.service";
+        };
+      };
+
+      # Syncoid hasn't succeeded recently
+      "syncoid-replication-stale" = {
+        type = "promql";
+        alertname = "SyncoidReplicationStale";
+        expr = "(time() - syncoid_replication_last_success_timestamp) > 7200";  # 2 hours
+        for = "30m";
+        severity = "high";
+        labels = { service = "storage"; category = "syncoid"; };
+        annotations = {
+          summary = "Syncoid replication stale for {{ $labels.dataset }}";
+          description = "No successful replication to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Check service: systemctl status syncoid-*.service";
         };
       };
     };
