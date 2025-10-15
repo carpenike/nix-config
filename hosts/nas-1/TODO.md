@@ -10,6 +10,64 @@ This document tracks configuration items needed when migrating nas-1 from Ubuntu
 
 ## Required Configuration
 
+### 0. ZFS Filesystems and NFS Exports
+
+**Status**: ✅ CONFIGURED (2025-10-14)
+
+Ensure the following ZFS filesystems exist and are exported via NFS:
+
+```nix
+# hosts/nas-1/zfs-datasets.nix
+{ ... }:
+
+{
+  # ZFS Filesystems (if not auto-created, declare them)
+  # These are already created on the current Ubuntu system:
+  # - backup/forge/restic          - Restic backups (non-database data)
+  # - backup/forge/postgresql      - pgBackRest backups (PostgreSQL only)
+  # - backup/forge/docs            - Documentation backups
+  # - backup/forge/services/*      - ZFS replication targets from forge
+  # - backup/forge/zfs-recv        - ZFS replication target
+
+  # NFS Exports Configuration
+  services.nfs.server = {
+    enable = true;
+    exports = ''
+      # Restic backup storage (non-database data)
+      /mnt/backup/forge/restic forge.holthome.net(rw,sync,no_subtree_check,no_root_squash)
+
+      # PostgreSQL backups via pgBackRest (dedicated mount for isolation)
+      /mnt/backup/forge/postgresql forge.holthome.net(rw,sync,no_subtree_check,no_root_squash)
+
+      # Documentation backups
+      /mnt/backup/forge/docs forge.holthome.net(rw,sync,no_subtree_check,no_root_squash)
+    '';
+  };
+}
+```
+
+**Current Manual Configuration** (Ubuntu):
+
+```bash
+# ZFS filesystem created: 2025-10-14
+sudo zfs create backup/forge/postgresql
+
+# /etc/exports entries:
+/mnt/backup/forge/restic forge.holthome.net(rw,sync,no_subtree_check,no_root_squash)
+/mnt/backup/forge/postgresql forge.holthome.net(rw,sync,no_subtree_check,no_root_squash)
+/mnt/backup/forge/docs forge.holthome.net(rw,sync,no_subtree_check,no_root_squash)
+```
+
+**Important Notes**:
+
+- **Separation of Concerns**: PostgreSQL backups are isolated from Restic backups
+  - `backup/forge/restic`: Non-database data (system state, configs, docs)
+  - `backup/forge/postgresql`: PostgreSQL backups only (pgBackRest repo1)
+  - `backup/forge/services/*`: Reserved for ZFS replications
+- **Mount Options**: All use `no_root_squash` to preserve file ownership from forge
+
+### Additional Configuration Items
+
 ### 1. ZFS Replication User Setup
 
 **Status**: ⏳ TODO

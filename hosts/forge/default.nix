@@ -464,7 +464,7 @@ in
 
                     # Removed tank/services/postgresql/main-wal from snapshots
           # Rationale: This directory (/var/lib/postgresql/16/main-wal-archive/) is obsolete
-          # pgBackRest archives WALs directly to /mnt/nas-backup/pgbackrest/archive/
+          # pgBackRest archives WALs directly to /mnt/nas-postgresql/pgbackrest/archive/
           # The main-wal ZFS dataset is not being written to (last activity 7+ hours ago)
           # Safe to remove after verifying old WAL files are not needed
 
@@ -622,7 +622,7 @@ in
     # Future consideration: Enable archive-async to R2 if offsite PITR becomes critical
     environment.etc."pgbackrest.conf".text = ''
       [global]
-      repo1-path=/mnt/nas-backup/pgbackrest
+      repo1-path=/mnt/nas-postgresql/pgbackrest
       repo1-retention-full=7
       # Note: No differential backups (simplified schedule)
 
@@ -651,7 +651,7 @@ in
     # After stanzas are created in both repos, backup commands can use --repo=2 with flags
     environment.etc."pgbackrest-init.conf".text = ''
       [global]
-      repo1-path=/mnt/nas-backup/pgbackrest
+      repo1-path=/mnt/nas-postgresql/pgbackrest
       repo1-retention-full=7
       repo1-retention-diff=4
 
@@ -681,7 +681,7 @@ in
     # Format: Type, Path, Mode, User, Group, Age, Argument
     # This ensures directories/files exist on boot with correct ownership/permissions
     systemd.tmpfiles.rules = [
-      "d /mnt/nas-backup/pgbackrest 0750 postgres postgres - -"
+      "d /mnt/nas-postgresql/pgbackrest 0750 postgres postgres - -"
       # Create local spool directory for async WAL archiving
       # Critical: Allows archive_command to succeed even when NFS is down
       "d /var/lib/pgbackrest 0750 postgres postgres - -"

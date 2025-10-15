@@ -24,7 +24,7 @@
 # PostgreSQL Recovery Process:
 # PostgreSQL backups are now handled entirely by pgBackRest (not Restic)
 # For recovery procedures, see: /Users/ryan/src/nix-config/docs/postgresql-pitr-guide.md
-# WAL archive is managed by pgBackRest at: /mnt/nas-backup/pgbackrest/archive/
+# WAL archive is managed by pgBackRest at: /mnt/nas-postgresql/pgbackrest/archive/
 # No separate WAL restoration needed - pgBackRest handles this automatically
 #
 # Setup Requirements:
@@ -52,9 +52,24 @@ in
     # (hosts/_modules/nixos/backup.nix - no need to duplicate here)
 
     # Mount NFS shares from nas-1 for backups
-    # Hardened for pgBackRest WAL archiving reliability
+    # Restic backup storage (non-database data)
     fileSystems."/mnt/nas-backup" = {
       device = "nas-1.holthome.net:/mnt/backup/forge/restic";
+      fsType = "nfs";
+      options = [
+        "nfsvers=4.2"
+        "rw"
+        "noatime"
+        "x-systemd.automount"
+        "x-systemd.idle-timeout=600"  # Unmount after 10 minutes idle
+        "x-systemd.mount-timeout=30s"
+      ];
+    };
+
+    # PostgreSQL backups via pgBackRest (separate mount for isolation)
+    # Hardened for pgBackRest WAL archiving reliability
+    fileSystems."/mnt/nas-postgresql" = {
+      device = "nas-1.holthome.net:/mnt/backup/forge/postgresql";
       fsType = "nfs";
       options = [
         "nfsvers=4.2"
@@ -169,7 +184,7 @@ in
         jobs = {
           system = {
             enable = true;
-            repository = primaryRepoName;
+            repository = "r2-offsite";  # Send to R2 for offsite DR (NAS covered by Syncoid)
             paths = [
               "/home"
               "/persist"
@@ -388,34 +403,6 @@ in
         annotations = {
           summary = "ZFS replication stalled for {{ $labels.dataset }}";
           description = "No replication to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Data loss risk if source fails. Investigate immediately.";
-        };
-      };
-
-      # ZFS holds accumulating (potential GC failure)
-      "zfs-holds-accumulating" = {
-        type = "promql";
-        alertname = "ZFSHoldsAccumulating";
-        expr = "zfs_active_restic_holds_total > 10";  # More than 10 active holds is suspicious
-        for = "2h";
-        severity = "medium";
-        labels = { service = "storage"; category = "zfs"; };
-        annotations = {
-          summary = "Excessive ZFS holds detected on {{ $labels.host }}";
-          description = "{{ $value }} active restic-* holds detected. This may indicate hold GC is failing or backups are not cleaning up. Check: zfs list -t snapshot | while read snap; do zfs holds $snap; done | grep restic-";
-        };
-      };
-
-      # ZFS hold GC not releasing holds
-      "zfs-hold-gc-ineffective" = {
-        type = "promql";
-        alertname = "ZFSHoldGCIneffective";
-        expr = "zfs_hold_gc_released_total == 0 and zfs_active_restic_holds_total > 5";
-        for = "48h";  # GC runs daily, so 2 days of no releases with active holds is concerning
-        severity = "medium";
-        labels = { service = "storage"; category = "zfs"; };
-        annotations = {
-          summary = "ZFS hold garbage collector appears ineffective on {{ $labels.host }}";
-          description = "No stale holds released in 48h despite {{ $value }} active holds. Verify hold GC service: systemctl status zfs-hold-gc.service";
         };
       };
 

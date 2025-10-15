@@ -116,10 +116,10 @@
     systemd.services.postgresql.serviceConfig = {
       # Add paths to ReadWritePaths to allow archive_command to write WAL segments
       # Without these, ProtectSystem=strict blocks writes outside /var/lib/postgresql
-      # 1. /mnt/nas-backup: NFS repo1 (used by pgBackRest background process)
+      # 1. /mnt/nas-postgresql: NFS repo1 (dedicated PostgreSQL backup mount)
       # 2. /var/lib/pgbackrest/spool: Local async spool (archive_command writes here first)
       ReadWritePaths = [
-        "/mnt/nas-backup"
+        "/mnt/nas-postgresql"
         "/var/lib/pgbackrest/spool"
       ];
     };
