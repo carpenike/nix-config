@@ -1976,7 +1976,7 @@ EOF
                           echo "restic_hold_release_failure{job=\"${jobName}\",snapshot=\"$snapshot\",host=\"${config.networking.hostName}\"} 1" \
                             >> ${cfg.monitoring.prometheus.metricsDir}/backup_internal.prom || true
                         ''}
-                      }
+                      fi
                     fi
                   done < /run/restic-backup/${jobName}-snapshots.txt
                   rm -f /run/restic-backup/${jobName}-snapshots.txt
