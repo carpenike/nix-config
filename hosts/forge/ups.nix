@@ -197,7 +197,7 @@
       alertname = "UPSOnBattery";
       expr = "ups_on_battery == 1";
       for = "2m";
-      severity = "warning";
+      severity = "medium";
       labels = { service = "ups"; category = "power"; };
       annotations = {
         summary = "UPS {{ $labels.ups }} running on battery power";
@@ -225,7 +225,7 @@
       alertname = "UPSBatteryChargeLow";
       expr = "ups_battery_charge < 50";
       for = "5m";
-      severity = "warning";
+      severity = "medium";
       labels = { service = "ups"; category = "power"; };
       annotations = {
         summary = "UPS {{ $labels.ups }} battery charge below 50%";
@@ -253,7 +253,7 @@
       alertname = "UPSLoadHigh";
       expr = "ups_load_percent > 80";
       for = "10m";
-      severity = "warning";
+      severity = "medium";
       labels = { service = "ups"; category = "capacity"; };
       annotations = {
         summary = "UPS {{ $labels.ups }} load is high";
@@ -267,7 +267,7 @@
       alertname = "UPSTemperatureHigh";
       expr = "ups_temperature_celsius > 30";
       for = "15m";
-      severity = "warning";
+      severity = "medium";
       labels = { service = "ups"; category = "health"; };
       annotations = {
         summary = "UPS {{ $labels.ups }} temperature elevated";
