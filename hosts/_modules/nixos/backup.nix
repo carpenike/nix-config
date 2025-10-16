@@ -573,6 +573,8 @@ with lib;
       isSystemUser = true;
       group = "restic-backup";
       description = "Restic backup service user";
+      # Add to node-exporter group for Prometheus metrics export
+      extraGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
     };
     users.groups.restic-backup = {};
 
@@ -781,8 +783,6 @@ EOF
               Type = "oneshot";
               User = "restic-backup";
               Group = "restic-backup";
-              # Add node-exporter group to allow writing metrics
-              SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
               PrivateTmp = true;
               ProtectSystem = "strict";
               ProtectHome = true;
@@ -948,8 +948,6 @@ EOF
               Type = "oneshot";
               User = "restic-backup";
               Group = "restic-backup";
-              # Add node-exporter group to allow writing metrics
-              SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
               PrivateTmp = true;
               ProtectSystem = "strict";
               ProtectHome = true;
@@ -984,8 +982,15 @@ EOF
               echo "Backup job ${jobName} failed on ${config.networking.hostName}"
 
               ${optionalString cfg.monitoring.enable ''
-                # Log failure event
+                # Log failure event with error message from journal
                 LOG_FILE="${cfg.monitoring.logDir}/backup-failures.jsonl"
+
+                # Extract recent error message from the failed service journal
+                ERROR_MESSAGE=$(journalctl -u restic-backups-${jobName}.service -b -n 200 -o cat 2>/dev/null \
+                  | grep -Ei 'error|failed|permission|denied|timeout|dns|refused|quota|space|corrupt' \
+                  | tail -n 1 \
+                  | sed "s/\"/'/g" \
+                  | head -c 500 || echo "No error details available")
 
                 jq -n \
                   --arg timestamp "$TIMESTAMP" \
@@ -993,12 +998,14 @@ EOF
                   --arg repo "$REPO_URL" \
                   --arg hostname "$HOSTNAME" \
                   --arg event "backup_failure" \
+                  --arg error_message "$ERROR_MESSAGE" \
                   '{
                     timestamp: $timestamp,
                     event: $event,
                     job_name: $job,
                     repository: $repo,
                     hostname: $hostname,
+                    error_message: $error_message,
                     severity: "critical"
                   }' >> "$LOG_FILE" || true
               ''}
@@ -1063,16 +1070,34 @@ EOF
 
             LOG_DIR="${cfg.monitoring.logDir}"
             ANALYSIS_LOG="$LOG_DIR/error-analysis.jsonl"
+            STATE_FILE="/var/lib/backup/error-analyzer.state"
             TIMESTAMP=$(date --iso-8601=seconds)
 
-            echo "Starting backup error analysis..."
+            # Create state directory if it doesn't exist
+            mkdir -p "$(dirname "$STATE_FILE")"
+
+            # Read last processed timestamp (default to 1 hour ago if state file doesn't exist)
+            if [ -f "$STATE_FILE" ]; then
+              LAST_PROCESSED=$(cat "$STATE_FILE")
+            else
+              LAST_PROCESSED=$(date --iso-8601=seconds -d '1 hour ago')
+            fi
+
+            echo "Starting backup error analysis (processing events since $LAST_PROCESSED)..."
 
             # Process recent error logs from the last 24 hours
             find "$LOG_DIR" -name "*.jsonl" -mtime -1 -type f | while read -r logfile; do
               echo "Analyzing log file: $logfile"
 
-              # Extract error events from JSON logs
-              jq -r 'select(.event == "backup_failure" or .event == "verification_failure" or .event == "restore_test_failure") | @base64' "$logfile" 2>/dev/null | while read -r encoded_line; do
+              # Extract error events from JSON logs (including *_complete events with non-success status)
+              # Only process events newer than LAST_PROCESSED to avoid duplicates
+              jq -r --arg last_ts "$LAST_PROCESSED" 'select(
+                .timestamp > $last_ts and (
+                  (.event == "backup_failure") or
+                  (.event == "verification_complete" and .status != "success") or
+                  (.event == "restore_test_complete" and .status != "success")
+                )
+              ) | @base64' "$logfile" 2>/dev/null | while read -r encoded_line; do
                 if [ -n "$encoded_line" ]; then
                   line=$(echo "$encoded_line" | base64 -d)
 
@@ -1138,7 +1163,7 @@ EOF
               # Count errors by category and severity in the last 24 hours
               cat > "$METRICS_TEMP" <<EOF
 # HELP backup_errors_by_category_total Total backup errors by category
-# TYPE backup_errors_by_category_total counter
+# TYPE backup_errors_by_category_total gauge
 EOF
 
               for category in network storage permission corruption resource unknown; do
@@ -1149,7 +1174,7 @@ EOF
               cat >> "$METRICS_TEMP" <<EOF
 
 # HELP backup_errors_by_severity_total Total backup errors by severity
-# TYPE backup_errors_by_severity_total counter
+# TYPE backup_errors_by_severity_total gauge
 EOF
 
               for severity in critical high medium low; do
@@ -1167,6 +1192,9 @@ EOF
               mv "$METRICS_TEMP" "$METRICS_FILE"
             ''}
 
+            # Update state file with current timestamp to prevent reprocessing
+            echo "$TIMESTAMP" > "$STATE_FILE"
+
             echo "Error analysis completed successfully"
           '';
           serviceConfig = {
@@ -1178,7 +1206,7 @@ EOF
             ProtectHome = true;
             NoNewPrivileges = true;
             ReadWritePaths = mkMerge [
-              [ cfg.monitoring.logDir ]
+              [ cfg.monitoring.logDir "/var/lib/backup" ]
               (mkIf cfg.monitoring.prometheus.enable [ cfg.monitoring.prometheus.metricsDir ])
             ];
           };
@@ -1575,7 +1603,6 @@ EOF
             Type = "oneshot";
             User = "restic-backup";
             Group = "restic-backup";
-            SupplementaryGroups = mkIf cfg.monitoring.prometheus.enable [ "node-exporter" ];
             PrivateTmp = true;
             ProtectSystem = "strict";
             ProtectHome = true;
