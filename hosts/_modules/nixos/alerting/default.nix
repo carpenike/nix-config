@@ -296,9 +296,11 @@ in
       configuration = {
         route = {
           receiver = "pushover-medium";
-          # Group by labels common to a device/instance, not alertname
-          # This ensures all alerts for one device go into one notification group
-          group_by = [ "job" "instance" ];
+          # Group by instance (host) only - optimal for single-host homelab
+          # During a host-level failure (power outage, system crash), all alerts
+          # from that host are consolidated into ONE notification instead of separate
+          # notifications per exporter/service (e.g., node-exporter, postgres-exporter, ups)
+          group_by = [ "instance" ];
           # Wait 30s to catch other related alerts that may fire in quick succession
           group_wait = "30s";
           # Send updates for a group every 5 minutes if new alerts are added
@@ -353,8 +355,8 @@ in
               "severity=\"critical\""
               "alertname=\"UPSLowBattery\""
             ];
-            # Only apply inhibition if alerts are for the same device
-            equal = [ "job" "instance" ];
+            # Only apply inhibition if alerts are for the same host
+            equal = [ "instance" ];
           }
           # Don't notify about low battery charge if we have a critical runtime warning
           {
@@ -366,7 +368,7 @@ in
               "severity=\"critical\""
               "alertname=\"UPSRuntimeCritical\""
             ];
-            equal = [ "job" "instance" ];
+            equal = [ "instance" ];
           }
           # Don't notify about scrape failures if the UPS is known to be offline
           {
@@ -378,7 +380,7 @@ in
               "severity=\"critical\""
               "alertname=\"UPSOffline\""
             ];
-            equal = [ "job" "instance" ];
+            equal = [ "instance" ];
           }
         ];
         receivers = [
