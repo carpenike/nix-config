@@ -8,8 +8,10 @@
   # APC Network Management Cards use SNMP, not NUT server (upsd)
   # This uses standalone mode with snmp-ups driver to monitor via SNMP
   #
-  # TODO: Add Prometheus metrics export via node_exporter textfile collector
+  # Prometheus metrics are exported via node_exporter textfile collector every 15 seconds
+  # Security: Runs as node-exporter user (same pattern as pgbackrest metrics) with systemd hardening
   # TODO: Change SNMP community string from 'public' for better security
+  # TODO: Migrate hardcoded passwords to sops-nix secrets management
 
   power.ups = {
     enable = true;
@@ -50,4 +52,126 @@
   # Install NUT client utilities for manual UPS querying
   # Use: upsc apc@localhost to check UPS status
   environment.systemPackages = [ pkgs.nut ];
+
+  # Export UPS metrics to Prometheus via node_exporter textfile collector
+  # Metrics are written to /var/lib/prometheus-node-exporter/ups.prom
+  # and automatically scraped by the existing node_exporter service
+  systemd.timers.ups-metrics = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "1m";           # Start 1 minute after boot
+      OnUnitActiveSec = "15s";    # Run every 15 seconds
+      Unit = "ups-metrics.service";
+    };
+  };
+
+  systemd.services.ups-metrics = {
+    description = "Export UPS metrics to Prometheus textfile collector";
+    after = [ "upsd.service" "upsmon.service" "prometheus-node-exporter.service" ];
+    wants = [ "prometheus-node-exporter.service" ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      # Run as node-exporter user to write to textfile directory
+      # Follows same pattern as pgbackrest metrics in default.nix
+      User = "node-exporter";
+      # Grant access to nut group for upsc queries
+      SupplementaryGroups = [ "nut" ];
+      # Systemd hardening
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      PrivateTmp = true;
+      NoNewPrivileges = true;
+      # Allow writing to the textfile directory
+      ReadWritePaths = [ "/var/lib/prometheus-node-exporter" ];
+    };
+
+    script = ''
+      # Capture timestamp and check if upsc succeeds
+      TIMESTAMP=$(${pkgs.coreutils}/bin/date +%s)
+      TEMP_DATA=$(${pkgs.coreutils}/bin/mktemp)
+
+      # Query UPS status and check exit code
+      if ${pkgs.nut}/bin/upsc apc@localhost > "$TEMP_DATA" 2>/dev/null; then
+        SCRAPE_SUCCESS=1
+      else
+        SCRAPE_SUCCESS=0
+      fi
+
+      # Process UPS data and convert to Prometheus format
+      ${pkgs.coreutils}/bin/cat "$TEMP_DATA" | ${pkgs.gawk}/bin/awk '
+        BEGIN {
+          OFS = ""
+          # Initialize status flags to 0
+          on_battery = 0
+          low_battery = 0
+          online = 0
+        }
+
+        # Battery metrics
+        /^battery\.charge:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_battery_charge{ups=\"apc\"} ", $2
+        }
+        /^battery\.runtime:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_battery_runtime_seconds{ups=\"apc\"} ", $2
+        }
+        /^battery\.voltage:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_battery_voltage{ups=\"apc\"} ", $2
+        }
+
+        # Load and power metrics
+        /^ups\.load:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_load_percent{ups=\"apc\"} ", $2
+        }
+        /^ups\.realpower\.nominal:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_realpower_nominal_watts{ups=\"apc\"} ", $2
+        }
+
+        # Voltage metrics
+        /^input\.voltage:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_input_voltage{ups=\"apc\"} ", $2
+        }
+        /^output\.voltage:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_output_voltage{ups=\"apc\"} ", $2
+        }
+
+        # Temperature
+        /^ups\.temperature:/ {
+          if ($2 ~ /^[0-9.]+$/) print "ups_temperature_celsius{ups=\"apc\"} ", $2
+        }
+
+        # UPS status flags - parse the entire status string (can be multi-token like "OB LB")
+        /^ups\.status:/ {
+          # Extract everything after the colon to capture full status string
+          idx = index($0, ":")
+          status = substr($0, idx+2)
+          # OB = On Battery, LB = Low Battery, OL = Online
+          if (status ~ /OB/) on_battery = 1
+          if (status ~ /LB/) low_battery = 1
+          if (status ~ /OL/) online = 1
+        }
+
+        END {
+          # Output status flags
+          print "ups_on_battery{ups=\"apc\"} ", on_battery
+          print "ups_low_battery{ups=\"apc\"} ", low_battery
+          print "ups_online{ups=\"apc\"} ", online
+        }
+      ' > /var/lib/prometheus-node-exporter/ups.prom.tmp
+
+      # Add scrape metadata metrics
+      echo "ups_metrics_scrape_success{ups=\"apc\"} $SCRAPE_SUCCESS" >> /var/lib/prometheus-node-exporter/ups.prom.tmp
+      echo "ups_metrics_last_scrape_timestamp_seconds{ups=\"apc\"} $TIMESTAMP" >> /var/lib/prometheus-node-exporter/ups.prom.tmp
+
+      # Clean up temp file
+      ${pkgs.coreutils}/bin/rm -f "$TEMP_DATA"
+
+      # Atomic move to prevent partial reads
+      ${pkgs.coreutils}/bin/mv /var/lib/prometheus-node-exporter/ups.prom.tmp \
+                               /var/lib/prometheus-node-exporter/ups.prom
+
+      # Set appropriate permissions (640 is sufficient, node_exporter can read)
+      ${pkgs.coreutils}/bin/chmod 640 /var/lib/prometheus-node-exporter/ups.prom
+    '';
+  };
 }

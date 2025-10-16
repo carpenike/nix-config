@@ -41,7 +41,7 @@
           path = "/var/lib/zfs-replication/.ssh/id_ed25519";
         };
 
-        # Pushover notification credentials
+        # Pushover notification credentials (for Alertmanager)
         # Alertmanager needs to read these files
         "pushover/token" = {
           mode = "0440";
