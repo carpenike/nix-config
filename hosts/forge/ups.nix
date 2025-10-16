@@ -75,8 +75,7 @@
       # Run as node-exporter user to write to textfile directory
       # Follows same pattern as pgbackrest metrics in default.nix
       User = "node-exporter";
-      # Grant access to nut group for upsc queries
-      SupplementaryGroups = [ "nut" ];
+      # upsc queries upsd over TCP/localhost and doesn't require special group membership
       # Systemd hardening
       ProtectSystem = "strict";
       ProtectHome = true;
