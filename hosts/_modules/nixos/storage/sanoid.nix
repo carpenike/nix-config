@@ -253,6 +253,8 @@ in
       createHome = true;
       shell = pkgs.bash;  # Syncoid requires a real shell for SSH operations
       description = "ZFS replication service user";
+      # Add to node-exporter group so metrics can be written
+      extraGroups = [ "node-exporter" ];
     };
     users.groups.${cfg.replicationGroup} = {};
 
