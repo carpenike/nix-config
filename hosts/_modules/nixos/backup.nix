@@ -1783,29 +1783,33 @@ EOF
                       # Check all snapshots on this dataset for stale holds with our tag
                       # Format: NAME<TAB>TAG<TAB>CREATED (NAME is filesystem@snapshot)
                       # Pre-filter with grep to reduce awk workload
-                      ${config.boot.zfs.package}/bin/zfs holds -H -r "$DATASET" 2>/dev/null | \
-                        ${pkgs.gnugrep}/bin/grep -F "$HOLD_TAG" | \
-                        ${pkgs.gawk}/bin/awk -F "\t" -v tag="$HOLD_TAG" -v threshold="$STALE_THRESHOLD" '
-                        $2 == tag {
-                          # Parse hold creation timestamp with explicit locale/timezone
-                          # Format: "Mon Oct 14 02:05:23 2025"
-                          cmd = "LC_ALL=C TZ=UTC date -d \"" $3 "\" +%s 2>/dev/null"
-                          cmd | getline hold_epoch
-                          close(cmd)
+                      # Wrapped in subshell to disable pipefail - empty results are expected/normal
+                      (
+                        set +o pipefail
+                        ${config.boot.zfs.package}/bin/zfs holds -H -r "$DATASET" 2>/dev/null | \
+                          ${pkgs.gnugrep}/bin/grep -F "$HOLD_TAG" | \
+                          ${pkgs.gawk}/bin/awk -F "\t" -v tag="$HOLD_TAG" -v threshold="$STALE_THRESHOLD" '
+                          $2 == tag {
+                            # Parse hold creation timestamp with explicit locale/timezone
+                            # Format: "Mon Oct 14 02:05:23 2025"
+                            cmd = "LC_ALL=C TZ=UTC date -d \"" $3 "\" +%s 2>/dev/null"
+                            cmd | getline hold_epoch
+                            close(cmd)
 
-                          # Validate numeric and compare
-                          if (hold_epoch ~ /^[0-9]+$/ && hold_epoch < threshold) {
-                            print $1
+                            # Validate numeric and compare
+                            if (hold_epoch ~ /^[0-9]+$/ && hold_epoch < threshold) {
+                              print $1
+                            }
                           }
-                        }
-                      ' | while IFS= read -r snap_with_hold; do
-                        if [ -n "$snap_with_hold" ]; then
-                          echo "Releasing stale hold '$HOLD_TAG' on $snap_with_hold (hold older than 24h)"
-                          if ! ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snap_with_hold" 2>/dev/null; then
-                            echo "WARNING: Could not release hold '$HOLD_TAG' on $snap_with_hold (already released or permission denied)" >&2
+                        ' | while IFS= read -r snap_with_hold; do
+                          if [ -n "$snap_with_hold" ]; then
+                            echo "Releasing stale hold '$HOLD_TAG' on $snap_with_hold (hold older than 24h)"
+                            if ! ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snap_with_hold" 2>/dev/null; then
+                              echo "WARNING: Could not release hold '$HOLD_TAG' on $snap_with_hold (already released or permission denied)" >&2
+                            fi
                           fi
-                        fi
-                      done
+                        done
+                      )
                     fi
                   fi
                 '') jobConfig.paths}
