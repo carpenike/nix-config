@@ -50,6 +50,13 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
   # Comment out ensure_utf8_encoding call
   sed -i 's|^ensure_utf8_encoding$|# DISABLED: ensure_utf8_encoding|g' /tmp/entrypoint-modified.sh
 
+  # Fix the chown command in 03-init-dispatcharr.sh to exclude .zfs snapshot directories
+  # ZFS snapshots are read-only and cause chown -R to fail
+  # Replace: chown -R $PUID:$PGID /data
+  # With: find /data -path "*/.zfs" -prune -o -exec chown $PUID:$PGID {} +
+  echo "   Patching chown command to exclude .zfs directories..."
+  sed -i 's|chown -R \$PUID:\$PGID /data|find /data -path "*/.zfs" -prune -o -exec chown \$PUID:\$PGID {} +|g' /tmp/entrypoint-modified.sh
+
   # Fix nginx.conf to specify both user and group (01-user-setup.sh creates group "dispatch" but user "$POSTGRES_USER")
   # After 01-user-setup.sh runs, it sets: user dispatcharr;
   # But the group is named "dispatch", not "dispatcharr", causing nginx to fail with getgrnam error
