@@ -22,7 +22,7 @@
       # Use empty password since APC doesn't have password auth configured
       # If you set a password in APC later, use sops-nix:
       # passwordFile = config.sops.secrets.ups-password.path;
-      passwordFile = pkgs.writeText "ups-password" "";
+      passwordFile = toString (pkgs.writeText "ups-password" "");
       type = "slave";  # This system is secondary/slave to the UPS
     };
   };
