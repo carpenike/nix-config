@@ -22,6 +22,7 @@ in
     ./alerting.nix
     ./postgresql.nix
     ./dispatcharr.nix
+    ./ups.nix            # UPS monitoring configuration
   ];
 
   config = {

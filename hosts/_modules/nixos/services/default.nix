@@ -30,5 +30,6 @@
     # ./postgresql/backup-integration.nix     # REMOVED: PostgreSQL backups now handled by pgBackRest
     ./sonarr
     ./unifi
+    # ./ups                                   # REMOVED: Use services.nut directly in host configs
   ];
 }
