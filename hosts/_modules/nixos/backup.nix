@@ -1064,14 +1064,22 @@ EOF
       (mkIf cfg.monitoring.errorAnalysis.enable {
         backup-error-analyzer = {
           description = "Intelligent backup error analysis and categorization";
-          path = with pkgs; [ jq gnugrep gawk coreutils ];
+          path = with pkgs; [ jq gnugrep gawk coreutils util-linux ];
           script = ''
             set -euo pipefail
 
             LOG_DIR="${cfg.monitoring.logDir}"
             ANALYSIS_LOG="$LOG_DIR/error-analysis.jsonl"
             STATE_FILE="/var/lib/backup/error-analyzer.state"
+            LOCK_FILE="/var/lib/backup/error-analyzer.lock"
             TIMESTAMP=$(date --iso-8601=seconds)
+
+            # Acquire lock to prevent concurrent runs
+            exec 9>"$LOCK_FILE"
+            if ! flock -n 9; then
+              echo "Error analyzer already running, exiting"
+              exit 0
+            fi
 
             # Create state directory if it doesn't exist
             mkdir -p "$(dirname "$STATE_FILE")"
@@ -1083,16 +1091,22 @@ EOF
               LAST_PROCESSED=$(date --iso-8601=seconds -d '1 hour ago')
             fi
 
+            # Convert to epoch time for reliable comparison (handles timezones)
+            LAST_EPOCH=$(date -d "$LAST_PROCESSED" +%s 2>/dev/null || echo "0")
+
             echo "Starting backup error analysis (processing events since $LAST_PROCESSED)..."
+
+            # Track the maximum event timestamp seen for state file update
+            MAX_TS="$LAST_PROCESSED"
 
             # Process recent error logs from the last 24 hours
             find "$LOG_DIR" -name "*.jsonl" -mtime -1 -type f | while read -r logfile; do
               echo "Analyzing log file: $logfile"
 
               # Extract error events from JSON logs (including *_complete events with non-success status)
-              # Only process events newer than LAST_PROCESSED to avoid duplicates
-              jq -r --arg last_ts "$LAST_PROCESSED" 'select(
-                .timestamp > $last_ts and (
+              # Only process events newer than LAST_PROCESSED to avoid duplicates (using epoch time)
+              jq -r --argjson last_epoch "$LAST_EPOCH" 'select(
+                ((.timestamp|fromdateiso8601) // 0) > $last_epoch and (
                   (.event == "backup_failure") or
                   (.event == "verification_complete" and .status != "success") or
                   (.event == "restore_test_complete" and .status != "success")
@@ -1108,6 +1122,13 @@ EOF
                   hostname=$(echo "$line" | jq -r '.hostname // "${config.networking.hostName}"')
 
                   if [ -n "$event_timestamp" ] && [ "$error_message" != "success" ]; then
+                    # Track max timestamp for state file
+                    EVENT_EPOCH=$(date -d "$event_timestamp" +%s 2>/dev/null || echo "0")
+                    MAX_EPOCH=$(date -d "$MAX_TS" +%s 2>/dev/null || echo "0")
+                    if [ "$EVENT_EPOCH" -gt "$MAX_EPOCH" ]; then
+                      MAX_TS="$event_timestamp"
+                    fi
+
                     # Categorize the error using configured rules
                     category="unknown"
                     severity="medium"
@@ -1160,25 +1181,32 @@ EOF
               METRICS_TEMP="$METRICS_FILE.tmp"
               TIMESTAMP_UNIX=$(date +%s)
 
+              # Calculate 24-hour cutoff timestamp
+              CUTOFF_EPOCH=$(( TIMESTAMP_UNIX - 86400 ))
+
               # Count errors by category and severity in the last 24 hours
               cat > "$METRICS_TEMP" <<EOF
-# HELP backup_errors_by_category_total Total backup errors by category
+# HELP backup_errors_by_category_total Total backup errors by category in last 24 hours
 # TYPE backup_errors_by_category_total gauge
 EOF
 
               for category in network storage permission corruption resource unknown; do
-                count=$(jq -r --arg cat "$category" 'select(.analysis.category == $cat)' "$ANALYSIS_LOG" 2>/dev/null | wc -l)
+                count=$(jq -r --argjson cutoff "$CUTOFF_EPOCH" --arg cat "$category" \
+                  'select(((.analysis.original_timestamp|fromdateiso8601) // 0) >= $cutoff and .analysis.category == $cat)' \
+                  "$ANALYSIS_LOG" 2>/dev/null | wc -l)
                 echo "backup_errors_by_category_total{category=\"$category\",hostname=\"${config.networking.hostName}\"} $count" >> "$METRICS_TEMP"
               done
 
               cat >> "$METRICS_TEMP" <<EOF
 
-# HELP backup_errors_by_severity_total Total backup errors by severity
+# HELP backup_errors_by_severity_total Total backup errors by severity in last 24 hours
 # TYPE backup_errors_by_severity_total gauge
 EOF
 
               for severity in critical high medium low; do
-                count=$(jq -r --arg sev "$severity" 'select(.analysis.severity == $sev)' "$ANALYSIS_LOG" 2>/dev/null | wc -l)
+                count=$(jq -r --argjson cutoff "$CUTOFF_EPOCH" --arg sev "$severity" \
+                  'select(((.analysis.original_timestamp|fromdateiso8601) // 0) >= $cutoff and .analysis.severity == $sev)' \
+                  "$ANALYSIS_LOG" 2>/dev/null | wc -l)
                 echo "backup_errors_by_severity_total{severity=\"$severity\",hostname=\"${config.networking.hostName}\"} $count" >> "$METRICS_TEMP"
               done
 
@@ -1192,8 +1220,8 @@ EOF
               mv "$METRICS_TEMP" "$METRICS_FILE"
             ''}
 
-            # Update state file with current timestamp to prevent reprocessing
-            echo "$TIMESTAMP" > "$STATE_FILE"
+            # Update state file with max processed event timestamp (atomic write)
+            printf "%s\n" "$MAX_TS" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 
             echo "Error analysis completed successfully"
           '';
