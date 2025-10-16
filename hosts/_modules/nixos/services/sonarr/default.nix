@@ -269,6 +269,23 @@ in
       mode = "0700";  # Restrictive permissions
     };
 
+    # Configure ZFS snapshots and replication for sonarr dataset
+    # This is managed per-service to avoid centralized config coupling
+    modules.backup.sanoid.datasets."tank/services/sonarr" = lib.mkIf config.modules.backup.sanoid.enable {
+      useTemplate = [ "services" ];  # Use the services retention policy
+      recursive = false;  # Don't snapshot child datasets
+      autosnap = true;
+      autoprune = true;
+
+      # Replication to nas-1 for disaster recovery
+      replication = {
+        targetHost = "nas-1.holthome.net";
+        targetDataset = "backup/forge/services/sonarr";
+        sendOptions = "wp";  # w = raw send, p = preserve properties
+        recvOptions = "u";   # u = don't mount on receive
+      };
+    };
+
     # Create local users to match container UIDs
     # This ensures proper file ownership on the host
     users.users.sonarr = {

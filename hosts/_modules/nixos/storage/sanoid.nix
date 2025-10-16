@@ -365,9 +365,10 @@ in
         };
       }
       # Ensure snapdir is visible for Sanoid-managed datasets
+      # Only make visible if autosnap is enabled; hide for databases and services that don't need it
       {
         services.zfs-set-snapdir-visible = {
-          description = "Ensure ZFS snapdir is visible for Sanoid datasets";
+          description = "Set ZFS snapdir visibility for Sanoid datasets";
           wantedBy = [ "multi-user.target" ];
           after = [ "zfs-import.target" ];
           serviceConfig = {
@@ -375,9 +376,10 @@ in
             RemainAfterExit = true;
           };
           script = ''
-            echo "Setting snapdir=visible for Sanoid datasets..."
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: _: ''
-              ${pkgs.zfs}/bin/zfs set snapdir=visible ${lib.escapeShellArg dataset}
+            echo "Setting snapdir visibility for Sanoid datasets..."
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
+              # Only make visible if autosnap is enabled (databases and excluded services get hidden)
+              ${pkgs.zfs}/bin/zfs set snapdir=${if (conf.autosnap or false) then "visible" else "hidden"} ${lib.escapeShellArg dataset}
             '') cfg.datasets)}
             echo "snapdir visibility configured successfully."
           '';
@@ -433,6 +435,13 @@ in
           # Both the symlink location (/var/lib/zfs-replication/.ssh) and the actual
           # SOPS secret path (/run/secrets/zfs-replication) must be bound for resolution
           serviceConfig = lib.mkIf (cfg.sshKeyPath != null) {
+            # Fix CHDIR error by forcing safe working directory
+            WorkingDirectory = lib.mkForce "/";
+            # Remove conflicting InaccessiblePaths that block the working directory
+            InaccessiblePaths = lib.mkForce [];
+            # Allow metrics writes to Prometheus textfile collector
+            ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
+
             BindReadOnlyPaths = lib.mkForce [
               "/nix/store"
               "/etc"

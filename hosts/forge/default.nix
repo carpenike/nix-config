@@ -438,36 +438,16 @@ in
             };
           };
 
-          # Service data - all *arr services and their data
+          # Parent service dataset - metadata only, children managed by their respective modules
+          # This dataset itself doesn't get snapshotted (recursive = false)
+          # Individual service modules (dispatcharr, sonarr, etc.) configure their own snapshots
           "tank/services" = {
             useTemplate = [ "services" ];
-            recursive = true;  # Snapshot all child datasets (sonarr, radarr, etc.)
-            replication = {
-              targetHost = "nas-1.holthome.net";
-              targetDataset = "backup/forge/services";
-              sendOptions = "wp";  # w = raw send, p = preserve properties (recordsize, compression, etc.)
-              recvOptions = "u";
-            };
+            recursive = false;  # Don't snapshot children - they manage themselves
+            autosnap = false;   # Don't snapshot the parent directory itself
+            autoprune = false;
+            # No replication - individual services handle their own replication
           };
-
-          # PostgreSQL WAL archive - ZFS snapshots for fast local recovery
-          # Note: PGDATA (main) is NOT snapshotted - we rely entirely on pgBackRest
-          # for application-consistent, PITR-capable database backups.
-          # Rationale:
-          # - pgBackRest provides proper application-consistent backups
-          # - ZFS snapshots of PGDATA are crash-consistent (less reliable)
-          # - Reduces complexity and potential confusion during recovery
-          # - WAL archive snapshots still useful for quick rollback of archive directory
-                    # Removed tank/services/postgresql/main from snapshots
-          # Rationale: pgBackRest provides proper application-consistent backups
-          # ZFS snapshots of PGDATA are crash-consistent (less reliable)
-          # For recovery, use pgBackRest exclusively
-
-                    # Removed tank/services/postgresql/main-wal from snapshots
-          # Rationale: This directory (/var/lib/postgresql/16/main-wal-archive/) is obsolete
-          # pgBackRest archives WALs directly to /mnt/nas-postgresql/pgbackrest/archive/
-          # The main-wal ZFS dataset is not being written to (last activity 7+ hours ago)
-          # Safe to remove after verifying old WAL files are not needed
 
           # Explicitly disable snapshots on PostgreSQL dataset (rely on pgBackRest)
           "tank/services/postgresql" = {
