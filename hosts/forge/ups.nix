@@ -8,7 +8,6 @@
   # This configuration uses NUT in netclient mode to monitor a remote UPS server.
   # The system will automatically shutdown gracefully when the UPS battery is critically low.
   #
-  # TODO: Add sops-nix integration for password management
   # TODO: Add Prometheus metrics export via node_exporter textfile collector
 
   power.ups = {
@@ -20,7 +19,10 @@
       system = "apc@10.9.18.245";
       powerValue = 1;
       user = "monuser";
-      passwordFile = "/run/secrets/ups-password";
+      # Use empty password since APC doesn't have password auth configured
+      # If you set a password in APC later, use sops-nix:
+      # passwordFile = config.sops.secrets.ups-password.path;
+      passwordFile = pkgs.writeText "ups-password" "";
       type = "slave";  # This system is secondary/slave to the UPS
     };
   };
