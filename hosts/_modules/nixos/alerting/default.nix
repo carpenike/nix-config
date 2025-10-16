@@ -455,7 +455,9 @@ in
           description = "Send boot event to Alertmanager";
           wantedBy = [ "multi-user.target" ];
           wants = [ "network-online.target" ];
-          after = [ "network-online.target" "prometheus-alertmanager.service" ];
+          after = [ "network-online.target" "alertmanager.service" ];
+          # Require Alertmanager to be running before sending boot alert
+          requires = [ "alertmanager.service" ];
           serviceConfig = {
             Type = "oneshot";
             ExecStart = ''
