@@ -443,8 +443,8 @@ in
             InaccessiblePaths = lib.mkForce [];
             # Allow metrics writes to Prometheus textfile collector
             ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
-            # Set umask to create world-readable metrics files for node_exporter
-            UMask = "0022";
+            # Override default umask (0066) to create world-readable metrics files for node_exporter
+            UMask = lib.mkForce "0022";
 
             BindReadOnlyPaths = lib.mkForce [
               "/nix/store"
