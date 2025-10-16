@@ -52,10 +52,13 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
 
   # Fix the chown command in 03-init-dispatcharr.sh to exclude .zfs snapshot directories
   # ZFS snapshots are read-only and cause chown -R to fail
+  # We need to patch the init script itself, not the entrypoint wrapper
   # Replace: chown -R $PUID:$PGID /data
   # With: find /data -path "*/.zfs" -prune -o -exec chown $PUID:$PGID {} +
   echo "   Patching chown command to exclude .zfs directories..."
-  sed -i 's|chown -R \$PUID:\$PGID /data|find /data -path "*/.zfs" -prune -o -exec chown \$PUID:\$PGID {} +|g' /tmp/entrypoint-modified.sh
+  sed -i 's|chown -R \$PUID:\$PGID /data|find /data -path "*/.zfs" -prune -o -exec chown \$PUID:\$PGID {} +|g' /app/docker/init/03-init-dispatcharr.sh
+  # Also patch the chown for /app directory
+  sed -i 's|chown -R \$PUID:\$PGID /app|find /app -path "*/.zfs" -prune -o -exec chown \$PUID:\$PGID {} +|g' /app/docker/init/03-init-dispatcharr.sh
 
   # Fix nginx.conf to specify both user and group (01-user-setup.sh creates group "dispatch" but user "$POSTGRES_USER")
   # After 01-user-setup.sh runs, it sets: user dispatcharr;
