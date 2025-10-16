@@ -206,18 +206,21 @@
     };
 
     # Low battery warning
-    "ups-low-battery" = {
-      type = "promql";
-      alertname = "UPSLowBattery";
-      expr = "ups_low_battery == 1";
-      for = "0s";  # Immediate alert
-      severity = "critical";
-      labels = { service = "ups"; category = "power"; };
-      annotations = {
-        summary = "UPS {{ $labels.ups }} battery critically low";
-        description = "UPS low battery flag set. System shutdown imminent. Battery: {{ with query \"ups_battery_charge{ups='apc'}\" }}{{ . | first | value }}{{ end }}%, runtime: {{ with query \"ups_battery_runtime_seconds{ups='apc'}\" }}{{ . | first | value | humanizeDuration }}{{ end }}";
-      };
-    };
+    # NOTE: Disabled because UPS incorrectly reports LB flag despite 100% charge
+    # The runtime estimate (180s) appears to be inaccurate for this model
+    # Focus on ups-on-battery and ups-runtime-critical alerts instead
+    # "ups-low-battery" = {
+    #   type = "promql";
+    #   alertname = "UPSLowBattery";
+    #   expr = "ups_low_battery == 1";
+    #   for = "0s";  # Immediate alert
+    #   severity = "critical";
+    #   labels = { service = "ups"; category = "power"; };
+    #   annotations = {
+    #     summary = "UPS {{ $labels.ups }} battery critically low";
+    #     description = "UPS low battery flag set. System shutdown imminent. Battery: {{ with query \"ups_battery_charge{ups='apc'}\" }}{{ . | first | value }}{{ end }}%, runtime: {{ with query \"ups_battery_runtime_seconds{ups='apc'}\" }}{{ . | first | value | humanizeDuration }}{{ end }}";
+    #   };
+    # };
 
     # Battery charge below threshold
     "ups-battery-charge-low" = {
@@ -233,12 +236,14 @@
       };
     };
 
-    # Runtime critically low (less than 5 minutes)
+    # Runtime critically low (less than 2 minutes)
+    # NOTE: Lowered from 5min because this UPS reports inaccurate runtime (180s at full charge)
+    # This will only alert if runtime drops significantly below the already-low baseline
     "ups-runtime-critical" = {
       type = "promql";
       alertname = "UPSRuntimeCritical";
-      expr = "ups_battery_runtime_seconds < 300";
-      for = "1m";
+      expr = "ups_battery_runtime_seconds < 120";
+      for = "2m";
       severity = "critical";
       labels = { service = "ups"; category = "power"; };
       annotations = {
