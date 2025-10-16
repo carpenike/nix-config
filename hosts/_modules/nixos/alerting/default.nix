@@ -296,10 +296,15 @@ in
       configuration = {
         route = {
           receiver = "pushover-medium";
-          group_by = [ "alertname" "service" ];
-          group_wait = "0s";
-          group_interval = "1m";
-          repeat_interval = "2h";
+          # Group by labels common to a device/instance, not alertname
+          # This ensures all alerts for one device go into one notification group
+          group_by = [ "job" "instance" ];
+          # Wait 30s to catch other related alerts that may fire in quick succession
+          group_wait = "30s";
+          # Send updates for a group every 5 minutes if new alerts are added
+          group_interval = "5m";
+          # Default repeat interval for non-critical alerts
+          repeat_interval = "4h";
           routes =
             # Prepend a route for the Dead Man's Switch to ensure it's handled first
             (lib.optional (cfg.receivers.healthchecks.urlSecret != null) {
@@ -314,25 +319,68 @@ in
             {
               matchers = [ "severity=\"critical\"" ];
               receiver = "pushover-critical";
-              group_wait = "0s";
+              # Repeat critical alerts more frequently to ensure they are not missed
               repeat_interval = "15m";
             }
             {
               matchers = [ "severity=\"high\"" ];
               receiver = "pushover-high";
-              group_wait = "0s";
               repeat_interval = "30m";
             }
             {
               matchers = [ "severity=\"medium\"" ];
               receiver = "pushover-medium";
+              repeat_interval = "2h";
             }
             {
               matchers = [ "severity=\"low\"" ];
               receiver = "pushover-low";
+              repeat_interval = "4h";
             }
           ];
         };
+
+        # Inhibition rules to prevent redundant alerts
+        # When a critical alert is active, suppress less severe related alerts
+        inhibit_rules = [
+          # Don't notify about being on battery if we already know the battery is low
+          {
+            target_matchers = [
+              "severity=\"medium\""
+              "alertname=\"UPSOnBattery\""
+            ];
+            source_matchers = [
+              "severity=\"critical\""
+              "alertname=\"UPSLowBattery\""
+            ];
+            # Only apply inhibition if alerts are for the same device
+            equal = [ "job" "instance" ];
+          }
+          # Don't notify about low battery charge if we have a critical runtime warning
+          {
+            target_matchers = [
+              "severity=\"medium\""
+              "alertname=\"UPSBatteryChargeLow\""
+            ];
+            source_matchers = [
+              "severity=\"critical\""
+              "alertname=\"UPSRuntimeCritical\""
+            ];
+            equal = [ "job" "instance" ];
+          }
+          # Don't notify about scrape failures if the UPS is known to be offline
+          {
+            target_matchers = [
+              "severity=\"high\""
+              "alertname=\"UPSMetricsScrapeFailure\""
+            ];
+            source_matchers = [
+              "severity=\"critical\""
+              "alertname=\"UPSOffline\""
+            ];
+            equal = [ "job" "instance" ];
+          }
+        ];
         receivers = [
           {
             name = "pushover-critical";
