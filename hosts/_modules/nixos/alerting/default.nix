@@ -454,12 +454,11 @@ in
         alert-boot = {
           description = "Send boot event to Alertmanager";
           wantedBy = [ "multi-user.target" ];
-          wants = [ "network-online.target" ];
+          wants = [ "network-online.target" "alertmanager.service" ];
           after = [ "network-online.target" "alertmanager.service" ];
-          # Require Alertmanager to be running before sending boot alert
-          requires = [ "alertmanager.service" ];
           serviceConfig = {
             Type = "oneshot";
+            RemainAfterExit = true;
             ExecStart = ''
               ${amPost}/bin/am-postalert \
                 ${cfg.alertmanager.url} \
