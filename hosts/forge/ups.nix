@@ -54,7 +54,7 @@
   environment.systemPackages = [ pkgs.nut ];
 
   # Export UPS metrics to Prometheus via node_exporter textfile collector
-  # Metrics are written to /var/lib/prometheus-node-exporter/ups.prom
+  # Metrics are written to /var/lib/node_exporter/textfile_collector/ups.prom
   # and automatically scraped by the existing node_exporter service
   systemd.timers.ups-metrics = {
     wantedBy = [ "timers.target" ];
@@ -82,7 +82,7 @@
       PrivateTmp = true;
       NoNewPrivileges = true;
       # Allow writing to the textfile directory
-      ReadWritePaths = [ "/var/lib/prometheus-node-exporter" ];
+      ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
     };
 
     script = ''
@@ -156,21 +156,21 @@
           print "ups_low_battery{ups=\"apc\"} ", low_battery
           print "ups_online{ups=\"apc\"} ", online
         }
-      ' > /var/lib/prometheus-node-exporter/ups.prom.tmp
+      ' > /var/lib/node_exporter/textfile_collector/ups.prom.tmp
 
       # Add scrape metadata metrics
-      echo "ups_metrics_scrape_success{ups=\"apc\"} $SCRAPE_SUCCESS" >> /var/lib/prometheus-node-exporter/ups.prom.tmp
-      echo "ups_metrics_last_scrape_timestamp_seconds{ups=\"apc\"} $TIMESTAMP" >> /var/lib/prometheus-node-exporter/ups.prom.tmp
+      echo "ups_metrics_scrape_success{ups=\"apc\"} $SCRAPE_SUCCESS" >> /var/lib/node_exporter/textfile_collector/ups.prom.tmp
+      echo "ups_metrics_last_scrape_timestamp_seconds{ups=\"apc\"} $TIMESTAMP" >> /var/lib/node_exporter/textfile_collector/ups.prom.tmp
 
       # Clean up temp file
       ${pkgs.coreutils}/bin/rm -f "$TEMP_DATA"
 
       # Atomic move to prevent partial reads
-      ${pkgs.coreutils}/bin/mv /var/lib/prometheus-node-exporter/ups.prom.tmp \
-                               /var/lib/prometheus-node-exporter/ups.prom
+      ${pkgs.coreutils}/bin/mv /var/lib/node_exporter/textfile_collector/ups.prom.tmp \
+                               /var/lib/node_exporter/textfile_collector/ups.prom
 
       # Set appropriate permissions (640 is sufficient, node_exporter can read)
-      ${pkgs.coreutils}/bin/chmod 640 /var/lib/prometheus-node-exporter/ups.prom
+      ${pkgs.coreutils}/bin/chmod 640 /var/lib/node_exporter/textfile_collector/ups.prom
     '';
   };
 }
