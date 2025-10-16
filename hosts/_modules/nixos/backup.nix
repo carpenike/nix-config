@@ -1664,6 +1664,10 @@ EOF
 
     # Create required directories for Phase 3 features
     systemd.tmpfiles.rules = mkMerge [
+      # Base directory for backup state files
+      [
+        "d /var/lib/backup 0755 restic-backup restic-backup -"
+      ]
       (mkIf cfg.monitoring.enable [
         "d ${cfg.monitoring.logDir} 0755 restic-backup restic-backup -"
       ])
