@@ -173,4 +173,120 @@
       ${pkgs.coreutils}/bin/chmod 640 /var/lib/node_exporter/textfile_collector/ups.prom
     '';
   };
+
+  # Alert rules for UPS monitoring
+  # These integrate with the alerting module defined in alerting.nix
+  modules.alerting.rules = {
+    # Metrics scraping failure
+    "ups-metrics-scrape-failed" = {
+      type = "promql";
+      alertname = "UPSMetricsScrapeFailure";
+      expr = "ups_metrics_scrape_success == 0";
+      for = "5m";
+      severity = "high";
+      labels = { service = "ups"; category = "monitoring"; };
+      annotations = {
+        summary = "UPS metrics collection failed on {{ $labels.instance }}";
+        description = "Unable to scrape UPS metrics from NUT. Check ups-metrics.service and upsd.service logs.";
+      };
+    };
+
+    # UPS on battery power
+    "ups-on-battery" = {
+      type = "promql";
+      alertname = "UPSOnBattery";
+      expr = "ups_on_battery == 1";
+      for = "2m";
+      severity = "warning";
+      labels = { service = "ups"; category = "power"; };
+      annotations = {
+        summary = "UPS {{ $labels.ups }} running on battery power";
+        description = "Power outage detected. Current battery: {{ with query \"ups_battery_charge{ups='apc'}\" }}{{ . | first | value }}{{ end }}%, runtime: {{ with query \"ups_battery_runtime_seconds{ups='apc'}\" }}{{ . | first | value | humanizeDuration }}{{ end }}";
+      };
+    };
+
+    # Low battery warning
+    "ups-low-battery" = {
+      type = "promql";
+      alertname = "UPSLowBattery";
+      expr = "ups_low_battery == 1";
+      for = "0s";  # Immediate alert
+      severity = "critical";
+      labels = { service = "ups"; category = "power"; };
+      annotations = {
+        summary = "UPS {{ $labels.ups }} battery critically low";
+        description = "UPS low battery flag set. System shutdown imminent. Battery: {{ with query \"ups_battery_charge{ups='apc'}\" }}{{ . | first | value }}{{ end }}%, runtime: {{ with query \"ups_battery_runtime_seconds{ups='apc'}\" }}{{ . | first | value | humanizeDuration }}{{ end }}";
+      };
+    };
+
+    # Battery charge below threshold
+    "ups-battery-charge-low" = {
+      type = "promql";
+      alertname = "UPSBatteryChargeLow";
+      expr = "ups_battery_charge < 50";
+      for = "5m";
+      severity = "warning";
+      labels = { service = "ups"; category = "power"; };
+      annotations = {
+        summary = "UPS {{ $labels.ups }} battery charge below 50%";
+        description = "Battery charge at {{ $value }}%. Runtime remaining: {{ with query \"ups_battery_runtime_seconds{ups='apc'}\" }}{{ . | first | value | humanizeDuration }}{{ end }}";
+      };
+    };
+
+    # Runtime critically low (less than 5 minutes)
+    "ups-runtime-critical" = {
+      type = "promql";
+      alertname = "UPSRuntimeCritical";
+      expr = "ups_battery_runtime_seconds < 300";
+      for = "1m";
+      severity = "critical";
+      labels = { service = "ups"; category = "power"; };
+      annotations = {
+        summary = "UPS {{ $labels.ups }} runtime critically low";
+        description = "Only {{ $value | humanizeDuration }} of battery runtime remaining. Prepare for shutdown.";
+      };
+    };
+
+    # High load warning (>80%)
+    "ups-load-high" = {
+      type = "promql";
+      alertname = "UPSLoadHigh";
+      expr = "ups_load_percent > 80";
+      for = "10m";
+      severity = "warning";
+      labels = { service = "ups"; category = "capacity"; };
+      annotations = {
+        summary = "UPS {{ $labels.ups }} load is high";
+        description = "Current load: {{ $value }}%. Consider load balancing or UPS upgrade if sustained.";
+      };
+    };
+
+    # Temperature warning (>30°C)
+    "ups-temperature-high" = {
+      type = "promql";
+      alertname = "UPSTemperatureHigh";
+      expr = "ups_temperature_celsius > 30";
+      for = "15m";
+      severity = "warning";
+      labels = { service = "ups"; category = "health"; };
+      annotations = {
+        summary = "UPS {{ $labels.ups }} temperature elevated";
+        description = "UPS temperature at {{ $value }}°C. Check ventilation and ambient temperature.";
+      };
+    };
+
+    # UPS offline (no longer online)
+    "ups-offline" = {
+      type = "promql";
+      alertname = "UPSOffline";
+      expr = "ups_online == 0";
+      for = "2m";
+      severity = "critical";
+      labels = { service = "ups"; category = "connectivity"; };
+      annotations = {
+        summary = "UPS {{ $labels.ups }} appears offline";
+        description = "Cannot communicate with UPS or UPS reports offline status. Check network connectivity and UPS health.";
+      };
+    };
+  };
 }
