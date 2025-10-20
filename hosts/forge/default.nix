@@ -441,8 +441,8 @@ in
           # Parent service dataset - metadata only, children managed by their respective modules
           # This dataset itself doesn't get snapshotted (recursive = false)
           # Individual service modules (dispatcharr, sonarr, etc.) configure their own snapshots
+          # Note: No useTemplate needed - this is just a logical container, not an actual snapshot target
           "tank/services" = {
-            useTemplate = [ "services" ];
             recursive = false;  # Don't snapshot children - they manage themselves
             autosnap = false;   # Don't snapshot the parent directory itself
             autoprune = false;

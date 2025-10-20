@@ -158,6 +158,35 @@ in
 
         echo "=== ZFS Service Datasets Activation ==="
 
+        # Wait up to 30 seconds for the parent pool to be imported
+        # This prevents race conditions during boot
+        PARENT_POOL=$(echo "${escape cfg.parentDataset}" | ${pkgs.gawk}/bin/awk -F/ '{print $1}')
+        for i in $(seq 1 30); do
+          if ${pkgs.zfs}/bin/zfs list -H -o name "$PARENT_POOL" >/dev/null 2>&1; then
+            echo "Parent pool '$PARENT_POOL' is available."
+            break
+          fi
+          echo "Waiting for parent pool '$PARENT_POOL' to be imported... ($i/30)"
+          sleep 1
+          if [ "$i" -eq 30 ]; then
+            echo "ERROR: Parent pool '$PARENT_POOL' not available after 30 seconds."
+            exit 1
+          fi
+        done
+
+        # Ensure parent dataset exists (self-healing)
+        # Create it if missing instead of failing boot
+        if ! ${pkgs.zfs}/bin/zfs list -H ${escape cfg.parentDataset} >/dev/null 2>&1; then
+          echo "WARNING: Parent dataset ${cfg.parentDataset} does not exist. Creating it now..."
+          # Use -p to create intermediate datasets, set mountpoint=none for logical container
+          if ${pkgs.zfs}/bin/zfs create -p -o mountpoint=none ${escape cfg.parentDataset}; then
+            echo "  ✓ Created parent dataset successfully."
+          else
+            echo "  ✗ CRITICAL: Failed to create parent dataset ${cfg.parentDataset}."
+            exit 1
+          fi
+        fi
+
         ${lib.concatStringsSep "\n" (lib.mapAttrsToList (serviceName: serviceConfig:
           let
             datasetPath = "${cfg.parentDataset}/${serviceName}";
@@ -172,13 +201,6 @@ in
             } serviceConfig.properties;
           in ''
             # --- Service: ${serviceName} ---
-
-            # Check if parent dataset exists
-            if ! ${pkgs.zfs}/bin/zfs list -H ${escape cfg.parentDataset} >/dev/null 2>&1; then
-              echo "ERROR: Parent dataset ${cfg.parentDataset} does not exist!"
-              echo "This dataset should be created by disko-config.nix"
-              exit 1
-            fi
 
             # Check if dataset already exists
             if ${pkgs.zfs}/bin/zfs list -H ${escape datasetPath} >/dev/null 2>&1; then
