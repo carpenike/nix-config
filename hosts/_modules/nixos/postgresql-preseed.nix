@@ -201,20 +201,17 @@ in {
         Group = "postgres";
         ExecStart = "${restoreCommand}";
 
-        # Security hardening - relaxed for NFS mount access
+        # Security hardening - DISABLED for NFS mount access
+        # CRITICAL: Status 226 (NAMESPACE) error occurs even with ProtectSystem=full
+        # when accessing NFS mounts. The systemd namespace isolation completely blocks
+        # network filesystem access regardless of ReadWritePaths declarations.
+        # Since this is a oneshot preseed service that runs only on empty PGDATA,
+        # the security trade-off is acceptable for operational reliability.
         PrivateTmp = true;
         NoNewPrivileges = true;
-        # CRITICAL: Cannot use ProtectSystem=strict with NFS automounts
-        # Status 226 (NAMESPACE) indicates namespace isolation blocking network filesystem access
-        # NFS mounts require full filesystem namespace access
-        ProtectSystem = "full";  # Changed from "strict" to allow NFS mount access
-        ProtectHome = true;
-        ReadWritePaths = [
-          pgDataPath                      # PostgreSQL data directory
-          "/var/lib/pgbackrest"           # pgBackRest working directory and spool
-          "/var/log/pgbackrest"           # pgBackRest log directory
-          "/mnt/nas-postgresql"           # NFS backup repository (repo1) - corrected from nas-backup
-        ];
+        # ProtectSystem disabled - required for NFS mount access
+        # ProtectHome disabled - required for NFS mount access
+        # ReadWritePaths not needed when ProtectSystem is disabled
 
         # Timeout: Restores can take a while for large databases
         TimeoutStartSec = "2h";
