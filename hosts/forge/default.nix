@@ -688,30 +688,22 @@ in
           User = "postgres";
           Group = "postgres";
           RemainAfterExit = true;
-          # Load AWS credentials from SOPS secret
-          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
-          # Block access to EC2 metadata service to prevent timeout
-          IPAddressDeny = [ "169.254.169.254" ];
+          # No EnvironmentFile needed - using production config (repo1/NFS only)
+          # Repo2 (R2) will be added via separate stanza-upgrade after first backup
         };
         script = ''
           set -euo pipefail
-
-          # Transform AWS env vars to pgBackRest format
-          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
-          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
           # Directory is managed by systemd.tmpfiles.rules
           # stanza-create is idempotent - safe to run multiple times
           # It will create if missing, validate if exists, or repair if broken
 
-          echo "[$(date -Iseconds)] Creating/validating stanza 'main' for all repositories..."
-          # stanza-create doesn't accept --repo flag (error code 031)
-          # It automatically operates on ALL repos defined in the config file
-          # Using temporary config that includes both repo1 and repo2
-          pgbackrest --config=/etc/pgbackrest-init.conf --stanza=main stanza-create
+          echo "[$(date -Iseconds)] Creating/validating stanza 'main' for repo1 (NFS)..."
+          # Use production config (repo1 only) to avoid SOPS dependency on first boot
+          # Repo2 (R2) can be added later via stanza-upgrade after first successful backup
+          pgbackrest --stanza=main stanza-create
 
-          echo "[$(date -Iseconds)] Running check with production config (repo1 only)..."
-          # check validates all repos in global config (just repo1 where WAL archiving goes)
+          echo "[$(date -Iseconds)] Running check..."
           pgbackrest --stanza=main check
         '';
         wantedBy = [ "multi-user.target" ];
