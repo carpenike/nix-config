@@ -135,7 +135,9 @@ sudo reboot
 - Check datasets mounted: `zfs list`
 - Verify network connectivity: `ping 1.1.1.1`
 
-### 7. Extract SSH Host Key and Register with SOPS
+### 7. Extract SSH Host Key and Register with SOPS (First Time)
+
+**⚠️ NOTE:** This extracts the **bootstrap** SSH key. When you deploy the full config (Step 8), the key will change due to impermanence. See "Common Issues" section for how to extract the final key.
 
 **On the newly booted host** (SSH as user `ryan` that was created during install), extract the SSH host key and convert to age format:
 
@@ -229,23 +231,52 @@ zfs list
 3. Create parent dataset: `zfs create -p -o mountpoint=none poolname/parent`
 4. Reboot
 
-### Issue: SOPS secrets fail to decrypt
+### Issue: SOPS secrets fail to decrypt after first full deployment
 
-**Causes:**
+**This is EXPECTED behavior** when deploying the full config after nixos-bootstrap.
+
+**Why it happens:**
+1. `nixos-bootstrap` generates temporary SSH keys (not persisted)
+2. You extract and add these keys to `.sops.yaml` (correctly!)
+3. System reboots successfully with bootstrap config
+4. When you deploy the **full config**, it enables impermanence:
+   - Root filesystem rolls back to blank snapshot on boot
+   - SSH keys are regenerated in `/persist` (new keys!)
+   - Old bootstrap keys are lost (they were ephemeral)
+5. SOPS can't decrypt because the keys changed
+
+**Solution:** Extract the NEW keys after first full deployment:
+
+```fish
+# 1. Accept the new SSH host key (it changed - this is expected!)
+ssh-keygen -R forge.holthome.net  # Remove old key
+ssh ryan@forge.holthome.net  # Accept new key
+
+# 2. Extract the NEW age key
+ssh ryan@forge.holthome.net 'cat /etc/ssh/ssh_host_ed25519_key.pub | nix-shell -p ssh-to-age --run ssh-to-age'
+
+# 3. Update .sops.yaml with the new key (replace old one)
+vim .sops.yaml
+
+# 4. Re-encrypt all secrets
+task sops:re-encrypt
+
+# 5. Commit and deploy again
+git add .sops.yaml hosts/*/secrets.sops.yaml
+git commit -m "chore(forge): update SSH host key after impermanence activation"
+git push
+task nix:apply-nixos host=forge
+```
+
+**Alternative causes** (if not first deployment):
 - SSH host key not added to `.sops.yaml`
 - Secrets not re-encrypted after adding key
 - Wrong age key format (needs to start with `age1`)
 
-**Solution:**
+**Verification:**
 ```fish
 # Verify the host's age key is in .sops.yaml
 cat .sops.yaml | grep "age1"
-
-# Re-encrypt all secrets
-task sops:re-encrypt
-
-# Redeploy
-task nix:apply-nixos host=newhostname
 ```
 
 ### Issue: Disk layout detection fails
