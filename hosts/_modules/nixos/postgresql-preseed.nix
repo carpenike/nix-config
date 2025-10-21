@@ -9,6 +9,10 @@ let
   # Helper to determine if PGDATA is empty
   pgDataPath = pgCfg.dataDir;
 
+  # Marker file location - OUTSIDE PGDATA to avoid dataset layering issues
+  # Stored in parent directory (/var/lib/postgresql/) to survive PGDATA deletion
+  markerFile = "/var/lib/postgresql/.preseed-completed-${toString pgCfg.package.version}";
+
   # Build the pgbackrest restore command
   restoreCommand = pkgs.writeShellScript "postgresql-preseed-restore" ''
     set -euo pipefail
@@ -26,8 +30,10 @@ let
       if [ -f "${pgDataPath}/postgresql.conf" ] && [ -f "${pgDataPath}/PG_VERSION" ]; then
         echo "PGDATA is already initialized. Skipping pre-seed restore."
         # Create the completion marker to ensure this check is skipped on future boots.
-        touch "${pgDataPath}/.preseed-completed"
-        echo "Completion marker created. Pre-seed service will be skipped in the future."
+        # Marker is outside PGDATA to avoid ZFS dataset layering issues.
+        touch "${markerFile}"
+        echo "Completion marker created at ${markerFile}"
+        echo "Pre-seed service will be skipped in the future."
         exit 0
       else
         # If it's not empty but doesn't look initialized, it's a failed restore.
@@ -63,7 +69,9 @@ let
     ''}
 
     # Create completion marker to prevent re-runs
-    touch "${pgDataPath}/.preseed-completed"
+    # Marker is outside PGDATA to avoid ZFS dataset layering issues
+    touch "${markerFile}"
+    echo "Completion marker created at ${markerFile}"
     echo "=== Pre-Seed Restore Complete ==="
   '';
 
@@ -190,9 +198,10 @@ in {
       wants = [ "network-online.target" "mnt-nas\\x2dpostgresql.mount" ];
       requires = [ "systemd-tmpfiles-setup.service" "mnt-nas\\x2dpostgresql.mount" ];
 
-      # Only run if PGDATA doesn't contain the completion marker
+      # Only run if the completion marker doesn't exist
+      # Marker is outside PGDATA to avoid ZFS dataset layering issues
       unitConfig = {
-        ConditionPathExists = "!${pgDataPath}/.preseed-completed";
+        ConditionPathExists = "!${markerFile}";
       };
 
       serviceConfig = {
