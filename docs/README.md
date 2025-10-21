@@ -6,6 +6,12 @@ This directory contains comprehensive documentation for the NixOS configuration 
 
 ### System Management
 
+- **[Bootstrap Quickstart](./bootstrap-quickstart.md)** - ⚡ **Quick reference** for manually bootstrapping new NixOS hosts
+  - Step-by-step deployment workflow
+  - SOPS secrets integration
+  - Taskfile helper commands
+  - Common issues and solutions
+
 - **[Backup System Onboarding](./backup-system-onboarding.md)** - Complete guide for configuring Restic-based backups with ZFS integration, monitoring, automated testing, and service-specific profiles
   - Host onboarding procedures
   - Service backup configurations (UniFi, Omada, 1Password, Attic, System)

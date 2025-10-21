@@ -1,0 +1,125 @@
+---
+version: "3"
+
+tasks:
+  extract-ssh-key:
+    desc: Extract SSH host key from target and convert to age format
+    silent: true
+    summary: |
+      Extracts the SSH ed25519 host public key from a target host and converts it to age format.
+      This age key can then be added to .sops.yaml for secrets encryption.
+
+      Args:
+        host: Target hostname (required)
+        ssh_user: SSH user (default: ryan)
+        NIXOS_DOMAIN: Domain suffix (default: holthome.netinternal)
+        method: Extraction method - 'ssh' or 'scan' (default: ssh)
+
+      Examples:
+        task bootstrap:extract-ssh-key host=forge
+        task bootstrap:extract-ssh-key host=luna method=scan
+        task bootstrap:extract-ssh-key host=newhost ssh_user=ryan NIXOS_DOMAIN=holthome.net
+    vars:
+      ssh_user: '{{.ssh_user | default "ryan"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      method: '{{.method | default "ssh"}}'
+      fqdn:
+        sh: 'echo "{{.host}}.{{.NIXOS_DOMAIN}}"'
+    requires:
+      vars:
+        - host
+    cmds:
+      - |
+        set -euo pipefail
+
+        echo "📡 Extracting SSH host key from {{.fqdn}}..." >&2
+
+        case "{{.method}}" in
+          ssh)
+            echo "  Method: Direct SSH read" >&2
+            pub=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              "{{.ssh_user}}@{{.fqdn}}" \
+              'cat /etc/ssh/ssh_host_ed25519_key.pub' 2>/dev/null)
+            ;;
+          scan)
+            echo "  Method: SSH keyscan" >&2
+            pub=$(ssh-keyscan -t ed25519 "{{.fqdn}}" 2>/dev/null | grep -v '^#' | awk '{print $2" "$3}' | head -n1)
+            ;;
+          *)
+            echo "❌ Invalid method '{{.method}}' (use 'ssh' or 'scan')" >&2
+            exit 1
+            ;;
+        esac
+
+        if [ -z "$pub" ]; then
+          echo "❌ No ed25519 host key found on {{.fqdn}}" >&2
+          echo "   Make sure the host is booted and SSH is accessible" >&2
+          exit 1
+        fi
+
+        echo "  Found SSH key: ${pub:0:50}..." >&2
+        echo "" >&2
+        echo "🔑 Converting to age format..." >&2
+
+        # Try ssh-to-age from PATH first, then fall back to nix
+        if command -v ssh-to-age >/dev/null 2>&1; then
+          age_key=$(echo "$pub" | ssh-to-age)
+        else
+          echo "  Using nix shell for ssh-to-age..." >&2
+          age_key=$(echo "$pub" | nix shell nixpkgs#ssh-to-age -c ssh-to-age)
+        fi
+
+        if [ -z "$age_key" ]; then
+          echo "❌ Failed to convert SSH key to age format" >&2
+          exit 1
+        fi
+
+        echo "" >&2
+        echo "✅ Age public key for {{.host}}:" >&2
+        echo "" >&2
+        echo "$age_key"
+        echo "" >&2
+        echo "📝 Next steps:" >&2
+        echo "  1. Add this key to .sops.yaml under creation_rules[].age" >&2
+        echo "  2. Run: task sops:re-encrypt" >&2
+        echo "  3. Deploy full config: task nix:apply-nixos host={{.host}}" >&2
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: which nix
+        msg: "nix not found"
+
+  quickstart:
+    desc: Show bootstrap quickstart guide
+    silent: true
+    cmds:
+      - |
+        echo "🚀 NixOS Host Bootstrap - Quick Reference"
+        echo ""
+        echo "📚 Full documentation: docs/bootstrap-quickstart.md"
+        echo ""
+        echo "⚡ Quick workflow (existing hosts like forge/luna):"
+        echo "  1. Boot LiveCD, set password: sudo passwd nixos"
+        echo "  2. Format disks:"
+        echo "     sudo nix run --extra-experimental-features \"nix-command flakes\" \\"
+        echo "       github:nix-community/disko -- --mode disko --flake github:carpenike/nix-config#HOSTNAME"
+        echo "  3. Install: nixos-install --flake github:carpenike/nix-config#nixos-bootstrap --root /mnt --no-root-password"
+        echo "  4. Reboot (system creates user 'ryan')"
+        echo "  5. Extract SSH key: ssh ryan@HOSTNAME, then run:"
+        echo "     nix-shell -p ssh-to-age --run 'cat /etc/ssh/ssh_host_ed25519_key.pub | ssh-to-age'"
+        echo "  6. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt"
+        echo "  7. Deploy full config: task nix:apply-nixos host=HOSTNAME"
+        echo ""
+        echo "🆕 For NEW hosts (not in repo yet):"
+        echo "  • Generate hostId first: head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n'"
+        echo "  • Create host directory and update flake.nix BEFORE step 2"
+        echo "  • See full docs for details"
+        echo ""
+        echo "👤 Users:"
+        echo "  • LiveCD: nixos (temporary, for remote disk setup)"
+        echo "  • After install: ryan (created by nixos-bootstrap, has sudo)"
+        echo ""
+        echo "📋 Available tasks:"
+        echo "  task bootstrap:extract-ssh-key host=HOSTNAME  - Extract SSH key remotely (uses ryan@host)"
+        echo "  task bootstrap:quickstart                     - Show this help"
+        echo ""

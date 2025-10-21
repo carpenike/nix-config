@@ -46,7 +46,7 @@ tasks:
     silent: true
     vars:
       ssh_user: ryan
-      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"bjw-s.internal\"}}"
+      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"holthome.net\"}}"
     summary: |
       Args:
         host: Host to build and deploy to (required)
@@ -64,7 +64,7 @@ tasks:
     silent: true
     vars:
       ssh_user: ryan
-      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"bjw-s.internal\"}}"
+      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"holthome.net\"}}"
     summary: |
       Args:
         host: Host to build and deploy to (required)

@@ -9,6 +9,9 @@ includes:
   nix:
     taskfile: ".taskfiles/nix"
     dir: "{{.ROOT_DIR}}"
+  bootstrap:
+    taskfile: ".taskfiles/bootstrap"
+    dir: "{{.ROOT_DIR}}"
 
 tasks:
   default:

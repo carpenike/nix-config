@@ -186,9 +186,9 @@ in {
       description = "PostgreSQL Pre-Seed Restore (New Server Provisioning)";
       wantedBy = [ "multi-user.target" ];
       before = [ "postgresql.service" ];
-      after = [ "network-online.target" "systemd-tmpfiles-setup.service" ];
-      wants = [ "network-online.target" ];
-      requires = [ "systemd-tmpfiles-setup.service" ];
+      after = [ "network-online.target" "systemd-tmpfiles-setup.service" "mnt-nas\\x2dpostgresql.mount" ];
+      wants = [ "network-online.target" "mnt-nas\\x2dpostgresql.mount" ];
+      requires = [ "systemd-tmpfiles-setup.service" "mnt-nas\\x2dpostgresql.mount" ];
 
       # Only run if PGDATA doesn't contain the completion marker
       unitConfig = {
@@ -201,16 +201,19 @@ in {
         Group = "postgres";
         ExecStart = "${restoreCommand}";
 
-        # Security hardening
+        # Security hardening - relaxed for NFS mount access
         PrivateTmp = true;
         NoNewPrivileges = true;
-        ProtectSystem = "strict";
+        # CRITICAL: Cannot use ProtectSystem=strict with NFS automounts
+        # Status 226 (NAMESPACE) indicates namespace isolation blocking network filesystem access
+        # NFS mounts require full filesystem namespace access
+        ProtectSystem = "full";  # Changed from "strict" to allow NFS mount access
         ProtectHome = true;
         ReadWritePaths = [
           pgDataPath                      # PostgreSQL data directory
           "/var/lib/pgbackrest"           # pgBackRest working directory and spool
           "/var/log/pgbackrest"           # pgBackRest log directory
-          "/mnt/nas-backup"               # NFS backup repository (repo1)
+          "/mnt/nas-postgresql"           # NFS backup repository (repo1) - corrected from nas-backup
         ];
 
         # Timeout: Restores can take a while for large databases

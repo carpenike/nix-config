@@ -679,8 +679,9 @@ in
       # Stanza creation (runs once at setup)
       pgbackrest-stanza-create = {
         description = "pgBackRest stanza initialization";
-        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        after = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
+        requires = [ "mnt-nas\\x2dpostgresql.mount" ];  # Fail if mount unavailable
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
         serviceConfig = {
           Type = "oneshot";
@@ -719,8 +720,9 @@ in
       # Full backup
       pgbackrest-full-backup = {
         description = "pgBackRest full backup";
-        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-stanza-create.service" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        after = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
+        requires = [ "mnt-nas\\x2dpostgresql.mount" ];  # Fail if mount unavailable
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
         serviceConfig = {
           Type = "oneshot";
@@ -758,8 +760,9 @@ in
       # Incremental backup
       pgbackrest-incr-backup = {
         description = "pgBackRest incremental backup";
-        after = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" "pgbackrest-stanza-create.service" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dbackup.mount" ];
+        after = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
+        requires = [ "mnt-nas\\x2dpostgresql.mount" ];  # Fail if mount unavailable
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
         serviceConfig = {
           Type = "oneshot";
@@ -1034,8 +1037,8 @@ EOF
         # Atomically replace the old metrics file
         mv "$METRICS_TEMP" "$METRICS_FILE"
       '';
-      after = [ "postgresql.service" "pgbackrest-stanza-create.service" "mnt-nas\\x2dbackup.mount" ];
-      wants = [ "postgresql.service" ];
+      after = [ "postgresql.service" "pgbackrest-stanza-create.service" "mnt-nas\\x2dpostgresql.mount" ];
+      wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
     };
 
     systemd.timers.pgbackrest-metrics = {
