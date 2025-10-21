@@ -68,6 +68,10 @@ in
 
     # PostgreSQL backups via pgBackRest (separate mount for isolation)
     # Hardened for pgBackRest WAL archiving reliability
+    # CRITICAL: No automount - must be always available for:
+    #   - postgresql-preseed service (runs early, namespace isolated)
+    #   - pgbackrest-stanza-create (boot-time initialization)
+    #   - WAL archiving (continuous, can't tolerate mount delays)
     fileSystems."/mnt/nas-postgresql" = {
       device = "nas-1.holthome.net:/mnt/backup/forge/postgresql";
       fsType = "nfs";
@@ -79,8 +83,8 @@ in
         "_netdev"           # Wait for network before mounting
         "rw"
         "noatime"
-        "x-systemd.automount"
-        # REMOVED: x-systemd.idle-timeout - Don't auto-unmount (pgBackRest needs stable mount)
+        # REMOVED: x-systemd.automount - causes namespace issues with early services
+        # REMOVED: x-systemd.idle-timeout - pgBackRest needs stable mount
         # REMOVED: "intr" - Deprecated and ignored in NFSv4
         "x-systemd.mount-timeout=30s"
       ];
