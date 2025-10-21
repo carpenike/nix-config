@@ -548,6 +548,7 @@ in
     systemd.timers.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
       description = "Dispatcharr Container Health Check Timer";
       wantedBy = [ "timers.target" ];
+      partOf = [ mainServiceUnit ];  # Bind timer lifecycle to container service
       after = [ mainServiceUnit ];
       timerConfig = {
         # Delay first check to allow container initialization
