@@ -713,7 +713,7 @@ in
         after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
         wants = [ "postgresql.service" ];
         requires = [ "postgresql.service" ];
-        path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.jq pkgs.bash pkgs.coreutils ];
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep ];
 
         # Only run if preseed completed but post-preseed backup hasn't been done yet
         unitConfig = {
@@ -756,19 +756,23 @@ in
           log "Current system-id: $cur_sysid"
 
           # Check if we already have a full backup for current system-id
-          info_json="$(pgbackrest info --stanza=main --output=json)"
-          has_full_for_cur_sysid="$(echo "$info_json" | jq -r --arg id "$cur_sysid" '
-            any(.[0].db[]?; .\"system-id\"==$id and any(.backup[]?; .type==\"full\"))
-          ')"
+          # Simple approach: check if pgbackrest info shows current DB as having backups
+          log "Checking if backup needed for current system-id..."
 
-          log "Repo has full backup for current system-id: $has_full_for_cur_sysid"
-
-          if [[ "$has_full_for_cur_sysid" != "true" ]]; then
-            log "Creating fresh full backup for new system-id..."
+          if pgbackrest info --stanza=main | grep -q "db (current)"; then
+            # Current DB section exists, check if it has any backups
+            backup_count="$(pgbackrest info --stanza=main | grep -A 20 "db (current)" | grep -c "full backup:" || echo "0")"
+            if [[ "$backup_count" -gt 0 ]]; then
+              log "Found $backup_count full backup(s) for current system-id; skipping backup"
+            else
+              log "No full backups found for current system-id; creating fresh backup..."
+              pgbackrest --stanza=main --type=full backup
+              log "Fresh full backup completed successfully"
+            fi
+          else
+            log "No current DB section found; creating fresh backup..."
             pgbackrest --stanza=main --type=full backup
             log "Fresh full backup completed successfully"
-          else
-            log "Full backup already exists for current system-id; skipping"
           fi
 
           # Mark completion to prevent re-runs
