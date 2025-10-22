@@ -730,6 +730,7 @@ in
         after = [ "postgresql.service" "pgbackrest-stanza-create.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
         wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
         requires = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
+        wantedBy = [ "multi-user.target" ];  # Enable automatic startup during boot
         # Use PartOf to ensure this service is only considered when postgresql-preseed actually runs
         partOf = [ "postgresql-preseed.service" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep ];
@@ -812,8 +813,6 @@ in
           touch /var/lib/postgresql/.postpreseed-backup-done
           log "Post-preseed backup process completed"
         '';
-
-        wantedBy = [ "multi-user.target" ];
       };
 
       # Full backup
