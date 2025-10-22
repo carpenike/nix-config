@@ -98,11 +98,30 @@ EOF
       fi
     fi
 
-    # Create PGDATA directory if it doesn't exist
-    log_json "INFO" "pgdata_setup" "Creating and configuring PGDATA directory." "{\"path\":\"${pgDataPath}\"}"
-    mkdir -p "${pgDataPath}"
-    chown postgres:postgres "${pgDataPath}"
-    chmod 0700 "${pgDataPath}"
+    # Verify PGDATA directory exists (created by zfs-service-datasets.service)
+    log_json "INFO" "pgdata_check" "Verifying PGDATA directory exists." "{\"path\":\"${pgDataPath}\"}"
+    if [ ! -d "${pgDataPath}" ]; then
+      log_json "ERROR" "pgdata_missing" "PGDATA directory does not exist. ZFS dataset creation may have failed." "{\"path\":\"${pgDataPath}\"}"
+      exit 1
+    fi
+
+    # Wait up to 30 seconds for the PGDATA directory to be owned by the 'postgres' user.
+    # This mitigates a common race condition on boot where a ZFS dataset is mounted
+    # as root:root before a separate systemd service or tmpfiles rule has a chance
+    # to chown it to postgres:postgres.
+    log_json "INFO" "ownership_wait" "Waiting for PGDATA directory to be owned by postgres user..." "{\"path\":\"${pgDataPath}\"}"
+    WAIT_TIMEOUT=30
+    while [ "$(stat -c '%U' "${pgDataPath}")" != "postgres" ]; do
+      if [ $WAIT_TIMEOUT -le 0 ]; then
+        CURRENT_OWNER="$(stat -c '%U' "${pgDataPath}")"
+        log_json "ERROR" "ownership_timeout" "Timed out waiting for correct ownership on PGDATA." \
+          "{\"path\":\"${pgDataPath}\", \"expected_owner\":\"postgres\", \"current_owner\":\"''${CURRENT_OWNER}\"}"
+        exit 1
+      fi
+      WAIT_TIMEOUT=$((WAIT_TIMEOUT - 1))
+      sleep 1
+    done
+    log_json "INFO" "ownership_ok" "PGDATA directory ownership is correct."
 
     # Execute the restore
     log_json "INFO" "restore_start" "Running pgBackRest restore..."
@@ -265,21 +284,55 @@ in {
       "f /var/lib/node_exporter/textfile_collector/postgresql_preseed.prom 0644 postgres node-exporter - -"
     ];
 
+    # Prepare service to ensure PGDATA ownership/permissions after ZFS mount
+    systemd.services.postgresql-preseed-prepare = {
+      description = "Prepare PGDATA mountpoint (ownership, permissions)";
+      after = [ "zfs-service-datasets.service" "zfs-mount.service" ];
+      path = with pkgs; [ util-linux coreutils ];
+      unitConfig = {
+        RequiresMountsFor = [ "${pgDataPath}" ];
+        ConditionPathIsMountPoint = "${pgDataPath}";
+      };
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+        RemainAfterExit = true;
+      };
+      script = ''
+        set -euo pipefail
+
+        # Ensure mountpoint exists and is the real dataset
+        if ! mountpoint -q "${pgDataPath}"; then
+          echo "PGDATA ${pgDataPath} is not a mountpoint" >&2
+          exit 1
+        fi
+
+        # Enforce strict perms
+        install -d -m 0700 -o postgres -g postgres "${pgDataPath}"
+        chown postgres:postgres "${pgDataPath}"
+        chmod 0700 "${pgDataPath}"
+
+        echo "PGDATA ownership and permissions set correctly"
+      '';
+    };
+
     # Create the systemd service for pre-seeding
     systemd.services.postgresql-preseed = {
       description = "PostgreSQL Pre-Seed Restore (New Server Provisioning)";
       wantedBy = [ "multi-user.target" ];
       before = [ "postgresql.service" ];
-      after = [ "network-online.target" "systemd-tmpfiles-setup.service" ];
+      after = [ "network-online.target" "systemd-tmpfiles-setup.service" "zfs-service-datasets.service" "postgresql-preseed-prepare.service" ];
       wants = [ "network-online.target" ];
-      requires = [ "systemd-tmpfiles-setup.service" ];
+      requires = [ "systemd-tmpfiles-setup.service" "zfs-service-datasets.service" "postgresql-preseed-prepare.service" ];
 
       # Only run if the completion marker doesn't exist
       # Marker is outside PGDATA to avoid ZFS dataset layering issues
       unitConfig = {
         ConditionPathExists = "!${markerFile}";
         # Proper NFS mount dependency - eliminates brittle unit name encoding
-        RequiresMountsFor = [ "/mnt/nas-postgresql" ];
+        # Also wait for the PGDATA path itself to be mounted
+        RequiresMountsFor = [ "/mnt/nas-postgresql" "${pgDataPath}" ];
+        ConditionPathIsMountPoint = "${pgDataPath}";
         # Trigger post-preseed service on successful completion
         OnSuccess = [ "pgbackrest-post-preseed.service" ];
       };
@@ -311,9 +364,10 @@ in {
     };
 
     # Ensure PostgreSQL service waits for pre-seed if needed
+    # Use requires instead of wants to prevent auto-init if preseed fails
     systemd.services.postgresql = {
       after = [ "postgresql-preseed.service" ];
-      wants = [ "postgresql-preseed.service" ];
+      requires = [ "postgresql-preseed.service" ];
     };
 
     # Add helpful environment indicator

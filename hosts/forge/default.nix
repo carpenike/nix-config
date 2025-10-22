@@ -672,8 +672,7 @@ in
       "f /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
       # Create metrics file for the post-preseed service
       "f /var/lib/node_exporter/textfile_collector/postgresql_postpreseed.prom 0644 postgres node-exporter - -"
-      # Ensure parent directory exists for post-preseed marker
-      "d /var/lib/postgresql 0755 postgres postgres - -"
+      # Note: /var/lib/postgresql directory created by zfs-service-datasets.service with proper ownership
     ];
 
     # pgBackRest systemd services
@@ -701,26 +700,48 @@ in
           set -euo pipefail
 
           # Directory is managed by systemd.tmpfiles.rules
-          # This service handles two scenarios:
+          # This service handles three scenarios:
           # 1. Fresh install: Creates new stanza
           # 2. After pre-seed restore: Validates existing stanza matches restored DB
+          # 3. Disaster recovery: Force recreates stanza when metadata conflicts
 
           echo "[$(date -Iseconds)] Creating pgBackRest stanza 'main' for both repos (NFS + R2)..."
 
-          # Try to create stanza across both repositories
-          # This ensures repo2 (R2) stanza is created with proper credentials
+          # Check if we're in disaster recovery scenario (preseed marker exists)
+          DISASTER_RECOVERY=false
+          if [ -f "/var/lib/postgresql/.preseed-completed" ]; then
+            echo "[$(date -Iseconds)] Preseed marker detected - this is a disaster recovery scenario"
+            DISASTER_RECOVERY=true
+          fi
+
+          # Try to create/upgrade stanza to handle both fresh install and disaster recovery
           echo "[$(date -Iseconds)] Attempting stanza creation for both repositories..."
+
           if pgbackrest --config=/etc/pgbackrest-init.conf --stanza=main stanza-create 2>&1; then
             echo "[$(date -Iseconds)] Successfully created stanzas for both repositories"
           else
-            echo "[$(date -Iseconds)] WARNING: Dual-repo stanza creation failed, trying repo1 only..."
-            # If dual-repo fails, ensure at least repo1 (NFS) stanza exists
-            if pgbackrest --stanza=main stanza-create 2>&1; then
-              echo "[$(date -Iseconds)] Successfully created stanza for repo1 (NFS)"
-              echo "[$(date -Iseconds)] NOTE: repo2 (R2) stanza creation failed - check R2 configuration"
+            echo "[$(date -Iseconds)] Initial stanza creation failed, checking if upgrade is needed..."
+
+            # Check if this is a database system identifier mismatch (error 028)
+            # This happens after disaster recovery when database was rebuilt but stanza exists
+            if pgbackrest --stanza=main info >/dev/null 2>&1; then
+              echo "[$(date -Iseconds)] Stanza exists but database mismatch detected - upgrading stanza"
+              if pgbackrest --stanza=main stanza-upgrade 2>&1; then
+                echo "[$(date -Iseconds)] Stanza upgrade successful - database now matches backup metadata"
+              else
+                echo "[$(date -Iseconds)] ERROR: Stanza upgrade failed"
+                exit 1
+              fi
             else
-              echo "[$(date -Iseconds)] ERROR: Failed to create stanza even for repo1"
-              exit 1
+              echo "[$(date -Iseconds)] WARNING: Dual-repo stanza creation failed, trying repo1 only..."
+              # If dual-repo fails, ensure at least repo1 (NFS) stanza exists
+              if pgbackrest --stanza=main stanza-create 2>&1; then
+                echo "[$(date -Iseconds)] Successfully created stanza for repo1 (NFS)"
+                echo "[$(date -Iseconds)] NOTE: repo2 (R2) stanza creation failed - check R2 configuration"
+              else
+                echo "[$(date -Iseconds)] ERROR: Failed to create stanza even for repo1"
+                exit 1
+              fi
             fi
           fi
 
@@ -733,7 +754,7 @@ in
       # Post-preseed backup (creates fresh baseline after restoration)
       pgbackrest-post-preseed = {
         description = "Create fresh pgBackRest backup after pre-seed restoration";
-        after = [ "postgresql.service" "pgbackrest-stanza-create.service" "network-online.target" ];
+        after = [ "postgresql.service" "pgbackrest-stanza-create.service" "network-online.target" "postgresql-preseed.service" ];
         wants = [ "postgresql.service" "network-online.target" ];
         requires = [ "postgresql.service" ];
         bindsTo = [ "postgresql.service" ];  # Stop if PostgreSQL goes down mid-run
@@ -913,10 +934,13 @@ EOF
       # Full backup
       pgbackrest-full-backup = {
         description = "pgBackRest full backup";
-        after = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" "pgbackrest-stanza-create.service" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
-        requires = [ "mnt-nas\\x2dpostgresql.mount" ];  # Fail if mount unavailable
+        after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
+
+        unitConfig = {
+          RequiresMountsFor = [ "/mnt/nas-postgresql" ];
+        };
         serviceConfig = {
           Type = "oneshot";
           User = "postgres";
@@ -953,10 +977,13 @@ EOF
       # Incremental backup
       pgbackrest-incr-backup = {
         description = "pgBackRest incremental backup";
-        after = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" "pgbackrest-stanza-create.service" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
-        requires = [ "mnt-nas\\x2dpostgresql.mount" ];  # Fail if mount unavailable
+        after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
+
+        unitConfig = {
+          RequiresMountsFor = [ "/mnt/nas-postgresql" ];
+        };
         serviceConfig = {
           Type = "oneshot";
           User = "postgres";
