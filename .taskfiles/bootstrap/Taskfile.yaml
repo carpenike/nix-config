@@ -37,9 +37,34 @@ tasks:
         case "{{.method}}" in
           ssh)
             echo "  Method: Direct SSH read" >&2
-            pub=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            # Capture stderr separately to filter out SSH warnings
+            if ! output=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              -o ConnectTimeout=10 -o BatchMode=yes -o LogLevel=ERROR \
               "{{.ssh_user}}@{{.fqdn}}" \
-              'cat /etc/ssh/ssh_host_ed25519_key.pub' 2>/dev/null)
+              'if [ -f /etc/ssh/ssh_host_ed25519_key.pub ]; then
+                cat /etc/ssh/ssh_host_ed25519_key.pub
+              elif [ -f /persist/etc/ssh/ssh_host_ed25519_key.pub ]; then
+                cat /persist/etc/ssh/ssh_host_ed25519_key.pub
+              else
+                echo "ERROR: No SSH host key found" >&2
+                exit 1
+              fi' 2>&1); then
+              echo "❌ SSH connection failed to {{.ssh_user}}@{{.fqdn}}" >&2
+              echo "   Error: $output" >&2
+              echo "" >&2
+              echo "💡 Troubleshooting tips:" >&2
+              echo "   - Is the system fully booted? (wait 2-3 minutes after reboot)" >&2
+              echo "   - Try the scan method: task bootstrap:extract-ssh-key host={{.host}} method=scan" >&2
+              echo "   - For LiveCD, use: task bootstrap:extract-ssh-key host={{.host}} ssh_user=nixos" >&2
+              exit 1
+            fi
+            # Filter out only the SSH public key line (starts with ssh-)
+            pub=$(echo "$output" | grep '^ssh-' | head -n1)
+            if [ -z "$pub" ]; then
+              echo "❌ Failed to extract SSH public key from output" >&2
+              echo "   Output was: $output" >&2
+              exit 1
+            fi
             ;;
           scan)
             echo "  Method: SSH keyscan" >&2
@@ -89,6 +114,94 @@ tasks:
       - sh: which nix
         msg: "nix not found"
 
+  remote-install:
+    desc: Remotely format disks and install NixOS bootstrap
+    silent: true
+    summary: |
+      Performs complete remote NixOS installation including disk formatting.
+      Requires LiveCD to be booted with SSH access (password set).
+
+      Args:
+        host: Target hostname (required)
+        ssh_user: SSH user for LiveCD (default: nixos)
+        NIXOS_DOMAIN: Domain suffix (default: holthome.net)
+
+      Examples:
+        task bootstrap:remote-install host=forge
+        task bootstrap:remote-install host=luna ssh_user=nixos
+
+      Prerequisites:
+        - LiveCD booted on target system
+        - SSH password set: sudo passwd nixos
+        - Network connectivity established
+    vars:
+      ssh_user: '{{.ssh_user | default "nixos"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      fqdn:
+        sh: 'echo "{{.host}}.{{.NIXOS_DOMAIN}}"'
+    requires:
+      vars:
+        - host
+    cmds:
+      - |
+        set -euo pipefail
+
+        echo "🚀 Remote NixOS installation starting for {{.fqdn}}" >&2
+        echo "" >&2
+
+        # Step 1: Set hostid and format disks
+        echo "📡 Step 1/3: Setting hostid and formatting disks..." >&2
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          "{{.ssh_user}}@{{.fqdn}}" \
+          'set -euo pipefail
+           echo "🔧 Reading hostid from flake config..."
+           hostid=$(nix eval --extra-experimental-features "nix-command flakes" --raw github:carpenike/nix-config#nixosConfigurations.{{.host}}.config.networking.hostId)
+           echo "📝 Setting hostid to $hostid"
+           if [ -f /etc/hostid ]; then
+             echo "⚠️  Hostid file exists, removing and recreating..."
+             sudo rm -f /etc/hostid
+           fi
+           sudo zgenhostid "$hostid"
+           echo "💾 Formatting disks with disko..."
+           sudo nix run --extra-experimental-features "nix-command flakes" \
+             github:nix-community/disko -- --mode disko --flake github:carpenike/nix-config#{{.host}}'
+
+        echo "✅ Disk formatting completed" >&2
+        echo "" >&2
+
+        # Step 2: Install NixOS
+        echo "📡 Step 2/3: Installing NixOS bootstrap..." >&2
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          "{{.ssh_user}}@{{.fqdn}}" \
+          'set -euo pipefail
+           echo "🔧 Installing NixOS bootstrap configuration..."
+           sudo nixos-install --flake github:carpenike/nix-config#nixos-bootstrap --root /mnt --no-root-password'
+
+        echo "✅ NixOS installation completed" >&2
+        echo "" >&2
+
+        # Step 3: Reboot
+        echo "📡 Step 3/3: Rebooting to installed system..." >&2
+        echo "🔄 Initiating reboot (connection will drop)..." >&2
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          "{{.ssh_user}}@{{.fqdn}}" \
+          'sudo reboot' || true
+
+        echo "" >&2
+        echo "✅ Remote installation completed!" >&2
+        echo "" >&2
+        echo "📝 Next steps:" >&2
+        echo "  1. Wait for system to reboot (~2-3 minutes)" >&2
+        echo "  2. Extract SSH key: task bootstrap:extract-ssh-key host={{.host}}" >&2
+        echo "  3. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt" >&2
+        echo "  4. Deploy full config: task nix:apply-nixos host={{.host}}" >&2
+        echo "" >&2
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: which nix
+        msg: "nix not found"
+
   quickstart:
     desc: Show bootstrap quickstart guide
     silent: true
@@ -98,15 +211,22 @@ tasks:
         echo ""
         echo "📚 Full documentation: docs/bootstrap-quickstart.md"
         echo ""
-        echo "⚡ Quick workflow (existing hosts like forge/luna):"
+        echo "⚡ Remote workflow (recommended - from your Mac):"
+        echo "  1. Boot LiveCD on target, set password: sudo passwd nixos"
+        echo "  2. Remote install: task bootstrap:remote-install host=HOSTNAME"
+        echo "  3. Extract SSH key: task bootstrap:extract-ssh-key host=HOSTNAME"
+        echo "  4. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt"
+        echo "  5. Deploy full config: task nix:apply-nixos host=HOSTNAME"
+        echo ""
+        echo "⚙️  Manual workflow (if you prefer local install):"
         echo "  1. Boot LiveCD, set password: sudo passwd nixos"
-        echo "  2. Format disks:"
-        echo "     sudo nix run --extra-experimental-features \"nix-command flakes\" \\"
-        echo "       github:nix-community/disko -- --mode disko --flake github:carpenike/nix-config#HOSTNAME"
+        echo "  2. Set hostid and format:"
+        echo "     hostid=\$(nix eval --raw github:carpenike/nix-config#nixosConfigurations.HOSTNAME.config.networking.hostId)"
+        echo "     sudo zgenhostid \"\$hostid\""
+        echo "     sudo nix run github:nix-community/disko -- --mode disko --flake github:carpenike/nix-config#HOSTNAME"
         echo "  3. Install: nixos-install --flake github:carpenike/nix-config#nixos-bootstrap --root /mnt --no-root-password"
         echo "  4. Reboot (system creates user 'ryan')"
-        echo "  5. Extract SSH key: ssh ryan@HOSTNAME, then run:"
-        echo "     nix-shell -p ssh-to-age --run 'cat /etc/ssh/ssh_host_ed25519_key.pub | ssh-to-age'"
+        echo "  5. Extract SSH key: task bootstrap:extract-ssh-key host=HOSTNAME"
         echo "  6. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt"
         echo "  7. Deploy full config: task nix:apply-nixos host=HOSTNAME"
         echo ""

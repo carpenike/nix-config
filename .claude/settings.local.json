@@ -63,7 +63,8 @@
       "mcp__github__get_file_contents",
       "mcp__github__search_code",
       "mcp__taskmaster-ai__get_task",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "mcp__zen__challenge"
     ],
     "deny": []
   }
