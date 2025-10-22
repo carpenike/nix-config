@@ -666,7 +666,7 @@ in
       # Stanza creation (runs once at setup)
       pgbackrest-stanza-create = {
         description = "pgBackRest stanza initialization";
-        after = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
+        after = [ "postgresql.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
         wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
         requires = [ "mnt-nas\\x2dpostgresql.mount" ];  # Fail if mount unavailable
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
@@ -682,15 +682,24 @@ in
           set -euo pipefail
 
           # Directory is managed by systemd.tmpfiles.rules
-          # stanza-create is idempotent - safe to run multiple times
-          # It will create if missing, validate if exists, or repair if broken
+          # This service handles two scenarios:
+          # 1. Fresh install: Creates new stanza
+          # 2. After pre-seed restore: Validates existing stanza matches restored DB
 
-          echo "[$(date -Iseconds)] Creating/validating stanza 'main' for repo1 (NFS)..."
+          echo "[$(date -Iseconds)] Checking pgBackRest stanza 'main' for repo1 (NFS)..."
+
+          # First, try to check if stanza exists and is valid
+          if pgbackrest --stanza=main --repo=1 check 2>/dev/null; then
+            echo "[$(date -Iseconds)] Stanza 'main' exists and is valid"
+            exit 0
+          fi
+
+          echo "[$(date -Iseconds)] Stanza check failed, attempting to create/repair..."
           # Use production config (repo1 only) to avoid SOPS dependency on first boot
-          # Repo2 (R2) can be added later via stanza-upgrade after first successful backup
+          # If pre-seed restored the DB, this will validate the stanza matches
           pgbackrest --stanza=main stanza-create
 
-          echo "[$(date -Iseconds)] Running check..."
+          echo "[$(date -Iseconds)] Running final check..."
           pgbackrest --stanza=main check
         '';
         wantedBy = [ "multi-user.target" ];
