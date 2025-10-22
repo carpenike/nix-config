@@ -40,7 +40,7 @@ with lib;
         "/var/lib/unifi"    # Unifi controller data
       ];
       files = [
-        "/etc/machine-id"                # Machine ID
+        # Machine-id is handled by tmpfiles.rules as a symlink, not persisted directly
         "/etc/ssh/ssh_host_ed25519_key"  # SSH private key
         "/etc/ssh/ssh_host_ed25519_key.pub"  # SSH public key
         "/etc/ssh/ssh_host_rsa_key"      # RSA private key
@@ -59,10 +59,21 @@ with lib;
         RemainAfterExit = true;
       };
       script = ''
-        # Ensure machine-id is correctly symlinked
-        if [ ! -e /etc/machine-id ]; then
-          ln -sf ${cfg.persistPath}/etc/machine-id /etc/machine-id
+        # Ensure persist directory structure exists
+        mkdir -p ${cfg.persistPath}/etc
+
+        # Ensure machine-id exists in persist (create if missing)
+        if [ ! -e ${cfg.persistPath}/etc/machine-id ]; then
+          if [ -e /etc/machine-id ] && [ ! -L /etc/machine-id ]; then
+            # Move existing machine-id to persist
+            mv /etc/machine-id ${cfg.persistPath}/etc/machine-id
+          else
+            # Generate new machine-id
+            systemd-machine-id-setup --root=${cfg.persistPath}
+          fi
         fi
+
+        # Tmpfiles will handle the symlink creation
       '';
     };
 
@@ -85,6 +96,7 @@ with lib;
     };
 
     # Tmpfiles rules to ensure machine-id and SSH keys are linked
+    # Use 'L+' which will remove existing files/directories before creating the symlink
     systemd.tmpfiles.rules = [
       "L+ /etc/machine-id - - - - ${cfg.persistPath}/etc/machine-id"
       "L+ /etc/ssh/ssh_host_ed25519_key - - - - ${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key"

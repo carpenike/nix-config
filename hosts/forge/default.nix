@@ -698,12 +698,13 @@ in
 
           echo "[$(date -Iseconds)] Stanza check failed, attempting to create/repair..."
 
-          # Check if stanza exists but with wrong system ID (re-installation scenario)
-          if pgbackrest --stanza=main info 2>&1 | grep -q "does not match the database system-id"; then
-            echo "[$(date -Iseconds)] Detected system ID mismatch - running stanza-upgrade for re-installation..."
-            pgbackrest --stanza=main stanza-upgrade
+          # Try stanza-upgrade first - this handles re-installation scenarios
+          # It's safe to always try this first as it will fail gracefully on new installs
+          echo "[$(date -Iseconds)] Attempting stanza upgrade (for re-installations)..."
+          if pgbackrest --stanza=main stanza-upgrade 2>/dev/null; then
+            echo "[$(date -Iseconds)] Successfully upgraded existing stanza for new system ID"
           else
-            echo "[$(date -Iseconds)] Creating new stanza..."
+            echo "[$(date -Iseconds)] Stanza upgrade failed or not applicable, creating new stanza..."
             # Use production config (repo1 only) to avoid SOPS dependency on first boot
             # If pre-seed restored the DB, this will validate the stanza matches
             pgbackrest --stanza=main stanza-create
