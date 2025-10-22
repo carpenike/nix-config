@@ -47,7 +47,9 @@ let
     # Create PGDATA directory if it doesn't exist
     mkdir -p "${pgDataPath}"
     chown postgres:postgres "${pgDataPath}"
-    chmod 0700 "${pgDataPath}"    # Execute the restore
+    chmod 0700 "${pgDataPath}"
+
+    # Execute the restore
     echo "Running pgBackRest restore..."
     ${pkgs.pgbackrest}/bin/pgbackrest \
       --stanza=${cfg.source.stanza} \
@@ -251,7 +253,7 @@ in {
       To force a re-seed:
       1. Stop PostgreSQL: systemctl stop postgresql
       2. Remove PGDATA: rm -rf ${pgDataPath}/*
-      3. Remove completion marker: rm -f ${pgDataPath}/.preseed-completed
+      3. Remove completion marker: rm -f ${markerFile}
       4. Start PostgreSQL: systemctl start postgresql
 
       WARNING: This will destroy all local data!
