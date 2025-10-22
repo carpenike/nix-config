@@ -1,5 +1,8 @@
 # hosts/nixos-bootstrap/default.nix
 { lib, config, pkgs, ... }:
+let
+  persistPath = "/persist";
+in
 {
   # ✅ Provide disks to imported modules
   _module.args.disks = [ "/dev/disk/by-id/nvme-Samsung_SSD_950_PRO_512GB_S2GMNX0H803986M" "/dev/disk/by-id/nvme-WDS100T3X0C-00SJG0_200278801343" ];
@@ -28,10 +31,26 @@
   networking.useDHCP = lib.mkDefault true;
 
   # SSH for remote access
+  # Generate SSH keys in /persist so they survive impermanence transition
   services.openssh = {
     enable = true;
-    settings.PermitRootLogin = "yes";  # Temporary for bootstrap
+    hostKeys = [
+      {
+        path = "${persistPath}/etc/ssh/ssh_host_ed25519_key";
+        type = "ed25519";
+      }
+      {
+        path = "${persistPath}/etc/ssh/ssh_host_rsa_key";
+        type = "rsa";
+        bits = 4096;
+      }
+    ];
   };
+
+  # Ensure /persist/etc/ssh directory exists
+  systemd.tmpfiles.rules = [
+    "d ${persistPath}/etc/ssh 0755 root root -"
+  ];
 
   # Your user
   users.users.ryan = {
