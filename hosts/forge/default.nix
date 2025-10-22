@@ -718,15 +718,15 @@ in
       # Post-preseed backup (creates fresh baseline after restoration)
       pgbackrest-post-preseed = {
         description = "Create fresh pgBackRest backup after pre-seed restoration";
-        after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
-        wants = [ "postgresql.service" ];
-        requires = [ "postgresql.service" ];
+        after = [ "postgresql.service" "pgbackrest-stanza-create.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
+        wants = [ "postgresql.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
+        requires = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep ];
 
         # Only run if preseed completed but post-preseed backup hasn't been done yet
         unitConfig = {
           ConditionPathExists = [
-            "/var/lib/postgresql/.preseed-completed-16.10"
+            "/var/lib/postgresql/.preseed-completed-${toString config.services.postgresql.package.version}"
             "!/var/lib/postgresql/.postpreseed-backup-done"
           ];
           # Recovery from transient failures
