@@ -150,7 +150,7 @@ in
     # This runs after pool import but before services start
     system.activationScripts.zfs-service-datasets = {
       # Run after special filesystems are mounted AND all ZFS pools are imported
-      deps = [ "specialfs" "zfs-import.target" ];
+      deps = [ "specialfs" ];
 
       text = ''
         set -euo pipefail
