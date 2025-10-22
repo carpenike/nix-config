@@ -662,6 +662,9 @@ in
       "d /var/lib/pgbackrest/spool 0750 postgres postgres - -"
       # Create pgBackRest log directory
       "d /var/log/pgbackrest 0750 postgres postgres - -"
+      # Create systemd journal directory with correct permissions for persistent storage
+      # Mode 2755 sets setgid bit so files inherit systemd-journal group
+      "d /var/log/journal 2755 root systemd-journal - -"
       # Ensure textfile_collector directory exists before creating metrics file
       "d /var/lib/node_exporter/textfile_collector 0755 node-exporter node-exporter - -"
       # Create metrics file at boot with correct ownership so postgres user can write to it
@@ -1263,6 +1266,10 @@ EOF
         MaxFileSec=1month
       '';
     };
+
+    # Fix journald startup race condition with impermanence bind mounts
+    # Ensure journald waits for /var/log to be properly mounted before starting
+    systemd.services.systemd-journald.unitConfig.RequiresMountsFor = [ "/var/log/journal" ];
 
     system.stateVersion = "25.05";  # Set to the version being installed (new system, never had 23.11)
   };
