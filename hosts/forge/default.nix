@@ -697,9 +697,17 @@ in
           fi
 
           echo "[$(date -Iseconds)] Stanza check failed, attempting to create/repair..."
-          # Use production config (repo1 only) to avoid SOPS dependency on first boot
-          # If pre-seed restored the DB, this will validate the stanza matches
-          pgbackrest --stanza=main stanza-create
+
+          # Check if stanza exists but with wrong system ID (re-installation scenario)
+          if pgbackrest --stanza=main info 2>&1 | grep -q "does not match the database system-id"; then
+            echo "[$(date -Iseconds)] Detected system ID mismatch - running stanza-upgrade for re-installation..."
+            pgbackrest --stanza=main stanza-upgrade
+          else
+            echo "[$(date -Iseconds)] Creating new stanza..."
+            # Use production config (repo1 only) to avoid SOPS dependency on first boot
+            # If pre-seed restored the DB, this will validate the stanza matches
+            pgbackrest --stanza=main stanza-create
+          fi
 
           echo "[$(date -Iseconds)] Running final check..."
           pgbackrest --stanza=main check
