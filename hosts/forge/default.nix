@@ -467,6 +467,9 @@ in
 
       system.impermanence.enable = true;
 
+      # Enable persistent journald storage for log retention across reboots
+      # Critical for disaster recovery operation visibility and debugging
+
       # System health monitoring alerts are defined above in the alerting.rules mkMerge block
       # See line ~85 for the complete alert rule definitions including system health metrics
 
@@ -727,9 +730,10 @@ in
       # Post-preseed backup (creates fresh baseline after restoration)
       pgbackrest-post-preseed = {
         description = "Create fresh pgBackRest backup after pre-seed restoration";
-        after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
-        wants = [ "postgresql.service" ];
+        after = [ "postgresql.service" "pgbackrest-stanza-create.service" "network-online.target" ];
+        wants = [ "postgresql.service" "network-online.target" ];
         requires = [ "postgresql.service" ];
+        bindsTo = [ "postgresql.service" ];  # Stop if PostgreSQL goes down mid-run
         # Triggered by OnSuccess from postgresql-preseed instead of boot-time activation
         # This eliminates condition evaluation race and "skipped at boot" noise
         path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.jq ];
@@ -753,8 +757,9 @@ in
           Group = "postgres";
           RemainAfterExit = true;
           Environment = "PGHOST=/var/run/postgresql";
+          # Restart on failure with proper backoff for recovery timing issues
           Restart = "on-failure";
-          RestartSec = "30s";
+          RestartSec = "60s";
         };
 
         script = ''
@@ -825,13 +830,50 @@ EOF
           fi
           log_json "INFO" "preseed_marker_found" "Pre-seed marker indicates restoration from: $restored_from"
 
-          # Wait for PostgreSQL readiness
+          # Wait for PostgreSQL to complete recovery and be ready for backup
           log_json "INFO" "wait_for_postgres" "Waiting for PostgreSQL to become ready..."
           if ! timeout 300 bash -c 'until pg_isready -q; do sleep 2; done'; then
             log_json "ERROR" "postgres_timeout" "PostgreSQL did not become ready within 300 seconds."
             exit 1
           fi
           log_json "INFO" "postgres_ready" "PostgreSQL is ready."
+
+          # Wait for recovery completion (critical for post-restore backups)
+          log_json "INFO" "wait_for_promotion" "Waiting for PostgreSQL recovery to complete..."
+          TIMEOUT_SECONDS=1800  # 30 minutes - tune for worst-case WAL backlog
+          INTERVAL_SECONDS=2
+          deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
+
+          while true; do
+            # Check if this is a standby that will never promote
+            if [ -f "/var/lib/postgresql/16/standby.signal" ]; then
+              log_json "ERROR" "promotion_failed" "standby.signal present - node will not promote" "{\"reason\":\"standby_configuration\"}"
+              exit 2
+            fi
+
+            # Check if PostgreSQL is still in recovery mode
+            in_recovery=$(psql -Atqc "SELECT pg_is_in_recovery();" 2>/dev/null || echo "t")
+            if [ "$in_recovery" = "f" ]; then
+              # Verify the database is writable (not read-only)
+              read_only=$(psql -Atqc "SHOW default_transaction_read_only;" 2>/dev/null || echo "on")
+              if [ "$read_only" = "off" ]; then
+                log_json "INFO" "promotion_complete" "PostgreSQL recovery completed successfully" "{\"in_recovery\":false,\"read_only\":false}"
+                break
+              else
+                log_json "WARN" "promotion_partial" "Recovery complete but database is read-only" "{\"in_recovery\":false,\"read_only\":true}"
+              fi
+            else
+              log_json "INFO" "promotion_waiting" "PostgreSQL still in recovery mode" "{\"in_recovery\":true}"
+            fi
+
+            # Check timeout
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              log_json "ERROR" "promotion_timeout" "Timed out waiting for PostgreSQL recovery completion" "{\"timeout_seconds\":$TIMEOUT_SECONDS,\"hint\":\"check for missing WAL files or recovery configuration issues\"}"
+              exit 1
+            fi
+
+            sleep "$INTERVAL_SECONDS"
+          done
 
           # Determine current system-id
           cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
@@ -1209,6 +1251,17 @@ EOF
       '';
       owner = config.services.caddy.user;
       group = config.services.caddy.group;
+    };
+
+    # Enable persistent journald storage for log retention across reboots
+    # Critical for disaster recovery operation visibility and debugging
+    services.journald = {
+      storage = "persistent";
+      extraConfig = ''
+        SystemMaxUse=500M
+        RuntimeMaxUse=100M
+        MaxFileSec=1month
+      '';
     };
 
     system.stateVersion = "25.05";  # Set to the version being installed (new system, never had 23.11)
