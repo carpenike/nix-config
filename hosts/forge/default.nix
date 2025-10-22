@@ -624,10 +624,13 @@ in
       repo1-retention-diff=4
 
       repo2-type=s3
-      repo2-path=/pgbackrest
+      repo2-path=/forge-pgbackrest
       repo2-s3-bucket=nix-homelab-prod-servers
       repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
       repo2-s3-region=auto
+      repo2-s3-uri-style=path
+      repo2-s3-key=$AWS_ACCESS_KEY_ID
+      repo2-s3-key-secret=$AWS_SECRET_ACCESS_KEY
       repo2-retention-full=30
       repo2-retention-diff=14
 
@@ -656,9 +659,13 @@ in
       "d /var/lib/pgbackrest/spool 0750 postgres postgres - -"
       # Create pgBackRest log directory
       "d /var/log/pgbackrest 0750 postgres postgres - -"
+      # Ensure textfile_collector directory exists before creating metrics file
+      "d /var/lib/node_exporter/textfile_collector 0755 node-exporter node-exporter - -"
       # Create metrics file at boot with correct ownership so postgres user can write to it
       # and node-exporter group can read it. Type "f" creates the file if it doesn't exist.
       "f /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
+      # Create metrics file for the post-preseed service
+      "f /var/lib/node_exporter/textfile_collector/postgresql_postpreseed.prom 0644 postgres node-exporter - -"
       # Ensure parent directory exists for post-preseed marker
       "d /var/lib/postgresql 0755 postgres postgres - -"
     ];
@@ -668,17 +675,21 @@ in
       # Stanza creation (runs once at setup)
       pgbackrest-stanza-create = {
         description = "pgBackRest stanza initialization";
-        after = [ "postgresql.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
-        requires = [ "mnt-nas\\x2dpostgresql.mount" ];  # Fail if mount unavailable
+        after = [ "postgresql.service" "postgresql-preseed.service" ];
+        wants = [ "postgresql.service" ];
+        requires = [ "postgresql.service" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
         serviceConfig = {
           Type = "oneshot";
           User = "postgres";
           Group = "postgres";
           RemainAfterExit = true;
-          # No EnvironmentFile needed - using production config (repo1/NFS only)
-          # Repo2 (R2) will be added via separate stanza-upgrade after first backup
+          # Add R2 credentials for repo2 stanza creation
+          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
+        };
+        # Add NFS mount dependency
+        unitConfig = {
+          RequiresMountsFor = [ "/mnt/nas-postgresql" ];
         };
         script = ''
           set -euo pipefail
@@ -688,37 +699,26 @@ in
           # 1. Fresh install: Creates new stanza
           # 2. After pre-seed restore: Validates existing stanza matches restored DB
 
-          echo "[$(date -Iseconds)] Checking pgBackRest stanza 'main' for repo1 (NFS)..."
+          echo "[$(date -Iseconds)] Creating pgBackRest stanza 'main' for both repos (NFS + R2)..."
 
-          # First, try to check if stanza exists and is valid
-          if pgbackrest --stanza=main --repo=1 check 2>/dev/null; then
-            echo "[$(date -Iseconds)] Stanza 'main' exists and is valid"
-            exit 0
-          fi
-
-          echo "[$(date -Iseconds)] Stanza check failed, attempting to create/repair..."
-
-          # Check if stanza exists first to determine the right action
-          if pgbackrest --stanza=main info >/dev/null 2>&1; then
-            echo "[$(date -Iseconds)] Stanza exists but check failed - attempting upgrade..."
-            # Capture the actual error for logging
-            if ! pgbackrest --stanza=main stanza-upgrade 2>&1; then
-              echo "[$(date -Iseconds)] ERROR: Stanza upgrade failed unexpectedly"
-              exit 1
-            fi
-            echo "[$(date -Iseconds)] Successfully upgraded existing stanza"
+          # Try to create stanza across both repositories
+          # This ensures repo2 (R2) stanza is created with proper credentials
+          echo "[$(date -Iseconds)] Attempting stanza creation for both repositories..."
+          if pgbackrest --config=/etc/pgbackrest-init.conf --stanza=main stanza-create 2>&1; then
+            echo "[$(date -Iseconds)] Successfully created stanzas for both repositories"
           else
-            echo "[$(date -Iseconds)] No existing stanza found - creating new stanza..."
-            # Use production config (repo1 only) to avoid SOPS dependency on first boot
-            # If pre-seed restored the DB, this will validate the stanza matches
-            if ! pgbackrest --stanza=main stanza-create 2>&1; then
-              echo "[$(date -Iseconds)] ERROR: Stanza creation failed"
+            echo "[$(date -Iseconds)] WARNING: Dual-repo stanza creation failed, trying repo1 only..."
+            # If dual-repo fails, ensure at least repo1 (NFS) stanza exists
+            if pgbackrest --stanza=main stanza-create 2>&1; then
+              echo "[$(date -Iseconds)] Successfully created stanza for repo1 (NFS)"
+              echo "[$(date -Iseconds)] NOTE: repo2 (R2) stanza creation failed - check R2 configuration"
+            else
+              echo "[$(date -Iseconds)] ERROR: Failed to create stanza even for repo1"
               exit 1
             fi
-            echo "[$(date -Iseconds)] Successfully created new stanza"
           fi
 
-          echo "[$(date -Iseconds)] Running final check..."
+          echo "[$(date -Iseconds)] Running final check on repo1..."
           pgbackrest --stanza=main check
         '';
         wantedBy = [ "multi-user.target" ];
@@ -727,13 +727,12 @@ in
       # Post-preseed backup (creates fresh baseline after restoration)
       pgbackrest-post-preseed = {
         description = "Create fresh pgBackRest backup after pre-seed restoration";
-        after = [ "postgresql.service" "pgbackrest-stanza-create.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
-        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
-        requires = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
-        wantedBy = [ "multi-user.target" ];  # Enable automatic startup during boot
-        # Use PartOf to ensure this service is only considered when postgresql-preseed actually runs
-        partOf = [ "postgresql-preseed.service" ];
-        path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep ];
+        after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" ];
+        requires = [ "postgresql.service" ];
+        # Triggered by OnSuccess from postgresql-preseed instead of boot-time activation
+        # This eliminates condition evaluation race and "skipped at boot" noise
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.jq ];
 
         # Only run if preseed completed but post-preseed backup hasn't been done yet
         unitConfig = {
@@ -741,6 +740,8 @@ in
             "/var/lib/postgresql/.preseed-completed"
             "!/var/lib/postgresql/.postpreseed-backup-done"
           ];
+          # Proper NFS mount dependency for backup operations
+          RequiresMountsFor = [ "/mnt/nas-postgresql" ];
           # Recovery from transient failures
           StartLimitIntervalSec = "600";
           StartLimitBurst = "5";
@@ -757,61 +758,110 @@ in
         };
 
         script = ''
+          #!/usr/bin/env bash
           set -euo pipefail
 
-          log() { echo "[$(date -Iseconds)] $*"; }
+          # --- Structured Logging & Error Handling ---
+          LOG_SERVICE_NAME="pgbackrest-post-preseed"
+          METRICS_FILE="/var/lib/node_exporter/textfile_collector/postgresql_postpreseed.prom"
 
-          # Verify that pre-seed actually restored data (not just existing PGDATA)
-          if [ -f /var/lib/postgresql/.preseed-completed ]; then
-            restored_from=$(grep "restored_from=" /var/lib/postgresql/.preseed-completed | cut -d= -f2)
-            if [ "$restored_from" = "existing_pgdata" ]; then
-              log "Pre-seed marker indicates existing PGDATA was found - no restoration needed"
-              log "Skipping post-preseed backup (no restoration occurred)"
-              exit 0
-            fi
-            log "Pre-seed marker indicates restoration from: $restored_from"
-          else
-            log "WARNING: No preseed marker found - this should not happen"
+          log_json() {
+            local level="$1"
+            local event="$2"
+            local message="$3"
+            local details_json="''${4:-{}}"
+            printf '{"timestamp":"%s","service":"%s","level":"%s","event":"%s","message":"%s","details":%s}\n' \
+              "$(date -u --iso-8601=seconds)" \
+              "''${LOG_SERVICE_NAME}" \
+              "$level" \
+              "$event" \
+              "$message" \
+              "$details_json"
+          }
+
+          write_metrics() {
+            local status="$1"
+            local duration="$2"
+            local status_code=$([ "$status" = "success" ] && echo 1 || echo 0)
+            cat > "''${METRICS_FILE}.tmp" <<EOF
+# HELP postgresql_postpreseed_status Indicates the status of the last post-preseed backup (1 for success, 0 for failure).
+# TYPE postgresql_postpreseed_status gauge
+postgresql_postpreseed_status{stanza="main"} ''${status_code}
+# HELP postgresql_postpreseed_last_duration_seconds Duration of the last post-preseed backup in seconds.
+# TYPE postgresql_postpreseed_last_duration_seconds gauge
+postgresql_postpreseed_last_duration_seconds{stanza="main"} ''${duration}
+# HELP postgresql_postpreseed_last_completion_timestamp_seconds Timestamp of the last post-preseed backup completion.
+# TYPE postgresql_postpreseed_last_completion_timestamp_seconds gauge
+postgresql_postpreseed_last_completion_timestamp_seconds{stanza="main"} $(date +%s)
+EOF
+            mv "''${METRICS_FILE}.tmp" "$METRICS_FILE"
+          }
+
+          trap_error() {
+            local exit_code=$?
+            local line_no=$1
+            local command="$2"
+            log_json "ERROR" "script_error" "Script failed with exit code $exit_code at line $line_no: $command" \
+              "{\"exit_code\": ''${exit_code}, \"line_number\": ''${line_no}, \"command\": \"$command\"}"
+            write_metrics "failure" 0
+            exit $exit_code
+          }
+          trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
+          # --- End Helpers ---
+
+          log_json "INFO" "postpreseed_start" "Post-preseed backup process starting."
+
+          # Verify that pre-seed actually restored data
+          if [ ! -f /var/lib/postgresql/.preseed-completed ]; then
+            log_json "ERROR" "preseed_marker_missing" "Pre-seed completion marker not found. This service should not have been triggered."
             exit 1
           fi
 
+          restored_from=$(grep "restored_from=" /var/lib/postgresql/.preseed-completed | cut -d= -f2)
+          if [ "$restored_from" = "existing_pgdata" ]; then
+            log_json "INFO" "postpreseed_skipped" "Pre-seed marker indicates existing PGDATA was found. Skipping post-preseed backup." \
+              '{"reason":"no_restoration_occurred"}'
+            exit 0
+          fi
+          log_json "INFO" "preseed_marker_found" "Pre-seed marker indicates restoration from: $restored_from"
+
           # Wait for PostgreSQL readiness
-          log "Waiting for PostgreSQL to be ready..."
-          timeout 300 bash -c 'until pg_isready -q; do sleep 2; done' || {
-            log "PostgreSQL did not become ready within 300s"
+          log_json "INFO" "wait_for_postgres" "Waiting for PostgreSQL to become ready..."
+          if ! timeout 300 bash -c 'until pg_isready -q; do sleep 2; done'; then
+            log_json "ERROR" "postgres_timeout" "PostgreSQL did not become ready within 300 seconds."
             exit 1
-          }
+          fi
+          log_json "INFO" "postgres_ready" "PostgreSQL is ready."
 
           # Determine current system-id
-          cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")" || {
-            log "Could not determine current system-id"
-            exit 1
-          }
-          log "Current system-id: $cur_sysid"
+          cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
+          log_json "INFO" "system_id_check" "Checking for existing backups for current system-id." "{\"system_id\":\"$cur_sysid\"}"
 
-          # Check if we already have a full backup for current system-id
-          # Simple approach: check if pgbackrest info shows current DB as having backups
-          log "Checking if backup needed for current system-id..."
+          # Use robust JSON parsing to check for existing full backups
+          has_full=0
+          if INFO_JSON="$(pgbackrest --stanza=main --output=json info 2>/dev/null)"; then
+            has_full="$(echo "$INFO_JSON" | jq --arg sid "$cur_sysid" \
+              '[.[] | .backup[]? | select(.database["system-id"] == ($sid|tonumber) and .type=="full" and (.error//false)==false)] | length' 2>/dev/null || echo "0")"
+          fi
 
-          if pgbackrest info --stanza=main | grep -q "db (current)"; then
-            # Current DB section exists, check if it has any backups
-            backup_count="$(pgbackrest info --stanza=main | grep -A 20 "db (current)" | grep -c "full backup:" || echo "0")"
-            if [[ "$backup_count" -gt 0 ]]; then
-              log "Found $backup_count full backup(s) for current system-id; skipping backup"
-            else
-              log "No full backups found for current system-id; creating fresh backup..."
-              pgbackrest --stanza=main --type=full backup
-              log "Fresh full backup completed successfully"
-            fi
+          if [ "''${has_full:-0}" -gt 0 ]; then
+            log_json "INFO" "backup_skipped" "Found existing full backup for current system-id; skipping backup."
           else
-            log "No current DB section found; creating fresh backup..."
+            log_json "INFO" "backup_start" "No full backup found for current system-id; creating fresh backup..."
+            start_time=$(date +%s)
             pgbackrest --stanza=main --type=full backup
-            log "Fresh full backup completed successfully"
+            end_time=$(date +%s)
+            duration=$((end_time - start_time))
+            log_json "INFO" "backup_complete" "Fresh full backup completed successfully." "{\"duration_seconds\":''${duration}}"
+            # Write success metrics only when a backup is actually performed
+            write_metrics "success" "''${duration}"
           fi
 
           # Mark completion to prevent re-runs
           touch /var/lib/postgresql/.postpreseed-backup-done
-          log "Post-preseed backup process completed"
+          log_json "INFO" "marker_created" "Completion marker created at /var/lib/postgresql/.postpreseed-backup-done"
+
+          log_json "INFO" "postpreseed_complete" "Post-preseed backup process finished."
         '';
       };
 

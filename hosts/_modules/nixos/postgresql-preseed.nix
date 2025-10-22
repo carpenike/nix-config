@@ -16,46 +16,98 @@ let
 
   # Build the pgbackrest restore command
   restoreCommand = pkgs.writeShellScript "postgresql-preseed-restore" ''
+    #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "=== PostgreSQL Pre-Seed Restore Starting ==="
-    echo "Target: ${pgDataPath}"
-    echo "Stanza: ${cfg.source.stanza}"
-    echo "Backup Set: ${cfg.source.backupSet}"
-    echo "Repository: ${toString cfg.source.repository}"
+    # --- Structured Logging & Error Handling ---
+    LOG_SERVICE_NAME="postgresql-preseed"
+    METRICS_FILE="/var/lib/node_exporter/textfile_collector/postgresql_preseed.prom"
+
+    # Logs a structured JSON message to stdout.
+    # Usage: log_json <LEVEL> <EVENT_NAME> <MESSAGE> [JSON_DETAILS]
+    log_json() {
+      local level="$1"
+      local event="$2"
+      local message="$3"
+      local details_json="''${4:-{}}"
+
+      # Using printf for safer string handling.
+      printf '{"timestamp":"%s","service":"%s","level":"%s","event":"%s","message":"%s","details":%s}\n' \
+        "$(date -u --iso-8601=seconds)" \
+        "''${LOG_SERVICE_NAME}" \
+        "$level" \
+        "$event" \
+        "$message" \
+        "$details_json"
+    }
+
+    # Atomically writes metrics for Prometheus.
+    # Usage: write_metrics <status: "success"|"failure"> <duration_seconds>
+    write_metrics() {
+      local status="$1"
+      local duration="$2"
+      local status_code=$([ "$status" = "success" ] && echo 1 || echo 0)
+
+      cat > "''${METRICS_FILE}.tmp" <<EOF
+# HELP postgresql_preseed_status Indicates the status of the last pre-seed attempt (1 for success, 0 for failure).
+# TYPE postgresql_preseed_status gauge
+postgresql_preseed_status{stanza="${cfg.source.stanza}"} ''${status_code}
+# HELP postgresql_preseed_last_duration_seconds Duration of the last pre-seed restore in seconds.
+# TYPE postgresql_preseed_last_duration_seconds gauge
+postgresql_preseed_last_duration_seconds{stanza="${cfg.source.stanza}"} ''${duration}
+# HELP postgresql_preseed_last_completion_timestamp_seconds Timestamp of the last pre-seed restore completion.
+# TYPE postgresql_preseed_last_completion_timestamp_seconds gauge
+postgresql_preseed_last_completion_timestamp_seconds{stanza="${cfg.source.stanza}"} $(date +%s)
+EOF
+      mv "''${METRICS_FILE}.tmp" "$METRICS_FILE"
+    }
+
+    # Trap for logging errors before exiting.
+    trap_error() {
+      local exit_code=$?
+      local line_no=$1
+      local command="$2"
+      log_json "ERROR" "script_error" "Script failed with exit code $exit_code at line $line_no: $command" \
+        "{\"exit_code\": ''${exit_code}, \"line_number\": ''${line_no}, \"command\": \"$command\"}"
+      # Write failure metrics before exiting
+      write_metrics "failure" 0
+      exit $exit_code
+    }
+    trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
+    # --- End Helpers ---
+
+    log_json "INFO" "preseed_start" "PostgreSQL pre-seed restore starting." \
+      "{\"target\":\"${pgDataPath}\",\"stanza\":\"${cfg.source.stanza}\",\"backup_set\":\"${cfg.source.backupSet}\",\"repository\":${toString cfg.source.repository}}"
 
     # Safety check: Decide what to do if PGDATA is not empty
     if [ -d "${pgDataPath}" ] && [ "$(ls -A "${pgDataPath}" 2>/dev/null)" ]; then
-      # If it looks like a healthy, initialized PGDATA, this is a no-op.
-      # This handles enabling pre-seed on an existing server without errors.
       if [ -f "${pgDataPath}/postgresql.conf" ] && [ -f "${pgDataPath}/PG_VERSION" ]; then
-        echo "PGDATA is already initialized. Skipping pre-seed restore."
+        log_json "INFO" "preseed_skipped" "PGDATA is already initialized. Skipping pre-seed restore." '{"reason":"existing_pgdata"}'
         # Create the completion marker to ensure this check is skipped on future boots.
-        # Marker is outside PGDATA to avoid ZFS dataset layering issues.
         cat > "${markerFile}" <<EOF
 postgresql_version=${toString pgCfg.package.version}
 restored_at=$(date -Iseconds)
 restored_from=existing_pgdata
 EOF
-        echo "Completion marker created at ${markerFile}"
-        echo "Pre-seed service will be skipped in the future."
+        log_json "INFO" "marker_created" "Completion marker created at ${markerFile}"
         exit 0
       else
-        # If it's not empty but doesn't look initialized, it's a failed restore.
-        echo "ERROR: PGDATA directory is not empty but appears incomplete."
-        echo "This may indicate a previously failed restore."
-        echo "To force a re-seed, stop postgresql, clear PGDATA, and reboot."
+        log_json "ERROR" "preseed_failed" "PGDATA directory is not empty but appears incomplete. This may indicate a previously failed restore." '{"reason":"incomplete_pgdata"}'
+        log_json "ERROR" "preseed_failed" "To force a re-seed, stop postgresql, clear PGDATA, and reboot."
         exit 1
       fi
     fi
 
     # Create PGDATA directory if it doesn't exist
+    log_json "INFO" "pgdata_setup" "Creating and configuring PGDATA directory." "{\"path\":\"${pgDataPath}\"}"
     mkdir -p "${pgDataPath}"
     chown postgres:postgres "${pgDataPath}"
     chmod 0700 "${pgDataPath}"
 
     # Execute the restore
-    echo "Running pgBackRest restore..."
+    log_json "INFO" "restore_start" "Running pgBackRest restore..."
+    start_time=$(date +%s)
+
     ${pkgs.pgbackrest}/bin/pgbackrest \
       --stanza=${cfg.source.stanza} \
       --repo=${toString cfg.source.repository} \
@@ -66,25 +118,32 @@ EOF
       --log-level-console=info \
       restore
 
-    echo "=== pgBackRest restore completed successfully ==="
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    log_json "INFO" "restore_complete" "pgBackRest restore completed successfully." "{\"duration_seconds\":''${duration}}"
 
     # Run post-restore hook if configured
     ${optionalString (cfg.postRestoreScript != null) ''
-      echo "=== Running post-restore sanitization script ==="
+      log_json "INFO" "post_restore_script_start" "Running post-restore sanitization script."
+      script_start_time=$(date +%s)
       ${cfg.postRestoreScript}
-      echo "=== Post-restore sanitization completed ==="
+      script_end_time=$(date +%s)
+      script_duration=$((script_end_time - script_start_time))
+      log_json "INFO" "post_restore_script_complete" "Post-restore sanitization completed." "{\"duration_seconds\":''${script_duration}}"
     ''}
 
     # Create completion marker to prevent re-runs
-    # Marker is outside PGDATA to avoid ZFS dataset layering issues
-    # Store version and timestamp for debugging
     cat > "${markerFile}" <<EOF
 postgresql_version=${toString pgCfg.package.version}
 restored_at=$(date -Iseconds)
 restored_from=${cfg.source.stanza}@repo${toString cfg.source.repository}
 EOF
-    echo "Completion marker created at ${markerFile}"
-    echo "=== Pre-Seed Restore Complete ==="
+    log_json "INFO" "marker_created" "Completion marker created at ${markerFile}"
+
+    # Write success metrics
+    write_metrics "success" "''${duration}"
+
+    log_json "INFO" "preseed_complete" "Pre-seed restore process finished successfully."
   '';
 
 in {
@@ -201,19 +260,28 @@ in {
       }
     ];
 
+    # Declaratively manage the metrics file for Prometheus textfile collector
+    systemd.tmpfiles.rules = [
+      "f /var/lib/node_exporter/textfile_collector/postgresql_preseed.prom 0644 postgres node-exporter - -"
+    ];
+
     # Create the systemd service for pre-seeding
     systemd.services.postgresql-preseed = {
       description = "PostgreSQL Pre-Seed Restore (New Server Provisioning)";
       wantedBy = [ "multi-user.target" ];
       before = [ "postgresql.service" ];
-      after = [ "network-online.target" "systemd-tmpfiles-setup.service" "mnt-nas\\x2dpostgresql.mount" ];
-      wants = [ "network-online.target" "mnt-nas\\x2dpostgresql.mount" ];
-      requires = [ "systemd-tmpfiles-setup.service" "mnt-nas\\x2dpostgresql.mount" ];
+      after = [ "network-online.target" "systemd-tmpfiles-setup.service" ];
+      wants = [ "network-online.target" ];
+      requires = [ "systemd-tmpfiles-setup.service" ];
 
       # Only run if the completion marker doesn't exist
       # Marker is outside PGDATA to avoid ZFS dataset layering issues
       unitConfig = {
         ConditionPathExists = "!${markerFile}";
+        # Proper NFS mount dependency - eliminates brittle unit name encoding
+        RequiresMountsFor = [ "/mnt/nas-postgresql" ];
+        # Trigger post-preseed service on successful completion
+        OnSuccess = [ "pgbackrest-post-preseed.service" ];
       };
 
       serviceConfig = {

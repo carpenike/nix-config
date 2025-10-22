@@ -24,9 +24,8 @@
 
           # Listen on localhost and Podman bridge for container access
           # Containers connect via host.containers.internal (10.88.0.1)
-          # Using 0.0.0.0 for operational simplicity (avoids interface availability race)
-          # Security enforced via pg_hba.conf (password auth) and firewall (interface restriction)
-          listenAddresses = "0.0.0.0";
+          # Security: Restrict to specific interfaces instead of all interfaces
+          listenAddresses = "127.0.0.1,10.88.0.1";
 
           # Memory settings (tune based on available RAM)
           sharedBuffers = "256MB";        # 25% of RAM for dedicated DB
@@ -93,7 +92,7 @@
     # Override native PostgreSQL settings to ensure listen_addresses is applied
     # The custom module's listenAddresses may not be taking effect, so we force it here
     services.postgresql.settings = {
-      listen_addresses = pkgs.lib.mkForce "0.0.0.0";
+      listen_addresses = pkgs.lib.mkForce "127.0.0.1,10.88.0.1";
     };
 
     # Override authentication to allow container connections from Podman bridge
