@@ -65,7 +65,8 @@
       "mcp__taskmaster-ai__get_task",
       "Bash(rg:*)",
       "mcp__zen__challenge",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "mcp__zen__clink"
     ],
     "deny": []
   }
