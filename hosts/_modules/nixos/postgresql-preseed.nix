@@ -48,7 +48,8 @@ let
       local duration="$2"
       local status_code=$([ "$status" = "success" ] && echo 1 || echo 0)
 
-      cat > "''${METRICS_FILE}.tmp" <<EOF
+      # Write directly to avoid directory write permission requirement
+      cat > "$METRICS_FILE" <<EOF
 # HELP postgresql_preseed_status Indicates the status of the last pre-seed attempt (1 for success, 0 for failure).
 # TYPE postgresql_preseed_status gauge
 postgresql_preseed_status{stanza="${cfg.source.stanza}"} ''${status_code}
@@ -59,7 +60,6 @@ postgresql_preseed_last_duration_seconds{stanza="${cfg.source.stanza}"} ''${dura
 # TYPE postgresql_preseed_last_completion_timestamp_seconds gauge
 postgresql_preseed_last_completion_timestamp_seconds{stanza="${cfg.source.stanza}"} $(date +%s)
 EOF
-      mv "''${METRICS_FILE}.tmp" "$METRICS_FILE"
     }
 
     # Trap for logging errors before exiting.
@@ -69,8 +69,8 @@ EOF
       local command="$2"
       log_json "ERROR" "script_error" "Script failed with exit code $exit_code at line $line_no: $command" \
         "{\"exit_code\": ''${exit_code}, \"line_number\": ''${line_no}, \"command\": \"$command\"}"
-      # Write failure metrics before exiting
-      write_metrics "failure" 0
+      # Write failure metrics before exiting (resilient to write failure)
+      write_metrics "failure" 0 || true
       exit $exit_code
     }
     trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
@@ -159,8 +159,8 @@ restored_from=${cfg.source.stanza}@repo${toString cfg.source.repository}
 EOF
     log_json "INFO" "marker_created" "Completion marker created at ${markerFile}"
 
-    # Write success metrics
-    write_metrics "success" "''${duration}"
+    # Write success metrics (resilient to write failure)
+    write_metrics "success" "''${duration}" || true
 
     log_json "INFO" "preseed_complete" "Pre-seed restore process finished successfully."
   '';
@@ -307,17 +307,17 @@ in {
           exit 1
         fi
 
-        # Fix parent directory ownership for marker file access
-        PARENT_DIR="$(dirname "${pgDataPath}")"
-        chown postgres:postgres "$PARENT_DIR"
-        chmod 0755 "$PARENT_DIR"
+        # Fix marker directory ownership for marker file access
+        MARKER_DIR="$(dirname "${markerFile}")"
+        [[ "$MARKER_DIR" = "/var/lib/postgresql" ]] || { echo "Refusing to chown unexpected marker directory: $MARKER_DIR" >&2; exit 1; }
+        install -d -m 0755 -o postgres -g postgres "$MARKER_DIR"
 
         # Enforce strict perms on PGDATA itself
         install -d -m 0700 -o postgres -g postgres "${pgDataPath}"
         chown postgres:postgres "${pgDataPath}"
         chmod 0700 "${pgDataPath}"
 
-        echo "PGDATA and parent directory ownership/permissions set correctly"
+        echo "PGDATA and marker directory ownership/permissions set correctly"
       '';
     };
 
