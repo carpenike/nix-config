@@ -713,7 +713,7 @@ in
         after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
         wants = [ "postgresql.service" ];
         requires = [ "postgresql.service" ];
-        path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.jq ];
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.jq pkgs.bash pkgs.coreutils ];
 
         # Only run if preseed completed but post-preseed backup hasn't been done yet
         unitConfig = {
@@ -721,6 +721,9 @@ in
             "/var/lib/postgresql/.preseed-completed-16.10"
             "!/var/lib/postgresql/.postpreseed-backup-done"
           ];
+          # Recovery from transient failures
+          StartLimitIntervalSec = "600";
+          StartLimitBurst = "5";
         };
 
         serviceConfig = {
@@ -729,11 +732,8 @@ in
           Group = "postgres";
           RemainAfterExit = true;
           Environment = "PGHOST=/var/run/postgresql";
-          # Recovery from transient failures
           Restart = "on-failure";
           RestartSec = "30s";
-          StartLimitIntervalSec = "600";
-          StartLimitBurst = "5";
         };
 
         script = ''
