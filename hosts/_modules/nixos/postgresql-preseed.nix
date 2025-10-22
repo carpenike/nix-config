@@ -291,7 +291,7 @@ in {
       path = with pkgs; [ util-linux coreutils ];
       unitConfig = {
         RequiresMountsFor = [ "${pgDataPath}" ];
-        ConditionPathIsMountPoint = "${pgDataPath}";
+        AssertPathIsMountPoint = "${pgDataPath}";
       };
       serviceConfig = {
         Type = "oneshot";
@@ -314,8 +314,6 @@ in {
 
         # Enforce strict perms on PGDATA itself
         install -d -m 0700 -o postgres -g postgres "${pgDataPath}"
-        chown postgres:postgres "${pgDataPath}"
-        chmod 0700 "${pgDataPath}"
 
         echo "PGDATA and marker directory ownership/permissions set correctly"
       '';
@@ -330,16 +328,14 @@ in {
       wants = [ "network-online.target" ];
       requires = [ "systemd-tmpfiles-setup.service" "zfs-service-datasets.service" "postgresql-preseed-prepare.service" ];
 
-      # Only run if the completion marker doesn't exist
-      # Marker is outside PGDATA to avoid ZFS dataset layering issues
+      # Always evaluate whether preseed is needed - script handles idempotency
       unitConfig = {
-        ConditionPathExists = "!${markerFile}";
         # Proper NFS mount dependency - eliminates brittle unit name encoding
         # Also wait for the PGDATA path itself to be mounted
-        RequiresMountsFor = [ "/mnt/nas-postgresql" "${pgDataPath}" ];
-        ConditionPathIsMountPoint = "${pgDataPath}";
-        # Trigger post-preseed service on successful completion
-        OnSuccess = [ "pgbackrest-post-preseed.service" ];
+        RequiresMountsFor =
+          [ "${pgDataPath}" ]
+          ++ lib.optional (cfg.source.repository == 1) "/mnt/nas-postgresql";
+        AssertPathIsMountPoint = "${pgDataPath}";
       };
 
       serviceConfig = {
