@@ -146,33 +146,29 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Create datasets via activation script
-    # This runs after pool import but before services start
-    system.activationScripts.zfs-service-datasets = {
-      # Run after special filesystems are mounted AND all ZFS pools are imported
-      deps = [ "specialfs" ];
+    # Create datasets via systemd service
+    # This runs after ZFS pool import (zfs-import.target) but before services need them
+    systemd.services.zfs-service-datasets = {
+      description = "Create ZFS datasets for service isolation";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "zfs-import.target" ];
 
-      text = ''
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+
+      path = with pkgs; [ zfs gawk coreutils ];
+
+      script = ''
         set -euo pipefail
         IFS=$'\n\t'
 
-        echo "=== ZFS Service Datasets Activation ==="
+        echo "=== ZFS Service Datasets Setup ==="
 
-        # Wait up to 30 seconds for the parent pool to be imported
-        # This prevents race conditions during boot
-        PARENT_POOL=$(echo "${escape cfg.parentDataset}" | ${pkgs.gawk}/bin/awk -F/ '{print $1}')
-        for i in $(seq 1 30); do
-          if ${pkgs.zfs}/bin/zfs list -H -o name "$PARENT_POOL" >/dev/null 2>&1; then
-            echo "Parent pool '$PARENT_POOL' is available."
-            break
-          fi
-          echo "Waiting for parent pool '$PARENT_POOL' to be imported... ($i/30)"
-          sleep 1
-          if [ "$i" -eq 30 ]; then
-            echo "ERROR: Parent pool '$PARENT_POOL' not available after 30 seconds."
-            exit 1
-          fi
-        done
+        # No polling needed - systemd guarantees pools are imported
+        PARENT_POOL=$(echo "${escape cfg.parentDataset}" | awk -F/ '{print $1}')
+        echo "Parent pool '$PARENT_POOL' is available (guaranteed by zfs-import.target)."
 
         # Ensure parent dataset exists (self-healing)
         # Create it if missing instead of failing boot
@@ -247,7 +243,7 @@ in
           ''
         ) cfg.services)}
 
-        echo "=== ZFS Service Datasets Activation Complete ==="
+        echo "=== ZFS Service Datasets Setup Complete ==="
       '';
     };
 
