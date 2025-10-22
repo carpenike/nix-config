@@ -307,12 +307,17 @@ in {
           exit 1
         fi
 
-        # Enforce strict perms
+        # Fix parent directory ownership for marker file access
+        PARENT_DIR="$(dirname "${pgDataPath}")"
+        chown postgres:postgres "$PARENT_DIR"
+        chmod 0755 "$PARENT_DIR"
+
+        # Enforce strict perms on PGDATA itself
         install -d -m 0700 -o postgres -g postgres "${pgDataPath}"
         chown postgres:postgres "${pgDataPath}"
         chmod 0700 "${pgDataPath}"
 
-        echo "PGDATA ownership and permissions set correctly"
+        echo "PGDATA and parent directory ownership/permissions set correctly"
       '';
     };
 
