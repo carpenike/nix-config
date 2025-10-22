@@ -698,16 +698,24 @@ in
 
           echo "[$(date -Iseconds)] Stanza check failed, attempting to create/repair..."
 
-          # Try stanza-upgrade first - this handles re-installation scenarios
-          # It's safe to always try this first as it will fail gracefully on new installs
-          echo "[$(date -Iseconds)] Attempting stanza upgrade (for re-installations)..."
-          if pgbackrest --stanza=main stanza-upgrade 2>/dev/null; then
-            echo "[$(date -Iseconds)] Successfully upgraded existing stanza for new system ID"
+          # Check if stanza exists first to determine the right action
+          if pgbackrest --stanza=main info >/dev/null 2>&1; then
+            echo "[$(date -Iseconds)] Stanza exists but check failed - attempting upgrade..."
+            # Capture the actual error for logging
+            if ! pgbackrest --stanza=main stanza-upgrade 2>&1; then
+              echo "[$(date -Iseconds)] ERROR: Stanza upgrade failed unexpectedly"
+              exit 1
+            fi
+            echo "[$(date -Iseconds)] Successfully upgraded existing stanza"
           else
-            echo "[$(date -Iseconds)] Stanza upgrade failed or not applicable, creating new stanza..."
+            echo "[$(date -Iseconds)] No existing stanza found - creating new stanza..."
             # Use production config (repo1 only) to avoid SOPS dependency on first boot
             # If pre-seed restored the DB, this will validate the stanza matches
-            pgbackrest --stanza=main stanza-create
+            if ! pgbackrest --stanza=main stanza-create 2>&1; then
+              echo "[$(date -Iseconds)] ERROR: Stanza creation failed"
+              exit 1
+            fi
+            echo "[$(date -Iseconds)] Successfully created new stanza"
           fi
 
           echo "[$(date -Iseconds)] Running final check..."
@@ -720,14 +728,16 @@ in
       pgbackrest-post-preseed = {
         description = "Create fresh pgBackRest backup after pre-seed restoration";
         after = [ "postgresql.service" "pgbackrest-stanza-create.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
-        wants = [ "postgresql.service" "postgresql-preseed.service" "mnt-nas\\x2dpostgresql.mount" ];
+        wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
         requires = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
+        # Use PartOf to ensure this service is only considered when postgresql-preseed actually runs
+        partOf = [ "postgresql-preseed.service" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep ];
 
         # Only run if preseed completed but post-preseed backup hasn't been done yet
         unitConfig = {
           ConditionPathExists = [
-            "/var/lib/postgresql/.preseed-completed-${toString config.services.postgresql.package.version}"
+            "/var/lib/postgresql/.preseed-completed"
             "!/var/lib/postgresql/.postpreseed-backup-done"
           ];
           # Recovery from transient failures
@@ -749,6 +759,20 @@ in
           set -euo pipefail
 
           log() { echo "[$(date -Iseconds)] $*"; }
+
+          # Verify that pre-seed actually restored data (not just existing PGDATA)
+          if [ -f /var/lib/postgresql/.preseed-completed ]; then
+            restored_from=$(grep "restored_from=" /var/lib/postgresql/.preseed-completed | cut -d= -f2)
+            if [ "$restored_from" = "existing_pgdata" ]; then
+              log "Pre-seed marker indicates existing PGDATA was found - no restoration needed"
+              log "Skipping post-preseed backup (no restoration occurred)"
+              exit 0
+            fi
+            log "Pre-seed marker indicates restoration from: $restored_from"
+          else
+            log "WARNING: No preseed marker found - this should not happen"
+            exit 1
+          fi
 
           # Wait for PostgreSQL readiness
           log "Waiting for PostgreSQL to be ready..."

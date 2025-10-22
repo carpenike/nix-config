@@ -11,7 +11,8 @@ let
 
   # Marker file location - OUTSIDE PGDATA to avoid dataset layering issues
   # Stored in parent directory (/var/lib/postgresql/) to survive PGDATA deletion
-  markerFile = "/var/lib/postgresql/.preseed-completed-${toString pgCfg.package.version}";
+  # Version-independent to avoid orphaned markers after upgrades
+  markerFile = "/var/lib/postgresql/.preseed-completed";
 
   # Build the pgbackrest restore command
   restoreCommand = pkgs.writeShellScript "postgresql-preseed-restore" ''
@@ -31,7 +32,11 @@ let
         echo "PGDATA is already initialized. Skipping pre-seed restore."
         # Create the completion marker to ensure this check is skipped on future boots.
         # Marker is outside PGDATA to avoid ZFS dataset layering issues.
-        touch "${markerFile}"
+        cat > "${markerFile}" <<EOF
+postgresql_version=${toString pgCfg.package.version}
+restored_at=$(date -Iseconds)
+restored_from=existing_pgdata
+EOF
         echo "Completion marker created at ${markerFile}"
         echo "Pre-seed service will be skipped in the future."
         exit 0
@@ -72,7 +77,12 @@ let
 
     # Create completion marker to prevent re-runs
     # Marker is outside PGDATA to avoid ZFS dataset layering issues
-    touch "${markerFile}"
+    # Store version and timestamp for debugging
+    cat > "${markerFile}" <<EOF
+postgresql_version=${toString pgCfg.package.version}
+restored_at=$(date -Iseconds)
+restored_from=${cfg.source.stanza}@repo${toString cfg.source.repository}
+EOF
     echo "Completion marker created at ${markerFile}"
     echo "=== Pre-Seed Restore Complete ==="
   '';

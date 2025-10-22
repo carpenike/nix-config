@@ -48,34 +48,33 @@ with lib;
       ];
     };
 
-    # Ensure persistence services wait for /persist to mount
-    systemd.services."impermanence-bind-mounts" = {
-      description = "Ensure impermanence bind mounts are set up";
-      wantedBy = [ "local-fs.target" ];
-      after = [ "persist.mount" "zfs-mount.service" ];
-      requires = [ "persist.mount" "zfs-mount.service" ];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-      script = ''
-        # Ensure persist directory structure exists
-        mkdir -p ${cfg.persistPath}/etc
+    # Handle machine-id setup in activation script (runs early in boot)
+    system.activationScripts.persistMachineId = lib.stringAfter [ "etc" ] ''
+      # Ensure persist directory structure exists
+      mkdir -p ${cfg.persistPath}/etc
 
-        # Ensure machine-id exists in persist (create if missing)
-        if [ ! -e ${cfg.persistPath}/etc/machine-id ]; then
-          if [ -e /etc/machine-id ] && [ ! -L /etc/machine-id ]; then
-            # Move existing machine-id to persist
-            mv /etc/machine-id ${cfg.persistPath}/etc/machine-id
-          else
-            # Generate new machine-id
-            systemd-machine-id-setup --root=${cfg.persistPath}
-          fi
+      # Handle machine-id carefully to avoid data loss
+      if [ ! -e ${cfg.persistPath}/etc/machine-id ]; then
+        if [ -e /etc/machine-id ] && [ ! -L /etc/machine-id ]; then
+          # Preserve existing machine-id
+          echo "Moving existing machine-id to persist location..."
+          cp /etc/machine-id ${cfg.persistPath}/etc/machine-id
+        else
+          # Generate new machine-id in persist location
+          echo "Generating new machine-id..."
+          ${pkgs.systemd}/bin/systemd-machine-id-setup --print > ${cfg.persistPath}/etc/machine-id
         fi
+      fi
 
-        # Tmpfiles will handle the symlink creation
-      '';
-    };
+      # Create symlink if it doesn't exist or is wrong
+      if [ ! -L /etc/machine-id ] || [ "$(readlink /etc/machine-id)" != "${cfg.persistPath}/etc/machine-id" ]; then
+        # Remove existing file/link safely
+        if [ -e /etc/machine-id ] || [ -L /etc/machine-id ]; then
+          rm -f /etc/machine-id
+        fi
+        ln -s ${cfg.persistPath}/etc/machine-id /etc/machine-id
+      fi
+    '';
 
     # SSH key management is handled by systemd.tmpfiles.rules and impermanence
     # Remove the conflicting service that tries to manage the same files
@@ -95,10 +94,9 @@ with lib;
       ];
     };
 
-    # Tmpfiles rules to ensure machine-id and SSH keys are linked
-    # Use 'L+' which will remove existing files/directories before creating the symlink
+    # Tmpfiles rules to ensure SSH keys are linked (but NOT machine-id, handled separately)
     systemd.tmpfiles.rules = [
-      "L+ /etc/machine-id - - - - ${cfg.persistPath}/etc/machine-id"
+      # SSH keys can be safely force-linked as they're generated at a known time
       "L+ /etc/ssh/ssh_host_ed25519_key - - - - ${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key"
       "L+ /etc/ssh/ssh_host_ed25519_key.pub - - - - ${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key.pub"
       "L+ /etc/ssh/ssh_host_rsa_key - - - - ${cfg.persistPath}/etc/ssh/ssh_host_rsa_key"
