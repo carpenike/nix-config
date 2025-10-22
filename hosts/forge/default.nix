@@ -659,6 +659,8 @@ in
       # Create metrics file at boot with correct ownership so postgres user can write to it
       # and node-exporter group can read it. Type "f" creates the file if it doesn't exist.
       "f /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
+      # Ensure parent directory exists for post-preseed marker
+      "d /var/lib/postgresql 0755 postgres postgres - -"
     ];
 
     # pgBackRest systemd services
@@ -702,6 +704,78 @@ in
           echo "[$(date -Iseconds)] Running final check..."
           pgbackrest --stanza=main check
         '';
+        wantedBy = [ "multi-user.target" ];
+      };
+
+      # Post-preseed backup (creates fresh baseline after restoration)
+      pgbackrest-post-preseed = {
+        description = "Create fresh pgBackRest backup after pre-seed restoration";
+        after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+        wants = [ "postgresql.service" ];
+        requires = [ "postgresql.service" ];
+        path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.jq ];
+
+        # Only run if preseed completed but post-preseed backup hasn't been done yet
+        unitConfig = {
+          ConditionPathExists = [
+            "/var/lib/postgresql/.preseed-completed-16.10"
+            "!/var/lib/postgresql/.postpreseed-backup-done"
+          ];
+        };
+
+        serviceConfig = {
+          Type = "oneshot";
+          User = "postgres";
+          Group = "postgres";
+          RemainAfterExit = true;
+          Environment = "PGHOST=/var/run/postgresql";
+          # Recovery from transient failures
+          Restart = "on-failure";
+          RestartSec = "30s";
+          StartLimitIntervalSec = "600";
+          StartLimitBurst = "5";
+        };
+
+        script = ''
+          set -euo pipefail
+
+          log() { echo "[$(date -Iseconds)] $*"; }
+
+          # Wait for PostgreSQL readiness
+          log "Waiting for PostgreSQL to be ready..."
+          timeout 300 bash -c 'until pg_isready -q; do sleep 2; done' || {
+            log "PostgreSQL did not become ready within 300s"
+            exit 1
+          }
+
+          # Determine current system-id
+          cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")" || {
+            log "Could not determine current system-id"
+            exit 1
+          }
+          log "Current system-id: $cur_sysid"
+
+          # Check if we already have a full backup for current system-id
+          info_json="$(pgbackrest info --stanza=main --output=json)"
+          has_full_for_cur_sysid="$(echo "$info_json" | jq -r --arg id "$cur_sysid" '
+            any(.[0].db[]?; .\"system-id\"==$id and any(.backup[]?; .type==\"full\"))
+          ')"
+
+          log "Repo has full backup for current system-id: $has_full_for_cur_sysid"
+
+          if [[ "$has_full_for_cur_sysid" != "true" ]]; then
+            log "Creating fresh full backup for new system-id..."
+            pgbackrest --stanza=main --type=full backup
+            log "Fresh full backup completed successfully"
+          else
+            log "Full backup already exists for current system-id; skipping"
+          fi
+
+          # Mark completion to prevent re-runs
+          touch /var/lib/postgresql/.postpreseed-backup-done
+          log "Post-preseed backup process completed"
+        '';
+
         wantedBy = [ "multi-user.target" ];
       };
 
