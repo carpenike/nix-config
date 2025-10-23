@@ -3,6 +3,8 @@
 
 let
   cfg = config.modules.services.attic;
+  # Import shared type definitions
+  sharedTypes = import ../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.attic = {
@@ -37,13 +39,63 @@ in
       description = "Path to file containing the JWT HMAC secret (base64 encoded)";
     };
 
-    reverseProxy = {
-      enable = lib.mkEnableOption "Caddy reverse proxy for Attic";
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Attic web interface";
+    };
 
-      virtualHost = lib.mkOption {
-        type = lib.types.str;
-        description = "Virtual host for reverse proxy";
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = null; # Attic doesn't expose Prometheus metrics by default
+      description = "Prometheus metrics collection configuration for Attic";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "atticd.service";
+        labels = {
+          service = "attic";
+          service_type = "binary_cache";
+        };
       };
+      description = "Log shipping configuration for Attic logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "cache" "attic" "nix" ];
+        excludePatterns = [
+          "**/*.tmp"        # Exclude temporary files
+          "**/locks/*"      # Exclude lock files
+        ];
+      };
+      description = "Backup configuration for Attic";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "infrastructure-alerts" ];
+        };
+        customMessages = {
+          failure = "Attic binary cache server failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Attic service events";
     };
 
     autoPush = {
@@ -167,26 +219,33 @@ in
       '';
     };
 
-    # Register with enhanced Caddy module
-    modules.services.caddy.virtualHosts.attic = lib.mkIf cfg.reverseProxy.enable {
+    # Register with Caddy using standardized pattern
+    modules.services.caddy.virtualHosts.attic = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
-      hostName = cfg.reverseProxy.virtualHost;
-      proxyTo = "http://${cfg.listenAddress}";
-      httpsBackend = false;
-      extraConfig = ''
-        # Security headers
-        header {
-          Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-          X-Content-Type-Options "nosniff"
-          X-Frame-Options "DENY"
-          X-XSS-Protection "1; mode=block"
-          Referrer-Policy "strict-origin-when-cross-origin"
-        }
-      '';
+      hostName = cfg.reverseProxy.hostName;
+
+      # Use structured backend configuration from shared types
+      backend = cfg.reverseProxy.backend;
+
+      # Authentication configuration from shared types
+      auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types with additional headers
+      security = cfg.reverseProxy.security // {
+        customHeaders = cfg.reverseProxy.security.customHeaders // {
+          "X-Frame-Options" = "DENY";
+          "X-Content-Type-Options" = "nosniff";
+          "X-XSS-Protection" = "1; mode=block";
+          "Referrer-Policy" = "strict-origin-when-cross-origin";
+        };
+      };
+
+      # Additional Caddy configuration
+      extraConfig = cfg.reverseProxy.extraConfig;
     };
 
     # Firewall configuration for direct access (if not using reverse proxy)
-    networking.firewall = lib.mkIf (!cfg.reverseProxy.enable) {
+    networking.firewall = lib.mkIf (cfg.reverseProxy == null || !cfg.reverseProxy.enable) {
       allowedTCPPorts = [ (lib.toInt (lib.last (lib.splitString ":" cfg.listenAddress))) ];
     };
 

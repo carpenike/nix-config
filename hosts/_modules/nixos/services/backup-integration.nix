@@ -121,30 +121,27 @@ in
         assertion = cfg.autoDiscovery.enable -> config.modules.backup.restic.enable;
         message = "Backup auto-discovery requires Restic backup to be enabled";
       }
-    ];
-
-    # Provide validation for service backup configurations
-    warnings =
+    ] ++ (
+      # Repository validation assertions - prevent build failures from missing repositories
       let
         allServices = config.modules.services or {};
         servicesWithBackup = lib.filterAttrs (name: service:
           (service.backup or null) != null &&
           (service.backup.enable or false)
         ) allServices;
-
-        # Check for missing repositories
-        missingRepos = mapAttrsToList (serviceName: service:
-          let
-            repoName = service.backup.repository or cfg.defaultRepository;
-          in
-            if !(hasAttr repoName config.modules.backup.restic.repositories)
-            then "Service '${serviceName}' references unknown backup repository '${repoName}'"
-            else null
-        ) servicesWithBackup;
-
-        # Filter out null values
-        validWarnings = filter (w: w != null) missingRepos;
       in
-        validWarnings;
+        mapAttrsToList (serviceName: service: {
+          assertion =
+            let
+              repoName = service.backup.repository or cfg.defaultRepository;
+            in
+              hasAttr repoName (config.modules.backup.restic.repositories or {});
+          message = ''
+            Service '${serviceName}' references an unknown backup repository '${service.backup.repository or cfg.defaultRepository}'.
+            Please define it in modules.backup.restic.repositories or update the service backup configuration.
+            Available repositories: ${concatStringsSep ", " (attrNames (config.modules.backup.restic.repositories or {}))}
+          '';
+        }) servicesWithBackup
+    );
   };
 }

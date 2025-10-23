@@ -86,6 +86,27 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Automatically register with Caddy reverse proxy if enabled
+    modules.services.caddy.virtualHosts.blocky = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+      enable = true;
+      hostName = cfg.reverseProxy.hostName;
+
+      # Use structured backend configuration from shared types
+      backend = {
+        scheme = "http";
+        host = "127.0.0.1";
+        port = 4000;  # Blocky default port
+      };
+
+      # Authentication configuration from shared types
+      auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types
+      security = cfg.reverseProxy.security;
+
+      extraConfig = cfg.reverseProxy.extraConfig;
+    };
+
     systemd.services.blocky = {
       description = "A DNS proxy and ad-blocker for the local network";
       wantedBy = [ "multi-user.target" ];

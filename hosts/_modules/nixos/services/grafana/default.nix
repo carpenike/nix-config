@@ -14,6 +14,8 @@
 let
   inherit (lib) mkOption mkEnableOption mkIf types optionalString mapAttrsToList attrValues;
   cfg = config.modules.services.grafana;
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   ###### Options
@@ -45,32 +47,56 @@ in
       description = "Directory to store Grafana's database and other state";
     };
 
-    # Consistent submodule for reverse proxy
-    reverseProxy = {
-      enable = mkEnableOption "Caddy reverse proxy for Grafana";
+    # Standardized reverse proxy integration
+    reverseProxy = mkOption {
+      type = types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Grafana web interface";
+    };
 
-      subdomain = mkOption {
-        type = types.str;
-        default = "grafana";
-        description = "Subdomain for the reverse proxy";
+    # Standardized metrics collection pattern
+    metrics = mkOption {
+      type = types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 3000;
+        path = "/metrics";
+        labels = {
+          service_type = "monitoring";
+          exporter = "grafana";
+          function = "visualization";
+        };
       };
+      description = "Prometheus metrics collection configuration for Grafana";
+    };
 
-      auth = mkOption {
-        type = types.nullOr (types.submodule {
-          options = {
-            user = mkOption {
-              type = types.str;
-              description = "Username for basic authentication";
-            };
-            passwordHashEnvVar = mkOption {
-              type = types.str;
-              description = "Environment variable containing bcrypt password hash";
-            };
-          };
-        });
-        default = null;
-        description = "Authentication configuration";
+    # Standardized logging integration
+    logging = mkOption {
+      type = types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "grafana.service";
+        labels = {
+          service = "grafana";
+          service_type = "monitoring";
+        };
       };
+      description = "Log shipping configuration for Grafana logs";
+    };
+
+    # Standardized notifications
+    notifications = mkOption {
+      type = types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "monitoring-alerts" ];
+        };
+        customMessages = {
+          failure = "Grafana monitoring dashboard failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Grafana service events";
     };
 
     # Consistent submodule for ZFS
@@ -93,40 +119,32 @@ in
       };
     };
 
-    # Consistent submodule for resource management
-    resources = {
-      MemoryMax = mkOption {
-        type = types.str;
-        default = "1G";
-        description = "Maximum memory usage";
+    # Standardized systemd resource management
+    resources = mkOption {
+      type = sharedTypes.systemdResourcesSubmodule;
+      default = {
+        MemoryMax = "1G";
+        MemoryReservation = "512M";
+        CPUQuota = "50%";
       };
-
-      MemoryReservation = mkOption {
-        type = types.nullOr types.str;
-        default = "512M";
-        description = "Memory reservation";
-      };
-
-      CPUQuota = mkOption {
-        type = types.str;
-        default = "50%";
-        description = "CPU quota";
-      };
+      description = "Systemd resource limits for Grafana service";
     };
 
-    # Consistent submodule for backups
-    backup = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Enable backup of Grafana configuration and dashboards";
+    # Standardized backup integration
+    backup = mkOption {
+      type = types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "monitoring" "grafana" "dashboards" ];
+        excludePatterns = [
+          "**/*.db"          # Exclude SQLite database (use ZFS snapshots instead)
+          "**/sessions/*"    # Exclude session data
+          "**/png/*"         # Exclude rendered images
+        ];
       };
-
-      excludeDataFiles = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Exclude database and runtime data from backups (recommended for ZFS snapshots)";
-      };
+      description = "Backup configuration for Grafana";
     };
 
     # Grafana-specific settings
@@ -259,28 +277,29 @@ in
         mode = "0750";
       };
 
-      # Automatically register with Caddy reverse proxy using new structured pattern
-      modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = mkIf cfg.reverseProxy.enable {
+      # Automatically register with Caddy reverse proxy using standardized pattern
+      modules.services.caddy.virtualHosts.grafana = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         enable = true;
-        hostName = "${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
+        hostName = cfg.reverseProxy.hostName;
 
-        # Structured backend configuration
-        backend = {
-          scheme = "http";
-          host = cfg.listenAddress;
-          port = cfg.port;
-        };
+        # Use structured backend configuration from shared types
+        backend = cfg.reverseProxy.backend;
 
-        # Authentication configuration
+        # Authentication configuration from shared types
         auth = cfg.reverseProxy.auth;
 
-        # Security headers for web interface
-        security.customHeaders = {
-          "X-Frame-Options" = "SAMEORIGIN";
-          "X-Content-Type-Options" = "nosniff";
-          "X-XSS-Protection" = "1; mode=block";
-          "Referrer-Policy" = "strict-origin-when-cross-origin";
+        # Security configuration from shared types with additional headers
+        security = cfg.reverseProxy.security // {
+          customHeaders = cfg.reverseProxy.security.customHeaders // {
+            "X-Frame-Options" = "SAMEORIGIN";
+            "X-Content-Type-Options" = "nosniff";
+            "X-XSS-Protection" = "1; mode=block";
+            "Referrer-Policy" = "strict-origin-when-cross-origin";
+          };
         };
+
+        # Additional Caddy configuration
+        extraConfig = cfg.reverseProxy.extraConfig;
       };
 
       # Configure the core Grafana service
@@ -293,8 +312,8 @@ in
           server = {
             http_addr = cfg.listenAddress;
             http_port = cfg.port;
-          } // (lib.optionalAttrs cfg.reverseProxy.enable {
-            root_url = "https://${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
+          } // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+            root_url = "https://${cfg.reverseProxy.hostName}";
           });
           security = {
             admin_user = cfg.secrets.adminUser;
@@ -302,7 +321,7 @@ in
             admin_password = "$__file{${cfg.secrets.adminPasswordFile}}";
           });
           # Enable proxy authentication if reverse proxy with auth is configured
-          "auth.proxy" = mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.auth != null) {
+          "auth.proxy" = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.auth != null) {
             enabled = true;
             header_name = "Remote-User";
             header_property = "username";

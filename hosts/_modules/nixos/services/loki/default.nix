@@ -3,6 +3,8 @@
 let
   inherit (lib) mkOption mkEnableOption mkIf types;
   cfg = config.modules.services.loki;
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.loki = {
@@ -36,51 +38,73 @@ in
       description = "Resource limits for the Loki systemd service";
     };
 
-    reverseProxy = {
-      enable = mkEnableOption "reverse proxy for Loki";
-
-      subdomain = mkOption {
-        type = types.str;
-        default = "loki";
-        description = "Subdomain for Loki web interface";
-      };
-
-      requireAuth = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Require authentication for web access";
-      };
-
-      auth = mkOption {
-        type = types.nullOr (types.submodule {
-          options = {
-            user = mkOption {
-              type = types.str;
-              description = "Username for basic authentication";
-            };
-            passwordHashEnvVar = mkOption {
-              type = types.str;
-              description = "Environment variable containing bcrypt password hash";
-            };
-          };
-        });
-        default = null;
-        description = "Authentication configuration";
-      };
+    # Standardized reverse proxy integration
+    reverseProxy = mkOption {
+      type = types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Loki web interface";
     };
 
-    backup = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Enable backup of Loki configuration and rules";
+    # Standardized metrics collection pattern
+    metrics = mkOption {
+      type = types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 3100;
+        path = "/metrics";
+        labels = {
+          service_type = "log_aggregation";
+          exporter = "loki";
+          function = "storage";
+        };
       };
+      description = "Prometheus metrics collection configuration for Loki";
+    };
 
-      excludeDataFiles = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Exclude chunks and WAL from backups (recommended for ZFS snapshots)";
+    # Standardized logging integration
+    logging = mkOption {
+      type = types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "loki.service";
+        labels = {
+          service = "loki";
+          service_type = "log_aggregation";
+        };
       };
+      description = "Log shipping configuration for Loki logs";
+    };
+
+    # Standardized backup integration
+    backup = mkOption {
+      type = types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "logs" "loki" "config" ];
+        excludePatterns = [
+          "**/chunks/**"     # Exclude data chunks (use ZFS snapshots instead)
+          "**/wal/**"        # Exclude WAL files
+          "**/boltdb-shipper-cache/**"  # Exclude cache
+        ];
+      };
+      description = "Backup configuration for Loki";
+    };
+
+    # Standardized notifications
+    notifications = mkOption {
+      type = types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "critical-logs" ];
+        };
+        customMessages = {
+          failure = "Loki log aggregation server failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Loki service events";
     };
 
     zfs = {
@@ -250,35 +274,36 @@ in
       wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ];
     };
 
-    # Automatically register with Caddy reverse proxy using new structured pattern
-    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = mkIf cfg.reverseProxy.enable {
+    # Automatically register with Caddy reverse proxy using standardized pattern
+    modules.services.caddy.virtualHosts.loki = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
-      hostName = "${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
+      hostName = cfg.reverseProxy.hostName;
 
-      # Structured backend configuration
-      backend = {
-        scheme = "http";
-        host = "127.0.0.1";
-        port = cfg.port;
+      # Use structured backend configuration from shared types
+      backend = cfg.reverseProxy.backend;
+
+      # Authentication configuration from shared types
+      auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types with additional headers
+      security = cfg.reverseProxy.security // {
+        customHeaders = cfg.reverseProxy.security.customHeaders // {
+          "X-Frame-Options" = "DENY";
+          "X-Content-Type-Options" = "nosniff";
+          "X-XSS-Protection" = "1; mode=block";
+          "Referrer-Policy" = "strict-origin-when-cross-origin";
+        };
       };
 
-      # Authentication configuration
-      auth = mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
+      # Additional Caddy configuration
+      extraConfig = cfg.reverseProxy.extraConfig;
 
-      # Headers for inside the reverse_proxy block
+      # Loki-specific reverse proxy directives
       reverseProxyBlock = ''
         # Loki API headers for proper log ingestion
         header_up Host {upstream_hostport}
         header_up X-Real-IP {remote_host}
       '';
-
-      # Security headers for API interface
-      security.customHeaders = {
-        "X-Frame-Options" = "DENY";
-        "X-Content-Type-Options" = "nosniff";
-        "X-XSS-Protection" = "1; mode=block";
-        "Referrer-Policy" = "strict-origin-when-cross-origin";
-      };
     };
 
     # Backup configuration

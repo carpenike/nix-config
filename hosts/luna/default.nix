@@ -87,7 +87,15 @@ in
           enable = true;
           mutableSettings = true; # Allow web UI changes to persist
           settings = import ./config/adguard.nix { inherit config lib; };
-          reverseProxy.enable = true;
+          reverseProxy = {
+            enable = true;
+            hostName = "adguard.${config.networking.domain}";
+            backend = {
+              scheme = "http";
+              host = "127.0.0.1";
+              port = 3000;
+            };
+          };
         };
 
         chrony = {
@@ -117,7 +125,12 @@ in
           enable = true;
           reverseProxy = {
             enable = true;
-            requireAuth = true;
+            hostName = "node-exporter.${config.networking.domain}";
+            backend = {
+              scheme = "http";
+              host = "127.0.0.1";
+              port = 9100;
+            };
             auth = {
               user = "metrics";
               passwordHashEnvVar = "CADDY_METRICS_HASH";
@@ -129,7 +142,12 @@ in
           enable = true;
           reverseProxy = {
             enable = true;
-            # Uses hostname-based routing: luna.holthome.net
+            hostName = "${config.networking.hostName}.${config.networking.domain}";
+            backend = {
+              scheme = "http";
+              host = "127.0.0.1";
+              port = 61208;
+            };
             auth = {
               user = "admin";
               passwordHashEnvVar = "CADDY_GLANCES_HASH";
@@ -154,12 +172,28 @@ in
 
         unifi = {
           enable = true;
-          reverseProxy.enable = true;
+          reverseProxy = {
+            enable = true;
+            hostName = "unifi.${config.networking.domain}";
+            backend = {
+              scheme = "https";
+              host = "127.0.0.1";
+              port = 8443;
+            };
+          };
         };
 
         omada = {
           enable = true;
-          reverseProxy.enable = true;
+          reverseProxy = {
+            enable = true;
+            hostName = "omada.${config.networking.domain}";
+            backend = {
+              scheme = "https";
+              host = "127.0.0.1";
+              port = 8043;
+            };
+          };
           resources = {
             memory = "4g";            # Recommended by Perplexity for Omada 5.14 with embedded MongoDB
             memoryReservation = "2g"; # Reserve half for stable operation
@@ -173,7 +207,12 @@ in
           jwtSecretFile = config.sops.secrets."attic/jwt-secret".path;
           reverseProxy = {
             enable = true;
-            virtualHost = "attic.holthome.net";
+            hostName = "attic.holthome.net";
+            backend = {
+              scheme = "http";
+              host = "127.0.0.1";
+              port = 8081;
+            };
           };
           autoPush = {
             enable = true;

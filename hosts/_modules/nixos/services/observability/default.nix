@@ -412,17 +412,28 @@ in
       };
 
       # Reverse proxy configuration
-      reverseProxy = mkIf cfg.reverseProxy.enable {
+      reverseProxy = lib.mkIf cfg.reverseProxy.enable {
         enable = true;
-        subdomain = cfg.reverseProxy.subdomain;
-        requireAuth = cfg.reverseProxy.auth != null;
+        hostName = "${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
+        backend = {
+          scheme = "http";
+          host = "127.0.0.1";
+          port = 3100;
+        };
         auth = cfg.reverseProxy.auth;
       };
 
       # Backup configuration
-      backup = {
-        enable = false; # Handled by ZFS snapshots
-        excludeDataFiles = !cfg.backup.includeChunks;
+      backup = lib.mkIf cfg.backup.enable {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "logs" "loki" "config" ];
+        excludePatterns = if cfg.backup.includeChunks then [] else [
+          "**/chunks/**"
+          "**/wal/**"
+          "**/boltdb-shipper-cache/**"
+        ];
       };
 
       # Resource limits for homelab
@@ -498,9 +509,14 @@ in
       };
 
       # Reverse proxy configuration
-      reverseProxy = {
-        enable = cfg.reverseProxy.enable;
-        subdomain = cfg.grafana.subdomain;
+      reverseProxy = lib.mkIf cfg.reverseProxy.enable {
+        enable = true;
+        hostName = "${cfg.grafana.subdomain}.${config.networking.domain or "holthome.net"}";
+        backend = {
+          scheme = "http";
+          host = "127.0.0.1";
+          port = 3000;
+        };
         auth = cfg.reverseProxy.auth;
       };
 
@@ -522,9 +538,16 @@ in
       };
 
       # Backup configuration
-      backup = {
-        enable = cfg.backup.enable;
-        excludeDataFiles = true; # Rely on ZFS snapshots for data
+      backup = lib.mkIf cfg.backup.enable {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "monitoring" "grafana" "dashboards" ];
+        excludePatterns = [
+          "**/*.db"          # Exclude SQLite database (use ZFS snapshots instead)
+          "**/sessions/*"    # Exclude session data
+          "**/png/*"         # Exclude rendered images
+        ];
       };
     };
 

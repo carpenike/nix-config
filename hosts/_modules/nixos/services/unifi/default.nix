@@ -37,29 +37,11 @@ in
       description = "Group ID to own the data and log directories";
     };
     resources = lib.mkOption {
-      type = lib.types.nullOr (lib.types.submodule {
-        options = {
-          memory = lib.mkOption {
-            type = lib.types.str;
-            default = "1g";
-            description = "Memory limit for the container (e.g., '512m', '1g')";
-          };
-          memoryReservation = lib.mkOption {
-            type = lib.types.str;
-            default = "512m";
-            description = "Memory reservation (soft limit) for the container";
-          };
-          cpus = lib.mkOption {
-            type = lib.types.str;
-            default = "1";
-            description = "CPU limit in cores (e.g., '0.5', '1', '2')";
-          };
-        };
-      });
+      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
         memory = "1g";
         memoryReservation = "512m";
-        cpus = "1";
+        cpus = "1.0";
       };
       description = "Resource limits for the Unifi container (recommended for homelab stability)";
     };
@@ -144,14 +126,27 @@ in
     modules.services.caddy.virtualHosts.unifi = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
       hostName = cfg.reverseProxy.hostName;
-      proxyTo = "localhost:8443";
-      httpsBackend = true; # UniFi uses HTTPS
+
+      # Use structured backend configuration from shared types
+      backend = {
+        scheme = "https";  # UniFi uses HTTPS
+        host = "127.0.0.1";
+        port = 8443;
+        tls.verify = false;  # UniFi uses self-signed certificate by default
+      };
+
+      # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types
+      security = cfg.reverseProxy.security;
+
+      # UniFi-specific reverse proxy directives
       extraConfig = ''
         # Handle websockets for real-time updates
-        header_up Host {host}
+        header_up Host {upstream_hostport}
         header_up X-Real-IP {remote_host}
-        # UniFi specific headers
+        # WebSocket upgrade headers
         header_up Upgrade {>Upgrade}
         header_up Connection {>Connection}
       '';

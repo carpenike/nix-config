@@ -16,57 +16,40 @@ This document establishes standardized design patterns for NixOS service modules
 
 - **Web Services**: `hosts/_modules/nixos/services/caddy/default.nix` - Structured backend configuration, security options, automatic DNS record generation
 - **Storage Services**: `hosts/_modules/nixos/services/postgresql/` - Database provisioning, secure credential handling, systemd integration
+- **Observability Services**: `hosts/_modules/nixos/services/loki/default.nix`, `hosts/_modules/nixos/services/promtail/default.nix` - Complete observability stack with standardized patterns
+- **Shared Types**: `hosts/_modules/lib/types.nix` - Centralized type definitions for all standardized submodules
+
+## Shared Types Library
+
+All standardized submodule types are centralized in `hosts/_modules/lib/types.nix` to ensure consistency and reusability across services.
+
+### Import Pattern
+```nix
+# Import shared type definitions in service modules
+sharedTypes = import ../../../lib/types.nix { inherit lib; };
+```
+
+### Available Shared Types
+- `sharedTypes.reverseProxySubmodule` - Reverse proxy integration with TLS backend support
+- `sharedTypes.metricsSubmodule` - Prometheus metrics collection with advanced labeling
+- `sharedTypes.loggingSubmodule` - Log shipping with multiline parsing and regex support
+- `sharedTypes.backupSubmodule` - Backup integration with retention policies
+- `sharedTypes.notificationSubmodule` - Notification channels with escalation
+- `sharedTypes.containerResourcesSubmodule` - Container resource management
 
 ## Standardized Submodule Patterns
 
 ### 1. Reverse Proxy Integration
 
-All web services should follow the Caddy virtualHosts pattern for consistent reverse proxy integration.
+All web services should use the shared reverse proxy type for consistent Caddy integration.
 
-#### Pattern Structure
+#### Implementation Pattern
 ```nix
-options.modules.services.<service>.reverseProxy = mkOption {
-  type = types.nullOr (types.submodule {
-    options = {
-      enable = mkEnableOption "reverse proxy for this service";
-
-      hostName = mkOption {
-        type = types.str;
-        description = "FQDN for this service";
-        example = "service.holthome.net";
-      };
-
-      backend = mkOption {
-        type = types.submodule {
-          options = {
-            scheme = mkOption {
-              type = types.enum [ "http" "https" ];
-              default = "http";
-            };
-            host = mkOption {
-              type = types.str;
-              default = "127.0.0.1";
-            };
-            port = mkOption {
-              type = types.port;
-              description = "Backend port";
-            };
-          };
-        };
-      };
-
-      auth = mkOption {
-        type = types.nullOr (types.submodule {
-          options = {
-            user = mkOption { type = types.str; };
-            passwordHashEnvVar = mkOption { type = types.str; };
-          };
-        });
-        default = null;
-      };
-    };
-  });
+# Use shared type instead of inline definition
+reverseProxy = mkOption {
+  type = types.nullOr sharedTypes.reverseProxySubmodule;
   default = null;
+  description = "Reverse proxy configuration for this service";
 };
 ```
 
@@ -85,156 +68,123 @@ config = mkIf cfg.enable {
 
 ### 2. Metrics Collection Pattern
 
-Services that expose metrics should use a standardized metrics submodule for automatic Prometheus integration.
+Services that expose metrics should use the shared metrics type for automatic Prometheus integration.
 
-#### Pattern Structure
+#### Implementation Pattern
 ```nix
-options.modules.services.<service>.metrics = mkOption {
-  type = types.nullOr (types.submodule {
-    options = {
-      enable = mkEnableOption "Prometheus metrics collection";
-
-      port = mkOption {
-        type = types.port;
-        description = "Metrics endpoint port";
-      };
-
-      path = mkOption {
-        type = types.str;
-        default = "/metrics";
-        description = "Metrics endpoint path";
-      };
-
-      scrapeInterval = mkOption {
-        type = types.str;
-        default = "60s";
-        description = "How often Prometheus should scrape this target";
-      };
-
-      labels = mkOption {
-        type = types.attrsOf types.str;
-        default = {};
-        description = "Additional labels for this scrape target";
-        example = { environment = "production"; team = "infrastructure"; };
-      };
+# Use shared type with service-specific defaults
+metrics = mkOption {
+  type = types.nullOr sharedTypes.metricsSubmodule;
+  default = {
+    enable = true;
+    port = 9090;  # Service-specific port
+    path = "/metrics";
+    labels = {
+      service_type = "database";
+      exporter = "postgres";
+      function = "storage";
     };
-  });
-  default = null;
+  };
+  description = "Prometheus metrics collection configuration";
 };
 ```
 
 #### Auto-Registration Implementation
 ```nix
+# No explicit registration required - the observability module automatically
+# scans all enabled services under `config.modules.services.*` for metrics submodules
+
 config = mkIf cfg.enable {
-  # Export metrics configuration for Prometheus discovery
-  modules.observability.scrapeTargets."${serviceName}" = mkIf (cfg.metrics != null && cfg.metrics.enable) {
-    inherit (cfg.metrics) port path scrapeInterval labels;
-    target = "localhost:${toString cfg.metrics.port}";
-    serviceName = "${serviceName}";
-  };
+  # Services are automatically discovered when they define a metrics submodule
+  # The observability module uses discoverMetricsTargets() to find all services with:
+  # - (service.metrics or null) != null
+  # - (service.metrics.enable or false) == true
+
+  # Generated Prometheus scrape config will include:
+  # - job_name: "service-${serviceName}"
+  # - targets: ["${interface}:${port}"]
+  # - metrics_path: "${path}"
+  # - scrape_interval: "${scrapeInterval}"
+  # - labels: service.metrics.labels + { service = serviceName; instance = hostName; }
 };
 ```
 
 ### 3. Log Shipping Pattern
 
-Services that produce logs should use a standardized logging submodule for automatic Promtail/Loki integration.
+Services that produce logs should use the shared logging type for automatic Promtail/Loki integration.
 
-#### Pattern Structure
+#### Implementation Pattern
 ```nix
-options.modules.services.<service>.logging = mkOption {
-  type = types.nullOr (types.submodule {
-    options = {
-      enable = mkEnableOption "log shipping to Loki";
-
-      logFiles = mkOption {
-        type = types.listOf types.path;
-        default = [];
-        description = "Log files to ship to Loki";
-      };
-
-      journalUnit = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = "Systemd unit to collect journal logs from";
-      };
-
-      labels = mkOption {
-        type = types.attrsOf types.str;
-        default = {};
-        description = "Additional labels for log streams";
-      };
-
-      parseFormat = mkOption {
-        type = types.enum [ "json" "logfmt" "regex" "none" ];
-        default = "none";
-        description = "Log parsing format";
-      };
+# Use shared type with enhanced parsing capabilities
+logging = mkOption {
+  type = types.nullOr sharedTypes.loggingSubmodule;
+  default = {
+    enable = true;
+    journalUnit = "${serviceName}.service";
+    labels = {
+      service = serviceName;
+      service_type = "application";
     };
-  });
-  default = null;
+    parseFormat = "json";  # or "logfmt", "regex", "multiline", "none"
+  };
+  description = "Log shipping configuration";
+};
+
+# Advanced parsing example
+logging = mkOption {
+  type = types.nullOr sharedTypes.loggingSubmodule;
+  default = {
+    enable = true;
+    logFiles = [ "/var/log/app/error.log" ];
+    parseFormat = "multiline";
+    multilineConfig = {
+      firstLineRegex = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}";
+      maxWaitTime = "3s";
+    };
+  };
 };
 ```
 
 #### Auto-Registration Implementation
 ```nix
+# Logging auto-registration follows the same pattern as metrics
+# The observability module automatically discovers services with logging submodules
+
 config = mkIf cfg.enable {
-  # Export logging configuration for Promtail discovery
-  modules.observability.logSources."${serviceName}" = mkIf (cfg.logging != null && cfg.logging.enable) {
-    inherit (cfg.logging) logFiles journalUnit labels parseFormat;
-    serviceName = "${serviceName}";
-  };
+  # Promtail automatically discovers services with logging.enable = true
+  # Generated configuration includes:
+  # - job_name: "service-${serviceName}"
+  # - journalUnit or logFiles based on configuration
+  # - labels: service.logging.labels + { service = serviceName; }
+  # - parseFormat for structured log processing
 };
 ```
 
 ### 4. Backup Integration Pattern
 
-Stateful services should use a standardized backup submodule for consistent backup policy management.
+Stateful services should use the shared backup type for consistent backup policy management.
 
-#### Pattern Structure
+#### Implementation Pattern
 ```nix
-options.modules.services.<service>.backup = mkOption {
-  type = types.nullOr (types.submodule {
-    options = {
-      enable = mkEnableOption "backups for this service";
-
-      repository = mkOption {
-        type = types.str;
-        description = "Backup repository identifier";
-        example = "primary";
-      };
-
-      frequency = mkOption {
-        type = types.enum [ "hourly" "daily" "weekly" ];
-        default = "daily";
-        description = "Backup frequency";
-      };
-
-      retention = mkOption {
-        type = types.submodule {
-          options = {
-            daily = mkOption { type = types.int; default = 7; };
-            weekly = mkOption { type = types.int; default = 4; };
-            monthly = mkOption { type = types.int; default = 6; };
-          };
-        };
-        default = {};
-        description = "Backup retention policy";
-      };
-
-      preBackupScript = mkOption {
-        type = types.nullOr types.lines;
-        default = null;
-        description = "Script to run before backup (e.g., database dump)";
-      };
-
-      postBackupScript = mkOption {
-        type = types.nullOr types.lines;
-        default = null;
-        description = "Script to run after backup";
-      };
-    };
-  });
-  default = null;
+# Use shared type with service-specific configuration
+backup = mkOption {
+  type = types.nullOr sharedTypes.backupSubmodule;
+  default = {
+    enable = true;
+    repository = "nas-primary";
+    frequency = "daily";
+    tags = [ "database" "production" "critical" ];
+    excludePatterns = [
+      "**/cache/**"
+      "**/tmp/**"
+      "**/*.log"  # Exclude logs, use ZFS snapshots for recovery
+    ];
+    preBackupScript = ''
+      # Database-specific backup preparation
+      pg_dump mydb > ${cfg.dataDir}/backup.sql
+    '';
+  };
+  description = "Backup configuration";
 };
 ```
 
@@ -252,164 +202,64 @@ config = mkIf cfg.enable {
 
 ### 5. Notification Integration Pattern
 
-Services should use a standardized notification submodule for consistent alerting and status reporting.
+Services should use the shared notification type for consistent alerting and status reporting.
 
-#### Pattern Structure
+#### Implementation Pattern
 ```nix
-options.modules.services.<service>.notifications = mkOption {
-  type = types.nullOr (types.submodule {
-    options = {
-      enable = mkEnableOption "notifications for this service";
-
-      channels = mkOption {
-        type = types.submodule {
-          options = {
-            onFailure = mkOption {
-              type = types.listOf types.str;
-              default = [];
-              description = "Notification channels for service failures";
-              example = [ "gotify-critical" "slack-alerts" ];
-            };
-
-            onSuccess = mkOption {
-              type = types.listOf types.str;
-              default = [];
-              description = "Notification channels for successful operations";
-            };
-
-            onBackup = mkOption {
-              type = types.listOf types.str;
-              default = [];
-              description = "Notification channels for backup events";
-            };
-          };
-        };
-        default = {};
-      };
-
-      customMessages = mkOption {
-        type = types.attrsOf types.str;
-        default = {};
-        description = "Custom message templates";
-        example = {
-          failure = "Service \${serviceName} failed on \${hostname}";
-          success = "Service \${serviceName} completed successfully";
-        };
-      };
+# Use shared type with escalation support
+notifications = mkOption {
+  type = types.nullOr sharedTypes.notificationSubmodule;
+  default = {
+    enable = true;
+    channels = {
+      onFailure = [ "critical-alerts" "team-slack" ];
+      onBackup = [ "backup-status" ];
+      onHealthCheck = [ "monitoring-alerts" ];
     };
-  });
-  default = null;
+    customMessages = {
+      failure = "${serviceName} service failed on ${config.networking.hostName}";
+      backup = "${serviceName} backup completed on ${config.networking.hostName}";
+    };
+    escalation = {
+      afterMinutes = 15;
+      channels = [ "on-call-pager" ];
+    };
+  };
+  description = "Notification configuration";
 };
 ```
 
 ### 6. Container Resource Management Pattern
 
-Podman-based services should use a standardized resource management submodule.
+Containerized services should use systemd resource limits and the shared container resources type.
 
-#### Pattern Structure
+#### Implementation Pattern
 ```nix
-options.modules.services.<service>.container = mkOption {
+# For systemd services with resource limits
+resources = mkOption {
+  type = types.attrsOf types.str;
+  default = {
+    MemoryMax = "512M";
+    MemoryReservation = "256M";
+    CPUQuota = "50%";
+  };
+  description = "Systemd resource limits";
+};
+
+# For Podman containers, use shared container resources type
+container = mkOption {
   type = types.submodule {
     options = {
-      image = mkOption {
-        type = types.str;
-        description = "Container image";
-      };
-
-      tag = mkOption {
-        type = types.str;
-        default = "latest";
-        description = "Container image tag";
-      };
-
       resources = mkOption {
-        type = types.submodule {
-          options = {
-            memory = mkOption {
-              type = types.str;
-              description = "Memory limit (e.g., '256m', '2g')";
-            };
-
-            memoryReservation = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              description = "Memory soft limit/reservation";
-            };
-
-            cpus = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              description = "CPU limit (e.g., '0.5', '2')";
-            };
-
-            cpuQuota = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-              description = "CPU quota percentage (e.g., '50%')";
-            };
-          };
+        type = sharedTypes.containerResourcesSubmodule;
+        default = {
+          memory = "512m";
+          memoryReservation = "256m";
+          cpus = "1.0";
+          cpuQuota = "50%";
         };
       };
-
-      healthcheck = mkOption {
-        type = types.nullOr (types.submodule {
-          options = {
-            test = mkOption {
-              type = types.listOf types.str;
-              description = "Health check command";
-              example = [ "CMD" "curl" "-f" "http://localhost:8080/health" ];
-            };
-
-            interval = mkOption {
-              type = types.str;
-              default = "30s";
-            };
-
-            timeout = mkOption {
-              type = types.str;
-              default = "10s";
-            };
-
-            retries = mkOption {
-              type = types.int;
-              default = 3;
-            };
-
-            startPeriod = mkOption {
-              type = types.str;
-              default = "60s";
-            };
-          };
-        });
-        default = null;
-      };
-
-      security = mkOption {
-        type = types.submodule {
-          options = {
-            readOnlyRootFilesystem = mkOption {
-              type = types.bool;
-              default = true;
-            };
-
-            noNewPrivileges = mkOption {
-              type = types.bool;
-              default = true;
-            };
-
-            user = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-            };
-
-            group = mkOption {
-              type = types.nullOr types.str;
-              default = null;
-            };
-          };
-        };
-        default = {};
-      };
+      # Additional container-specific options...
     };
   };
 };
@@ -422,12 +272,15 @@ options.modules.services.<service>.container = mkOption {
 Every service module should follow this structure:
 
 ```nix
-# Service module template
+# Service module template using shared types
 { config, lib, pkgs, ... }:
-with lib;
+
 let
+  inherit (lib) mkOption mkEnableOption mkIf types;
   cfg = config.modules.services.<service>;
   serviceName = "<service>";
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.<service> = {
@@ -445,27 +298,95 @@ in
       description = "Service port";
     };
 
-    # Standardized integration submodules
-    reverseProxy = /* ... */;
-    metrics = /* ... */;
-    logging = /* ... */;
-    backup = /* ... */;
-    notifications = /* ... */;
-    container = /* ... */;  # If containerized
+    # Systemd resource limits
+    resources = mkOption {
+      type = types.attrsOf types.str;
+      default = {
+        MemoryMax = "256M";
+        CPUQuota = "25%";
+      };
+      description = "Systemd resource limits";
+    };
+
+    # Standardized integration submodules using shared types
+    reverseProxy = mkOption {
+      type = types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration";
+    };
+
+    metrics = mkOption {
+      type = types.nullOr sharedTypes.metricsSubmodule;
+      default = null;
+      description = "Prometheus metrics collection";
+    };
+
+    logging = mkOption {
+      type = types.nullOr sharedTypes.loggingSubmodule;
+      default = null;
+      description = "Log shipping configuration";
+    };
+
+    backup = mkOption {
+      type = types.nullOr sharedTypes.backupSubmodule;
+      default = null;
+      description = "Backup configuration";
+    };
+
+    notifications = mkOption {
+      type = types.nullOr sharedTypes.notificationSubmodule;
+      default = null;
+      description = "Notification configuration";
+    };
+
+    # ZFS integration pattern
+    zfs = {
+      dataset = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "tank/services/${serviceName}";
+        description = "ZFS dataset to mount at dataDir";
+      };
+
+      properties = mkOption {
+        type = types.attrsOf types.str;
+        default = {
+          compression = "zstd";
+          atime = "off";
+          "com.sun:auto-snapshot" = "true";
+        };
+        description = "ZFS dataset properties";
+      };
+    };
   };
 
   config = mkIf cfg.enable {
+    # ZFS dataset configuration
+    modules.storage.datasets.services.${serviceName} = mkIf (cfg.zfs.dataset != null) {
+      mountpoint = cfg.dataDir;
+      properties = cfg.zfs.properties;
+      owner = serviceName;
+      group = serviceName;
+      mode = "0750";
+    };
+
     # Core service implementation
     systemd.services."${serviceName}" = {
       description = "<Service> service";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" ];
+      after = [ "network.target" ] ++ lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ];
+      wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ];
 
       serviceConfig = {
         ExecStart = "${cfg.package}/bin/${serviceName}";
         Restart = "always";
         User = serviceName;
         Group = serviceName;
+
+        # Resource limits
+        MemoryMax = cfg.resources.MemoryMax;
+        MemoryReservation = cfg.resources.MemoryReservation or null;
+        CPUQuota = cfg.resources.CPUQuota;
 
         # Security hardening
         ProtectSystem = "strict";
@@ -485,20 +406,38 @@ in
 
     users.groups."${serviceName}" = {};
 
-    # Auto-registration with infrastructure systems
-    modules.services.caddy.virtualHosts."${serviceName}" = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+    # Auto-registration with infrastructure systems using structured backend configuration
+    modules.services.caddy.virtualHosts.${serviceName} = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
       hostName = cfg.reverseProxy.hostName;
+
+      # Use structured backend configuration from shared types
       backend = cfg.reverseProxy.backend;
+
+      # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types
+      security = cfg.reverseProxy.security;
+
+      # Additional configuration
+      extraConfig = cfg.reverseProxy.extraConfig;
     };
 
-    modules.observability.scrapeTargets."${serviceName}" = mkIf (cfg.metrics != null && cfg.metrics.enable) {
-      target = "localhost:${toString cfg.metrics.port}";
-      inherit (cfg.metrics) path scrapeInterval labels;
+    # Metrics auto-registration happens automatically via observability module
+    # No explicit configuration needed - the observability module scans all
+    # services under modules.services.* for metrics submodules
+
+    # Firewall configuration (localhost only)
+    networking.firewall = {
+      interfaces.lo.allowedTCPPorts = [ cfg.port ]
+        ++ lib.optional (cfg.metrics != null && cfg.metrics.enable) cfg.metrics.port;
     };
 
-    # Additional auto-registrations for logging, backup, notifications...
+    # Directory ownership (if not using ZFS dataset)
+    systemd.tmpfiles.rules = lib.mkIf (cfg.zfs.dataset == null) [
+      "d ${cfg.dataDir} 0755 ${serviceName} ${serviceName} -"
+    ];
   };
 }
 ```
@@ -523,38 +462,95 @@ config = mkIf cfg.enable {
 };
 ```
 
+### 7. ZFS Integration Pattern
+
+Services with persistent storage should use the ZFS dataset pattern for optimized storage management.
+
+#### Implementation Pattern
+```nix
+zfs = {
+  dataset = mkOption {
+    type = types.nullOr types.str;
+    default = null;
+    example = "tank/services/${serviceName}";
+    description = "ZFS dataset to mount at dataDir";
+  };
+
+  properties = mkOption {
+    type = types.attrsOf types.str;
+    default = {
+      compression = "zstd";
+      atime = "off";
+      "com.sun:auto-snapshot" = "true";
+    };
+    description = "ZFS dataset properties";
+  };
+};
+
+# Auto-registration with storage module
+modules.storage.datasets.services.${serviceName} = mkIf (cfg.zfs.dataset != null) {
+  mountpoint = cfg.dataDir;
+  properties = cfg.zfs.properties;
+  owner = serviceName;
+  group = serviceName;
+  mode = "0750";
+};
+```
+
 ### Helper Functions
 
-Create reusable helper functions in `lib/` for common patterns:
+Reusable helper functions in `lib/` for common patterns:
 
-- `lib/container.nix` - Container configuration helpers
+- `lib/types.nix` - ✅ **Implemented** - Shared type definitions
+- `lib/podman.nix` - ✅ **Implemented** - Container configuration helpers
 - `lib/security.nix` - Security hardening templates
 - `lib/monitoring.nix` - Metrics and logging configuration
 - `lib/backup.nix` - Backup job generation
 
 ## Migration Strategy
 
-### Phase 1: Documentation and Standards
+### Phase 1: Documentation and Standards ✅ **COMPLETED**
 1. ✅ Document patterns (this document)
-2. Update CLAUDE.md with pattern requirements
-3. Create helper libraries
+2. ✅ Update CLAUDE.md with pattern requirements
+3. ✅ Create helper libraries (`lib/types.nix`, `lib/podman.nix`)
 
-### Phase 2: Infrastructure Implementation
-1. Implement automatic Prometheus config generation
-2. Implement automatic Promtail config generation
-3. Create centralized notification system
-4. Enhance backup orchestration
+### Phase 2: Infrastructure Implementation ✅ **COMPLETED**
+1. ✅ Implement shared type definitions (`lib/types.nix`)
+2. ✅ Create standardized Caddy auto-registration
+3. ✅ Implement observability stack (Loki, Promtail)
+4. 🔄 Centralized notification system (planned)
+5. 🔄 Enhanced backup orchestration (planned)
 
-### Phase 3: Service Migration
-1. Audit existing services for compliance
-2. Migrate high-priority services first
-3. Deprecate legacy patterns
-4. Update all remaining services
+### Phase 3: Service Migration 🔄 **IN PROGRESS**
+1. ✅ Migrated core observability services (Grafana, Loki, Promtail)
+2. ✅ Migrated web services with reverse proxy patterns
+3. 🔄 Migrate remaining containerized services
+4. 🔄 Audit and update legacy service configurations
+5. 🔄 Deprecate inline type definitions in favor of shared types
 
-### Phase 4: Validation and Testing
+### Phase 4: Validation and Testing 📋 **PLANNED**
 1. Implement module validation tests
 2. Add integration tests for auto-registration
 3. Document troubleshooting guides
+4. Create migration validation checklist
+
+### Current Migration Status
+
+**✅ Completed Services:**
+- Grafana - Full standardized pattern implementation
+- Loki - Complete observability stack with ZFS integration
+- Promtail - Advanced log shipping with multiline parsing
+- Caddy - Structured backend configuration with auto-registration
+
+**🔄 In Progress:**
+- Remaining containerized services (UniFi, Omada, etc.)
+- Prometheus/Grafana integration for auto-discovery
+- Centralized backup orchestration
+
+**📋 Next Priority:**
+- Migrate all remaining services to use shared types
+- Implement centralized observability auto-registration
+- Complete notification system integration
 
 ## Best Practices
 

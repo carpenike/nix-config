@@ -160,13 +160,25 @@ in
     modules.services.caddy.virtualHosts.omada = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
       hostName = cfg.reverseProxy.hostName;
-      proxyTo = "localhost:8043";
-      httpsBackend = true; # Omada uses HTTPS
+
+      # Use structured backend configuration from shared types
+      backend = {
+        scheme = "https";  # Omada uses HTTPS
+        host = "127.0.0.1";
+        port = 8043;
+        tls.verify = false;  # Omada uses self-signed certificate by default
+      };
+
+      # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types
+      security = cfg.reverseProxy.security;
+
+      # Omada-specific reverse proxy directives
       extraConfig = ''
-        # Handle websockets for real-time updates within the reverse_proxy block
-        # Note: These will be added to the automatically generated reverse_proxy directive
-        header_up Host {host}
+        # Handle websockets for real-time updates
+        header_up Host {upstream_hostport}
         header_up X-Real-IP {remote_host}
         # Fix redirects by rewriting Location headers from backend
         header_down Location {http.request.scheme}://{http.request.host}{http.request.uri}

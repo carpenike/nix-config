@@ -8,6 +8,8 @@
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 
   cfg = config.modules.services.sonarr;
   notificationsCfg = config.modules.notifications;
@@ -143,21 +145,12 @@ in
     };
 
     resources = lib.mkOption {
-      type = lib.types.nullOr (lib.types.submodule {
-        options = {
-          memory = lib.mkOption {
-            type = lib.types.str;
-            default = "512m";
-            description = "Memory limit for the container";
-          };
-          cpus = lib.mkOption {
-            type = lib.types.str;
-            default = "2.0";
-            description = "CPU limit for the container";
-          };
-        };
-      });
-      default = { memory = "512m"; cpus = "2.0"; };
+      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
+      default = {
+        memory = "512m";
+        memoryReservation = "256m";
+        cpus = "2.0";
+      };
       description = "Resource limits for the container";
     };
 
@@ -185,17 +178,68 @@ in
       };
     };
 
-    backup = {
-      enable = lib.mkEnableOption "backup for Sonarr data";
-      repository = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Name of the Restic repository to use for backups. Should reference primaryRepo.name from host config.";
-      };
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Sonarr web interface";
     };
 
-    notifications = {
-      enable = lib.mkEnableOption "failure notifications for the Sonarr service";
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 8989;
+        path = "/api/v3/health";
+        labels = {
+          service_type = "media_management";
+          exporter = "sonarr";
+          function = "tv_series";
+        };
+      };
+      description = "Prometheus metrics collection configuration for Sonarr";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "podman-sonarr.service";
+        labels = {
+          service = "sonarr";
+          service_type = "media_management";
+        };
+      };
+      description = "Log shipping configuration for Sonarr logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "media" "sonarr" "config" ];
+      };
+      description = "Backup configuration for Sonarr";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "media-alerts" ];
+        };
+        customMessages = {
+          failure = "Sonarr media management failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Sonarr service events";
     };
 
     preseed = {
@@ -236,7 +280,7 @@ in
           assertion = nfsMountConfig != null;
           message = "Sonarr nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
         })
-        ++ (lib.optional cfg.backup.enable {
+        ++ (lib.optional (cfg.backup != null && cfg.backup.enable) {
           assertion = cfg.backup.repository != null;
           message = "Sonarr backup.enable requires backup.repository to be set (use primaryRepo.name from host config).";
         })
@@ -251,6 +295,27 @@ in
 
     # Automatically set mediaDir from the NFS mount configuration
     modules.services.sonarr.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
+
+    # Automatically register with Caddy reverse proxy if enabled
+    modules.services.caddy.virtualHosts.sonarr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+      enable = true;
+      hostName = cfg.reverseProxy.hostName;
+
+      # Use structured backend configuration from shared types
+      backend = {
+        scheme = "http";  # Sonarr uses HTTP locally
+        host = "127.0.0.1";
+        port = sonarrPort;
+      };
+
+      # Authentication configuration from shared types
+      auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types
+      security = cfg.reverseProxy.security;
+
+      extraConfig = cfg.reverseProxy.extraConfig;
+    };
 
     # Declare dataset requirements for per-service ZFS isolation
     # This integrates with the storage.datasets module to automatically
@@ -348,7 +413,7 @@ in
         after = [ nfsMountConfig.mountUnitName ];
       })
       # Add failure notifications via systemd
-      (lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
+      (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         unitConfig.OnFailure = [ "notify@sonarr-failure:%n.service" ];
       })
       # Add dependency on the preseed service
@@ -407,7 +472,7 @@ in
     };
 
     # Register notification template
-    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
+    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
       "sonarr-failure" = {
         enable = lib.mkDefault true;
         priority = lib.mkDefault "high";
@@ -427,20 +492,9 @@ in
       };
     };
 
-    # Integrate with backup system
-    # Reuses existing backup infrastructure (Restic, notifications, etc.)
-    modules.backup.restic.jobs.sonarr = lib.mkIf (config.modules.backup.enable && cfg.backup.enable) {
-      enable = true;
-      paths = [ cfg.dataDir ];
-      excludePatterns = [
-        "**/.cache"
-        "**/cache"
-        "**/*.tmp"
-        "**/logs/*.txt"  # Exclude verbose logs
-      ];
-      repository = cfg.backup.repository;
-      tags = [ "sonarr" "media" "database" ];
-    };
+    # Note: Backup integration now handled by backup-integration module
+    # The backup submodule configuration will be auto-discovered and converted
+    # to a Restic job named "service-sonarr" with the specified settings
 
       # Optional: Open firewall for Sonarr web UI
       # Disabled by default since forge has firewall.enable = false

@@ -8,6 +8,8 @@
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 
   cfg = config.modules.services.dispatcharr;
   notificationsCfg = config.modules.notifications;
@@ -221,21 +223,12 @@ in
     };
 
     resources = lib.mkOption {
-      type = lib.types.nullOr (lib.types.submodule {
-        options = {
-          memory = lib.mkOption {
-            type = lib.types.str;
-            default = "1g";
-            description = "Memory limit for the container (Python/Django application)";
-          };
-          cpus = lib.mkOption {
-            type = lib.types.str;
-            default = "2.0";
-            description = "CPU limit for the container";
-          };
-        };
-      });
-      default = { memory = "1g"; cpus = "2.0"; };
+      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
+      default = {
+        memory = "1g";
+        memoryReservation = "512m";
+        cpus = "2.0";
+      };
       description = "Resource limits for the container";
     };
 
@@ -263,17 +256,68 @@ in
       };
     };
 
-    backup = {
-      enable = lib.mkEnableOption "backup for Dispatcharr data";
-      repository = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Name of the Restic repository to use for backups. Should reference primaryRepo.name from host config.";
-      };
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Dispatcharr web interface";
     };
 
-    notifications = {
-      enable = lib.mkEnableOption "failure notifications for the Dispatcharr service";
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 9191;
+        path = "/api/health";
+        labels = {
+          service_type = "media_management";
+          exporter = "dispatcharr";
+          function = "iptv_management";
+        };
+      };
+      description = "Prometheus metrics collection configuration for Dispatcharr";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "podman-dispatcharr.service";
+        labels = {
+          service = "dispatcharr";
+          service_type = "media_management";
+        };
+      };
+      description = "Log shipping configuration for Dispatcharr logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "media" "dispatcharr" "iptv" ];
+      };
+      description = "Backup configuration for Dispatcharr";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "media-alerts" ];
+        };
+        customMessages = {
+          failure = "Dispatcharr IPTV management failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Dispatcharr service events";
     };
 
     preseed = {
@@ -345,14 +389,6 @@ in
       };
     };
 
-    reverseProxy = {
-      enable = lib.mkEnableOption "reverse proxy integration";
-      hostName = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "The FQDN used to access Dispatcharr via the reverse proxy. Required for proper CSRF and host header validation.";
-      };
-    };
   };
 
   config = lib.mkMerge [
@@ -367,7 +403,7 @@ in
 
       # Validate configuration
       assertions =
-        (lib.optional cfg.backup.enable {
+        (lib.optional (cfg.backup != null && cfg.backup.enable) {
           assertion = cfg.backup.repository != null;
           message = "Dispatcharr backup.enable requires backup.repository to be set (use primaryRepo.name from host config).";
         })
@@ -379,7 +415,7 @@ in
           assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
           message = "Dispatcharr preseed.enable requires preseed.passwordFile to be set.";
         })
-        ++ (lib.optional cfg.reverseProxy.enable {
+        ++ (lib.optional (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
           assertion = cfg.reverseProxy.hostName != null;
           message = "Dispatcharr reverseProxy.enable requires reverseProxy.hostName to be set.";
         })
@@ -435,6 +471,27 @@ in
       };
     };
 
+    # Automatically register with Caddy reverse proxy if enabled
+    modules.services.caddy.virtualHosts.dispatcharr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+      enable = true;
+      hostName = cfg.reverseProxy.hostName;
+
+      # Use structured backend configuration from shared types
+      backend = {
+        scheme = "http";  # Dispatcharr uses HTTP locally
+        host = "127.0.0.1";
+        port = dispatcharrPort;
+      };
+
+      # Authentication configuration from shared types
+      auth = cfg.reverseProxy.auth;
+
+      # Security configuration from shared types
+      security = cfg.reverseProxy.security;
+
+      extraConfig = cfg.reverseProxy.extraConfig;
+    };
+
     # Create local users to match container UIDs
     # This ensures proper file ownership on the host
     users.users.dispatcharr = {
@@ -479,7 +536,7 @@ in
         CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
         # Logging
         DISPATCHARR_LOG_LEVEL = "info";
-      } // (lib.optionalAttrs cfg.reverseProxy.enable {
+      } // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         # Reverse proxy configuration for Django
         # Tells Django to trust X-Forwarded-Host from the proxy
         USE_X_FORWARDED_HOST = "true";
@@ -529,7 +586,7 @@ in
     # Add systemd dependencies and notifications
     systemd.services."${config.virtualisation.oci-containers.backend}-dispatcharr" = lib.mkMerge [
       # Add failure notifications via systemd
-      (lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
+      (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         unitConfig.OnFailure = [ "notify@dispatcharr-failure:%n.service" ];
       })
       # Add dependency on the preseed service
@@ -625,7 +682,7 @@ in
     };
 
     # Register notification template
-    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications.enable) {
+    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
       "dispatcharr-failure" = {
         enable = lib.mkDefault true;
         priority = lib.mkDefault "high";
@@ -645,9 +702,9 @@ in
       };
     };
 
-    # Backup is now handled automatically by backup-integration module
-    # The backup submodule configuration in the service options will be
-    # auto-discovered and converted to a Restic job named "service-dispatcharr"
+    # Note: Backup integration now handled by backup-integration module
+    # The backup submodule configuration will be auto-discovered and converted
+    # to a Restic job named "service-dispatcharr" with the specified settings
 
       # Optional: Open firewall for Dispatcharr web UI
       # Disabled by default since forge has firewall.enable = false

@@ -1,8 +1,8 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.modules.services.glances;
-  # TODO: Re-enable shared types once import path is resolved
-  # sharedTypes = import ../../lib/types.nix { inherit lib; };
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.glances = {
@@ -31,7 +31,7 @@ in
 
     # Standardized metrics collection pattern
     metrics = lib.mkOption {
-      type = lib.types.nullOr lib.types.attrs;
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
         enable = true;
         port = 61208; # Same as web interface - Glances exports metrics on /api/3/metrics
@@ -46,7 +46,7 @@ in
 
     # Standardized reverse proxy integration
     reverseProxy = lib.mkOption {
-      type = lib.types.nullOr lib.types.attrs;
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
       default = null;
       description = "Reverse proxy configuration for Glances web interface";
     };
@@ -93,14 +93,21 @@ in
     modules.services.caddy.virtualHosts.glances = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
       hostName = cfg.reverseProxy.hostName or "${config.networking.hostName}.${config.networking.domain}";
-      backend = cfg.reverseProxy.backend or {
+
+      # Use structured backend configuration from shared types
+      backend = {
         scheme = "http";
         host = "127.0.0.1";
         port = cfg.port;
       };
-      auth = cfg.reverseProxy.auth or null;
-      security = cfg.reverseProxy.security or {};
-      extraConfig = cfg.reverseProxy.extraConfig or "";
+
+      # Authentication from shared types
+      auth = cfg.reverseProxy.auth;
+
+      # Security configuration
+      security = cfg.reverseProxy.security;
+
+      extraConfig = cfg.reverseProxy.extraConfig;
     };
   };
 }

@@ -6,8 +6,8 @@
 }:
 let
   cfg = config.modules.services.node-exporter;
-  # TODO: Re-enable shared types once import path is resolved
-  # sharedTypes = import ../../lib/types.nix { inherit lib; };
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.node-exporter = {
@@ -21,7 +21,7 @@ in
 
     # Standardized metrics collection pattern
     metrics = lib.mkOption {
-      type = lib.types.nullOr lib.types.attrs;
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
         enable = true;
         port = 9100;
@@ -37,7 +37,7 @@ in
 
     # Standardized reverse proxy integration
     reverseProxy = lib.mkOption {
-      type = lib.types.nullOr lib.types.attrs;
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
       default = null;
       description = "Reverse proxy configuration for Node Exporter metrics endpoint";
     };
@@ -54,21 +54,27 @@ in
     modules.services.caddy.virtualHosts.node-exporter = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
       hostName = cfg.reverseProxy.hostName or "node-exporter.${config.networking.domain}";
-      backend = cfg.reverseProxy.backend or {
+
+      # Use structured backend configuration from shared types
+      backend = {
         scheme = "http";
         host = "127.0.0.1";
         port = cfg.port;
       };
-      auth = cfg.reverseProxy.auth or null;
-      security = (cfg.reverseProxy.security or {}) // {
-        customHeaders = (cfg.reverseProxy.security.customHeaders or {}) // {
-          # Additional security for metrics endpoints
+
+      # Authentication from shared types
+      auth = cfg.reverseProxy.auth;
+
+      # Security configuration with additional headers for metrics endpoints
+      security = cfg.reverseProxy.security // {
+        customHeaders = cfg.reverseProxy.security.customHeaders // {
           "X-Frame-Options" = "DENY";
           "X-Content-Type-Options" = "nosniff";
           "Referrer-Policy" = "strict-origin-when-cross-origin";
         };
       };
-      extraConfig = cfg.reverseProxy.extraConfig or "";
+
+      extraConfig = cfg.reverseProxy.extraConfig;
     };
 
     # Metrics auto-registration happens automatically via observability module

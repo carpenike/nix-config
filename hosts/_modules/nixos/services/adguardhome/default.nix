@@ -95,18 +95,28 @@ in
     modules.services.caddy.virtualHosts.adguard = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
       hostName = cfg.reverseProxy.hostName;
-      proxyTo = "localhost:${toString config.services.adguardhome.port}";
-      httpsBackend = false; # AdGuardHome uses HTTP locally
+
+      # Use structured backend configuration from shared types
+      backend = {
+        scheme = "http";  # AdGuardHome uses HTTP locally
+        host = "127.0.0.1";
+        port = config.services.adguardhome.port;
+      };
+
+      # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
-      extraConfig = ''
-        # AdGuardHome web interface headers
-        header / {
-          X-Frame-Options "SAMEORIGIN"
-          X-Content-Type-Options "nosniff"
-          X-XSS-Protection "1; mode=block"
-          Referrer-Policy "strict-origin-when-cross-origin"
-        }
-      '';
+
+      # Security configuration with AdGuardHome-specific headers
+      security = cfg.reverseProxy.security // {
+        customHeaders = cfg.reverseProxy.security.customHeaders // {
+          "X-Frame-Options" = "SAMEORIGIN";
+          "X-Content-Type-Options" = "nosniff";
+          "X-XSS-Protection" = "1; mode=block";
+          "Referrer-Policy" = "strict-origin-when-cross-origin";
+        };
+      };
+
+      extraConfig = cfg.reverseProxy.extraConfig;
     };
     # add user, needed to access the secret
     users.users.${adguardUser} = {

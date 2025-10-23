@@ -3,6 +3,8 @@
 let
   inherit (lib) mkOption mkEnableOption mkIf types;
   cfg = config.modules.services.promtail;
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.promtail = {
@@ -126,6 +128,74 @@ in
       type = types.attrs;
       default = {};
       description = "Additional Promtail configuration";
+    };
+
+    # Standardized metrics collection pattern
+    metrics = mkOption {
+      type = types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 9080;
+        path = "/metrics";
+        labels = {
+          service_type = "log_agent";
+          exporter = "promtail";
+          function = "shipping";
+        };
+      };
+      description = "Prometheus metrics collection configuration for Promtail";
+    };
+
+    # Standardized reverse proxy integration
+    reverseProxy = mkOption {
+      type = types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Promtail metrics endpoint";
+    };
+
+    # Standardized logging integration
+    logging = mkOption {
+      type = types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "promtail.service";
+        labels = {
+          service = "promtail";
+          service_type = "log_agent";
+        };
+      };
+      description = "Log shipping configuration for Promtail logs";
+    };
+
+    # Standardized backup integration
+    backup = mkOption {
+      type = types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "logs" "promtail" "config" ];
+        excludePatterns = [
+          "**/positions.yaml"   # Exclude position tracking file
+          "**/*.tmp"            # Exclude temporary files
+        ];
+      };
+      description = "Backup configuration for Promtail";
+    };
+
+    # Standardized notifications
+    notifications = mkOption {
+      type = types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "critical-logs" ];
+        };
+        customMessages = {
+          failure = "Promtail log shipping agent failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Promtail service events";
     };
 
     zfs = {
