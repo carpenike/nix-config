@@ -1,7 +1,8 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.modules.services.glances;
-  # TODO: Re-enable shared types once nix store path issues are resolved
+  # TODO: Re-enable shared types once import path is resolved
+  # sharedTypes = import ../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.glances = {
@@ -28,7 +29,7 @@ in
       description = "Resource limits for the Glances systemd service";
     };
 
-    # Standardized metrics collection pattern (simplified)
+    # Standardized metrics collection pattern
     metrics = lib.mkOption {
       type = lib.types.nullOr lib.types.attrs;
       default = {
@@ -43,7 +44,7 @@ in
       description = "Prometheus metrics collection configuration";
     };
 
-    # Standardized reverse proxy integration (simplified)
+    # Standardized reverse proxy integration
     reverseProxy = lib.mkOption {
       type = lib.types.nullOr lib.types.attrs;
       default = null;

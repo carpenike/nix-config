@@ -4,8 +4,42 @@ let
   inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList filter concatLists;
   cfg = config.modules.services.observability;
 
-  # TODO: Re-enable auto-discovery once nix store path issues are resolved
-  # discoverMetricsTargets and related functions temporarily removed
+  # Auto-discovery function for services with metrics submodules
+  # Uses the same safe pattern as backup-integration.nix to avoid nix store path issues
+  discoverMetricsTargets = config:
+    let
+      # Extract all modules.services.* configurations (excluding observability to prevent recursion)
+      allServices = lib.filterAttrs (name: service: name != "observability") (config.modules.services or {});
+
+      # Filter services that have metrics enabled
+      servicesWithMetrics = lib.filterAttrs (name: service:
+        (service.metrics or null) != null &&
+        (service.metrics.enable or false)
+      ) allServices;
+
+      # Convert to Prometheus scrape_config format
+      scrapeConfigs = mapAttrsToList (serviceName: service: {
+        job_name = "service-${serviceName}";
+        static_configs = [{
+          targets = [ "${service.metrics.interface or "127.0.0.1"}:${toString service.metrics.port}" ];
+          labels = (service.metrics.labels or {}) // {
+            service = serviceName;
+            instance = config.networking.hostName;
+          };
+        }];
+        metrics_path = service.metrics.path or "/metrics";
+        scrape_interval = service.metrics.scrapeInterval or "60s";
+        scrape_timeout = service.metrics.scrapeTimeout or "10s";
+        relabel_configs = service.metrics.relabelConfigs or [];
+      }) servicesWithMetrics;
+    in
+      scrapeConfigs;
+
+  # Generate discovered scrape configurations (safe from recursion)
+  discoveredScrapeConfigs =
+    if cfg.prometheus.autoDiscovery.enable
+    then discoverMetricsTargets config
+    else [];
 in
 {
   options.modules.services.observability = {
@@ -46,7 +80,7 @@ in
       autoDiscovery = {
         enable = mkOption {
           type = types.bool;
-          default = false; # Temporarily disabled due to nix store path issues
+          default = true; # Re-enabled with safe discovery pattern
           description = "Enable automatic discovery of service metrics endpoints";
         };
 
@@ -303,8 +337,8 @@ in
       stateDir = "prometheus";
       retentionTime = "${toString cfg.prometheus.retentionDays}d";
 
-      # Static scrape configurations only (auto-discovery temporarily disabled)
-      scrapeConfigs = cfg.prometheus.autoDiscovery.staticTargets;
+      # Merge auto-discovered targets with static configurations
+      scrapeConfigs = discoveredScrapeConfigs ++ cfg.prometheus.autoDiscovery.staticTargets;
 
       # Global configuration (only set if not already configured)
       globalConfig = lib.mkDefault {

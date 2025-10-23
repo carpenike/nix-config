@@ -7,6 +7,8 @@
 let
   cfg = config.modules.services.adguardhome;
   adguardUser = "adguardhome";
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   imports = [ ./shared.nix ]; # Import the shared options module
@@ -24,36 +26,59 @@ in
       description = "Whether to allow settings to be changed via web UI.";
     };
 
-    # Reverse proxy integration options
-    reverseProxy = {
-      enable = lib.mkEnableOption "Caddy reverse proxy integration for AdGuardHome";
-      subdomain = lib.mkOption {
-        type = lib.types.str;
-        default = "adguard";
-        description = "Subdomain to use for the reverse proxy";
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for AdGuardHome web interface";
+    };
+
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = null; # AdGuardHome doesn't natively expose Prometheus metrics
+      description = "Prometheus metrics collection configuration for AdGuardHome";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "adguardhome.service";
+        labels = {
+          service = "adguardhome";
+          service_type = "dns_filter";
+        };
       };
-      requireAuth = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = "Whether to require authentication (AdGuardHome has its own login)";
+      description = "Log shipping configuration for AdGuardHome logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "dns" "adguardhome" "config" ];
       };
-      auth = lib.mkOption {
-        type = lib.types.nullOr (lib.types.submodule {
-          options = {
-            user = lib.mkOption {
-              type = lib.types.str;
-              default = "admin";
-              description = "Username for basic authentication";
-            };
-            passwordHashEnvVar = lib.mkOption {
-              type = lib.types.str;
-              description = "Name of environment variable containing bcrypt password hash";
-            };
-          };
-        });
-        default = null;
-        description = "Authentication configuration for AdGuardHome web interface";
+      description = "Backup configuration for AdGuardHome";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "dns-alerts" ];
+        };
+        customMessages = {
+          failure = "AdGuardHome DNS filter failed on ${config.networking.hostName}";
+        };
       };
+      description = "Notification configuration for AdGuardHome service events";
     };
   };
 
@@ -67,12 +92,12 @@ in
     };
 
     # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
+    modules.services.caddy.virtualHosts.adguard = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
-      hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
-      proxyTo = "localhost:${toString config.services.adguardhome.port}"; # Use dynamic port reference
+      hostName = cfg.reverseProxy.hostName;
+      proxyTo = "localhost:${toString config.services.adguardhome.port}";
       httpsBackend = false; # AdGuardHome uses HTTP locally
-      auth = lib.mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
+      auth = cfg.reverseProxy.auth;
       extraConfig = ''
         # AdGuardHome web interface headers
         header / {

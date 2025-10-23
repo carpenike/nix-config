@@ -8,6 +8,8 @@ let
   cfg = config.modules.services.blocky;
   yamlFormat = pkgs.formats.yaml { };
   configFile = yamlFormat.generate "config.yaml" cfg.config;
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.blocky = {
@@ -16,6 +18,70 @@ in
     config = lib.mkOption {
       inherit (yamlFormat) type;
       default = {};
+    };
+
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 4000;
+        path = "/metrics";
+        labels = {
+          service_type = "dns_filter";
+          exporter = "blocky";
+          function = "ad_blocking";
+        };
+      };
+      description = "Prometheus metrics collection configuration for Blocky";
+    };
+
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Blocky web interface";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "blocky.service";
+        labels = {
+          service = "blocky";
+          service_type = "dns_filter";
+        };
+      };
+      description = "Log shipping configuration for Blocky logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "dns" "blocky" "config" ];
+      };
+      description = "Backup configuration for Blocky";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "dns-alerts" ];
+        };
+        customMessages = {
+          failure = "Blocky DNS filter failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Blocky service events";
     };
   };
 

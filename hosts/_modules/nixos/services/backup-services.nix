@@ -124,7 +124,7 @@ in
           paths = [
             "/tmp/unifi-backup"
           ];
-          repository = "primary";
+          repository = "nas-primary";
           tags = [ "unifi" "database" "controller" ];
 
           preBackupScript = ''
@@ -179,7 +179,7 @@ in
           paths = [
             "/tmp/omada-backup"
           ];
-          repository = "primary";
+          repository = "nas-primary";
           tags = [ "omada" "database" "controller" ];
 
           preBackupScript = ''
@@ -232,7 +232,7 @@ in
             "/mnt/backup-snapshot${cfg.onepassword-connect.dataPath}"
             cfg.onepassword-connect.credentialsFile
           ];
-          repository = "primary";
+          repository = "nas-primary";
           tags = [ "onepassword" "vault" "credentials" ];
 
           preBackupScript = ''
@@ -266,7 +266,7 @@ in
             paths = [
               "/mnt/backup-snapshot${cfg.attic.dataPath}"
             ];
-            repository = "primary";  # Use primary repository
+            repository = "nas-primary";  # Use primary repository
             tags = [ "attic" "binary-cache" "nix" ];
 
             preBackupScript = ''
@@ -299,7 +299,7 @@ in
           attic-zfs-send = {
             enable = cfg.attic.nasDestination != "";
             paths = [];  # No paths needed for ZFS send
-            repository = "primary";
+            repository = "nas-primary";
             tags = [ "attic" "zfs-send" "local-replication" ];
 
             preBackupScript = ''
@@ -337,7 +337,7 @@ in
         system = {
           enable = true;
           paths = cfg.system.paths ++ [ "/tmp/system-backup" ];
-          repository = "primary";
+          repository = "nas-primary";
           tags = [ "system" "configuration" "nixos" ];
 
           preBackupScript = ''

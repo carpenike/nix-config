@@ -9,6 +9,8 @@ let
   cfg = config.modules.services.unifi;
   unifiTcpPorts = [ 8080 8443 ];
   unifiUdpPorts = [ 3478 ];
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.unifi = {
@@ -62,19 +64,76 @@ in
       description = "Resource limits for the Unifi container (recommended for homelab stability)";
     };
 
-    # Reverse proxy integration options
-    reverseProxy = {
-      enable = lib.mkEnableOption "Caddy reverse proxy integration for UniFi";
-      subdomain = lib.mkOption {
-        type = lib.types.str;
-        default = "unifi";
-        description = "Subdomain to use for the reverse proxy";
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for UniFi Controller web interface";
+    };
+
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 8443;
+        path = "/api/s/default/stat/health";
+        labels = {
+          service_type = "network_controller";
+          exporter = "unifi";
+          function = "wifi_management";
+        };
       };
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 8443;
-        description = "UniFi Controller HTTPS port for reverse proxy";
+      description = "Prometheus metrics collection configuration for UniFi Controller";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "podman-unifi.service";
+        labels = {
+          service = "unifi";
+          service_type = "network_controller";
+        };
       };
+      description = "Log shipping configuration for UniFi Controller logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "network" "unifi" "config" ];
+        preBackupScript = ''
+          # Stop UniFi before backup to ensure consistent state
+          systemctl stop podman-unifi.service || true
+        '';
+        postBackupScript = ''
+          # Restart UniFi after backup
+          systemctl start podman-unifi.service || true
+        '';
+      };
+      description = "Backup configuration for UniFi Controller";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "network-alerts" ];
+        };
+        customMessages = {
+          failure = "UniFi Controller failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for UniFi Controller service events";
     };
   };
 
@@ -82,11 +141,12 @@ in
     modules.services.podman.enable = true;
 
     # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
+    modules.services.caddy.virtualHosts.unifi = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
-      hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
-      proxyTo = "localhost:${toString cfg.reverseProxy.port}";
+      hostName = cfg.reverseProxy.hostName;
+      proxyTo = "localhost:8443";
       httpsBackend = true; # UniFi uses HTTPS
+      auth = cfg.reverseProxy.auth;
       extraConfig = ''
         # Handle websockets for real-time updates
         header_up Host {host}

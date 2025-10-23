@@ -697,7 +697,7 @@ with lib;
               echo "Starting repository integrity check for ${repoName}..."
               START_TIME=$(date +%s)
 
-              ${optionalString (repoConfig.environmentFile != null) ''
+              ${optionalString ((repoConfig.environmentFile or null) != null) ''
                 # Source environment file for restic credentials
                 set -a
                 . "${repoConfig.environmentFile}"
@@ -811,7 +811,7 @@ EOF
               TEST_DIR="${cfg.restoreTesting.testDir}/${repoName}-$(date +%Y%m%d-%H%M%S)"
               mkdir -p "$TEST_DIR"
 
-              ${optionalString (repoConfig.environmentFile != null) ''
+              ${optionalString ((repoConfig.environmentFile or null) != null) ''
                 # Source environment file for restic credentials
                 set -a
                 . "${repoConfig.environmentFile}"
@@ -965,7 +965,7 @@ EOF
       # Failure notification services for immediate alerting
       (mkMerge (mapAttrsToList (jobName: jobConfig:
         let
-          repo = cfg.restic.repositories.${jobConfig.repository};
+          repo = cfg.restic.repositories.${jobConfig.repository} or {};
         in
         mkIf (jobConfig.enable && cfg.monitoring.onFailure.enable) {
           "backup-failure-${jobName}" = {
@@ -1696,7 +1696,7 @@ EOF
     services.restic.backups = mkMerge (mapAttrsToList (jobName: jobConfig:
       mkIf jobConfig.enable (
         let
-          repo = cfg.restic.repositories.${jobConfig.repository};
+          repo = cfg.restic.repositories.${jobConfig.repository} or {};
           # When ZFS snapshots are enabled, we'll use dynamicFilesFrom to read paths at runtime
           # This allows us to use snapshot paths with the runtime-determined snapshot name
           actualPaths = if cfg.zfs.enable
@@ -1709,8 +1709,8 @@ EOF
               then "cat /run/restic-backup/${jobName}-paths.txt"
               else null;
             repository = repo.url;
-            passwordFile = repo.passwordFile;
-            environmentFile = repo.environmentFile;
+            passwordFile = repo.passwordFile or null;
+            environmentFile = repo.environmentFile or null;
             exclude = jobConfig.excludePatterns;
             initialize = true;
             # Pass compression and read concurrency as backup arguments instead of env vars
@@ -1918,7 +1918,7 @@ EOF
                   exit 1
                 fi
 
-                ${optionalString (repo.environmentFile != null) ''
+                ${optionalString ((repo.environmentFile or null) != null) ''
                   # Validate and source environment file for restic credentials
                   if [ ! -f "${repo.environmentFile}" ]; then
                     echo "ERROR: Environment file not found: ${repo.environmentFile}"
@@ -2149,9 +2149,9 @@ EOF
       let
         repo = cfg.restic.repositories.${jobConfig.repository} or {};
       in {
-        assertion = jobConfig.enable && (repo.environmentFile != null) ->
+        assertion = jobConfig.enable && (repo.environmentFile or null) != null ->
           (builtins.match ".*[[:space:]].*" (toString repo.environmentFile) == null);
-        message = "Backup job '${jobName}': environmentFile path '${toString repo.environmentFile}' contains whitespace which may cause parsing errors";
+        message = "Backup job '${jobName}': environmentFile path '${toString (repo.environmentFile or "null")}' contains whitespace which may cause parsing errors";
       }
     ) cfg.restic.jobs) ++ (mapAttrsToList (jobName: jobConfig: {
       assertion = jobConfig.enable && (jobConfig.paths != []) ->
@@ -2162,7 +2162,7 @@ EOF
         repo = cfg.restic.repositories.${jobConfig.repository} or {};
       in {
         assertion = jobConfig.enable ->
-          (repo.passwordFile != null || repo.environmentFile != null);
+          ((repo.passwordFile or null) != null || (repo.environmentFile or null) != null);
         message = "Backup job '${jobName}': Repository must have either passwordFile or environmentFile configured for authentication";
       }
     ) cfg.restic.jobs);

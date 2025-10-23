@@ -71,7 +71,7 @@ in
 
     defaultRepository = mkOption {
       type = types.str;
-      default = "primary";
+      default = "nas-primary";
       description = "Default repository for services that don't specify one";
     };
 

@@ -9,6 +9,8 @@ let
   cfg = config.modules.services.omada;
   omadaTcpPorts = [ 8043 8843 29814 ];
   omadaUdpPorts = [ 29810  ];
+  # Import shared type definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
 in
 {
   options.modules.services.omada = {
@@ -78,19 +80,76 @@ in
       description = "Resource limits for the Omada container (recommended for homelab stability)";
     };
 
-    # Reverse proxy integration options
-    reverseProxy = {
-      enable = lib.mkEnableOption "Caddy reverse proxy integration for Omada";
-      subdomain = lib.mkOption {
-        type = lib.types.str;
-        default = "omada";
-        description = "Subdomain to use for the reverse proxy";
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Omada Controller web interface";
+    };
+
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 8043;
+        path = "/api/info";
+        labels = {
+          service_type = "network_controller";
+          exporter = "omada";
+          function = "access_point_management";
+        };
       };
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 8043;
-        description = "Omada Controller HTTPS port for reverse proxy";
+      description = "Prometheus metrics collection configuration for Omada Controller";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "podman-omada.service";
+        labels = {
+          service = "omada";
+          service_type = "network_controller";
+        };
       };
+      description = "Log shipping configuration for Omada Controller logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = [ "network" "omada" "config" ];
+        preBackupScript = ''
+          # Stop Omada before backup to ensure consistent state
+          systemctl stop podman-omada.service || true
+        '';
+        postBackupScript = ''
+          # Restart Omada after backup
+          systemctl start podman-omada.service || true
+        '';
+      };
+      description = "Backup configuration for Omada Controller";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "network-alerts" ];
+        };
+        customMessages = {
+          failure = "Omada Controller failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Omada Controller service events";
     };
   };
 
@@ -98,11 +157,12 @@ in
     modules.services.podman.enable = true;
 
     # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
+    modules.services.caddy.virtualHosts.omada = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
-      hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
-      proxyTo = "localhost:${toString cfg.reverseProxy.port}";
+      hostName = cfg.reverseProxy.hostName;
+      proxyTo = "localhost:8043";
       httpsBackend = true; # Omada uses HTTPS
+      auth = cfg.reverseProxy.auth;
       extraConfig = ''
         # Handle websockets for real-time updates within the reverse_proxy block
         # Note: These will be added to the automatically generated reverse_proxy directive
