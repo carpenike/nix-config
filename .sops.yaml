@@ -14,7 +14,7 @@ keys:
   - &luna age125dhdaw3alzhnq9fzcm7qdfpvklm0ps8a36uzhep6velv5r3jc2sxcdyxg
   - &luna_temp age125dhdaw3alzhnq9fzcm7qdfpvklm0ps8a36uzhep6velv5r3jc2sxcdyxg
   - &nixpi age1d2exrla649u98f5d390jkp9hfa29w2hqg5zpfyjfq886rfllqdys7ax98k
-  - &forge age12xx24kq3ug7uxmkd9rlt5ux94wsu025ppd5r0vu0k65htzu02f0qerhlh7
+  - &forge age18gxqwj0vw0fqd6e7k5zxvfmd5zxxpca2969su6ef44eg3k5fe42sk2ktpp
 
 creation_rules:
   - path_regex: .*\.sops\.yaml$
