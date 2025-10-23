@@ -66,7 +66,9 @@
       "Bash(rg:*)",
       "mcp__zen__challenge",
       "Bash(awk:*)",
-      "mcp__zen__clink"
+      "mcp__zen__clink",
+      "mcp__serena__find_symbol",
+      "mcp__zen__listmodels"
     ],
     "deny": []
   }

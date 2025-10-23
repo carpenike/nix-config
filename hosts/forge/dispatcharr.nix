@@ -37,24 +37,26 @@ in
       modules.services.caddy.virtualHosts.iptv = {
         enable = true;
         hostName = "iptv.${config.networking.domain}";  # iptv.holthome.net
-        proxyTo = "localhost:${toString dispatcharrPort}";
-        httpsBackend = false;
 
-        # Add security headers via extraConfig
-        extraConfig = ''
-          header {
-            X-Frame-Options "SAMEORIGIN"
-            X-Content-Type-Options "nosniff"
-            X-XSS-Protection "1; mode=block"
-            Referrer-Policy "strict-origin-when-cross-origin"
-            Strict-Transport-Security "max-age=15552000; includeSubDomains"
-          }
-        '';
+        # Structured backend configuration
+        backend = {
+          scheme = "http";
+          host = "127.0.0.1";
+          port = dispatcharrPort;
+        };
+
+        # Security headers for web interface
+        security.customHeaders = {
+          "X-Frame-Options" = "SAMEORIGIN";
+          "X-Content-Type-Options" = "nosniff";
+          "X-XSS-Protection" = "1; mode=block";
+          "Referrer-Policy" = "strict-origin-when-cross-origin";
+        };
 
         # auth = null;  # Add authentication if needed
 
         # NOTE: Caddy handles WebSocket proxying automatically.
-        # No explicit configuration needed in reverseProxyBlock.
+        # No explicit configuration needed.
       };
     })
 

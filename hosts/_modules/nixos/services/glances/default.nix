@@ -1,6 +1,7 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.modules.services.glances;
+  # TODO: Re-enable shared types once nix store path issues are resolved
 in
 {
   options.modules.services.glances = {
@@ -27,31 +28,26 @@ in
       description = "Resource limits for the Glances systemd service";
     };
 
-    # Reverse proxy integration options
-    reverseProxy = {
-      enable = lib.mkEnableOption "Caddy reverse proxy integration for Glances";
-      subdomain = lib.mkOption {
-        type = lib.types.str;
-        default = config.networking.hostName;
-        description = "Subdomain for the reverse proxy (defaults to system hostname for per-host monitoring)";
+    # Standardized metrics collection pattern (simplified)
+    metrics = lib.mkOption {
+      type = lib.types.nullOr lib.types.attrs;
+      default = {
+        enable = true;
+        port = 61208; # Same as web interface - Glances exports metrics on /api/3/metrics
+        path = "/api/3/metrics";
+        labels = {
+          service_type = "system_monitoring";
+          exporter = "glances";
+        };
       };
-      auth = lib.mkOption {
-        type = lib.types.nullOr (lib.types.submodule {
-          options = {
-            user = lib.mkOption {
-              type = lib.types.str;
-              default = "admin";
-              description = "Username for basic authentication";
-            };
-            passwordHashEnvVar = lib.mkOption {
-              type = lib.types.str;
-              description = "Name of environment variable containing bcrypt password hash";
-            };
-          };
-        });
-        default = null;
-        description = "Authentication configuration (required for secure access - Glances has no built-in auth)";
-      };
+      description = "Prometheus metrics collection configuration";
+    };
+
+    # Standardized reverse proxy integration (simplified)
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr lib.types.attrs;
+      default = null;
+      description = "Reverse proxy configuration for Glances web interface";
     };
   };
 
@@ -92,23 +88,18 @@ in
 
     users.groups.glances = {};
 
-    # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf (cfg.reverseProxy.enable && config.modules.services.caddy.enable) {
+    # Auto-register with Caddy reverse proxy if configured
+    modules.services.caddy.virtualHosts.glances = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
       enable = true;
-      hostName = "${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
-      proxyTo = "localhost:${toString cfg.port}";
-      httpsBackend = false; # Glances uses HTTP locally
-      auth = cfg.reverseProxy.auth;
-      extraConfig = ''
-        # Security headers for monitoring interface
-        header {
-          X-Frame-Options "SAMEORIGIN"
-          X-Content-Type-Options "nosniff"
-          X-XSS-Protection "1; mode=block"
-          Referrer-Policy "strict-origin-when-cross-origin"
-        }
-      '';
-      # Note: Caddy automatically handles WebSocket upgrades, no explicit configuration needed
+      hostName = cfg.reverseProxy.hostName or "${config.networking.hostName}.${config.networking.domain}";
+      backend = cfg.reverseProxy.backend or {
+        scheme = "http";
+        host = "127.0.0.1";
+        port = cfg.port;
+      };
+      auth = cfg.reverseProxy.auth or null;
+      security = cfg.reverseProxy.security or {};
+      extraConfig = cfg.reverseProxy.extraConfig or "";
     };
   };
 }

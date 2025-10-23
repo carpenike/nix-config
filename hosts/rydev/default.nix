@@ -16,11 +16,15 @@ in
   ];
 
   config = {
+    # Primary IP for DNS record generation
+    my.hostIp = "10.20.0.20";
+
     networking = {
       hostName = hostname;
       hostId = "506a4dd5";
       useDHCP = true;
       firewall.enable = true;
+      domain = "holthome.net";
     };
 
     users.users.ryan = {
@@ -61,7 +65,26 @@ in
           ];
         };
 
-        node-exporter.enable = true;
+        # Test the new standardized metrics pattern
+        node-exporter = {
+          enable = true;
+          # metrics configuration is auto-enabled by default
+          # This should automatically register with Prometheus
+        };
+
+        # Enable observability stack to test auto-discovery
+        observability = {
+          enable = true;
+          prometheus = {
+            enable = true;
+            autoDiscovery.enable = true;
+          };
+          # Disable other components for this test
+          loki.enable = false;
+          promtail.enable = false;
+          grafana.enable = false;
+          reverseProxy.enable = false;
+        };
 
         openssh.enable = true;
       };

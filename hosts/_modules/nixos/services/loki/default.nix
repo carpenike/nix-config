@@ -250,26 +250,30 @@ in
       wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ];
     };
 
-    # Automatically register with Caddy reverse proxy if enabled
-    modules.reverseProxy.virtualHosts.${cfg.reverseProxy.subdomain} = mkIf cfg.reverseProxy.enable {
+    # Automatically register with Caddy reverse proxy using new structured pattern
+    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = mkIf cfg.reverseProxy.enable {
       enable = true;
       hostName = "${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
+
+      # Structured backend configuration
       backend = {
         scheme = "http";
-        host = "localhost";
+        host = "127.0.0.1";
         port = cfg.port;
       };
+
+      # Authentication configuration
       auth = mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
 
-      # Headers that go inside the reverse_proxy block
-      vendorExtensions.caddy.reverseProxyBlock = ''
+      # Headers for inside the reverse_proxy block
+      reverseProxyBlock = ''
         # Loki API headers for proper log ingestion
         header_up Host {upstream_hostport}
         header_up X-Real-IP {remote_host}
       '';
 
-      # Security headers that go at the site level
-      securityHeaders = {
+      # Security headers for API interface
+      security.customHeaders = {
         "X-Frame-Options" = "DENY";
         "X-Content-Type-Options" = "nosniff";
         "X-XSS-Protection" = "1; mode=block";

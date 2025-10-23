@@ -9,8 +9,13 @@
   modules.services.caddy.virtualHosts."prometheus" = {
     enable = true;
     hostName = "prometheus.forge.holthome.net";
-    proxyTo = "127.0.0.1:9090";
-    httpsBackend = false;
+
+    # Structured backend configuration
+    backend = {
+      scheme = "http";
+      host = "127.0.0.1";
+      port = 9090;
+    };
 
     # Basic authentication using SOPS secret
     auth = {
@@ -18,9 +23,16 @@
       passwordHashEnvVar = "MONITORING_BASIC_AUTH_PASSWORD";
     };
 
-    # Security headers and additional configuration
-    extraConfig = ''
-      # Security headers
+    # Security headers for web interface
+    security.customHeaders = {
+      "X-Frame-Options" = "SAMEORIGIN";
+      "X-Content-Type-Options" = "nosniff";
+      "X-XSS-Protection" = "1; mode=block";
+      "Referrer-Policy" = "strict-origin-when-cross-origin";
+    };
+
+    # Headers for inside the reverse_proxy block
+    reverseProxyBlock = ''
       header_up Host {upstream_hostport}
       header_up X-Real-IP {remote_host}
     '';
@@ -30,8 +42,13 @@
   modules.services.caddy.virtualHosts."alertmanager" = {
     enable = true;
     hostName = "alertmanager.forge.holthome.net";
-    proxyTo = "127.0.0.1:9093";
-    httpsBackend = false;
+
+    # Structured backend configuration
+    backend = {
+      scheme = "http";
+      host = "127.0.0.1";
+      port = 9093;
+    };
 
     # Basic authentication using SOPS secret
     auth = {
@@ -39,9 +56,16 @@
       passwordHashEnvVar = "MONITORING_BASIC_AUTH_PASSWORD";
     };
 
-    # Security headers and additional configuration
-    extraConfig = ''
-      # Security headers
+    # Security headers for web interface
+    security.customHeaders = {
+      "X-Frame-Options" = "SAMEORIGIN";
+      "X-Content-Type-Options" = "nosniff";
+      "X-XSS-Protection" = "1; mode=block";
+      "Referrer-Policy" = "strict-origin-when-cross-origin";
+    };
+
+    # Headers for inside the reverse_proxy block
+    reverseProxyBlock = ''
       header_up Host {upstream_hostport}
       header_up X-Real-IP {remote_host}
     '';

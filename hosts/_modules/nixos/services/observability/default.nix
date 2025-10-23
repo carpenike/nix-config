@@ -1,12 +1,68 @@
 { config, lib, pkgs, ... }:
 
 let
-  inherit (lib) mkOption mkEnableOption mkIf types;
+  inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList filter concatLists;
   cfg = config.modules.services.observability;
+
+  # TODO: Re-enable auto-discovery once nix store path issues are resolved
+  # discoverMetricsTargets and related functions temporarily removed
 in
 {
   options.modules.services.observability = {
-    enable = mkEnableOption "observability stack (Loki + Promtail + Grafana)";
+    enable = mkEnableOption "observability stack (Loki + Promtail + Grafana + Prometheus)";
+
+    prometheus = {
+      enable = mkOption {
+        type = types.bool;
+        default = cfg.enable;
+        description = "Enable Prometheus metrics collection server";
+      };
+
+      dataDir = mkOption {
+        type = types.path;
+        default = "/var/lib/prometheus";
+        description = "Directory to store Prometheus data";
+      };
+
+      zfsDataset = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "tank/services/prometheus";
+        description = "ZFS dataset for Prometheus data storage";
+      };
+
+      retentionDays = mkOption {
+        type = types.int;
+        default = 30;
+        description = "Metrics retention period in days";
+      };
+
+      port = mkOption {
+        type = types.port;
+        default = 9090;
+        description = "Port for Prometheus web interface";
+      };
+
+      autoDiscovery = {
+        enable = mkOption {
+          type = types.bool;
+          default = false; # Temporarily disabled due to nix store path issues
+          description = "Enable automatic discovery of service metrics endpoints";
+        };
+
+        staticTargets = mkOption {
+          type = types.listOf types.attrs;
+          default = [];
+          description = "Additional static scrape targets";
+          example = [{
+            job_name = "node-exporter";
+            static_configs = [{
+              targets = [ "localhost:9100" ];
+            }];
+          }];
+        };
+      };
+    };
 
     loki = {
       enable = mkOption {
@@ -239,6 +295,71 @@ in
   };
 
   config = mkIf cfg.enable {
+    # Enhance existing Prometheus configuration with auto-discovery
+    # This adds auto-discovered targets to any existing scrapeConfigs
+    services.prometheus = mkIf cfg.prometheus.enable {
+      enable = true;
+      port = cfg.prometheus.port;
+      stateDir = "prometheus";
+      retentionTime = "${toString cfg.prometheus.retentionDays}d";
+
+      # Static scrape configurations only (auto-discovery temporarily disabled)
+      scrapeConfigs = cfg.prometheus.autoDiscovery.staticTargets;
+
+      # Global configuration (only set if not already configured)
+      globalConfig = lib.mkDefault {
+        scrape_interval = "15s";
+        evaluation_interval = "15s";
+        external_labels = {
+          instance = config.networking.hostName;
+          environment = "homelab";
+        };
+      };
+
+      # Enable web interface with basic configuration
+      webExternalUrl = lib.mkDefault "http://localhost:${toString cfg.prometheus.port}";
+      listenAddress = lib.mkDefault "127.0.0.1";
+
+      # Resource limits for homelab
+      extraFlags = lib.mkDefault [
+        "--storage.tsdb.retention.time=${toString cfg.prometheus.retentionDays}d"
+        "--web.console.libraries=/etc/prometheus/console_libraries"
+        "--web.console.templates=/etc/prometheus/consoles"
+        "--web.enable-lifecycle"
+        "--log.level=info"
+      ];
+    };
+
+    # Configure ZFS dataset for Prometheus if specified
+    modules.storage.datasets.services.prometheus = mkIf (cfg.prometheus.enable && cfg.prometheus.zfsDataset != null) {
+      mountpoint = "/var/lib/prometheus2"; # Default NixOS Prometheus data directory
+      recordsize = "16K"; # Optimized for time series data
+      compression = "lz4"; # Fast compression for metrics
+      properties = {
+        "com.sun:auto-snapshot" = "true";
+        atime = "off"; # Reduce write load
+      };
+      owner = "prometheus";
+      group = "prometheus";
+      mode = "0755";
+    };
+
+    # Auto-configure Prometheus reverse proxy
+    modules.services.caddy.virtualHosts.prometheus = mkIf (cfg.prometheus.enable && cfg.reverseProxy.enable) {
+      enable = true;
+      hostName = "prometheus.${config.networking.domain or "holthome.net"}";
+      backend = {
+        scheme = "http";
+        host = "127.0.0.1";
+        port = cfg.prometheus.port;
+      };
+      auth = cfg.reverseProxy.auth;
+      security.customHeaders = {
+        "X-Frame-Options" = "SAMEORIGIN";
+        "X-Content-Type-Options" = "nosniff";
+      };
+    };
+
     # Enable Loki service
     modules.services.loki = mkIf cfg.loki.enable {
       enable = true;

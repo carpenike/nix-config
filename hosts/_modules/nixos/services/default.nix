@@ -9,7 +9,6 @@
     ./bind
     ./blocky
     ./caddy
-    ./reverse-proxy/registry.nix  # Shared reverse proxy registration interface
     ./cfdyndns
     ./chrony
     ./cloudflared

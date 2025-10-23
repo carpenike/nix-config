@@ -259,19 +259,23 @@ in
         mode = "0750";
       };
 
-      # Automatically register with Caddy reverse proxy if enabled
-      modules.reverseProxy.virtualHosts.${cfg.reverseProxy.subdomain} = mkIf cfg.reverseProxy.enable {
+      # Automatically register with Caddy reverse proxy using new structured pattern
+      modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = mkIf cfg.reverseProxy.enable {
         enable = true;
         hostName = "${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
-        auth = cfg.reverseProxy.auth;
+
+        # Structured backend configuration
         backend = {
           scheme = "http";
           host = cfg.listenAddress;
           port = cfg.port;
         };
 
+        # Authentication configuration
+        auth = cfg.reverseProxy.auth;
+
         # Security headers for web interface
-        securityHeaders = {
+        security.customHeaders = {
           "X-Frame-Options" = "SAMEORIGIN";
           "X-Content-Type-Options" = "nosniff";
           "X-XSS-Protection" = "1; mode=block";

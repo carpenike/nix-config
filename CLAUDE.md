@@ -78,11 +78,13 @@ Combine tools and commands to accomplish common goals efficiently.
 ### Infrastructure Service Development Workflow
 1. **Research**: Use Perplexity for current best practices and security considerations
 2. **Code Review**: Use Zen or Gemini Pro for security and architecture review
-3. **Module Creation**: Follow reverse proxy integration pattern (see Containerized Services section)
-4. **Resource Limits**: Apply appropriate CPU/memory limits based on service type
-5. **Security**: Localhost binding + reverse proxy + authentication + systemd hardening
-6. **Testing**: Validate with `/nix-validate` and test deployment on `rydev` first
-7. **Tracking**: Update Taskmaster with findings and completed work
+3. **Module Creation**: **CRITICAL** - Follow the standardized modular design patterns documented in `/docs/modular-design-patterns.md`
+4. **Pattern Compliance**: Ensure new services use standardized submodules (reverseProxy, metrics, logging, backup, notifications, container)
+5. **Auto-Registration**: Services must automatically register with infrastructure systems (Caddy, Prometheus, Promtail)
+6. **Security**: Localhost binding + reverse proxy + authentication + systemd hardening
+7. **Testing**: Validate with `/nix-validate` and test deployment on `rydev` first
+8. **Migration Planning**: For existing services, follow the roadmap in `/docs/service-migration-roadmap.md`
+9. **Tracking**: Update Taskmaster with findings and completed work
 
 ### Package Management Workflow
 1. **Determine package type**: CLI tool → Nix, GUI app → Homebrew
@@ -155,6 +157,59 @@ nix build .#darwinConfigurations.rymac
 # Test configuration changes in VM (NixOS only)
 nix build .#checks.x86_64-linux.nginx-service
 ```
+
+## Service Module Design Standards
+
+This repository enforces standardized modular design patterns for all service modules to ensure consistency, maintainability, and automatic integration with infrastructure systems.
+
+### Mandatory Design Patterns
+
+All new service modules **MUST** follow these patterns as documented in `/docs/modular-design-patterns.md`:
+
+#### 1. Structured Submodules
+Services must use `types.submodule` for complex configuration instead of simple strings or booleans:
+
+- **`reverseProxy`** - Web services must auto-register with Caddy
+- **`metrics`** - Services exposing metrics must auto-register with Prometheus
+- **`logging`** - Services must auto-register log sources with Promtail
+- **`backup`** - Stateful services must declare backup requirements
+- **`notifications`** - Services must integrate with centralized notification system
+- **`container`** - Containerized services must use standardized resource management
+
+#### 2. Auto-Registration Requirements
+Services **MUST NOT** require manual infrastructure configuration:
+
+- ✅ **Correct**: Service declares `reverseProxy.enable = true` → Automatically appears in Caddy
+- ❌ **Incorrect**: Manual addition to Caddy configuration required
+
+#### 3. Type Safety and Validation
+- Use proper `types.submodule` definitions for all complex options
+- Include comprehensive `assertions` to catch configuration errors at evaluation time
+- Provide clear descriptions and examples for all options
+
+#### 4. Security Hardening by Default
+- Containerized services must use localhost binding + reverse proxy pattern
+- Apply systemd security directives (`ProtectSystem`, `ProtectHome`, `PrivateTmp`, `NoNewPrivileges`)
+- Use SOPS for secrets management with proper credential loading
+
+### Reference Implementations
+
+- **Web Services**: `hosts/_modules/nixos/services/caddy/default.nix` - Structured backend configuration
+- **Storage Services**: `hosts/_modules/nixos/services/postgresql/` - Resource provisioning patterns
+- **Monitoring**: `hosts/_modules/nixos/services/glances/default.nix` - Reverse proxy integration
+
+### Migration Status
+
+See `/docs/service-migration-roadmap.md` for the current status of migrating existing services to these patterns.
+
+**Current Priority**: Phase 1 - Building foundational abstractions (metrics submodule, container helpers, logging integration)
+
+### Development Guidelines
+
+1. **New Services**: Must use all applicable standardized submodules from day one
+2. **Existing Services**: Follow migration roadmap for systematic updates
+3. **Breaking Changes**: Maintain backward compatibility during transitions
+4. **Testing**: Validate auto-registration functionality before deployment
 
 ## Architecture
 

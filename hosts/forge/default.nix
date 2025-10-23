@@ -551,6 +551,8 @@ in
         # Observability stack - centralized logging
         observability = {
           enable = true;
+          # Disable Prometheus in observability module since forge uses legacy configuration
+          prometheus.enable = false;
           loki = {
             enable = true;
             retentionDays = 30; # Longer retention for primary server

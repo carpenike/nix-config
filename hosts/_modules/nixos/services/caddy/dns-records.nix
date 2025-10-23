@@ -1,15 +1,14 @@
-# Generate DNS records from reverse proxy registry for declarative BIND zone management
-# This module exports a function that generates DNS A records from registered virtual hosts
+# Generate DNS records from Caddy virtual hosts for declarative BIND zone management
+# This module exports a function that generates DNS A records from Caddy virtual hosts
 # The records are meant to be included in the base BIND zone file (SOPS secret)
 #
 # Architecture:
 # - Kubernetes services use external-dns + rndc for dynamic updates
-# - Reverse proxy virtual hosts use declarative zone records (this module)
+# - Caddy virtual hosts use declarative zone records (this module)
 { lib, config, ... }:
 with lib;
 let
   cfg = config.modules.services.caddy;
-  registryCfg = config.modules.reverseProxy;
 
   # Import shared DNS utilities (relative to repository root)
   dnsLib = import ../../../../../lib/dns.nix { inherit lib; };
@@ -40,11 +39,11 @@ in
   options.modules.services.caddy.dnsRecords = mkOption {
     type = types.lines;
     readOnly = true;
-    description = "DNS A records generated from reverse proxy virtual hosts";
+    description = "DNS A records generated from Caddy virtual hosts";
   };
 
   config = mkIf cfg.enable {
-    # Use the registry's virtual hosts instead of Caddy's (due to mkRenamedOptionModule, they're the same)
-    modules.services.caddy.dnsRecords = generateDnsRecords registryCfg.virtualHosts registryCfg.domain;
+    # Generate DNS records from Caddy virtual hosts
+    modules.services.caddy.dnsRecords = generateDnsRecords cfg.virtualHosts cfg.domain;
   };
 }
