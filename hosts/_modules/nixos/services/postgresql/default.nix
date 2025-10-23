@@ -693,6 +693,63 @@
       };
     })
 
+    # PostgreSQL readiness-wait service
+    # Waits for PostgreSQL to exit recovery mode before dependent services start
+    (lib.mkIf cfg.enable {
+      systemd.services.postgresql-readiness-wait = {
+        description = "Wait for PostgreSQL to be ready (out of recovery)";
+
+        # Ensure this runs after the main postgresql process has started.
+        after = [ "postgresql.service" ];
+        requires = [ "postgresql.service" ];
+
+        # Add the postgresql package to the service's PATH to make `psql` available.
+        path = [ pkgs.postgresql ];
+
+        serviceConfig = {
+          Type = "oneshot";
+          User = config.services.postgresql.superUser;
+          Group = config.services.postgresql.superUser;
+          # RemainAfterExit ensures that systemd considers this service "active"
+          # after the script succeeds, allowing dependent services to start.
+          RemainAfterExit = true;
+        };
+
+        # The script polls the database until `pg_is_in_recovery()` returns false.
+        # It runs as the `postgres` user, which typically has peer authentication
+        # access, so no explicit credentials are required.
+        script = ''
+          set -euo pipefail
+
+          MAX_TRIES=60 # Total wait time: 60 tries * 10s = 600s (10 minutes)
+          RETRY_DELAY_SECONDS=10
+          PG_USER="postgres"
+          PG_DB="postgres"
+
+          echo "Waiting for PostgreSQL to exit recovery mode..."
+
+          for i in $(seq 1 $MAX_TRIES); do
+              # Use robust flags for scripting:
+              # -X: ignore .psqlrc
+              # -q: quiet output
+              # -t: tuples only (no headers)
+              # -A: unaligned output (no column dividers)
+              # The grep for '^f$' ensures we match the exact output for 'false'.
+              if psql -X -q -t -A -U "$PG_USER" -d "$PG_DB" -c "SELECT pg_is_in_recovery();" | grep -q '^f$'; then
+                  echo "PostgreSQL is ready and out of recovery."
+                  exit 0
+              fi
+
+              echo "Attempt $i/$MAX_TRIES: PostgreSQL is still in recovery. Retrying in $RETRY_DELAY_SECONDS seconds..."
+              sleep $RETRY_DELAY_SECONDS
+          done
+
+          echo "Error: PostgreSQL did not exit recovery mode after $MAX_TRIES attempts." >&2
+          exit 1
+        '';
+      };
+    })
+
     # Notification templates
     (lib.mkIf (config.modules.notifications.enable or false) {
       modules.notifications.templates = {

@@ -680,9 +680,9 @@ in
       # Stanza creation (runs once at setup)
       pgbackrest-stanza-create = {
         description = "pgBackRest stanza initialization";
-        after = [ "postgresql.service" "postgresql-preseed.service" ];
-        wants = [ "postgresql.service" "postgresql-preseed.service" ];
-        requires = [ "postgresql.service" "postgresql-preseed.service" ];
+        after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
+        wants = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
+        requires = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
         path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
         serviceConfig = {
           Type = "oneshot";

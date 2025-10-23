@@ -725,8 +725,8 @@ in
         '';
       in {
         description = "Provision PostgreSQL databases";
-        after = [ "postgresql.service" "postgresql-preseed.service" ];
-        requires = [ "postgresql.service" ];
+        after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
+        requires = [ "postgresql-readiness-wait.service" ];
         wantedBy = [ "multi-user.target" ];
 
         # Run once per boot, but only if config changed
