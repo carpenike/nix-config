@@ -68,7 +68,8 @@
       "Bash(awk:*)",
       "mcp__zen__clink",
       "mcp__serena__find_symbol",
-      "mcp__zen__listmodels"
+      "mcp__zen__listmodels",
+      "mcp__serena__write_memory"
     ],
     "deny": []
   }

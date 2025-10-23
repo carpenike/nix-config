@@ -645,25 +645,9 @@ in
       };
     };
 
-    # Integrate with backup system
-    # Reuses existing backup infrastructure (Restic, notifications, etc.)
-    modules.backup.restic.jobs.dispatcharr = lib.mkIf (config.modules.backup.enable && cfg.backup.enable) {
-      enable = true;
-      paths = [ cfg.dataDir ];
-      excludePatterns = [
-        "**/.cache"
-        "**/cache"
-        "**/__pycache__"      # Python bytecode cache
-        "**/*.pyc"            # Compiled Python files
-        "**/.pytest_cache"    # Pytest cache
-        "**/*.tmp"
-        "**/logs/*.txt"       # Exclude verbose logs
-        "**/logs/*.log"
-        "**/db/pg_log/*"      # PostgreSQL logs (if stored in data dir)
-      ];
-      repository = cfg.backup.repository;
-      tags = [ "dispatcharr" "iptv" "database" "postgresql" ];
-    };
+    # Backup is now handled automatically by backup-integration module
+    # The backup submodule configuration in the service options will be
+    # auto-discovered and converted to a Restic job named "service-dispatcharr"
 
       # Optional: Open firewall for Dispatcharr web UI
       # Disabled by default since forge has firewall.enable = false

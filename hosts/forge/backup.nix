@@ -103,6 +103,13 @@ in
       ];
     };
 
+    # Enable service backup auto-discovery
+    modules.services.backup-integration = {
+      enable = true;
+      autoDiscovery.enable = true;
+      defaultRepository = "nas-primary";
+    };
+
     # Enable and configure the backup module
     modules.backup = {
       enable = true;
