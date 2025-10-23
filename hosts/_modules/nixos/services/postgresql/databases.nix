@@ -725,7 +725,7 @@ in
         '';
       in {
         description = "Provision PostgreSQL databases";
-        after = [ "postgresql.service" ];
+        after = [ "postgresql.service" "postgresql-preseed.service" ];
         requires = [ "postgresql.service" ];
         wantedBy = [ "multi-user.target" ];
 

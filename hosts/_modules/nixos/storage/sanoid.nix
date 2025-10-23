@@ -344,7 +344,7 @@ in
         services.zfs-delegate-permissions = {
           description = "Delegate ZFS permissions for Sanoid and Syncoid";
           wantedBy = [ "multi-user.target" ];
-          after = [ "zfs-import.target" "systemd-sysusers.service" ];
+          after = [ "zfs-import.target" "systemd-sysusers.service" "zfs-service-datasets.service" ];
           before = [ "sanoid.service" ] ++ (lib.optional (datasetsWithReplication != {}) "syncoid.service");
           serviceConfig = {
             Type = "oneshot";
@@ -372,7 +372,7 @@ in
         services.zfs-set-snapdir-visible = {
           description = "Set ZFS snapdir visibility for Sanoid datasets";
           wantedBy = [ "multi-user.target" ];
-          after = [ "zfs-import.target" ];
+          after = [ "zfs-import.target" "zfs-service-datasets.service" ];
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
