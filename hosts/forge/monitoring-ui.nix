@@ -6,15 +6,11 @@
 
 {
   # Expose Prometheus UI on subdomain with LAN-only access
-  modules.reverseProxy.virtualHosts."prometheus" = {
+  modules.services.caddy.virtualHosts."prometheus" = {
     enable = true;
     hostName = "prometheus.forge.holthome.net";
-
-    backend = {
-      scheme = "http";
-      host = "127.0.0.1";
-      port = 9090;
-    };
+    proxyTo = "127.0.0.1:9090";
+    httpsBackend = false;
 
     # Basic authentication using SOPS secret
     auth = {
@@ -22,33 +18,20 @@
       passwordHashEnvVar = "MONITORING_BASIC_AUTH_PASSWORD";
     };
 
-    # LAN-only access restriction (internal networks)
-    vendorExtensions.caddy.extraConfig = ''
-      @lan remote_ip 10.20.0.0/24 10.30.0.0/16
-      handle @lan {
-        # Allowed
-      }
-      handle {
-        abort
-      }
+    # Security headers and additional configuration
+    extraConfig = ''
+      # Security headers
+      header_up Host {upstream_hostport}
+      header_up X-Real-IP {remote_host}
     '';
-
-    securityHeaders = {
-      X-Frame-Options = "SAMEORIGIN";
-      X-Content-Type-Options = "nosniff";
-    };
   };
 
   # Expose Alertmanager UI on subdomain with LAN-only access
-  modules.reverseProxy.virtualHosts."alertmanager" = {
+  modules.services.caddy.virtualHosts."alertmanager" = {
     enable = true;
     hostName = "alertmanager.forge.holthome.net";
-
-    backend = {
-      scheme = "http";
-      host = "127.0.0.1";
-      port = 9093;
-    };
+    proxyTo = "127.0.0.1:9093";
+    httpsBackend = false;
 
     # Basic authentication using SOPS secret
     auth = {
@@ -56,21 +39,12 @@
       passwordHashEnvVar = "MONITORING_BASIC_AUTH_PASSWORD";
     };
 
-    # LAN-only access restriction (internal networks)
-    vendorExtensions.caddy.extraConfig = ''
-      @lan remote_ip 10.20.0.0/24 10.30.0.0/16
-      handle @lan {
-        # Allowed
-      }
-      handle {
-        abort
-      }
+    # Security headers and additional configuration
+    extraConfig = ''
+      # Security headers
+      header_up Host {upstream_hostport}
+      header_up X-Real-IP {remote_host}
     '';
-
-    securityHeaders = {
-      X-Frame-Options = "SAMEORIGIN";
-      X-Content-Type-Options = "nosniff";
-    };
   };
 
   # Load the monitoring basic auth password from SOPS
@@ -100,6 +74,5 @@
     '';
   };
 
-  # Pass the environment file to Caddy
-  systemd.services.caddy.serviceConfig.EnvironmentFile = [ "-/run/caddy/monitoring-auth.env" ];
+  # Environment file is loaded in main configuration to avoid conflicts
 }

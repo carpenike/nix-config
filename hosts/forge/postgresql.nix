@@ -112,15 +112,45 @@
     '';
 
     # Override PostgreSQL systemd service to allow writes to NFS mount and local spool for pgBackRest
-    systemd.services.postgresql.serviceConfig = {
-      # Add paths to ReadWritePaths to allow archive_command to write WAL segments
-      # Without these, ProtectSystem=strict blocks writes outside /var/lib/postgresql
-      # 1. /mnt/nas-postgresql: NFS repo1 (dedicated PostgreSQL backup mount)
-      # 2. /var/lib/pgbackrest/spool: Local async spool (archive_command writes here first)
-      ReadWritePaths = [
-        "/mnt/nas-postgresql"
-        "/var/lib/pgbackrest/spool"
-      ];
+    systemd.services.postgresql = {
+      serviceConfig = {
+        # Add paths to ReadWritePaths to allow archive_command to write WAL segments
+        # Without these, ProtectSystem=strict blocks writes outside /var/lib/postgresql
+        # 1. /mnt/nas-postgresql: NFS repo1 (dedicated PostgreSQL backup mount)
+        # 2. /var/lib/pgbackrest/spool: Local async spool (archive_command writes here first)
+        ReadWritePaths = [
+          "/mnt/nas-postgresql"
+          "/var/lib/pgbackrest/spool"
+        ];
+      };
+
+      # CRITICAL: Ensure Podman network exists before PostgreSQL starts
+      # The podman0 bridge (10.88.0.1) must be available for PostgreSQL to bind to it
+      # Without this, PostgreSQL will only bind to localhost despite the listen_addresses setting
+      after = [ "network-online.target" "podman.service" ];
+      wants = [ "network-online.target" ];
+
+      # Add a pre-start script to ensure the Podman bridge is up
+      # This prevents the "Cannot assign requested address" error when binding to 10.88.0.1
+      preStart = ''
+        # Wait for Podman bridge interface to be available
+        for i in {1..30}; do
+          if ${pkgs.iproute2}/bin/ip addr show podman0 | grep -q "10.88.0.1"; then
+            echo "Podman bridge (10.88.0.1) is available"
+            break
+          fi
+          echo "Waiting for Podman bridge to come up... ($i/30)"
+          # Create the bridge if it doesn't exist (this ensures it's available)
+          ${pkgs.podman}/bin/podman network create podman 2>/dev/null || true
+          sleep 1
+        done
+
+        # Verify the interface is up
+        if ! ${pkgs.iproute2}/bin/ip addr show podman0 | grep -q "10.88.0.1"; then
+          echo "ERROR: Podman bridge (10.88.0.1) is not available after 30 seconds"
+          exit 1
+        fi
+      '';
     };
 
     # Automatic restore from backup on server rebuild (disaster recovery)

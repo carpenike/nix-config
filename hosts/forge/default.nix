@@ -340,6 +340,23 @@ in
               };
             };
 
+            # Loki log aggregation storage
+            # Optimized for log chunks and WAL files with appropriate compression
+            loki = {
+              recordsize = "1M";      # Optimized for log chunks (large sequential writes)
+              compression = "zstd";   # Better compression for text logs than lz4
+              mountpoint = "/var/lib/loki";
+              owner = "loki";
+              group = "loki";
+              mode = "0750";
+              properties = {
+                "com.sun:auto-snapshot" = "true";   # Enable snapshots for log retention
+                logbias = "throughput";             # Optimize for streaming log writes
+                atime = "off";                      # Reduce metadata overhead
+                primarycache = "metadata";          # Don't cache log data in ARC
+              };
+            };
+
             # Alertmanager: Using ephemeral root filesystem storage
             # Rationale (GPT-5 validated):
             # - Only stores silences and notification deduplication state
@@ -454,6 +471,32 @@ in
             autoprune = false;
             recursive = false;
           };
+
+          # Loki log aggregation storage
+          # Enable snapshots for log retention and disaster recovery
+          "tank/services/loki" = {
+            useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+            recursive = false;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/loki";
+              sendOptions = "w";  # Raw encrypted send
+              recvOptions = "u";  # Don't mount on receive
+            };
+          };
+
+          # Promtail log shipping agent storage
+          # Snapshots protect critical positions.yaml file for reliable log collection
+          "tank/services/promtail" = {
+            useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+            recursive = false;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/promtail";
+              sendOptions = "w";  # Raw encrypted send
+              recvOptions = "u";  # Don't mount on receive
+            };
+          };
         };
 
         # Restic backup jobs configuration
@@ -503,6 +546,56 @@ in
         caddy = {
           enable = true;
           # Domain defaults to networking.domain (holthome.net)
+        };
+
+        # Observability stack - centralized logging
+        observability = {
+          enable = true;
+          loki = {
+            enable = true;
+            retentionDays = 30; # Longer retention for primary server
+            zfsDataset = "tank/services/loki";
+          };
+          promtail = {
+            enable = true;
+            zfsDataset = "tank/services/promtail";  # Give Promtail its own ZFS dataset
+            containerLogSource = "journald"; # Use systemd journal for container logs
+            dropNoisyUnits = [
+              "systemd-logind"
+              "systemd-networkd"
+              "systemd-resolved"
+              "systemd-timesyncd"
+              "NetworkManager"
+              "sshd"  # Add sshd to reduce noise from frequent SSH connections
+            ];
+          };
+          grafana = {
+            enable = true;
+            zfsDataset = "tank/services/grafana";
+            subdomain = "grafana";
+            adminUser = "admin";
+            adminPasswordFile = config.sops.secrets."grafana/admin-password".path;
+            autoConfigure = {
+              loki = true;  # Auto-configure Loki data source
+              prometheus = true;  # Auto-configure Prometheus if available
+            };
+            plugins = with pkgs.grafanaPlugins; [
+              # Add some useful plugins for log analysis and monitoring
+            ];
+          };
+          reverseProxy = {
+            enable = true;
+            subdomain = "loki";
+            auth = {
+              user = "admin";
+              passwordHashEnvVar = "CADDY_LOKI_ADMIN_BCRYPT";
+            };
+          };
+          backup = {
+            enable = true;
+            includeChunks = false; # Rely on ZFS snapshots for data
+          };
+          alerts.enable = true; # Enable Loki alerting rules
         };
 
       # Media management services
@@ -1271,13 +1364,17 @@ EOF
       };
     };
 
-    # Configure Caddy to load environment file with Cloudflare API token
-    systemd.services.caddy.serviceConfig.EnvironmentFile = "/run/secrets/rendered/caddy-env";
+    # Configure Caddy to load environment files with API tokens and auth credentials
+    systemd.services.caddy.serviceConfig.EnvironmentFile = [
+      "/run/secrets/rendered/caddy-env"
+      "-/run/caddy/monitoring-auth.env"
+    ];
 
     # Create environment file from SOPS secrets
     sops.templates."caddy-env" = {
       content = ''
         CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
+        CADDY_LOKI_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/loki-admin-bcrypt"}
       '';
       owner = config.services.caddy.user;
       group = config.services.caddy.group;

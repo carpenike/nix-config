@@ -21,11 +21,10 @@ in
         # Add resource limits if specified in containerConfig
         withResourceLimits = if (containerConfig ? resources && containerConfig.resources != null)
           then defaults // {
-            extraOptions = defaults.extraOptions ++ [
-              (lib.optionalString (containerConfig.resources ? memory) "--memory=${containerConfig.resources.memory}")
-              (lib.optionalString (containerConfig.resources ? memoryReservation) "--memory-reservation=${containerConfig.resources.memoryReservation}")
-              (lib.optionalString (containerConfig.resources ? cpus) "--cpus=${containerConfig.resources.cpus}")
-            ];
+            extraOptions = defaults.extraOptions ++
+              (lib.optional (containerConfig.resources ? memory) "--memory=${containerConfig.resources.memory}") ++
+              (lib.optional (containerConfig.resources ? memoryReservation) "--memory-reservation=${containerConfig.resources.memoryReservation}") ++
+              (lib.optional (containerConfig.resources ? cpus) "--cpus=${containerConfig.resources.cpus}");
           }
           else defaults;
       in

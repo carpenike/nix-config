@@ -50,6 +50,16 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
   # Comment out ensure_utf8_encoding call
   sed -i 's|^ensure_utf8_encoding$|# DISABLED: ensure_utf8_encoding|g' /tmp/entrypoint-modified.sh
 
+  # Patch ALL scripts to skip /data/db operations when using external PostgreSQL
+  echo "   Patching scripts to skip /data/db operations..."
+  # Patch the init script
+  sed -i 's|chown[[:space:]]\+[^[:space:]]\+[[:space:]]\+/data/db|# DISABLED: &|g' /app/docker/init/03-init-dispatcharr.sh
+  sed -i 's|mkdir[[:space:]]\+-p[[:space:]]\+/data/db|# DISABLED: &|g' /app/docker/init/03-init-dispatcharr.sh
+
+  # Also patch the entrypoint itself for any remaining /data/db references
+  sed -i 's|chown[[:space:]]\+[^[:space:]]\+[[:space:]]\+/data/db|# DISABLED: &|g' /tmp/entrypoint-modified.sh
+  sed -i 's|mkdir[[:space:]]\+-p[[:space:]]\+/data/db|# DISABLED: &|g' /tmp/entrypoint-modified.sh
+
   # Fix the chown command in 03-init-dispatcharr.sh to exclude .zfs snapshot directories
   # ZFS snapshots are read-only and cause chown -R to fail
   # We need to patch the init script itself, not the entrypoint wrapper
@@ -78,6 +88,29 @@ sed -i "s|^user ''\${POSTGRES_USER};|user ''\${POSTGRES_USER} dispatch;|" /etc/n
     head -50 /tmp/entrypoint-modified.sh | cat -n
     exit 1
   fi
+
+  # Debug: Show which files contain /data/db references
+  echo "   Debug: Searching for /data/db references..."
+  grep -r "chown.*\/data\/db" /app 2>/dev/null | head -20 || true
+  echo "   Debug: Also checking for subprocess.run or os.system calls..."
+  grep -r "subprocess\|os\.system" /app 2>/dev/null | grep -B2 -A2 "\/data\/db" | head -20 || true
+
+  # More aggressive patching - find and patch ALL files (not just .sh)
+  echo "   Patching all files to remove /data/db operations..."
+  # Patch the specific init script first
+  sed -i 's|chown -R postgres:postgres /data/db|# DISABLED: &|g' /app/docker/init/03-init-dispatcharr.sh
+
+  # Then patch ALL files in /app that might contain these commands
+  find /app -type f -exec grep -l "/data/db" {} \; 2>/dev/null | while read -r file; do
+    echo "     Patching: $file"
+    sed -i 's|chown[[:space:]]\+[^[:space:]]\+[[:space:]]\+/data/db|# DISABLED: &|g' "$file" 2>/dev/null || true
+    sed -i 's|mkdir[[:space:]]\+-p[[:space:]]\+/data/db|# DISABLED: &|g' "$file" 2>/dev/null || true
+  done
+
+  # Create dummy /data/db directory to prevent chown errors
+  echo "   Creating dummy /data/db directory..."
+  mkdir -p /data/db
+  chown postgres:postgres /data/db 2>/dev/null || true
 
   # Execute the modified entrypoint
   echo "🚀 Starting Dispatcharr with external PostgreSQL..."

@@ -78,6 +78,27 @@
           owner = "caddy";
           group = "caddy";
         };
+
+        # Loki Basic Auth password hash for Caddy reverse proxy (environment variable)
+        "services/caddy/environment/loki-admin-bcrypt" = {
+          mode = "0400";
+          owner = "caddy";
+          group = "caddy";
+        };
+
+        # Loki Basic Auth password hash for Caddy reverse proxy (file-based)
+        "caddy/loki-admin-bcrypt" = {
+          mode = "0400";
+          owner = "caddy";
+          group = "caddy";
+        };
+
+        # Grafana admin password
+        "grafana/admin-password" = {
+          mode = "0400";
+          owner = "grafana";
+          group = "grafana";
+        };
       };
     };
   };

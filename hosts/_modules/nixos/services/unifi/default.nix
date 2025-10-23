@@ -85,9 +85,9 @@ in
     modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
       enable = true;
       hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
-      proxyTo = "https://localhost:${toString cfg.reverseProxy.port}";
+      proxyTo = "localhost:${toString cfg.reverseProxy.port}";
       httpsBackend = true; # UniFi uses HTTPS
-      headers = ''
+      extraConfig = ''
         # Handle websockets for real-time updates
         header_up Host {host}
         header_up X-Real-IP {remote_host}

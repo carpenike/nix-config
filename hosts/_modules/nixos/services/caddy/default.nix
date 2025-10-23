@@ -86,10 +86,6 @@ in
 {
   imports = [
     ./dns-records.nix
-    # Backward compatibility: redirect old path to new registry
-    (lib.mkRenamedOptionModule
-      [ "modules" "services" "caddy" "virtualHosts" ]
-      [ "modules" "reverseProxy" "virtualHosts" ])
   ];
 
   options.modules.services.caddy = {
@@ -149,9 +145,57 @@ in
       description = "ACME certificate configuration";
     };
 
-    # NOTE: virtualHosts option moved to modules.reverseProxy.virtualHosts
-    # See: hosts/_modules/nixos/services/reverse-proxy/registry.nix
-    # Backward compatibility provided via mkRenamedOptionModule in imports
+    # Virtual hosts configuration specific to Caddy
+    virtualHosts = mkOption {
+      type = types.attrsOf (types.submodule {
+        options = {
+          enable = mkEnableOption "this virtual host";
+
+          hostName = mkOption {
+            type = types.str;
+            description = "The fully qualified domain name for this virtual host";
+            example = "example.holthome.net";
+          };
+
+          proxyTo = mkOption {
+            type = types.str;
+            description = "The backend address to proxy to (e.g., 'localhost:8080')";
+            example = "localhost:8080";
+          };
+
+          httpsBackend = mkOption {
+            type = types.bool;
+            default = false;
+            description = "Whether the backend uses HTTPS";
+          };
+
+          auth = mkOption {
+            type = types.nullOr (types.submodule {
+              options = {
+                user = mkOption {
+                  type = types.str;
+                  description = "Username for basic authentication";
+                };
+                passwordHashEnvVar = mkOption {
+                  type = types.str;
+                  description = "Name of environment variable containing bcrypt password hash";
+                };
+              };
+            });
+            default = null;
+            description = "Optional basic authentication configuration";
+          };
+
+          extraConfig = mkOption {
+            type = types.lines;
+            default = "";
+            description = "Additional Caddy configuration directives for this virtual host";
+          };
+        };
+      });
+      default = {};
+      description = "Caddy virtual host configurations";
+    };
 
     # Legacy support for manual reverse proxy configuration
     reverseProxy = mkOption {
@@ -217,27 +261,59 @@ in
       enable = true;
       package = cfg.package;
 
-      # Generate configuration from registered virtual hosts
+      # Generate configuration from all virtual hosts
       extraConfig =
-        (generateVhostConfig config.modules.reverseProxy.virtualHosts) +
-        # Legacy support for manual reverse proxy config
-        (concatStringsSep "\n\n" (mapAttrsToList (hostname: proxy: ''
-          ${hostname} {
-            ${cfg.acme.generateTlsBlock}
+        let
+          # New Caddy virtualHosts
+          caddyVhosts = concatStringsSep "\n\n" (filter (s: s != "") (mapAttrsToList (name: vhost:
+            if vhost.enable then ''
+              ${vhost.hostName} {
+                ${cfg.acme.generateTlsBlock}
 
-            # HSTS: Force HTTPS for 6 months across all subdomains (legacy default)
-            header {
-              Strict-Transport-Security "max-age=15552000; includeSubDomains"
-            }
+                # Standard HSTS header
+                header {
+                  Strict-Transport-Security "max-age=15552000; includeSubDomains"
+                }
 
-            ${optionalString (proxy.auth != null) ''
-            basic_auth {
-              ${proxy.auth.user} {env.${proxy.auth.passwordHashEnvVar}}
+                ${optionalString (vhost.auth != null) ''
+                basic_auth {
+                  ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
+                }
+                ''}
+
+                reverse_proxy ${if vhost.httpsBackend then "https://${vhost.proxyTo}" else "http://${vhost.proxyTo}"} {
+                  ${vhost.extraConfig}
+                }
+              }
+            '' else ""
+          ) cfg.virtualHosts));
+
+          # Reverse proxy registry hosts
+          registryVhosts = generateVhostConfig config.modules.reverseProxy.virtualHosts;
+
+          # Legacy support for manual reverse proxy config
+          legacyVhosts = concatStringsSep "\n\n" (mapAttrsToList (hostname: proxy: ''
+            ${hostname} {
+              ${cfg.acme.generateTlsBlock}
+
+              # HSTS: Force HTTPS for 6 months across all subdomains (legacy default)
+              header {
+                Strict-Transport-Security "max-age=15552000; includeSubDomains"
+              }
+
+              ${optionalString (proxy.auth != null) ''
+              basic_auth {
+                ${proxy.auth.user} {env.${proxy.auth.passwordHashEnvVar}}
+              }
+              ''}
+              reverse_proxy ${proxy.target}
             }
-            ''}
-            reverse_proxy ${proxy.target}
-          }
-        '') cfg.reverseProxy));
+          '') cfg.reverseProxy);
+
+          # Combine all sections, filtering out empty ones
+          allConfigs = filter (s: s != "") [ caddyVhosts registryVhosts legacyVhosts ];
+        in
+          concatStringsSep "\n\n" allConfigs;
     };
 
     # Open firewall for HTTP/HTTPS

@@ -32,37 +32,26 @@ in
       };
     })
 
-    # Reverse proxy registration using new structured config
+    # Reverse proxy registration using new Caddy virtualHosts pattern
     (lib.mkIf dispatcharrEnabled {
-      modules.reverseProxy.virtualHosts.iptv = {
+      modules.services.caddy.virtualHosts.iptv = {
         enable = true;
         hostName = "iptv.${config.networking.domain}";  # iptv.holthome.net
+        proxyTo = "localhost:${toString dispatcharrPort}";
+        httpsBackend = false;
 
-        # Structured backend configuration
-        backend = {
-          scheme = "http";
-          host = "localhost";
-          port = dispatcharrPort;
-          # tls.verify not applicable for http backends
-        };
+        # Add security headers via extraConfig
+        extraConfig = ''
+          header {
+            X-Frame-Options "SAMEORIGIN"
+            X-Content-Type-Options "nosniff"
+            X-XSS-Protection "1; mode=block"
+            Referrer-Policy "strict-origin-when-cross-origin"
+            Strict-Transport-Security "max-age=15552000; includeSubDomains"
+          }
+        '';
 
-        # Structured security headers (backend-agnostic)
-        securityHeaders = {
-          X-Frame-Options = "SAMEORIGIN";
-          X-Content-Type-Options = "nosniff";
-          X-XSS-Protection = "1; mode=block";
-          Referrer-Policy = "strict-origin-when-cross-origin";
-        };
-
-        # HSTS with standard settings
-        security.hsts = {
-          enable = true;
-          maxAge = 15552000;  # 6 months
-          includeSubDomains = true;
-          preload = false;
-        };
-
-        auth = null;  # Add authentication if needed
+        # auth = null;  # Add authentication if needed
 
         # NOTE: Caddy handles WebSocket proxying automatically.
         # No explicit configuration needed in reverseProxyBlock.
