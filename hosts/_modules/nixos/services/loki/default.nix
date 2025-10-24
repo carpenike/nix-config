@@ -22,6 +22,12 @@ in
       description = "Port for Loki HTTP server";
     };
 
+    grpcPort = mkOption {
+      type = types.port;
+      default = 9095; # Upstream default; required for querier<->ingester and tailing
+      description = "Port for Loki gRPC server (set to a non-conflicting port; 0 disables gRPC)";
+    };
+
     retentionDays = mkOption {
       type = types.int;
       default = 14;
@@ -138,6 +144,29 @@ in
       default = {};
       description = "Additional Loki configuration";
     };
+
+    # Cardinality and safety limits
+    limits = mkOption {
+      type = types.attrs;
+      default = {
+        # Prevent bad agents from ingesting very old data
+        reject_old_samples = true;
+        reject_old_samples_max_age = "168h"; # 7 days
+
+        # Control cardinality; adjust as needed
+        max_active_streams_per_user = 5000;
+        max_label_names_per_user = 100;
+
+        # Ingestion rate limiting per distributor
+        ingestion_rate_mb = 4;
+        ingestion_burst_size_mb = 6;
+
+        # Additional safety limits
+        per_stream_rate_limit = "3MB";
+        max_entries_limit_per_query = 5000;
+      };
+      description = "Loki limits_config values to control cardinality and ingestion rates";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -163,6 +192,7 @@ in
         server = {
           http_listen_address = "127.0.0.1";
           http_listen_port = cfg.port;
+          grpc_listen_port = cfg.grpcPort;
           log_level = cfg.logLevel;
         };
 

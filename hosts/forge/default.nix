@@ -33,6 +33,7 @@ in
       hostName = hostname;
       hostId = "1b3031e7";  # Preserved from nixos-bootstrap
       useDHCP = true;
+      # Firewall disabled; per-service modules will declare their own rules
       firewall.enable = false;
       domain = "holthome.net";
     };
@@ -570,6 +571,62 @@ in
               "NetworkManager"
               "sshd"  # Add sshd to reduce noise from frequent SSH connections
             ];
+            # Enable syslog receiver for external systems
+            extraScrapeConfigs = [
+              {
+                job_name = "omada-syslog";
+                syslog = {
+                  listen_address = "127.0.0.1:1516";
+                  listen_protocol = "udp";
+                  idle_timeout = "60s";
+                  label_structured_data = true;
+                  use_incoming_timestamp = true;
+                  labels = {
+                    job = "omada";
+                  };
+                };
+                relabel_configs = [
+                  { source_labels = [ "__syslog_connection_ip_address" ]; target_label = "relay_ip"; }
+                  { source_labels = [ "__syslog_message_sd_omada_47450_src_ip" ]; target_label = "ap_ip"; }
+                ];
+                pipeline_stages = [
+                  { labels = { env = "homelab"; }; }
+
+                  # Split concatenated log entries on the #015#012 sequences
+                  {
+                    multiline = {
+                      firstline = "^\\[\\d+\\.\\d+\\]";
+                      max_wait_time = "3s";
+                    };
+                  }
+
+                  # Parse the Omada log format
+                  {
+                    regex = {
+                      expression = "^\\[(?P<ts>[\\d.]+)\\]\\s+AP MAC=(?P<ap_mac>[0-9a-f:]+)\\s+MAC SRC=(?P<mac_src>[0-9a-f:]+)\\s+IP SRC=(?P<ip_src>[\\d.]+)\\s+IP DST=(?P<ip_dst>[\\d.]+)\\s+IP proto=(?P<proto>\\d+)\\s+SPT=(?P<sport>\\d+)\\s+DPT=(?P<dport>\\d+)";
+                    };
+                  }
+
+                  # Extract key fields as labels for efficient querying
+                  {
+                    labels = {
+                      ap_mac = "";
+                      ip_src = "";
+                      ip_dst = "";
+                      proto = "";
+                    };
+                  }
+
+                  # Use the timestamp from the log entry
+                  {
+                    timestamp = {
+                      source = "ts";
+                      format = "Unix";
+                    };
+                  }
+                ];
+              }
+            ];
           };
           grafana = {
             enable = true;
@@ -581,9 +638,7 @@ in
               loki = true;  # Auto-configure Loki data source
               prometheus = true;  # Auto-configure Prometheus if available
             };
-            plugins = with pkgs.grafanaPlugins; [
-              # Add some useful plugins for log analysis and monitoring
-            ];
+            plugins = [];
           };
           reverseProxy = {
             enable = true;
@@ -638,6 +693,8 @@ in
         };
       };
 
+      # (rsyslogd configured at top-level services.rsyslogd)
+
       # Additional service-specific configurations are in their own files
       # See: dispatcharr.nix, etc.
         # Example service configurations can be copied from luna when ready
@@ -658,6 +715,50 @@ in
           };
         };
       };
+    };
+
+    services.rsyslogd = {
+      enable = true;
+      extraConfig = ''
+        global(workDirectory="/var/spool/rsyslog")
+        global(maxMessageSize="64k")
+
+        # Load message modification module
+        module(load="mmjsonparse")
+
+        template(name="OmadaToRFC5424" type="string"
+          string="<134>1 %timegenerated:::date-rfc3339% %fromhost% omada - - [omada@47450 src_ip=\"%fromhost-ip%\"] %msg%\n")
+
+        ruleset(name="omada_devices") {
+          # Split on newlines - rsyslog will process each line separately
+          # The key is to configure the input to parse multi-line packets
+          action(type="omfile" file="/var/log/omada-relay.log" template="OmadaToRFC5424")
+
+          action(
+            type="omfwd" Target="127.0.0.1" Port="1516" Protocol="udp" template="OmadaToRFC5424"
+            queue.type="LinkedList" queue.size="10000" queue.dequeueBatchSize="200"
+            action.resumeRetryCount="-1" action.resumeInterval="5"
+          )
+          stop
+        }
+
+        # Modified input to handle multi-line packets
+        module(load="imudp" ratelimit.interval="5" ratelimit.burst="10000")
+        input(
+          type="imudp"
+          port="1514"
+          ruleset="omada_devices"
+          # This tells rsyslog that each packet may contain multiple \n-delimited messages
+          SupportOctetCountedFraming="on"
+        )
+
+        module(load="impstats")
+        ruleset(name="rsyslog_stats") {
+          action(type="omfile" file="/var/log/rsyslog-stats.log")
+          stop
+        }
+        input(type="impstats" interval="60" ruleset="rsyslog_stats" severity="7")
+      '';
     };
 
     # pgBackRest - PostgreSQL Backup & Recovery

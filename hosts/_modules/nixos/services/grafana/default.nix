@@ -334,10 +334,8 @@ in
 
       # Apply systemd hardening and resource limits
       systemd.services.grafana = {
-        # NOTE: Keep upstream preStart (symlinks conf/tools). Append a safe chown to fix ZFS mount root ownership.
-        preStart = lib.mkAfter (lib.optionalString (cfg.zfs.dataset != null) ''
-          chown -R grafana:grafana ${cfg.dataDir}
-        '');
+        # NOTE: Do not add a chown here; systemd seccomp blocks chown in ExecStartPre.
+        # Ownership is ensured by modules.storage.datasets tmpfiles rules.
 
         serviceConfig = {
           # Resource limits

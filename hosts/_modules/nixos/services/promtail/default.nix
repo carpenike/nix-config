@@ -22,6 +22,12 @@ in
       description = "Port for Promtail HTTP server (metrics)";
     };
 
+    grpcPort = mkOption {
+      type = types.int;
+      default = 0; # disable gRPC by default to avoid conflict with Loki (9095)
+      description = "Port for Promtail gRPC server (0 disables)";
+    };
+
     lokiUrl = mkOption {
       type = types.str;
       default = "http://127.0.0.1:3100";
@@ -128,6 +134,60 @@ in
       type = types.attrs;
       default = {};
       description = "Additional Promtail configuration";
+    };
+
+    # Syslog receiver (accept logs from external systems)
+    syslog = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Enable built-in syslog receiver (RFC5424/3164)";
+      };
+
+      address = mkOption {
+        type = types.str;
+        default = "0.0.0.0";
+        description = "Listen address for syslog receiver";
+      };
+
+      port = mkOption {
+        type = types.port;
+        default = 1514; # unprivileged alt to 514
+        description = "Listen port for syslog receiver (use 1514 unless binding to 514 is required)";
+      };
+
+      protocol = mkOption {
+        type = types.enum [ "udp" "tcp" ];
+        default = "udp";
+        description = "Syslog transport protocol";
+      };
+
+      idleTimeout = mkOption {
+        type = types.str;
+        default = "60s";
+        description = "Idle timeout for syslog connections";
+      };
+
+      labelStructuredData = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Expose structured data as labels";
+      };
+
+      useIncomingTimestamp = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Use incoming syslog message timestamp when available";
+      };
+
+      labels = mkOption {
+        type = types.attrsOf types.str;
+        default = {
+          job = "syslog";
+          host = config.networking.hostName;
+        };
+        description = "Static labels to add to syslog streams";
+      };
     };
 
     # Standardized metrics collection pattern
@@ -240,6 +300,7 @@ in
         server = {
           http_listen_address = "127.0.0.1";
           http_listen_port = cfg.port;
+          grpc_listen_port = cfg.grpcPort;
           log_level = cfg.logLevel;
         };
 
@@ -276,6 +337,13 @@ in
                 source_labels = [ "__journal__systemd_unit" ];
                 target_label = "unit";
               }
+              # Normalize unit → app for cross-source consistency (strip .service)
+              {
+                source_labels = [ "__journal__systemd_unit" ];
+                regex = "([^.]+)\\.service";
+                target_label = "app";
+                replacement = "$1";
+              }
               {
                 source_labels = [ "__journal__hostname" ];
                 target_label = "host";
@@ -295,23 +363,10 @@ in
               action = "drop";
             }) cfg.journal.dropIdentifiers);
             pipeline_stages = [
-              # Extract container information from journal
-              {
-                regex = {
-                  expression = "^(?P<timestamp>\\S+\\s+\\S+)\\s+(?P<host>\\S+)\\s+(?P<ident>\\S+)(\\[(?P<pid>\\d+)\\])?:\\s*(?P<message>.*)$";
-                };
-              }
+              # Promote stable, low-cardinality labels for taxonomy
               {
                 labels = {
-                  level = null;
-                  facility = null;
-                };
-              }
-              # Add timestamp
-              {
-                timestamp = {
-                  source = "timestamp";
-                  format = "Jan 02 15:04:05";
+                  env = "homelab";
                 };
               }
             ];
@@ -348,6 +403,12 @@ in
               }
             ];
             pipeline_stages = [
+              # Normalize taxonomy
+              {
+                labels = {
+                  env = "homelab";
+                };
+              }
               # Parse container logs
               {
                 regex = {
@@ -363,6 +424,13 @@ in
                 timestamp = {
                   source = "timestamp";
                   format = "RFC3339Nano";
+                };
+              }
+              # Drop ultra-noisy health checks (example)
+              {
+                match = {
+                  selector = "{job=\"containers-journal\"} |= \"/health\"";
+                  action = "drop";
                 };
               }
             ];
@@ -386,6 +454,7 @@ in
               }
             ];
             pipeline_stages = [
+              { labels = { env = "homelab"; }; }
               # Parse container log format
               {
                 regex = {
@@ -406,6 +475,38 @@ in
             ];
           }) ++
 
+          # Syslog receiver (external systems)
+          (lib.optional cfg.syslog.enable {
+            job_name = "syslog";
+            syslog = {
+              # Promtail expects host:port here, protocol set separately
+              listen_address = "${cfg.syslog.address}:${toString cfg.syslog.port}";
+              listen_protocol = cfg.syslog.protocol; # "udp" or "tcp"
+              idle_timeout = cfg.syslog.idleTimeout;
+              label_structured_data = cfg.syslog.labelStructuredData;
+              use_incoming_timestamp = cfg.syslog.useIncomingTimestamp;
+              labels = cfg.syslog.labels;
+            };
+            relabel_configs = [
+              { source_labels = [ "__syslog_message_hostname" ]; target_label = "syslog_host"; }
+              { source_labels = [ "__syslog_message_app_name" ]; target_label = "app"; }
+              { source_labels = [ "__syslog_message_severity" ]; target_label = "severity"; }
+              { source_labels = [ "__syslog_message_severity" ]; target_label = "level"; }
+              { source_labels = [ "__syslog_message_facility" ]; target_label = "facility"; }
+              { source_labels = [ "__syslog_connection_ip_address" ]; target_label = "src_ip"; }
+            ];
+            pipeline_stages = [
+              { labels = { env = "homelab"; }; }
+              # Example drop rule for extremely chatty syslog senders
+              {
+                match = {
+                  selector = "{job=\"syslog\"} |= \"healthcheck\"";
+                  action = "drop";
+                };
+              }
+            ];
+          }) ++
+
           # Additional scrape configs
           cfg.extraScrapeConfigs;
       } cfg.extraConfig;
@@ -417,6 +518,11 @@ in
         # Resource limits for homelab deployment
         MemoryMax = cfg.resources.MemoryMax;
         CPUQuota = cfg.resources.CPUQuota;
+        # Security hardening
+        NoNewPrivileges = true;
+      } // lib.optionalAttrs (cfg.syslog.enable && cfg.syslog.port < 1024) {
+        AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
+        CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
       };
 
       # Service dependencies for journal access and ZFS
@@ -427,7 +533,13 @@ in
     # Firewall configuration (only allow local access)
     networking.firewall = {
       interfaces.lo.allowedTCPPorts = [ cfg.port ];
-    };
+    } // lib.optionalAttrs cfg.syslog.enable (
+      if cfg.syslog.protocol == "udp" then {
+        allowedUDPPorts = [ cfg.syslog.port ];
+      } else {
+        allowedTCPPorts = [ cfg.syslog.port ];
+      }
+    );
 
     # Ensure Promtail state directory exists with correct ownership
     # Only use tmpfiles if not using ZFS dataset (which handles ownership)

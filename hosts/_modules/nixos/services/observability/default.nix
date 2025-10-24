@@ -162,6 +162,50 @@ in
         ];
         description = "Systemd units to exclude from log collection";
       };
+
+      syslog = mkOption {
+        type = types.submodule {
+          options = {
+            enable = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Enable Promtail syslog receiver";
+            };
+            address = mkOption {
+              type = types.str;
+              default = "0.0.0.0";
+              description = "Listen address for syslog receiver";
+            };
+            port = mkOption {
+              type = types.port;
+              default = 1514;
+              description = "Listen port for syslog receiver";
+            };
+            protocol = mkOption {
+              type = types.enum [ "udp" "tcp" ];
+              default = "udp";
+              description = "Syslog transport protocol";
+            };
+            labelStructuredData = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Expose RFC5424 structured data (SD) fields as labels";
+            };
+            idleTimeout = mkOption {
+              type = types.str;
+              default = "60s";
+              description = "Idle timeout for syslog connections";
+            };
+            useIncomingTimestamp = mkOption {
+              type = types.bool;
+              default = true;
+              description = "Use the timestamp from incoming syslog messages when present";
+            };
+          };
+        };
+        default = { };
+        description = "Promtail syslog receiver configuration";
+      };
     };
 
     grafana = {
@@ -485,6 +529,17 @@ in
 
       # Connect to local Loki instance
       lokiUrl = "http://127.0.0.1:${toString config.modules.services.loki.port}";
+
+      # Syslog receiver passthrough
+      syslog = {
+        enable = cfg.promtail.syslog.enable;
+        address = cfg.promtail.syslog.address;
+        port = cfg.promtail.syslog.port;
+        protocol = cfg.promtail.syslog.protocol;
+        labelStructuredData = cfg.promtail.syslog.labelStructuredData or false;
+        idleTimeout = cfg.promtail.syslog.idleTimeout or "60s";
+        useIncomingTimestamp = cfg.promtail.syslog.useIncomingTimestamp or true;
+      };
     };
 
     # Enable Grafana service
