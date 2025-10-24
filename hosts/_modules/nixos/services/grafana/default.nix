@@ -12,7 +12,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  inherit (lib) mkOption mkEnableOption mkIf types optionalString mapAttrsToList attrValues;
+  inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList;
   cfg = config.modules.services.grafana;
   # Import shared type definitions
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
@@ -320,31 +320,24 @@ in
           } // (lib.optionalAttrs (cfg.secrets.adminPasswordFile != null) {
             admin_password = "$__file{${cfg.secrets.adminPasswordFile}}";
           });
-          # Enable proxy authentication if reverse proxy with auth is configured
-          "auth.proxy" = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.auth != null) {
-            enabled = true;
-            header_name = "Remote-User";
-            header_property = "username";
-            auto_sign_up = true;
-            enable_login_token = false;
-          };
         };
-
-        declarativePlugins = cfg.provisioning.plugins;
 
         provision = {
           enable = true;
           datasources.settings = datasourcesConfig;
           dashboards.settings = dashboardsConfig;
         };
+      } // lib.optionalAttrs (cfg.provisioning.plugins != []) {
+        # Only enable declarative plugins when list is non-empty. If empty, allow UI-managed plugins.
+        declarativePlugins = cfg.provisioning.plugins;
       };
 
       # Apply systemd hardening and resource limits
       systemd.services.grafana = {
-        # Ensure correct ownership of data directory
-        preStart = mkIf (cfg.zfs.dataset != null) ''
+        # NOTE: Keep upstream preStart (symlinks conf/tools). Append a safe chown to fix ZFS mount root ownership.
+        preStart = lib.mkAfter (lib.optionalString (cfg.zfs.dataset != null) ''
           chown -R grafana:grafana ${cfg.dataDir}
-        '';
+        '');
 
         serviceConfig = {
           # Resource limits
@@ -353,7 +346,8 @@ in
           CPUQuota = cfg.resources.CPUQuota;
 
           # Security hardening
-          ProtectSystem = lib.mkForce "strict";
+          # Align with upstream defaults to avoid blocking writes under /var/lib/grafana
+          ProtectSystem = lib.mkForce "full";
           ProtectHome = lib.mkForce "read-only";
           PrivateTmp = true;
           PrivateDevices = true;
@@ -363,11 +357,13 @@ in
           NoNewPrivileges = true;
           RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
           SystemCallFilter = [ "@system-service" "~@privileged" ];
+          # Ensure Grafana retains write access to its dataDir even with hardening
+          ReadWritePaths = [ cfg.dataDir ];
         };
 
         # Service dependencies for ZFS dataset mounting
-        after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ];
-        wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ];
+        after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
+        wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
       };
     }
   );
