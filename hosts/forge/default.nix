@@ -571,42 +571,32 @@ in
               "NetworkManager"
               "sshd"  # Add sshd to reduce noise from frequent SSH connections
             ];
+            # Disable syslog receiver to avoid duplicates (we tail files instead)
+            syslog.enable = false;
             # Enable syslog receiver for external systems
             extraScrapeConfigs = [
               {
-                job_name = "omada-syslog";
-                syslog = {
-                  listen_address = "127.0.0.1:1516";
-                  listen_protocol = "udp";
-                  idle_timeout = "60s";
-                  label_structured_data = true;
-                  use_incoming_timestamp = true;
-                  labels = {
-                    job = "omada";
-                  };
-                };
-                relabel_configs = [
-                  { source_labels = [ "__syslog_connection_ip_address" ]; target_label = "relay_ip"; }
-                  { source_labels = [ "__syslog_message_sd_omada_47450_src_ip" ]; target_label = "ap_ip"; }
+                job_name = "omada-relay-file";
+                static_configs = [
+                  {
+                    targets = [ "localhost" ];
+                    labels = {
+                      job = "omada-relay-file";
+                      app = "omada";
+                      __path__ = "/var/log/omada-relay.log";
+                    };
+                  }
                 ];
                 pipeline_stages = [
                   { labels = { env = "homelab"; }; }
-
-                  # Split concatenated log entries on the #015#012 sequences
-                  {
-                    multiline = {
-                      firstline = "^\\[\\d+\\.\\d+\\]";
-                      max_wait_time = "3s";
-                    };
-                  }
-
+                  # Drop any syslog header lines that may precede cleaned messages
+                  { drop = { source = "message"; expression = "^<\\d+>"; }; }
                   # Parse the Omada log format
                   {
                     regex = {
                       expression = "^\\[(?P<ts>[\\d.]+)\\]\\s+AP MAC=(?P<ap_mac>[0-9a-f:]+)\\s+MAC SRC=(?P<mac_src>[0-9a-f:]+)\\s+IP SRC=(?P<ip_src>[\\d.]+)\\s+IP DST=(?P<ip_dst>[\\d.]+)\\s+IP proto=(?P<proto>\\d+)\\s+SPT=(?P<sport>\\d+)\\s+DPT=(?P<dport>\\d+)";
                     };
                   }
-
                   # Extract key fields as labels for efficient querying
                   {
                     labels = {
@@ -616,7 +606,6 @@ in
                       proto = "";
                     };
                   }
-
                   # Use the timestamp from the log entry
                   {
                     timestamp = {
@@ -727,12 +716,23 @@ in
         module(load="mmjsonparse")
 
         template(name="OmadaToRFC5424" type="string"
-          string="<134>1 %timegenerated:::date-rfc3339% %fromhost% omada - - [omada@47450 src_ip=\"%fromhost-ip%\"] %msg%\n")
+          string="<134>1 %timegenerated:::date-rfc3339% %fromhost% omada - - [omada@47450 src_ip=\"%fromhost-ip%\"] %$.cleanmsg%\n")
+
+        # Unescaped message template for file sink (preserve embedded newlines)
+        template(name="OmadaRawUnescaped" type="string"
+          string="%timegenerated:::date-rfc3339% src_ip=%fromhost-ip% %$.cleanmsg%\n")
 
         ruleset(name="omada_devices") {
+          # Convert Omada's literal CR/LF markers into real newlines and strip residuals
+          set $.cleanmsg = replace($msg, "#015#012", "\n");
+          set $.cleanmsg = replace($.cleanmsg, "#012", "\n");
+          set $.cleanmsg = replace($.cleanmsg, "#015", "");
           # Split on newlines - rsyslog will process each line separately
           # The key is to configure the input to parse multi-line packets
           action(type="omfile" file="/var/log/omada-relay.log" template="OmadaToRFC5424")
+
+          # Raw sink with unescaped newlines for Promtail file tailing
+          action(type="omfile" file="/var/log/omada-raw.log" template="OmadaRawUnescaped")
 
           action(
             type="omfwd" Target="127.0.0.1" Port="1516" Protocol="udp" template="OmadaToRFC5424"
@@ -742,22 +742,18 @@ in
           stop
         }
 
-        # Modified input to handle multi-line packets
-        module(load="imudp" ratelimit.interval="5" ratelimit.burst="10000")
+        # UDP input for Omada syslog (rate limiting configured on input)
+        module(load="imudp")
         input(
           type="imudp"
           port="1514"
           ruleset="omada_devices"
-          # This tells rsyslog that each packet may contain multiple \n-delimited messages
-          SupportOctetCountedFraming="on"
+          # Rate limit to protect against bursts (set on input; not supported on module load)
+          rateLimit.Interval="5"
+          rateLimit.Burst="10000"
         )
 
-        module(load="impstats")
-        ruleset(name="rsyslog_stats") {
-          action(type="omfile" file="/var/log/rsyslog-stats.log")
-          stop
-        }
-        input(type="impstats" interval="60" ruleset="rsyslog_stats" severity="7")
+        module(load="impstats" interval="60" severity="7" log.file="/var/log/rsyslog-stats.log")
       '';
     };
 

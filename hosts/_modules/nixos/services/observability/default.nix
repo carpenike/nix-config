@@ -163,6 +163,12 @@ in
         description = "Systemd units to exclude from log collection";
       };
 
+      extraScrapeConfigs = mkOption {
+        type = types.listOf types.attrs;
+        default = [];
+        description = "Additional Promtail scrape configurations for custom log sources";
+      };
+
       syslog = mkOption {
         type = types.submodule {
           options = {
@@ -540,6 +546,24 @@ in
         idleTimeout = cfg.promtail.syslog.idleTimeout or "60s";
         useIncomingTimestamp = cfg.promtail.syslog.useIncomingTimestamp or true;
       };
+      extraScrapeConfigs = cfg.promtail.extraScrapeConfigs ++ [
+        {
+          job_name = "omada-file";
+          static_configs = [
+            {
+              targets = [ "localhost" ];
+              labels = {
+                job = "omada-file";
+                app = "omada";
+                __path__ = "/var/log/omada-raw.log";
+              };
+            }
+          ];
+          pipeline_stages = [
+            { labels = { env = "homelab"; }; }
+          ];
+        }
+      ];
     };
 
     # Enable Grafana service
