@@ -40,7 +40,7 @@ in
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
         memory = "1g";
-        memoryReservation = "512m";
+  memoryReservation = "512M";
         cpus = "1.0";
       };
       description = "Resource limits for the Unifi container (recommended for homelab stability)";

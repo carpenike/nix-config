@@ -22,8 +22,8 @@
       excludePatterns ? [],
       tags ? [name],
       resources ? {
-        memory = "256m";
-        memoryReservation = "128m";
+  memory = "256M";
+  memoryReservation = "128M";
         cpus = "0.5";
       },
       user ? "restic-backup",

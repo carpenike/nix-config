@@ -73,8 +73,8 @@ in
         };
       });
       default = {
-        memory = "512m";
-        memoryReservation = "256m";
+  memory = "512M";
+  memoryReservation = "256M";
         cpus = "0.75";
       };
       description = "Resource limits for the Omada container (recommended for homelab stability)";

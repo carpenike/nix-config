@@ -50,8 +50,8 @@ in
         };
       });
       default = {
-        memory = "128m";
-        memoryReservation = "64m";
+  memory = "128M";
+  memoryReservation = "64M";
         cpus = "0.25";
       };
       description = "Resource limits for the 1Password Connect containers (lightweight API services)";

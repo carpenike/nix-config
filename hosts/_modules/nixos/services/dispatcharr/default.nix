@@ -226,7 +226,7 @@ in
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
         memory = "1g";
-        memoryReservation = "512m";
+  memoryReservation = "512M";
         cpus = "2.0";
       };
       description = "Resource limits for the container";

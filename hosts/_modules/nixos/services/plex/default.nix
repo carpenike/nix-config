@@ -227,8 +227,8 @@ in
       excludePatterns = cfg.backup.excludePatterns;
       tags = cfg.backup.tags;
       resources = {
-        memory = "512m";
-        memoryReservation = "256m";
+        memory = "512M";
+        memoryReservation = "256M";
         cpus = "1.0";
       };
     };
@@ -250,6 +250,14 @@ in
     systemd.services.plex.unitConfig = lib.mkIf (cfg.zfs.dataset != null) {
       RequiresMountsFor = [ cfg.dataDir ];
       After = [ "zfs-mount.service" "zfs-service-datasets.service" ];
+    };
+
+    # Fix VA-API library mismatch: avoid injecting system libva into Plex FHS runtime
+    # Override upstream LD_LIBRARY_PATH and point only to driver directory; set LIBVA envs
+    systemd.services.plex.environment = {
+      LD_LIBRARY_PATH = lib.mkForce "/run/opengl-driver/lib/dri";
+      LIBVA_DRIVER_NAME = config.modules.common.intelDri.driver or "iHD";
+      LIBVA_DRIVERS_PATH = "/run/opengl-driver/lib/dri";
     };
 
     # Note: ownership/mode handled by storage module tmpfiles after mount

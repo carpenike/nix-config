@@ -165,8 +165,8 @@ in
           ];
 
           resources = {
-            memory = "512m";
-            memoryReservation = "256m";
+            memory = "512M";
+            memoryReservation = "256M";
             cpus = "1.0";
           };
         };
@@ -217,8 +217,8 @@ in
           ];
 
           resources = {
-            memory = "512m";
-            memoryReservation = "256m";
+            memory = "512M";
+            memoryReservation = "256M";
             cpus = "1.0";
           };
         };
@@ -250,8 +250,8 @@ in
           ];
 
           resources = {
-            memory = "256m";
-            memoryReservation = "128m";
+            memory = "256M";
+            memoryReservation = "128M";
             cpus = "0.5";
           };
         };
@@ -288,7 +288,7 @@ in
 
             resources = {
               memory = "1g";
-              memoryReservation = "512m";
+              memoryReservation = "512M";
               cpus = "2.0";  # Higher resources for large dataset
             };
           };
@@ -324,8 +324,8 @@ in
             '';
 
             resources = {
-              memory = "512m";
-              memoryReservation = "256m";
+              memory = "512M";
+              memoryReservation = "256M";
               cpus = "1.0";
             };
           };
@@ -365,8 +365,8 @@ in
           excludePatterns = cfg.system.excludePatterns;
 
           resources = {
-            memory = "256m";
-            memoryReservation = "128m";
+            memory = "256M";
+            memoryReservation = "128M";
             cpus = "0.5";
           };
         };

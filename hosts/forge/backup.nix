@@ -226,8 +226,8 @@ in
             ];
             tags = [ "system" "forge" "nixos" ];
             resources = {
-              memory = "512m";
-              memoryReservation = "256m";
+              memory = "512M";
+              memoryReservation = "256M";
               cpus = "1.0";
             };
           };
@@ -238,8 +238,8 @@ in
             paths = [ "/nix" ];
             tags = [ "nix" "forge" ];
             resources = {
-              memory = "1g";
-              memoryReservation = "512m";
+              memory = "1G";
+              memoryReservation = "512M";
               cpus = "1.0";
             };
           };
