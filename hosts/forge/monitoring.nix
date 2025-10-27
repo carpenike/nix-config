@@ -72,4 +72,43 @@
       }
     ];
   };
+
+  # Enable host-level GPU metrics
+  modules.services.gpuMetrics = {
+    enable = true;
+    vendor = "intel";
+    interval = "minutely";
+  };
+
+  # Alerts for GPU usage (host-level)
+  modules.alerting.rules = {
+    "gpu-exporter-stale" = {
+      type = "promql";
+      alertname = "GpuExporterStale";
+      expr = "time() - gpu_metrics_last_run_timestamp > 600";
+      for = "0m";
+      severity = "high";
+      labels = { service = "gpu"; category = "monitoring"; };
+      annotations = {
+        summary = "GPU exporter stale on {{ $labels.instance }}";
+        description = "No GPU metrics collected for >10 minutes. Check timer: systemctl status gpu-metrics-exporter.timer";
+      };
+    };
+
+    "gpu-util-high" = {
+      type = "promql";
+      alertname = "GpuUtilHigh";
+      expr = "gpu_utilization_percent > 80";
+      for = "10m";
+      severity = "medium";
+      labels = { service = "gpu"; category = "capacity"; };
+      annotations = {
+        summary = "High GPU utilization on {{ $labels.instance }}";
+        description = "GPU utilization above 80% for 10m. Investigate Plex/Dispatcharr transcoding load.";
+      };
+    };
+  };
+
+  # Ensure exporter can access /dev/dri
+  users.users.node-exporter.extraGroups = [ "render" ];
 }

@@ -256,9 +256,12 @@ in
                     then serviceConfig.mountpoint
                     else "${cfg.parentMount}/${serviceName}";
       in
-        # Only create tmpfiles entry if it's a real mountpoint (not "none" or "legacy")
-        lib.optional (mountpoint != "none" && mountpoint != "legacy")
+        # Only create tmpfiles entries if it's a real mountpoint (not "none" or "legacy").
+        # Use both 'd' (ensure directory exists) and 'z' (ensure ownership/mode even if already exists).
+        if (mountpoint != "none" && mountpoint != "legacy") then [
           "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+          "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+        ] else []
     ) cfg.services);
 
     # Add assertions to validate configuration

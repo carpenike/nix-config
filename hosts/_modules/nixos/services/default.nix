@@ -21,12 +21,14 @@
     ./haproxy
     ./loki                                    # Loki log aggregation server
     ./nginx
+    ./gpu-metrics
     ./node-exporter
     ./observability                           # Unified observability stack (Loki + Promtail)
     ./onepassword-connect
     ./openssh
     ./omada
     ./podman
+    ./plex
     ./postgresql                              # PostgreSQL module (simplified single-instance)
     ./postgresql/databases.nix                # Database provisioning (systemd units)
     ./postgresql/storage-integration.nix      # ZFS dataset creation (one-way integration)

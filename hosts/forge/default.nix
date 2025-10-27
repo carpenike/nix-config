@@ -22,6 +22,7 @@ in
     ./alerting.nix
     ./postgresql.nix
     ./dispatcharr.nix
+    ./plex.nix
     ./ups.nix            # UPS monitoring configuration
     ../../profiles/hardware/intel-gpu.nix
   ];
