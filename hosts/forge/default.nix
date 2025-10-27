@@ -23,6 +23,7 @@ in
     ./postgresql.nix
     ./dispatcharr.nix
     ./ups.nix            # UPS monitoring configuration
+    ../../profiles/hardware/intel-gpu.nix
   ];
 
   config = {
@@ -82,6 +83,12 @@ in
         enable = true;
         mountPoolsAtBoot = [ "rpool" "tank" ];
         # Use default rpool/safe/persist for system-level /persist
+      };
+
+      # Enable Intel DRI / VA-API support on this host
+      common.intelDri = {
+        enable = true;
+        driver = "iHD"; # Use iHD (intel-media-driver) for modern Intel GPUs; set to "i965" for legacy hardware
       };
 
       # Co-located monitoring alerts for forge
