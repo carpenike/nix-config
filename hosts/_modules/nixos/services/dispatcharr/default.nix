@@ -232,6 +232,13 @@ in
       description = "Resource limits for the container";
     };
 
+    # Optional VA-API driver selection for container. When null, libva auto-detects.
+    vaapiDriver = lib.mkOption {
+      type = lib.types.nullOr (lib.types.enum [ "iHD" "i965" ]);
+      default = null;
+      description = "VA-API driver name to set inside the container (iHD for modern Intel, i965 for legacy).";
+    };
+
     healthcheck = {
       enable = lib.mkEnableOption "container health check";
       interval = lib.mkOption {
@@ -521,6 +528,8 @@ in
         PUID = cfg.user;
         PGID = cfg.group;
         TZ = cfg.timezone;
+        # Enable VA-API inside the container when /dev/dri is mapped
+        VAAPI_DEVICE = "/dev/dri/renderD128"; # Preferred render node for acceleration
         # PostgreSQL connection configuration
         # Use TCP host connection to avoid Unix socket peer authentication issues
         # The container user "dispatcharr" (UID 569) doesn't exist on the host, causing peer auth to fail
@@ -536,7 +545,9 @@ in
         CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
         # Logging
         DISPATCHARR_LOG_LEVEL = "info";
-      } // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+      } // (lib.optionalAttrs (cfg.vaapiDriver != null) {
+        LIBVA_DRIVER_NAME = cfg.vaapiDriver;
+      }) // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         # Reverse proxy configuration for Django
         # Tells Django to trust X-Forwarded-Host from the proxy
         USE_X_FORWARDED_HOST = "true";
@@ -558,6 +569,8 @@ in
       resources = cfg.resources;
       extraOptions = [
         "--pull=newer"  # Automatically pull newer images
+        # Pass through only the render node to the container for VA-API (least privilege)
+        "--device=/dev/dri/renderD128:/dev/dri/renderD128:rwm"
         # Override the container's entrypoint to use our custom wrapper
         # CRITICAL: Must use two separate list items for proper option ordering
         # The wrapper script is bind-mounted as executable at /entrypoint-wrapper.sh
@@ -599,6 +612,8 @@ in
         # Use 'requires' for robustness. If provisioning fails, this service won't start.
         requires = [ "postgresql-provision-databases.service" ];
         after = [ "postgresql.service" "postgresql-provision-databases.service" ];
+
+  # Hardware access is managed at the host level (profiles/hardware/intel-gpu.nix services list)
 
         # Securely load the database password using systemd's native credential handling.
         # The password will be available at $CREDENTIALS_DIRECTORY/db_password

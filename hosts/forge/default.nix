@@ -77,6 +77,13 @@ in
       chsh -s /run/current-system/sw/bin/fish ryan
     '';
 
+    # Expose VA-API drivers for host-side tools (vainfo, ffmpeg)
+    # hardware.opengl was renamed; migrate to hardware.graphics
+    hardware.graphics = {
+      enable = true;
+      extraPackages = with pkgs; [ intel-media-driver libva libva-utils ];
+    };
+
     modules = {
       # Explicitly enable ZFS filesystem module
       filesystems.zfs = {
@@ -89,7 +96,10 @@ in
       common.intelDri = {
         enable = true;
         driver = "iHD"; # Use iHD (intel-media-driver) for modern Intel GPUs; set to "i965" for legacy hardware
+        services = [ "podman-dispatcharr.service" ];
       };
+
+      # (moved) VA-API driver exposure configured via top-level 'hardware.opengl'
 
       # Co-located monitoring alerts for forge
       alerting = {

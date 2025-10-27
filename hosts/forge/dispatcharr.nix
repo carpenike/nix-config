@@ -42,6 +42,8 @@ in
     {
       modules.services.dispatcharr = {
         enable = dispatcharrEnabled;
+        # DRY: derive VA-API driver from host hardware profile
+        vaapiDriver = config.modules.common.intelDri.driver;
 
       # Database connection configuration
       database = {
@@ -84,17 +86,7 @@ in
     # allow it to access the Intel render node for VA-API without adding broad
     # privileges. This grants only the render node device; prefer DeviceAllow
     # instead of making the service user a member of the host "video" group.
-    (lib.mkIf dispatcharrEnabled {
-      systemd.services."${config.virtualisation.oci-containers.backend}-dispatcharr.service" = {
-        # DeviceAllow expects strings like: "/dev/dri/renderD128 rwm"
-        serviceConfig = {
-          DeviceAllow = [ "/dev/dri/renderD128 rwm" ];
-          # Group = "video" is intentionally omitted here. DeviceAllow grants the
-          # service cgroup direct device access and is the preferred, least-privilege
-          # mechanism. Add Group="video" only when a container's internal user
-          # mapping requires group membership to access the device.
-        };
-      };
-    })
+    # Hardware access (DeviceAllow) is centralized via profiles/hardware/intel-gpu.nix
+    # using common.intelDri.services = [ "podman-dispatcharr.service" ] on this host.
   ];
 }

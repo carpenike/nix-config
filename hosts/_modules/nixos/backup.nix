@@ -1068,9 +1068,10 @@ EOF
       (mkIf cfg.monitoring.errorAnalysis.enable {
         backup-error-analyzer = {
           description = "Intelligent backup error analysis and categorization";
-          path = with pkgs; [ jq gnugrep gawk coreutils util-linux ];
+          path = with pkgs; [ jq gnugrep gawk coreutils util-linux findutils ];
           script = ''
             set -euo pipefail
+            set -x
 
             LOG_DIR="${cfg.monitoring.logDir}"
             ANALYSIS_LOG="$LOG_DIR/error-analysis.jsonl"
@@ -1087,6 +1088,9 @@ EOF
 
             # Create state directory if it doesn't exist
             mkdir -p "$(dirname "$STATE_FILE")"
+            # Ensure log directory and analysis log exist
+            mkdir -p "$LOG_DIR"
+            : > "$ANALYSIS_LOG"
 
             # Read last processed timestamp (default to 1 hour ago if state file doesn't exist)
             if [ -f "$STATE_FILE" ]; then
@@ -1109,13 +1113,17 @@ EOF
 
               # Extract error events from JSON logs (including *_complete events with non-success status)
               # Only process events newer than LAST_PROCESSED to avoid duplicates (using epoch time)
-              jq -r --argjson last_epoch "$LAST_EPOCH" 'select(
-                ((.timestamp|fromdateiso8601) // 0) > $last_epoch and (
-                  (.event == "backup_failure") or
-                  (.event == "verification_complete" and .status != "success") or
-                  (.event == "restore_test_complete" and .status != "success")
-                )
-              ) | @base64' "$logfile" 2>/dev/null | while read -r encoded_line; do
+              jq -Rr --argjson last_epoch "$LAST_EPOCH" '
+                fromjson? | select(type == "object") |
+                select(
+                  (((.timestamp) | (try fromdateiso8601 catch 0)) // 0) > $last_epoch and (
+                    (.event == "backup_failure") or
+                    (.event == "verification_complete" and .status != "success") or
+                    (.event == "restore_test_complete" and .status != "success")
+                  )
+                ) |
+                @base64
+              ' "$logfile" 2>/dev/null | while read -r encoded_line; do
                 if [ -n "$encoded_line" ]; then
                   line=$(echo "$encoded_line" | base64 -d)
 
@@ -1195,8 +1203,8 @@ EOF
 EOF
 
               for category in network storage permission corruption resource unknown; do
-                count=$(jq -r --argjson cutoff "$CUTOFF_EPOCH" --arg cat "$category" \
-                  'select(((.analysis.original_timestamp|fromdateiso8601) // 0) >= $cutoff and .analysis.category == $cat)' \
+                count=$(jq -Rr --argjson cutoff "$CUTOFF_EPOCH" --arg cat "$category" \
+                  'fromjson? | select(type == "object") | select((((.analysis.original_timestamp) | (try fromdateiso8601 catch 0)) // 0) >= $cutoff and .analysis.category == $cat)' \
                   "$ANALYSIS_LOG" 2>/dev/null | wc -l)
                 echo "backup_errors_by_category_total{category=\"$category\",hostname=\"${config.networking.hostName}\"} $count" >> "$METRICS_TEMP"
               done
@@ -1208,8 +1216,8 @@ EOF
 EOF
 
               for severity in critical high medium low; do
-                count=$(jq -r --argjson cutoff "$CUTOFF_EPOCH" --arg sev "$severity" \
-                  'select(((.analysis.original_timestamp|fromdateiso8601) // 0) >= $cutoff and .analysis.severity == $sev)' \
+                count=$(jq -Rr --argjson cutoff "$CUTOFF_EPOCH" --arg sev "$severity" \
+                  'fromjson? | select(type == "object") | select((((.analysis.original_timestamp) | (try fromdateiso8601 catch 0)) // 0) >= $cutoff and .analysis.severity == $sev)' \
                   "$ANALYSIS_LOG" 2>/dev/null | wc -l)
                 echo "backup_errors_by_severity_total{severity=\"$severity\",hostname=\"${config.networking.hostName}\"} $count" >> "$METRICS_TEMP"
               done
