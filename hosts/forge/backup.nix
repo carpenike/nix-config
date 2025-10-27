@@ -53,6 +53,7 @@ in
 
     # Mount NFS shares from nas-1 for backups
     # Restic backup storage (non-database data)
+    # Prefer declarative fileSystems with systemd automount and explicit network dependency
     fileSystems."/mnt/nas-backup" = {
       device = "nas-1.holthome.net:/mnt/backup/forge/restic";
       fsType = "nfs";
@@ -60,11 +61,18 @@ in
         "nfsvers=4.2"
         "rw"
         "noatime"
-        "x-systemd.automount"
-        "x-systemd.idle-timeout=600"  # Unmount after 10 minutes idle
-        "x-systemd.mount-timeout=30s"
+        "noauto"                          # don’t mount at boot; automount will trigger on access
+        "_netdev"                         # mark as network device
+        "x-systemd.automount"             # create/enable automount unit
+        "x-systemd.idle-timeout=600"      # unmount after 10 minutes idle
+        "x-systemd.mount-timeout=30s"     # fail fast if NAS is down
+        "x-systemd.force-unmount=true"    # force unmount on shutdown to avoid hangs
+        "x-systemd.after=network-online.target"
+        "x-systemd.requires=network-online.target"
       ];
     };
+
+    # Static systemd.mount removed; rely on fileSystems automount and RequiresMountsFor in dependent services.
 
     # PostgreSQL backups via pgBackRest (separate mount for isolation)
     # Hardened for pgBackRest WAL archiving reliability

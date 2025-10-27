@@ -674,6 +674,10 @@ with lib;
               # Restart on transient failures with exponential backoff
               Restart = "on-failure";
               RestartSec = "5m";
+
+              # Harden shutdown: kill all processes in cgroup after 2 minutes
+              TimeoutStopSec = "2m";
+              KillMode = "control-group";
             };
             unitConfig = {
               # StartLimitBurst=3: Allow up to 3 restart attempts

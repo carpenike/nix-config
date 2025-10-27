@@ -218,7 +218,8 @@ in
               CURRENT_VALUE=$(${pkgs.zfs}/bin/zfs get -H -o value ${escape prop} ${escape datasetPath} || echo "-")
 
               # Compare with desired value (unescaped)
-              if [ "$CURRENT_VALUE" != ${escape value} ]; then
+              # Compare with desired value (unescaped) to avoid false mismatches
+              if [ "$CURRENT_VALUE" != "${value}" ]; then
                 echo "  Setting property: ${prop}=${value}"
                 # The 'property=value' pair must be a single argument to 'zfs set'
                 if ${pkgs.zfs}/bin/zfs set ${escape "${prop}=${value}"} ${escape datasetPath}; then

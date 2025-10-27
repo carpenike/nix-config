@@ -14,7 +14,6 @@
 let
   # Centralize enable flag so database provisioning is conditional
   dispatcharrEnabled = true;  # ENABLED - shared PostgreSQL integration complete
-  dispatcharrPort = 9191;
 in
 {
   config = lib.mkMerge [
@@ -32,33 +31,10 @@ in
       };
     })
 
-    # Reverse proxy registration using new Caddy virtualHosts pattern
-    (lib.mkIf dispatcharrEnabled {
-      modules.services.caddy.virtualHosts.iptv = {
-        enable = true;
-        hostName = "iptv.${config.networking.domain}";  # iptv.holthome.net
-
-        # Structured backend configuration
-        backend = {
-          scheme = "http";
-          host = "127.0.0.1";
-          port = dispatcharrPort;
-        };
-
-        # Security headers for web interface
-        security.customHeaders = {
-          "X-Frame-Options" = "SAMEORIGIN";
-          "X-Content-Type-Options" = "nosniff";
-          "X-XSS-Protection" = "1; mode=block";
-          "Referrer-Policy" = "strict-origin-when-cross-origin";
-        };
-
-        # auth = null;  # Add authentication if needed
-
-        # NOTE: Caddy handles WebSocket proxying automatically.
-        # No explicit configuration needed.
-      };
-    })
+    # Reverse proxy registration is handled automatically by the
+    # dispatcharr module via modules.services.dispatcharr.reverseProxy.
+    # Avoid defining a separate Caddy vhost here to prevent duplicate
+    # site blocks for iptv.${config.networking.domain}.
 
     # Dispatcharr container service configuration
     # IPTV stream management
