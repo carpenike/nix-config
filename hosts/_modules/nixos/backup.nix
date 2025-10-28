@@ -302,6 +302,16 @@ with lib;
           default = "/var/lib/node_exporter/textfile_collector";
           description = "Directory for Node Exporter textfile collector metrics";
         };
+        collectRepoCounters = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Emit repository-wide counters (restic_snapshots_total) during verification runs.";
+        };
+        collectLocks = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Emit repository locks count (restic_locks_total) during verification runs.";
+        };
       };
 
       logDir = mkOption {
@@ -780,6 +790,29 @@ restic_verification_last_run_timestamp{repository="${repoName}",hostname="${conf
 # TYPE restic_verification_status gauge
 restic_verification_status{repository="${repoName}",hostname="${config.networking.hostName}"} $STATUS_VALUE
 EOF
+                # Optional: repository-wide counters for parity (snapshots_total, locks_total)
+                if [ "${toString cfg.monitoring.prometheus.collectRepoCounters}" = "true" ]; then
+                  ${optionalString ((repoConfig.environmentFile or null) != null) ''
+                    if [ -f "${repoConfig.environmentFile}" ]; then
+                      set -a
+                      . "${repoConfig.environmentFile}"
+                      set +a
+                    fi
+                  ''}
+                  SNAP_COUNT=$(${pkgs.restic}/bin/restic -r "${repoConfig.url}" --password-file "${repoConfig.passwordFile}" \
+                    snapshots --json 2>/dev/null | ${pkgs.jq}/bin/jq 'length' 2>/dev/null || echo 0)
+                  echo "# HELP restic_snapshots_total Total number of snapshots in the repository" >> "$METRICS_TEMP"
+                  echo "# TYPE restic_snapshots_total counter" >> "$METRICS_TEMP"
+                  echo "restic_snapshots_total{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $SNAP_COUNT" >> "$METRICS_TEMP"
+                  if [ "${toString cfg.monitoring.prometheus.collectLocks}" = "true" ]; then
+                    # Note: locks listing may be expensive on cloud backends; best-effort only
+                    LOCKS_COUNT=$(${pkgs.restic}/bin/restic -r "${repoConfig.url}" --password-file "${repoConfig.passwordFile}" \
+                      list locks 2>/dev/null | ${pkgs.coreutils}/bin/wc -l | ${pkgs.coreutils}/bin/tr -d ' ' || echo 0)
+                    echo "# HELP restic_locks_total Total number of locks in the repository" >> "$METRICS_TEMP"
+                    echo "# TYPE restic_locks_total counter" >> "$METRICS_TEMP"
+                    echo "restic_locks_total{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $LOCKS_COUNT" >> "$METRICS_TEMP"
+                  fi
+                fi
                 mv "$METRICS_TEMP" "$METRICS_FILE"
               ''}
 
@@ -2057,6 +2090,32 @@ restic_backup_last_success_timestamp{job="${jobName}",repository="${jobConfig.re
 # TYPE restic_backup_status gauge
 restic_backup_status{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} 1
 EOF
+                # Export parity metrics with restic-exporter: timestamp, size, files
+                # Source repository environment if provided
+                ${optionalString ((repo.environmentFile or null) != null) ''
+                  if [ -f "${repo.environmentFile}" ]; then
+                    set -a
+                    . "${repo.environmentFile}"
+                    set +a
+                  fi
+                ''}
+                # Collect last backup stats (size/files) and canonical timestamp metric
+                STATS_JSON=$(${pkgs.restic}/bin/restic -r "${repo.url}" --password-file "${repo.passwordFile}" \
+                  stats --json --mode restore-size --latest 2>/dev/null || echo "")
+                if [ -n "$STATS_JSON" ]; then
+                  SIZE_BYTES=$(${pkgs.jq}/bin/jq -r '.total_size // .total_bytes // 0' <<< "$STATS_JSON")
+                  FILES_TOTAL=$(${pkgs.jq}/bin/jq -r '.total_file_count // .files // 0' <<< "$STATS_JSON")
+                  # Append exporter-compatible metrics
+                  echo "# HELP restic_backup_timestamp Timestamp of the last backup" >> "$METRICS_TEMP"
+                  echo "# TYPE restic_backup_timestamp gauge" >> "$METRICS_TEMP"
+                  echo "restic_backup_timestamp{job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $TIMESTAMP" >> "$METRICS_TEMP"
+                  echo "# HELP restic_backup_size_total Total size of backup in bytes" >> "$METRICS_TEMP"
+                  echo "# TYPE restic_backup_size_total counter" >> "$METRICS_TEMP"
+                  echo "restic_backup_size_total{job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $SIZE_BYTES" >> "$METRICS_TEMP"
+                  echo "# HELP restic_backup_files_total Number of files in the backup" >> "$METRICS_TEMP"
+                  echo "# TYPE restic_backup_files_total counter" >> "$METRICS_TEMP"
+                  echo "restic_backup_files_total{job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $FILES_TOTAL" >> "$METRICS_TEMP"
+                fi
                 ${pkgs.coreutils}/bin/mv "$METRICS_TEMP" "$METRICS_FILE"
               ''}
             '';
