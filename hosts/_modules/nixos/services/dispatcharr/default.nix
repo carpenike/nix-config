@@ -475,6 +475,7 @@ in
         targetDataset = "backup/forge/services/dispatcharr";
         sendOptions = "wp";  # w = raw send, p = preserve properties
         recvOptions = "u";   # u = don't mount on receive
+        hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
       };
     };
 

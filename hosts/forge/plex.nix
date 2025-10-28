@@ -57,7 +57,8 @@
         type = "promql";
         alertname = "PlexHealthcheckStale";
         expr = "time() - plex_last_check_timestamp > 600";
-        for = "0m";
+        # Guard against timer jitter and brief executor delays
+        for = "2m";
         severity = "high";
         labels = { service = "plex"; category = "availability"; };
         annotations = {

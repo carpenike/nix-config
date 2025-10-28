@@ -275,7 +275,7 @@ in
         enable = true;
         schedule = "weekly";
         checkData = false;  # Set to true for thorough data verification (slow)
-        checkDataSubset = "5%";
+        checkDataSubset = "10%";  # Increase subset for stronger offsite verification
       };
 
       # Enable restore testing

@@ -26,14 +26,8 @@
 
 let
   cfg = config.modules.backup.sanoid;
-
-  # Helper to create a valid systemd service name from a ZFS dataset path
-  # This mimics the logic within the NixOS syncoid module.
-  sanitizeDatasetName = dataset: lib.strings.replaceStrings [ "/" ] [ "-" ] dataset;
-
   # Get datasets that have replication configured
   datasetsWithReplication = lib.filterAttrs (name: conf: conf.replication != null) cfg.datasets;
-
 in
 {
   options.modules.backup.sanoid = {
@@ -142,6 +136,10 @@ in
                   default = null;
                   description = "Syncoid receive options (e.g., 'u' for no mount).";
                 };
+                hostKey = lib.mkOption {
+                  type = lib.types.str;
+                  description = "Public SSH host key line for the target, used to pin host identity (e.g., 'nas-1.holthome.net ssh-ed25519 AAAA...').";
+                };
               };
             });
             default = null;
@@ -222,6 +220,13 @@ in
         message = "modules.backup.sanoid: Some datasets have replication configured but sshKeyPath is not set. Please configure sshKeyPath for Syncoid authentication.";
       }
       {
+        assertion = builtins.all (name:
+          let ds = cfg.datasets.${name};
+          in ds.replication == null || (ds.replication != null && (ds.replication.hostKey or null) != null)
+        ) (builtins.attrNames cfg.datasets);
+        message = "modules.backup.sanoid: Datasets with replication enabled must have a 'hostKey' specified for SSH host pinning.";
+      }
+      {
         # Fix: useTemplate is a list, so we need to iterate over it and check each template name
         assertion = builtins.all (name:
           let ts = cfg.datasets.${name}.useTemplate;
@@ -256,6 +261,12 @@ in
       # Add to node-exporter group so metrics can be written
       extraGroups = [ "node-exporter" ];
     };
+    # Populate global SSH known_hosts with replication targets to avoid per-user management
+    programs.ssh.knownHosts = let
+      replicationEntries = lib.mapAttrsToList (dataset: conf: conf.replication) (lib.filterAttrs (n: ds: ds.replication != null) cfg.datasets);
+    in lib.foldl' (acc: repl: acc // {
+      "${repl.targetHost}" = { publicKey = repl.hostKey; };
+    }) {} replicationEntries;
     users.groups.${cfg.replicationGroup} = {};
 
     # -- Notification Templates --
@@ -302,8 +313,8 @@ in
       };
     };
 
-    # -- ZFS Delegated Permissions Service --
-    # This is configured as a standalone systemd service outside the merged block
+  # -- ZFS Delegated Permissions Service --
+  # This is configured as a standalone systemd service outside the merged block
 
     # -- Sanoid Service Configuration --
     services.sanoid = {
@@ -314,6 +325,8 @@ in
         inherit (conf) recursive useTemplate autosnap autoprune;
       } // conf.retention) cfg.datasets;
     };
+  # Prevent systemd from stopping sanoid when nothing wants it; keep timer-driven behavior stable
+  # Applied within the systemd merge block below to avoid duplicate attributes
 
     # -- Syncoid Service Configuration --
     services.syncoid = lib.mkIf (datasetsWithReplication != {}) {
@@ -332,13 +345,22 @@ in
       ) datasetsWithReplication;
     };
 
-    # -- Systemd Configuration (Sanoid, Syncoid, Health Checks) --
-    systemd = lib.mkMerge ([
+  # -- Systemd Configuration (Sanoid, Syncoid, Health Checks) --
+  systemd = lib.mkMerge ([
       # Create .ssh directory for the replication user
       {
         tmpfiles.rules = lib.optional (cfg.sshKeyPath != null)
           "d /var/lib/${cfg.replicationUser}/.ssh 0700 ${cfg.replicationUser} ${cfg.replicationGroup} -";
       }
+      # Define a syncoid target to group replication jobs for coordination/Conflicts
+      {
+        targets.syncoid = lib.mkIf (datasetsWithReplication != {}) {
+          description = "Syncoid Replication Jobs";
+          wantedBy = [ "multi-user.target" ];
+        };
+      }
+      # Populate known_hosts for the replication user to avoid interactive SSH prompts
+      # Declarative known_hosts is provided via users.users.<replicationUser>.openssh.knownHosts; remove imperative service
       # ZFS Delegated Permissions
       {
         services.zfs-delegate-permissions = {
@@ -395,6 +417,10 @@ in
           Group = "sanoid";
         };
       }
+      # Prevent systemd from stopping sanoid when nothing wants it; keep timer-driven behavior stable
+      {
+        services.sanoid.unitConfig.StopWhenUnneeded = lib.mkForce false;
+      }
       # Add pre/post snapshot script hooks for datasets that need them
       # SECURITY: Scripts run as sanoid user, not root. Use sudo for privileged operations.
       # If scripts need elevated privileges, configure sudoers with NOPASSWD for specific commands.
@@ -405,33 +431,40 @@ in
         in {
           ExecStartPre = lib.mkIf (datasetsWithPreScript != {}) (
             lib.mkBefore (lib.mapAttrsToList (name: conf:
-              # Validate script exists and is executable before running (no root privileges)
               "${pkgs.bash}/bin/bash -c 'test -x ${toString conf.preSnapshotScript} && exec ${toString conf.preSnapshotScript} || { echo \"ERROR: Pre-snapshot script ${toString conf.preSnapshotScript} not found or not executable\" >&2; exit 1; }'"
             ) datasetsWithPreScript)
           );
           ExecStartPost = lib.mkIf (datasetsWithPostScript != {}) (
             lib.mkAfter (lib.mapAttrsToList (name: conf:
-              # Validate script exists and is executable before running (no root privileges)
               "${pkgs.bash}/bin/bash -c 'test -x ${toString conf.postSnapshotScript} && exec ${toString conf.postSnapshotScript} || { echo \"ERROR: Post-snapshot script ${toString conf.postSnapshotScript} not found or not executable\" >&2; exit 1; }'"
             ) datasetsWithPostScript)
           );
         };
       }
-      # Wire Sanoid to notification system
+      # Wire Sanoid to notification system and keep unit persistent
       {
         services.sanoid.unitConfig.OnFailure = lib.mkIf (config.modules.notifications.enable or false)
           [ "notify@zfs-snapshot-failure:%n.service" ];
       }
     ] ++ (lib.mapAttrsToList (dataset: conf:
       let
-        serviceName = "syncoid-${sanitizeDatasetName dataset}";
+        serviceName = "syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}";
       in
       {
         # Wire each syncoid job to the notification system and override sandboxing
         services.${serviceName} = {
-          unitConfig = lib.mkIf (config.modules.notifications.enable or false) {
-            OnFailure = [ "notify@zfs-replication-failure:%n.service" ];
-          };
+          # Declarative known_hosts ensures host keys are available; no dependency needed
+          unitConfig = lib.mkMerge [
+            (lib.mkIf (config.modules.notifications.enable or false) {
+              OnFailure = [ "notify@zfs-replication-failure:%n.service" ];
+            })
+            {
+              # Group syncoid under a target and serialize with restic backups
+              PartOf = [ "syncoid.target" ];
+              # Prevent concurrent execution with restic backups (heavy I/O serialization)
+              Conflicts = [ "restic-backups.target" ];
+            }
+          ];
 
           # Override sandboxing to allow SSH key access, especially for SOPS-managed keys
           # Both the symlink location (/var/lib/zfs-replication/.ssh) and the actual
@@ -458,7 +491,7 @@ in
           # Export success/failure metrics for monitoring
           preStart = ''
             mkdir -p /var/lib/node_exporter/textfile_collector
-            cat > /var/lib/node_exporter/textfile_collector/syncoid-${sanitizeDatasetName dataset}.prom <<EOF
+            cat > /var/lib/node_exporter/textfile_collector/syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
 # HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
 # TYPE syncoid_replication_status gauge
 syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} -1
@@ -471,7 +504,7 @@ EOF
           postStart = ''
             # Record successful completion
             mkdir -p /var/lib/node_exporter/textfile_collector
-            cat > /var/lib/node_exporter/textfile_collector/syncoid-${sanitizeDatasetName dataset}.prom <<EOF
+            cat > /var/lib/node_exporter/textfile_collector/syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
 # HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
 # TYPE syncoid_replication_status gauge
 syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} 1
@@ -485,7 +518,7 @@ EOF
             # Check if service failed (exit code != 0)
             if [ "$SERVICE_RESULT" != "success" ]; then
               mkdir -p /var/lib/node_exporter/textfile_collector
-              cat > /var/lib/node_exporter/textfile_collector/syncoid-${sanitizeDatasetName dataset}.prom <<EOF
+              cat > /var/lib/node_exporter/textfile_collector/syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
 # HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
 # TYPE syncoid_replication_status gauge
 syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} 0
@@ -672,7 +705,7 @@ EOF
                   echo "[$(date -Iseconds)] Dataset ${dataset}: Last snapshot $LAG_HOURS hours ago"
 
                   # Export metric for Prometheus
-                  cat > /var/lib/node_exporter/textfile_collector/zfs-replication-lag-${sanitizeDatasetName dataset}.prom <<EOF
+                  cat > /var/lib/node_exporter/textfile_collector/zfs-replication-lag-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
 # HELP zfs_replication_lag_seconds Time since last snapshot was created (source-side lag indicator)
 # TYPE zfs_replication_lag_seconds gauge
 zfs_replication_lag_seconds{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $LAG_SECONDS

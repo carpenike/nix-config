@@ -237,12 +237,12 @@ with lib;
                 options = {
                   memory = mkOption {
                     type = types.str;
-                    default = "256m";
+                    default = "256M";
                     description = "Memory limit for backup process";
                   };
                   memoryReservation = mkOption {
                     type = types.str;
-                    default = "128m";
+                    default = "128M";
                     description = "Memory reservation for backup process";
                   };
                   cpus = mkOption {
@@ -526,7 +526,7 @@ with lib;
 
       outputDir = mkOption {
         type = types.path;
-        default = "/var/lib/backup/docs";
+        default = "/var/lib/backup-docs";
         description = "Directory for generated documentation";
       };
 
@@ -663,10 +663,14 @@ with lib;
 
               # Apply per-job resource limits from configuration
               MemoryMax = jobConfig.resources.memory;
-              MemoryLow = jobConfig.resources.memoryReservation;
+              MemoryHigh = jobConfig.resources.memoryReservation;
               # Convert CPUs string (e.g., "0.5") to percentage for CPUQuota
               # Use builtins.fromJSON to parse string as number (Nix doesn't have toFloat)
               CPUQuota = "${toString (builtins.floor ((builtins.fromJSON jobConfig.resources.cpus) * 100))}%";
+
+              # Serialize heavy I/O: avoid contention with Syncoid replication jobs
+              # Conflicts with the syncoid.target defined in Sanoid module
+              Conflicts = [ "syncoid.target" ];
 
               # Automatic retry on transient failures (network issues, temporary I/O errors)
               # Restart=on-failure: Retry if the service exits with non-zero status
@@ -684,6 +688,10 @@ with lib;
               # StartLimitIntervalSec=24h: Reset the attempt counter after 24 hours
               StartLimitBurst = 3;
               StartLimitIntervalSec = "24h";
+              # Group restic backup services under a common target for coordination
+              PartOf = [ "restic-backups.target" ];
+              # Ensure backups run after Sanoid snapshot creation
+              After = [ "sanoid.service" ];
             };
           };
         }
@@ -1674,6 +1682,12 @@ EOF
       ) cfg.restic.jobs))
     ];
 
+    # Group target for all restic backup services to enable coordination with other subsystems
+    systemd.targets.restic-backups = {
+      description = "Restic Backup Services";
+      # No automatic start; used for Conflicts/PartOf grouping only
+    };
+
     # Create required directories for Phase 3 features
     systemd.tmpfiles.rules = mkMerge [
       # Base directory for backup state files
@@ -1730,10 +1744,12 @@ EOF
               "--compression=${cfg.restic.globalSettings.compression}"
               "--read-concurrency=${toString cfg.restic.globalSettings.readConcurrency}"
             ];
+            # Note: Unit-level coordination is set in systemd.services.restic-backups-${jobName}
             timerConfig = {
+              # Stagger timer slightly to avoid herd effects; runs shortly after Sanoid
               OnCalendar = cfg.schedule;
               Persistent = true;
-              RandomizedDelaySec = "15m";
+              RandomizedDelaySec = "10m";
             };
             pruneOpts = [
               "--keep-daily ${toString cfg.restic.globalSettings.retention.daily}"

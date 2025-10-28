@@ -287,7 +287,7 @@ in
             ];
 
             resources = {
-              memory = "1g";
+              memory = "1G";
               memoryReservation = "512M";
               cpus = "2.0";  # Higher resources for large dataset
             };

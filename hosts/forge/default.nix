@@ -446,6 +446,7 @@ in
               targetDataset = "backup/forge/zfs-recv/home";
               sendOptions = "w";  # Raw encrypted send
               recvOptions = "u";  # Don't mount on receive
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };
           };
 
@@ -458,6 +459,7 @@ in
               targetDataset = "backup/forge/zfs-recv/persist";
               sendOptions = "w";
               recvOptions = "u";
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };
           };
 
@@ -501,6 +503,7 @@ in
               targetDataset = "backup/forge/zfs-recv/loki";
               sendOptions = "w";  # Raw encrypted send
               recvOptions = "u";  # Don't mount on receive
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };
           };
 
@@ -514,6 +517,23 @@ in
               targetDataset = "backup/forge/zfs-recv/promtail";
               sendOptions = "w";  # Raw encrypted send
               recvOptions = "u";  # Don't mount on receive
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+            };
+          };
+
+          # Plex media server application data
+          # Enable snapshots and replication for Plex metadata/state
+          "tank/services/plex" = {
+            useTemplate = [ "services" ];
+            recursive = false;
+            autosnap = true;
+            autoprune = true;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/plex";
+              sendOptions = "w";  # Raw encrypted send
+              recvOptions = "u";  # Don't mount on receive
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };
           };
         };
