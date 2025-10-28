@@ -679,8 +679,7 @@ with lib;
               CPUQuota = "${toString (builtins.floor ((builtins.fromJSON jobConfig.resources.cpus) * 100))}%";
 
               # Serialize heavy I/O: avoid contention with Syncoid replication jobs
-              # Conflicts with the syncoid.target defined in Sanoid module
-              Conflicts = [ "syncoid.target" ];
+              # Note: Conflicts is a [Unit] directive; set it in unitConfig below
 
               # Automatic retry on transient failures (network issues, temporary I/O errors)
               # Restart=on-failure: Retry if the service exits with non-zero status
@@ -702,6 +701,9 @@ with lib;
               PartOf = [ "restic-backups.target" ];
               # Ensure backups run after Sanoid snapshot creation
               After = [ "sanoid.service" ];
+              # Prevent concurrent execution with Syncoid replication jobs (heavy I/O serialization)
+              # Conflicts is a [Unit] directive (systemd.unit), not [Service]
+              Conflicts = [ "syncoid.target" ];
             };
           };
         }
