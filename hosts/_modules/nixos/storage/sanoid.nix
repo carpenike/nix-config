@@ -264,9 +264,21 @@ in
     # Populate global SSH known_hosts with replication targets to avoid per-user management
     programs.ssh.knownHosts = let
       replicationEntries = lib.mapAttrsToList (dataset: conf: conf.replication) (lib.filterAttrs (n: ds: ds.replication != null) cfg.datasets);
-    in lib.foldl' (acc: repl: acc // {
-      "${repl.targetHost}" = { publicKey = repl.hostKey; };
-    }) {} replicationEntries;
+    in lib.foldl' (acc: repl:
+      let
+        # hostKey may be provided as either:
+        #  - "<host> <type> <key>" (e.g., "nas-1.holthome.net ssh-ed25519 AAAA...")
+        #  - "<type> <key>" (e.g., "ssh-ed25519 AAAA...")
+        # programs.ssh.knownHosts expects only "<type> <key>" in publicKey,
+        # with the hostname supplied by the attribute key. Normalize here.
+        tokens = lib.splitString " " (repl.hostKey or "");
+        cleanedKey = if tokens != [] && (builtins.head tokens) == repl.targetHost
+          then builtins.concatStringsSep " " (builtins.tail tokens)
+          else (repl.hostKey or "");
+      in acc // {
+        "${repl.targetHost}" = { publicKey = cleanedKey; };
+      }
+    ) {} replicationEntries;
     users.groups.${cfg.replicationGroup} = {};
 
     # -- Notification Templates --
