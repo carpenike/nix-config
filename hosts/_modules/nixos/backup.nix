@@ -846,6 +846,8 @@ EOF
                 [ cfg.performance.cacheDir ]
                 (mkIf cfg.monitoring.enable [ cfg.monitoring.logDir ])
                 (mkIf cfg.monitoring.prometheus.enable [ cfg.monitoring.prometheus.metricsDir ])
+                # Allow writing repository lock files during verification
+                (mkIf (lib.hasPrefix "/" (repoConfig.url or "")) [ repoConfig.url ])
               ];
             };
           };
