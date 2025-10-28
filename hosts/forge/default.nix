@@ -519,7 +519,7 @@ in
             replication = {
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/zfs-recv/loki";
-              sendOptions = "w";  # Raw encrypted send
+              sendOptions = "w";  # Raw encrypted send (no property preservation)
               recvOptions = "u";  # Don't mount on receive
               hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };
@@ -533,7 +533,7 @@ in
             replication = {
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/zfs-recv/promtail";
-              sendOptions = "w";  # Raw encrypted send
+              sendOptions = "w";  # Raw encrypted send (no property preservation)
               recvOptions = "u";  # Don't mount on receive
               hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };
@@ -549,7 +549,7 @@ in
             replication = {
               targetHost = "nas-1.holthome.net";
               targetDataset = "backup/forge/zfs-recv/plex";
-              sendOptions = "w";  # Raw encrypted send
+              sendOptions = "w";  # Raw encrypted send (no property preservation)
               recvOptions = "u";  # Don't mount on receive
               hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };

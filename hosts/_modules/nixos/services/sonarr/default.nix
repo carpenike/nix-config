@@ -345,8 +345,9 @@ in
       # Replication to nas-1 for disaster recovery
       replication = {
         targetHost = "nas-1.holthome.net";
-        targetDataset = "backup/forge/services/sonarr";
-        sendOptions = "wp";  # w = raw send, p = preserve properties
+        # Align with authorized_keys restriction and other services
+        targetDataset = "backup/forge/zfs-recv/sonarr";
+        sendOptions = "wp";  # raw encrypted send with property preservation
         recvOptions = "u";   # u = don't mount on receive
         hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
       };

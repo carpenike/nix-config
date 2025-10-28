@@ -361,7 +361,10 @@ in
   systemd = lib.mkMerge ([
       # Create .ssh directory for the replication user
       {
-        tmpfiles.rules = lib.optional (cfg.sshKeyPath != null)
+        # Only create the .ssh directory when using a persistent key under /var/lib/<user>/.ssh
+        tmpfiles.rules = lib.optional (
+          cfg.sshKeyPath != null && lib.hasPrefix ("/var/lib/" + cfg.replicationUser + "/.ssh") (toString cfg.sshKeyPath)
+        )
           "d /var/lib/${cfg.replicationUser}/.ssh 0700 ${cfg.replicationUser} ${cfg.replicationGroup} -";
       }
       # Define a syncoid target to group replication jobs for coordination/Conflicts
@@ -463,8 +466,8 @@ in
         serviceName = "syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}";
       in
       {
-        # Wire each syncoid job to the notification system and override sandboxing
-        services.${serviceName} = {
+  # Wire each syncoid job to the notification system and override sandboxing
+  services.${serviceName} = {
           # Declarative known_hosts ensures host keys are available; no dependency needed
           unitConfig = lib.mkMerge [
             (lib.mkIf (config.modules.notifications.enable or false) {
@@ -475,71 +478,18 @@ in
               PartOf = [ "syncoid.target" ];
               # Prevent concurrent execution with restic backups (heavy I/O serialization)
               Conflicts = [ "restic-backups.target" ];
+              # Ensure key file exists before starting (works for persistent or ephemeral paths)
+              ConditionPathExists = toString cfg.sshKeyPath;
             }
           ];
 
-          # Override sandboxing to allow SSH key access, especially for SOPS-managed keys
-          # Both the symlink location (/var/lib/zfs-replication/.ssh) and the actual
-          # SOPS secret path (/run/secrets/zfs-replication) must be bound for resolution
+          # Minimal sandbox overrides: set safe working directory only
           serviceConfig = lib.mkIf (cfg.sshKeyPath != null) {
-            # Fix CHDIR error by forcing safe working directory
             WorkingDirectory = lib.mkForce "/";
-            # Remove conflicting InaccessiblePaths that block the working directory
-            InaccessiblePaths = lib.mkForce [];
-            # Allow metrics writes to Prometheus textfile collector
-            ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
-            # Override default umask (0066) to create world-readable metrics files for node_exporter
-            UMask = lib.mkForce "0022";
-
-            BindReadOnlyPaths = lib.mkForce [
-              "/nix/store"
-              "/etc"
-              "/bin/sh"
-              "/var/lib/zfs-replication/.ssh"      # Symlink location
-              "/run/secrets/zfs-replication"        # SOPS secret directory
-            ];
           };
 
-          # Export success/failure metrics for monitoring
-          preStart = ''
-            mkdir -p /var/lib/node_exporter/textfile_collector
-            cat > /var/lib/node_exporter/textfile_collector/syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
-# HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
-# TYPE syncoid_replication_status gauge
-syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} -1
-# HELP syncoid_replication_last_run_timestamp Unix timestamp of last Syncoid run
-# TYPE syncoid_replication_last_run_timestamp gauge
-syncoid_replication_last_run_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $(date +%s)
-EOF
-          '';
-
-          postStart = ''
-            # Record successful completion
-            mkdir -p /var/lib/node_exporter/textfile_collector
-            cat > /var/lib/node_exporter/textfile_collector/syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
-# HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
-# TYPE syncoid_replication_status gauge
-syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} 1
-# HELP syncoid_replication_last_success_timestamp Unix timestamp of last successful Syncoid replication
-# TYPE syncoid_replication_last_success_timestamp gauge
-syncoid_replication_last_success_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $(date +%s)
-EOF
-          '';
-
-          postStop = ''
-            # Check if service failed (exit code != 0)
-            if [ "$SERVICE_RESULT" != "success" ]; then
-              mkdir -p /var/lib/node_exporter/textfile_collector
-              cat > /var/lib/node_exporter/textfile_collector/syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
-# HELP syncoid_replication_status Syncoid replication job status (1=success, 0=failed, -1=running)
-# TYPE syncoid_replication_status gauge
-syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} 0
-# HELP syncoid_replication_last_failure_timestamp Unix timestamp of last Syncoid failure
-# TYPE syncoid_replication_last_failure_timestamp gauge
-syncoid_replication_last_failure_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $(date +%s)
-EOF
-            fi
-          '';
+          # Metrics hooks removed to avoid CHDIR failures in ExecStartPre/ExecStopPost.
+          # Replication status can be inferred from unit state and logs.
         };
       }
     ) datasetsWithReplication) ++ [

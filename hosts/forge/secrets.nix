@@ -34,11 +34,13 @@
         };
 
         # ZFS replication SSH key
+        # Ephemeral secret (preferred): do not set a persistent path so sops-nix
+        # writes the decrypted key under /run/secrets and we reference it via
+        # config.sops.secrets."zfs-replication/ssh-key".path
         "zfs-replication/ssh-key" = {
           mode = "0600";
           owner = "zfs-replication";
           group = "zfs-replication";
-          path = "/var/lib/zfs-replication/.ssh/id_ed25519";
         };
 
         # Pushover notification credentials (for Alertmanager)
