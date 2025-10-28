@@ -672,8 +672,9 @@ with lib;
               CPUSchedulingPolicy = "idle";
 
               # Apply per-job resource limits from configuration
-              MemoryMax = jobConfig.resources.memory;
-              MemoryHigh = jobConfig.resources.memoryReservation;
+              # Normalize memory units to uppercase (systemd expects e.g. '128M', '1G')
+              MemoryMax = lib.strings.toUpper (jobConfig.resources.memory);
+              MemoryHigh = lib.strings.toUpper (jobConfig.resources.memoryReservation);
               # Convert CPUs string (e.g., "0.5") to percentage for CPUQuota
               # Use builtins.fromJSON to parse string as number (Nix doesn't have toFloat)
               CPUQuota = "${toString (builtins.floor ((builtins.fromJSON jobConfig.resources.cpus) * 100))}%";
@@ -701,10 +702,10 @@ with lib;
               PartOf = [ "restic-backups.target" ];
               # Ensure backups run after Sanoid snapshot creation
               After = [ "sanoid.service" ];
-              # Prevent concurrent execution with Syncoid replication jobs (heavy I/O serialization)
-              # Conflicts is a [Unit] directive (systemd.unit), not [Service]
-              Conflicts = [ "syncoid.target" ];
             };
+            # Prevent concurrent execution with Syncoid replication jobs (heavy I/O serialization)
+            # Use the dedicated NixOS option to place this in the [Unit] section
+            conflicts = [ "syncoid.target" ];
           };
         }
       ) cfg.restic.jobs))
