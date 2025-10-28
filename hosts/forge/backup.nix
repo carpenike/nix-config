@@ -329,7 +329,8 @@ in
       "restic-backup-stale" = {
         type = "promql";
         alertname = "ResticBackupStale";
-        expr = "(time() - restic_backup_last_success_timestamp) > 86400";
+        # Only consider new metrics that use the backup_job label to avoid legacy series with exported_job
+        expr = "(time() - restic_backup_last_success_timestamp{backup_job!=\"\"}) > 86400";
         for = "1h";
         severity = "high";
         labels = { service = "backup"; category = "restic"; };

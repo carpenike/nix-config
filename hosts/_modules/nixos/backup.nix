@@ -664,9 +664,13 @@ with lib;
       # Note: restic doesn't honor RESTIC_IONICE_* environment variables, so we override
       # the systemd service config directly
       (mkMerge (mapAttrsToList (jobName: jobConfig:
-        mkIf (jobConfig.enable && cfg.performance.ioScheduling.enable) {
+        mkIf (jobConfig.enable) {
           "restic-backups-${jobName}" = {
             serviceConfig = {
+              # Run all restic backups as the dedicated service user (override NixOS default 'root')
+              User = lib.mkForce "restic-backup";
+              Group = lib.mkForce "restic-backup";
+
               IOSchedulingClass = cfg.performance.ioScheduling.ioClass;
               IOSchedulingPriority = cfg.performance.ioScheduling.priority;
               CPUSchedulingPolicy = "idle";
@@ -822,7 +826,10 @@ EOF
               [ "$STATUS" = "success" ]
             '';
             unitConfig = {
-              # Notify on verification failures
+              # Ensure network/mount available before running
+              RequiresMountsFor = lib.mkIf (lib.hasPrefix "/" (repoConfig.url or "")) [ repoConfig.url ];
+              Wants = [ "network-online.target" ];
+              After = [ "network-online.target" ];
               # Pass %n (unit name) so dispatcher can extract logs
               OnFailure = mkIf (hasCentralizedNotifications && (notificationsCfg.templates.verification-failure.enable or false))
                 [ "notify@verification-failure:%n.service" ];
