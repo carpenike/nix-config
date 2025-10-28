@@ -10,6 +10,7 @@ with lib;
     ./datasets.nix
     ./nfs-mounts.nix
     ./sanoid.nix
+    ./preseed.nix
     # helpers.nix removed - now using pure helpers-lib.nix imported directly in modules
   ];
 
