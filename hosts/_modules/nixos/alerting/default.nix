@@ -88,50 +88,20 @@ let
     UNIT="''${7:-}"            # e.g., "sonarr.service"
     INSTANCE="$(hostname -f 2>/dev/null || hostname)"
 
-    # Build payload using jq for safe JSON construction
-    if [ -n "''${UNIT}" ]; then
-      payload="$(${pkgs.jq}/bin/jq -n \
-        --arg alertname "''${ALERTNAME}" \
-        --arg severity "''${SEVERITY}" \
-        --arg service "''${SERVICE}" \
-        --arg instance "''${INSTANCE}" \
-        --arg title "''${TITLE}" \
-        --arg body "''${BODY}" \
-        --arg unit "''${UNIT}" \
-        '[{
-          labels: {
-            alertname: $alertname,
-            severity: $severity,
-            service: $service,
-            instance: $instance,
-            unit: $unit
-          },
-          annotations: {
-            summary: $title,
-            description: $body
-          }
-        }]')"
-    else
-      payload="$(${pkgs.jq}/bin/jq -n \
-        --arg alertname "''${ALERTNAME}" \
-        --arg severity "''${SEVERITY}" \
-        --arg service "''${SERVICE}" \
-        --arg instance "''${INSTANCE}" \
-        --arg title "''${TITLE}" \
-        --arg body "''${BODY}" \
-        '[{
-          labels: {
-            alertname: $alertname,
-            severity: $severity,
-            service: $service,
-            instance: $instance
-          },
-          annotations: {
-            summary: $title,
-            description: $body
-          }
-        }]')"
-    fi
+    # Build payload using jq for safe JSON construction (conditionally include unit label)
+    payload="$(${pkgs.jq}/bin/jq -n \
+      --arg alertname "''${ALERTNAME}" \
+      --arg severity "''${SEVERITY}" \
+      --arg service "''${SERVICE}" \
+      --arg instance "''${INSTANCE}" \
+      --arg title "''${TITLE}" \
+      --arg body "''${BODY}" \
+      --arg unit "''${UNIT}" \
+      '[{
+        labels: ( { alertname: $alertname, severity: $severity, service: $service, instance: $instance }
+                  + (if $unit != "" then { unit: $unit } else {} end) ),
+        annotations: { summary: $title, description: $body }
+      }]')"
 
     attempt=0
     max_attempts=3
@@ -317,21 +287,29 @@ in
               repeat_interval = "1m";
             })
             ++ [
+            # Storage-specific grouping: treat each replication path as a distinct group
+            {
+              matchers = [ "category=~\"zfs|syncoid\"" ];
+              group_by = [ "instance" "alertname" "dataset" "target_host" ];
+              continue = true;  # Continue to severity-based delivery
+            }
+          ]
+            ++ [
             {
               matchers = [ "severity=\"critical\"" ];
               receiver = "pushover-critical";
               # Repeat critical alerts more frequently to ensure they are not missed
-              repeat_interval = "15m";
+              repeat_interval = "30m";
             }
             {
               matchers = [ "severity=\"high\"" ];
               receiver = "pushover-high";
-              repeat_interval = "30m";
+              repeat_interval = "2h";
             }
             {
               matchers = [ "severity=\"medium\"" ];
               receiver = "pushover-medium";
-              repeat_interval = "2h";
+              repeat_interval = "6h";
             }
             {
               matchers = [ "severity=\"low\"" ];
@@ -344,6 +322,18 @@ in
         # Inhibition rules to prevent redundant alerts
         # When a critical alert is active, suppress less severe related alerts
         inhibit_rules = [
+          # Suppress replication noise when the target host is down
+          # Requires an InstanceDown alert for the target host
+          {
+            target_matchers = [
+              "alertname=~\"SyncoidReplicationFailed|SyncoidReplicationStale|ZFSReplicationLagHigh|ZFSReplicationStalled\""
+            ];
+            source_matchers = [
+              "alertname=\"InstanceDown\""
+            ];
+            # Match target_host in the replication alert with instance in the InstanceDown alert
+            equal = [ "target_host" "instance" ];
+          }
           # Don't notify about being on battery if we already know the battery is low
           {
             target_matchers = [
@@ -395,8 +385,11 @@ in
               # Informative title: show group size when multiple alerts, else specific summary
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               # Message: list summaries for grouped alerts; else use description with fallback
+              # Append runbook and command hints when provided by alert annotations
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}'';
+{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
+{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
+{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               # Action link: pre-filled Silence form for this alert group (proper multi-filter params)
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
@@ -412,7 +405,9 @@ in
               send_resolved = true;
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}'';
+{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
+{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
+{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
@@ -427,7 +422,9 @@ in
               send_resolved = true;
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}'';
+{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
+{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
+{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
@@ -442,7 +439,9 @@ in
               send_resolved = true;
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}'';
+{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
+{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
+{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
@@ -472,6 +471,9 @@ in
         DynamicUser = lib.mkForce false;
       };
     };
+
+    # Directory is managed by ZFS storage module on hosts (zfs-service-datasets)
+    # No tmpfiles rule needed here.
 
     # Boot and shutdown system events
     systemd.services = {

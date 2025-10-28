@@ -406,8 +406,10 @@ in
         severity = "high";
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
-          summary = "ZFS replication lag exceeds 24 hours for {{ $labels.dataset }}";
-          description = "Dataset {{ $labels.dataset }} has not replicated to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Check Syncoid service: systemctl status syncoid-*.service";
+          summary = "ZFS replication lag exceeds 24h: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "Dataset {{ $labels.dataset }} on {{ $labels.instance }} has not replicated to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Next steps: systemctl status syncoid-*.service; journalctl -u syncoid-*.service --since '2h'; verify SSH for user 'zfs-replication' to {{ $labels.target_host }}; check NAS reachability.";
+          runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=zfs_replication_lag_seconds&g0.tab=1";
+          command = "journalctl -u syncoid-*.service --since '2h'";
         };
       };
 
@@ -420,8 +422,10 @@ in
         severity = "critical";
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
-          summary = "ZFS replication stalled for {{ $labels.dataset }}";
-          description = "No replication to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Data loss risk if source fails. Investigate immediately.";
+          summary = "ZFS replication stalled: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "No replication of {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Data loss risk if source fails. Investigate immediately. Check Syncoid unit logs and network/SSH to target NAS.";
+          runbook_url = "https://alertmanager.forge.holthome.net";
+          command = "systemctl status syncoid-*.service";
         };
       };
 
@@ -434,8 +438,10 @@ in
         severity = "high";
         labels = { service = "storage"; category = "syncoid"; };
         annotations = {
-          summary = "Syncoid replication failed for {{ $labels.dataset }}";
-          description = "Replication to {{ $labels.target_host }} failed. Check logs: journalctl -u syncoid-*.service";
+          summary = "Syncoid replication failed: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "Replication of {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }} failed. Next steps: systemctl status syncoid-*.service; journalctl -u syncoid-*.service --since '2h'; verify SSH for user 'zfs-replication' to {{ $labels.target_host }}; check network/NAS reachability.";
+          runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=syncoid_replication_status%20%3D%3D%200&g0.tab=1";
+          command = "journalctl -u syncoid-*.service --since '2h'";
         };
       };
 
@@ -448,8 +454,10 @@ in
         severity = "high";
         labels = { service = "storage"; category = "syncoid"; };
         annotations = {
-          summary = "Syncoid replication stale for {{ $labels.dataset }}";
-          description = "No successful replication to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Check service: systemctl status syncoid-*.service";
+          summary = "Syncoid replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "No successful replication of {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Investigate Syncoid unit and NAS reachability; check last success timestamp metric path.";
+          runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=time()%20-%20syncoid_replication_last_success_timestamp&g0.tab=1";
+          command = "systemctl status syncoid-*.service";
         };
       };
     };
