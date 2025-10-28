@@ -319,9 +319,9 @@ in
         severity = "critical";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.job }} failed on {{ $labels.hostname }}";
+          summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
           description = "Backup to repository {{ $labels.repository }} failed. Check systemd logs.";
-          command = "journalctl -u restic-backups-{{ $labels.job }}.service --since '2h'";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2h'";
         };
       };
 
@@ -334,9 +334,9 @@ in
         severity = "high";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.job }} is stale on {{ $labels.hostname }}";
+          summary = "Restic backup job {{ $labels.backup_job }} is stale on {{ $labels.hostname }}";
           description = "No successful backup in 24+ hours for repository {{ $labels.repository }}. Last success: {{ $value | humanizeDuration }} ago.";
-          command = "journalctl -u restic-backups-{{ $labels.job }}.service --since '24h'";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
         };
       };
 
@@ -349,9 +349,9 @@ in
         severity = "medium";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.job }} is running slowly on {{ $labels.hostname }}";
+          summary = "Restic backup job {{ $labels.backup_job }} is running slowly on {{ $labels.hostname }}";
           description = "Duration {{ $value | humanizeDuration }} is 2x the 7-day average. Check for performance issues.";
-          command = "journalctl -u restic-backups-{{ $labels.job }}.service --since '2h'";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2h'";
         };
       };
 

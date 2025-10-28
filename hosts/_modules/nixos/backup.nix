@@ -1066,11 +1066,11 @@ EOF
                 cat > "$METRICS_TEMP" <<EOF
 # HELP restic_backup_last_failure_timestamp Last backup failure timestamp
 # TYPE restic_backup_last_failure_timestamp gauge
-restic_backup_last_failure_timestamp{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $TIMESTAMP_UNIX
+restic_backup_last_failure_timestamp{backup_job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $TIMESTAMP_UNIX
 
 # HELP restic_backup_status Backup job status (1=success, 0=failure)
 # TYPE restic_backup_status gauge
-restic_backup_status{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} 0
+restic_backup_status{backup_job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} 0
 EOF
                 mv "$METRICS_TEMP" "$METRICS_FILE"
               ''}
@@ -2040,7 +2040,7 @@ EOF
                         ${optionalString cfg.monitoring.prometheus.enable ''
                           # Emit metric on hold release failure for monitoring
                           mkdir -p ${cfg.monitoring.prometheus.metricsDir}
-                          echo "restic_hold_release_failure{job=\"${jobName}\",snapshot=\"$snapshot\",host=\"${config.networking.hostName}\"} 1" \
+                          echo "restic_hold_release_failure{backup_job=\"${jobName}\",snapshot=\"$snapshot\",host=\"${config.networking.hostName}\"} 1" \
                             >> ${cfg.monitoring.prometheus.metricsDir}/backup_internal.prom || true
                         ''}
                       fi
@@ -2082,15 +2082,15 @@ EOF
                 cat > "$METRICS_TEMP" <<EOF
 # HELP restic_backup_duration_seconds Duration of backup job in seconds
 # TYPE restic_backup_duration_seconds gauge
-restic_backup_duration_seconds{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $DURATION
+restic_backup_duration_seconds{backup_job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $DURATION
 
 # HELP restic_backup_last_success_timestamp Last successful backup timestamp
 # TYPE restic_backup_last_success_timestamp gauge
-restic_backup_last_success_timestamp{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $TIMESTAMP
+restic_backup_last_success_timestamp{backup_job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} $TIMESTAMP
 
 # HELP restic_backup_status Backup job status (1=success, 0=failure)
 # TYPE restic_backup_status gauge
-restic_backup_status{job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} 1
+restic_backup_status{backup_job="${jobName}",repository="${jobConfig.repository}",hostname="${config.networking.hostName}"} 1
 EOF
                 # Export parity metrics with restic-exporter: timestamp, size, files
                 # Source repository environment if provided
@@ -2110,13 +2110,13 @@ EOF
                   # Append exporter-compatible metrics
                   echo "# HELP restic_backup_timestamp Timestamp of the last backup" >> "$METRICS_TEMP"
                   echo "# TYPE restic_backup_timestamp gauge" >> "$METRICS_TEMP"
-                  echo "restic_backup_timestamp{job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $TIMESTAMP" >> "$METRICS_TEMP"
+                  echo "restic_backup_timestamp{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $TIMESTAMP" >> "$METRICS_TEMP"
                   echo "# HELP restic_backup_size_total Total size of backup in bytes" >> "$METRICS_TEMP"
                   echo "# TYPE restic_backup_size_total counter" >> "$METRICS_TEMP"
-                  echo "restic_backup_size_total{job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $SIZE_BYTES" >> "$METRICS_TEMP"
+                  echo "restic_backup_size_total{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $SIZE_BYTES" >> "$METRICS_TEMP"
                   echo "# HELP restic_backup_files_total Number of files in the backup" >> "$METRICS_TEMP"
                   echo "# TYPE restic_backup_files_total counter" >> "$METRICS_TEMP"
-                  echo "restic_backup_files_total{job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $FILES_TOTAL" >> "$METRICS_TEMP"
+                  echo "restic_backup_files_total{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $FILES_TOTAL" >> "$METRICS_TEMP"
                 fi
                 ${pkgs.coreutils}/bin/mv "$METRICS_TEMP" "$METRICS_FILE"
               ''}
