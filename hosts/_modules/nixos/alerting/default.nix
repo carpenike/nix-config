@@ -287,6 +287,12 @@ in
               repeat_interval = "1m";
             })
             ++ [
+            # Backup-specific grouping: group by host and repository for clarity
+            {
+              matchers = [ "category=\"restic\"" ];
+              group_by = [ "hostname" "alertname" "repository" ];
+              continue = true;
+            }
             # Storage-specific grouping: treat each replication path as a distinct group
             {
               matchers = [ "category=~\"zfs|syncoid\"" ];
@@ -383,7 +389,7 @@ in
               priority = 1;
               send_resolved = true;
               # Informative title: show group size when multiple alerts, else specific summary
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
+              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               # Message: list summaries for grouped alerts; else use description with fallback
               # Append runbook and command hints when provided by alert annotations
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
@@ -403,7 +409,7 @@ in
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 1;
               send_resolved = true;
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
+              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
 {{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
 {{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
@@ -420,7 +426,7 @@ in
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 0;
               send_resolved = true;
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
+              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
 {{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
 {{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
@@ -437,7 +443,7 @@ in
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = -1;
               send_resolved = true;
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
+              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
 {{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
 {{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}

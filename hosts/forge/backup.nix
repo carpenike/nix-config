@@ -319,8 +319,9 @@ in
         severity = "critical";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.job }} failed on {{ $labels.instance }}";
-          description = "Backup to repository {{ $labels.repository }} failed. Check systemd logs: journalctl -u restic-backups-{{ $labels.job }}.service";
+          summary = "Restic backup job {{ $labels.job }} failed on {{ $labels.hostname }}";
+          description = "Backup to repository {{ $labels.repository }} failed. Check systemd logs.";
+          command = "journalctl -u restic-backups-{{ $labels.job }}.service --since '2h'";
         };
       };
 
@@ -333,8 +334,9 @@ in
         severity = "high";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.job }} is stale on {{ $labels.instance }}";
+          summary = "Restic backup job {{ $labels.job }} is stale on {{ $labels.hostname }}";
           description = "No successful backup in 24+ hours for repository {{ $labels.repository }}. Last success: {{ $value | humanizeDuration }} ago.";
+          command = "journalctl -u restic-backups-{{ $labels.job }}.service --since '24h'";
         };
       };
 
@@ -347,8 +349,9 @@ in
         severity = "medium";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.job }} is running slowly on {{ $labels.instance }}";
+          summary = "Restic backup job {{ $labels.job }} is running slowly on {{ $labels.hostname }}";
           description = "Duration {{ $value | humanizeDuration }} is 2x the 7-day average. Check for performance issues.";
+          command = "journalctl -u restic-backups-{{ $labels.job }}.service --since '2h'";
         };
       };
 
@@ -375,7 +378,7 @@ in
         severity = "high";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic repository verification failed for {{ $labels.repository }} on {{ $labels.instance }}";
+          summary = "Restic repository verification failed for {{ $labels.repository }} on {{ $labels.hostname }}";
           description = "Repository integrity check failed. Data corruption possible. Run manual 'restic check'.";
         };
       };
@@ -389,7 +392,7 @@ in
         severity = "medium";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic restore test failed for {{ $labels.repository }} on {{ $labels.instance }}";
+          summary = "Restic restore test failed for {{ $labels.repository }} on {{ $labels.hostname }}";
           description = "Monthly restore test failed. Backup recoverability at risk. Investigate immediately.";
         };
       };
