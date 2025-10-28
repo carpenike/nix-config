@@ -55,10 +55,7 @@
     orderRaw = lib.unique restoreMethods;
     order = builtins.filter (m: lib.elem m validMethods) orderRaw;
 
-    # Check which methods are enabled
-    useSyncoid = hasReplication && (lib.elem "syncoid" order);
-    useLocal = lib.elem "local" order;
-    useRestic = lib.elem "restic" order;
+  # Method enable checks are computed inline in script; remove unused bindings
 
     # Helper to trigger a notification
     notify = template: message: ''
@@ -73,7 +70,8 @@
   {
     systemd.services."preseed-${serviceName}" = {
       description = "Pre-seed data for ${serviceName} service";
-      wantedBy = [ "multi-user.target" ];
+      # Aggregate under storage-preseed target for clearer boot phase orchestration
+      wantedBy = [ "storage-preseed.target" ];
       wants = [ "network-online.target" ];  # Declare dependency to avoid warning
       after = [ "network-online.target" "zfs-import.target" "zfs-mount.service" ];
       before = [ mainServiceUnit ];
@@ -196,7 +194,8 @@
 
             "$ZFS" mount "${dataset}" || echo "Dataset already mounted or mount failed (may already be mounted)"
 
-            chown -R ${owner}:${group} "${mountpoint}"
+            # Avoid read-only .zfs snapshot directory when changing ownership
+            ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
 
             # Take protective snapshot if none exist to close vulnerability window
             SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
@@ -249,7 +248,7 @@
               "$ZFS" release preseed "$LATEST_SNAPSHOT" 2>/dev/null || true
 
               # Ensure correct ownership after rollback
-              chown -R ${owner}:${group} "${mountpoint}"
+              ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
 
               # Take protective snapshot if none exist (shouldn't happen after rollback, but safety first)
               SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
@@ -307,7 +306,7 @@
           if restic "''${RESTIC_ARGS[@]}"; then
             echo "Restic restore successful."
             # Ensure correct ownership after restore
-            chown -R ${owner}:${group} "${mountpoint}"
+            ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
 
             # Take protective snapshot if none exist to close vulnerability window
             SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
@@ -324,7 +323,7 @@
             sleep 5
             if restic "''${RESTIC_ARGS[@]}"; then
               echo "Restic restore successful on retry."
-              chown -R ${owner}:${group} "${mountpoint}"
+              ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
 
               # Take protective snapshot if none exist to close vulnerability window
               SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
@@ -425,13 +424,18 @@
               ) datasetProperties)} \
               "${dataset}"
             "$ZFS" mount "${dataset}" || echo "Dataset already mounted"
-            chown -R ${owner}:${group} "${mountpoint}"
+            ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
             echo "Empty dataset created. Service can now start fresh."
           fi
         ''}
 
         exit 0 # Exit successfully to not block service start
       '';
-    };
+      } // (lib.optionalAttrs hasCentralizedNotifications {
+        unitConfig = {
+          # Ensure unexpected unit failures still notify
+          OnFailure = [ "notify@preseed-critical-failure:${serviceName}.service" ];
+        };
+      });
   };
 }
