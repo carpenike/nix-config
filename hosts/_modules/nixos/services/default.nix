@@ -6,7 +6,8 @@
     ./adguardhome
     ./attic.nix
     ./attic-admin.nix
-    ./backup-integration.nix                  # Auto-discovery for service backup configurations
+    ./backup                                  # Unified backup management system
+    ./backup-integration.nix                  # Legacy auto-discovery for service backup configurations
     ./bind
     ./blocky
     ./caddy

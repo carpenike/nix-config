@@ -160,9 +160,9 @@ config = mkIf cfg.enable {
 };
 ```
 
-### 4. Backup Integration Pattern
+### 4. Unified Backup Integration Pattern ✅ **UPDATED 2025-10-29**
 
-Stateful services should use the shared backup type for consistent backup policy management.
+All stateful services should use the unified backup system with the shared backup type for consistent policy management and automatic discovery.
 
 #### Implementation Pattern
 ```nix
@@ -173,32 +173,45 @@ backup = mkOption {
     enable = true;
     repository = "nas-primary";
     frequency = "daily";
-    tags = [ "database" "production" "critical" ];
+    tags = [ "service-type" "service-name" "data-category" ];
+    useSnapshots = false;  # Opt-in for ZFS snapshot coordination
     excludePatterns = [
       "**/cache/**"
       "**/tmp/**"
-      "**/*.log"  # Exclude logs, use ZFS snapshots for recovery
+      "**/*.log"
     ];
-    preBackupScript = ''
-      # Database-specific backup preparation
-      pg_dump mydb > ${cfg.dataDir}/backup.sql
-    '';
   };
-  description = "Backup configuration";
+  description = "Backup configuration for unified backup system";
 };
 ```
 
-#### Auto-Registration Implementation
+#### ZFS Snapshot Integration (Opt-in)
 ```nix
-config = mkIf cfg.enable {
-  # Export backup configuration for centralized backup scheduler
-  modules.backup.jobs."${serviceName}" = mkIf (cfg.backup != null && cfg.backup.enable) {
-    inherit (cfg.backup) repository frequency retention preBackupScript postBackupScript;
-    serviceName = "${serviceName}";
-    dataPath = cfg.dataDir or "/var/lib/${serviceName}";
-  };
+# For services requiring snapshot consistency
+backup = {
+  enable = true;
+  repository = "nas-primary";
+  useSnapshots = true;        # Enable snapshot coordination
+  zfsDataset = "tank/services/myservice";  # Required when useSnapshots=true
+  frequency = "daily";
+  tags = [ "database" "myservice" "critical" ];
 };
 ```
+
+#### Auto-Discovery Implementation
+```nix
+# No manual registration required!
+# The unified backup system automatically discovers services with backup submodules
+# Services simply declare their backup needs, system handles the rest
+```
+
+**Key Changes from Legacy Pattern:**
+- ✅ **Automatic Discovery**: No manual job registration needed
+- ✅ **Opt-in Snapshots**: Services declare `useSnapshots = true` when needed
+- ✅ **Unified Monitoring**: All metrics flow through textfile collector
+- ✅ **Enterprise Verification**: Automated integrity checks and restore testing
+
+**Migration Guide**: See `/docs/unified-backup-design-patterns.md` for complete implementation details.
 
 ### 5. Notification Integration Pattern
 

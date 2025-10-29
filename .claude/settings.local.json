@@ -69,7 +69,8 @@
       "mcp__zen__clink",
       "mcp__serena__find_symbol",
       "mcp__zen__listmodels",
-      "mcp__serena__write_memory"
+      "mcp__serena__write_memory",
+      "mcp__zen__planner"
     ],
     "deny": []
   }

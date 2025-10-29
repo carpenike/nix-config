@@ -111,205 +111,245 @@ in
       ];
     };
 
-    # Enable service backup auto-discovery
-    modules.services.backup-integration = {
+    # MIGRATED: Legacy backup-integration system disabled in favor of unified backup system
+    # modules.services.backup-integration = {
+    #   enable = true;
+    #   autoDiscovery.enable = true;
+    #   defaultRepository = "nas-primary";
+    # };
+
+    # ACTIVE: Unified backup system integration
+    # Migrated from legacy backup-integration system
+
+    modules.services.backup = {
       enable = true;
-      autoDiscovery.enable = true;
-      defaultRepository = "nas-primary";
+
+      repositories = {
+        nas-primary = {
+          url = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          primary = true;
+          type = "local";
+        };
+        r2-offsite = {
+          url = "s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
+          passwordFile = config.sops.secrets."restic/password".path;
+          environmentFile = config.sops.secrets."restic/r2-prod-env".path;
+          primary = false;
+          type = "s3";
+        };
+      };
+
+      # PostgreSQL hybrid backup (pgBackRest + Restic offsite)
+      postgres = {
+        enable = true;
+        pgbackrest.enableOffsite = true;
+        pgbackrest.offsiteRepository = "r2-offsite";
+      };
+
+      # Restic backup discovery and management
+      restic.enable = true;
+
+      # ZFS snapshot coordination (opt-in for services)
+      snapshots.enable = true;
+
+      # Enterprise monitoring and verification
+      monitoring.enable = true;
+      verification.enable = true;
     };
 
-    # Enable and configure the backup module
-    modules.backup = {
-      enable = true;
-
-      # Configure ZFS snapshots for backup consistency (multi-pool support)
-      zfs = {
-        enable = true;
-        pools = [
-          # Boot pool datasets
-          {
-            pool = "rpool";
-            datasets = [
-              "safe/home"      # User home directories
-              "safe/persist"   # System state and persistent data
-              # local/nix excluded - fully reproducible from NixOS configuration
-            ];
-          }
-          # Service data pool
-          {
-            pool = "tank";
-            datasets = [
-              "services/dispatcharr"          # dispatcharr application data
-              # Removed services/postgresql/main-wal - obsolete directory not used by pgBackRest
-            ];
-          }
-        ];
-        retention = {
-          daily = 7;
-          weekly = 4;
-          monthly = 3;
-        };
-      };
-
-      # Configure Restic backups
-      restic = {
-        enable = true;
-
-        globalSettings = {
-          compression = "auto";
-          readConcurrency = 2;
-          retention = {
-            daily = 14;
-            weekly = 8;
-            monthly = 6;
-            yearly = 2;
-          };
-        };
-
-        # Define backup repositories
-        # Note: Repository details defined inline from config.sops.secrets to avoid _module.args circular dependency
-        repositories = {
-          ${primaryRepoName} = {
-            url = primaryRepoUrl;
-            passwordFile = primaryRepoPasswordFile;
-            primary = true;
-          };
-
-          # Cloudflare R2 for offsite geographic redundancy
-          # Zero egress fees make restore testing and actual DR affordable
-          #
-          # Bucket Organization: Per-Environment Strategy
-          # - production-servers: forge, luna, nas-1 (critical infrastructure)
-          # - edge-devices: nixpi (monitoring/edge services)
-          # - workstations: rydev, rymac (development machines)
-          #
-          # Security: Each bucket has scoped API token (least privilege)
-          # - Compromised workstation cannot access server backups
-          # - Separate credentials per environment tier
-          #
-          # Security Note: Account ID in URL is NOT sensitive (identifier, not secret)
-          # - Industry standard: account IDs are public (like AWS Account IDs)
-          # - Actual secrets (API keys) are in sops: restic/r2-prod-env
-          # - Defense in depth: scoped IAM + API credentials + Restic encryption
-          r2-offsite = {
-            url = r2OffsetUrl;  # DRY: Defined once in let block
-            passwordFile = primaryRepoPasswordFile;  # Reuse same Restic encryption password
-            environmentFile = config.sops.secrets."restic/r2-prod-env".path;  # Production bucket credentials
-            primary = false;  # Secondary repository for DR
-          };
-        };
-
-        # Define backup jobs
-        jobs = {
-          system = {
-            enable = true;
-            repository = "r2-offsite";  # Send to R2 for offsite DR (NAS covered by Syncoid)
-            paths = [
-              "/home"
-              "/persist"
-              "/var/lib/backup-docs"  # Backup the documentation for DR
-            ];
-            excludePatterns = [
-              # Exclude cache directories
-              "**/.cache"
-              "**/.local/share/Trash"
-              "**/Cache"
-              "**/cache"
-              # Exclude build artifacts
-              "**/.direnv"
-              "**/result"
-              "**/target"
-              "**/node_modules"
-              # Exclude temporary files
-              "**/*.tmp"
-              "**/*.temp"
-            ];
-            tags = [ "system" "forge" "nixos" ];
-            resources = {
-              memory = "512M";
-              memoryReservation = "256M";
-              cpus = "1.0";
-            };
-          };
-
-          nix-store = {
-            enable = false;  # Optional: enable if you want to backup Nix store
-            repository = primaryRepoName;
-            paths = [ "/nix" ];
-            tags = [ "nix" "forge" ];
-            resources = {
-              memory = "1G";
-              memoryReservation = "512M";
-              cpus = "1.0";
-            };
-          };
-
-          # PostgreSQL backups now handled by pgBackRest (see default.nix)
-          # - Full backups: Daily at 2 AM to /mnt/nas-backup/pgbackrest + R2
-          # - Incremental backups: Hourly
-          # - Differential backups: Every 6 hours
-          # - WAL archiving: Continuous via archive_command
-        };
-      };
-
-      # Enable monitoring and notifications
-      monitoring = {
-        enable = true;
-
-        # Enable Prometheus metrics via Node Exporter textfile collector
-        prometheus = {
-          enable = true;
-          metricsDir = "/var/lib/node_exporter/textfile_collector";
-        };
-
-        # Error analysis
-        errorAnalysis = {
-          enable = true;
-        };
-
-        logDir = "/var/log/backup";
-      };
-
-      # Enable automated verification
-      verification = {
-        enable = true;
-        schedule = "weekly";
-        checkData = false;  # Set to true for thorough data verification (slow)
-        checkDataSubset = "10%";  # Increase subset for stronger offsite verification
-      };
-
-      # Enable restore testing
-      restoreTesting = {
-        enable = true;
-        schedule = "monthly";
-        sampleFiles = 5;
-        testDir = "/tmp/restore-tests";
-      };
-
-      # Performance settings
-      performance = {
-        cacheDir = "/var/cache/restic";
-        cacheSizeLimit = "5G";
-        ioScheduling = {
-          enable = true;
-          ioClass = "idle";
-          priority = 7;
-        };
-      };
-
-      # Enable documentation generation
-      documentation = {
-        enable = true;
-        outputDir = "/var/lib/backup-docs";
-      };
-
-      # Backup schedule
-      schedule = "daily";
-    };
+    # DISABLED: Old backup module replaced by unified backup system
+    # modules.backup = {
+    #   enable = true;
+    #
+    #   # Configure ZFS snapshots for backup consistency (multi-pool support)
+    #   zfs = {
+#        enable = true;
+#        pools = [
+#          # Boot pool datasets
+#          {
+#            pool = "rpool";
+#            datasets = [
+#              "safe/home"      # User home directories
+#              "safe/persist"   # System state and persistent data
+#              # local/nix excluded - fully reproducible from NixOS configuration
+#            ];
+#          }
+#          # Service data pool
+#          {
+#            pool = "tank";
+#            datasets = [
+#              "services/dispatcharr"          # dispatcharr application data
+#              # Removed services/postgresql/main-wal - obsolete directory not used by pgBackRest
+#            ];
+#          }
+#        ];
+#        retention = {
+#          daily = 7;
+#          weekly = 4;
+#          monthly = 3;
+#        };
+#      };
+#
+#      # Configure Restic backups
+#      restic = {
+#        enable = true;
+#
+#        globalSettings = {
+#          compression = "auto";
+#          readConcurrency = 2;
+#          retention = {
+#            daily = 14;
+#            weekly = 8;
+#            monthly = 6;
+#            yearly = 2;
+#          };
+#        };
+#
+#        # Define backup repositories
+#        # Note: Repository details defined inline from config.sops.secrets to avoid _module.args circular dependency
+#        repositories = {
+#          ${primaryRepoName} = {
+#            url = primaryRepoUrl;
+#            passwordFile = primaryRepoPasswordFile;
+#            primary = true;
+#          };
+#
+#          # Cloudflare R2 for offsite geographic redundancy
+#          # Zero egress fees make restore testing and actual DR affordable
+#          #
+#          # Bucket Organization: Per-Environment Strategy
+#          # - production-servers: forge, luna, nas-1 (critical infrastructure)
+#          # - edge-devices: nixpi (monitoring/edge services)
+#          # - workstations: rydev, rymac (development machines)
+#          #
+#          # Security: Each bucket has scoped API token (least privilege)
+#          # - Compromised workstation cannot access server backups
+#          # - Separate credentials per environment tier
+#          #
+#          # Security Note: Account ID in URL is NOT sensitive (identifier, not secret)
+#          # - Industry standard: account IDs are public (like AWS Account IDs)
+#          # - Actual secrets (API keys) are in sops: restic/r2-prod-env
+#          # - Defense in depth: scoped IAM + API credentials + Restic encryption
+#          r2-offsite = {
+#            url = r2OffsetUrl;  # DRY: Defined once in let block
+#            passwordFile = primaryRepoPasswordFile;  # Reuse same Restic encryption password
+#            environmentFile = config.sops.secrets."restic/r2-prod-env".path;  # Production bucket credentials
+#            primary = false;  # Secondary repository for DR
+#          };
+#        };
+#
+#        # Define backup jobs
+#        jobs = {
+#          system = {
+#            enable = true;
+#            repository = "r2-offsite";  # Send to R2 for offsite DR (NAS covered by Syncoid)
+#            paths = [
+#              "/home"
+#              "/persist"
+#              "/var/lib/backup-docs"  # Backup the documentation for DR
+#            ];
+#            excludePatterns = [
+#              # Exclude cache directories
+#              "**/.cache"
+#              "**/.local/share/Trash"
+#              "**/Cache"
+#              "**/cache"
+#              # Exclude build artifacts
+#              "**/.direnv"
+#              "**/result"
+#              "**/target"
+#              "**/node_modules"
+#              # Exclude temporary files
+#              "**/*.tmp"
+#              "**/*.temp"
+#            ];
+#            tags = [ "system" "forge" "nixos" ];
+#            resources = {
+#              memory = "512M";
+#              memoryReservation = "256M";
+#              cpus = "1.0";
+#            };
+#          };
+#
+#          nix-store = {
+#            enable = false;  # Optional: enable if you want to backup Nix store
+#            repository = primaryRepoName;
+#            paths = [ "/nix" ];
+#            tags = [ "nix" "forge" ];
+#            resources = {
+#              memory = "1G";
+#              memoryReservation = "512M";
+#              cpus = "1.0";
+#            };
+#          };
+#
+#          # PostgreSQL backups now handled by pgBackRest (see default.nix)
+#          # - Full backups: Daily at 2 AM to /mnt/nas-backup/pgbackrest + R2
+#          # - Incremental backups: Hourly
+#          # - Differential backups: Every 6 hours
+#          # - WAL archiving: Continuous via archive_command
+#        };
+#      };
+#
+#      # Enable monitoring and notifications
+#      monitoring = {
+#        enable = true;
+#
+#        # Enable Prometheus metrics via Node Exporter textfile collector
+#        prometheus = {
+#          enable = true;
+#          metricsDir = "/var/lib/node_exporter/textfile_collector";
+#        };
+#
+#        # Error analysis
+#        errorAnalysis = {
+#          enable = true;
+#        };
+#
+#        logDir = "/var/log/backup";
+#      };
+#
+#      # Enable automated verification
+#      verification = {
+#        enable = true;
+#        schedule = "weekly";
+#        checkData = false;  # Set to true for thorough data verification (slow)
+#        checkDataSubset = "10%";  # Increase subset for stronger offsite verification
+#      };
+#
+#      # Enable restore testing
+#      restoreTesting = {
+#        enable = true;
+#        schedule = "monthly";
+#        sampleFiles = 5;
+#        testDir = "/tmp/restore-tests";
+#      };
+#
+#      # Performance settings
+#      performance = {
+#        cacheDir = "/var/cache/restic";
+#        cacheSizeLimit = "5G";
+#        ioScheduling = {
+#          enable = true;
+#          ioClass = "idle";
+#          priority = 7;
+#        };
+#      };
+#
+#      # Enable documentation generation
+#      documentation = {
+#        enable = true;
+#        outputDir = "/var/lib/backup-docs";
+#      };
+#
+#      # Backup schedule
+#      schedule = "daily";
+#    };
 
     # Co-located Restic backup monitoring alerts
     # These alerts track the health of non-database backups (system state, configs, docs)
-    modules.alerting.rules = lib.mkIf config.modules.backup.enable {
+    modules.alerting.rules = lib.mkIf config.modules.services.backup.enable {
       # Backup job failed
       "restic-backup-failed" = {
         type = "promql";

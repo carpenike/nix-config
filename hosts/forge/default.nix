@@ -539,6 +539,22 @@ in
             };
           };
 
+          # Grafana monitoring dashboard storage
+          # Enable snapshots and replication for dashboards, datasources, and settings
+          "tank/services/grafana" = {
+            useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+            recursive = false;
+            autosnap = true;
+            autoprune = true;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/grafana";
+              sendOptions = "w";  # Raw encrypted send (no property preservation)
+              recvOptions = "u";  # Don't mount on receive
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+            };
+          };
+
           # Plex media server application data
           # Enable snapshots and replication for Plex metadata/state
           "tank/services/plex" = {
