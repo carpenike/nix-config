@@ -6,7 +6,7 @@ let
   zfsMetricsScript = pkgs.writeShellScriptBin "export-zfs-metrics" ''
     #!/usr/bin/env bash
     set -euo pipefail
-    PATH="${lib.makeBinPath [ pkgs.zfs pkgs.coreutils pkgs.bash ]}"
+    PATH="${lib.makeBinPath [ pkgs.zfs pkgs.coreutils pkgs.bash pkgs.gnused ]}"
 
     METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs.prom"
     TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
@@ -39,7 +39,7 @@ let
       echo "# HELP zfs_pool_capacity_percent ZFS pool capacity used percentage"
       echo "# TYPE zfs_pool_capacity_percent gauge"
       zpool list -H -o name,capacity | while read -r pool capacity; do
-        capacity_num="''${capacity%\\%}"
+        capacity_num=$(echo "$capacity" | sed 's/%$//')
         echo "zfs_pool_capacity_percent{pool=\"$pool\"} $capacity_num"
       done
 
@@ -47,7 +47,7 @@ let
       echo "# HELP zfs_pool_fragmentation_percent ZFS pool fragmentation percentage"
       echo "# TYPE zfs_pool_fragmentation_percent gauge"
       zpool list -H -o name,frag | while read -r pool frag; do
-        frag_num="''${frag%\\%}"
+        frag_num=$(echo "$frag" | sed 's/%$//')
         echo "zfs_pool_fragmentation_percent{pool=\"$pool\"} $frag_num"
       done
 
