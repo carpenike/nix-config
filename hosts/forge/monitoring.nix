@@ -57,6 +57,86 @@ let
     mv "$TMP_METRICS_FILE" "$METRICS_FILE"
     chmod 644 "$METRICS_FILE"
   '';
+
+  # TLS Certificate Monitoring Script
+  # Monitors certificate expiration and ACME challenge status for all Caddy-managed domains
+  tlsMetricsScript = pkgs.writeShellScriptBin "export-tls-metrics" ''
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.curl pkgs.gnused pkgs.gawk pkgs.jq ]}"
+
+    METRICS_FILE="/var/lib/node_exporter/textfile_collector/tls.prom"
+    TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
+
+    # Get all domains from Caddy configuration
+    # Extract hostnames from running Caddy config
+    DOMAINS=$(${pkgs.curl}/bin/curl -s http://localhost:2019/config/ 2>/dev/null | \
+      ${pkgs.jq}/bin/jq -r '.apps.http.servers[].routes[]?.match[]?.host[]? // empty' 2>/dev/null | \
+      sort -u || echo "")
+
+    # Fallback: common forge domains if Caddy API fails
+    if [ -z "$DOMAINS" ]; then
+      DOMAINS="grafana.holthome.net sonarr.holthome.net dispatcharr.holthome.net plex.holthome.net"
+    fi
+
+    # Generate metrics atomically
+    (
+      echo "# HELP tls_certificate_expiry_seconds Time until TLS certificate expires"
+      echo "# TYPE tls_certificate_expiry_seconds gauge"
+
+      for domain in $DOMAINS; do
+        if [ -n "$domain" ]; then
+          # Get certificate expiration time
+          EXPIRY=$(echo | ${pkgs.openssl}/bin/openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | \
+            ${pkgs.openssl}/bin/openssl x509 -noout -enddate 2>/dev/null | \
+            ${pkgs.gnused}/bin/sed 's/notAfter=//' || echo "")
+
+          if [ -n "$EXPIRY" ]; then
+            # Convert to Unix timestamp
+            EXPIRY_TIMESTAMP=$(date -d "$EXPIRY" +%s 2>/dev/null || echo "0")
+            CURRENT_TIMESTAMP=$(date +%s)
+            SECONDS_UNTIL_EXPIRY=$((EXPIRY_TIMESTAMP - CURRENT_TIMESTAMP))
+
+            echo "tls_certificate_expiry_seconds{domain=\"$domain\"} $SECONDS_UNTIL_EXPIRY"
+          else
+            # Certificate check failed - could be ACME in progress or connection issue
+            echo "tls_certificate_expiry_seconds{domain=\"$domain\"} -1"
+          fi
+        fi
+      done
+
+      # ACME Challenge Status from Caddy logs
+      echo "# HELP caddy_acme_challenges_total Total ACME challenges attempted"
+      echo "# TYPE caddy_acme_challenges_total counter"
+      echo "# HELP caddy_acme_challenges_failed_total Total failed ACME challenges"
+      echo "# TYPE caddy_acme_challenges_failed_total counter"
+
+      # Count ACME events from recent journal logs (last 24 hours)
+      CHALLENGES_TOTAL=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "24 hours ago" --no-pager -q 2>/dev/null | \
+        grep -c "acme.*challenge" || echo "0")
+      CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "24 hours ago" --no-pager -q 2>/dev/null | \
+        grep -c -i "acme.*\(error\|fail\)" || echo "0")
+
+      echo "caddy_acme_challenges_total $CHALLENGES_TOTAL"
+      echo "caddy_acme_challenges_failed_total $CHALLENGES_FAILED"
+
+      # Caddy Service Health
+      echo "# HELP caddy_service_up Caddy service health status (1=up, 0=down)"
+      echo "# TYPE caddy_service_up gauge"
+
+      # Check if Caddy admin API responds
+      if ${pkgs.curl}/bin/curl -s --max-time 5 http://localhost:2019/metrics >/dev/null 2>&1; then
+        echo "caddy_service_up 1"
+      else
+        echo "caddy_service_up 0"
+      fi
+
+    ) > "$TMP_METRICS_FILE"
+
+    # Atomic move and set permissions
+    mv "$TMP_METRICS_FILE" "$METRICS_FILE"
+    chmod 644 "$METRICS_FILE"
+  '';
 in
 {
   imports = [
@@ -251,88 +331,6 @@ in
     };
   };
 
-  # TLS Certificate Monitoring
-  # Creates a script that checks certificate expiration for all Caddy-managed domains
-  # and monitors ACME challenge success/failure rates
-  let
-    tlsMetricsScript = pkgs.writeShellScriptBin "export-tls-metrics" ''
-      #!/usr/bin/env bash
-      set -euo pipefail
-      PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.curl pkgs.gnused pkgs.gawk pkgs.jq ]}"
-
-      METRICS_FILE="/var/lib/node_exporter/textfile_collector/tls.prom"
-      TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
-
-      # Get all domains from Caddy configuration
-      # Extract hostnames from running Caddy config
-      DOMAINS=$(${pkgs.curl}/bin/curl -s http://localhost:2019/config/ 2>/dev/null | \
-        ${pkgs.jq}/bin/jq -r '.apps.http.servers[].routes[]?.match[]?.host[]? // empty' 2>/dev/null | \
-        sort -u || echo "")
-
-      # Fallback: common forge domains if Caddy API fails
-      if [ -z "$DOMAINS" ]; then
-        DOMAINS="grafana.holthome.net sonarr.holthome.net dispatcharr.holthome.net plex.holthome.net"
-      fi
-
-      # Generate metrics atomically
-      (
-        echo "# HELP tls_certificate_expiry_seconds Time until TLS certificate expires"
-        echo "# TYPE tls_certificate_expiry_seconds gauge"
-
-        for domain in $DOMAINS; do
-          if [ -n "$domain" ]; then
-            # Get certificate expiration time
-            EXPIRY=$(echo | ${pkgs.openssl}/bin/openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | \
-              ${pkgs.openssl}/bin/openssl x509 -noout -enddate 2>/dev/null | \
-              ${pkgs.gnused}/bin/sed 's/notAfter=//' || echo "")
-
-            if [ -n "$EXPIRY" ]; then
-              # Convert to Unix timestamp
-              EXPIRY_TIMESTAMP=$(date -d "$EXPIRY" +%s 2>/dev/null || echo "0")
-              CURRENT_TIMESTAMP=$(date +%s)
-              SECONDS_UNTIL_EXPIRY=$((EXPIRY_TIMESTAMP - CURRENT_TIMESTAMP))
-
-              echo "tls_certificate_expiry_seconds{domain=\"$domain\"} $SECONDS_UNTIL_EXPIRY"
-            else
-              # Certificate check failed - could be ACME in progress or connection issue
-              echo "tls_certificate_expiry_seconds{domain=\"$domain\"} -1"
-            fi
-          fi
-        done
-
-        # ACME Challenge Status from Caddy logs
-        echo "# HELP caddy_acme_challenges_total Total ACME challenges attempted"
-        echo "# TYPE caddy_acme_challenges_total counter"
-        echo "# HELP caddy_acme_challenges_failed_total Total failed ACME challenges"
-        echo "# TYPE caddy_acme_challenges_failed_total counter"
-
-        # Count ACME events from recent journal logs (last 24 hours)
-        CHALLENGES_TOTAL=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "24 hours ago" --no-pager -q 2>/dev/null | \
-          grep -c "acme.*challenge" || echo "0")
-        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "24 hours ago" --no-pager -q 2>/dev/null | \
-          grep -c -i "acme.*\(error\|fail\)" || echo "0")
-
-        echo "caddy_acme_challenges_total $CHALLENGES_TOTAL"
-        echo "caddy_acme_challenges_failed_total $CHALLENGES_FAILED"
-
-        # Caddy Service Health
-        echo "# HELP caddy_service_up Caddy service health status (1=up, 0=down)"
-        echo "# TYPE caddy_service_up gauge"
-
-        # Check if Caddy admin API responds
-        if ${pkgs.curl}/bin/curl -s --max-time 5 http://localhost:2019/metrics >/dev/null 2>&1; then
-          echo "caddy_service_up 1"
-        else
-          echo "caddy_service_up 0"
-        fi
-
-      ) > "$TMP_METRICS_FILE"
-
-      # Atomic move and set permissions
-      mv "$TMP_METRICS_FILE" "$METRICS_FILE"
-      chmod 644 "$METRICS_FILE"
-    '';
-  in
 
   # TLS metrics exporter service and timer
   systemd.services.tls-metrics-exporter = {
