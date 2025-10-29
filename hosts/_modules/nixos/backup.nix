@@ -683,6 +683,22 @@ with lib;
               # Use builtins.fromJSON to parse string as number (Nix doesn't have toFloat)
               CPUQuota = "${toString (builtins.floor ((builtins.fromJSON jobConfig.resources.cpus) * 100))}%";
 
+              # Prefer systemd *Directory= for tighter hardening and correct ownership
+              # Per-job runtime directory at /run/restic-backups-${jobName}
+              RuntimeDirectory = "restic-backups-${jobName}";
+              # Shared persistent state directory at /var/lib/restic-backup
+              StateDirectory = "restic-backup";
+              # Logs directory at /var/log/backup
+              LogsDirectory = "backup";
+
+              # Allow writes to custom log/metrics paths when they differ from defaults
+              ReadWritePaths =
+                (lib.optional cfg.monitoring.enable cfg.monitoring.logDir)
+                ++ (lib.optional cfg.monitoring.prometheus.enable cfg.monitoring.prometheus.metricsDir);
+
+              # If backing up /home, allow read access despite ProtectHome hardening
+              ProtectHome = lib.mkIf (lib.any (p: lib.hasPrefix "/home" p) jobConfig.paths) "read-only";
+
               # Serialize heavy I/O: avoid contention with Syncoid replication jobs
               # Note: Conflicts is a [Unit] directive; set it in unitConfig below
 
@@ -1741,6 +1757,12 @@ EOF
       ]
       (mkIf cfg.monitoring.enable [
         "d ${cfg.monitoring.logDir} 0755 restic-backup restic-backup -"
+        # Ensure existing files (e.g., created by root from older revisions) are owned correctly
+        # and have expected permissions to avoid 'Permission denied' on append
+        "Z ${cfg.monitoring.logDir} 0755 restic-backup restic-backup - -"
+        # Pre-create main structured log files with correct ownership
+        "f ${cfg.monitoring.logDir}/backup-jobs.jsonl 0644 restic-backup restic-backup - -"
+        "f ${cfg.monitoring.logDir}/backup-failures.jsonl 0644 restic-backup restic-backup - -"
       ])
       # Note: Metrics directory creation handled by monitoring.nix module
       # Do not create duplicate tmpfiles rules here to avoid conflicts
@@ -1752,6 +1774,8 @@ EOF
       ])
       [
         "d ${cfg.performance.cacheDir} 0700 restic-backup restic-backup -"
+        # Create shared runtime directory at boot so non-root service can write under /run
+        "d /run/restic-backup 0755 restic-backup restic-backup - -"
       ]
     ];
 
@@ -1777,7 +1801,7 @@ EOF
           "${jobName}" = {
             paths = actualPaths;
             dynamicFilesFrom = if cfg.zfs.enable
-              then "cat /run/restic-backup/${jobName}-paths.txt"
+              then "cat /run/restic-backups-${jobName}/paths.txt"
               else null;
             repository = repo.url;
             passwordFile = repo.passwordFile or null;
@@ -1807,6 +1831,8 @@ EOF
                 # Capture start time for duration calculation
                 ${pkgs.coreutils}/bin/mkdir -p /run/restic-backups-${jobName}
                 ${pkgs.coreutils}/bin/date +%s > /run/restic-backups-${jobName}/start-time
+                # Workaround for upstream restic module post-stop cleanup expecting this path
+                ${pkgs.coreutils}/bin/touch /run/restic-backups-${jobName}/includes || true
               ''}
               ${optionalString cfg.zfs.enable ''
                 set -euo pipefail
@@ -1814,83 +1840,45 @@ EOF
                 # Cleanup function to release holds on prepare failure
                 cleanup_prepare_holds() {
                   local HOLD_TAG="restic-${jobName}"
-                  if [ -f /run/restic-backup/${jobName}-snapshots.txt ]; then
+                  if [ -f /run/restic-backups-${jobName}/snapshots.txt ]; then
                     echo "ERROR: Prepare failed, releasing any holds placed..." >&2
                     while IFS= read -r snapshot; do
                       if [ -n "$snapshot" ]; then
                         ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snapshot" 2>/dev/null || true
                       fi
-                    done < /run/restic-backup/${jobName}-snapshots.txt
-                    rm -f /run/restic-backup/${jobName}-snapshots.txt
+                    done < /run/restic-backups-${jobName}/snapshots.txt
+                    rm -f /run/restic-backups-${jobName}/snapshots.txt
                   fi
                 }
                 trap cleanup_prepare_holds ERR
 
-                # STALE HOLD CLEANUP: Release any orphaned holds from previous crashed runs
-                # This prevents leaked holds from blocking Sanoid's pruning operations
-                # Note: We check hold timestamp, not snapshot creation time, to identify truly stale holds
-                # Safety: Runs inside this job's prepare phase; only releases holds older than 24h with
-                # this job's specific tag, preventing interference with currently running backups.
-                echo "Checking for stale ZFS holds from previous runs..."
+                # STALE HOLD CLEANUP (robust): release only holds we created in prior runs, based on state file
+                echo "Checking for stale ZFS holds from previous runs (state-based)..."
                 HOLD_TAG="restic-${jobName}"
+                STATE_FILE="/var/lib/restic-backup/${jobName}-holds.jsonl"
                 STALE_THRESHOLD=$(($(${pkgs.coreutils}/bin/date +%s) - 86400))  # 24 hours ago
-                SCANNED_DATASETS=""  # Track datasets to avoid duplicate scans
-
-                ${concatMapStringsSep "\n" (path: ''
-                  # Find dataset for this path to check its holds
-                  DATASET=$(${config.boot.zfs.package}/bin/zfs list -H -o name,mountpoint -t filesystem | ${pkgs.gawk}/bin/awk -v p="${path}" '
-                    {
-                      mp=$2
-                      if (p == mp || (index(p, mp) == 1 && (substr(p, length(mp)+1, 1) == "/" || mp == "/"))) {
-                        if (length(mp) > max) { max = length(mp); best = $1 }
-                      }
-                    }
-                    END { if (best) print best }
-                  ')
-
-                  if [ -n "$DATASET" ]; then
-                    # Skip if we've already scanned this dataset (deduplicate)
-                    if ! printf "%s\n" "$SCANNED_DATASETS" | ${pkgs.gnugrep}/bin/grep -Fxq "$DATASET" 2>/dev/null; then
-                      SCANNED_DATASETS="$SCANNED_DATASETS"$'\n'"$DATASET"
-
-                      # Check all snapshots on this dataset for stale holds with our tag
-                      # Format: NAME<TAB>TAG<TAB>CREATED (NAME is filesystem@snapshot)
-                      # Pre-filter with grep to reduce awk workload
-                      # Wrapped in subshell to disable pipefail - empty results are expected/normal
-                      (
-                        set +o pipefail
-                        ${config.boot.zfs.package}/bin/zfs holds -H -r "$DATASET" 2>/dev/null | \
-                          ${pkgs.gnugrep}/bin/grep -F "$HOLD_TAG" | \
-                          ${pkgs.gawk}/bin/awk -F "\t" -v tag="$HOLD_TAG" -v threshold="$STALE_THRESHOLD" '
-                          $2 == tag {
-                            # Parse hold creation timestamp with explicit locale/timezone
-                            # Format: "Mon Oct 14 02:05:23 2025"
-                            cmd = "LC_ALL=C TZ=UTC date -d \"" $3 "\" +%s 2>/dev/null"
-                            cmd | getline hold_epoch
-                            close(cmd)
-
-                            # Validate numeric and compare
-                            if (hold_epoch ~ /^[0-9]+$/ && hold_epoch < threshold) {
-                              print $1
-                            }
-                          }
-                        ' | while IFS= read -r snap_with_hold; do
-                          if [ -n "$snap_with_hold" ]; then
-                            echo "Releasing stale hold '$HOLD_TAG' on $snap_with_hold (hold older than 24h)"
-                            if ! ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$snap_with_hold" 2>/dev/null; then
-                              echo "WARNING: Could not release hold '$HOLD_TAG' on $snap_with_hold (already released or permission denied)" >&2
-                            fi
-                          fi
-                        done
-                      )
+                if [ -f "$STATE_FILE" ]; then
+                  TMP_KEEP="$STATE_FILE.tmp"
+                  : > "$TMP_KEEP"
+                  while IFS= read -r line; do
+                    [ -z "$line" ] && continue
+                    SNAP=$(echo "$line" | ${pkgs.jq}/bin/jq -r '.snapshot // empty' 2>/dev/null || true)
+                    TS=$(echo "$line" | ${pkgs.jq}/bin/jq -r '.timestamp // 0' 2>/dev/null || echo 0)
+                    if [ -n "$SNAP" ] && [ "$TS" -lt "$STALE_THRESHOLD" ]; then
+                      echo "Releasing stale hold '$HOLD_TAG' on $SNAP (older than 24h)"
+                      ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$SNAP" 2>/dev/null || true
+                      # Skip writing this entry back (i.e., drop it)
+                    else
+                      # Keep non-stale or malformed entries
+                      echo "$line" >> "$TMP_KEEP"
                     fi
-                  fi
-                '') jobConfig.paths}
+                  done < "$STATE_FILE"
+                  mv "$TMP_KEEP" "$STATE_FILE"
+                fi
 
                 # Resolve paths to Sanoid snapshots via .zfs/snapshot
-                ${pkgs.coreutils}/bin/mkdir -p /run/restic-backup
-                : > /run/restic-backup/${jobName}-paths.txt  # Truncate file
-                : > /run/restic-backup/${jobName}-snapshots.txt  # Truncate file
+                : > /run/restic-backups-${jobName}/paths.txt  # Truncate file
+                : > /run/restic-backups-${jobName}/snapshots.txt  # Truncate file
 
                 # Dynamically map each backup path to its latest Sanoid snapshot
                 ${concatMapStringsSep "\n" (path: ''
@@ -1942,7 +1930,7 @@ EOF
                       fi
 
                       # Store snapshot name for cleanup
-                      echo "$LATEST_SNAP" >> /run/restic-backup/${jobName}-snapshots.txt
+                      echo "$LATEST_SNAP" >> /run/restic-backups-${jobName}/snapshots.txt
 
                       # Calculate relative path from mountpoint
                       REL=$(${pkgs.coreutils}/bin/realpath -m --relative-to="$MOUNTPOINT" "${path}")
@@ -1954,8 +1942,12 @@ EOF
                         SNAP_PATH="$MOUNTPOINT/.zfs/snapshot/$SNAPNAME/$REL"
                       fi
 
-                      echo "$SNAP_PATH" >> /run/restic-backup/${jobName}-paths.txt
+                      echo "$SNAP_PATH" >> /run/restic-backups-${jobName}/paths.txt
                       echo "Mapped ${path} -> $SNAP_PATH (dataset: $DATASET, snapshot: $SNAPNAME)"
+
+                      # Record hold in persistent state for robust stale cleanup
+                      TS=$(${pkgs.coreutils}/bin/date +%s)
+                      echo '{"snapshot":"'"$LATEST_SNAP"'","timestamp":'"$TS"'}' >> "/var/lib/restic-backup/${jobName}-holds.jsonl"
                     else
                       # CRITICAL: Fail backup if snapshot is missing to avoid inconsistent backups
                       echo "ERROR: No snapshots found for dataset $DATASET" >&2
@@ -1966,18 +1958,18 @@ EOF
                     # Path is not on ZFS - this is acceptable for non-ZFS paths
                     # (e.g., /boot, /tmp, or explicitly mounted non-ZFS filesystems)
                     echo "INFO: Path ${path} is not on a ZFS dataset, using live path" >&2
-                    echo "${path}" >> /run/restic-backup/${jobName}-paths.txt
+                    echo "${path}" >> /run/restic-backups-${jobName}/paths.txt
                   fi
                 '') jobConfig.paths}
 
                 # Validate that paths file is not empty
-                if ! [ -s /run/restic-backup/${jobName}-paths.txt ]; then
+                if ! [ -s /run/restic-backups-${jobName}/paths.txt ]; then
                   echo "ERROR: No paths resolved for job ${jobName}" >&2
                   exit 1
                 fi
 
                 echo "Backup will use snapshot paths:"
-                ${pkgs.coreutils}/bin/cat /run/restic-backup/${jobName}-paths.txt
+                ${pkgs.coreutils}/bin/cat /run/restic-backups-${jobName}/paths.txt
               ''}
               ${optionalString cfg.validation.preFlightChecks.enable ''
                 # Pre-flight validation checks
@@ -2041,7 +2033,7 @@ EOF
               ${optionalString cfg.zfs.enable ''
                 # Release ZFS holds placed during backup preparation
                 HOLD_TAG="restic-${jobName}"
-                if [ -f /run/restic-backup/${jobName}-snapshots.txt ]; then
+                if [ -f /run/restic-backups-${jobName}/snapshots.txt ]; then
                   while IFS= read -r snapshot; do
                     if [ -n "$snapshot" ]; then
                       echo "Releasing ZFS hold '$HOLD_TAG' on $snapshot"
@@ -2053,10 +2045,18 @@ EOF
                           echo "restic_hold_release_failure{backup_job=\"${jobName}\",snapshot=\"$snapshot\",host=\"${config.networking.hostName}\"} 1" \
                             >> ${cfg.monitoring.prometheus.metricsDir}/backup_internal.prom || true
                         ''}
+                      else
+                        # Remove released hold from persistent state file
+                        STATE_FILE="/var/lib/restic-backup/${jobName}-holds.jsonl"
+                        if [ -f "$STATE_FILE" ]; then
+                          TMP_FILE="$STATE_FILE.tmp"
+                          ${pkgs.gnugrep}/bin/grep -Fv '"snapshot":"'"$snapshot"'"' "$STATE_FILE" > "$TMP_FILE" || true
+                          mv "$TMP_FILE" "$STATE_FILE"
+                        fi
                       fi
                     fi
-                  done < /run/restic-backup/${jobName}-snapshots.txt
-                  rm -f /run/restic-backup/${jobName}-snapshots.txt
+                  done < /run/restic-backups-${jobName}/snapshots.txt
+                  rm -f /run/restic-backups-${jobName}/snapshots.txt
                 fi
               ''}
               ${optionalString cfg.monitoring.enable ''

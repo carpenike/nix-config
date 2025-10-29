@@ -332,13 +332,13 @@ in
           # Requires an InstanceDown alert for the target host
           {
             target_matchers = [
-              "alertname=~\"SyncoidReplicationFailed|SyncoidReplicationStale|ZFSReplicationLagHigh|ZFSReplicationStalled\""
+              "alertname=~\"SyncoidUnitFailed|ZFSReplicationStale|ZFSReplicationLagHigh|ZFSReplicationStalled\""
             ];
             source_matchers = [
-              "alertname=\"InstanceDown\""
+              "alertname=\"ReplicationTargetUnreachable\""
             ];
             # Match target_host in the replication alert with instance in the InstanceDown alert
-            equal = [ "target_host" "instance" ];
+            equal = [ "target_host" ];
           }
           # Don't notify about being on battery if we already know the battery is low
           {

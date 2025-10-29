@@ -432,36 +432,107 @@ in
           command = "systemctl status syncoid-*.service";
         };
       };
-
-      # Syncoid replication failed
-      "syncoid-replication-failed" = {
+      # ZFS replication stale (primary staleness alert - tightened thresholds)
+      "zfs-replication-stale-high" = {
         type = "promql";
-        alertname = "SyncoidReplicationFailed";
-        expr = "syncoid_replication_status == 0";
-        for = "5m";
+        alertname = "ZFSReplicationStaleHigh";
+        expr = ''
+          (
+            (time() - syncoid_replication_last_success_timestamp > 7200)
+            * on (dataset, target_host) group_left (unit)
+              syncoid_replication_info
+          )
+          or
+          (
+            syncoid_replication_info
+            unless on (dataset, target_host) syncoid_replication_last_success_timestamp
+          )
+        '';
+        for = "30m";
         severity = "high";
-        labels = { service = "storage"; category = "syncoid"; };
+        labels = { service = "storage"; category = "zfs"; };
         annotations = {
-          summary = "Syncoid replication failed: {{ $labels.dataset }} → {{ $labels.target_host }}";
-          description = "Replication of {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }} failed. Next steps: systemctl status syncoid-*.service; journalctl -u syncoid-*.service --since '2h'; verify SSH for user 'zfs-replication' to {{ $labels.target_host }}; check network/NAS reachability.";
-          runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=syncoid_replication_status%20%3D%3D%200&g0.tab=1";
-          command = "journalctl -u syncoid-*.service --since '2h'";
+          summary = "[High] ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Investigate syncoid unit configuration and remote permissions.{{ else }}Replication has been failing for {{ $value | humanizeDuration }}. Check for hung syncoid processes, network issues, or remote ZFS health.{{ end }}";
+          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2h'";
         };
       };
 
-      # Syncoid hasn't succeeded recently
-      "syncoid-replication-stale" = {
+      "zfs-replication-stale-critical" = {
         type = "promql";
-        alertname = "SyncoidReplicationStale";
-        expr = "(time() - syncoid_replication_last_success_timestamp) > 7200";  # 2 hours
+        alertname = "ZFSReplicationStaleCritical";
+        expr = ''
+          (
+            (time() - syncoid_replication_last_success_timestamp > 21600)
+            * on (dataset, target_host) group_left (unit)
+              syncoid_replication_info
+          )
+          or
+          (
+            syncoid_replication_info
+            unless on (dataset, target_host) syncoid_replication_last_success_timestamp
+          )
+        '';
         for = "30m";
+        severity = "critical";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "[Critical] ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Immediate investigation required (auth/permissions/network).{{ else }}Replication has been failing for {{ $value | humanizeDuration }}. Data loss risk is high if the source fails. Investigate immediately.{{ end }}";
+          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2h'";
+        };
+      };
+
+      # Syncoid systemd unit failure (accurate failure detection with target_host join)
+      "syncoid-unit-failed" = {
+        type = "promql";
+        alertname = "SyncoidUnitFailed";
+        expr = ''
+          (
+            node_systemd_unit_state{state="failed", name=~"syncoid-.*\\.service"}
+            * on(name) group_left(dataset, target_host)
+            label_replace(syncoid_replication_info, "name", "$1", "unit", "(.+)"
+            )
+          ) > 0
+        '';
+        for = "10m";
         severity = "high";
         labels = { service = "storage"; category = "syncoid"; };
         annotations = {
-          summary = "Syncoid replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
-          description = "No successful replication of {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Investigate Syncoid unit and NAS reachability; check last success timestamp metric path.";
-          runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=time()%20-%20syncoid_replication_last_success_timestamp&g0.tab=1";
-          command = "systemctl status syncoid-*.service";
+          summary = "Syncoid unit failed: {{ $labels.dataset }} on {{ $labels.instance }}";
+          description = "The systemd unit {{ $labels.name }} is in failed state on {{ $labels.instance }}. Next steps: systemctl status {{ $labels.name }}; journalctl -u {{ $labels.name }} --since '2h'; verify SSH and remote ZFS permissions.";
+          runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=node_systemd_unit_state%7Bstate%3D%22failed%22%2Cname%3D~%22syncoid-.*%5C.service%22%7D&g0.tab=1";
+          command = "systemctl status {{ $labels.name }} && journalctl -u {{ $labels.name }} --since '2h'";
+        };
+      };
+
+      # Replication target unreachable (drives inhibition)
+      "replication-target-unreachable" = {
+        type = "promql";
+        alertname = "ReplicationTargetUnreachable";
+        expr = "syncoid_target_reachable == 0";
+        for = "15m";
+        severity = "high";
+        labels = { service = "storage"; category = "syncoid"; };
+        annotations = {
+          summary = "Replication target unreachable: {{ $labels.target_host }}";
+          description = "SSH probe to {{ $labels.target_host }} failed for 15m. Suppressing replication noise and investigating network/host availability.";
+          command = "ssh -v zfs-replication@{{ $labels.target_host }} || ping {{ $labels.target_host }}";
+        };
+      };
+
+      # Missing replication metrics (guard for textfile failures)
+      "zfs-replication-metrics-missing" = {
+        type = "promql";
+        alertname = "ZFSReplicationMetricsMissing";
+        expr = "absent(syncoid_replication_last_success_timestamp) == 1";
+        for = "2h";
+        severity = "high";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "ZFS replication metrics missing on {{ $labels.instance }}";
+          description = "Textfile metrics absent for 2h. Node exporter textfile collector misconfigured or syncoid success metrics not being written.";
+          command = "ls -l /var/lib/node_exporter/textfile_collector && systemctl status node-exporter";
         };
       };
     };

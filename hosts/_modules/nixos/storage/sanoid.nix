@@ -359,6 +359,12 @@ in
 
   # -- Systemd Configuration (Sanoid, Syncoid, Health Checks) --
   systemd = lib.mkMerge ([
+      # Ensure Prometheus textfile collector dir exists
+      {
+        tmpfiles.rules = [
+          "d /var/lib/node_exporter/textfile_collector 0775 node-exporter node-exporter -"
+        ];
+      }
       # Create .ssh directory for the replication user
       {
         # Only create the .ssh directory when using a persistent key under /var/lib/<user>/.ssh
@@ -485,7 +491,51 @@ in
 
           # Minimal sandbox overrides: set safe working directory only
           serviceConfig = lib.mkIf (cfg.sshKeyPath != null) {
+            Type = "oneshot";
             WorkingDirectory = lib.mkForce "/";
+            ProtectHome = lib.mkForce false;
+            PrivateMounts = lib.mkForce false;
+            ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
+            UMask = lib.mkForce "0002";
+            PermissionsStartOnly = lib.mkForce false;
+            TimeoutStartSec = "2h";
+            TimeoutStopSec = "2h";
+            ExecStartPost = let
+              metricFile = "/var/lib/node_exporter/textfile_collector/syncoid-last-success-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom";
+              successMetricScript = pkgs.writeShellScript "syncoid-success-metric-${lib.strings.replaceStrings ["/"] ["-"] dataset}" ''
+                set -eu
+                TS=$(${pkgs.coreutils}/bin/date +%s)
+                # Compute latest local snapshot time (epoch)
+                LATEST_LOCAL_SNAP=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name -s creation "${dataset}" | ${pkgs.coreutils}/bin/tail -n 1 || echo "")
+                if [ -n "$LATEST_LOCAL_SNAP" ]; then
+                  LOCAL_TIME=$(${pkgs.zfs}/bin/zfs get -H -p -o value creation "$LATEST_LOCAL_SNAP" 2>/dev/null || echo 0)
+                else
+                  LOCAL_TIME=0
+                fi
+                # Fetch latest remote snapshot time on target via SSH
+                REMOTE_TIME=$(${pkgs.openssh}/bin/ssh \
+                  -i ${toString cfg.sshKeyPath} \
+                  -o BatchMode=yes \
+                  -o ConnectTimeout=10 \
+                  -o StrictHostKeyChecking=yes \
+                  "${conf.replication.targetUser}@${conf.replication.targetHost}" '
+                  set -eu
+                  LATEST_REMOTE_SNAP=$(zfs list -H -t snapshot -o name -s creation "${conf.replication.targetDataset}" | tail -n 1 || echo "")
+                  if [ -n "$LATEST_REMOTE_SNAP" ]; then
+                    zfs get -H -p -o value creation "$LATEST_REMOTE_SNAP" 2>/dev/null || echo 0
+                  else
+                    echo 0
+                  fi
+                ' || echo 0)
+                # Only record success if remote received snapshot time is >= local
+                if [ "$REMOTE_TIME" -ge "$LOCAL_TIME" ] && [ "$REMOTE_TIME" -gt 0 ]; then
+                  ${pkgs.coreutils}/bin/printf '%s\n' '# HELP syncoid_replication_last_success_timestamp Unix timestamp of last successful syncoid replication' > "${metricFile}.tmp"
+                  ${pkgs.coreutils}/bin/printf '%s\n' '# TYPE syncoid_replication_last_success_timestamp gauge' >> "${metricFile}.tmp"
+                  ${pkgs.coreutils}/bin/printf '%s\n' 'syncoid_replication_last_success_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}.service"} '"$TS" >> "${metricFile}.tmp"
+                  ${pkgs.coreutils}/bin/mv "${metricFile}.tmp" "${metricFile}"
+                fi
+              '';
+            in [ "${pkgs.bash}/bin/bash -lc 'cd /var/lib/node_exporter/textfile_collector && exec ${successMetricScript}'" ];
           };
 
           # Metrics hooks removed to avoid CHDIR failures in ExecStartPre/ExecStopPost.
@@ -518,13 +568,13 @@ in
                     echo "[$(date -Iseconds)] WARNING: Pool $pool is $state - notification sent"
 
                     # Log health check failure for monitoring
-                    echo "zfs_pool_health_check{pool=\"$pool\",state=\"$state\",host=\"${config.networking.hostName}\"} 0" \
+                    echo "zfs_pool_health_check{pool=\"$pool\",state=\"$state\"} 0" \
                       > /var/lib/node_exporter/textfile_collector/zfs-health-$pool.prom
                   else
                     echo "[$(date -Iseconds)] Pool $pool is ONLINE"
 
                     # Log successful health check for monitoring
-                    echo "zfs_pool_health_check{pool=\"$pool\",state=\"ONLINE\",host=\"${config.networking.hostName}\"} 1" \
+                    echo "zfs_pool_health_check{pool=\"$pool\",state=\"ONLINE\"} 1" \
                       > /var/lib/node_exporter/textfile_collector/zfs-health-$pool.prom
                   fi
                 done
@@ -604,15 +654,17 @@ in
                   | ${pkgs.gnugrep}/bin/grep -c $'^restic-' || echo 0)
 
                 # Export metrics for monitoring (both released count and active hold count)
+                METRIC_FILE="/var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom"
                 mkdir -p /var/lib/node_exporter/textfile_collector
-                cat > /var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom <<EOF
+                cat > "$METRIC_FILE.tmp" <<EOF
 # HELP zfs_hold_gc_released_total Number of stale ZFS holds released in last GC run
 # TYPE zfs_hold_gc_released_total gauge
-zfs_hold_gc_released_total{host="${config.networking.hostName}"} $STALE_HOLD_COUNT
+zfs_hold_gc_released_total $STALE_HOLD_COUNT
 # HELP zfs_active_restic_holds_total Current number of active restic-* holds across all snapshots
 # TYPE zfs_active_restic_holds_total gauge
-zfs_active_restic_holds_total{host="${config.networking.hostName}"} $ACTIVE_HOLDS
+zfs_active_restic_holds_total $ACTIVE_HOLDS
 EOF
+                ${pkgs.coreutils}/bin/mv "$METRIC_FILE.tmp" "$METRIC_FILE"
 
                 if [ "$STALE_HOLD_COUNT" -gt 0 ]; then
                   echo "[$(date -Iseconds)] Released $STALE_HOLD_COUNT stale ZFS holds"
@@ -667,11 +719,13 @@ EOF
                   echo "[$(date -Iseconds)] Dataset ${dataset}: Last snapshot $LAG_HOURS hours ago"
 
                   # Export metric for Prometheus
-                  cat > /var/lib/node_exporter/textfile_collector/zfs-replication-lag-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom <<EOF
+                  METRIC_FILE="/var/lib/node_exporter/textfile_collector/zfs-replication-lag-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom"
+                  cat > "$METRIC_FILE.tmp" <<EOF
 # HELP zfs_replication_lag_seconds Time since last snapshot was created (source-side lag indicator)
 # TYPE zfs_replication_lag_seconds gauge
-zfs_replication_lag_seconds{dataset="${dataset}",target_host="${conf.replication.targetHost}",host="${config.networking.hostName}"} $LAG_SECONDS
+zfs_replication_lag_seconds{dataset="${dataset}",target_host="${conf.replication.targetHost}"} $LAG_SECONDS
 EOF
+                  ${pkgs.coreutils}/bin/mv "$METRIC_FILE.tmp" "$METRIC_FILE"
 
                   # Warn if lag exceeds 24 hours
                   if [ "$LAG_HOURS" -gt 24 ]; then
@@ -693,6 +747,79 @@ EOF
             OnUnitActiveSec = "1h";  # Check every hour
             Unit = "zfs-replication-lag-check.service";
           };
+        };
+      }
+      # Target reachability probe (per replication target)
+      {
+        services.syncoid-target-reachability = lib.mkIf (datasetsWithReplication != {}) {
+          description = "Probe SSH reachability to Syncoid replication targets";
+          serviceConfig = {
+            Type = "oneshot";
+            # Run as the replication user to validate real syncoid connection path
+            User = cfg.replicationUser;
+            Group = cfg.replicationGroup;
+            WorkingDirectory = "/";
+            # Ensure the SSH key exists before starting
+            ConditionPathExists = toString cfg.sshKeyPath;
+            ExecStart = let
+              # Build a list of unique replication target hosts (dedupe per-host probes)
+              uniqueHosts = lib.unique (lib.mapAttrsToList (dataset: conf: conf.replication.targetHost) datasetsWithReplication);
+              probeScript = pkgs.writeShellScript "syncoid-target-reachability" ''
+                set -eu
+                METRICS=/var/lib/node_exporter/textfile_collector/syncoid-target-reachability.prom
+                ${pkgs.coreutils}/bin/rm -f "$METRICS.tmp"
+                ${lib.concatStringsSep "\n" (map (host: ''
+                  TARGET_HOST="${host}"
+                  TARGET_USER="${cfg.replicationUser}"
+                  # High-fidelity check: SSH handshake using the configured replication key
+                  if ${pkgs.openssh}/bin/ssh \
+                       -i ${toString cfg.sshKeyPath} \
+                       -o BatchMode=yes \
+                       -o ConnectTimeout=10 \
+                       -o StrictHostKeyChecking=yes \
+                       "${cfg.replicationUser}@${host}" \
+                       "exit" >/dev/null 2>&1; then
+                    VAL=1
+                  else
+                    VAL=0
+                  fi
+                  ${pkgs.coreutils}/bin/printf '%s\n' "syncoid_target_reachable{target_host=\"$TARGET_HOST\"} $VAL" >> "$METRICS.tmp"
+                '' ) uniqueHosts)}
+                ${pkgs.coreutils}/bin/mv "$METRICS.tmp" "$METRICS"
+              '';
+            in probeScript;
+          };
+        };
+        timers.syncoid-target-reachability = lib.mkIf (datasetsWithReplication != {}) {
+          description = "Periodic reachability probe for Syncoid targets";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnBootSec = "5min";
+            OnUnitActiveSec = "30min";
+            Unit = "syncoid-target-reachability.service";
+          };
+        };
+      }
+      # Static replication info metric (inventory of configured jobs)
+      {
+        services.syncoid-replication-info = lib.mkIf (datasetsWithReplication != {}) {
+          description = "Emit static info metric for all configured Syncoid replication jobs";
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = let
+              infoScript = pkgs.writeShellScript "syncoid-replication-info" ''
+                set -eu
+                METRICS=/var/lib/node_exporter/textfile_collector/syncoid-replication-info.prom
+                ${pkgs.coreutils}/bin/rm -f "$METRICS.tmp"
+                ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
+                  UNIT="syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}.service"
+                  ${pkgs.coreutils}/bin/printf '%s\n' "syncoid_replication_info{dataset=\"${dataset}\",target_host=\"${conf.replication.targetHost}\",unit=\"$UNIT\"} 1" >> "$METRICS.tmp"
+                '' ) datasetsWithReplication)}
+                ${pkgs.coreutils}/bin/mv "$METRICS.tmp" "$METRICS"
+              '';
+            in infoScript;
+          };
+          wantedBy = [ "multi-user.target" ];
         };
       }
     ]);
