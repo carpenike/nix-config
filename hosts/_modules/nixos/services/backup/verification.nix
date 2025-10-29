@@ -206,7 +206,7 @@ let
             echo "Testing restore from snapshot $LATEST_SNAPSHOT"
 
             # Get list of files from snapshot
-            FILES=$(${pkgs.restic}/bin/restic ls --no-lock "$LATEST_SNAPSHOT" | head -${toString verificationCfg.sampleFiles} || true)
+            FILES=$(${pkgs.restic}/bin/restic ls --no-lock "$LATEST_SNAPSHOT" | head -${toString verificationCfg.restoreTesting.sampleFiles} || true)
 
             if [[ -z "$FILES" ]]; then
               echo "WARNING: No files found in snapshot"
@@ -317,42 +317,14 @@ in {
   };
 
   config = lib.mkIf (cfg.enable && verificationCfg.enable) {
-    # Create verification services for each repository
+    # Create verification services for each repository plus reporting service
     systemd.services = lib.mkMerge [
       (lib.mkMerge (lib.mapAttrsToList mkVerificationService repositories))
       (lib.mkMerge (lib.mapAttrsToList mkRestoreTestService
         (lib.filterAttrs (name: repo: verificationCfg.restoreTesting.enable) repositories)))
-    ];
-
-    # Create timers for verification
-    systemd.timers = lib.mkMerge [
-      (lib.mkMerge (lib.mapAttrsToList (repoName: repoConfig: {
-        "backup-verify-${repoName}" = {
-          description = "Timer for ${repoName} verification";
-          wantedBy = [ "timers.target" ];
-          timerConfig = {
-            OnCalendar = verificationCfg.schedule;
-            Persistent = true;
-            RandomizedDelaySec = "1h";  # Spread verification load
-          };
-        };
-      }) repositories))
-
-      (lib.mkMerge (lib.mapAttrsToList (repoName: repoConfig: lib.mkIf verificationCfg.restoreTesting.enable {
-        "backup-restore-test-${repoName}" = {
-          description = "Timer for ${repoName} restore testing";
-          wantedBy = [ "timers.target" ];
-          timerConfig = {
-            OnCalendar = verificationCfg.restoreTesting.schedule;
-            Persistent = true;
-            RandomizedDelaySec = "2h";
-          };
-        };
-      }) repositories))
-    ];
-
-    # Verification reporting service
-    systemd.services.backup-verification-report = lib.mkIf verificationCfg.reporting.enable {
+      {
+        # Verification reporting service
+        backup-verification-report = lib.mkIf verificationCfg.reporting.enable {
       description = "Generate backup verification report";
       serviceConfig = {
         Type = "oneshot";
@@ -411,7 +383,9 @@ in {
           echo "Generated verification report: $REPORT_FILE"
         '';
       };
-    };
+        };
+      }
+    ];
 
     # Timer for reporting
     systemd.timers.backup-verification-report = lib.mkIf verificationCfg.reporting.enable {

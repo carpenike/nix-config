@@ -138,6 +138,8 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "monitoring" "grafana" "dashboards" ];
+        useSnapshots = true;
+        zfsDataset = "tank/services/grafana";
         excludePatterns = [
           "**/*.db"          # Exclude SQLite database (use ZFS snapshots instead)
           "**/sessions/*"    # Exclude session data

@@ -12,43 +12,13 @@ let
   cfg = config.modules.services.backup;
   resticCfg = cfg.restic or {};
 
-  # Discover services with backup configurations
-  discoverServiceBackups =
-    let
-      allServices = config.modules.services or {};
-      servicesWithBackup = lib.filterAttrs (name: service:
-        (service.backup or null) != null &&
-        (service.backup.enable or false)
-      ) allServices;
-    in
-      lib.mapAttrs' (serviceName: service: {
-        name = "service-${serviceName}";
-        value = {
-          enable = true;
-          repository = service.backup.repository or cfg.serviceDiscovery.defaultRepository;
-          paths = service.backup.paths or [
-            (service.dataDir or "/var/lib/${serviceName}")
-          ];
-          tags = [ serviceName ] ++ (service.backup.tags or []);
-          excludePatterns = (service.backup.excludePatterns or []) ++ cfg.serviceDiscovery.globalExcludes;
-          preBackupScript = service.backup.preBackupScript or "";
-          postBackupScript = service.backup.postBackupScript or "";
-          frequency = service.backup.frequency or "daily";
-          resources = service.backup.resources or cfg.performance.resources;
-
-          # ZFS snapshot integration
-          useSnapshots = service.backup.useSnapshots or false;
-          zfsDataset = service.zfsDataset or null;
-        };
-      }) servicesWithBackup;
-
-  # Combine discovered jobs with manual jobs
-  allJobs = discoverServiceBackups // (resticCfg.jobs or {});
+  # Use centralized job list from default.nix (includes both discovered and manual jobs)
+  allJobs = cfg._internal.allJobs;
 
   # Create systemd service for each backup job
   mkBackupService = jobName: jobConfig:
     let
-      repository = cfg.repositories.${jobConfig.repository};
+      repository = cfg.repositories.${jobConfig.repository} or (throw "Repository '${jobConfig.repository}' not found for backup job '${jobName}'. Available repositories: ${toString (lib.attrNames cfg.repositories)}");
 
       # Build snapshot paths if ZFS snapshots are enabled
       snapshotPaths = if jobConfig.useSnapshots && jobConfig.zfsDataset != null
@@ -64,7 +34,7 @@ let
       # Build restic command arguments
       excludeArgs = lib.concatMapStringsSep " " (pattern: "--exclude '${pattern}'") jobConfig.excludePatterns;
       tagArgs = lib.concatMapStringsSep " " (tag: "--tag '${tag}'") jobConfig.tags;
-      pathArgs = lib.concatStringsSep " " (path: "'${path}'") snapshotPaths;
+      pathArgs = lib.concatStringsSep " " (map (path: "'${path}'") snapshotPaths);
 
       # Environment setup
       envVars = [
@@ -79,6 +49,7 @@ let
       "restic-backup-${jobName}" = {
         description = "Restic backup for ${jobName}";
         wants = [ "backup.target" ];
+        requires = [ "network-online.target" ];
         after = [ "network-online.target" ] ++ lib.optionals jobConfig.useSnapshots [
           "zfs-snapshot-${jobName}.service"
         ];
@@ -97,7 +68,7 @@ let
           # Resource limits
           MemoryMax = jobConfig.resources.memory;
           MemoryLow = jobConfig.resources.memoryReservation;
-          CPUQuota = "${lib.removeSuffix ".0" (toString (lib.strings.toFloat jobConfig.resources.cpus * 100))}%";
+          CPUQuota = "${toString (builtins.floor (builtins.fromJSON jobConfig.resources.cpus * 100))}%";
 
           # I/O scheduling
           IOSchedulingClass = if cfg.performance.ioScheduling.enable then cfg.performance.ioScheduling.ioClass else null;
@@ -292,7 +263,7 @@ in {
       # Backup job services
       (lib.mkMerge (lib.mapAttrsToList mkBackupService
         (lib.filterAttrs (name: job: job.enable) allJobs)))
-      
+
       # Notification service templates
       {
       "backup-success-notification@" = {

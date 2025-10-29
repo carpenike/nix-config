@@ -71,6 +71,8 @@ in
       backup = {
         enable = true;
         repository = "nas-primary";  # Primary NFS backup repository
+        useSnapshots = true;
+        zfsDataset = "tank/services/dispatcharr";
       };
       notifications.enable = true;  # Enable failure notifications
       preseed = {

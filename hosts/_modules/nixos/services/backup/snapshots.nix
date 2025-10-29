@@ -12,33 +12,10 @@ let
   cfg = config.modules.services.backup;
   snapshotsCfg = cfg.snapshots or {};
 
-  # Discover services that need snapshot-coordinated backups
-  servicesNeedingSnapshots =
-    let
-      allServices = config.modules.services or {};
-      resticJobs = cfg.restic.jobs or {};
-
-      # Get all backup jobs (discovered + manual) that use snapshots
-      jobsWithSnapshots = lib.filterAttrs (name: job:
-        job.enable && job.useSnapshots && job.zfsDataset != null
-      ) resticJobs;
-
-      # Also check discovered service backups
-      discoveredWithSnapshots = lib.filterAttrs (serviceName: service:
-        (service.backup or null) != null &&
-        (service.backup.enable or false) &&
-        (service.backup.useSnapshots or false) &&
-        (service.zfsDataset or null) != null
-      ) allServices;
-
-    in jobsWithSnapshots // (lib.mapAttrs' (serviceName: service: {
-      name = "service-${serviceName}";
-      value = {
-        enable = true;
-        zfsDataset = service.zfsDataset;
-        useSnapshots = true;
-      };
-    }) discoveredWithSnapshots);
+  # Get services that need snapshot-coordinated backups from centralized job list
+  servicesNeedingSnapshots = lib.filterAttrs (name: job:
+    job.enable && job.useSnapshots && job.zfsDataset != null
+  ) cfg._internal.allJobs;
 
   # Create snapshot service for a backup job
   mkSnapshotService = jobName: jobConfig:
@@ -127,37 +104,40 @@ in {
   };
 
   config = lib.mkIf (cfg.enable && snapshotsCfg.enable) {
-    # Create snapshot services for jobs that need them
-    systemd.services = lib.mkMerge (lib.mapAttrsToList mkSnapshotService servicesNeedingSnapshots);
+    # Create snapshot services for jobs that need them plus cleanup service
+    systemd.services = lib.mkMerge [
+      (lib.mkMerge (lib.mapAttrsToList mkSnapshotService servicesNeedingSnapshots))
+      {
+        # Cleanup service for old backup snapshots
+        zfs-backup-snapshot-cleanup = {
+          description = "Cleanup old ZFS backup snapshots";
+          serviceConfig = {
+            Type = "oneshot";
+            User = "root";  # ZFS operations require root
 
-    # Cleanup service for old backup snapshots
-    systemd.services.zfs-backup-snapshot-cleanup = {
-      description = "Cleanup old ZFS backup snapshots";
-      serviceConfig = {
-        Type = "oneshot";
-        User = "root";  # ZFS operations require root
+            ExecStart = pkgs.writeShellScript "cleanup-backup-snapshots" ''
+              set -euo pipefail
 
-        ExecStart = pkgs.writeShellScript "cleanup-backup-snapshots" ''
-          set -euo pipefail
+              echo "Cleaning up old backup snapshots..."
 
-          echo "Cleaning up old backup snapshots..."
+              # Find all backup snapshots older than maxAge
+              ${pkgs.zfs}/bin/zfs list -H -t snapshot -o name,creation \
+                | grep '@backup-' \
+                | while IFS=$'\t' read -r snapshot creation; do
+                  # Calculate age (simplified - just check if older than 1 day for now)
+                  snapshot_date=$(echo "$creation" | ${pkgs.coreutils}/bin/cut -d' ' -f1-3)
+                  if ${pkgs.coreutils}/bin/date -d "$snapshot_date + ${snapshotsCfg.retentionPolicy.maxAge}" '+%s' -lt $(${pkgs.coreutils}/bin/date '+%s') 2>/dev/null; then
+                    echo "Destroying old snapshot: $snapshot"
+                    ${pkgs.zfs}/bin/zfs destroy "$snapshot" || true
+                  fi
+                done
 
-          # Find all backup snapshots older than maxAge
-          ${pkgs.zfs}/bin/zfs list -H -t snapshot -o name,creation \
-            | grep '@backup-' \
-            | while IFS=$'\t' read -r snapshot creation; do
-              # Calculate age (simplified - just check if older than 1 day for now)
-              snapshot_date=$(echo "$creation" | ${pkgs.coreutils}/bin/cut -d' ' -f1-3)
-              if ${pkgs.coreutils}/bin/date -d "$snapshot_date + ${snapshotsCfg.retentionPolicy.maxAge}" '+%s' -lt $(${pkgs.coreutils}/bin/date '+%s') 2>/dev/null; then
-                echo "Destroying old snapshot: $snapshot"
-                ${pkgs.zfs}/bin/zfs destroy "$snapshot" || true
-              fi
-            done
-
-          echo "Snapshot cleanup completed"
-        '';
-      };
-    };
+              echo "Snapshot cleanup completed"
+            '';
+          };
+        };
+      }
+    ];
 
     # Timer for snapshot cleanup
     systemd.timers.zfs-backup-snapshot-cleanup = {

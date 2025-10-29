@@ -19,6 +19,41 @@
 let
   cfg = config.modules.services.backup;
 
+  # Centralized job calculation for both restic and snapshots modules
+  # Discover services with backup configurations
+  discoverServiceBackups =
+    let
+      allServices = config.modules.services or {};
+      servicesWithBackup = lib.filterAttrs (name: service:
+        (service.backup or null) != null &&
+        (service.backup.enable or false) &&
+        (service.enable or false)  # Only backup services that are actually enabled
+      ) allServices;
+    in
+      lib.mapAttrs' (serviceName: service: {
+        name = "service-${serviceName}";
+        value = {
+          enable = true;
+          repository = service.backup.repository or cfg.serviceDiscovery.defaultRepository;
+          paths = service.backup.paths or [
+            (service.dataDir or "/var/lib/${serviceName}")
+          ];
+          tags = [ serviceName ] ++ (service.backup.tags or []);
+          excludePatterns = (service.backup.excludePatterns or []) ++ cfg.serviceDiscovery.globalExcludes;
+          preBackupScript = if (service.backup.preBackupScript or null) != null then service.backup.preBackupScript else "";
+          postBackupScript = if (service.backup.postBackupScript or null) != null then service.backup.postBackupScript else "";
+          frequency = service.backup.frequency or "daily";
+          resources = service.backup.resources or cfg.performance.resources;
+
+          # ZFS snapshot integration
+          useSnapshots = service.backup.useSnapshots or false;
+          zfsDataset = service.backup.zfsDataset or null;
+        };
+      }) servicesWithBackup;
+
+  # Combine discovered jobs with manual jobs - this is the single source of truth
+  allJobs = discoverServiceBackups // (cfg.restic.jobs or {});
+
   # Import submodules
   resticModule = import ./restic.nix { inherit config lib pkgs; };
   postgresModule = import ./postgres.nix { inherit config lib pkgs; };
@@ -37,6 +72,30 @@ in
 
   options.modules.services.backup = {
     enable = lib.mkEnableOption "unified backup management system";
+
+    # Internal option to share consolidated jobs between submodules
+    _internal = {
+      allJobs = lib.mkOption {
+        internal = true;
+        type = lib.types.attrsOf (lib.types.submodule {
+          options = {
+            enable = lib.mkOption { type = lib.types.bool; default = true; };
+            repository = lib.mkOption { type = lib.types.str; };
+            paths = lib.mkOption { type = lib.types.listOf lib.types.str; };
+            tags = lib.mkOption { type = lib.types.listOf lib.types.str; default = []; };
+            excludePatterns = lib.mkOption { type = lib.types.listOf lib.types.str; default = []; };
+            preBackupScript = lib.mkOption { type = lib.types.str; default = ""; };
+            postBackupScript = lib.mkOption { type = lib.types.str; default = ""; };
+            frequency = lib.mkOption { type = lib.types.str; default = "daily"; };
+            resources = lib.mkOption { type = lib.types.attrs; default = {}; };
+            useSnapshots = lib.mkOption { type = lib.types.bool; default = false; };
+            zfsDataset = lib.mkOption { type = lib.types.nullOr lib.types.str; default = null; };
+          };
+        });
+        default = {};
+        description = "Internal consolidated backup jobs from service discovery and manual configuration";
+      };
+    };
 
     # Core backup repositories configuration
     repositories = lib.mkOption {
@@ -263,11 +322,19 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Populate the internal consolidated jobs option
+    modules.services.backup._internal.allJobs = allJobs;
+
     # Ensure backup user and group exist
     users.users.restic-backup = {
       isSystemUser = true;
       group = "restic-backup";
       description = "Restic backup service user";
+      # Add to service groups to access their data directories
+      extraGroups = [
+        "grafana" "loki" "plex" "sonarr" "dispatcharr"
+        "promtail" "observability" "postgres"
+      ];
     };
 
     users.groups.restic-backup = {};

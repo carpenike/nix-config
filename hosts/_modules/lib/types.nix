@@ -343,6 +343,19 @@ in
         description = "Tags to apply to backup snapshots";
         example = [ "database" "production" "daily" ];
       };
+
+      useSnapshots = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Use ZFS snapshots for consistent backups";
+      };
+
+      zfsDataset = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "ZFS dataset for snapshot-based backups";
+        example = "tank/services/myservice";
+      };
     };
   };
 

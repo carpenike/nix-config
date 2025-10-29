@@ -209,13 +209,12 @@ in {
     # Ensure pgBackRest configuration exists
     assertions = lib.mkIf postgresCfg.pgbackrest.enableOffsite [
       {
-        assertion = builtins.pathExists postgresCfg.pgbackrest.archivePath;
-        message = "pgBackRest archive path ${postgresCfg.pgbackrest.archivePath} must exist";
-      }
-      {
         assertion = lib.hasAttr postgresCfg.pgbackrest.offsiteRepository cfg.repositories;
         message = "pgBackRest offsite repository '${postgresCfg.pgbackrest.offsiteRepository}' must be defined in backup repositories";
       }
     ];
+
+    # Runtime check for pgBackRest path in the backup script itself
+    # Note: Path existence is checked at runtime, not evaluation time
   };
 }
