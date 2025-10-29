@@ -458,7 +458,7 @@ in
       # Ownership matches the container user/group
       owner = "dispatcharr";
       group = "dispatcharr";
-      mode = "0700";  # Restrictive permissions
+      mode = "0750";  # Allow group read access for backup systems
     };
 
     # Configure ZFS snapshots and replication for dispatcharr dataset

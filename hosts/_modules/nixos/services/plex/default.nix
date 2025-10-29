@@ -78,6 +78,9 @@ in
         repository = "nas-primary";
         frequency = "weekly";
         tags = [ "plex" "media-metadata" ];
+        # CRITICAL: Enable ZFS snapshots for SQLite database consistency
+        useSnapshots = true;
+        zfsDataset = "tank/services/plex";
         excludePatterns = [
           "**/Plex Media Server/Cache/**"
           "**/Plex Media Server/Logs/**"
@@ -215,7 +218,7 @@ in
       mountpoint = cfg.dataDir;
       owner = cfg.user;
       group = cfg.group;
-      mode = "0750";
+      mode = "0750";  # Allow group read access for backup systems
       properties = cfg.zfs.properties;
     };
 

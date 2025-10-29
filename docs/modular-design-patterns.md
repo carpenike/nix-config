@@ -186,8 +186,10 @@ backup = mkOption {
 ```
 
 #### ZFS Snapshot Integration (Opt-in)
+For services that need consistent backups (databases, applications with locks, etc.), enable ZFS snapshot coordination:
+
 ```nix
-# For services requiring snapshot consistency
+# For services requiring snapshot consistency (databases, locked files)
 backup = {
   enable = true;
   repository = "nas-primary";
@@ -195,8 +197,31 @@ backup = {
   zfsDataset = "tank/services/myservice";  # Required when useSnapshots=true
   frequency = "daily";
   tags = [ "database" "myservice" "critical" ];
+  excludePatterns = [
+    "**/*.log"        # Exclude logs from snapshots
+    "**/cache/**"     # Exclude cache directories
+  ];
 };
 ```
+
+**Working Example** (from dispatcharr service):
+```nix
+backup = {
+  enable = true;
+  repository = "nas-primary";
+  useSnapshots = true;
+  zfsDataset = "tank/services/dispatcharr";
+  frequency = "daily";
+  tags = [ "iptv" "dispatcharr" "application" ];
+};
+```
+
+**When to Use Snapshots:**
+- ✅ **Database services** (PostgreSQL, SQLite) - consistency critical
+- ✅ **Application state** (Sonarr, Radarr, etc.) - avoid corrupt configs
+- ✅ **Locked files** - services that may have open file handles
+- ❌ **Static content** (Plex media) - snapshots add unnecessary overhead
+- ❌ **Read-only data** - content that doesn't change during backup
 
 #### Auto-Discovery Implementation
 ```nix
@@ -210,6 +235,31 @@ backup = {
 - ✅ **Opt-in Snapshots**: Services declare `useSnapshots = true` when needed
 - ✅ **Unified Monitoring**: All metrics flow through textfile collector
 - ✅ **Enterprise Verification**: Automated integrity checks and restore testing
+
+**Critical Configuration Updates Required:**
+
+Services that handle databases, application state, or have file locking must enable snapshot coordination:
+
+```nix
+# Update these service backup configurations:
+# 1. Sonarr - SQLite database, configuration files
+modules.services.sonarr.backup = {
+  enable = true;
+  repository = "nas-primary";
+  useSnapshots = true;                    # REQUIRED
+  zfsDataset = "tank/services/sonarr";    # REQUIRED
+  excludePatterns = [ "**/*.log" "**/cache/**" ];
+};
+
+# 2. Loki - Database and indexes
+modules.services.loki.backup = {
+  enable = true;
+  repository = "nas-primary";
+  useSnapshots = true;                    # REQUIRED
+  zfsDataset = "tank/services/loki";      # REQUIRED
+  excludePatterns = [ "**/*.tmp" ];
+};
+```
 
 **Migration Guide**: See `/docs/unified-backup-design-patterns.md` for complete implementation details.
 

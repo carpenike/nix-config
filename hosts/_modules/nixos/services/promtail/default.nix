@@ -289,7 +289,7 @@ in
       properties = cfg.zfs.properties;
       owner = "promtail";
       group = "promtail";
-      mode = "0750";
+      mode = "0750";  # Allow group read access for backup systems
     };
 
     # Promtail service configuration

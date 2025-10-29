@@ -111,9 +111,10 @@ in
 
           mode = lib.mkOption {
             type = lib.types.str;
-            default = "0755";
+            default = "0750";
             description = ''
               Permission mode for the mountpoint directory.
+              Defaults to 0750 to allow group read access for backup systems.
               Only applies when mountpoint is not "none" or "legacy".
             '';
           };

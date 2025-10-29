@@ -125,14 +125,14 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "network" "omada" "config" ];
-        preBackupScript = ''
-          # Stop Omada before backup to ensure consistent state
-          systemctl stop podman-omada.service || true
-        '';
-        postBackupScript = ''
-          # Restart Omada after backup
-          systemctl start podman-omada.service || true
-        '';
+        # CRITICAL: Enable ZFS snapshots for MongoDB database consistency
+        useSnapshots = true;
+        zfsDataset = "tank/services/omada";
+        excludePatterns = [
+          "**/logs/**"           # Exclude log files
+          "**/tmp/**"            # Exclude temporary files
+          "**/work/**"           # Exclude work directories
+        ];
       };
       description = "Backup configuration for Omada Controller";
     };

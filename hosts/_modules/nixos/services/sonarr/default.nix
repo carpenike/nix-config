@@ -223,6 +223,14 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "media" "sonarr" "config" ];
+        # CRITICAL: Enable ZFS snapshots for SQLite database consistency
+        useSnapshots = true;
+        zfsDataset = "tank/services/sonarr";
+        excludePatterns = [
+          "**/*.log"         # Exclude log files
+          "**/cache/**"      # Exclude cache directories
+          "**/logs/**"       # Exclude additional log directories
+        ];
       };
       description = "Backup configuration for Sonarr";
     };
@@ -331,7 +339,7 @@ in
       # Ownership matches the container user/group
       owner = "sonarr";
       group = "sonarr";
-      mode = "0700";  # Restrictive permissions
+      mode = "0750";  # Allow group read access for backup systems
     };
 
     # Configure ZFS snapshots and replication for sonarr dataset

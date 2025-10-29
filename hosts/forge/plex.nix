@@ -16,7 +16,7 @@
         recordsize = "128K";
         compression = "lz4";
         properties = {
-          "com.sun:auto-snapshot" = "false";
+          "com.sun:auto-snapshot" = "true";  # Enable for backup snapshot coordination
           atime = "off";
         };
       };
@@ -27,6 +27,9 @@
         repository = "nas-primary";
         frequency = "weekly";
         tags = [ "plex" "media-metadata" "forge" ];
+        # CRITICAL: Enable ZFS snapshots for SQLite database consistency
+        useSnapshots = true;
+        zfsDataset = "tank/services/plex";
       };
 
       # Enable health monitoring and textfile metrics

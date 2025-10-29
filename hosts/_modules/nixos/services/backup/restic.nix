@@ -24,9 +24,9 @@ let
       snapshotPaths = if jobConfig.useSnapshots && jobConfig.zfsDataset != null
         then map (path:
           let
-            # Replace the original path with snapshot path
-            relativePath = lib.removePrefix jobConfig.zfsDataset path;
-            snapshotPath = "${jobConfig.zfsDataset}/.zfs/snapshot/backup-${jobName}${relativePath}";
+            # For ZFS snapshots, we need to use the mountpoint path
+            # The path (e.g., /var/lib/dispatcharr) + /.zfs/snapshot/backup-${jobName}
+            snapshotPath = "${path}/.zfs/snapshot/backup-${jobName}";
           in snapshotPath
         ) jobConfig.paths
         else jobConfig.paths;
@@ -94,7 +94,7 @@ let
           cleanup() {
             local exit_code=$?
             local end_time=$(date +%s)
-            local duration=$((end_time - start_time))
+            local duration=$((end_time - START_TIME))
 
             # Write metrics
             {

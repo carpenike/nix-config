@@ -276,7 +276,7 @@ in
         properties = cfg.zfs.properties;
         owner = "grafana";
         group = "grafana";
-        mode = "0750";
+        mode = "0750";  # Allow group read access for backup systems
       };
 
       # Automatically register with Caddy reverse proxy using standardized pattern

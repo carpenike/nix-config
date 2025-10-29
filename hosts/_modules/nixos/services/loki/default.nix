@@ -89,10 +89,13 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "logs" "loki" "config" ];
+        # CRITICAL: Enable ZFS snapshots for database consistency
+        useSnapshots = true;
+        zfsDataset = "tank/services/loki";
         excludePatterns = [
-          "**/chunks/**"     # Exclude data chunks (use ZFS snapshots instead)
-          "**/wal/**"        # Exclude WAL files
-          "**/boltdb-shipper-cache/**"  # Exclude cache
+          "**/boltdb-shipper-cache/**"  # Exclude cache directories
+          "**/compactor/boltdb-shipper-compactor/**"  # Exclude compactor temp files
+          "**/*.tmp"                    # Exclude temporary files
         ];
       };
       description = "Backup configuration for Loki";
@@ -180,7 +183,7 @@ in
       properties = cfg.zfs.properties;
       owner = "loki";
       group = "loki";
-      mode = "0750";
+      mode = "0750";  # Allow group read access for backup systems
     };
 
     # Loki service configuration

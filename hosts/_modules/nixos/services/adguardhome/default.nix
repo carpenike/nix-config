@@ -62,6 +62,13 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "dns" "adguardhome" "config" ];
+        # CRITICAL: Enable ZFS snapshots for query log and configuration consistency
+        useSnapshots = true;
+        zfsDataset = "tank/services/adguardhome";
+        excludePatterns = [
+          "**/cache/**"          # Exclude cache files
+          "**/tmp/**"            # Exclude temporary files
+        ];
       };
       description = "Backup configuration for AdGuardHome";
     };

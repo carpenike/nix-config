@@ -425,7 +425,7 @@ in
       };
       owner = "prometheus";
       group = "prometheus";
-      mode = "0755";
+      mode = "0750";  # Allow group read access for backup systems
     };
 
     # Auto-configure Prometheus reverse proxy

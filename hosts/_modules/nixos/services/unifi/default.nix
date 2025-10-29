@@ -91,14 +91,14 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "network" "unifi" "config" ];
-        preBackupScript = ''
-          # Stop UniFi before backup to ensure consistent state
-          systemctl stop podman-unifi.service || true
-        '';
-        postBackupScript = ''
-          # Restart UniFi after backup
-          systemctl start podman-unifi.service || true
-        '';
+        # CRITICAL: Enable ZFS snapshots for MongoDB database consistency
+        useSnapshots = true;
+        zfsDataset = "tank/services/unifi";
+        excludePatterns = [
+          "**/logs/**"           # Exclude log files
+          "**/tmp/**"            # Exclude temporary files
+          "**/work/**"           # Exclude work directories
+        ];
       };
       description = "Backup configuration for UniFi Controller";
     };
