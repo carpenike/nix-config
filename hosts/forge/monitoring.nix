@@ -63,7 +63,7 @@ let
   tlsMetricsScript = pkgs.writeShellScriptBin "export-tls-metrics" ''
     #!/usr/bin/env bash
     set -euo pipefail
-    PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.curl pkgs.gnused pkgs.gawk pkgs.jq ]}"
+    PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.curl pkgs.gnused pkgs.gawk pkgs.jq pkgs.gnugrep ]}"
 
     METRICS_FILE="/var/lib/node_exporter/textfile_collector/tls.prom"
     TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
