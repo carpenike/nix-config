@@ -102,10 +102,9 @@ in {
   };
 
   config = lib.mkIf (cfg.enable && monitoringCfg.enable) {
-    # Ensure textfile collector directory exists with proper permissions
-    systemd.tmpfiles.rules = [
-      "d ${monitoringCfg.textfileCollector.directory} 0755 root root -"
-    ];
+    # NOTE: Directory permissions are managed by the main monitoring module
+    # which sets: "d ${directory} 2770 node-exporter node-exporter -"
+    # This allows services in the node-exporter group to write metrics
 
     # Metric cleanup service
     systemd.services.backup-metrics-cleanup = {

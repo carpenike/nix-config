@@ -337,7 +337,8 @@ in
     description = "TLS Certificate Metrics Exporter for Prometheus";
     serviceConfig = {
       Type = "oneshot";
-      User = "node-exporter"; # Run as node-exporter user for file permissions
+      User = "node-exporter";
+      Group = "node-exporter";
       ExecStart = "${tlsMetricsScript}/bin/export-tls-metrics";
     };
   };
