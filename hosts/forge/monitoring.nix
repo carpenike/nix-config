@@ -1,5 +1,63 @@
-{ lib, config, ... }:
+{ lib, config, pkgs, ... }:
 
+let
+  # ZFS metrics exporter script - safe alternative to node_exporter ZFS collector
+  # Uses zpool commands only (no statfs() calls that cause kernel hangs)
+  zfsMetricsScript = pkgs.writeShellScriptBin "export-zfs-metrics" ''
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PATH="${lib.makeBinPath [ pkgs.zfs ]}"
+
+    METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs.prom"
+    TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
+
+    # Ensure root privileges (zpool commands require root)
+    if [[ "$(id -u)" -ne 0 ]]; then
+       echo "This script must be run as root" >&2
+       exit 1
+    fi
+
+    # Generate metrics atomically
+    (
+      # ZFS Pool Health Status
+      echo "# HELP zfs_pool_health Health status of ZFS pool (0=ONLINE, 1=DEGRADED, 2=FAULTED, 3=OFFLINE, 4=UNAVAIL, 5=REMOVED)"
+      echo "# TYPE zfs_pool_health gauge"
+      zpool list -H -o name,health | while read -r pool health; do
+        status=0
+        case "$health" in
+          ONLINE)   status=0 ;;
+          DEGRADED) status=1 ;;
+          FAULTED)  status=2 ;;
+          OFFLINE)  status=3 ;;
+          UNAVAIL)  status=4 ;;
+          REMOVED)  status=5 ;;
+        esac
+        echo "zfs_pool_health{pool=\"$pool\",health=\"$health\"} $status"
+      done
+
+      # ZFS Pool Capacity
+      echo "# HELP zfs_pool_capacity_percent ZFS pool capacity used percentage"
+      echo "# TYPE zfs_pool_capacity_percent gauge"
+      zpool list -H -o name,capacity | while read -r pool capacity; do
+        capacity_num="''${capacity%\\%}"
+        echo "zfs_pool_capacity_percent{pool=\"$pool\"} $capacity_num"
+      done
+
+      # ZFS Pool Fragmentation
+      echo "# HELP zfs_pool_fragmentation_percent ZFS pool fragmentation percentage"
+      echo "# TYPE zfs_pool_fragmentation_percent gauge"
+      zpool list -H -o name,frag | while read -r pool frag; do
+        frag_num="''${frag%\\%}"
+        echo "zfs_pool_fragmentation_percent{pool=\"$pool\"} $frag_num"
+      done
+
+    ) > "$TMP_METRICS_FILE"
+
+    # Atomic move and set permissions
+    mv "$TMP_METRICS_FILE" "$METRICS_FILE"
+    chmod 644 "$METRICS_FILE"
+  '';
+in
 {
   imports = [
     # This host is a standard monitored agent.
@@ -80,6 +138,26 @@
     interval = "minutely";
   };
 
+  # ZFS metrics exporter service and timer
+  systemd.services.zfs-metrics-exporter = {
+    description = "ZFS Pool Metrics Exporter for Prometheus";
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root"; # zpool commands require root
+      ExecStart = "${zfsMetricsScript}/bin/export-zfs-metrics";
+    };
+  };
+
+  systemd.timers.zfs-metrics-exporter = {
+    description = "Run ZFS metrics exporter every minute";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "1m";
+      OnUnitActiveSec = "1m";
+      Unit = "zfs-metrics-exporter.service";
+    };
+  };
+
   # Alerts for GPU usage (host-level) and instance availability
   modules.alerting.rules."gpu-exporter-stale" = {
       type = "promql";
@@ -117,6 +195,59 @@
     annotations = {
       summary = "Instance down: {{ $labels.instance }}";
       description = "Node exporter target {{ $labels.instance }} is down. Dependency-aware inhibitions will suppress child alerts (e.g., replication).";
+    };
+  };
+
+  # ZFS Storage Monitoring Alerts
+  modules.alerting.rules."zfs-pool-unhealthy" = {
+    type = "promql";
+    alertname = "ZfsPoolUnhealthy";
+    expr = "zfs_pool_health > 0";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "zfs"; category = "storage"; };
+    annotations = {
+      summary = "ZFS pool {{ $labels.pool }} is unhealthy";
+      description = "Pool {{ $labels.pool }} has status {{ $labels.health }}. Immediate investigation required.";
+    };
+  };
+
+  modules.alerting.rules."zfs-capacity-critical" = {
+    type = "promql";
+    alertname = "ZfsPoolCapacityCritical";
+    expr = "zfs_pool_capacity_percent > 95";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "zfs"; category = "capacity"; };
+    annotations = {
+      summary = "ZFS pool {{ $labels.pool }} critically full";
+      description = "Pool {{ $labels.pool }} is {{ $value }}% full. Data loss imminent.";
+    };
+  };
+
+  modules.alerting.rules."zfs-capacity-warning" = {
+    type = "promql";
+    alertname = "ZfsPoolCapacityHigh";
+    expr = "zfs_pool_capacity_percent > 85";
+    for = "15m";
+    severity = "high";
+    labels = { service = "zfs"; category = "capacity"; };
+    annotations = {
+      summary = "ZFS pool {{ $labels.pool }} reaching capacity";
+      description = "Pool {{ $labels.pool }} is {{ $value }}% full.";
+    };
+  };
+
+  modules.alerting.rules."zfs-fragmentation-high" = {
+    type = "promql";
+    alertname = "ZfsPoolFragmentationHigh";
+    expr = "zfs_pool_fragmentation_percent > 50";
+    for = "30m";
+    severity = "medium";
+    labels = { service = "zfs"; category = "performance"; };
+    annotations = {
+      summary = "ZFS pool {{ $labels.pool }} highly fragmented";
+      description = "Pool {{ $labels.pool }} is {{ $value }}% fragmented. Consider running defragmentation.";
     };
   };
 
