@@ -6,7 +6,7 @@
 # - Integrates with existing Sanoid for ongoing snapshot management
 # - No coupling between services and centralized Sanoid config
 
-{ config, lib, pkgs }:
+{ config, lib, pkgs, ... }:
 
 let
   cfg = config.modules.services.backup;

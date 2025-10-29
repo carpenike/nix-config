@@ -6,7 +6,7 @@
 # - Performance and health tracking
 # - Integration with existing node-exporter setup
 
-{ config, lib, pkgs }:
+{ config, lib, pkgs, ... }:
 
 let
   cfg = config.modules.services.backup;

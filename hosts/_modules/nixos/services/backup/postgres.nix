@@ -5,7 +5,7 @@
 # - Unified monitoring via textfile collector
 # - Verification framework for PostgreSQL backups
 
-{ config, lib, pkgs }:
+{ config, lib, pkgs, ... }:
 
 let
   cfg = config.modules.services.backup;

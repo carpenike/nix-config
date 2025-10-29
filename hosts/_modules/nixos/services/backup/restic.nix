@@ -6,7 +6,7 @@
 # - Enterprise monitoring via textfile collector
 # - Automated repository management
 
-{ config, lib, pkgs }:
+{ config, lib, pkgs, ... }:
 
 let
   cfg = config.modules.services.backup;
@@ -281,31 +281,20 @@ in {
   };
 
   config = lib.mkIf (cfg.enable && resticCfg.enable) {
-    # Create systemd services for all backup jobs
-    systemd.services = lib.mkMerge (lib.mapAttrsToList mkBackupService
-      (lib.filterAttrs (name: job: job.enable) allJobs));
-
     # Create backup target for grouping
     systemd.targets.backup = {
       description = "Backup services target";
       wantedBy = [ "multi-user.target" ];
     };
 
-    # Create timers for backup jobs
-    systemd.timers = lib.mkMerge (lib.mapAttrsToList (jobName: jobConfig: {
-      "restic-backup-${jobName}" = {
-        description = "Timer for ${jobName} backup";
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = jobConfig.frequency;
-          Persistent = true;
-          RandomizedDelaySec = "30m";  # Spread backup load
-        };
-      };
-    }) (lib.filterAttrs (name: job: job.enable) allJobs));
-
-    # Notification service templates
-    systemd.services = {
+    # Create systemd services for all backup jobs and notification templates
+    systemd.services = lib.mkMerge [
+      # Backup job services
+      (lib.mkMerge (lib.mapAttrsToList mkBackupService
+        (lib.filterAttrs (name: job: job.enable) allJobs)))
+      
+      # Notification service templates
+      {
       "backup-success-notification@" = {
         description = "Backup success notification for %i";
         serviceConfig = {
@@ -325,6 +314,20 @@ in {
           ''} %i";
         };
       };
-    };
+      }
+      ];
+
+    # Create timers for backup jobs
+    systemd.timers = lib.mkMerge (lib.mapAttrsToList (jobName: jobConfig: {
+      "restic-backup-${jobName}" = {
+        description = "Timer for ${jobName} backup";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = jobConfig.frequency;
+          Persistent = true;
+          RandomizedDelaySec = "30m";  # Spread backup load
+        };
+      };
+    }) (lib.filterAttrs (name: job: job.enable) allJobs));
   };
 }
