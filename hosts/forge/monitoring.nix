@@ -251,7 +251,174 @@ in
     };
   };
 
+  # TLS Certificate Monitoring
+  # Creates a script that checks certificate expiration for all Caddy-managed domains
+  # and monitors ACME challenge success/failure rates
+  let
+    tlsMetricsScript = pkgs.writeShellScriptBin "export-tls-metrics" ''
+      #!/usr/bin/env bash
+      set -euo pipefail
+      PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.curl pkgs.gnused pkgs.gawk pkgs.jq ]}"
 
+      METRICS_FILE="/var/lib/node_exporter/textfile_collector/tls.prom"
+      TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
+
+      # Get all domains from Caddy configuration
+      # Extract hostnames from running Caddy config
+      DOMAINS=$(${pkgs.curl}/bin/curl -s http://localhost:2019/config/ 2>/dev/null | \
+        ${pkgs.jq}/bin/jq -r '.apps.http.servers[].routes[]?.match[]?.host[]? // empty' 2>/dev/null | \
+        sort -u || echo "")
+
+      # Fallback: common forge domains if Caddy API fails
+      if [ -z "$DOMAINS" ]; then
+        DOMAINS="grafana.holthome.net sonarr.holthome.net dispatcharr.holthome.net plex.holthome.net"
+      fi
+
+      # Generate metrics atomically
+      (
+        echo "# HELP tls_certificate_expiry_seconds Time until TLS certificate expires"
+        echo "# TYPE tls_certificate_expiry_seconds gauge"
+
+        for domain in $DOMAINS; do
+          if [ -n "$domain" ]; then
+            # Get certificate expiration time
+            EXPIRY=$(echo | ${pkgs.openssl}/bin/openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | \
+              ${pkgs.openssl}/bin/openssl x509 -noout -enddate 2>/dev/null | \
+              ${pkgs.gnused}/bin/sed 's/notAfter=//' || echo "")
+
+            if [ -n "$EXPIRY" ]; then
+              # Convert to Unix timestamp
+              EXPIRY_TIMESTAMP=$(date -d "$EXPIRY" +%s 2>/dev/null || echo "0")
+              CURRENT_TIMESTAMP=$(date +%s)
+              SECONDS_UNTIL_EXPIRY=$((EXPIRY_TIMESTAMP - CURRENT_TIMESTAMP))
+
+              echo "tls_certificate_expiry_seconds{domain=\"$domain\"} $SECONDS_UNTIL_EXPIRY"
+            else
+              # Certificate check failed - could be ACME in progress or connection issue
+              echo "tls_certificate_expiry_seconds{domain=\"$domain\"} -1"
+            fi
+          fi
+        done
+
+        # ACME Challenge Status from Caddy logs
+        echo "# HELP caddy_acme_challenges_total Total ACME challenges attempted"
+        echo "# TYPE caddy_acme_challenges_total counter"
+        echo "# HELP caddy_acme_challenges_failed_total Total failed ACME challenges"
+        echo "# TYPE caddy_acme_challenges_failed_total counter"
+
+        # Count ACME events from recent journal logs (last 24 hours)
+        CHALLENGES_TOTAL=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "24 hours ago" --no-pager -q 2>/dev/null | \
+          grep -c "acme.*challenge" || echo "0")
+        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "24 hours ago" --no-pager -q 2>/dev/null | \
+          grep -c -i "acme.*\(error\|fail\)" || echo "0")
+
+        echo "caddy_acme_challenges_total $CHALLENGES_TOTAL"
+        echo "caddy_acme_challenges_failed_total $CHALLENGES_FAILED"
+
+        # Caddy Service Health
+        echo "# HELP caddy_service_up Caddy service health status (1=up, 0=down)"
+        echo "# TYPE caddy_service_up gauge"
+
+        # Check if Caddy admin API responds
+        if ${pkgs.curl}/bin/curl -s --max-time 5 http://localhost:2019/metrics >/dev/null 2>&1; then
+          echo "caddy_service_up 1"
+        else
+          echo "caddy_service_up 0"
+        fi
+
+      ) > "$TMP_METRICS_FILE"
+
+      # Atomic move and set permissions
+      mv "$TMP_METRICS_FILE" "$METRICS_FILE"
+      chmod 644 "$METRICS_FILE"
+    '';
+  in
+
+  # TLS metrics exporter service and timer
+  systemd.services.tls-metrics-exporter = {
+    description = "TLS Certificate Metrics Exporter for Prometheus";
+    serviceConfig = {
+      Type = "oneshot";
+      User = "node-exporter"; # Run as node-exporter user for file permissions
+      ExecStart = "${tlsMetricsScript}/bin/export-tls-metrics";
+    };
+  };
+
+  systemd.timers.tls-metrics-exporter = {
+    description = "Run TLS metrics exporter every 5 minutes";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2m";    # Wait for Caddy to start
+      OnUnitActiveSec = "5m";  # Check every 5 minutes
+      Unit = "tls-metrics-exporter.service";
+    };
+  };
+
+  # TLS Certificate Monitoring Alerts
+  modules.alerting.rules."tls-certificate-expiring-soon" = {
+    type = "promql";
+    alertname = "TlsCertificateExpiringSoon";
+    expr = "tls_certificate_expiry_seconds > 0 and tls_certificate_expiry_seconds < 604800"; # 7 days
+    for = "5m";
+    severity = "high";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "TLS certificate expiring soon for {{ $labels.domain }}";
+      description = "Certificate for {{ $labels.domain }} expires in {{ $value | humanizeDuration }}. Renew soon.";
+    };
+  };
+
+  modules.alerting.rules."tls-certificate-expiring-critical" = {
+    type = "promql";
+    alertname = "TlsCertificateExpiringCritical";
+    expr = "tls_certificate_expiry_seconds > 0 and tls_certificate_expiry_seconds < 172800"; # 2 days
+    for = "0m"; # Immediate alert
+    severity = "critical";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "TLS certificate expiring very soon for {{ $labels.domain }}";
+      description = "Certificate for {{ $labels.domain }} expires in {{ $value | humanizeDuration }}. URGENT renewal required.";
+    };
+  };
+
+  modules.alerting.rules."tls-certificate-check-failed" = {
+    type = "promql";
+    alertname = "TlsCertificateCheckFailed";
+    expr = "tls_certificate_expiry_seconds == -1";
+    for = "10m";
+    severity = "high";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "TLS certificate check failed for {{ $labels.domain }}";
+      description = "Cannot retrieve certificate info for {{ $labels.domain }}. Check connectivity and ACME status.";
+    };
+  };
+
+  modules.alerting.rules."acme-challenges-failing" = {
+    type = "promql";
+    alertname = "AcmeChallengesFailing";
+    expr = "increase(caddy_acme_challenges_failed_total[1h]) > 0";
+    for = "5m";
+    severity = "high";
+    labels = { service = "caddy"; category = "acme"; };
+    annotations = {
+      summary = "ACME challenges failing";
+      description = "{{ $value }} ACME challenges have failed in the last hour. Check Caddy logs and DNS configuration.";
+    };
+  };
+
+  modules.alerting.rules."caddy-service-down" = {
+    type = "promql";
+    alertname = "CaddyServiceDown";
+    expr = "caddy_service_up == 0";
+    for = "2m";
+    severity = "critical";
+    labels = { service = "caddy"; category = "availability"; };
+    annotations = {
+      summary = "Caddy service is down";
+      description = "Caddy reverse proxy is not responding. All web services may be unavailable.";
+    };
+  };
 
   # Ensure exporter can access /dev/dri
   users.users.node-exporter.extraGroups = [ "render" ];
