@@ -6,7 +6,7 @@ let
   zfsMetricsScript = pkgs.writeShellScriptBin "export-zfs-metrics" ''
     #!/usr/bin/env bash
     set -euo pipefail
-    PATH="${lib.makeBinPath [ pkgs.zfs ]}"
+    PATH="${lib.makeBinPath [ pkgs.zfs pkgs.coreutils pkgs.bash ]}"
 
     METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs.prom"
     TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
