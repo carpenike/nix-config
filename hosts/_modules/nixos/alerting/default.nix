@@ -392,10 +392,7 @@ in
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
               # Message: list summaries for grouped alerts; else use description with fallback
               # Append runbook and command hints when provided by alert annotations
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
-{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
-{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
+              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               # Action link: pre-filled Silence form for this alert group (proper multi-filter params)
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
@@ -410,10 +407,7 @@ in
               priority = 1;
               send_resolved = true;
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
-{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
-{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
+              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
@@ -427,10 +421,7 @@ in
               priority = 0;
               send_resolved = true;
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
-{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
-{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
+              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
@@ -444,10 +435,7 @@ in
               priority = -1;
               send_resolved = true;
               title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}
-{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}
-{{ if .CommonAnnotations.runbook_url }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}
-{{ if .CommonAnnotations.command }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
+              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
               url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
               url_title = ''Silence this Alert Group'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
