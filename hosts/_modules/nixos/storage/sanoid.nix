@@ -571,10 +571,14 @@ in
             ExecStartPost = pkgs.writeShellScript "syncoid-metrics-post-${sanitizedDataset}" ''
               set -eu
               # Check the main service result using systemd environment variable
+              # SERVICE_RESULT is set by systemd after ExecStart completes
               STATUS=0 # Assume failure
               if [ "''${SERVICE_RESULT:-failure}" = "success" ]; then
                 STATUS=1 # Success
               fi
+
+              # Debug: Log the SERVICE_RESULT for troubleshooting
+              echo "SERVICE_RESULT=''${SERVICE_RESULT:-unset} STATUS=$STATUS" >&2
 
               cat > "${metricFile}.tmp" <<EOF
               # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
