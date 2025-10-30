@@ -518,6 +518,10 @@ in
             WorkingDirectory = lib.mkForce "/";
             ProtectHome = lib.mkForce false;
             PrivateMounts = lib.mkForce false;
+            # Disable systemd namespace isolation that conflicts with our scripts
+            RootDirectory = lib.mkForce "";
+            RootDirectoryStartOnly = lib.mkForce false;
+            RuntimeDirectory = lib.mkForce "";
             ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
             UMask = lib.mkForce "0002";
             PermissionsStartOnly = lib.mkForce false;
@@ -540,10 +544,10 @@ in
             ExecStartPre = [
               # CRITICAL: Serialize all syncoid jobs to prevent resource exhaustion
               # -n flag: fail immediately if lock held (prevents job pile-up)
-              # /run/lock: standard systemd tmpfs location for runtime locks
+              # /tmp: writable by all users, suitable for runtime locks
               # Use absolute paths and avoid shell dependencies that might cause CHDIR issues
               (pkgs.writeShellScript "syncoid-acquire-lock-${sanitizedDataset}" ''
-                ${pkgs.util-linux}/bin/flock -n /run/lock/syncoid.lock \
+                ${pkgs.util-linux}/bin/flock -n /tmp/syncoid.lock \
                   ${pkgs.coreutils}/bin/echo "Acquired syncoid lock for ${serviceName} at $(${pkgs.coreutils}/bin/date)"
               '')
               # Write metrics indicating job is starting
