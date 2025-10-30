@@ -541,7 +541,11 @@ in
               # CRITICAL: Serialize all syncoid jobs to prevent resource exhaustion
               # -n flag: fail immediately if lock held (prevents job pile-up)
               # /run/lock: standard systemd tmpfs location for runtime locks
-              "${pkgs.util-linux}/bin/flock -n /run/lock/syncoid.lock ${pkgs.bash}/bin/bash -c 'echo \"Acquired syncoid lock for ${serviceName} at $(date)\"'"
+              # Use absolute paths and avoid shell dependencies that might cause CHDIR issues
+              (pkgs.writeShellScript "syncoid-acquire-lock-${sanitizedDataset}" ''
+                ${pkgs.util-linux}/bin/flock -n /run/lock/syncoid.lock \
+                  ${pkgs.coreutils}/bin/echo "Acquired syncoid lock for ${serviceName} at $(${pkgs.coreutils}/bin/date)"
+              '')
               # Write metrics indicating job is starting
               (pkgs.writeShellScript "syncoid-metrics-pre-${sanitizedDataset}" ''
                 set -eu
