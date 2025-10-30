@@ -25,8 +25,20 @@ in
         enable = true;
         dockerCompat = true;
         autoPrune.enable = true;
+        # Enable socket for secure monitoring access
+        dockerSocket.enable = true;
       };
       oci-containers.backend = "podman";
+    };
+
+    # Use the correct NixOS override pattern - extend rather than replace
+    systemd.sockets.podman = {
+      wantedBy = lib.mkForce [ "sockets.target" ];
+      socketConfig = lib.mkMerge [
+        (lib.mkIf config.virtualisation.podman.dockerSocket.enable {
+          SocketGroup = lib.mkForce "podman-socket";
+        })
+      ];
     };
   };
 }

@@ -266,16 +266,15 @@ in
       configuration = {
         route = {
           receiver = "pushover-medium";
-          # Group by instance (host) and alertname to avoid mixing unrelated alerts
-          # This keeps host-wide failures consolidated while separating different alerts
-          # into their own threads within the same host grouping.
-          group_by = [ "instance" "alertname" ];
-          # Wait 30s to catch other related alerts that may fire in quick succession
-          group_wait = "30s";
-          # Send updates for a group every 5 minutes if new alerts are added
-          group_interval = "5m";
-          # Default repeat interval for non-critical alerts
-          repeat_interval = "4h";
+          # Group by severity and alertname for better organization
+          # This consolidates related alerts while keeping severity levels separate
+          group_by = [ "alertname" "severity" "instance" ];
+          # Wait 15s to catch related alerts that fire quickly
+          group_wait = "15s";
+          # Send updates for a group every 2 minutes if new alerts are added
+          group_interval = "2m";
+          # Default repeat interval for medium alerts
+          repeat_interval = "6h";
           routes =
             # Prepend a route for the Dead Man's Switch to ensure it's handled first
             (lib.optional (cfg.receivers.healthchecks.urlSecret != null) {
@@ -304,13 +303,15 @@ in
             {
               matchers = [ "severity=\"critical\"" ];
               receiver = "pushover-critical";
-              # Repeat critical alerts more frequently to ensure they are not missed
-              repeat_interval = "30m";
+              # Fast response for critical alerts in homelab
+              group_wait = "5s";
+              repeat_interval = "15m";
             }
             {
               matchers = [ "severity=\"high\"" ];
               receiver = "pushover-high";
-              repeat_interval = "2h";
+              group_wait = "10s";
+              repeat_interval = "1h";
             }
             {
               matchers = [ "severity=\"medium\"" ];
@@ -388,14 +389,16 @@ in
               # Use high priority (1) and send resolved notifications
               priority = 1;
               send_resolved = true;
-              # Informative title: show group size when multiple alerts, else specific summary
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
-              # Message: list summaries for grouped alerts; else use description with fallback
-              # Append runbook and command hints when provided by alert annotations
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
+              # Critical alert with clear indicator
+              title = ''🚨 {{ .GroupLabels.alertname }}'';
+              # Simple, readable message for mobile
+              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
+{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+Host: {{ .Labels.instance }}
+{{ end }}'';
               # Action link: pre-filled Silence form for this alert group (proper multi-filter params)
-              url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
-              url_title = ''Silence this Alert Group'';
+              url = ''{{ .ExternalURL }}/#/silences/new'';
+              url_title = ''Create Silence'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
             }];
           }
@@ -406,10 +409,13 @@ in
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 1;
               send_resolved = true;
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
-              url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
-              url_title = ''Silence this Alert Group'';
+              title = ''⚠️ {{ .GroupLabels.alertname }}'';
+              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
+{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+Host: {{ .Labels.instance }}
+{{ end }}'';
+              url = ''{{ .ExternalURL }}/#/silences/new'';
+              url_title = ''Create Silence'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
             }];
           }
@@ -420,10 +426,13 @@ in
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 0;
               send_resolved = true;
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
-              url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
-              url_title = ''Silence this Alert Group'';
+              title = ''⚠️ {{ .GroupLabels.alertname }}'';
+              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
+{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+Host: {{ .Labels.instance }}
+{{ end }}'';
+              url = ''{{ .ExternalURL }}/#/silences/new'';
+              url_title = ''Create Silence'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
             }];
           }
@@ -434,10 +443,13 @@ in
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = -1;
               send_resolved = true;
-              title = ''{{ if gt (len .Alerts) 1 }}[{{ len .Alerts }}] {{ .CommonLabels.alertname }} on {{ or .CommonLabels.instance .CommonLabels.hostname }}{{ else }}{{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}{{ (index .Alerts 0).Annotations.summary }}{{ end }}{{ end }}'';
-              message = ''{{ if gt (len .Alerts) 1 }}{{ range .Alerts }}- {{ .Annotations.summary }}{{ "\n" }}{{ end }}{{ else }}{{ if .CommonAnnotations.description }}{{ .CommonAnnotations.description }}{{ else }}{{ (index .Alerts 0).Annotations.description }}{{ end }}{{ end }}{{ if .CommonAnnotations.runbook_url }}{{ "\n" }}Runbook: {{ .CommonAnnotations.runbook_url }}{{ end }}{{ if .CommonAnnotations.command }}{{ "\n" }}Cmd: {{ .CommonAnnotations.command }}{{ end }}'';
-              url = ''{{ .ExternalURL }}/#/silences/new{{ range $i, $e := .CommonLabels.SortedPairs }}{{ if eq $i 0 }}?{{ else }}&{{ end }}filter={{ $e.Name }}%3D%22{{ $e.Value | urlquery }}%22{{ end }}'';
-              url_title = ''Silence this Alert Group'';
+              title = ''⚠️ {{ .GroupLabels.alertname }}'';
+              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
+{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
+Host: {{ .Labels.instance }}
+{{ end }}'';
+              url = ''{{ .ExternalURL }}/#/silences/new'';
+              url_title = ''Create Silence'';
               # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
             }];
           }

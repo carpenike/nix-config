@@ -54,7 +54,7 @@ in {
               options = {
                 backupStaleHours = lib.mkOption {
                   type = lib.types.int;
-                  default = 25;
+                  default = 30;  # 30h = 24h daily schedule + 6h buffer (homelab-optimized)
                   description = "Hours before backup is considered stale";
                 };
 

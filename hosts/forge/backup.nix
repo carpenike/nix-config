@@ -366,17 +366,19 @@ in
       };
 
       # Backup hasn't run in expected timeframe
+      # Fixed: 30-hour threshold for daily jobs (24h interval + 6h buffer)
       "restic-backup-stale" = {
         type = "promql";
         alertname = "ResticBackupStale";
         # Only consider new metrics that use the backup_job label to avoid legacy series with exported_job
-        expr = "(time() - restic_backup_last_success_timestamp{backup_job!=\"\"}) > 86400";
+        # 108000s = 30 hours (24h daily schedule + 6h buffer)
+        expr = "(time() - restic_backup_last_success_timestamp{backup_job!=\"\"}) > 108000";
         for = "1h";
         severity = "high";
-        labels = { service = "backup"; category = "restic"; };
+        labels = { service = "backup"; category = "restic"; group = "backups"; };
         annotations = {
           summary = "Restic backup job {{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }} is stale on {{ $labels.hostname }}";
-          description = "No successful backup in 24+ hours for repository {{ $labels.repository }}. Last success: {{ $value | humanizeDuration }} ago.";
+          description = "No successful backup in 30+ hours for repository {{ $labels.repository }}. Last success: {{ $value | humanizeDuration }} ago. Daily backups have 6-hour buffer.";
           command = "journalctl -u restic-backups-{{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }}.service --since '24h'";
         };
       };
@@ -472,13 +474,17 @@ in
           command = "systemctl status syncoid-*.service";
         };
       };
-      # ZFS replication stale (primary staleness alert - tightened thresholds)
+      # ZFS replication stale (homelab-optimized thresholds with stuck detection)
       "zfs-replication-stale-high" = {
         type = "promql";
         alertname = "ZFSReplicationStaleHigh";
+        # Fixed: 90-minute threshold for 15-minute jobs + stuck detection
+        # 5400s = 90 minutes (6 missed 15m runs with buffer)
         expr = ''
           (
-            (time() - syncoid_replication_last_success_timestamp > 7200)
+            (time() - syncoid_replication_last_success_timestamp > 5400)
+            and
+            (increase(syncoid_replication_last_success_timestamp[1h]) == 0)
             * on (dataset, target_host) group_left (unit)
               syncoid_replication_info
           )
@@ -488,12 +494,12 @@ in
             unless on (dataset, target_host) syncoid_replication_last_success_timestamp
           )
         '';
-        for = "30m";
-        severity = "high";
+        for = "15m";
+        severity = "medium";  # Downgraded from high for homelab context
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
-          summary = "[High] ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
-          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Investigate syncoid unit configuration and remote permissions.{{ else }}Replication has been failing for {{ $value | humanizeDuration }}. Check for hung syncoid processes, network issues, or remote ZFS health.{{ end }}";
+          summary = "[Medium] ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Investigate syncoid unit configuration and remote permissions.{{ else }}Replication has been failing for {{ $value | humanizeDuration }} AND metrics are stuck (not advancing). Check for hung syncoid processes, network issues, or remote ZFS health.{{ end }}";
           command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2h'";
         };
       };
@@ -501,9 +507,13 @@ in
       "zfs-replication-stale-critical" = {
         type = "promql";
         alertname = "ZFSReplicationStaleCritical";
+        # Fixed: 4-hour threshold for homelab + stuck detection
+        # 14400s = 4 hours (reasonable for homelab critical threshold)
         expr = ''
           (
-            (time() - syncoid_replication_last_success_timestamp > 21600)
+            (time() - syncoid_replication_last_success_timestamp > 14400)
+            and
+            (increase(syncoid_replication_last_success_timestamp[2h]) == 0)
             * on (dataset, target_host) group_left (unit)
               syncoid_replication_info
           )
@@ -518,7 +528,7 @@ in
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
           summary = "[Critical] ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
-          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Immediate investigation required (auth/permissions/network).{{ else }}Replication has been failing for {{ $value | humanizeDuration }}. Data loss risk is high if the source fails. Investigate immediately.{{ end }}";
+          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Immediate investigation required (auth/permissions/network).{{ else }}Replication has been failing for {{ $value | humanizeDuration }} AND metrics are stuck (not advancing). Data loss risk is high if the source fails. Investigate immediately.{{ end }}";
           command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2h'";
         };
       };

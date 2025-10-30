@@ -52,7 +52,7 @@ in
         Group = cfg.group;
         SupplementaryGroups = [ "render" ];
         AmbientCapabilities = [ "CAP_PERFMON" ];
-        UMask = "0007";
+        UMask = "0002";
 
         PrivateTmp = true;
         ProtectSystem = "strict";

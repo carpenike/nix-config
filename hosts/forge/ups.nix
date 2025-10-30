@@ -169,8 +169,8 @@
       ${pkgs.coreutils}/bin/mv /var/lib/node_exporter/textfile_collector/ups.prom.tmp \
                                /var/lib/node_exporter/textfile_collector/ups.prom
 
-      # Set appropriate permissions (640 is sufficient, node_exporter can read)
-      ${pkgs.coreutils}/bin/chmod 640 /var/lib/node_exporter/textfile_collector/ups.prom
+      # Set appropriate permissions (644 allows node_exporter to read)
+      ${pkgs.coreutils}/bin/chmod 644 /var/lib/node_exporter/textfile_collector/ups.prom
     '';
   };
 

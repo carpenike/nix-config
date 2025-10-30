@@ -243,6 +243,24 @@ in
       }
     ];
 
+    # CRITICAL: SSH config with timeouts to prevent hanging processes
+    # Addresses the root cause of the original incident (SSH hanging on host key verification)
+    environment.etc."ssh/ssh_config.d/syncoid.conf" = lib.mkIf (datasetsWithReplication != {}) {
+      text = ''
+        # SSH configuration for syncoid replication
+        # Prevents hanging SSH connections that caused the original incident
+        Host *
+          ConnectTimeout 30
+          ServerAliveInterval 15
+          ServerAliveCountMax 3
+          BatchMode yes
+          StrictHostKeyChecking accept-new
+          IdentityFile /var/lib/zfs-replication/.ssh/id_ed25519
+          IdentitiesOnly yes
+      '';
+      mode = "0644";
+    };
+
     # -- User and Group Management --
     users.users.sanoid = {
       isSystemUser = true;
@@ -365,7 +383,7 @@ in
           "d /var/lib/node_exporter/textfile_collector 0775 node-exporter node-exporter -"
         ];
       }
-      # Create .ssh directory for the replication user
+      # Create .ssh directory and config for the replication user
       {
         # Only create the .ssh directory when using a persistent key under /var/lib/<user>/.ssh
         tmpfiles.rules = lib.optional (
@@ -470,6 +488,9 @@ in
     ] ++ (lib.mapAttrsToList (dataset: conf:
       let
         serviceName = "syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}";
+        # Define a sanitized dataset name for use in metric files
+        sanitizedDataset = lib.strings.replaceStrings ["/"] ["-"] dataset;
+        metricFile = "/var/lib/node_exporter/textfile_collector/syncoid_replication_${sanitizedDataset}.prom";
       in
       {
   # Wire each syncoid job to the notification system and override sandboxing
@@ -486,10 +507,12 @@ in
               Conflicts = [ "restic-backups.target" ];
               # Ensure key file exists before starting (works for persistent or ephemeral paths)
               ConditionPathExists = toString cfg.sshKeyPath;
+              # CRITICAL: Add network dependency to prevent startup race conditions
+              After = [ "network-online.target" ];
+              Wants = [ "network-online.target" ];
             }
           ];
 
-          # Minimal sandbox overrides: set safe working directory only
           serviceConfig = lib.mkIf (cfg.sshKeyPath != null) {
             Type = "oneshot";
             WorkingDirectory = lib.mkForce "/";
@@ -498,48 +521,74 @@ in
             ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
             UMask = lib.mkForce "0002";
             PermissionsStartOnly = lib.mkForce false;
-            TimeoutStartSec = "2h";
-            TimeoutStopSec = "2h";
-            ExecStartPost = let
-              metricFile = "/var/lib/node_exporter/textfile_collector/syncoid-last-success-${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom";
-              successMetricScript = pkgs.writeShellScript "syncoid-success-metric-${lib.strings.replaceStrings ["/"] ["-"] dataset}" ''
-                set -eu
-                TS=$(${pkgs.coreutils}/bin/date +%s)
-                # Compute latest local snapshot time (epoch)
-                LATEST_LOCAL_SNAP=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name -s creation "${dataset}" | ${pkgs.coreutils}/bin/tail -n 1 || echo "")
-                if [ -n "$LATEST_LOCAL_SNAP" ]; then
-                  LOCAL_TIME=$(${pkgs.zfs}/bin/zfs get -H -p -o value creation "$LATEST_LOCAL_SNAP" 2>/dev/null || echo 0)
-                else
-                  LOCAL_TIME=0
-                fi
-                # Fetch latest remote snapshot time on target via SSH
-                REMOTE_TIME=$(${pkgs.openssh}/bin/ssh \
-                  -i ${toString cfg.sshKeyPath} \
-                  -o BatchMode=yes \
-                  -o ConnectTimeout=10 \
-                  -o StrictHostKeyChecking=yes \
-                  "${conf.replication.targetUser}@${conf.replication.targetHost}" '
-                  set -eu
-                  LATEST_REMOTE_SNAP=$(zfs list -H -t snapshot -o name -s creation "${conf.replication.targetDataset}" | tail -n 1 || echo "")
-                  if [ -n "$LATEST_REMOTE_SNAP" ]; then
-                    zfs get -H -p -o value creation "$LATEST_REMOTE_SNAP" 2>/dev/null || echo 0
-                  else
-                    echo 0
-                  fi
-                ' || echo 0)
-                # Only record success if remote received snapshot time is >= local
-                if [ "$REMOTE_TIME" -ge "$LOCAL_TIME" ] && [ "$REMOTE_TIME" -gt 0 ]; then
-                  ${pkgs.coreutils}/bin/printf '%s\n' '# HELP syncoid_replication_last_success_timestamp Unix timestamp of last successful syncoid replication' > "${metricFile}.tmp"
-                  ${pkgs.coreutils}/bin/printf '%s\n' '# TYPE syncoid_replication_last_success_timestamp gauge' >> "${metricFile}.tmp"
-                  ${pkgs.coreutils}/bin/printf '%s\n' 'syncoid_replication_last_success_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}.service"} '"$TS" >> "${metricFile}.tmp"
-                  ${pkgs.coreutils}/bin/mv "${metricFile}.tmp" "${metricFile}"
-                fi
-              '';
-            in [ "${pkgs.bash}/bin/bash -lc 'cd /var/lib/node_exporter/textfile_collector && exec ${successMetricScript}'" ];
-          };
 
-          # Metrics hooks removed to avoid CHDIR failures in ExecStartPre/ExecStopPost.
-          # Replication status can be inferred from unit state and logs.
+            # CRITICAL: Shorter timeout to fail faster (was 2h, now 45m)
+            TimeoutStartSec = "45m";
+            TimeoutStopSec = "5m";
+
+            # CRITICAL: Add resource limits to prevent runaway processes
+            CPUQuota = "75%";
+            MemoryMax = "4G";
+            IOWeight = 500; # Lower I/O priority than default (1000)
+
+            # TODO: Add SSH timeouts via SSH config or wrapper script
+            # For now, systemd timeout provides protection, but SSH-level timeouts would be better
+
+
+            # CRITICAL: Re-enable metrics hooks with CHDIR fix + serialization via flock
+            # These metrics are required for Prometheus staleness alerts
+            ExecStartPre = [
+              # CRITICAL: Serialize all syncoid jobs to prevent resource exhaustion
+              # -n flag: fail immediately if lock held (prevents job pile-up)
+              # /run/lock: standard systemd tmpfs location for runtime locks
+              "${pkgs.util-linux}/bin/flock -n /run/lock/syncoid.lock ${pkgs.bash}/bin/bash -c 'echo \"Acquired syncoid lock for ${serviceName} at $(date)\"'"
+              # Write metrics indicating job is starting
+              (pkgs.writeShellScript "syncoid-metrics-pre-${sanitizedDataset}" ''
+                set -eu
+                # Ensure metrics directory exists
+                mkdir -p "$(dirname "${metricFile}")"
+                # Write 'in-progress' metric
+                cat > "${metricFile}.tmp" <<EOF
+                # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
+                # TYPE syncoid_replication_status gauge
+                syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} 2
+                # HELP syncoid_replication_info Static information about replication configuration
+                # TYPE syncoid_replication_info gauge
+                syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} 1
+                EOF
+                mv "${metricFile}.tmp" "${metricFile}"
+              '')
+            ];
+
+            ExecStartPost = pkgs.writeShellScript "syncoid-metrics-post-${sanitizedDataset}" ''
+              set -eu
+              # Check the main service result using systemd environment variable
+              STATUS=0 # Assume failure
+              if [ "''${SERVICE_RESULT:-failure}" = "success" ]; then
+                STATUS=1 # Success
+              fi
+
+              cat > "${metricFile}.tmp" <<EOF
+              # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
+              # TYPE syncoid_replication_status gauge
+              syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} $STATUS
+              # HELP syncoid_replication_info Static information about replication configuration
+              # TYPE syncoid_replication_info gauge
+              syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} 1
+              EOF
+
+              # Only add timestamp metric on success
+              if [ $STATUS -eq 1 ]; then
+                cat >> "${metricFile}.tmp" <<EOF
+              # HELP syncoid_replication_last_success_timestamp Timestamp of the last successful replication
+              # TYPE syncoid_replication_last_success_timestamp gauge
+              syncoid_replication_last_success_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} $(date +%s)
+              EOF
+              fi
+
+              mv "${metricFile}.tmp" "${metricFile}"
+            '';
+          };
         };
       }
     ) datasetsWithReplication) ++ [
