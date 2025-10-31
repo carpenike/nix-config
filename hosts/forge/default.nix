@@ -38,6 +38,15 @@ in
       # Firewall disabled; per-service modules will declare their own rules
       firewall.enable = false;
       domain = "holthome.net";
+
+      # Add local DNS entries for TLS certificate verification
+      # These domains are served by local Caddy but don't exist in external DNS
+      # Required for TLS certificate exporter to successfully connect and verify certificates
+      extraHosts = ''
+        127.0.0.1 alertmanager.forge.holthome.net
+        127.0.0.1 prometheus.forge.holthome.net
+        127.0.0.1 loki.holthome.net
+      '';
     };
 
     # Boot loader configuration
@@ -317,6 +326,74 @@ in
             annotations = {
               summary = "SystemD unit {{ $labels.name }} failed on {{ $labels.instance }}";
               description = "Service is in failed state. Check: systemctl status {{ $labels.name }}";
+            };
+          };
+
+          # Dispatcharr container service down
+          "dispatcharr-service-down" = {
+            type = "promql";
+            alertname = "DispatcharrServiceDown";
+            expr = ''
+              container_service_active{service="dispatcharr"} == 0
+            '';
+            for = "2m";
+            severity = "high";
+            labels = { service = "dispatcharr"; category = "container"; };
+            annotations = {
+              summary = "Dispatcharr service is down on {{ $labels.instance }}";
+              description = "IPTV stream management service is not running. Check: systemctl status podman-dispatcharr.service";
+              command = "systemctl status podman-dispatcharr.service && journalctl -u podman-dispatcharr.service --since '30m'";
+            };
+          };
+
+          # Sonarr container service down
+          "sonarr-service-down" = {
+            type = "promql";
+            alertname = "SonarrServiceDown";
+            expr = ''
+              container_service_active{service="sonarr"} == 0
+            '';
+            for = "2m";
+            severity = "high";
+            labels = { service = "sonarr"; category = "container"; };
+            annotations = {
+              summary = "Sonarr service is down on {{ $labels.instance }}";
+              description = "TV series management service is not running. Check: systemctl status podman-sonarr.service";
+              command = "systemctl status podman-sonarr.service && journalctl -u podman-sonarr.service --since '30m'";
+            };
+          };
+
+          # Container health check failures
+          "container-health-check-failed" = {
+            type = "promql";
+            alertname = "ContainerHealthCheckFailed";
+            expr = ''
+              container_health_status{health!="healthy"} == 1
+            '';
+            for = "5m";
+            severity = "medium";
+            labels = { service = "container"; category = "health"; };
+            annotations = {
+              summary = "Container {{ $labels.name }} health check failed on {{ $labels.instance }}";
+              description = "Container health status is {{ $labels.health }}. Check container logs: podman logs {{ $labels.name }}";
+              command = "podman logs {{ $labels.name }} --since 30m";
+            };
+          };
+
+          # High container memory usage
+          "container-memory-high" = {
+            type = "promql";
+            alertname = "ContainerMemoryHigh";
+            expr = ''
+              container_memory_percent > 85
+            '';
+            for = "10m";
+            severity = "medium";
+            labels = { service = "container"; category = "performance"; };
+            annotations = {
+              summary = "Container {{ $labels.name }} memory usage is high on {{ $labels.instance }}";
+              description = "Memory usage is {{ $value }}%. Monitor for potential OOM issues.";
+              command = "podman stats {{ $labels.name }} --no-stream";
             };
           };
         }  # End system health alerts

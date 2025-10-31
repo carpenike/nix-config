@@ -216,8 +216,10 @@ let
     caddy_config_json=$(${pkgs.curl}/bin/curl -s --fail http://localhost:2019/config/ 2>/dev/null || echo "")
 
     if [[ -n "''${caddy_config_json}" ]]; then
+      # Exclude internal monitoring domains that shouldn't have external TLS certificates
       DOMAINS=$(echo "''${caddy_config_json}" | \
         ${pkgs.jq}/bin/jq -r '.apps.http.servers[].routes[]?.match[]?.host[]? // empty' 2>/dev/null | \
+        ${pkgs.gnugrep}/bin/grep -v -E "(alertmanager\.forge\.holthome\.net|loki\.holthome\.net|prometheus\.forge\.holthome\.net)" | \
         sort -u)
     else
       DOMAINS=""

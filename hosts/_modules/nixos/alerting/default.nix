@@ -266,13 +266,13 @@ in
       configuration = {
         route = {
           receiver = "pushover-medium";
-          # Group by severity and alertname for better organization
-          # This consolidates related alerts while keeping severity levels separate
-          group_by = [ "alertname" "severity" "instance" ];
-          # Wait 15s to catch related alerts that fire quickly
-          group_wait = "15s";
-          # Send updates for a group every 2 minutes if new alerts are added
-          group_interval = "2m";
+          # Optimized grouping strategy for homelab: consolidate alerts by host/job
+          # This reduces notification spam while maintaining visibility
+          group_by = [ "hostname" "job" ];
+          # Increased group_wait to catch cascading failures (e.g., disk full -> service fails)
+          group_wait = "45s";
+          # Allow more time for related alerts to accumulate before sending updates
+          group_interval = "5m";
           # Default repeat interval for medium alerts
           repeat_interval = "6h";
           routes =
@@ -286,16 +286,23 @@ in
               repeat_interval = "1m";
             })
             ++ [
+            # System/container alerts: group all host-level issues together
+            {
+              matchers = [ "category=~\"system|container\"" ];
+              group_by = [ "hostname" ];
+              continue = true;
+            }
             # Backup-specific grouping: group by host and repository for clarity
             {
               matchers = [ "category=\"restic\"" ];
               group_by = [ "hostname" "alertname" "repository" ];
               continue = true;
             }
-            # Storage-specific grouping: treat each replication path as a distinct group
+            # Storage-specific grouping: FIXED - removed 'dataset' to consolidate ZFS alerts
+            # All failing datasets for the same replication path now grouped together
             {
               matchers = [ "category=~\"zfs|syncoid\"" ];
-              group_by = [ "instance" "alertname" "dataset" "target_host" ];
+              group_by = [ "instance" "alertname" "target_host" ];
               continue = true;  # Continue to severity-based delivery
             }
           ]
@@ -303,14 +310,15 @@ in
             {
               matchers = [ "severity=\"critical\"" ];
               receiver = "pushover-critical";
-              # Fast response for critical alerts in homelab
-              group_wait = "5s";
+              # Slightly more patient for critical alerts to catch related failures
+              group_wait = "15s";
               repeat_interval = "15m";
             }
             {
               matchers = [ "severity=\"high\"" ];
               receiver = "pushover-high";
-              group_wait = "10s";
+              # Allow time for related alerts to group together
+              group_wait = "30s";
               repeat_interval = "1h";
             }
             {

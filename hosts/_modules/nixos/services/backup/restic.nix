@@ -120,11 +120,21 @@ let
           # Pre-backup script
           ${jobConfig.preBackupScript}
 
-          # Initialize repository if needed
-          if ! ${pkgs.restic}/bin/restic snapshots >/dev/null 2>&1; then
-            echo "Initializing repository..."
-            ${pkgs.restic}/bin/restic init
-          fi
+          # Initialize repository if needed (with proper locking to prevent race conditions)
+          REPO_LOCK_FILE="/tmp/restic-backup-${jobConfig.repository}.lock"
+          (
+            ${pkgs.util-linux}/bin/flock -x 200
+            echo "Checking repository status..."
+            # Use 'restic cat config' which is more reliable than 'snapshots'
+            # for checking if repository is initialized
+            if ! ${pkgs.restic}/bin/restic cat config >/dev/null 2>&1; then
+              echo "Repository not initialized. Initializing..."
+              ${pkgs.restic}/bin/restic init
+              echo "Repository initialized successfully."
+            else
+              echo "Repository already initialized."
+            fi
+          ) 200>"$REPO_LOCK_FILE"
 
           # Perform backup
           ${pkgs.restic}/bin/restic backup \

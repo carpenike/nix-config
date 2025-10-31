@@ -333,7 +333,7 @@ in
       # Add to service groups to access their data directories
       extraGroups = [
         "grafana" "loki" "plex" "sonarr" "dispatcharr"
-        "promtail" "observability" "postgres"
+        "promtail" "observability" "postgres" "node-exporter"
       ];
     };
 
