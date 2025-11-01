@@ -110,10 +110,10 @@ let
         echo "''${container_stats}" | ${pkgs.jq}/bin/jq -r '
           def bytes(v):
             if (v | test("^0B$")) then 0
-            elif (v | test("[kK]B$")) then ((v | sub("[kK]B$"; "") | tonumber) * 1000)
-            elif (v | test("[mM]B$")) then ((v | sub("[mM]B$"; "") | tonumber) * 1000000)
-            elif (v | test("[gG]B$")) then ((v | sub("[gG]B$"; "") | tonumber) * 1000000000)
-            elif (v | test("[tT]B$")) then ((v | sub("[tT]B$"; "") | tonumber) * 1000000000000)
+            elif (v | test("[kK]i?B$")) then ((v | sub("[kK]i?B$"; "") | tonumber) * 1024)
+            elif (v | test("[mM]i?B$")) then ((v | sub("[mM]i?B$"; "") | tonumber) * 1048576)
+            elif (v | test("[gG]i?B$")) then ((v | sub("[gG]i?B$"; "") | tonumber) * 1073741824)
+            elif (v | test("[tT]i?B$")) then ((v | sub("[tT]i?B$"; "") | tonumber) * 1099511627776)
             elif (v | test("B$")) then (v | sub("B$"; "") | tonumber)
             else 0 end;
 
@@ -138,30 +138,27 @@ let
         ' 2>/dev/null || true
       fi
 
-      # Container health check status for running containers
+      # Container health check status for running containers (optimized bulk query)
       if [[ "''${container_list}" != "[]" ]] && [[ -n "''${container_list}" ]]; then
-        echo "''${container_list}" | ${pkgs.jq}/bin/jq -r '.[] | select(.State == "running") | .Names[0] // "unknown"' 2>/dev/null | while read -r name; do
-          if [[ -n "$name" ]]; then
-            # Get health status using podman inspect
-            health_status=$(${pkgs.podman}/bin/podman inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$name" 2>/dev/null || echo "unknown")
+        # Get all running container IDs
+        running_ids=$(echo "''${container_list}" | ${pkgs.jq}/bin/jq -r '.[] | select(.State == "running") | .Id' 2>/dev/null)
 
-            # Convert health status to numeric value
-            metric_value=2  # unknown
-            case "$health_status" in
-              healthy)
-                metric_value=0
-                ;;
-              unhealthy)
-                metric_value=1
-                ;;
-              starting)
-                metric_value=3
-                ;;
-            esac
+        if [[ -n "$running_ids" ]]; then
+          # Single bulk inspect call for all running containers
+          health_data=$(${pkgs.podman}/bin/podman inspect --format '{{json .}}' $running_ids 2>/dev/null | ${pkgs.jq}/bin/jq -s '.' 2>/dev/null || echo "[]")
 
-            echo "container_health_status{name=\"$name\",health=\"$health_status\"} $metric_value"
+          if [[ "''${health_data}" != "[]" ]]; then
+            echo "''${health_data}" | ${pkgs.jq}/bin/jq -r '
+              .[] |
+              (.State.Health.Status // "unknown") as $status |
+              (if $status == "healthy" then 0
+               elif $status == "unhealthy" then 1
+               elif $status == "starting" then 3
+               else 2 end) as $metric_value |
+              "container_health_status{name=\"" + .Name + "\",health=\"" + $status + "\"} " + ($metric_value | tostring)
+            ' 2>/dev/null || true
           fi
-        done 2>/dev/null || true
+        fi
       fi
 
       # Container service health from systemd (dynamic discovery)
@@ -618,11 +615,11 @@ in
   };
 
   systemd.timers.container-metrics-exporter = {
-    description = "Run container metrics exporter every 30 seconds";
+    description = "Run container metrics exporter every minute";
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnBootSec = "1m";     # Wait for containers to start
-      OnUnitActiveSec = "30s";  # Check every 30 seconds for real-time monitoring
+      OnUnitActiveSec = "60s";  # Check every minute (balanced resolution vs overhead)
       Unit = "container-metrics-exporter.service";
     };
   };
@@ -723,20 +720,21 @@ in
   modules.alerting.rules."container-down" = {
     type = "promql";
     alertname = "ContainerDown";
-    expr = "container_up == 0";
+    # Only alert for containers NOT managed by systemd (manual containers)
+    expr = "container_up == 0 unless on(name) container_service_active";
     for = "2m";
-    severity = "high";
+    severity = "medium";
     labels = { service = "containers"; category = "availability"; };
     annotations = {
-      summary = "Container {{ $labels.name }} is down";
-      description = "Container {{ $labels.name }} ({{ $labels.image }}) is not running. Check systemd service.";
+      summary = "Unmanaged container {{ $labels.name }} is down";
+      description = "Container {{ $labels.name }} ({{ $labels.image }}) is not running. This is a manually-started container without systemd management.";
     };
   };
 
   modules.alerting.rules."container-high-memory" = {
     type = "promql";
     alertname = "ContainerHighMemory";
-    expr = "container_memory_percent > 90";
+    expr = "container_memory_percent > 80";
     for = "5m";
     severity = "high";
     labels = { service = "containers"; category = "resources"; };
@@ -785,19 +783,6 @@ in
     };
   };
 
-  modules.alerting.rules."podman-system-issues" = {
-    type = "promql";
-    alertname = "PodmanSystemIssues";
-    expr = "podman_containers_running < podman_containers_total and podman_containers_total > 0";
-    for = "5m";
-    severity = "medium";
-    labels = { service = "containers"; category = "system"; };
-    annotations = {
-      summary = "Some containers are not running";
-      description = "{{ $labels.value }} out of {{ $labels.total }} containers are stopped. Check container status.";
-    };
-  };
-
   modules.alerting.rules."container-unhealthy" = {
     type = "promql";
     alertname = "ContainerUnhealthy";
@@ -808,6 +793,32 @@ in
     annotations = {
       summary = "Container {{ $labels.name }} is unhealthy";
       description = "Container {{ $labels.name }} health check is failing (status: {{ $labels.health }}). Check container logs.";
+    };
+  };
+
+  modules.alerting.rules."container-stuck-starting" = {
+    type = "promql";
+    alertname = "ContainerStuckStarting";
+    expr = "container_health_status == 3";
+    for = "10m";
+    severity = "high";
+    labels = { service = "containers"; category = "health"; };
+    annotations = {
+      summary = "Container {{ $labels.name }} stuck in starting state";
+      description = "Container {{ $labels.name }} has been in 'starting' state for over 10 minutes. It may be failing to initialize properly. Check container logs.";
+    };
+  };
+
+  modules.alerting.rules."container-high-disk-io" = {
+    type = "promql";
+    alertname = "ContainerHighDiskIO";
+    expr = "rate(container_block_input_bytes[5m]) + rate(container_block_output_bytes[5m]) > 52428800";
+    for = "10m";
+    severity = "medium";
+    labels = { service = "containers"; category = "resources"; };
+    annotations = {
+      summary = "Container {{ $labels.name }} has high disk I/O";
+      description = "Container {{ $labels.name }} is averaging over 50 MB/s of disk I/O ({{ $value | humanize }}B/s). This could indicate a runaway process or performance issue.";
     };
   };
 
