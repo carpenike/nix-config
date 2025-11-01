@@ -303,11 +303,11 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "media" "dispatcharr" "iptv" ];
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "media" "dispatcharr" "iptv" ];
       };
       description = "Backup configuration for Dispatcharr";
     };

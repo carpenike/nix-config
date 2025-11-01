@@ -123,6 +123,21 @@ in
         example = "tank/services/loki";
         description = "ZFS dataset for Loki data storage";
       };
+
+      backup = {
+        enable = mkOption {
+          type = types.bool;
+          default = cfg.loki.enable;
+          defaultText = lib.literalExpression "config.modules.services.observability.loki.enable";
+          description = "Enable backup of Loki data and configuration";
+        };
+
+        includeChunks = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Include log chunks in backup (not recommended with ZFS snapshots)";
+        };
+      };
     };
 
     promtail = {
@@ -259,6 +274,15 @@ in
         description = "List of Grafana plugins to install";
       };
 
+      backup = {
+        enable = mkOption {
+          type = types.bool;
+          default = cfg.grafana.enable;
+          defaultText = lib.literalExpression "config.modules.services.observability.grafana.enable";
+          description = "Enable backup of Grafana dashboards and configuration";
+        };
+      };
+
       autoConfigure = {
         loki = mkOption {
           type = types.bool;
@@ -306,20 +330,6 @@ in
           passwordHashEnvVar = null;
         };
         description = "Authentication configuration for Loki web interface";
-      };
-    };
-
-    backup = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Enable backup of Loki rules and configuration";
-      };
-
-      includeChunks = mkOption {
-        type = types.bool;
-        default = false;
-        description = "Include log chunks in backup (not recommended with ZFS snapshots)";
       };
     };
 
@@ -474,12 +484,12 @@ in
       };
 
       # Backup configuration
-      backup = lib.mkIf cfg.backup.enable {
+      backup = lib.mkIf cfg.loki.backup.enable {
         enable = true;
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "logs" "loki" "config" ];
-        excludePatterns = if cfg.backup.includeChunks then [] else [
+        excludePatterns = if cfg.loki.backup.includeChunks then [] else [
           "**/chunks/**"
           "**/wal/**"
           "**/boltdb-shipper-cache/**"
@@ -617,7 +627,7 @@ in
       };
 
       # Backup configuration
-      backup = lib.mkIf cfg.backup.enable {
+      backup = lib.mkIf cfg.grafana.backup.enable {
         enable = true;
         repository = "nas-primary";
         frequency = "daily";

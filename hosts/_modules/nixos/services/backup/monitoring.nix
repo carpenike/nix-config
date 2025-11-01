@@ -101,7 +101,59 @@ in {
     };
   };
 
-  config = lib.mkIf (cfg.enable && monitoringCfg.enable) {
+  config = lib.mkIf (cfg.enable && monitoringCfg.enable) (let
+    # Get list of all enabled backup jobs
+    allJobs = cfg._internal.allJobs;
+    enabledJobs = lib.filterAttrs (name: job: job.enable) allJobs;
+
+    # Generate expected metric filenames
+    expectedMetricFiles = lib.mapAttrsToList
+      (jobName: jobDef: "restic_backup_${jobName}.prom")
+      enabledJobs;
+
+    # Cleanup script for stale metric files
+    cleanupScript = pkgs.writeShellScript "cleanup-restic-metrics" ''
+      #!${pkgs.bash}/bin/bash
+      set -euo pipefail
+
+      # Array of expected filenames passed from Nix config
+      expected_files=($@)
+
+      # The directory to clean
+      metric_dir="${monitoringCfg.textfileCollector.directory}"
+
+      # Ensure the directory exists
+      mkdir -p "$metric_dir"
+
+      # Find all restic_backup_*.prom files on disk and check if they should exist
+      while IFS= read -r -d $'\0' file; do
+        filename=$(basename "$file")
+        found=0
+
+        for expected in "''${expected_files[@]}"; do
+          if [[ "$filename" == "$expected" ]]; then
+            found=1
+            break
+          fi
+        done
+
+        if [[ "$found" -eq 0 ]]; then
+          echo "Removing stale restic metric file: $file"
+          rm -f "$file"
+        fi
+      done < <(find "$metric_dir" -name 'restic_backup_*.prom' -print0 2>/dev/null || true)
+    '';
+
+  in {
+    # Activation script to clean up stale metrics on every nixos-rebuild
+    system.activationScripts.cleanupResticMetrics = {
+      text = ''
+        echo "Cleaning up stale restic backup metrics..."
+        ${cleanupScript} ${lib.concatStringsSep " " expectedMetricFiles}
+      '';
+      deps = [ "users" ]; # Run after users/groups are set up
+    };
+
     # NOTE: Directory permissions are managed by the main monitoring module
     # which sets: "d ${directory} 2770 node-exporter node-exporter -"
     # This allows services in the node-exporter group to write metrics
@@ -381,5 +433,5 @@ in {
         '';
       };
     };
-  };
+  });
 }

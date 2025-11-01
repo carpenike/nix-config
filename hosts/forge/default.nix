@@ -124,13 +124,14 @@ in
         "zfs-pool-degraded" = {
           type = "promql";
           alertname = "ZFSPoolDegraded";
-          expr = "node_zfs_zpool_state{state!=\"online\"} > 0";
+          expr = "node_zfs_zpool_state{state!=\"online\",zpool!=\"\"} > 0";
           for = "5m";
           severity = "critical";
           labels = { service = "zfs"; category = "storage"; };
           annotations = {
             summary = "ZFS pool {{ $labels.zpool }} is degraded on {{ $labels.instance }}";
             description = "Pool state: {{ $labels.state }}. Check 'zpool status {{ $labels.zpool }}' for details.";
+            command = "zpool status {{ $labels.zpool }}";
           };
         };
 
@@ -138,13 +139,14 @@ in
         "zfs-snapshot-stale" = {
           type = "promql";
           alertname = "ZFSSnapshotStale";
-          expr = "(time() - zfs_snapshot_latest_timestamp) > 3600";
+          expr = "(time() - zfs_snapshot_latest_timestamp{dataset!=\"\"}) > 3600";
           for = "30m";
           severity = "high";
           labels = { service = "zfs"; category = "backup"; };
           annotations = {
             summary = "ZFS snapshots are stale for {{ $labels.dataset }} on {{ $labels.instance }}";
             description = "Last snapshot was {{ $value | humanizeDuration }} ago. Check sanoid service.";
+            command = "systemctl status sanoid.service && journalctl -u sanoid.service --since '2h'";
           };
         };
 
@@ -152,13 +154,14 @@ in
         "zfs-snapshot-count-low" = {
           type = "promql";
           alertname = "ZFSSnapshotCountLow";
-          expr = "zfs_snapshot_count < 2";
+          expr = "zfs_snapshot_count{dataset!=\"\"} < 2";
           for = "1h";
           severity = "high";
           labels = { service = "zfs"; category = "backup"; };
           annotations = {
             summary = "ZFS snapshot count is low for {{ $labels.dataset }} on {{ $labels.instance }}";
             description = "Only {{ $value }} snapshots exist. Sanoid autosnap may be failing.";
+            command = "zfs list -t snapshot | grep {{ $labels.dataset }}";
           };
         };
 
@@ -166,13 +169,14 @@ in
         "zfs-pool-space-high" = {
           type = "promql";
           alertname = "ZFSPoolSpaceHigh";
-          expr = "(node_zfs_zpool_used_bytes / node_zfs_zpool_size_bytes) > 0.80";
+          expr = "(node_zfs_zpool_used_bytes{zpool!=\"\"} / node_zfs_zpool_size_bytes) > 0.80";
           for = "15m";
           severity = "high";
           labels = { service = "zfs"; category = "storage"; };
           annotations = {
             summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
             description = "Pool usage exceeds 80%. Consider expanding pool or cleaning up data.";
+            command = "zpool list {{ $labels.zpool }} && zfs list -o space";
           };
         };
 
@@ -180,13 +184,14 @@ in
         "zfs-pool-space-critical" = {
           type = "promql";
           alertname = "ZFSPoolSpaceCritical";
-          expr = "(node_zfs_zpool_used_bytes / node_zfs_zpool_size_bytes) > 0.90";
+          expr = "(node_zfs_zpool_used_bytes{zpool!=\"\"} / node_zfs_zpool_size_bytes) > 0.90";
           for = "5m";
           severity = "critical";
           labels = { service = "zfs"; category = "storage"; };
           annotations = {
             summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
             description = "CRITICAL: Pool usage exceeds 90%. Immediate action required to prevent write failures.";
+            command = "zpool list {{ $labels.zpool }} && df -h";
           };
         };
         })  # End ZFS alerts mkIf
@@ -786,7 +791,7 @@ in
               passwordHashEnvVar = "CADDY_LOKI_ADMIN_BCRYPT";
             };
           };
-          backup = {
+          loki.backup = {
             enable = true;
             includeChunks = false; # Rely on ZFS snapshots for data
           };

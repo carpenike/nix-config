@@ -354,14 +354,14 @@ in
       "restic-backup-failed" = {
         type = "promql";
         alertname = "ResticBackupFailed";
-        expr = "restic_backup_status == 0";
+        expr = "restic_backup_status{backup_job!=\"\"} == 0";
         for = "5m";
         severity = "critical";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }} failed on {{ $labels.hostname }}";
-          description = "Backup to repository {{ $labels.repository }} failed. Check systemd logs.";
-          command = "journalctl -u restic-backups-{{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }}.service --since '2h'";
+          summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
+          description = "Backup to repository {{ $labels.repository }} failed. Check systemd logs for details.";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2h'";
         };
       };
 
@@ -370,16 +370,16 @@ in
       "restic-backup-stale" = {
         type = "promql";
         alertname = "ResticBackupStale";
-        # Only consider new metrics that use the backup_job label to avoid legacy series with exported_job
+        # Only consider metrics that use the backup_job label
         # 108000s = 30 hours (24h daily schedule + 6h buffer)
         expr = "(time() - restic_backup_last_success_timestamp{backup_job!=\"\"}) > 108000";
         for = "1h";
         severity = "high";
         labels = { service = "backup"; category = "restic"; group = "backups"; };
         annotations = {
-          summary = "Restic backup job {{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }} is stale on {{ $labels.hostname }}";
+          summary = "Restic backup job {{ $labels.backup_job }} is stale on {{ $labels.hostname }}";
           description = "No successful backup in 30+ hours for repository {{ $labels.repository }}. Last success: {{ $value | humanizeDuration }} ago. Daily backups have 6-hour buffer.";
-          command = "journalctl -u restic-backups-{{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }}.service --since '24h'";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
         };
       };
 
@@ -387,14 +387,14 @@ in
       "restic-backup-slow" = {
         type = "promql";
         alertname = "ResticBackupSlow";
-        expr = "restic_backup_duration_seconds > (avg_over_time(restic_backup_duration_seconds[7d]) * 2)";
+        expr = "restic_backup_duration_seconds{backup_job!=\"\"} > (avg_over_time(restic_backup_duration_seconds{backup_job!=\"\"}[7d]) * 2)";
         for = "30m";
         severity = "medium";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }} is running slowly on {{ $labels.hostname }}";
+          summary = "Restic backup job {{ $labels.backup_job }} is running slowly on {{ $labels.hostname }}";
           description = "Duration {{ $value | humanizeDuration }} is 2x the 7-day average. Check for performance issues.";
-          command = "journalctl -u restic-backups-{{ if $labels.backup_job }}{{ $labels.backup_job }}{{ else if $labels.exported_job }}service-{{ $labels.exported_job }}{{ else }}{{ $labels.job }}{{ end }}.service --since '2h'";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2h'";
         };
       };
 
@@ -475,31 +475,28 @@ in
         };
       };
       # ZFS replication stale (homelab-optimized thresholds with stuck detection)
+      # Alert when a previously successful replication job has not completed within the defined threshold
       "zfs-replication-stale-high" = {
         type = "promql";
         alertname = "ZFSReplicationStaleHigh";
-        # Fixed: 90-minute threshold for 15-minute jobs + stuck detection
         # 5400s = 90 minutes (6 missed 15m runs with buffer)
+        # Uses changes() instead of increase() since timestamp is a gauge, not counter
+        # Label filter removed - let malformed metrics fail loudly rather than silently
         expr = ''
           (
             (time() - syncoid_replication_last_success_timestamp > 5400)
             and
-            (increase(syncoid_replication_last_success_timestamp[1h]) == 0)
-            * on (dataset, target_host) group_left (unit)
-              syncoid_replication_info
+            (changes(syncoid_replication_last_success_timestamp[30m]) == 0)
           )
-          or
-          (
-            syncoid_replication_info
-            unless on (dataset, target_host) syncoid_replication_last_success_timestamp
-          )
+          * on (dataset, target_host) group_left (unit)
+          syncoid_replication_info
         '';
         for = "15m";
-        severity = "medium";  # Downgraded from high for homelab context
+        severity = "high";
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
-          summary = "[Medium] ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
-          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Investigate syncoid unit configuration and remote permissions.{{ else }}Replication has been failing for {{ $value | humanizeDuration }} AND metrics are stuck (not advancing). Check for hung syncoid processes, network issues, or remote ZFS health.{{ end }}";
+          summary = "ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "Replication for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' (unit: {{ $labels.unit }}) has not succeeded in over 90 minutes and timestamp is not advancing. Check for hung syncoid processes, network issues, or remote ZFS health.";
           command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2h'";
         };
       };
@@ -507,29 +504,47 @@ in
       "zfs-replication-stale-critical" = {
         type = "promql";
         alertname = "ZFSReplicationStaleCritical";
-        # Fixed: 4-hour threshold for homelab + stuck detection
-        # 14400s = 4 hours (reasonable for homelab critical threshold)
+        # 14400s = 4 hours (critical threshold for homelab)
+        # Uses changes() to detect stuck timestamp gauge
+        # Label filter removed - let malformed metrics fail loudly rather than silently
         expr = ''
           (
             (time() - syncoid_replication_last_success_timestamp > 14400)
             and
-            (increase(syncoid_replication_last_success_timestamp[2h]) == 0)
-            * on (dataset, target_host) group_left (unit)
-              syncoid_replication_info
+            (changes(syncoid_replication_last_success_timestamp[30m]) == 0)
           )
-          or
-          (
-            syncoid_replication_info
-            unless on (dataset, target_host) syncoid_replication_last_success_timestamp
-          )
+          * on (dataset, target_host) group_left (unit)
+          syncoid_replication_info
         '';
-        for = "30m";
+        for = "15m";
         severity = "critical";
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
-          summary = "[Critical] ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
-          description = "{{ if eq $labels.__name__ \"syncoid_replication_info\" }}No successful replication yet for {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }}. Immediate investigation required (auth/permissions/network).{{ else }}Replication has been failing for {{ $value | humanizeDuration }} AND metrics are stuck (not advancing). Data loss risk is high if the source fails. Investigate immediately.{{ end }}";
-          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2h'";
+          summary = "ZFS replication critically stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "Replication for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' (unit: {{ $labels.unit }}) has not succeeded in over 4 hours. Data loss risk is high if the source fails. Investigate immediately.";
+          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '4h'";
+        };
+      };
+
+      # ZFS replication never succeeded (separate alert for newly configured jobs)
+      # Alert when replication is configured but has never reported a successful run
+      "zfs-replication-never-run" = {
+        type = "promql";
+        alertname = "ZFSReplicationNeverRun";
+        # Detects when info metric exists but success timestamp doesn't
+        # Grace period handled by 'for' clause to avoid noise during boot/setup
+        expr = ''
+          syncoid_replication_info
+          unless on (dataset, target_host)
+          syncoid_replication_last_success_timestamp
+        '';
+        for = "30m";  # 30-minute grace period for initial setup/boot
+        severity = "high";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "ZFS replication never succeeded: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "Replication for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' (unit: {{ $labels.unit }}) is configured but has never reported a successful run. This condition has persisted for 30 minutes. Check SSH connectivity, permissions, and remote ZFS availability.";
+          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '1h' && ssh zfs-replication@{{ $labels.target_host }} 'zfs list'";
         };
       };
 
@@ -538,19 +553,19 @@ in
         type = "promql";
         alertname = "SyncoidUnitFailed";
         expr = ''
+          node_systemd_unit_state{state="failed", name=~"syncoid-.*\\.service"}
+          * on(name) group_left(dataset, target_host)
           (
-            node_systemd_unit_state{state="failed", name=~"syncoid-.*\\.service"}
-            * on(name) group_left(dataset, target_host)
-            label_replace(syncoid_replication_info, "name", "$1", "unit", "(.+)"
-            )
-          ) > 0
+            label_replace(syncoid_replication_info, "name", "$1", "unit", "(.+)")
+            > 0
+          )
         '';
         for = "10m";
         severity = "high";
         labels = { service = "storage"; category = "syncoid"; };
         annotations = {
-          summary = "Syncoid unit failed: {{ $labels.dataset }} on {{ $labels.instance }}";
-          description = "The systemd unit {{ $labels.name }} is in failed state on {{ $labels.instance }}. Next steps: systemctl status {{ $labels.name }}; journalctl -u {{ $labels.name }} --since '2h'; verify SSH and remote ZFS permissions.";
+          summary = "Syncoid unit failed: {{ $labels.dataset }} → {{ $labels.target_host }}";
+          description = "The systemd unit {{ $labels.name }} is in failed state on {{ $labels.instance }}. Check logs and SSH connectivity to {{ $labels.target_host }}.";
           runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=node_systemd_unit_state%7Bstate%3D%22failed%22%2Cname%3D~%22syncoid-.*%5C.service%22%7D&g0.tab=1";
           command = "systemctl status {{ $labels.name }} && journalctl -u {{ $labels.name }} --since '2h'";
         };
@@ -571,18 +586,46 @@ in
         };
       };
 
-      # Missing replication metrics (guard for textfile failures)
-      "zfs-replication-metrics-missing" = {
+      # Meta-alert: Info metric disappeared (CRITICAL - breaks stale detection)
+      # Detects when a replication that was reporting success suddenly stops exporting its info metric
+      # This would silently disable stale alerts due to the join operation failing
+      "zfs-replication-info-missing" = {
         type = "promql";
-        alertname = "ZFSReplicationMetricsMissing";
-        expr = "absent(syncoid_replication_last_success_timestamp) == 1";
-        for = "2h";
-        severity = "high";
+        alertname = "ZFSReplicationInfoMissing";
+        expr = ''
+          (
+            max_over_time(syncoid_replication_last_success_timestamp[1h])
+            unless on(dataset, target_host)
+            syncoid_replication_info
+          )
+        '';
+        for = "15m";
+        severity = "critical";
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
-          summary = "ZFS replication metrics missing on {{ $labels.instance }}";
-          description = "Textfile metrics absent for 2h. Node exporter textfile collector misconfigured or syncoid success metrics not being written.";
-          command = "ls -l /var/lib/node_exporter/textfile_collector && systemctl status node-exporter";
+          summary = "ZFS replication info metric missing for {{ $labels.dataset }}";
+          description = "The syncoid_replication_info metric for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' has disappeared, but a success timestamp was present within the last hour. This will prevent stale alerts from firing. Check the metric exporter script and textfile collector.";
+          command = "ls -l /var/lib/node_exporter/textfile_collector/syncoid-*.prom && systemctl status syncoid-replication-info.service";
+        };
+      };
+
+      # Meta-alert: Metric exporter is stale (textfile not being updated)
+      # Detects when the textfile itself hasn't been modified, indicating exporter failure
+      "zfs-replication-exporter-stale" = {
+        type = "promql";
+        alertname = "ZFSReplicationExporterStale";
+        # Check if any syncoid metrics file hasn't been updated in 30 minutes
+        # Note: This assumes metrics are written to files matching pattern syncoid*.prom
+        expr = ''
+          time() - node_textfile_mtime_seconds{file=~"syncoid.*\\.prom"} > 1800
+        '';
+        for = "10m";
+        severity = "medium";
+        labels = { service = "storage"; category = "zfs"; };
+        annotations = {
+          summary = "ZFS replication metric exporter stale on {{ $labels.instance }}";
+          description = "The metrics file '{{ $labels.file }}' on {{ $labels.instance }} has not been updated in over 30 minutes. Replication status is unknown. This could be a permissions issue, timer failure, or script error.";
+          command = "ls -lh /var/lib/node_exporter/textfile_collector/{{ $labels.file }} && systemctl list-timers --all | grep syncoid";
         };
       };
     };

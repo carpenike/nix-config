@@ -60,11 +60,11 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "dns" "blocky" "config" ];
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "dns" "blocky" "config" ];
       };
       description = "Backup configuration for Blocky";
     };

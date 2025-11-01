@@ -44,12 +44,12 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "dns" "bind" "config" ];
-        preBackupScript = ''
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "dns" "bind" "config" ];
+        preBackupScript = lib.mkDefault ''
           # Backup BIND configuration and zone files
           mkdir -p /tmp/bind-backup
           cp -r ${config.services.bind.directory}/*.{zone,conf} /tmp/bind-backup/ 2>/dev/null || true

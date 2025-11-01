@@ -120,15 +120,15 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "network" "omada" "config" ];
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "network" "omada" "config" ];
         # CRITICAL: Enable ZFS snapshots for MongoDB database consistency
-        useSnapshots = true;
-        zfsDataset = "tank/services/omada";
-        excludePatterns = [
+        useSnapshots = lib.mkDefault true;
+        zfsDataset = lib.mkDefault "tank/services/omada";
+        excludePatterns = lib.mkDefault [
           "**/logs/**"           # Exclude log files
           "**/tmp/**"            # Exclude temporary files
           "**/work/**"           # Exclude work directories

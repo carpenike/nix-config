@@ -230,12 +230,12 @@ in
     # Standardized backup integration
     backup = mkOption {
       type = types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "logs" "promtail" "config" ];
-        excludePatterns = [
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "logs" "promtail" "config" ];
+        excludePatterns = lib.mkDefault [
           "**/positions.yaml"   # Exclude position tracking file
           "**/*.tmp"            # Exclude temporary files
         ];

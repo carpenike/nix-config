@@ -73,15 +73,15 @@ in
 
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "weekly";
-        tags = [ "plex" "media-metadata" ];
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "weekly";
+        tags = lib.mkDefault [ "plex" "media-metadata" ];
         # CRITICAL: Enable ZFS snapshots for SQLite database consistency
-        useSnapshots = true;
-        zfsDataset = "tank/services/plex";
-        excludePatterns = [
+        useSnapshots = lib.mkDefault true;
+        zfsDataset = lib.mkDefault "tank/services/plex";
+        excludePatterns = lib.mkDefault [
           "**/Plex Media Server/Cache/**"
           "**/Plex Media Server/Logs/**"
           "**/Plex Media Server/Crash Reports/**"

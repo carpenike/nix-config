@@ -84,15 +84,15 @@ in
     # Standardized backup integration
     backup = mkOption {
       type = types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "logs" "loki" "config" ];
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "logs" "loki" "config" ];
         # CRITICAL: Enable ZFS snapshots for database consistency
-        useSnapshots = true;
-        zfsDataset = "tank/services/loki";
-        excludePatterns = [
+        useSnapshots = lib.mkDefault true;
+        zfsDataset = lib.mkDefault "tank/services/loki";
+        excludePatterns = lib.mkDefault [
           "**/boltdb-shipper-cache/**"  # Exclude cache directories
           "**/compactor/boltdb-shipper-compactor/**"  # Exclude compactor temp files
           "**/*.tmp"                    # Exclude temporary files

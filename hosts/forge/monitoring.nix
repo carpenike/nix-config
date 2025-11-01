@@ -452,52 +452,56 @@ in
   modules.alerting.rules."zfs-pool-unhealthy" = {
     type = "promql";
     alertname = "ZfsPoolUnhealthy";
-    expr = "zfs_pool_health > 0";
+    expr = "zfs_pool_health{pool!=\"\"} > 0";
     for = "5m";
     severity = "critical";
     labels = { service = "zfs"; category = "storage"; };
     annotations = {
       summary = "ZFS pool {{ $labels.pool }} is unhealthy";
-      description = "Pool {{ $labels.pool }} has status {{ $labels.health }}. Immediate investigation required.";
+      description = "Pool {{ $labels.pool }} has status {{ $labels.health }}. Run 'zpool status {{ $labels.pool }}' to investigate.";
+      command = "zpool status {{ $labels.pool }}";
     };
   };
 
   modules.alerting.rules."zfs-capacity-critical" = {
     type = "promql";
     alertname = "ZfsPoolCapacityCritical";
-    expr = "zfs_pool_capacity_percent > 95";
+    expr = "zfs_pool_capacity_percent{pool!=\"\"} > 95";
     for = "5m";
     severity = "critical";
     labels = { service = "zfs"; category = "capacity"; };
     annotations = {
       summary = "ZFS pool {{ $labels.pool }} critically full";
-      description = "Pool {{ $labels.pool }} is {{ $value }}% full. Data loss imminent.";
+      description = "Pool {{ $labels.pool }} is {{ $value }}% full. Immediate cleanup required to prevent write failures.";
+      command = "zpool list {{ $labels.pool }} && df -h";
     };
   };
 
   modules.alerting.rules."zfs-capacity-warning" = {
     type = "promql";
     alertname = "ZfsPoolCapacityHigh";
-    expr = "zfs_pool_capacity_percent > 85";
+    expr = "zfs_pool_capacity_percent{pool!=\"\"} > 85";
     for = "15m";
     severity = "high";
     labels = { service = "zfs"; category = "capacity"; };
     annotations = {
       summary = "ZFS pool {{ $labels.pool }} reaching capacity";
-      description = "Pool {{ $labels.pool }} is {{ $value }}% full.";
+      description = "Pool {{ $labels.pool }} is {{ $value }}% full. Plan cleanup or expansion.";
+      command = "zpool list {{ $labels.pool }}";
     };
   };
 
   modules.alerting.rules."zfs-fragmentation-high" = {
     type = "promql";
     alertname = "ZfsPoolFragmentationHigh";
-    expr = "zfs_pool_fragmentation_percent > 50";
+    expr = "zfs_pool_fragmentation_percent{pool!=\"\"} > 50";
     for = "30m";
     severity = "medium";
     labels = { service = "zfs"; category = "performance"; };
     annotations = {
       summary = "ZFS pool {{ $labels.pool }} highly fragmented";
-      description = "Pool {{ $labels.pool }} is {{ $value }}% fragmented. Consider running defragmentation.";
+      description = "Pool {{ $labels.pool }} is {{ $value }}% fragmented. May impact performance.";
+      command = "zpool list -v {{ $labels.pool }}";
     };
   };
 

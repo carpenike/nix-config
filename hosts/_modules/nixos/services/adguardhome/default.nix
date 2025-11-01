@@ -57,15 +57,15 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "dns" "adguardhome" "config" ];
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "dns" "adguardhome" "config" ];
         # CRITICAL: Enable ZFS snapshots for query log and configuration consistency
-        useSnapshots = true;
-        zfsDataset = "tank/services/adguardhome";
-        excludePatterns = [
+        useSnapshots = lib.mkDefault true;
+        zfsDataset = lib.mkDefault "tank/services/adguardhome";
+        excludePatterns = lib.mkDefault [
           "**/cache/**"          # Exclude cache files
           "**/tmp/**"            # Exclude temporary files
         ];

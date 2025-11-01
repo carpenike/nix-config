@@ -337,11 +337,25 @@ in
         # Inhibition rules to prevent redundant alerts
         # When a critical alert is active, suppress less severe related alerts
         inhibit_rules = [
+          # Suppress high-severity ZFS replication alerts when critical alert is firing
+          # Prevents alert fatigue when both StaleHigh and StaleCritical fire for same replication
+          {
+            source_matchers = [
+              "severity=\"critical\""
+              "alertname=~\"ZFSReplication.*\""
+            ];
+            target_matchers = [
+              "severity=\"high\""
+              "alertname=~\"ZFSReplication.*\""
+            ];
+            # Only inhibit if same dataset and target
+            equal = [ "dataset" "target_host" ];
+          }
           # Suppress replication noise when the target host is down
           # Requires an InstanceDown alert for the target host
           {
             target_matchers = [
-              "alertname=~\"SyncoidUnitFailed|ZFSReplicationStale|ZFSReplicationLagHigh|ZFSReplicationStalled\""
+              "alertname=~\"SyncoidUnitFailed|ZFSReplicationStale.*|ZFSReplicationLagHigh|ZFSReplicationStalled\""
             ];
             source_matchers = [
               "alertname=\"ReplicationTargetUnreachable\""

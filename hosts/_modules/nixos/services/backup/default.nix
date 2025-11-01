@@ -351,6 +351,11 @@ in
           # Start on boot (before backup jobs)
           wantedBy = [ "multi-user.target" ];
 
+          # Unit-level condition: only run for local repositories if config doesn't exist
+          unitConfig = lib.mkIf (repoConfig.type == "local") {
+            ConditionPathExists = "!${repoConfig.url}/config";
+          };
+
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;  # Critical for dependency tracking
@@ -370,8 +375,6 @@ in
             ];
             EnvironmentFile = lib.mkIf (repoConfig.environmentFile != null) repoConfig.environmentFile;
           } // lib.optionalAttrs (repoConfig.type == "local") {
-            # For local repositories, only run if config doesn't exist
-            ConditionPathExists = "!${repoConfig.url}/config";
             ReadWritePaths = [ repoConfig.url ];
           };
 

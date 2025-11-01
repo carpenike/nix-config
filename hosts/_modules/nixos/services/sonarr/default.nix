@@ -218,15 +218,15 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        tags = [ "media" "sonarr" "config" ];
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "media" "sonarr" "config" ];
         # CRITICAL: Enable ZFS snapshots for SQLite database consistency
-        useSnapshots = true;
-        zfsDataset = "tank/services/sonarr";
-        excludePatterns = [
+        useSnapshots = lib.mkDefault true;
+        zfsDataset = lib.mkDefault "tank/services/sonarr";
+        excludePatterns = lib.mkDefault [
           "**/*.log"         # Exclude log files
           "**/cache/**"      # Exclude cache directories
           "**/logs/**"       # Exclude additional log directories
