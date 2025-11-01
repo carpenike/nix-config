@@ -108,15 +108,15 @@ let
       # Parse container stats (running containers only)
       if [[ "''${container_stats}" != "[]" ]] && [[ -n "''${container_stats}" ]]; then
         echo "''${container_stats}" | ${pkgs.jq}/bin/jq -r '.[] |
-          "container_cpu_percent{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.CPU | sub("%$"; "") | tonumber) // 0 | tostring) + "\n" +
-          "container_memory_usage_bytes{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.MemUsage | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_memory_limit_bytes{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.MemUsage | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_memory_percent{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.MemPerc | sub("%$"; "") | tonumber) // 0 | tostring) + "\n" +
-          "container_network_input_bytes{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.NetIO | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_network_output_bytes{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.NetIO | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_block_input_bytes{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.BlockIO | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_block_output_bytes{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.BlockIO | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_pids_current{name=\"" + .Name + "\",id=\"" + .ID[0:12] + "\"} " + ((.PIDs | tonumber) // 0 | tostring)
+          "container_cpu_percent{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.cpu_percent | sub("%$"; "") | tonumber) // 0 | tostring) + "\n" +
+          "container_memory_usage_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_usage | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_memory_limit_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_usage | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_memory_percent{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_percent | sub("%$"; "") | tonumber) // 0 | tostring) + "\n" +
+          "container_network_input_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.net_io | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_network_output_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.net_io | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_block_input_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.block_io | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_block_output_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.block_io | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_pids_current{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.pids | tonumber) // 0 | tostring)
         ' 2>/dev/null || true
       fi
 
