@@ -107,15 +107,25 @@ let
 
       # Parse container stats (running containers only)
       if [[ "''${container_stats}" != "[]" ]] && [[ -n "''${container_stats}" ]]; then
-        echo "''${container_stats}" | ${pkgs.jq}/bin/jq -r '.[] |
+        echo "''${container_stats}" | ${pkgs.jq}/bin/jq -r '
+          def bytes(v):
+            if (v | test("^0B$")) then 0
+            elif (v | test("[kK]B$")) then ((v | sub("[kK]B$"; "") | tonumber) * 1000)
+            elif (v | test("[mM]B$")) then ((v | sub("[mM]B$"; "") | tonumber) * 1000000)
+            elif (v | test("[gG]B$")) then ((v | sub("[gG]B$"; "") | tonumber) * 1000000000)
+            elif (v | test("[tT]B$")) then ((v | sub("[tT]B$"; "") | tonumber) * 1000000000000)
+            elif (v | test("B$")) then (v | sub("B$"; "") | tonumber)
+            else 0 end;
+
+          .[] |
           "container_cpu_percent{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.cpu_percent | sub("%$"; "") | tonumber) // 0 | tostring) + "\n" +
-          "container_memory_usage_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_usage | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_memory_limit_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_usage | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_memory_usage_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_usage | split(" / ")[0] | bytes(.)) // 0 | tostring) + "\n" +
+          "container_memory_limit_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_usage | split(" / ")[1] | bytes(.)) // 0 | tostring) + "\n" +
           "container_memory_percent{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.mem_percent | sub("%$"; "") | tonumber) // 0 | tostring) + "\n" +
-          "container_network_input_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.net_io | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_network_output_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.net_io | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_block_input_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.block_io | split(" / ")[0] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
-          "container_block_output_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.block_io | split(" / ")[1] | sub("B$"; "") | sub("kB$"; "000") | sub("MB$"; "000000") | sub("GB$"; "000000000") | tonumber) // 0 | tostring) + "\n" +
+          "container_network_input_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.net_io | split(" / ")[0] | bytes(.)) // 0 | tostring) + "\n" +
+          "container_network_output_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.net_io | split(" / ")[1] | bytes(.)) // 0 | tostring) + "\n" +
+          "container_block_input_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.block_io | split(" / ")[0] | bytes(.)) // 0 | tostring) + "\n" +
+          "container_block_output_bytes{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.block_io | split(" / ")[1] | bytes(.)) // 0 | tostring) + "\n" +
           "container_pids_current{name=\"" + .name + "\",id=\"" + .id[0:12] + "\"} " + ((.pids | tonumber) // 0 | tostring)
         ' 2>/dev/null || true
       fi
