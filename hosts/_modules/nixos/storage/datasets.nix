@@ -249,20 +249,30 @@ in
       '';
     };
 
-    # Generate tmpfiles rules to ensure directories exist with correct permissions
-    # This runs after datasets are created and mounted
+    # Generate tmpfiles rules to ensure directories exist
+    # For native systemd services: Permissions are managed by StateDirectoryMode
+    # For OCI containers: Permissions are managed via tmpfiles (they don't support StateDirectory)
     systemd.tmpfiles.rules = lib.flatten (lib.mapAttrsToList (serviceName: serviceConfig:
       let
         mountpoint = if serviceConfig.mountpoint != null
                     then serviceConfig.mountpoint
                     else "${cfg.parentMount}/${serviceName}";
+        # Check if explicit permissions are set (OCI containers) or should use defaults (native services)
+        hasExplicitPermissions = (serviceConfig.mode or null) != null
+                               && (serviceConfig.owner or null) != null
+                               && (serviceConfig.group or null) != null;
       in
-        # Only create tmpfiles entries if it's a real mountpoint (not "none" or "legacy").
-        # Use both 'd' (ensure directory exists) and 'z' (ensure ownership/mode even if already exists).
-        if (mountpoint != "none" && mountpoint != "legacy") then [
-          "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
-          "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
-        ] else []
+        # Only create tmpfiles entries if it's a real mountpoint (not "none" or "legacy")
+        if (mountpoint != "none" && mountpoint != "legacy") then (
+          if hasExplicitPermissions then [
+            # OCI containers: Use explicit permissions via tmpfiles
+            "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+            "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+          ] else [
+            # Native services: No tmpfiles rules - rely on StateDirectory + StateDirectoryMode
+            # (tmpfiles with "-" defaults to root:root which interferes with StateDirectory ownership)
+          ]
+        ) else []
     ) cfg.services);
 
     # Add assertions to validate configuration

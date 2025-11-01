@@ -425,6 +425,7 @@ in
     };
 
     # Configure ZFS dataset for Prometheus if specified
+    # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
     modules.storage.datasets.services.prometheus = mkIf (cfg.prometheus.enable && cfg.prometheus.zfsDataset != null) {
       mountpoint = "/var/lib/prometheus2"; # Default NixOS Prometheus data directory
       recordsize = "16K"; # Optimized for time series data
@@ -433,9 +434,16 @@ in
         "com.sun:auto-snapshot" = "true";
         atime = "off"; # Reduce write load
       };
-      owner = "prometheus";
-      group = "prometheus";
-      mode = "0750";  # Allow group read access for backup systems
+    };
+
+    # Set permissions for Prometheus using systemd StateDirectoryMode
+    systemd.services.prometheus.serviceConfig = mkIf cfg.prometheus.enable {
+      # Override upstream default of 0700 to allow group read access
+      # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
+      # UMask 0027 ensures files created by service are 640 (rw-r-----)
+      # This allows restic-backup user (member of prometheus group) to read data
+      StateDirectoryMode = lib.mkForce "0750";
+      UMask = "0027";
     };
 
     # Auto-configure Prometheus reverse proxy
@@ -489,6 +497,9 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "logs" "loki" "config" ];
+        # Enable ZFS snapshots for consistent backups (Gemini Pro recommendation)
+        useSnapshots = cfg.loki.zfsDataset != null;
+        zfsDataset = cfg.loki.zfsDataset;
         excludePatterns = if cfg.loki.backup.includeChunks then [] else [
           "**/chunks/**"
           "**/wal/**"
@@ -632,10 +643,16 @@ in
         repository = "nas-primary";
         frequency = "daily";
         tags = [ "monitoring" "grafana" "dashboards" ];
+        # CRITICAL: Enable ZFS snapshots for SQLite database consistency (Gemini Pro recommendation)
+        # Backing up live SQLite databases can result in corrupt backups. ZFS snapshots
+        # provide a crash-consistent point-in-time copy of the entire database.
+        useSnapshots = cfg.grafana.zfsDataset != null;
+        zfsDataset = cfg.grafana.zfsDataset;
         excludePatterns = [
-          "**/*.db"          # Exclude SQLite database (use ZFS snapshots instead)
           "**/sessions/*"    # Exclude session data
           "**/png/*"         # Exclude rendered images
+          "**/csv/*"         # Exclude CSV exports
+          "**/pdf/*"         # Exclude PDF exports
         ];
       };
     };

@@ -328,13 +328,15 @@ in
     # Declare dataset requirements for per-service ZFS isolation
     # This integrates with the storage.datasets module to automatically
     # create tank/services/sonarr with appropriate ZFS properties
+    # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
+    # via tmpfiles by keeping owner/group/mode here
     modules.storage.datasets.services.sonarr = {
       mountpoint = cfg.dataDir;
       recordsize = "16K";  # Optimal for SQLite databases
       compression = "zstd";  # Better compression for text/config files
       properties = {
         "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
-        snapdir = "visible";  # Make .zfs/snapshot accessible for backups
+        # snapdir managed by sanoid module - no longer needed with clone-based backups
       };
       # Ownership matches the container user/group
       owner = "sonarr";
@@ -394,6 +396,9 @@ in
       ];
       resources = cfg.resources;
       extraOptions = [
+        # Podman-level umask ensures container process creates files with group-readable permissions
+        # This allows restic-backup user (member of sonarr group) to read data
+        "--umask=0027"  # Creates directories with 750 and files with 640
         "--pull=newer"  # Automatically pull newer images
         # Force container to run as the specified user:group
         # This is required for containers that don't process PUID/PGID environment variables

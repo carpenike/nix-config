@@ -35,9 +35,9 @@ let
         value = {
           enable = true;
           repository = service.backup.repository or cfg.serviceDiscovery.defaultRepository;
-          paths = service.backup.paths or [
-            (service.dataDir or "/var/lib/${serviceName}")
-          ];
+          paths = if (service.backup.paths or []) != []
+            then service.backup.paths
+            else [ (service.dataDir or "/var/lib/${serviceName}") ];
           tags = [ serviceName ] ++ (service.backup.tags or []);
           excludePatterns = (service.backup.excludePatterns or []) ++ cfg.serviceDiscovery.globalExcludes;
           preBackupScript = if (service.backup.preBackupScript or null) != null then service.backup.preBackupScript else "";
@@ -216,7 +216,8 @@ in
               "**/core"
               "**/*.pid"
               "**/lost+found"
-              "**/.zfs"
+              ".zfs"         # Exclude .zfs at any level (critical for snapshot-based backups)
+              "**/.zfs"      # Also exclude nested .zfs directories
             ];
             description = "Global exclude patterns for all service backups";
           };
@@ -416,6 +417,7 @@ in
       "d /var/log/backup 0755 root root -"
       "d /var/lib/node_exporter/textfile_collector 0755 root root -"
       "d /tmp/restore-tests 0750 restic-backup restic-backup -"
+      "d /var/lib/backup-snapshots 0755 root root -"  # For ZFS clone mounts (avoids PrivateTmp conflicts)
     ];
 
     # Validation assertions

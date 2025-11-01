@@ -282,6 +282,13 @@ in
         example = "primary";
       };
 
+      paths = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = "Paths to backup (defaults to service dataDir if empty)";
+        example = [ "/var/lib/service" "/etc/service" ];
+      };
+
       frequency = mkOption {
         type = types.enum [ "hourly" "daily" "weekly" ];
         default = "daily";

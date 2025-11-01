@@ -22,13 +22,11 @@ let
 
       # Build snapshot paths if ZFS snapshots are enabled
       snapshotPaths = if jobConfig.useSnapshots && jobConfig.zfsDataset != null
-        then map (path:
-          let
-            # For ZFS snapshots, we need to use the mountpoint path
-            # The path (e.g., /var/lib/dispatcharr) + /.zfs/snapshot/backup-${jobName}
-            snapshotPath = "${path}/.zfs/snapshot/backup-${jobName}";
-          in snapshotPath
-        ) jobConfig.paths
+        then [
+          # Use the temporary clone mountpoint instead of .zfs/snapshot path
+          # This avoids Restic segfaults when traversing ZFS virtual directories
+          "/var/lib/backup-snapshots/${jobName}"
+        ]
         else jobConfig.paths;
 
       # Build restic command arguments
@@ -51,6 +49,11 @@ let
         wants = [ "backup.target" ];
         requires = [ "network-online.target" "restic-init-${jobConfig.repository}.service" ];
         after = [ "network-online.target" "restic-init-${jobConfig.repository}.service" ] ++ lib.optionals jobConfig.useSnapshots [
+          "zfs-snapshot-${jobName}.service"
+        ];
+        # Use BindsTo for snapshot services to create atomic lifecycle binding
+        # When backup completes, systemd automatically stops the snapshot service
+        bindsTo = lib.optionals jobConfig.useSnapshots [
           "zfs-snapshot-${jobName}.service"
         ];
 
@@ -84,7 +87,8 @@ let
             "/var/lib/node_exporter/textfile_collector"
             "/var/log/backup"
           ] ++ lib.optional (repository.type == "local") repository.url;
-          ReadOnlyPaths = jobConfig.paths ++ (lib.optionals jobConfig.useSnapshots snapshotPaths);
+          # When using snapshots, only grant access to snapshot paths (not original paths)
+          ReadOnlyPaths = if jobConfig.useSnapshots then snapshotPaths else jobConfig.paths;
         };
 
         script = ''

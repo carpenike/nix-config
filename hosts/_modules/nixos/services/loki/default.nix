@@ -175,18 +175,18 @@ in
   config = mkIf cfg.enable {
     # Note: Using NixOS built-in loki user/group from services.loki
 
-    # ZFS dataset configuration
-    modules.storage.datasets.services.loki = mkIf (cfg.zfs.dataset != null) {
-      mountpoint = cfg.dataDir;
-      recordsize = "1M";  # Optimized for log chunks (large sequential writes)
-      compression = "zstd";  # Better compression for text logs
-      properties = cfg.zfs.properties;
-      owner = "loki";
-      group = "loki";
-      mode = "0750";  # Allow group read access for backup systems
-    };
+    # Override Loki user's home directory to prevent activation script from
+    # enforcing 0700 permissions on /var/lib/loki (which would revert our 0750 tmpfiles rules)
+    users.users.loki.home = lib.mkForce "/var/empty";
 
-    # Loki service configuration
+      # ZFS dataset configuration
+      # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
+      modules.storage.datasets.services.loki = mkIf (cfg.zfs.dataset != null) {
+        mountpoint = cfg.dataDir;
+        recordsize = "1M";  # Optimized for log chunks (large sequential writes)
+        compression = "zstd";  # Better compression for text logs
+        properties = cfg.zfs.properties;
+      };    # Loki service configuration
     services.loki = {
       enable = true;
       dataDir = cfg.dataDir;
@@ -294,9 +294,16 @@ in
     };
 
     # Systemd service resource limits and ZFS dependencies
-    systemd.services.loki = {
-      serviceConfig = {
-        # Resource limits for homelab deployment
+      systemd.services.loki = {
+        serviceConfig = {
+          # Permissions: Managed by systemd StateDirectory (native approach)
+          # StateDirectory tells systemd to create /var/lib/loki with correct ownership
+          # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
+          # UMask 0027 ensures files created by service are 640 (rw-r-----)
+          # This allows restic-backup user (member of loki group) to read data
+          StateDirectory = "loki";
+          StateDirectoryMode = "0750";
+          UMask = "0027";        # Resource limits for homelab deployment
         MemoryMax = cfg.resources.MemoryMax;
         MemoryReservation = cfg.resources.MemoryReservation or null;
         CPUQuota = cfg.resources.CPUQuota;

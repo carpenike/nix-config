@@ -447,13 +447,15 @@ in
     # Declare dataset requirements for per-service ZFS isolation
     # This integrates with the storage.datasets module to automatically
     # create tank/services/dispatcharr with appropriate ZFS properties
+    # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
+    # via tmpfiles by keeping owner/group/mode here
     modules.storage.datasets.services.dispatcharr = {
       mountpoint = cfg.dataDir;
       recordsize = "8K";  # Optimal for PostgreSQL databases (uses embedded postgres)
       compression = "lz4";  # Fast compression suitable for database workloads
       properties = {
         "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
-        snapdir = "visible";  # Make .zfs/snapshot accessible for backups
+        # snapdir managed by sanoid module - no longer needed with clone-based backups
       };
       # Ownership matches the container user/group
       owner = "dispatcharr";
@@ -570,6 +572,9 @@ in
       ];
       resources = cfg.resources;
       extraOptions = [
+        # Podman-level umask ensures container process creates files with group-readable permissions
+        # This allows restic-backup user (member of dispatcharr group) to read data
+        "--umask=0027"  # Creates directories with 750 and files with 640
         "--pull=newer"  # Automatically pull newer images
         # Pass through only the render node to the container for VA-API (least privilege)
         "--device=/dev/dri/renderD128:/dev/dri/renderD128:rwm"

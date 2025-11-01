@@ -560,6 +560,215 @@ modules.storage.datasets.services.${serviceName} = mkIf (cfg.zfs.dataset != null
 };
 ```
 
+### 8. Directory and Permission Management Pattern
+
+Services must use systemd's native StateDirectory mechanism for directory ownership and permissions. This provides a single source of truth and prevents conflicts between tmpfiles and systemd.
+
+#### Critical Design Principles
+
+**✅ DO: Native SystemD Services**
+- Use `StateDirectory` + `StateDirectoryMode` for directory management
+- Let systemd create and manage directory ownership
+- Set `UMask` to control file creation permissions
+- NO tmpfiles rules for native services
+
+**❌ DON'T: Common Mistakes**
+- Don't use tmpfiles for native systemd services
+- Don't set home directory to data directory (causes permission reversion)
+- Don't mix tmpfiles and StateDirectory
+- Don't rely on ZFS dataset properties for permissions
+
+#### Implementation Pattern for Native Services
+
+```nix
+# Service module configuration
+config = mkIf cfg.enable {
+  # Set user home to /var/empty to prevent activation script interference
+  users.users.${serviceName} = {
+    isSystemUser = true;
+    group = serviceName;
+    home = lib.mkForce "/var/empty";  # CRITICAL: Prevents 700 permission enforcement
+  };
+
+  # SystemD service configuration
+  systemd.services.${serviceName} = {
+    serviceConfig = {
+      # StateDirectory tells systemd to create /var/lib/${serviceName}
+      # with ownership set to User:Group
+      StateDirectory = serviceName;
+
+      # StateDirectoryMode sets directory permissions (750 = rwxr-x---)
+      StateDirectoryMode = "0750";
+
+      # UMask ensures files created by service are 640 (rw-r-----)
+      UMask = "0027";
+
+      # User/Group are set by the service (usually from upstream module)
+      User = serviceName;
+      Group = serviceName;
+    };
+  };
+
+  # For ZFS datasets, only specify the dataset - NO owner/group/mode
+  modules.storage.datasets.services.${serviceName} = mkIf (cfg.zfs.dataset != null) {
+    mountpoint = cfg.dataDir;
+    properties = cfg.zfs.properties;
+    # DO NOT SET: owner, group, mode - these interfere with StateDirectory
+  };
+};
+```
+
+#### Implementation Pattern for OCI Containers
+
+OCI containers don't support StateDirectory, so they must use tmpfiles:
+
+```nix
+# Service module configuration for OCI containers
+config = mkIf cfg.enable {
+  users.users.${serviceName} = {
+    isSystemUser = true;
+    group = serviceName;
+    home = "/var/empty";
+  };
+
+  # For OCI containers, use ZFS dataset WITH explicit permissions
+  modules.storage.datasets.services.${serviceName} = mkIf (cfg.zfs.dataset != null) {
+    mountpoint = cfg.dataDir;
+    properties = cfg.zfs.properties;
+    owner = serviceName;
+    group = serviceName;
+    mode = "0750";
+    # Note: OCI containers don't support StateDirectory, so we explicitly set
+    # permissions via tmpfiles (handled by storage module)
+  };
+};
+```
+
+#### Storage Module Smart Detection
+
+The storage module automatically detects service type and applies correct pattern:
+
+```nix
+# In storage/datasets.nix
+systemd.tmpfiles.rules = lib.flatten (lib.mapAttrsToList (serviceName: serviceConfig:
+  let
+    # Check if explicit permissions are set (OCI containers)
+    hasExplicitPermissions = (serviceConfig.mode or null) != null
+                          && (serviceConfig.owner or null) != null
+                          && (serviceConfig.group or null) != null;
+  in
+    if hasExplicitPermissions then [
+      # OCI containers: Use explicit permissions via tmpfiles
+      "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+      "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+    ] else [
+      # Native services: No tmpfiles rules - rely on StateDirectory
+      # (tmpfiles with "-" defaults to root:root which interferes)
+    ]
+) cfg.services);
+```
+
+#### Permission Architecture Summary
+
+| Service Type | Directory Creation | Permission Management | Home Directory |
+|-------------|-------------------|----------------------|----------------|
+| **Native SystemD** | `StateDirectory` | `StateDirectoryMode` + `UMask` | `/var/empty` |
+| **OCI Container** | tmpfiles | `mode`/`owner`/`group` in dataset config | `/var/empty` |
+
+#### Examples from Working Implementations
+
+**Grafana (Native Service):**
+```nix
+users.users.grafana.home = lib.mkForce "/var/empty";
+
+systemd.services.grafana.serviceConfig = {
+  StateDirectory = "grafana";
+  StateDirectoryMode = "0750";
+  UMask = "0027";
+};
+
+# ZFS dataset - NO owner/group/mode
+modules.storage.datasets.services.grafana = {
+  mountpoint = "/var/lib/grafana";
+  # owner/group/mode omitted - StateDirectory handles it
+};
+```
+
+**Sonarr (OCI Container):**
+```nix
+users.users.sonarr.home = "/var/empty";
+
+# No StateDirectory (not supported by OCI)
+
+# ZFS dataset - WITH owner/group/mode
+modules.storage.datasets.services.sonarr = {
+  mountpoint = "/var/lib/sonarr";
+  owner = "sonarr";
+  group = "sonarr";
+  mode = "0750";
+  # Note: OCI containers don't support StateDirectory
+};
+```
+
+#### Backup User Group Membership
+
+For backup integration, ensure the backup user can read service data:
+
+```nix
+# Add service groups to backup user
+users.users.restic-backup.extraGroups = [
+  "grafana"
+  "loki"
+  "plex"
+  "promtail"
+  # Add all services that need backup
+];
+```
+
+With 750 permissions (rwxr-x---), the backup user (member of service group) can read directories and files created with UMask=0027.
+
+#### Common Pitfalls and Solutions
+
+**Problem:** Permissions revert to 700 after nixos-rebuild
+**Cause:** User home directory set to data directory
+**Solution:** Set `home = lib.mkForce "/var/empty"`
+
+**Problem:** Directory owned by root:root instead of service user
+**Cause:** tmpfiles rule with "-" for user/group
+**Solution:** Remove tmpfiles rule, use StateDirectory instead
+
+**Problem:** Backup fails with permission denied
+**Cause:** Files created with 600 permissions (user-only)
+**Solution:** Add exclude patterns for security-sensitive files
+
+**Problem:** Service fails to start after migration
+**Cause:** StateDirectory not set, directory doesn't exist
+**Solution:** Add `StateDirectory = serviceName` to serviceConfig
+
+#### Validation Checklist
+
+After implementing directory management:
+
+```bash
+# 1. Check StateDirectory configuration
+systemctl show <service>.service -p StateDirectory -p StateDirectoryMode
+
+# 2. Verify directory ownership
+ls -ld /var/lib/<service>  # Should be <service>:<service> drwxr-x---
+
+# 3. Check user home directory
+getent passwd <service>  # Should show /var/empty
+
+# 4. Verify tmpfiles rules
+systemd-tmpfiles --cat-config | grep <service>
+# Native services: Should NOT have tmpfiles entries
+# OCI containers: Should have "d" and "z" entries with explicit permissions
+
+# 5. Test permission persistence
+sudo systemctl restart <service>.service
+ls -ld /var/lib/<service>  # Should still be drwxr-x---
+```
+
 ### Helper Functions
 
 Reusable helper functions in `lib/` for common patterns:

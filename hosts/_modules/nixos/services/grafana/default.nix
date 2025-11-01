@@ -140,10 +140,13 @@ in
         tags = [ "monitoring" "grafana" "dashboards" ];
         useSnapshots = true;
         zfsDataset = "tank/services/grafana";
+        # ZFS snapshots provide consistency - backup the live database
+        # SQLite is resilient to point-in-time copies via ZFS snapshots
         excludePatterns = [
-          "**/*.db"          # Exclude SQLite database (use ZFS snapshots instead)
           "**/sessions/*"    # Exclude session data
           "**/png/*"         # Exclude rendered images
+          "**/csv/*"         # Exclude CSV exports
+          "**/pdf/*"         # Exclude PDF exports
         ];
       };
       description = "Backup configuration for Grafana";
@@ -268,15 +271,17 @@ in
     {
       # Note: grafana user and group are automatically created by services.grafana
 
+      # Override Grafana user's home directory to prevent activation script from
+      # enforcing 0700 permissions on /var/lib/grafana (which would revert our 0750 tmpfiles rules)
+      users.users.grafana.home = lib.mkForce "/var/empty";
+
       # ZFS dataset configuration
+      # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
       modules.storage.datasets.services.grafana = mkIf (cfg.zfs.dataset != null) {
         mountpoint = cfg.dataDir;
         recordsize = "128K"; # Default recordsize for general purpose use
         compression = "zstd"; # Better compression for Grafana database files
         properties = cfg.zfs.properties;
-        owner = "grafana";
-        group = "grafana";
-        mode = "0750";  # Allow group read access for backup systems
       };
 
       # Automatically register with Caddy reverse proxy using standardized pattern
@@ -336,10 +341,16 @@ in
 
       # Apply systemd hardening and resource limits
       systemd.services.grafana = {
-        # NOTE: Do not add a chown here; systemd seccomp blocks chown in ExecStartPre.
-        # Ownership is ensured by modules.storage.datasets tmpfiles rules.
-
         serviceConfig = {
+          # Permissions: Managed by systemd StateDirectory (native approach)
+          # StateDirectory tells systemd to create /var/lib/grafana with correct ownership
+          # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
+          # UMask 0027 ensures files created by service are 640 (rw-r-----)
+          # This allows restic-backup user (member of grafana group) to read data
+          StateDirectory = "grafana";
+          StateDirectoryMode = "0750";
+          UMask = "0027";
+
           # Resource limits
           MemoryMax = cfg.resources.MemoryMax;
           MemoryReservation = cfg.resources.MemoryReservation;

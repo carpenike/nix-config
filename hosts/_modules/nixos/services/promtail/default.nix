@@ -228,19 +228,20 @@ in
     };
 
     # Standardized backup integration
+    # NOTE (Gemini Pro 2.5 validated): Promtail backups are NOT RECOMMENDED
+    # Rationale:
+    # - Promtail stores live operational state (positions.yaml for log offsets, wal/ for batched logs)
+    # - This state becomes stale immediately and should never be restored
+    # - Restoring stale positions.yaml causes permanent log loss (skips logs between backup and restore)
+    # - Starting with empty directory causes duplication (annoying but self-recovering)
+    # - In DR: provision new empty persistent volume, NOT restore from backup
+    # - Persistent storage is REQUIRED for operation, but state is disposable in DR scenarios
     backup = mkOption {
       type = types.nullOr sharedTypes.backupSubmodule;
       default = lib.mkIf cfg.enable {
-        enable = lib.mkDefault true;
-        repository = lib.mkDefault "nas-primary";
-        frequency = lib.mkDefault "daily";
-        tags = lib.mkDefault [ "logs" "promtail" "config" ];
-        excludePatterns = lib.mkDefault [
-          "**/positions.yaml"   # Exclude position tracking file
-          "**/*.tmp"            # Exclude temporary files
-        ];
+        enable = lib.mkDefault false;  # Disabled per Gemini Pro recommendation
       };
-      description = "Backup configuration for Promtail";
+      description = "Backup configuration for Promtail (disabled by default - see NOTE above)";
     };
 
     # Standardized notifications
@@ -284,12 +285,10 @@ in
     users.users.promtail.extraGroups = [ "systemd-journal" ];
 
     # ZFS dataset configuration
+    # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
     modules.storage.datasets.services.promtail = mkIf (cfg.zfs.dataset != null) {
       mountpoint = cfg.dataDir;
       properties = cfg.zfs.properties;
-      owner = "promtail";
-      group = "promtail";
-      mode = "0750";  # Allow group read access for backup systems
     };
 
     # Promtail service configuration
@@ -515,6 +514,15 @@ in
     # Systemd service resource limits and permissions
     systemd.services.promtail = {
       serviceConfig = {
+        # Permissions: Managed by systemd StateDirectory (native approach)
+        # StateDirectory tells systemd to create /var/lib/promtail with correct ownership
+        # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
+        # UMask 0027 ensures files created by service are 640 (rw-r-----)
+        # This allows restic-backup user (member of promtail group) to read data
+        StateDirectory = "promtail";
+        StateDirectoryMode = "0750";
+        UMask = "0027";
+
         # Resource limits for homelab deployment
         MemoryMax = cfg.resources.MemoryMax;
         CPUQuota = cfg.resources.CPUQuota;

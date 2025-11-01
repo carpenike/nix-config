@@ -574,6 +574,14 @@ in
             # No replication - individual services handle their own replication
           };
 
+          # Parent dataset for temporary backup clones
+          # Used by snapshot-based backups to avoid .zfs directory traversal issues
+          "tank/temp" = {
+            recursive = false;
+            autosnap = false;
+            autoprune = false;
+          };
+
           # Explicitly disable snapshots on PostgreSQL dataset (rely on pgBackRest)
           "tank/services/postgresql" = {
             autosnap = false;
@@ -608,17 +616,18 @@ in
           };
 
           # Promtail log shipping agent storage
-          # Snapshots protect critical positions.yaml file for reliable log collection
+          # NOTE (Gemini Pro 2.5 validated): Snapshots/replication DISABLED for Promtail
+          # Rationale:
+          # - Promtail stores live operational state (positions.yaml, wal/) that becomes stale instantly
+          # - Restoring stale state causes permanent log LOSS (skips recent logs)
+          # - Starting fresh causes duplication (annoying but self-recovering)
+          # - In DR: provision new empty dataset, do NOT restore from snapshots
+          # - Persistent storage still REQUIRED for normal operation
           "tank/services/promtail" = {
-            useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+            autosnap = false;   # Disable snapshots per Gemini Pro recommendation
+            autoprune = false;
             recursive = false;
-            replication = {
-              targetHost = "nas-1.holthome.net";
-              targetDataset = "backup/forge/zfs-recv/promtail";
-              sendOptions = "w";  # Raw encrypted send (no property preservation)
-              recvOptions = "u";  # Don't mount on receive
-              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-            };
+            # No replication - state should not be preserved in DR scenarios
           };
 
           # Grafana monitoring dashboard storage
@@ -825,6 +834,9 @@ in
         backup = {
           enable = true;
           repository = "nas-primary";  # Primary NFS backup repository
+          # TODO: Enable ZFS snapshots for SQLite consistency when Sonarr gets ZFS dataset
+          # useSnapshots = true;
+          # zfsDataset = "tank/services/sonarr";
         };
         notifications.enable = true;  # Enable failure notifications
         preseed = {

@@ -87,6 +87,11 @@ in
           "**/Plex Media Server/Crash Reports/**"
           "**/Plex Media Server/Updates/**"
           "**/Transcode/**"
+          # Exclude security-sensitive files created by Plex with 600 permissions
+          # These files cannot be read by restic-backup user (even with group membership)
+          # Both files are non-critical: .LocalAdminToken is ephemeral, Setup Plex.html is static
+          "**/Plex Media Server/.LocalAdminToken"
+          "**/Plex Media Server/Setup Plex.html"
         ];
       };
       description = "Backup configuration for Plex application data";
@@ -212,13 +217,11 @@ in
     };
 
     # ZFS dataset auto-registration
+    # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
     modules.storage.datasets.services.plex = lib.mkIf (cfg.zfs.dataset != null) {
       recordsize = cfg.zfs.recordsize;
       compression = cfg.zfs.compression;
       mountpoint = cfg.dataDir;
-      owner = cfg.user;
-      group = cfg.group;
-      mode = "0750";  # Allow group read access for backup systems
       properties = cfg.zfs.properties;
     };
 
@@ -240,14 +243,26 @@ in
     networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ]
       ++ lib.optional (cfg.metrics != null && cfg.metrics.enable) cfg.metrics.port;
 
-    # Optional systemd resource limits (avoid overriding upstream hardening)
-    systemd.services.plex.serviceConfig = lib.mkIf (cfg.resources != null) {
-      MemoryMax = cfg.resources.MemoryMax;
-      MemoryLow = cfg.resources.MemoryReservation;
-      CPUQuota = cfg.resources.CPUQuota;
-      CPUWeight = cfg.resources.CPUWeight;
-      IOWeight = cfg.resources.IOWeight;
-    };
+    # Optional systemd resource limits and permissions
+    systemd.services.plex.serviceConfig = lib.mkMerge [
+      # Permissions: Managed by systemd StateDirectory (native approach)
+      # StateDirectory tells systemd to create /var/lib/plex with correct ownership
+      # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
+      # UMask 0027 ensures files created by service are 640 (rw-r-----)
+      # This allows restic-backup user (member of plex group) to read data
+      {
+        StateDirectory = "plex";
+        StateDirectoryMode = "0750";
+        UMask = "0027";
+      }
+      (lib.mkIf (cfg.resources != null) {
+        MemoryMax = cfg.resources.MemoryMax;
+        MemoryLow = cfg.resources.MemoryReservation;
+        CPUQuota = cfg.resources.CPUQuota;
+        CPUWeight = cfg.resources.CPUWeight;
+        IOWeight = cfg.resources.IOWeight;
+      })
+    ];
 
     # Ensure Plex starts after mounts and tmpfiles rules are applied
     systemd.services.plex.unitConfig = lib.mkIf (cfg.zfs.dataset != null) {

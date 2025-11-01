@@ -106,9 +106,15 @@ in {
       useSnapshots = false;
 
       preBackupScript = ''
-        # Verify pgBackRest mount is available
-        if ! mountpoint -q ${postgresCfg.pgbackrest.archivePath}; then
-          echo "ERROR: pgBackRest archive path ${postgresCfg.pgbackrest.archivePath} not mounted"
+        # Verify pgBackRest NFS mount is available (check parent mount point)
+        if ! ${pkgs.util-linux}/bin/mountpoint -q /mnt/nas-postgresql; then
+          echo "ERROR: pgBackRest NFS mount /mnt/nas-postgresql not available"
+          exit 1
+        fi
+
+        # Verify the pgBackRest directory exists
+        if [ ! -d "${postgresCfg.pgbackrest.archivePath}" ]; then
+          echo "ERROR: pgBackRest archive path ${postgresCfg.pgbackrest.archivePath} does not exist"
           exit 1
         fi
 
@@ -131,6 +137,14 @@ in {
           echo "postgres_pgbackrest_offsite_backup_timestamp{hostname=\"${config.networking.hostName}\"} $(date +%s)"
         } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
       '';
+    };
+
+    # Override systemd service to use postgres as primary group for reading pgBackRest archives
+    # Note: NFS requires the group to be primary, not supplementary, for permission checks
+    systemd.services.restic-backup-postgres-pgbackrest = lib.mkIf postgresCfg.pgbackrest.enableOffsite {
+      serviceConfig = {
+        Group = lib.mkForce "postgres";
+      };
     };
 
     # PostgreSQL backup verification service

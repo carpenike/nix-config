@@ -21,15 +21,33 @@
         };
       };
 
-      # Backup Plex application data weekly to NAS repo
+      # Backup Plex application data daily to NAS repo
+      # Rationale (Gemini Pro 2.5 validated): Watch history and metadata changes occur
+      # daily with active users. The pain of losing up to 7 days of user activity
+      # (watch history, collections, preferences) outweighs the minimal incremental
+      # backup cost due to Restic deduplication. Daily backups provide acceptable
+      # DR RPO while ZFS snapshots (every 5min) handle immediate rollback needs.
       backup = {
         enable = true;
         repository = "nas-primary";
-        frequency = "weekly";
+        frequency = "daily";  # Changed from weekly per Gemini Pro recommendation
         tags = [ "plex" "media-metadata" "forge" ];
         # CRITICAL: Enable ZFS snapshots for SQLite database consistency
         useSnapshots = true;
         zfsDataset = "tank/services/plex";
+        # Exclude non-critical directories and security-sensitive files
+        excludePatterns = [
+          "**/Plex Media Server/Cache/**"
+          "**/Plex Media Server/Logs/**"
+          "**/Plex Media Server/Crash Reports/**"
+          "**/Plex Media Server/Updates/**"
+          "**/Transcode/**"
+          # Exclude security-sensitive files created by Plex with 600 permissions
+          # These files cannot be read by restic-backup user (even with group membership)
+          # Both files are non-critical: .LocalAdminToken is ephemeral, Setup Plex.html is static
+          "**/Plex Media Server/.LocalAdminToken"
+          "**/Plex Media Server/Setup Plex.html"
+        ];
       };
 
       # Enable health monitoring and textfile metrics
