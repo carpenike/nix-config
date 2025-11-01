@@ -134,7 +134,7 @@ let
       if [[ "''${container_list}" != "[]" ]] && [[ -n "''${container_list}" ]]; then
         echo "''${container_list}" | ${pkgs.jq}/bin/jq -r '.[] |
           "container_up{name=\"" + (.Names[0] // "unknown") + "\",id=\"" + .Id[0:12] + "\",image=\"" + .Image + "\",status=\"" + .State + "\"} " + (if .State == "running" then "1" else "0" end) + "\n" +
-          "container_restart_count{name=\"" + (.Names[0] // "unknown") + "\",id=\"" + .Id[0:12] + "\",image=\"" + .Image + "\"} " + ((.RestartCount | tonumber) // 0 | tostring)
+          "container_restart_count{name=\"" + (.Names[0] // "unknown") + "\",id=\"" + .Id[0:12] + "\",image=\"" + .Image + "\"} " + ((.Restarts | tonumber) // 0 | tostring)
         ' 2>/dev/null || true
       fi
 
@@ -155,7 +155,7 @@ let
                elif $status == "unhealthy" then 1
                elif $status == "starting" then 3
                else 2 end) as $metric_value |
-              "container_health_status{name=\"" + .Name + "\",health=\"" + $status + "\"} " + ($metric_value | tostring)
+              "container_health_status{name=\"" + (.Name | sub("^/"; "")) + "\",health=\"" + $status + "\"} " + ($metric_value | tostring)
             ' 2>/dev/null || true
           fi
         fi
@@ -174,9 +174,9 @@ let
           if [[ -n "$service_unit" && "$service_unit" =~ ^podman- ]]; then
             service_name=$(echo "$service_unit" | ${pkgs.gnused}/bin/sed 's/podman-//')
             if ${pkgs.systemd}/bin/systemctl is-active "$service_unit.service" >/dev/null 2>&1; then
-              echo "container_service_active{service=\"''${service_name}\"} 1"
+              echo "container_service_active{name=\"''${service_name}\"} 1"
             else
-              echo "container_service_active{service=\"''${service_name}\"} 0"
+              echo "container_service_active{name=\"''${service_name}\"} 0"
             fi
           fi
         done
@@ -778,8 +778,8 @@ in
     severity = "critical";
     labels = { service = "containers"; category = "availability"; };
     annotations = {
-      summary = "Container service {{ $labels.service }} is inactive";
-      description = "Systemd service for {{ $labels.service }} is not active. Check service status.";
+      summary = "Container service {{ $labels.name }} is inactive";
+      description = "Systemd service for {{ $labels.name }} is not active. Check service status.";
     };
   };
 
@@ -819,6 +819,32 @@ in
     annotations = {
       summary = "Container {{ $labels.name }} has high disk I/O";
       description = "Container {{ $labels.name }} is averaging over 50 MB/s of disk I/O ({{ $value | humanize }}B/s). This could indicate a runaway process or performance issue.";
+    };
+  };
+
+  modules.alerting.rules."container-managed-down" = {
+    type = "promql";
+    alertname = "ManagedContainerDown";
+    expr = "container_up == 0 and on(name) container_service_active == 1";
+    for = "3m";
+    severity = "critical";
+    labels = { service = "containers"; category = "availability"; };
+    annotations = {
+      summary = "Managed container {{ $labels.name }} is down but service is active";
+      description = "The container {{ $labels.name }} is not running, but its systemd service is still active. The service may be in a failed state or unable to restart the container.";
+    };
+  };
+
+  modules.alerting.rules."container-health-unknown" = {
+    type = "promql";
+    alertname = "ContainerHealthUnknown";
+    expr = "container_health_status == 2";
+    for = "15m";
+    severity = "low";
+    labels = { service = "containers"; category = "health"; };
+    annotations = {
+      summary = "Container {{ $labels.name }} has an unknown health status";
+      description = "The health status for container {{ $labels.name }} is unknown. This may be because no health check is configured. Consider adding one to improve monitoring reliability.";
     };
   };
 
