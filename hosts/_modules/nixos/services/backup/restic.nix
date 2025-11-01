@@ -49,8 +49,8 @@ let
       "restic-backup-${jobName}" = {
         description = "Restic backup for ${jobName}";
         wants = [ "backup.target" ];
-        requires = [ "network-online.target" ];
-        after = [ "network-online.target" ] ++ lib.optionals jobConfig.useSnapshots [
+        requires = [ "network-online.target" "restic-init-${jobConfig.repository}.service" ];
+        after = [ "network-online.target" "restic-init-${jobConfig.repository}.service" ] ++ lib.optionals jobConfig.useSnapshots [
           "zfs-snapshot-${jobName}.service"
         ];
 
@@ -79,7 +79,11 @@ let
           EnvironmentFile = lib.mkIf (repository.environmentFile != null) repository.environmentFile;
 
           # Paths that need to be accessible
-          ReadWritePaths = [ cfg.performance.cacheDir "/var/lib/node_exporter/textfile_collector" "/var/log/backup" ];
+          ReadWritePaths = [
+            cfg.performance.cacheDir
+            "/var/lib/node_exporter/textfile_collector"
+            "/var/log/backup"
+          ] ++ lib.optional (repository.type == "local") repository.url;
           ReadOnlyPaths = jobConfig.paths ++ (lib.optionals jobConfig.useSnapshots snapshotPaths);
         };
 
@@ -120,21 +124,8 @@ let
           # Pre-backup script
           ${jobConfig.preBackupScript}
 
-          # Initialize repository if needed (with proper locking to prevent race conditions)
-          REPO_LOCK_FILE="/tmp/restic-backup-${jobConfig.repository}.lock"
-          (
-            ${pkgs.util-linux}/bin/flock -x 200
-            echo "Checking repository status..."
-            # Use 'restic cat config' which is more reliable than 'snapshots'
-            # for checking if repository is initialized
-            if ! ${pkgs.restic}/bin/restic cat config >/dev/null 2>&1; then
-              echo "Repository not initialized. Initializing..."
-              ${pkgs.restic}/bin/restic init
-              echo "Repository initialized successfully."
-            else
-              echo "Repository already initialized."
-            fi
-          ) 200>"$REPO_LOCK_FILE"
+          # Repository initialization is handled by dedicated restic-init service
+          # All backup jobs depend on restic-init-${jobConfig.repository}.service
 
           # Perform backup
           ${pkgs.restic}/bin/restic backup \
@@ -147,15 +138,6 @@ let
 
           # Post-backup script
           ${jobConfig.postBackupScript}
-
-          # Prune old snapshots
-          ${pkgs.restic}/bin/restic forget \
-            --tag ${lib.head jobConfig.tags} \
-            --keep-daily ${toString cfg.globalSettings.retention.daily} \
-            --keep-weekly ${toString cfg.globalSettings.retention.weekly} \
-            --keep-monthly ${toString cfg.globalSettings.retention.monthly} \
-            --keep-yearly ${toString cfg.globalSettings.retention.yearly} \
-            --prune
 
           echo "Backup completed successfully for ${jobName}"
         '';
@@ -274,6 +256,89 @@ in {
       (lib.mkMerge (lib.mapAttrsToList mkBackupService
         (lib.filterAttrs (name: job: job.enable) allJobs)))
 
+      # Prune services (one per repository)
+      (lib.mkMerge (lib.mapAttrsToList (repoName: repoConfig: lib.mkIf (repoConfig.pruneSchedule != "") {
+        "restic-prune-${repoName}" = {
+          description = "Prune Restic repository ${repoName}";
+          requires = [ "network-online.target" "restic-init-${repoName}.service" ];
+          after = [ "network-online.target" "restic-init-${repoName}.service" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+            User = "restic-backup";
+            Group = "restic-backup";
+
+            # Security
+            PrivateTmp = true;
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            NoNewPrivileges = true;
+
+            # Environment
+            Environment = [
+              "RESTIC_REPOSITORY=${repoConfig.url}"
+              "RESTIC_PASSWORD_FILE=${repoConfig.passwordFile}"
+              "RESTIC_CACHE_DIR=${cfg.performance.cacheDir}"
+            ];
+            EnvironmentFile = lib.mkIf (repoConfig.environmentFile != null) repoConfig.environmentFile;
+
+            # Resource limits (pruning can be intensive)
+            MemoryMax = "2G";
+            CPUQuota = "200%";
+            IOSchedulingClass = "idle";
+            IOSchedulingPriority = 7;
+
+            # Paths
+            ReadWritePaths = [
+              cfg.performance.cacheDir
+              "/var/lib/node_exporter/textfile_collector"
+              "/var/log/backup"
+            ] ++ lib.optional (repoConfig.type == "local") repoConfig.url;
+          };
+
+          script = ''
+            set -euo pipefail
+
+            METRICS_FILE="/var/lib/node_exporter/textfile_collector/restic_prune_${repoName}.prom"
+            START_TIME=$(date +%s)
+
+            cleanup() {
+              local exit_code=$?
+              local end_time=$(date +%s)
+              local duration=$((end_time - START_TIME))
+
+              {
+                echo "# HELP restic_prune_status Prune job status (1=success, 0=failure)"
+                echo "# TYPE restic_prune_status gauge"
+                echo "restic_prune_status{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $([[ $exit_code -eq 0 ]] && echo 1 || echo 0)"
+
+                echo "# HELP restic_prune_duration_seconds Prune job duration in seconds"
+                echo "# TYPE restic_prune_duration_seconds gauge"
+                echo "restic_prune_duration_seconds{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $duration"
+
+                echo "# HELP restic_prune_last_success_timestamp Last successful prune timestamp"
+                echo "# TYPE restic_prune_last_success_timestamp gauge"
+                if [[ $exit_code -eq 0 ]]; then
+                  echo "restic_prune_last_success_timestamp{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $end_time"
+                fi
+              } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
+            }
+            trap cleanup EXIT
+
+            echo "Starting prune for repository ${repoName}..."
+
+            ${pkgs.restic}/bin/restic forget \
+              --keep-daily ${toString cfg.globalSettings.retention.daily} \
+              --keep-weekly ${toString cfg.globalSettings.retention.weekly} \
+              --keep-monthly ${toString cfg.globalSettings.retention.monthly} \
+              --keep-yearly ${toString cfg.globalSettings.retention.yearly} \
+              --prune
+
+            echo "Prune completed for ${repoName}."
+          '';
+        };
+      }) cfg.repositories))
+
       # Notification service templates
       {
       "backup-success-notification@" = {
@@ -298,17 +363,33 @@ in {
       }
       ];
 
-    # Create timers for backup jobs
-    systemd.timers = lib.mkMerge (lib.mapAttrsToList (jobName: jobConfig: {
-      "restic-backup-${jobName}" = {
-        description = "Timer for ${jobName} backup";
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnCalendar = jobConfig.frequency;
-          Persistent = true;
-          RandomizedDelaySec = "30m";  # Spread backup load
+    # Create timers for backup and prune jobs
+    systemd.timers = lib.mkMerge [
+      # Backup timers
+      (lib.mkMerge (lib.mapAttrsToList (jobName: jobConfig: {
+        "restic-backup-${jobName}" = {
+          description = "Timer for ${jobName} backup";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnCalendar = jobConfig.frequency;
+            Persistent = true;
+            RandomizedDelaySec = "30m";  # Spread backup load
+          };
         };
-      };
-    }) (lib.filterAttrs (name: job: job.enable) allJobs));
+      }) (lib.filterAttrs (name: job: job.enable) allJobs)))
+
+      # Prune timers
+      (lib.mkMerge (lib.mapAttrsToList (repoName: repoConfig: lib.mkIf (repoConfig.pruneSchedule != "") {
+        "restic-prune-${repoName}" = {
+          description = "Timer for ${repoName} repository prune";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnCalendar = repoConfig.pruneSchedule;
+            Persistent = true;
+            RandomizedDelaySec = "15m"; # Good practice to avoid thundering herd
+          };
+        };
+      }) cfg.repositories))
+    ];
   };
 }

@@ -128,6 +128,12 @@ in
             default = "local";
             description = "Repository type for optimization";
           };
+
+          pruneSchedule = lib.mkOption {
+            type = lib.types.str;
+            default = "weekly";
+            description = "Systemd calendar expression for repository prune job. Set to \"\" to disable.";
+          };
         };
       });
       default = {};
@@ -324,6 +330,68 @@ in
   config = lib.mkIf cfg.enable {
     # Populate the internal consolidated jobs option
     modules.services.backup._internal.allJobs = allJobs;
+
+    # Create repository initialization services
+    # These run once on boot and ensure repositories are initialized before backup jobs
+    systemd.services = lib.mkMerge [
+      # Repository initialization services (one per repository)
+      (lib.mkMerge (lib.mapAttrsToList (repoName: repoConfig: {
+        "restic-init-${repoName}" = {
+          description = "Initialize Restic repository ${repoName} at ${repoConfig.url}";
+
+          # For NFS repositories, depend on the automount being available (not the mount directly)
+          # Use systemd path escaping (systemd-escape --path)
+          after = lib.optionals (repoConfig.type == "local" && lib.hasPrefix "/mnt/" repoConfig.url) [
+            (lib.replaceStrings ["/"] ["-"] (lib.replaceStrings ["-"] ["\\x2d"] (lib.removePrefix "/" repoConfig.url)) + ".automount")
+          ] ++ [ "network-online.target" ];
+          requires = lib.optionals (repoConfig.type == "local" && lib.hasPrefix "/mnt/" repoConfig.url) [
+            (lib.replaceStrings ["/"] ["-"] (lib.replaceStrings ["-"] ["\\x2d"] (lib.removePrefix "/" repoConfig.url)) + ".automount")
+          ] ++ [ "network-online.target" ];
+
+          # Start on boot (before backup jobs)
+          wantedBy = [ "multi-user.target" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;  # Critical for dependency tracking
+
+            # Security
+            User = "restic-backup";
+            Group = "restic-backup";
+            PrivateTmp = true;
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            NoNewPrivileges = true;
+
+            # Environment
+            Environment = [
+              "RESTIC_REPOSITORY=${repoConfig.url}"
+              "RESTIC_PASSWORD_FILE=${repoConfig.passwordFile}"
+            ];
+            EnvironmentFile = lib.mkIf (repoConfig.environmentFile != null) repoConfig.environmentFile;
+          } // lib.optionalAttrs (repoConfig.type == "local") {
+            # For local repositories, only run if config doesn't exist
+            ConditionPathExists = "!${repoConfig.url}/config";
+            ReadWritePaths = [ repoConfig.url ];
+          };
+
+          script = ''
+            set -euo pipefail
+            echo "Checking Restic repository ${repoName} at ${repoConfig.url}..."
+
+            # For remote repositories, check if already initialized
+            if ${pkgs.restic}/bin/restic cat config >/dev/null 2>&1; then
+              echo "Repository ${repoName} already initialized, skipping."
+              exit 0
+            fi
+
+            echo "Initializing Restic repository ${repoName} at ${repoConfig.url}..."
+            ${pkgs.restic}/bin/restic init
+            echo "Repository ${repoName} initialized successfully."
+          '';
+        };
+      }) cfg.repositories))
+    ];
 
     # Ensure backup user and group exist
     users.users.restic-backup = {
