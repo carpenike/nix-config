@@ -40,12 +40,15 @@ in
       domain = "holthome.net";
 
       # Add local DNS entries for TLS certificate verification
-      # These domains are served by local Caddy but don't exist in external DNS
+      # These domains are served by local Caddy but don't exist in external DNS (or resolve externally)
       # Required for TLS certificate exporter to successfully connect and verify certificates
       extraHosts = ''
         127.0.0.1 alertmanager.forge.holthome.net
         127.0.0.1 prometheus.forge.holthome.net
         127.0.0.1 loki.holthome.net
+        127.0.0.1 grafana.holthome.net
+        127.0.0.1 iptv.holthome.net
+        127.0.0.1 plex.holthome.net
       '';
     };
 
@@ -146,7 +149,7 @@ in
           annotations = {
             summary = "ZFS snapshots are stale for {{ $labels.dataset }} on {{ $labels.instance }}";
             description = "Last snapshot was {{ $value | humanizeDuration }} ago. Check sanoid service.";
-            command = "systemctl status sanoid.service && journalctl -u sanoid.service --since '2h'";
+            command = "systemctl status sanoid.service && journalctl -u sanoid.service --since '2 hours ago'";
           };
         };
 

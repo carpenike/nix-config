@@ -237,18 +237,18 @@ in {
 
     # Generate alerting rules if alerting module exists
     modules.alerting.rules = lib.mkIf (monitoringCfg.alerting.enable && (config.modules.alerting.enable or false)) {
-      # Unified backup job failure alert
+      # Backup failure alert
       "unified-backup-failed" = {
         type = "promql";
         alertname = "UnifiedBackupFailed";
-        expr = "restic_backup_status == 0";
+        expr = "unified_backup_status == 0";
         for = "5m";
         severity = "critical";
         labels = { service = "backup"; category = "unified"; };
         annotations = {
           summary = "Backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
           description = "Unified backup system job failed. Repository: {{ $labels.repository }}. Check systemd logs.";
-          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2h'";
+          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2 hours ago'";
         };
       };
 
@@ -263,7 +263,7 @@ in {
         annotations = {
           summary = "Backup job {{ $labels.backup_job }} is stale on {{ $labels.hostname }}";
           description = "No successful backup in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours. Repository: {{ $labels.repository }}";
-          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '24h'";
+          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '24 hours ago'";
         };
       };
 
@@ -276,24 +276,25 @@ in {
         severity = "medium";
         labels = { service = "backup"; category = "unified"; };
         annotations = {
-          summary = "Backup job {{ $labels.backup_job }} is running slowly on {{ $labels.hostname }}";
-          description = "Duration {{ $value | humanizeDuration }} is ${toString monitoringCfg.alerting.thresholds.slowBackupMultiplier}x the 7-day average.";
-          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2h'";
+          summary = "Backup job {{ $labels.backup_job }} is running slowly on {{ $labels.instance }}";
+          description = "Backup {{ $labels.backup_job }} is taking longer than expected. Check for performance issues or large data changes.";
+          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2 hours ago'";
         };
       };
 
       # PostgreSQL backup verification alert
+      # PostgreSQL backup verification failure
       "postgres-backup-verification-failed" = {
         type = "promql";
         alertname = "PostgresBackupVerificationFailed";
         expr = "postgres_backup_verification_status == 0";
         for = "5m";
-        severity = "high";
-        labels = { service = "backup"; category = "postgres"; };
+        severity = "critical";
+        labels = { service = "postgresql"; category = "backup"; };
         annotations = {
-          summary = "PostgreSQL backup verification failed on {{ $labels.hostname }}";
-          description = "Database backup integrity check failed. Investigate immediately.";
-          command = "journalctl -u postgres-backup-verification.service --since '2h'";
+          summary = "PostgreSQL backup verification failed on {{ $labels.instance }}";
+          description = "PostgreSQL backup verification service failed. Check service logs and backup integrity.";
+          command = "journalctl -u postgres-backup-verification.service --since '2 hours ago'";
         };
       };
 

@@ -359,9 +359,9 @@ in
         severity = "critical";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
-          description = "Backup to repository {{ $labels.repository }} failed. Check systemd logs for details.";
-          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2h'";
+          summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.instance }}";
+          description = "Backup job {{ $labels.backup_job }} has failed. Check logs for errors. This may indicate issues with repository connectivity, authentication, or data integrity.";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2 hours ago'";
         };
       };
 
@@ -377,9 +377,9 @@ in
         severity = "high";
         labels = { service = "backup"; category = "restic"; group = "backups"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.backup_job }} is stale on {{ $labels.hostname }}";
-          description = "No successful backup in 30+ hours for repository {{ $labels.repository }}. Last success: {{ $value | humanizeDuration }} ago. Daily backups have 6-hour buffer.";
-          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
+          summary = "Restic backup job {{ $labels.backup_job }} never completed on {{ $labels.instance }}";
+          description = "Backup job {{ $labels.backup_job }} is configured but has never successfully completed. Verify the backup configuration and check for initialization issues.";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24 hours ago'";
         };
       };
 
@@ -392,9 +392,9 @@ in
         severity = "medium";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.backup_job }} is running slowly on {{ $labels.hostname }}";
-          description = "Duration {{ $value | humanizeDuration }} is 2x the 7-day average. Check for performance issues.";
-          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2h'";
+          summary = "Restic backup job {{ $labels.backup_job }} is running slowly on {{ $labels.instance }}";
+          description = "Backup job {{ $labels.backup_job }} is taking longer than expected ({{ $value }}s). This may indicate performance issues or large data changes.";
+          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2 hours ago'";
         };
       };
 
@@ -453,9 +453,9 @@ in
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
           summary = "ZFS replication lag exceeds 24h: {{ $labels.dataset }} → {{ $labels.target_host }}";
-          description = "Dataset {{ $labels.dataset }} on {{ $labels.instance }} has not replicated to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Next steps: systemctl status syncoid-*.service; journalctl -u syncoid-*.service --since '2h'; verify SSH for user 'zfs-replication' to {{ $labels.target_host }}; check NAS reachability.";
+          description = "Dataset {{ $labels.dataset }} on {{ $labels.instance }} has not replicated to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Next steps: systemctl status syncoid-*.service; journalctl -u syncoid-*.service --since '2 hours ago'; verify SSH for user 'zfs-replication' to {{ $labels.target_host }}; check NAS reachability.";
           runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=zfs_replication_lag_seconds&g0.tab=1";
-          command = "journalctl -u syncoid-*.service --since '2h'";
+          command = "journalctl -u syncoid-*.service --since '2 hours ago'";
         };
       };
 
@@ -497,7 +497,7 @@ in
         annotations = {
           summary = "ZFS replication stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
           description = "Replication for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' (unit: {{ $labels.unit }}) has not succeeded in over 90 minutes and timestamp is not advancing. Check for hung syncoid processes, network issues, or remote ZFS health.";
-          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2h'";
+          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '2 hours ago'";
         };
       };
 
@@ -522,7 +522,7 @@ in
         annotations = {
           summary = "ZFS replication critically stale: {{ $labels.dataset }} → {{ $labels.target_host }}";
           description = "Replication for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' (unit: {{ $labels.unit }}) has not succeeded in over 4 hours. Data loss risk is high if the source fails. Investigate immediately.";
-          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '4h'";
+          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '4 hours ago'";
         };
       };
 
@@ -544,7 +544,7 @@ in
         annotations = {
           summary = "ZFS replication never succeeded: {{ $labels.dataset }} → {{ $labels.target_host }}";
           description = "Replication for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' (unit: {{ $labels.unit }}) is configured but has never reported a successful run. This condition has persisted for 30 minutes. Check SSH connectivity, permissions, and remote ZFS availability.";
-          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '1h' && ssh zfs-replication@{{ $labels.target_host }} 'zfs list'";
+          command = "systemctl status {{ $labels.unit }} && journalctl -u {{ $labels.unit }} --since '1 hour ago' && ssh zfs-replication@{{ $labels.target_host }} 'zfs list'";
         };
       };
 
@@ -553,7 +553,9 @@ in
         type = "promql";
         alertname = "SyncoidUnitFailed";
         expr = ''
-          node_systemd_unit_state{state="failed", name=~"syncoid-.*\\.service"}
+          (
+            node_systemd_unit_state{state="failed", name=~"syncoid-.*\\.service"} > 0
+          )
           * on(name) group_left(dataset, target_host)
           (
             label_replace(syncoid_replication_info, "name", "$1", "unit", "(.+)")
@@ -567,7 +569,7 @@ in
           summary = "Syncoid unit failed: {{ $labels.dataset }} → {{ $labels.target_host }}";
           description = "The systemd unit {{ $labels.name }} is in failed state on {{ $labels.instance }}. Check logs and SSH connectivity to {{ $labels.target_host }}.";
           runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=node_systemd_unit_state%7Bstate%3D%22failed%22%2Cname%3D~%22syncoid-.*%5C.service%22%7D&g0.tab=1";
-          command = "systemctl status {{ $labels.name }} && journalctl -u {{ $labels.name }} --since '2h'";
+          command = "systemctl status {{ $labels.name }} && journalctl -u {{ $labels.name }} --since '2 hours ago'";
         };
       };
 
@@ -589,14 +591,21 @@ in
       # Meta-alert: Info metric disappeared (CRITICAL - breaks stale detection)
       # Detects when a replication that was reporting success suddenly stops exporting its info metric
       # This would silently disable stale alerts due to the join operation failing
+      # FIXED: Only alert if the systemd timer still exists (prevents false positives when replication is removed)
       "zfs-replication-info-missing" = {
         type = "promql";
         alertname = "ZFSReplicationInfoMissing";
         expr = ''
           (
-            max_over_time(syncoid_replication_last_success_timestamp[1h])
+            syncoid_replication_last_success_timestamp
             unless on(dataset, target_host)
             syncoid_replication_info
+          )
+          * on(unit) group_left()
+          (
+            node_systemd_unit_state{state="active", name=~"syncoid-.*\\.timer"}
+            or
+            node_systemd_unit_state{state="activating", name=~"syncoid-.*\\.service"}
           )
         '';
         for = "15m";
@@ -604,7 +613,7 @@ in
         labels = { service = "storage"; category = "zfs"; };
         annotations = {
           summary = "ZFS replication info metric missing for {{ $labels.dataset }}";
-          description = "The syncoid_replication_info metric for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' has disappeared, but a success timestamp was present within the last hour. This will prevent stale alerts from firing. Check the metric exporter script and textfile collector.";
+          description = "The syncoid_replication_info metric for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' has disappeared, but replication is still active. This will prevent stale alerts from firing. Check the metric exporter script and textfile collector.";
           command = "ls -l /var/lib/node_exporter/textfile_collector/syncoid-*.prom && systemctl status syncoid-replication-info.service";
         };
       };
