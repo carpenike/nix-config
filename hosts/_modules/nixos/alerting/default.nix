@@ -75,49 +75,11 @@ let
     };
   };
 
-  # Helper script to post an alert to Alertmanager (robust retries, no secrets in store)
-  amPost = pkgs.writeShellScriptBin "am-postalert" ''
-    set -euo pipefail
-    PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.inetutils pkgs.curl pkgs.jq ]}"
-    AM_URL="''${1:?}"          # e.g., http://127.0.0.1:9093
-    ALERTNAME="''${2:?}"       # e.g., systemd_unit_failed
-    SEVERITY="''${3:?}"        # e.g., high
-    SERVICE="''${4:?}"         # e.g., sonarr
-    TITLE="''${5:?}"           # e.g., "Sonarr Failed"
-    BODY="''${6:?}"            # e.g., "Service %n failed on forge"
-    UNIT="''${7:-}"            # e.g., "sonarr.service"
-    INSTANCE="$(hostname -f 2>/dev/null || hostname)"
-
-    # Build payload using jq for safe JSON construction (conditionally include unit label)
-    payload="$(${pkgs.jq}/bin/jq -n \
-      --arg alertname "''${ALERTNAME}" \
-      --arg severity "''${SEVERITY}" \
-      --arg service "''${SERVICE}" \
-      --arg instance "''${INSTANCE}" \
-      --arg title "''${TITLE}" \
-      --arg body "''${BODY}" \
-      --arg unit "''${UNIT}" \
-      '[{
-        labels: ( { alertname: $alertname, severity: $severity, service: $service, instance: $instance }
-                  + (if $unit != "" then { unit: $unit } else {} end) ),
-        annotations: { summary: $title, description: $body }
-      }]')"
-
-    attempt=0
-    max_attempts=3
-    while [ "''${attempt}" -lt "''${max_attempts}" ]; do
-      if curl --fail --silent --show-error -X POST \
-        -H 'Content-Type: application/json' \
-        --data "''${payload}" \
-        "''${AM_URL}/api/v2/alerts"; then
-        exit 0
-      fi
-      attempt=$((attempt+1))
-      sleep 2
-    done
-    echo "am-postalert: failed to POST to Alertmanager after ''${max_attempts} attempts" >&2
-    exit 1
-  '';
+  # Note: The am-postalert helper script was removed as boot/shutdown event alerts have been
+  # replaced with Prometheus-native HostRebooted rule. Event-based alerts (systemd OnFailure)
+  # were never fully implemented and the infrastructure is not currently needed.
+  # If event-based alerts are needed in the future, consider using prometheus-alertmanager-webhook
+  # or similar dedicated tooling rather than custom shell scripts.
 
 in
 {
@@ -313,6 +275,7 @@ in
               # Slightly more patient for critical alerts to catch related failures
               group_wait = "15s";
               repeat_interval = "15m";
+              continue = false;  # Terminal route - stop routing after this
             }
             {
               matchers = [ "severity=\"high\"" ];
@@ -320,16 +283,19 @@ in
               # Allow time for related alerts to group together
               group_wait = "30s";
               repeat_interval = "1h";
+              continue = false;  # Terminal route - stop routing after this
             }
             {
               matchers = [ "severity=\"medium\"" ];
               receiver = "pushover-medium";
               repeat_interval = "6h";
+              continue = false;  # Terminal route - stop routing after this
             }
             {
               matchers = [ "severity=\"low\"" ];
               receiver = "pushover-low";
-              repeat_interval = "4h";
+              repeat_interval = "12h";  # Low severity should repeat less frequently than medium
+              continue = false;  # Terminal route - stop routing after this
             }
           ];
         };
@@ -337,6 +303,19 @@ in
         # Inhibition rules to prevent redundant alerts
         # When a critical alert is active, suppress less severe related alerts
         inhibit_rules = [
+          # CRITICAL: Suppress all alerts from a host when it is unreachable
+          # This is the most important rule for preventing alert storms
+          # When a host goes down, we don't need alerts for every service on that host
+          {
+            source_matchers = [
+              "alertname=\"InstanceDown\""
+            ];
+            target_matchers = [
+              "alertname!=\"InstanceDown\""
+            ];
+            # Only suppress alerts from the same instance
+            equal = [ "instance" ];
+          }
           # Suppress high-severity ZFS replication alerts when critical alert is firing
           # Prevents alert fatigue when both StaleHigh and StaleCritical fire for same replication
           {
@@ -353,6 +332,11 @@ in
           }
           # Suppress replication noise when the target host is down
           # Requires an InstanceDown alert for the target host
+          # CRITICAL DEPENDENCY: This rule requires that:
+          #   1. ReplicationTargetUnreachable alert has a 'target_host' label
+          #   2. ZFS replication alerts have a matching 'target_host' label
+          #   3. Both labels use identical formatting (e.g., 'nas-1.holthome.net')
+          # If labels don't match exactly, inhibition will silently fail
           {
             target_matchers = [
               "alertname=~\"SyncoidUnitFailed|ZFSReplicationStale.*|ZFSReplicationLagHigh|ZFSReplicationStalled\""
@@ -360,7 +344,7 @@ in
             source_matchers = [
               "alertname=\"ReplicationTargetUnreachable\""
             ];
-            # Match target_host in the replication alert with instance in the InstanceDown alert
+            # Match target_host in the replication alert with target_host in the unreachable alert
             equal = [ "target_host" ];
           }
           # Don't notify about being on battery if we already know the battery is low
@@ -411,17 +395,47 @@ in
               # Use high priority (1) and send resolved notifications
               priority = 1;
               send_resolved = true;
-              # Critical alert with clear indicator
-              title = ''🚨 {{ .GroupLabels.alertname }}'';
-              # Simple, readable message for mobile
-              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
-{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-Host: {{ .Labels.instance }}
-{{ end }}'';
-              # Action link: pre-filled Silence form for this alert group (proper multi-filter params)
-              url = ''{{ .ExternalURL }}/#/silences/new'';
-              url_title = ''Create Silence'';
-              # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
+              # Critical alert with clear indicator and count
+              title = ''🚨 CRITICAL: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
+              # Structured, informative message for mobile (max 1024 chars for Pushover)
+              message = ''
+{{- $alertCount := .Alerts.Firing | len -}}
+{{- range $i, $alert := .Alerts -}}
+{{- if lt $i 10 }}
+ • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
+{{- if $alert.Annotations.description }}
+   {{ $alert.Annotations.description }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{- if gt $alertCount 10 }}
+... and {{ sub $alertCount 10 }} more alerts.
+{{- end }}
+
+{{- with .CommonLabels }}
+Host: {{ .instance }}
+{{- if .service }}
+Service: {{ .service }}
+{{- end }}
+{{- if .category }}
+Category: {{ .category }}
+{{- end }}
+{{- if .dataset }}
+Dataset: {{ .dataset }}
+{{- end }}
+{{- if .target_host }}
+Target: {{ .target_host }}
+{{- end }}
+{{- if .repository }}
+Repository: {{ .repository }}
+{{- end }}
+{{- end }}'';
+              # HTML mode enables rich formatting in Pushover notifications
+              html = true;
+              # Primary action: opens Prometheus graph for debugging
+              # Use first alert's GeneratorURL as representative (all alerts in group typically related)
+              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
+              url_title = ''View in Prometheus'';
             }];
           }
           {
@@ -431,14 +445,44 @@ Host: {{ .Labels.instance }}
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 1;
               send_resolved = true;
-              title = ''⚠️ {{ .GroupLabels.alertname }}'';
-              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
-{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-Host: {{ .Labels.instance }}
-{{ end }}'';
-              url = ''{{ .ExternalURL }}/#/silences/new'';
-              url_title = ''Create Silence'';
-              # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
+              title = ''⚠️ HIGH: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
+              message = ''
+{{- $alertCount := .Alerts.Firing | len -}}
+{{- range $i, $alert := .Alerts -}}
+{{- if lt $i 10 }}
+ • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
+{{- if $alert.Annotations.description }}
+   {{ $alert.Annotations.description }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{- if gt $alertCount 10 }}
+... and {{ sub $alertCount 10 }} more alerts.
+{{- end }}
+
+{{- with .CommonLabels }}
+Host: {{ .instance }}
+{{- if .service }}
+Service: {{ .service }}
+{{- end }}
+{{- if .category }}
+Category: {{ .category }}
+{{- end }}
+{{- if .dataset }}
+Dataset: {{ .dataset }}
+{{- end }}
+{{- if .target_host }}
+Target: {{ .target_host }}
+{{- end }}
+{{- if .repository }}
+Repository: {{ .repository }}
+{{- end }}
+{{- end }}'';
+              # HTML mode enables rich formatting in Pushover notifications
+              html = true;
+              # Primary action: opens Prometheus graph for debugging
+              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
+              url_title = ''View in Prometheus'';
             }];
           }
           {
@@ -448,14 +492,44 @@ Host: {{ .Labels.instance }}
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = 0;
               send_resolved = true;
-              title = ''⚠️ {{ .GroupLabels.alertname }}'';
-              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
-{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-Host: {{ .Labels.instance }}
-{{ end }}'';
-              url = ''{{ .ExternalURL }}/#/silences/new'';
-              url_title = ''Create Silence'';
-              # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
+              title = ''⚠️ MEDIUM: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
+              message = ''
+{{- $alertCount := .Alerts.Firing | len -}}
+{{- range $i, $alert := .Alerts -}}
+{{- if lt $i 10 }}
+ • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
+{{- if $alert.Annotations.description }}
+   {{ $alert.Annotations.description }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{- if gt $alertCount 10 }}
+... and {{ sub $alertCount 10 }} more alerts.
+{{- end }}
+
+{{- with .CommonLabels }}
+Host: {{ .instance }}
+{{- if .service }}
+Service: {{ .service }}
+{{- end }}
+{{- if .category }}
+Category: {{ .category }}
+{{- end }}
+{{- if .dataset }}
+Dataset: {{ .dataset }}
+{{- end }}
+{{- if .target_host }}
+Target: {{ .target_host }}
+{{- end }}
+{{- if .repository }}
+Repository: {{ .repository }}
+{{- end }}
+{{- end }}'';
+              # HTML mode enables rich formatting in Pushover notifications
+              html = true;
+              # Primary action: opens Prometheus graph for debugging
+              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
+              url_title = ''View in Prometheus'';
             }];
           }
           {
@@ -465,14 +539,44 @@ Host: {{ .Labels.instance }}
               user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
               priority = -1;
               send_resolved = true;
-              title = ''⚠️ {{ .GroupLabels.alertname }}'';
-              message = ''{{ range .Alerts }}{{ .Annotations.summary }}
-{{ if .Annotations.description }}{{ .Annotations.description }}{{ end }}
-Host: {{ .Labels.instance }}
-{{ end }}'';
-              url = ''{{ .ExternalURL }}/#/silences/new'';
-              url_title = ''Create Silence'';
-              # Note: supplementary_urls not supported by current amtool config schema; omit for compatibility
+              title = ''ℹ️ LOW: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
+              message = ''
+{{- $alertCount := .Alerts.Firing | len -}}
+{{- range $i, $alert := .Alerts -}}
+{{- if lt $i 10 }}
+ • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
+{{- if $alert.Annotations.description }}
+   {{ $alert.Annotations.description }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{- if gt $alertCount 10 }}
+... and {{ sub $alertCount 10 }} more alerts.
+{{- end }}
+
+{{- with .CommonLabels }}
+Host: {{ .instance }}
+{{- if .service }}
+Service: {{ .service }}
+{{- end }}
+{{- if .category }}
+Category: {{ .category }}
+{{- end }}
+{{- if .dataset }}
+Dataset: {{ .dataset }}
+{{- end }}
+{{- if .target_host }}
+Target: {{ .target_host }}
+{{- end }}
+{{- if .repository }}
+Repository: {{ .repository }}
+{{- end }}
+{{- end }}'';
+              # HTML mode enables rich formatting in Pushover notifications
+              html = true;
+              # Primary action: opens Prometheus graph for debugging
+              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
+              url_title = ''View in Prometheus'';
             }];
           }
         ]
@@ -487,9 +591,10 @@ Host: {{ .Labels.instance }}
           }];
         });
       };
-    } // lib.optionalAttrs (cfg.alertmanager.externalUrl != null) {
-      # Set external URL if configured (for alert links)
-      webExternalUrl = cfg.alertmanager.externalUrl;
+    } // {
+      # Set external URL for alert links, falling back to internal URL if not specified
+      # This ensures .ExternalURL in templates is always valid
+      webExternalUrl = cfg.alertmanager.externalUrl or cfg.alertmanager.url;
     };
 
     # Override Alertmanager service to use static user instead of DynamicUser
@@ -503,47 +608,11 @@ Host: {{ .Labels.instance }}
     # Directory is managed by ZFS storage module on hosts (zfs-service-datasets)
     # No tmpfiles rule needed here.
 
-    # Boot and shutdown system events
-    systemd.services = {
-        alert-boot = {
-          description = "Send boot event to Alertmanager";
-          wantedBy = [ "multi-user.target" ];
-          wants = [ "network-online.target" "alertmanager.service" ];
-          after = [ "network-online.target" "alertmanager.service" ];
-          serviceConfig = {
-            Type = "oneshot";
-            RemainAfterExit = true;
-            ExecStart = ''
-              ${amPost}/bin/am-postalert \
-                ${cfg.alertmanager.url} \
-                system_boot \
-                low \
-                "system" \
-                "Host ${config.networking.hostName} booted" \
-                "System boot on ${config.networking.hostName}" \
-                ""
-            '';
-          };
-        };
-
-      alert-shutdown = {
-        description = "Send shutdown event to Alertmanager";
-        wantedBy = [ "multi-user.target" ];
-        serviceConfig = {
-          Type = "simple";
-          ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
-          ExecStopPost = ''
-            ${amPost}/bin/am-postalert \
-              ${cfg.alertmanager.url} \
-              system_shutdown_requested \
-              low \
-              "system" \
-              "Host ${config.networking.hostName} shutdown requested" \
-              "System shutdown on ${config.networking.hostName}" \
-              ""
-          '';
-        };
-      };
-    };
+    # Note: Boot/shutdown event alerts were removed in favor of Prometheus-native approach
+    # Rationale: Systemd-based alerts are fragile (shutdown alerts fail when network is down,
+    # boot alerts have race conditions) and create noise in homelab environments where reboots
+    # are typically planned maintenance. The PromQL-based HostRebooted rule (using
+    # node_boot_time_seconds metric) provides superior reliability, context, and signal-to-noise.
+    # See: modules.alerting.rules."host-rebooted" for the replacement implementation.
   });
 }

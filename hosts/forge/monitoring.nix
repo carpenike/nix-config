@@ -486,6 +486,22 @@ in
     };
   };
 
+  # Host reboot detection (replaces fragile systemd boot/shutdown event alerts)
+  # Uses node_boot_time_seconds metric which changes when a host reboots
+  # More reliable than systemd hooks and provides better context
+  modules.alerting.rules."host-rebooted" = {
+    type = "promql";
+    alertname = "HostRebooted";
+    expr = ''changes(node_boot_time_seconds{job="node"}[15m]) > 0'';
+    for = "5m";
+    severity = "low";
+    labels = { service = "monitoring"; category = "system"; };
+    annotations = {
+      summary = "Host {{ $labels.instance }} has rebooted";
+      description = "Host {{ $labels.instance }} has rebooted within the last 15 minutes. This is typically expected for planned maintenance (NixOS updates) but may indicate an unexpected crash or power loss if unplanned.";
+    };
+  };
+
   # ZFS Storage Monitoring Alerts
   modules.alerting.rules."zfs-pool-unhealthy" = {
     type = "promql";
