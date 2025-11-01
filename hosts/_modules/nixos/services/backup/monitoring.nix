@@ -236,49 +236,79 @@ in {
     };
 
     # Generate alerting rules if alerting module exists
+    # Co-located monitoring: Backup service alerts live with the backup module
+    # These alerts automatically enable/disable based on modules.services.backup.enable
     modules.alerting.rules = lib.mkIf (monitoringCfg.alerting.enable && (config.modules.alerting.enable or false)) {
-      # Backup failure alert
-      "unified-backup-failed" = {
+      # Restic backup failure alert
+      "restic-backup-failed" = {
         type = "promql";
-        alertname = "UnifiedBackupFailed";
-        expr = "unified_backup_status == 0";
+        alertname = "ResticBackupFailed";
+        expr = "restic_backup_status{backup_job!=\"\"} == 0";
         for = "5m";
         severity = "critical";
-        labels = { service = "backup"; category = "unified"; };
+        labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
-          description = "Unified backup system job failed. Repository: {{ $labels.repository }}. Check systemd logs.";
+          summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
+          description = "Restic backup job failed for repository: {{ $labels.repository }}. Check systemd logs for errors.";
           command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2 hours ago'";
         };
       };
 
-      # Backup stale alert
-      "unified-backup-stale" = {
+      # Restic backup stale alert
+      "restic-backup-stale" = {
         type = "promql";
-        alertname = "UnifiedBackupStale";
-        expr = "(time() - restic_backup_last_success_timestamp) > ${toString (monitoringCfg.alerting.thresholds.backupStaleHours * 3600)}";
+        alertname = "ResticBackupStale";
+        expr = "(time() - restic_backup_last_success_timestamp{backup_job!=\"\"}) > ${toString (monitoringCfg.alerting.thresholds.backupStaleHours * 3600)}";
         for = "1h";
         severity = "high";
-        labels = { service = "backup"; category = "unified"; };
+        labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Backup job {{ $labels.backup_job }} is stale on {{ $labels.hostname }}";
-          description = "No successful backup in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours. Repository: {{ $labels.repository }}";
+          summary = "Restic backup job {{ $labels.backup_job }} is stale on {{ $labels.hostname }}";
+          description = "No successful Restic backup in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours for repository: {{ $labels.repository }}";
           command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '24 hours ago'";
         };
       };
 
-      # Slow backup alert
-      "unified-backup-slow" = {
+      # Restic slow backup alert
+      "restic-backup-slow" = {
         type = "promql";
-        alertname = "UnifiedBackupSlow";
-        expr = "restic_backup_duration_seconds > (avg_over_time(restic_backup_duration_seconds[7d]) * ${toString monitoringCfg.alerting.thresholds.slowBackupMultiplier})";
+        alertname = "ResticBackupSlow";
+        expr = "restic_backup_duration_seconds{backup_job!=\"\"} > (avg_over_time(restic_backup_duration_seconds{backup_job!=\"\"}[7d]) * ${toString monitoringCfg.alerting.thresholds.slowBackupMultiplier})";
         for = "30m";
         severity = "medium";
-        labels = { service = "backup"; category = "unified"; };
+        labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Backup job {{ $labels.backup_job }} is running slowly on {{ $labels.instance }}";
-          description = "Backup {{ $labels.backup_job }} is taking longer than expected. Check for performance issues or large data changes.";
+          summary = "Restic backup job {{ $labels.backup_job }} is running slowly on {{ $labels.instance }}";
+          description = "Restic backup {{ $labels.backup_job }} is taking longer than expected. Check for performance issues or large data changes.";
           command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2 hours ago'";
+        };
+      };
+
+      # Restic repository verification failed
+      "restic-verification-failed" = {
+        type = "promql";
+        alertname = "ResticVerificationFailed";
+        expr = "restic_verification_status == 0";
+        for = "5m";
+        severity = "high";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic repository verification failed for {{ $labels.repository }} on {{ $labels.hostname }}";
+          description = "Repository integrity check failed. Data corruption possible. Run manual 'restic check'.";
+        };
+      };
+
+      # Restic restore test failed
+      "restic-restore-test-failed" = {
+        type = "promql";
+        alertname = "ResticRestoreTestFailed";
+        expr = "restic_restore_test_status == 0";
+        for = "5m";
+        severity = "medium";
+        labels = { service = "backup"; category = "restic"; };
+        annotations = {
+          summary = "Restic restore test failed for {{ $labels.repository }} on {{ $labels.hostname }}";
+          description = "Monthly restore test failed. Backup recoverability at risk. Investigate immediately.";
         };
       };
 

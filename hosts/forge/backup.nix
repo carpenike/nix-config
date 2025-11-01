@@ -347,58 +347,12 @@ in
 #      schedule = "daily";
 #    };
 
-    # Co-located Restic backup monitoring alerts
-    # These alerts track the health of non-database backups (system state, configs, docs)
+    # Forge-specific backup monitoring alerts
+    # Standard Restic alerts are co-located with the backup service module
+    # Only forge-specific or ZFS-related alerts belong here
     modules.alerting.rules = lib.mkIf config.modules.services.backup.enable {
-      # Backup job failed
-      "restic-backup-failed" = {
-        type = "promql";
-        alertname = "ResticBackupFailed";
-        expr = "restic_backup_status{backup_job!=\"\"} == 0";
-        for = "5m";
-        severity = "critical";
-        labels = { service = "backup"; category = "restic"; };
-        annotations = {
-          summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.instance }}";
-          description = "Backup job {{ $labels.backup_job }} has failed. Check logs for errors. This may indicate issues with repository connectivity, authentication, or data integrity.";
-          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2 hours ago'";
-        };
-      };
-
-      # Backup hasn't run in expected timeframe
-      # Fixed: 30-hour threshold for daily jobs (24h interval + 6h buffer)
-      "restic-backup-stale" = {
-        type = "promql";
-        alertname = "ResticBackupStale";
-        # Only consider metrics that use the backup_job label
-        # 108000s = 30 hours (24h daily schedule + 6h buffer)
-        expr = "(time() - restic_backup_last_success_timestamp{backup_job!=\"\"}) > 108000";
-        for = "1h";
-        severity = "high";
-        labels = { service = "backup"; category = "restic"; group = "backups"; };
-        annotations = {
-          summary = "Restic backup job {{ $labels.backup_job }} never completed on {{ $labels.instance }}";
-          description = "Backup job {{ $labels.backup_job }} is configured but has never successfully completed. Verify the backup configuration and check for initialization issues.";
-          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24 hours ago'";
-        };
-      };
-
-      # Backup duration anomaly (significantly longer than baseline)
-      "restic-backup-slow" = {
-        type = "promql";
-        alertname = "ResticBackupSlow";
-        expr = "restic_backup_duration_seconds{backup_job!=\"\"} > (avg_over_time(restic_backup_duration_seconds{backup_job!=\"\"}[7d]) * 2)";
-        for = "30m";
-        severity = "medium";
-        labels = { service = "backup"; category = "restic"; };
-        annotations = {
-          summary = "Restic backup job {{ $labels.backup_job }} is running slowly on {{ $labels.instance }}";
-          description = "Backup job {{ $labels.backup_job }} is taking longer than expected ({{ $value }}s). This may indicate performance issues or large data changes.";
-          command = "journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '2 hours ago'";
-        };
-      };
-
-      # High error count
+      # High error count - Forge-specific log parsing metric
+      # TODO: Consider moving this to the backup module if it becomes a standard metric
       "restic-backup-errors" = {
         type = "promql";
         alertname = "ResticBackupErrors";
@@ -409,34 +363,6 @@ in
         annotations = {
           summary = "Restic backup errors detected on {{ $labels.instance }}";
           description = "{{ $value }} critical backup errors. Check logs: /var/log/backup/";
-        };
-      };
-
-      # Repository verification failed
-      "restic-verification-failed" = {
-        type = "promql";
-        alertname = "ResticVerificationFailed";
-        expr = "restic_verification_status == 0";
-        for = "5m";
-        severity = "high";
-        labels = { service = "backup"; category = "restic"; };
-        annotations = {
-          summary = "Restic repository verification failed for {{ $labels.repository }} on {{ $labels.hostname }}";
-          description = "Repository integrity check failed. Data corruption possible. Run manual 'restic check'.";
-        };
-      };
-
-      # Restore test failed
-      "restic-restore-test-failed" = {
-        type = "promql";
-        alertname = "ResticRestoreTestFailed";
-        expr = "restic_restore_test_status == 0";
-        for = "5m";
-        severity = "medium";
-        labels = { service = "backup"; category = "restic"; };
-        annotations = {
-          summary = "Restic restore test failed for {{ $labels.repository }} on {{ $labels.hostname }}";
-          description = "Monthly restore test failed. Backup recoverability at risk. Investigate immediately.";
         };
       };
 

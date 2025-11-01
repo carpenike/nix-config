@@ -198,74 +198,112 @@ let
     chmod 644 "''${METRICS_FILE}"
   '';
 
-  # TLS Certificate Monitoring Script (Resilient Version)
-  # Monitors certificate expiration and ACME challenge status for all Caddy-managed domains
+  # TLS Certificate Monitoring Script (Direct File Access)
+  # Reads certificates directly from Caddy's storage directory for reliability
   tlsMetricsScript = pkgs.writeShellScriptBin "export-tls-metrics" ''
     #!/usr/bin/env bash
     set -euo pipefail
-    PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.curl pkgs.gnused pkgs.gawk pkgs.jq pkgs.gnugrep pkgs.systemd ]}"
+    PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.findutils pkgs.gnugrep pkgs.systemd ]}"
 
     METRICS_FILE="/var/lib/node_exporter/textfile_collector/tls.prom"
     TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
+    CADDY_CERT_DIR="/var/lib/caddy/.local/share/caddy/certificates"
 
-    # Clean up the temp file on script exit, whether it succeeds or fails
+    # Clean up the temp file on script exit
     trap 'rm -f "''${TMP_METRICS_FILE}"' EXIT
 
-    # Get all domains from Caddy configuration
-    # Separate curl and jq to handle API failures without exiting the script
-    caddy_config_json=$(${pkgs.curl}/bin/curl -s --fail http://localhost:2019/config/ 2>/dev/null || echo "")
+    # Function to check a certificate file's expiry and extract all SANs
+    # Optimized to parse certificate only once for better performance
+    check_certificate_file() {
+      local certfile="$1"
+      local cert_filename
+      cert_filename=$(basename "$certfile")
 
-    if [[ -n "''${caddy_config_json}" ]]; then
-      # Exclude internal monitoring domains that shouldn't have external TLS certificates
-      DOMAINS=$(echo "''${caddy_config_json}" | \
-        ${pkgs.jq}/bin/jq -r '.apps.http.servers[].routes[]?.match[]?.host[]? // empty' 2>/dev/null | \
-        ${pkgs.gnugrep}/bin/grep -v -E "(alertmanager\.forge\.holthome\.net|loki\.holthome\.net|prometheus\.forge\.holthome\.net)" | \
-        sort -u)
-    else
-      DOMAINS=""
-    fi
+      # Parse certificate once and cache the output
+      local cert_text
+      cert_text=$(${pkgs.openssl}/bin/openssl x509 -noout -text -in "$certfile" 2>/dev/null)
 
-    # Fallback: common forge domains if Caddy API fails or returns no domains
-    if [ -z "''${DOMAINS}" ]; then
-      echo "tls-check-script: Caddy API failed or returned no domains. Using fallback list." >&2
-      DOMAINS="grafana.holthome.net sonarr.holthome.net dispatcharr.holthome.net plex.holthome.net"
-    fi
-
-    # Function to check a single domain's certificate expiry
-    check_domain_expiry() {
-      local domain=$1
-      local expiry_seconds=-1 # Default to -1 (failure)
-
-      # This pipeline can fail if a domain is unreachable
-      # The `|| true` at the end prevents `set -e` from exiting the entire script
-      local expiry_date
-      expiry_date=$(echo | ${pkgs.openssl}/bin/openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | \
-        ${pkgs.openssl}/bin/openssl x509 -noout -enddate 2>/dev/null | \
-        ${pkgs.gnused}/bin/sed 's/notAfter=//' || true)
-
-      if [[ -n "''${expiry_date}" ]]; then
-        # The `date` command can also fail if the format is unexpected
-        local expiry_ts
-        expiry_ts=$(date -d "''${expiry_date}" +%s 2>/dev/null || echo "0")
-        if [[ "''${expiry_ts}" -gt 0 ]]; then
-          local current_ts
-          current_ts=$(date +%s)
-          expiry_seconds=$((expiry_ts - current_ts))
-        fi
+      if [[ -z "$cert_text" ]]; then
+        # Certificate is unreadable or malformed
+        echo "tls_certificate_check_success{certfile=\"$cert_filename\",domain=\"unknown\"} 0"
+        echo "tls_certificate_expiry_seconds{certfile=\"$cert_filename\",domain=\"unknown\"} -1"
+        return
       fi
-      echo "tls_certificate_expiry_seconds{domain=\"$domain\"} ''${expiry_seconds}"
+
+      # Extract all SANs (Subject Alternative Names) from cached text
+      local sans
+      sans=$(echo "$cert_text" | ${pkgs.gnugrep}/bin/grep -oP 'DNS:\K[^,\s]+' || echo "")
+
+      # Use first SAN or CN as fallback identifier for error reporting
+      local primary_domain
+      primary_domain=$(echo "$sans" | head -1)
+      if [[ -z "$primary_domain" ]]; then
+        primary_domain=$(echo "$cert_text" | ${pkgs.gnused}/bin/sed -n 's/.*CN[[:space:]]*=[[:space:]]*\([^,]*\).*/\1/p' || echo "unknown")
+      fi
+
+      # Get certificate expiry date from the cached text
+      local expiry_date
+      expiry_date=$(echo "$cert_text" | ${pkgs.gnugrep}/bin/grep 'Not After' | ${pkgs.gnused}/bin/sed 's/.*Not After[[:space:]]*:[[:space:]]*//')
+
+      if [[ -z "''${expiry_date}" ]]; then
+        # Could not extract expiry date
+        echo "tls_certificate_check_success{certfile=\"$cert_filename\",domain=\"$primary_domain\"} 0"
+        echo "tls_certificate_expiry_seconds{certfile=\"$cert_filename\",domain=\"$primary_domain\"} -1"
+        return
+      fi
+
+      # Convert to epoch timestamp
+      local current_ts expiry_ts
+      current_ts=$(date +%s)
+      expiry_ts=$(date -d "''${expiry_date}" +%s 2>/dev/null || echo "0")
+
+      if [[ "''${expiry_ts}" -eq 0 ]]; then
+        # Date parsing failed
+        echo "tls_certificate_check_success{certfile=\"$cert_filename\",domain=\"$primary_domain\"} 0"
+        echo "tls_certificate_expiry_seconds{certfile=\"$cert_filename\",domain=\"$primary_domain\"} -1"
+        return
+      fi
+
+      local expiry_seconds=$((expiry_ts - current_ts))
+
+      # Export metrics for all SANs found in the certificate
+      if [[ -n "''${sans}" ]]; then
+        while IFS= read -r domain; do
+          [[ -z "$domain" ]] && continue
+          echo "tls_certificate_check_success{certfile=\"$cert_filename\",domain=\"$domain\"} 1"
+          echo "tls_certificate_expiry_seconds{certfile=\"$cert_filename\",domain=\"$domain\"} ''${expiry_seconds}"
+        done <<< "$sans"
+      else
+        # Fallback to primary domain if no SANs found
+        echo "tls_certificate_check_success{certfile=\"$cert_filename\",domain=\"$primary_domain\"} 1"
+        echo "tls_certificate_expiry_seconds{certfile=\"$cert_filename\",domain=\"$primary_domain\"} ''${expiry_seconds}"
+      fi
     }
 
     # Generate metrics atomically
     {
+      echo "# HELP tls_certificate_check_success Whether certificate file was successfully read and parsed"
+      echo "# TYPE tls_certificate_check_success gauge"
       echo "# HELP tls_certificate_expiry_seconds Time until TLS certificate expires"
       echo "# TYPE tls_certificate_expiry_seconds gauge"
+      echo "# HELP tls_certificates_found Total number of certificate files found"
+      echo "# TYPE tls_certificates_found gauge"
 
-      for domain in ''${DOMAINS}; do
-        if [ -n "$domain" ]; then
-          check_domain_expiry "$domain"
-        fi
-      done
+      # Find all certificate files in Caddy's storage directory
+      if [[ -d "''${CADDY_CERT_DIR}" ]]; then
+        mapfile -t cert_files < <(find "''${CADDY_CERT_DIR}" -type f -name "*.crt")
+        echo "tls_certificates_found ''${#cert_files[@]}"
+
+        for certfile in "''${cert_files[@]}"; do
+          check_certificate_file "$certfile"
+        done
+      else
+        echo "tls_certificates_found 0"
+        echo "# ERROR: Caddy certificate directory not found: ''${CADDY_CERT_DIR}" >&2
+        # Export a canary metric to detect misconfiguration
+        echo "tls_certificate_check_success{certfile=\"none\",domain=\"caddy.storage.missing\"} 0"
+        echo "tls_certificate_expiry_seconds{certfile=\"none\",domain=\"caddy.storage.missing\"} -1"
+      fi
 
       # ACME Challenge Status from Caddy logs
       echo "# HELP caddy_acme_challenges_total Total ACME challenges attempted"
@@ -567,39 +605,39 @@ in
   modules.alerting.rules."tls-certificate-expiring-soon" = {
     type = "promql";
     alertname = "TlsCertificateExpiringSoon";
-    expr = "tls_certificate_expiry_seconds > 0 and tls_certificate_expiry_seconds < 604800"; # 7 days
+    expr = "tls_certificate_check_success == 1 and tls_certificate_expiry_seconds < 604800"; # 7 days
     for = "5m";
     severity = "high";
     labels = { service = "caddy"; category = "tls"; };
     annotations = {
       summary = "TLS certificate expiring soon for {{ $labels.domain }}";
-      description = "Certificate for {{ $labels.domain }} expires in {{ $value | humanizeDuration }}. Renew soon.";
+      description = "Certificate for {{ $labels.domain }} ({{ $labels.certfile }}) expires in {{ $value | humanizeDuration }}. Renew soon.";
     };
   };
 
   modules.alerting.rules."tls-certificate-expiring-critical" = {
     type = "promql";
     alertname = "TlsCertificateExpiringCritical";
-    expr = "tls_certificate_expiry_seconds > 0 and tls_certificate_expiry_seconds < 172800"; # 2 days
+    expr = "tls_certificate_check_success == 1 and tls_certificate_expiry_seconds < 172800"; # 2 days
     for = "0m"; # Immediate alert
     severity = "critical";
     labels = { service = "caddy"; category = "tls"; };
     annotations = {
       summary = "TLS certificate expiring very soon for {{ $labels.domain }}";
-      description = "Certificate for {{ $labels.domain }} expires in {{ $value | humanizeDuration }}. URGENT renewal required.";
+      description = "Certificate for {{ $labels.domain }} ({{ $labels.certfile }}) expires in {{ $value | humanizeDuration }}. URGENT renewal required.";
     };
   };
 
   modules.alerting.rules."tls-certificate-check-failed" = {
     type = "promql";
     alertname = "TlsCertificateCheckFailed";
-    expr = "tls_certificate_expiry_seconds == -1";
+    expr = "tls_certificate_check_success == 0";
     for = "10m";
     severity = "high";
     labels = { service = "caddy"; category = "tls"; };
     annotations = {
       summary = "TLS certificate check failed for {{ $labels.domain }}";
-      description = "Cannot retrieve certificate info for {{ $labels.domain }}. Check connectivity and ACME status.";
+      description = "Cannot parse certificate file {{ $labels.certfile }} for domain {{ $labels.domain }}. Certificate may be malformed or unreadable.";
     };
   };
 
@@ -613,6 +651,32 @@ in
     annotations = {
       summary = "ACME challenges failing";
       description = "{{ $value }} ACME challenges have failed in the last hour. Check Caddy logs and DNS configuration.";
+    };
+  };
+
+  modules.alerting.rules."caddy-certificate-storage-missing" = {
+    type = "promql";
+    alertname = "CaddyCertificateStorageMissing";
+    expr = "tls_certificate_check_success{domain=\"caddy.storage.missing\"} == 0";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "Caddy certificate storage directory is missing";
+      description = "The TLS metrics exporter cannot find the Caddy certificate directory. This indicates a serious configuration or storage issue.";
+    };
+  };
+
+  modules.alerting.rules."tls-certificates-all-missing" = {
+    type = "promql";
+    alertname = "TlsCertificatesAllMissing";
+    expr = ''tls_certificates_found == 0 and absent(tls_certificate_check_success{domain="caddy.storage.missing"})'';
+    for = "15m";
+    severity = "high";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "No TLS certificates found in Caddy storage";
+      description = "The TLS metrics exporter found 0 certificate files in the Caddy storage directory, but the directory itself exists. This might indicate a problem with Caddy's certificate management, storage, or permissions.";
     };
   };
 
