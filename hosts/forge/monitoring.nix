@@ -306,25 +306,31 @@ let
         done
       else
         echo "tls_certificates_found 0"
-        echo "# ERROR: Caddy certificate directory not found: ''${CADDY_CERT_DIR}" >&2
-        # Export a canary metric to detect misconfiguration
+        # Export a canary metric to detect misconfiguration (directory may not exist yet on fresh installs)
         echo "tls_certificate_check_success{certfile=\"none\",domain=\"caddy.storage.missing\"} 0"
         echo "tls_certificate_expiry_seconds{certfile=\"none\",domain=\"caddy.storage.missing\"} -1"
       fi
 
       # ACME Challenge Status from Caddy logs
-      echo "# HELP caddy_acme_challenges_total Total ACME challenges attempted"
-      echo "# TYPE caddy_acme_challenges_total counter"
-      echo "# HELP caddy_acme_challenges_failed_total Total failed ACME challenges"
+      # NOTE: These are real counters that track cumulative failures since service start
+      # They reset when the caddy service restarts
+      echo "# HELP caddy_acme_challenges_failed_total Total ACME challenge failures since service start"
       echo "# TYPE caddy_acme_challenges_failed_total counter"
 
-      # This command will fail if 'node-exporter' is not in the 'systemd-journal' group
-      # We fetch logs once, and `|| true` ensures the script doesn't exit on permission error
-      journal_logs=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "24 hours ago" --no-pager -q 2>/dev/null || true)
-      CHALLENGES_TOTAL=$(echo "''${journal_logs}" | ${pkgs.gnugrep}/bin/grep "acme.*challenge" | wc -l)
-      CHALLENGES_FAILED=$(echo "''${journal_logs}" | ${pkgs.gnugrep}/bin/grep -i "acme.*\(error\|fail\)" | wc -l)
+      # Count ACME failures since Caddy service started (not a sliding window)
+      # This creates a proper monotonic counter for use with rate() in Prometheus
+      CADDY_START_TIME=$(${pkgs.systemd}/bin/systemctl show caddy.service --property=ActiveEnterTimestamp --value)
+      if [ -n "$CADDY_START_TIME" ] && [ "$CADDY_START_TIME" != "n/a" ]; then
+        # Convert systemd timestamp to a format journalctl accepts
+        START_TIMESTAMP=$(date -d "$CADDY_START_TIME" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "1 hour ago")
+        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "$START_TIMESTAMP" --no-pager -q -o json | \
+          ${pkgs.jq}/bin/jq -r 'select(.MESSAGE | test("obtaining certificate.*error|challenge failed|acme.*failed"; "i"))' | wc -l)
+      else
+        # Fallback if we can't determine service start time
+        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "1 hour ago" --no-pager -q -o json | \
+          ${pkgs.jq}/bin/jq -r 'select(.MESSAGE | test("obtaining certificate.*error|challenge failed|acme.*failed"; "i"))' | wc -l)
+      fi
 
-      echo "caddy_acme_challenges_total ''${CHALLENGES_TOTAL}"
       echo "caddy_acme_challenges_failed_total ''${CHALLENGES_FAILED}"
 
       # Caddy Service Health
@@ -570,6 +576,8 @@ in
   # TLS metrics exporter service and timer
   systemd.services.tls-metrics-exporter = {
     description = "TLS Certificate Metrics Exporter for Prometheus";
+    after = [ "caddy.service" ];
+    wants = [ "caddy.service" ];
     serviceConfig = {
       Type = "oneshot";
       User = "node-exporter";
@@ -667,13 +675,15 @@ in
   modules.alerting.rules."acme-challenges-failing" = {
     type = "promql";
     alertname = "AcmeChallengesFailing";
-    expr = "increase(caddy_acme_challenges_failed_total[1h]) > 0";
+    # Use increase() on the real counter to detect new failures
+    # increase() calculates the total increase over the time range, handling counter resets
+    expr = "increase(caddy_acme_challenges_failed_total[1h]) > 2";
     for = "5m";
     severity = "high";
     labels = { service = "caddy"; category = "acme"; };
     annotations = {
-      summary = "ACME challenges failing";
-      description = "{{ $value }} ACME challenges have failed in the last hour. Check Caddy logs and DNS configuration.";
+      summary = "ACME challenges are failing";
+      description = "More than 2 ACME challenge failures detected in the last hour. Check Caddy logs: journalctl -u caddy -n 100 | grep -i acme";
     };
   };
 
@@ -957,5 +967,5 @@ in
   };
 
   # Ensure node-exporter can access /dev/dri and systemd journal for TLS monitoring
-  users.users.node-exporter.extraGroups = [ "render" "systemd-journal" ];
+  users.users.node-exporter.extraGroups = [ "render" "systemd-journal" "caddy" ];
 }

@@ -933,7 +933,7 @@ in
 
     # pgBackRest - PostgreSQL Backup & Recovery
     # Replaces custom pg-backup-scripts with industry-standard tooling
-    environment.systemPackages = [ pkgs.pgbackrest ];
+    environment.systemPackages = [ pkgs.pgbackrest pkgs.acl ];
 
     # pgBackRest configuration
     # Note: Only repo1 is in the global config because it's used for WAL archiving
@@ -1638,10 +1638,41 @@ EOF
     };
 
     # Configure Caddy to load environment files with API tokens and auth credentials
-    systemd.services.caddy.serviceConfig.EnvironmentFile = [
-      "/run/secrets/rendered/caddy-env"
-      "-/run/caddy/monitoring-auth.env"
-    ];
+    systemd.services.caddy.serviceConfig = {
+      EnvironmentFile = [
+        "/run/secrets/rendered/caddy-env"
+        "-/run/caddy/monitoring-auth.env"
+      ];
+
+      # Use filesystem ACLs to automatically grant caddy group read access to certificate directories
+      # This eliminates the permission race condition from the periodic timer approach
+      # ACLs ensure new files/directories created by Caddy automatically inherit the correct permissions
+      ExecStartPost = pkgs.writeShellScript "set-caddy-cert-acls" ''
+        #!${pkgs.bash}/bin/bash
+        set -euo pipefail
+
+        # Wait for Caddy to potentially create the certificate directory structure
+        sleep 2
+
+        CERT_BASE="/var/lib/caddy/.local/share/caddy/certificates"
+
+        # Only proceed if the directory exists
+        if [ -d "$CERT_BASE" ]; then
+          # Set default ACLs so new files/directories automatically inherit group permissions
+          # d: = default ACLs (inherited by new files/dirs)
+          # g:caddy:rX = grant caddy group read + execute (for directories only)
+          ${pkgs.acl}/bin/setfacl -R -d -m g:caddy:rX "$CERT_BASE" || true
+
+          # Apply the same ACLs to existing files/directories
+          ${pkgs.acl}/bin/setfacl -R -m g:caddy:rX "$CERT_BASE" || true
+
+          # Also fix parent directories to allow traversal
+          ${pkgs.coreutils}/bin/chmod 750 /var/lib/caddy/.local 2>/dev/null || true
+          ${pkgs.coreutils}/bin/chmod 750 /var/lib/caddy/.local/share 2>/dev/null || true
+          ${pkgs.coreutils}/bin/chmod 750 /var/lib/caddy/.local/share/caddy 2>/dev/null || true
+        fi
+      '';
+    };
 
     # Create environment file from SOPS secrets
     sops.templates."caddy-env" = {
