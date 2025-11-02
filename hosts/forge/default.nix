@@ -990,24 +990,24 @@ in
     # - Repo1 (NFS): Primary for WAL archiving and local backups with PITR
     # - Repo2 (R2/S3): Offsite DR, backup-only (no WAL archiving)
     #
-    # Note: archive_command explicitly targets --repo=1 to clarify that only
-    # repo1 receives WAL segments. Repo2 credentials supplied via environment
-    # variables in services that access it.
+    # Note: WAL archiving is restricted to repo1 using the 'repo1-archive-push=y'
+    # option in the stanza configuration below. This prevents the archive_command
+    # from requiring S3 credentials for repo2, which are not available to the
+    # PostgreSQL process. Repo2 credentials are supplied via environment variables
+    # only in scheduled backup services that need them.
+    # pgBackRest configuration
+    # CRITICAL: Only repo1 is defined in this config file. Repo2 (R2/S3) is configured
+    # exclusively via command-line flags in the backup services. This prevents the
+    # archive_command (run by PostgreSQL) from attempting to validate repo2 credentials
+    # that are not available in the PostgreSQL process environment.
     environment.etc."pgbackrest.conf".text = ''
       [global]
       # Repo1 (NFS) - Primary for WAL archiving and local backups
       repo1-path=/mnt/nas-postgresql/pgbackrest
       repo1-retention-full=7
 
-      # Repo2 (R2/S3) - Offsite DR, backup-only
-      repo2-type=s3
-      repo2-path=/forge-pgbackrest
-      repo2-s3-bucket=nix-homelab-prod-servers
-      repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
-      repo2-s3-region=auto
-      repo2-s3-uri-style=path
-      # Note: repo2 credentials supplied via environment variables (PGBACKREST_REPO2_S3_KEY)
-      repo2-retention-full=30
+      # Note: repo2 retention is defined in backup scripts via command-line
+      # because repo2 itself is not in this config (prevents archive_command issues)
 
       # Global archive settings (apply only where archive_command is used)
       # Archive async with local spool to decouple DB availability from NFS
@@ -1079,6 +1079,11 @@ in
         script = ''
           set -euo pipefail
 
+          # Define repo2 configuration via command-line flags (not in /etc/pgbackrest.conf)
+          # This prevents archive_command from requiring S3 credentials
+          # Note: retention settings are NOT valid for stanza-create/upgrade, only for backup commands
+          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+
           # Directory is managed by systemd.tmpfiles.rules
           # This service handles three scenarios:
           # 1. Fresh install: Creates new stanza
@@ -1103,7 +1108,7 @@ in
 
           # Capture output for better error logging
           # Try creating stanza for both repos first (ideal path)
-          if ! output=$(pgbackrest --stanza=main stanza-create 2>&1); then
+          if ! output=$(pgbackrest --stanza=main $REPO2_FLAGS stanza-create 2>&1); then
             echo "[$(date -Iseconds)] Initial stanza creation for both repos failed, checking if upgrade is needed or repo2 is unavailable..."
             echo "--- pgbackrest stanza-create output ---"
             echo "$output"
@@ -1111,10 +1116,10 @@ in
 
             # Check if this is a database system identifier mismatch (error 028)
             # This happens after disaster recovery when database was rebuilt but stanza exists
-            if pgbackrest --stanza=main info >/dev/null 2>&1; then
+            if pgbackrest --stanza=main $REPO2_FLAGS info >/dev/null 2>&1; then
               echo "[$(date -Iseconds)] Stanza exists but database mismatch detected - upgrading stanza"
 
-              if ! upgrade_output=$(pgbackrest --stanza=main stanza-upgrade 2>&1); then
+              if ! upgrade_output=$(pgbackrest --stanza=main $REPO2_FLAGS stanza-upgrade 2>&1); then
                 echo "[$(date -Iseconds)] ERROR: Stanza upgrade failed"
                 echo "--- pgbackrest stanza-upgrade output ---"
                 echo "$upgrade_output"
@@ -1127,7 +1132,8 @@ in
               # Prioritize getting repo1 online for WAL archiving even if repo2 is broken
               echo "[$(date -Iseconds)] WARNING: Dual-repository stanza creation failed. Attempting repo1-only to secure WAL archiving..."
 
-              if pgbackrest --stanza=main --repo=1 stanza-upgrade 2>&1; then
+              # Try stanza-create with just repo1 (no --repo flag needed, it will use what's in config)
+              if pgbackrest --stanza=main stanza-create 2>&1; then
                 echo "[$(date -Iseconds)] SUCCESS: Repo1 stanza is active. WAL archiving will function."
                 echo "[$(date -Iseconds)] WARNING: Repo2 (R2) stanza creation failed. System operational but with reduced redundancy."
                 echo "[$(date -Iseconds)] Action required: Fix repo2 connectivity/credentials and retry stanza-create manually."
@@ -1145,16 +1151,13 @@ in
             echo "[$(date -Iseconds)] Successfully created stanzas for both repositories"
           fi
 
-          echo "[$(date -Iseconds)] Running final configuration check on repo1..."
+          echo "[$(date -Iseconds)] Running final configuration check..."
           # Use info command instead of check to avoid waiting for WAL archiving
           # check command has 60s timeout waiting for WAL segments which can fail after PostgreSQL restart
           # info command just verifies stanza configuration is valid
-          pgbackrest --stanza=main --repo=1 info
-          echo "[$(date -Iseconds)] Repo1 stanza configuration verified successfully"
-
-          echo "[$(date -Iseconds)] Running final configuration check on repo2..."
-          pgbackrest --stanza=main --repo=2 info
-          echo "[$(date -Iseconds)] Repo2 stanza configuration verified successfully"
+          # When repo2 is defined via flags, we call info with those flags and it shows both repos
+          pgbackrest --stanza=main $REPO2_FLAGS info
+          echo "[$(date -Iseconds)] Stanza configuration verified successfully for both repositories"
         '';
         wantedBy = [ "multi-user.target" ];
       };
@@ -1333,13 +1336,16 @@ EOF
           cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
           log_json "INFO" "system_id_check" "Checking for existing backups for current system-id." "{\"system_id\":\"$cur_sysid\"}"
 
+          # Define repo2 configuration via command-line flags
+          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+
           # Transform AWS env vars to pgBackRest format for repo2 operations
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
           # Check each repository independently to ensure both have fresh backups
           # This prevents skipping repo2 if repo1 succeeds but repo2 failed previously
-          INFO_JSON="$(pgbackrest --stanza=main --output=json info 2>/dev/null || echo '[]')"
+          INFO_JSON="$(pgbackrest --stanza=main --output=json $REPO2_FLAGS info 2>/dev/null || echo '[]')"
 
           # Use single jq query to extract both repo counts efficiently
           COUNTS=$(echo "$INFO_JSON" | jq -r --arg sid "$cur_sysid" '
@@ -1376,9 +1382,10 @@ EOF
             repo2_ok=true
           else
             log_json "INFO" "backup_repo2_start" "No full backup found for repo2; starting backup to R2..."
-            # Repo2 configuration comes from /etc/pgbackrest.conf
+            # Repo2 configuration provided via command-line flags
             # Credentials supplied via PGBACKREST_REPO2_S3_KEY environment variables
-            if pgbackrest --stanza=main --type=full --repo=2 --no-archive-check backup; then
+            # Retention must be on command line since repo2 is not in config file
+            if pgbackrest --stanza=main --type=full --repo=2 --no-archive-check --repo2-retention-full=30 $REPO2_FLAGS backup; then
               log_json "INFO" "backup_repo2_complete" "Repo2 backup completed"
               repo2_ok=true
             else
@@ -1459,6 +1466,9 @@ EOF
         script = ''
           set -euo pipefail
 
+          # Define repo2 configuration via command-line flags
+          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+
           # Transform AWS env vars to pgBackRest format
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
@@ -1469,8 +1479,8 @@ EOF
 
           echo "[$(date -Iseconds)] Starting full backup to repo2 (R2)..."
           # repo2 doesn't have WAL archiving, so use --no-archive-check
-          # Configuration comes from /etc/pgbackrest.conf
-          pgbackrest --stanza=main --type=full --repo=2 --no-archive-check backup
+          # retention must be set on command line since repo2 is not in config file
+          pgbackrest --stanza=main --type=full --repo=2 --no-archive-check --repo2-retention-full=30 $REPO2_FLAGS backup
           echo "[$(date -Iseconds)] Full backup to both repos completed"
         '';
       };
@@ -1495,6 +1505,9 @@ EOF
         script = ''
           set -euo pipefail
 
+          # Define repo2 configuration via command-line flags
+          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+
           # Transform AWS env vars to pgBackRest format
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
           export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
@@ -1505,8 +1518,8 @@ EOF
 
           echo "[$(date -Iseconds)] Starting incremental backup to repo2 (R2)..."
           # repo2 doesn't have WAL archiving, so use --no-archive-check
-          # Configuration comes from /etc/pgbackrest.conf
-          pgbackrest --stanza=main --type=incr --repo=2 --no-archive-check backup
+          # retention must be set on command line since repo2 is not in config file
+          pgbackrest --stanza=main --type=incr --repo=2 --no-archive-check --repo2-retention-full=30 $REPO2_FLAGS backup
           echo "[$(date -Iseconds)] Incremental backup to both repos completed"
         '';
       };
@@ -1662,7 +1675,7 @@ HEADER3
         # Credentials are provided via environment variables (see EnvironmentFile)
         INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json \
           --repo2-type=s3 \
-          --repo2-path=/pgbackrest \
+          --repo2-path=/forge-pgbackrest \
           --repo2-s3-bucket=nix-homelab-prod-servers \
           --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
           --repo2-s3-region=auto \

@@ -42,8 +42,9 @@
         archive_mode = "on";
         # DESIGN DECISION: WAL archiving to repo1 (NFS) only - repo2 (R2) is for DR backups
         #
-        # The archive_command explicitly targets --repo=1 to clarify intent:
         # WALs are archived continuously to the primary NFS repo for fast local PITR.
+        # The /etc/pgbackrest.conf uses repo1-archive-push=y to ensure archive operations
+        # ONLY use repo1, preventing archive_command from requiring repo2 S3 credentials.
         #
         # Repo2 (Cloudflare R2) is intentionally configured as a pure DR repository:
         # - Receives full/diff/incr backups via scheduled jobs (--no-archive-check)
@@ -54,8 +55,8 @@
         # This design optimizes for:
         # 1. Fast local recovery (repo1: continuous WALs, low-latency NFS)
         # 2. Cost-effective cloud DR (repo2: backup jobs only, no continuous WAL transfer costs)
-        # 3. Operational simplicity (single archive_command, explicit repo targeting)
-        archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --repo=1 archive-push %p";
+        # 3. Operational simplicity (archive operations restricted to repo1 via config)
+        archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main archive-push %p";
         archive_timeout = "300";  # Force WAL switch every 5 minutes (bounds RPO)
 
         # Checkpoint settings
