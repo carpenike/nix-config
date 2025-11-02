@@ -93,6 +93,52 @@
         NUMFMT="${pkgs.coreutils}/bin/numfmt"
         ${lib.optionalString hasReplication ''DATASET_DESTROYED=false''}
 
+        # Service name for error messages and metrics
+        SERVICE_NAME="${serviceName}"
+
+        # Track start time for duration metrics
+        START_TIME=$(date +%s)
+
+        # Error trap to ensure failures are captured in metrics
+        trap_error() {
+          local exit_code=$?
+          local line_no=$1
+          local command="$2"
+          echo "Preseed for $SERVICE_NAME failed with exit code $exit_code at line $line_no: $command"
+          # Write failure metrics, ignoring any errors from the write itself
+          write_metrics "failure" "script_error" "0" || true
+          ${notify "preseed-failure" "Preseed for ${serviceName} failed unexpectedly at line $line_no. Check service logs."}
+        }
+        trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
+
+                # Function to write Prometheus metrics
+        write_metrics() {
+          local status=$1    # "success" or "failure"
+          local method=$2    # "syncoid", "local", "restic", "skipped", "pool_unhealthy", "all"
+          local duration=$3  # duration in seconds
+
+          local status_code
+          if [ "$status" = "success" ]; then
+            status_code=1
+          else
+            status_code=0
+          fi
+
+          mkdir -p /var/lib/node_exporter/textfile_collector
+          cat > "/var/lib/node_exporter/textfile_collector/zfs_preseed_$SERVICE_NAME.prom.tmp" <<EOF
+        # HELP zfs_preseed_status Status of last pre-seed attempt (1=success, 0=failure)
+        # TYPE zfs_preseed_status gauge
+        zfs_preseed_status{service="$SERVICE_NAME",method="$method"} $status_code
+        # HELP zfs_preseed_last_duration_seconds Duration of last pre-seed operation
+        # TYPE zfs_preseed_last_duration_seconds gauge
+        zfs_preseed_last_duration_seconds{service="$SERVICE_NAME",method="$method"} $duration
+        # HELP zfs_preseed_last_completion_timestamp_seconds Timestamp of last pre-seed completion
+        # TYPE zfs_preseed_last_completion_timestamp_seconds gauge
+        zfs_preseed_last_completion_timestamp_seconds{service="$SERVICE_NAME",method="$method"} $(date +%s)
+EOF
+          mv "/var/lib/node_exporter/textfile_collector/zfs_preseed_$SERVICE_NAME.prom.tmp" \
+             "/var/lib/node_exporter/textfile_collector/zfs_preseed_$SERVICE_NAME.prom"
+        }
 
         # Helper function to ensure dataset is mounted before file operations
         ensure_mounted() {
@@ -148,8 +194,11 @@
               RESUME_TOKEN=$("$ZFS" get -H -o value receive_resume_token "${dataset}" 2>/dev/null || echo "-")
 
               if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$RESUME_TOKEN" = "-" ]; then
-                echo "Target dataset still has no snapshots and < 1MB logical data. Destroying for initial replication..."
-                "$ZFS" destroy -r "${dataset}"
+                # ATOMIC RENAME-AND-DESTROY: Eliminate TOCTOU race condition
+                # Instead of destroying directly, rename to graveyard dataset, then destroy after success
+                GRAVEYARD_DATASET="${dataset}-graveyard-$(date +%s)"
+                echo "Target dataset still has no snapshots and < 1MB logical data. Renaming to ''${GRAVEYARD_DATASET} for safety before syncoid..."
+                "$ZFS" rename "${dataset}" "''${GRAVEYARD_DATASET}"
                 DATASET_DESTROYED=true
               else
                 echo "Refusing to destroy: snapshots now present ($SNAPSHOT_COUNT) or receive in progress (token=$RESUME_TOKEN)."
@@ -162,8 +211,15 @@
             fi
           fi
 
+          # Track restore method in progress marker
+          echo "restore_method=syncoid" >> "$PROGRESS_MARKER"
+          if [ -n "''${GRAVEYARD_DATASET:-}" ]; then
+            echo "graveyard=$GRAVEYARD_DATASET" >> "$PROGRESS_MARKER"
+          fi
+
           # Use syncoid for robust replication with resume support and better error handling
-          if "$SYNCOID" \
+          # Timeout prevents indefinite hangs on network issues (30 minutes for large datasets)
+          if ${pkgs.coreutils}/bin/timeout 1800s "$SYNCOID" \
             --no-sync-snap \
             --no-privilege-elevation \
             --sshkey=${lib.escapeShellArg replicationCfg.sshKeyPath} \
@@ -176,6 +232,15 @@
             ${lib.escapeShellArg (replicationCfg.sshUser + "@" + replicationCfg.targetHost + ":" + replicationCfg.targetDataset)} \
             ${lib.escapeShellArg dataset}; then
             echo "Syncoid replication successful."
+
+            # Clean up graveyard dataset if we renamed the original
+            if [ "$DATASET_DESTROYED" = "true" ]; then
+              # Find graveyard dataset with timestamp pattern
+              for GRAVEYARD in $("$ZFS" list -H -o name | ${pkgs.gnugrep}/bin/grep "^${dataset}-graveyard-" || true); do
+                echo "Destroying graveyard dataset $GRAVEYARD after successful syncoid..."
+                "$ZFS" destroy -r "$GRAVEYARD"
+              done
+            fi
 
             # CRITICAL: Dataset may be unmounted due to recvOptions='u'.
             # Explicitly set mountpoint and mount before chown.
@@ -205,10 +270,34 @@
               cleanup_protective_snapshots
             fi
 
+            # Write success metrics
+            END_TIME=$(date +%s)
+            DURATION=$((END_TIME - START_TIME))
+            write_metrics "success" "syncoid" "$DURATION"
+
+            rm -f "$PROGRESS_MARKER"
             ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS replication source ${replicationCfg.targetHost}."}
             return 0
           else
-            echo "Syncoid replication failed. Proceeding to next restore method."
+            local exit_code=$?
+            if [ "$exit_code" -eq 124 ]; then
+              echo "Syncoid replication failed: command timed out after 30 minutes."
+            else
+              echo "Syncoid replication failed with exit code $exit_code."
+            fi
+
+            # Restore graveyard dataset if syncoid failed
+            if [ "$DATASET_DESTROYED" = "true" ]; then
+              # Find graveyard dataset with timestamp pattern
+              for GRAVEYARD in $("$ZFS" list -H -o name | ${pkgs.gnugrep}/bin/grep "^${dataset}-graveyard-" || true); do
+                echo "Syncoid failed. Restoring original dataset from $GRAVEYARD..."
+                "$ZFS" rename "$GRAVEYARD" "${dataset}"
+                DATASET_DESTROYED=false
+                break  # Only restore the first one found
+              done
+            fi
+
+            echo "Proceeding to next restore method."
             return 1
           fi
         }
@@ -223,6 +312,8 @@
 
         # Restore method: Local ZFS snapshot rollback
         restore_local() {
+          echo "restore_method=local" >> "$PROGRESS_MARKER"
+
           # Prefer sanoid-created snapshots, but fall back to any snapshot if none exist
           LATEST_SNAPSHOT=$("$ZFS" list -H -t snapshot -o name -s creation -r "${dataset}" | ${pkgs.gnugrep}/bin/grep '@sanoid_' | ${pkgs.coreutils}/bin/tail -n 1 || true)
 
@@ -233,6 +324,13 @@
 
           if [ -n "$LATEST_SNAPSHOT" ]; then
             echo "Found latest ZFS snapshot: $LATEST_SNAPSHOT"
+
+            # SAFETY: Take protective snapshot before rollback to preserve current state
+            # This prevents accidental destruction of newer snapshots/data if rollback was a mistake
+            echo "Taking protective snapshot before rollback..."
+            "$ZFS" snapshot "${dataset}@preseed_protect_rollback_$(date +%s)" || true
+            cleanup_protective_snapshots
+
             echo "Attempting to roll back..."
 
             # Ensure dataset is mounted before rollback
@@ -258,6 +356,12 @@
                 cleanup_protective_snapshots
               fi
 
+              # Write success metrics
+              END_TIME=$(date +%s)
+              DURATION=$((END_TIME - START_TIME))
+              write_metrics "success" "local" "$DURATION"
+
+              rm -f "$PROGRESS_MARKER"
               ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS snapshot $LATEST_SNAPSHOT."}
               return 0
             else
@@ -274,6 +378,7 @@
 
         # Restore method: Restic backup restore (with retry)
         restore_restic() {
+          echo "restore_method=restic" >> "$PROGRESS_MARKER"
           echo "Attempting Restic restore from repository '${resticRepoUrl}'..."
 
           ${lib.optionalString (resticEnvironmentFile != null) ''
@@ -282,6 +387,14 @@
             . "${resticEnvironmentFile}"
             set +a
           ''}
+
+          # PRE-FLIGHT CHECK: Verify repository is accessible before attempting restore
+          echo "Performing Restic pre-flight check..."
+          if ! restic -r "${resticRepoUrl}" --password-file "${resticPasswordFile}" cat config >/dev/null 2>&1; then
+            echo "Restic pre-flight check failed: repository is unreachable or misconfigured."
+            return 1
+          fi
+          echo "Restic pre-flight check successful."
 
           # Ensure dataset exists and is mounted before Restic restore
           # If syncoid destroyed the dataset, we need to recreate it
@@ -316,6 +429,12 @@
               cleanup_protective_snapshots
             fi
 
+            # Write success metrics
+            END_TIME=$(date +%s)
+            DURATION=$((END_TIME - START_TIME))
+            write_metrics "success" "restic" "$DURATION"
+
+            rm -f "$PROGRESS_MARKER"
             ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
             return 0
           else
@@ -333,6 +452,12 @@
                 cleanup_protective_snapshots
               fi
 
+              # Write success metrics
+              END_TIME=$(date +%s)
+              DURATION=$((END_TIME - START_TIME))
+              write_metrics "success" "restic" "$DURATION"
+
+              rm -f "$PROGRESS_MARKER"
               ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl} (retry)."}
               return 0
             else
@@ -343,6 +468,41 @@
         }
 
         echo "Starting preseed check for ${serviceName} at ${mountpoint}..."
+
+        # Create in-progress marker to track restore attempts
+        PROGRESS_MARKER="/var/lib/zfs-preseed/${serviceName}.inprogress"
+
+        # Check for stale markers and prevent concurrent runs
+        if [ -f "$PROGRESS_MARKER" ]; then
+          pid=$(grep '^pid=' "$PROGRESS_MARKER" | cut -d= -f2 || echo "")
+          if [ -n "$pid" ] && ps -p "$pid" > /dev/null 2>&1; then
+            echo "Another preseed process (PID $pid) is already running for $SERVICE_NAME. Aborting."
+            exit 1
+          else
+            echo "Found stale in-progress marker from previous failed run (PID $pid). Cleaning up."
+            rm -f "$PROGRESS_MARKER"
+          fi
+        fi
+
+        mkdir -p "$(dirname "$PROGRESS_MARKER")"
+        cat > "$PROGRESS_MARKER" << EOF
+started_at=$(date -Iseconds)
+dataset=${dataset}
+pid=$$
+EOF
+
+        # Step 0: Verify ZFS pool health before attempting any operations
+        PARENT_POOL=$(echo "${dataset}" | ${pkgs.gawk}/bin/awk -F/ '{print $1}')
+        POOL_HEALTH=$(${pkgs.zfs}/bin/zpool list -H -o health "$PARENT_POOL" 2>/dev/null || echo "FAULTED")
+
+        if [ "$POOL_HEALTH" != "ONLINE" ]; then
+          echo "CRITICAL: ZFS pool '$PARENT_POOL' is not healthy (status: $POOL_HEALTH). Aborting preseed."
+          write_metrics "failure" "pool_unhealthy" "0"
+          ${notify "preseed-failure" "Preseed for ${serviceName} aborted: ZFS pool $PARENT_POOL is not healthy (status: $POOL_HEALTH)."}
+          rm -f "$PROGRESS_MARKER"
+          exit 1
+        fi
+        echo "ZFS pool '$PARENT_POOL' is healthy (status: $POOL_HEALTH)."
 
         # Step 1: Check if data directory is empty AND verify dataset state
         # Using `ls -A` to account for hidden files.
@@ -356,6 +516,11 @@
               cleanup_protective_snapshots
             fi
           fi
+
+          # Write skipped metrics
+          write_metrics "success" "skipped" "0"
+
+          rm -f "$PROGRESS_MARKER"
           ${notify "preseed-skipped" "Data for ${serviceName} already exists. Skipping restore."}
           exit 0
         fi
@@ -408,6 +573,12 @@
         done
 
         # Step 5: All restore methods failed
+        # Write failure metrics
+        END_TIME=$(date +%s)
+        DURATION=$((END_TIME - START_TIME))
+        write_metrics "failure" "all" "$DURATION"
+
+        rm -f "$PROGRESS_MARKER"
         ${notify "preseed-failure" "All restore attempts for ${serviceName} failed. Service will start with an empty data directory."}
         echo "Allowing ${serviceName} to start with an empty data directory."
 

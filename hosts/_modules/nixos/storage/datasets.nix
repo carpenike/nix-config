@@ -215,10 +215,12 @@ in
             # Set/update properties (idempotent)
             echo "Configuring properties for ${datasetPath}:"
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (prop: value: ''
-              # Get current value (allow stderr for debugging, use '-' as default for unset properties)
-              CURRENT_VALUE=$(${pkgs.zfs}/bin/zfs get -H -o value ${escape prop} ${escape datasetPath} || echo "-")
+              # Get current value - let script fail immediately if zfs get fails (pool offline, dataset missing, etc.)
+              # ZFS naturally returns inherited values or '-' for unset properties
+              # NOTE: String comparison works for most properties. For numeric properties, could use 'zfs get -H -p'
+              # for parseable format, but current approach is acceptable given ZFS's stable output format.
+              CURRENT_VALUE=$(${pkgs.zfs}/bin/zfs get -H -o value ${escape prop} ${escape datasetPath})
 
-              # Compare with desired value (unescaped)
               # Compare with desired value (unescaped) to avoid false mismatches
               if [ "$CURRENT_VALUE" != "${value}" ]; then
                 echo "  Setting property: ${prop}=${value}"

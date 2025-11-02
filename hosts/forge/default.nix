@@ -202,6 +202,39 @@ in
             command = "zpool list {{ $labels.zpool }} && df -h";
           };
         };
+
+        # ZFS preseed restore failed
+        "zfs-preseed-failed" = {
+          type = "promql";
+          alertname = "ZFSPreseedFailed";
+          expr = "zfs_preseed_status == 0 and changes(zfs_preseed_last_completion_timestamp_seconds[15m]) > 0";
+          for = "0m";
+          severity = "critical";
+          labels = { service = "zfs-preseed"; category = "disaster-recovery"; };
+          annotations = {
+            summary = "ZFS pre-seed restore failed for {{ $labels.service }}";
+            description = "The automated restore for service '{{ $labels.service }}' using method '{{ $labels.method }}' has failed. The service will start with an empty data directory. Manual intervention is required. Check logs with: journalctl -u preseed-{{ $labels.service }}.service";
+          };
+        };
+
+        # ZFS preseed aborted due to unhealthy pool
+        "zfs-preseed-pool-unhealthy" = {
+          type = "promql";
+          alertname = "ZFSPreseedPoolUnhealthy";
+          expr = ''
+            zfs_preseed_status{method="pool_unhealthy"} == 0
+            and
+            changes(zfs_preseed_last_completion_timestamp_seconds{method="pool_unhealthy"}[15m]) > 0
+          '';
+          for = "0m";
+          severity = "critical";
+          labels = { service = "zfs-preseed"; category = "storage"; };
+          annotations = {
+            summary = "ZFS pre-seed for {{ $labels.service }} aborted due to unhealthy pool";
+            description = "The pre-seed restore for '{{ $labels.service }}' was aborted because its parent ZFS pool is not in an ONLINE state. Check 'zpool status' for details.";
+            command = "zpool status";
+          };
+        };
         })  # End ZFS alerts mkIf
 
         # System health monitoring alerts (always enabled)
