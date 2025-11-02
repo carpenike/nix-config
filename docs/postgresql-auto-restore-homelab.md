@@ -26,7 +26,7 @@ This is **disaster recovery automation for homelabs** - not for staging environm
 
 ## Quick Start
 
-### Minimal Configuration
+### Minimal Configuration (Basic)
 
 ```nix
 # hosts/forge/default.nix
@@ -35,7 +35,7 @@ This is **disaster recovery automation for homelabs** - not for staging environm
     enable = true;
     package = pkgs.postgresql_16;
 
-    # Automatic DR restore
+    # Automatic DR restore from NFS only
     preSeed = {
       enable = true;
       source.stanza = "main";  # Your pgBackRest stanza name
@@ -46,6 +46,36 @@ This is **disaster recovery automation for homelabs** - not for staging environm
 ```
 
 That's it! On first boot with empty PGDATA, it automatically restores from your NFS backup.
+
+### Recommended Configuration (With Fallback)
+
+```nix
+# hosts/forge/default.nix
+{
+  services.postgresql = {
+    enable = true;
+    package = pkgs.postgresql_16;
+
+    # Automatic DR restore with R2 fallback
+    preSeed = {
+      enable = true;
+      source = {
+        stanza = "main";
+        repository = 1;  # Try NFS first
+        fallbackRepository = 2;  # Automatically try R2 if NFS fails
+      };
+      # Required for R2 access when fallback is configured
+      environmentFile = config.sops.secrets."restic/r2-prod-env".path;
+    };
+  };
+}
+```
+
+**Benefits of fallback configuration:**
+
+- If NFS is available → fast local restore
+- If NFS is dead/unavailable → automatically tries R2
+- True disaster recovery - works even if NAS completely failed
 
 ## How It Works
 
@@ -127,9 +157,38 @@ Your setup (from `forge/default.nix`):
 - Need backup older than 7 days
 - Testing offsite recovery
 
-To use R2 as fallback:
+### NEW: Automatic Fallback to Repo2 (Recommended)
+
+**As of November 2025**, the preseed module now supports automatic fallback:
+
+```nix
+services.postgresql.preSeed = {
+  enable = true;
+  source = {
+    stanza = "main";
+    repository = 1;  # Try NFS first
+    fallbackRepository = 2;  # Automatically try R2 if NFS fails
+  };
+  # R2 credentials for fallback (required when fallbackRepository = 2)
+  environmentFile = config.sops.secrets."restic/r2-prod-env".path;
+};
+```
+
+**What this does:**
+1. Attempts restore from repo1 (NFS) - fast, local
+2. If repo1 fails → automatically tries repo2 (R2)
+3. If both fail → logs error and exits
+
+**Benefits:**
+- ✅ True disaster recovery - works even if NAS is dead
+- ✅ No manual intervention needed
+- ✅ Still prefers fast local NFS when available
+- ✅ Falls back to offsite only when necessary
+
+**To use R2 only (no fallback):**
 ```nix
 services.postgresql.preSeed.source.repository = 2;
+services.postgresql.preSeed.environmentFile = config.sops.secrets."restic/r2-prod-env".path;
 ```
 
 ## Safety Features
@@ -194,20 +253,102 @@ Rebuild, and PostgreSQL will start empty (no restore).
 
 ## Troubleshooting
 
+### Post-Preseed Backup Retry Limit
+
+**NEW: Automatic Retry Prevention**
+
+The post-preseed backup (which runs after restore) has retry protection to prevent infinite loops:
+
+- **Max Retries**: 5 attempts with 30-second delays
+- **Retry Counter**: Stored in `/var/lib/postgresql/.postpreseed-retry-count`
+- **Give-Up Marker**: Creates `/var/lib/postgresql/.postpreseed-backup-GAVE-UP` after max retries
+- **Behavior**: Exits gracefully (code 0) to stop systemd restart loop
+
+**Check if backup gave up:**
+
+```bash
+# Check for give-up marker
+ls -la /var/lib/postgresql/.postpreseed-backup-GAVE-UP
+
+# Check retry count
+cat /var/lib/postgresql/.postpreseed-retry-count
+
+# View backup failure logs
+sudo journalctl -u pgbackrest-post-preseed -n 100
+```
+
+**To retry after fixing the issue:**
+
+```bash
+# Remove markers
+sudo rm /var/lib/postgresql/.postpreseed-backup-GAVE-UP
+sudo rm /var/lib/postgresql/.postpreseed-retry-count
+
+# Restart the service
+sudo systemctl restart pgbackrest-post-preseed
+```
+
+**Common causes:**
+
+- Repo2 (R2) credentials invalid/expired
+- Network connectivity to Cloudflare R2 down
+- NFS mount for repo1 not available
+- Insufficient disk space for WAL files
+
+### Stanza-Create Graceful Degradation
+
+**NEW: Repo1-Only Fallback**
+
+The `pgbackrest-stanza-create` service now handles repo2 unavailability gracefully:
+
+**Normal operation:**
+
+- Attempts to create/upgrade stanza with both repo1 (NFS) and repo2 (R2)
+- If successful → both repositories active, everything works perfectly
+
+**Fallback when repo2 unavailable:**
+
+- If dual-repo creation fails → automatically attempts repo1-only stanza-upgrade
+- WAL archiving continues to repo1 (NFS) even if repo2 (R2) is down
+- Service exits with code 1 to trigger alerts, but PostgreSQL remains operational
+- Once repo2 is back, run `sudo systemctl restart pgbackrest-stanza-create.service`
+
+**Check stanza-create status:**
+
+```bash
+# Check service status
+sudo systemctl status pgbackrest-stanza-create
+
+# View detailed logs
+sudo journalctl -u pgbackrest-stanza-create -n 50
+
+# Manually test stanza upgrade
+sudo -u postgres pgbackrest --stanza=main stanza-upgrade
+```
+
+**This prevents:**
+
+- Complete WAL archiving failure when offsite backup is temporarily unavailable
+- PostgreSQL startup delays or failures due to backup configuration
+- Loss of local NFS backups when only R2 has connectivity issues
+
 ### Restore Didn't Run
 
 **Check 1**: Is PGDATA truly empty?
+
 ```bash
 ls -la /var/lib/postgresql/16/
 ```
 
 **Check 2**: Does completion marker exist?
+
 ```bash
 ls -la /var/lib/postgresql/16/.preseed-completed
 # If exists, remove it: sudo rm /var/lib/postgresql/16/.preseed-completed
 ```
 
 **Check 3**: Check service logs
+
 ```bash
 sudo journalctl -u postgresql-preseed -n 100
 ```
@@ -309,6 +450,7 @@ Save that command somewhere for when you need it!
 ## Real-World Homelab Scenarios
 
 ### Scenario 1: Hardware Upgrade
+
 *Migrating to new server hardware*
 
 1. Build new server with same NixOS config (preSeed.enable = true)
@@ -317,7 +459,10 @@ Save that command somewhere for when you need it!
 4. Services come up with your data
 5. Done!
 
+**With fallback**: If you configure `fallbackRepository = 2`, the system will automatically try R2 if NFS fails for any reason.
+
 ### Scenario 2: OS Reinstall
+
 *ZFS root got corrupted, reinstalling OS*
 
 1. Reinstall NixOS
@@ -325,7 +470,10 @@ Save that command somewhere for when you need it!
 3. NFS mounts, PostgreSQL restores automatically
 4. Services restart with your data
 
+**With fallback**: Even if NFS mount fails during boot, system falls back to R2 automatically - no manual intervention needed.
+
 ### Scenario 3: Testing Disaster Recovery
+
 *Want to verify backups work*
 
 1. Spin up test VM with same config
@@ -334,8 +482,48 @@ Save that command somewhere for when you need it!
 4. Verify data integrity
 5. Delete VM
 
-### Scenario 4: "Oops I Deleted Everything"
+**Better approach**: Use `fallbackRepository = 2` in production - you can test failover by temporarily unmounting NFS.
+
+### Scenario 4: NFS/NAS Complete Failure
+
+*Your NAS died and you need to rebuild the database server*
+
+**Without fallback** (old behavior):
+
+1. NFS mount fails or is unavailable
+2. Restore attempts repo1 → fails
+3. PostgreSQL starts with empty database
+4. Manual intervention required: change config to repo2, rebuild
+
+**With fallback** (new automatic behavior):
+
+1. NFS mount fails or is unavailable
+2. Restore attempts repo1 → fails (logged)
+3. System automatically tries repo2 (R2) → succeeds!
+4. PostgreSQL starts with data from offsite backup
+5. Services come up normally, no manual intervention
+
+**Configuration required:**
+
+```nix
+services.postgresql.preSeed = {
+  enable = true;
+  source = {
+    stanza = "main";
+    repository = 1;
+    fallbackRepository = 2;
+  };
+  environmentFile = config.sops.secrets."restic/r2-prod-env".path;
+};
+```
+
+This is the **recommended configuration** for true disaster recovery.
+
+### Scenario 5: "Oops I Deleted Everything"
+
 *Accidentally nuked PGDATA*
+
+```
 
 1. Stop PostgreSQL: `systemctl stop postgresql`
 2. Check config has preSeed.enable = true

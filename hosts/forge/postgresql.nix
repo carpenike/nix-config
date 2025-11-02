@@ -42,7 +42,7 @@
         archive_mode = "on";
         # DESIGN DECISION: WAL archiving to repo1 (NFS) only - repo2 (R2) is for DR backups
         #
-        # The archive_command uses the global config (/etc/pgbackrest.conf), which only defines repo1.
+        # The archive_command explicitly targets --repo=1 to clarify intent:
         # WALs are archived continuously to the primary NFS repo for fast local PITR.
         #
         # Repo2 (Cloudflare R2) is intentionally configured as a pure DR repository:
@@ -54,8 +54,8 @@
         # This design optimizes for:
         # 1. Fast local recovery (repo1: continuous WALs, low-latency NFS)
         # 2. Cost-effective cloud DR (repo2: backup jobs only, no continuous WAL transfer costs)
-        # 3. Operational simplicity (single archive_command, no multi-repo coordination)
-        archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main archive-push %p";
+        # 3. Operational simplicity (single archive_command, explicit repo targeting)
+        archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main --repo=1 archive-push %p";
         archive_timeout = "300";  # Force WAL switch every 5 minutes (bounds RPO)
 
         # Checkpoint settings
@@ -162,10 +162,11 @@
       source = {
         stanza = "main";
         repository = 1;  # Use repo1 (NFS) - faster, has WALs, local network
+        fallbackRepository = 2;  # Fallback to R2/S3 if NFS fails
         backupSet = "latest";
       };
-      # Optional: Switch to R2 if NAS is unavailable
-      # source.repository = 2;
+      # R2 credentials for fallback repository
+      environmentFile = config.sops.secrets."restic/r2-prod-env".path;
     };
 
     # Co-located alert rules for PostgreSQL and pgBackRest
@@ -225,6 +226,34 @@
         annotations = {
           summary = "pgBackRest backup job failed on {{ $labels.instance }}";
           description = "A pgBackRest backup job has failed within the last hour. Check pgBackRest logs for details.";
+        };
+      };
+
+      # Preseed restore failure (disaster recovery)
+      "postgresql-preseed-failed" = {
+        type = "promql";
+        alertname = "PostgreSQLPreseedFailed";
+        expr = "postgresql_preseed_status{stanza=\"main\"} == 0";
+        for = "0m";
+        severity = "critical";
+        labels = { service = "postgresql"; category = "disaster-recovery"; };
+        annotations = {
+          summary = "PostgreSQL pre-seed restore failed on {{ $labels.instance }}";
+          description = "The automated restore process from backup failed during disaster recovery. Manual intervention is required to bring the database online. Check postgresql-preseed.service logs with: journalctl -u postgresql-preseed.service -xe";
+        };
+      };
+
+      # Post-preseed backup failure
+      "postgresql-post-preseed-backup-failed" = {
+        type = "promql";
+        alertname = "PostgreSQLPostPreseedBackupFailed";
+        expr = "postgresql_postpreseed_status{stanza=\"main\"} == 0";
+        for = "0m";
+        severity = "critical";
+        labels = { service = "postgresql"; category = "disaster-recovery"; };
+        annotations = {
+          summary = "PostgreSQL post-preseed backup failed on {{ $labels.instance }}";
+          description = "The automated backup after a disaster recovery restore failed. The database is running but has no fresh baseline backup in one or both repositories. Check pgbackrest-post-preseed.service logs with: journalctl -u pgbackrest-post-preseed.service -xe";
         };
       };
 

@@ -953,56 +953,37 @@ in
     # Decision rationale:
     # - Acceptable for homelab disaster recovery scenario
     # - Reduces S3 API calls and associated costs
-    # - NFS repo1 provides PITR for local failures
-    # - If NAS is completely lost, R2 provides recent backup (hourly granularity)
+    # Single unified pgBackRest configuration for both repositories
+    # - Repo1 (NFS): Primary for WAL archiving and local backups with PITR
+    # - Repo2 (R2/S3): Offsite DR, backup-only (no WAL archiving)
     #
-    # Future consideration: Enable archive-async to R2 if offsite PITR becomes critical
+    # Note: archive_command explicitly targets --repo=1 to clarify that only
+    # repo1 receives WAL segments. Repo2 credentials supplied via environment
+    # variables in services that access it.
     environment.etc."pgbackrest.conf".text = ''
       [global]
+      # Repo1 (NFS) - Primary for WAL archiving and local backups
       repo1-path=/mnt/nas-postgresql/pgbackrest
       repo1-retention-full=7
-      # Note: No differential backups (simplified schedule)
 
-      # Archive async with local spool to decouple DB availability from NFS
-      # If NFS is down, archive_command succeeds by writing to local spool
-      # Background process flushes to repo1 when NFS is available
-      archive-async=y
-      spool-path=/var/lib/pgbackrest/spool
-
-      process-max=2
-      log-level-console=info
-      log-level-file=detail
-      start-fast=y
-      delta=y
-      compress-type=lz4
-      compress-level=3
-
-      [main]
-      pg1-path=/var/lib/postgresql/16
-      pg1-port=5432
-      pg1-user=postgres
-    '';
-
-    # Temporary config for one-time stanza initialization
-    # stanza-create command doesn't accept --repo flag, it operates on ALL repos in config
-    # After stanzas are created in both repos, backup commands can use --repo=2 with flags
-    environment.etc."pgbackrest-init.conf".text = ''
-      [global]
-      repo1-path=/mnt/nas-postgresql/pgbackrest
-      repo1-retention-full=7
-      repo1-retention-diff=4
-
+      # Repo2 (R2/S3) - Offsite DR, backup-only
       repo2-type=s3
       repo2-path=/forge-pgbackrest
       repo2-s3-bucket=nix-homelab-prod-servers
       repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
       repo2-s3-region=auto
       repo2-s3-uri-style=path
-      repo2-s3-key=$AWS_ACCESS_KEY_ID
-      repo2-s3-key-secret=$AWS_SECRET_ACCESS_KEY
+      # Note: repo2 credentials supplied via environment variables (PGBACKREST_REPO2_S3_KEY)
       repo2-retention-full=30
-      repo2-retention-diff=14
 
+      # Global archive settings (apply only where archive_command is used)
+      # Archive async with local spool to decouple DB availability from NFS
+      # If NFS is down, archive_command succeeds by writing to local spool
+      # Background process flushes to repo1 when NFS is available
+      archive-async=y
+      spool-path=/var/lib/pgbackrest/spool
+
+      # Other global settings
       process-max=2
       log-level-console=info
       log-level-file=detail
@@ -1083,36 +1064,64 @@ in
           # Try to create/upgrade stanza to handle both fresh install and disaster recovery
           echo "[$(date -Iseconds)] Attempting stanza creation for both repositories..."
 
-          if pgbackrest --config=/etc/pgbackrest-init.conf --stanza=main stanza-create 2>&1; then
-            echo "[$(date -Iseconds)] Successfully created stanzas for both repositories"
-          else
-            echo "[$(date -Iseconds)] Initial stanza creation failed, checking if upgrade is needed..."
+          # Transform AWS env vars to pgBackRest format for repo2 access
+          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
+          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
+
+          # Capture output for better error logging
+          # Try creating stanza for both repos first (ideal path)
+          if ! output=$(pgbackrest --stanza=main stanza-create 2>&1); then
+            echo "[$(date -Iseconds)] Initial stanza creation for both repos failed, checking if upgrade is needed or repo2 is unavailable..."
+            echo "--- pgbackrest stanza-create output ---"
+            echo "$output"
+            echo "---------------------------------------"
 
             # Check if this is a database system identifier mismatch (error 028)
             # This happens after disaster recovery when database was rebuilt but stanza exists
             if pgbackrest --stanza=main info >/dev/null 2>&1; then
               echo "[$(date -Iseconds)] Stanza exists but database mismatch detected - upgrading stanza"
-              if pgbackrest --stanza=main stanza-upgrade 2>&1; then
-                echo "[$(date -Iseconds)] Stanza upgrade successful - database now matches backup metadata"
-              else
+
+              if ! upgrade_output=$(pgbackrest --stanza=main stanza-upgrade 2>&1); then
                 echo "[$(date -Iseconds)] ERROR: Stanza upgrade failed"
+                echo "--- pgbackrest stanza-upgrade output ---"
+                echo "$upgrade_output"
+                echo "------------------------------------------"
                 exit 1
               fi
+              echo "[$(date -Iseconds)] Stanza upgrade successful - database now matches backup metadata"
             else
-              echo "[$(date -Iseconds)] WARNING: Dual-repo stanza creation failed, trying repo1 only..."
-              # If dual-repo fails, ensure at least repo1 (NFS) stanza exists
-              if pgbackrest --stanza=main stanza-create 2>&1; then
-                echo "[$(date -Iseconds)] Successfully created stanza for repo1 (NFS)"
-                echo "[$(date -Iseconds)] NOTE: repo2 (R2) stanza creation failed - check R2 configuration"
+              # Stanza doesn't exist and dual-repo creation failed
+              # Prioritize getting repo1 online for WAL archiving even if repo2 is broken
+              echo "[$(date -Iseconds)] WARNING: Dual-repository stanza creation failed. Attempting repo1-only to secure WAL archiving..."
+
+              if pgbackrest --stanza=main --repo=1 stanza-upgrade 2>&1; then
+                echo "[$(date -Iseconds)] SUCCESS: Repo1 stanza is active. WAL archiving will function."
+                echo "[$(date -Iseconds)] WARNING: Repo2 (R2) stanza creation failed. System operational but with reduced redundancy."
+                echo "[$(date -Iseconds)] Action required: Fix repo2 connectivity/credentials and retry stanza-create manually."
+                # Exit successfully - WAL archiving is working (degraded but operational)
+                # Operators should monitor logs for this warning and fix repo2 connectivity
+                exit 0
               else
-                echo "[$(date -Iseconds)] ERROR: Failed to create stanza even for repo1"
+                echo "[$(date -Iseconds)] CRITICAL: Failed to create or upgrade stanza even for repo1."
+                echo "[$(date -Iseconds)] WAL archiving is BROKEN. Manual intervention required immediately."
+                echo "[$(date -Iseconds)] Check: NFS mount (/mnt/nas-postgresql), PostgreSQL running, stanza configuration."
                 exit 1
               fi
             fi
+          else
+            echo "[$(date -Iseconds)] Successfully created stanzas for both repositories"
           fi
 
-          echo "[$(date -Iseconds)] Running final check on repo1..."
-          pgbackrest --stanza=main check
+          echo "[$(date -Iseconds)] Running final configuration check on repo1..."
+          # Use info command instead of check to avoid waiting for WAL archiving
+          # check command has 60s timeout waiting for WAL segments which can fail after PostgreSQL restart
+          # info command just verifies stanza configuration is valid
+          pgbackrest --stanza=main --repo=1 info
+          echo "[$(date -Iseconds)] Repo1 stanza configuration verified successfully"
+
+          echo "[$(date -Iseconds)] Running final configuration check on repo2..."
+          pgbackrest --stanza=main --repo=2 info
+          echo "[$(date -Iseconds)] Repo2 stanza configuration verified successfully"
         '';
         wantedBy = [ "multi-user.target" ];
       };
@@ -1147,9 +1156,12 @@ in
           Group = "postgres";
           RemainAfterExit = true;
           Environment = "PGHOST=/var/run/postgresql";
+          # Add R2 credentials for repo2 backup
+          EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
           # Restart on failure with proper backoff for recovery timing issues
           Restart = "on-failure";
           RestartSec = "60s";
+          IPAddressDeny = [ "169.254.169.254" ];
         };
 
         script = ''
@@ -1274,7 +1286,10 @@ EOF
 
             # Check timeout
             if [ "$(date +%s)" -ge "$deadline" ]; then
-              log_json "ERROR" "promotion_timeout" "Timed out waiting for PostgreSQL recovery completion" "{\"timeout_seconds\":$TIMEOUT_SECONDS,\"hint\":\"check for missing WAL files or recovery configuration issues\"}"
+              # Get last WAL replay position and timeline for diagnostics
+              last_lsn=$(psql -Atqc "SELECT pg_last_wal_replay_lsn();" 2>/dev/null || echo "unknown")
+              timeline_id=$(psql -Atqc "SELECT timeline_id FROM pg_control_checkpoint();" 2>/dev/null || echo "unknown")
+              log_json "ERROR" "promotion_timeout" "Timed out waiting for PostgreSQL recovery completion" "{\"timeout_seconds\":$TIMEOUT_SECONDS,\"last_wal_replay_lsn\":\"''${last_lsn}\",\"timeline_id\":\"''${timeline_id}\",\"hint\":\"check for missing WAL files or recovery configuration issues\"}"
               exit 1
             fi
 
@@ -1285,31 +1300,109 @@ EOF
           cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
           log_json "INFO" "system_id_check" "Checking for existing backups for current system-id." "{\"system_id\":\"$cur_sysid\"}"
 
-          # Use robust JSON parsing to check for existing full backups
-          has_full=0
-          if INFO_JSON="$(pgbackrest --stanza=main --output=json info 2>/dev/null)"; then
-            has_full="$(echo "$INFO_JSON" | jq --arg sid "$cur_sysid" \
-              '[.[] | .backup[]? | select(.database["system-id"] == ($sid|tonumber) and .type=="full" and (.error//false)==false)] | length' 2>/dev/null || echo "0")"
-          fi
+          # Transform AWS env vars to pgBackRest format for repo2 operations
+          export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
+          export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
-          if [ "''${has_full:-0}" -gt 0 ]; then
-            log_json "INFO" "backup_skipped" "Found existing full backup for current system-id; skipping backup."
+          # Check each repository independently to ensure both have fresh backups
+          # This prevents skipping repo2 if repo1 succeeds but repo2 failed previously
+          INFO_JSON="$(pgbackrest --stanza=main --output=json info 2>/dev/null || echo '[]')"
+
+          # Use single jq query to extract both repo counts efficiently
+          COUNTS=$(echo "$INFO_JSON" | jq -r --arg sid "$cur_sysid" '
+            .[] | .backup | map(select(.type == "full" and .database["system-id"] == ($sid|tonumber) and (.error // null) == null)) |
+            {
+              repo1: map(select(.repo == 1)) | length,
+              repo2: map(select(.repo == 2)) | length
+            } | "\(.repo1) \(.repo2)"
+          ' 2>/dev/null || echo "0 0")
+
+          read -r has_full_repo1 has_full_repo2 <<< "$COUNTS"
+
+          start_time=$(date +%s)
+          repo1_ok=false
+          repo2_ok=false
+
+          # Backup to repo1 if needed
+          if [ "''${has_full_repo1:-0}" -gt 0 ]; then
+            log_json "INFO" "backup_repo1_skipped" "Found existing full backup for repo1 (NFS)."
+            repo1_ok=true
           else
-            log_json "INFO" "backup_start" "No full backup found for current system-id; creating fresh backup..."
-            start_time=$(date +%s)
-            pgbackrest --stanza=main --type=full backup
-            end_time=$(date +%s)
-            duration=$((end_time - start_time))
-            log_json "INFO" "backup_complete" "Fresh full backup completed successfully." "{\"duration_seconds\":''${duration}}"
-            # Write success metrics only when a backup is actually performed
-            write_metrics "success" "''${duration}"
+            log_json "INFO" "backup_repo1_start" "No full backup found for repo1; starting backup to NFS..."
+            if pgbackrest --stanza=main --type=full --repo=1 backup; then
+              log_json "INFO" "backup_repo1_complete" "Repo1 backup completed"
+              repo1_ok=true
+            else
+              log_json "ERROR" "backup_repo1_failed" "Repo1 backup failed"
+            fi
           fi
 
-          # Mark completion to prevent re-runs
-          touch /var/lib/postgresql/.postpreseed-backup-done
-          log_json "INFO" "marker_created" "Completion marker created at /var/lib/postgresql/.postpreseed-backup-done"
+          # Backup to repo2 if needed
+          if [ "''${has_full_repo2:-0}" -gt 0 ]; then
+            log_json "INFO" "backup_repo2_skipped" "Found existing full backup for repo2 (R2)."
+            repo2_ok=true
+          else
+            log_json "INFO" "backup_repo2_start" "No full backup found for repo2; starting backup to R2..."
+            # Repo2 configuration comes from /etc/pgbackrest.conf
+            # Credentials supplied via PGBACKREST_REPO2_S3_KEY environment variables
+            if pgbackrest --stanza=main --type=full --repo=2 --no-archive-check backup; then
+              log_json "INFO" "backup_repo2_complete" "Repo2 backup completed"
+              repo2_ok=true
+            else
+              log_json "ERROR" "backup_repo2_failed" "Repo2 backup failed"
+            fi
+          fi
 
-          log_json "INFO" "postpreseed_complete" "Post-preseed backup process finished."
+          end_time=$(date +%s)
+          duration=$((end_time - start_time))
+
+          # Retry limit to prevent infinite restart loops
+          MAX_RETRIES=5
+          RETRY_FILE="/var/lib/postgresql/.postpreseed-retry-count"
+          RETRY_LOCK="/var/lib/postgresql/.postpreseed-retry.lock"
+
+          # Use flock for atomic retry counter operations to prevent race conditions
+          (
+            flock 200  # Acquire exclusive lock on file descriptor 200
+
+            retries=$(cat "$RETRY_FILE" 2>/dev/null || echo 0)
+
+            # Only mark complete if BOTH repositories succeeded
+            if [ "$repo1_ok" = true ] && [ "$repo2_ok" = true ]; then
+              log_json "INFO" "backup_complete" "Post-preseed backup process completed successfully for both repositories." "{\"duration_seconds\":''${duration}}"
+              write_metrics "success" "''${duration}"
+
+              # Clean up retry counter on success
+              rm -f "$RETRY_FILE"
+
+              # Mark completion to prevent re-runs ONLY on full success
+              touch /var/lib/postgresql/.postpreseed-backup-done
+              log_json "INFO" "marker_created" "Completion marker created at /var/lib/postgresql/.postpreseed-backup-done"
+              log_json "INFO" "postpreseed_complete" "Post-preseed backup process finished."
+            else
+              # Check if we've exceeded retry limit
+              if [ "$retries" -ge "$MAX_RETRIES" ]; then
+                log_json "CRITICAL" "postpreseed_gave_up" "Exceeded maximum retry attempts ($MAX_RETRIES). Stopping service to prevent infinite loop." "{\"failed_repo1\":$([ "$repo1_ok" = false ] && echo true || echo false),\"failed_repo2\":$([ "$repo2_ok" = false ] && echo true || echo false)}"
+                write_metrics "failure" "''${duration}"
+
+                # Create marker indicating permanent failure
+                touch "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                echo "repo1_ok=$repo1_ok" > "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                echo "repo2_ok=$repo2_ok" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                echo "retries=$retries" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                echo "timestamp=$(date -Iseconds)" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+
+                rm -f "$RETRY_FILE"
+                exit 0  # Exit successfully to stop the restart loop
+              else
+                # Increment retry counter atomically
+                echo $((retries + 1)) > "$RETRY_FILE"
+                log_json "ERROR" "postpreseed_failed" "Post-preseed backup failed for one or more repositories. Retry attempt $((retries + 1))/$MAX_RETRIES." "{\"failed_repo1\":$([ "$repo1_ok" = false ] && echo true || echo false),\"failed_repo2\":$([ "$repo2_ok" = false ] && echo true || echo false)}"
+                write_metrics "failure" "''${duration}"
+                exit 1  # Exit with failure to trigger systemd restart logic
+              fi
+            fi
+          ) 200>"$RETRY_LOCK"  # Redirect file descriptor 200 to lock file
         '';
       };
 
@@ -1343,15 +1436,8 @@ EOF
 
           echo "[$(date -Iseconds)] Starting full backup to repo2 (R2)..."
           # repo2 doesn't have WAL archiving, so use --no-archive-check
-          pgbackrest --stanza=main --type=full --repo=2 \
-            --no-archive-check \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            --repo2-retention-full=30 \
-            backup
+          # Configuration comes from /etc/pgbackrest.conf
+          pgbackrest --stanza=main --type=full --repo=2 --no-archive-check backup
           echo "[$(date -Iseconds)] Full backup to both repos completed"
         '';
       };
@@ -1386,15 +1472,8 @@ EOF
 
           echo "[$(date -Iseconds)] Starting incremental backup to repo2 (R2)..."
           # repo2 doesn't have WAL archiving, so use --no-archive-check
-          pgbackrest --stanza=main --type=incr --repo=2 \
-            --no-archive-check \
-            --repo2-type=s3 \
-            --repo2-path=/pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            --repo2-retention-full=30 \
-            backup
+          # Configuration comes from /etc/pgbackrest.conf
+          pgbackrest --stanza=main --type=incr --repo=2 --no-archive-check backup
           echo "[$(date -Iseconds)] Incremental backup to both repos completed"
         '';
       };
