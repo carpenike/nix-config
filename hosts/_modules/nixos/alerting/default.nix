@@ -6,6 +6,54 @@ let
 
   cfg = config.modules.alerting;
 
+  # Helper function to generate Pushover receiver configurations
+  # Reduces duplication by generating all severity-level receivers from a simple spec
+  mkPushoverReceiver = { name, priority, emoji }: {
+    name = "pushover-${name}";
+    pushover_configs = [{
+      token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
+      user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
+      priority = priority;
+      send_resolved = true;
+      title = ''${emoji} ${lib.toUpper name}: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
+      message = ''
+{{- $alertCount := .Alerts.Firing | len -}}
+{{- range $i, $alert := .Alerts -}}
+{{- if lt $i 10 }}
+ • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
+{{- if $alert.Annotations.description }}
+   {{ $alert.Annotations.description }}
+{{- end }}
+{{- end -}}
+{{- end -}}
+{{- if gt $alertCount 10 }}
+... and {{ sub $alertCount 10 }} more alerts.
+{{- end }}
+
+{{- with .CommonLabels }}
+Host: {{ .instance }}
+{{- if .service }}
+Service: {{ .service }}
+{{- end }}
+{{- if .category }}
+Category: {{ .category }}
+{{- end }}
+{{- if .dataset }}
+Dataset: {{ .dataset }}
+{{- end }}
+{{- if .target_host }}
+Target: {{ .target_host }}
+{{- end }}
+{{- if .repository }}
+Repository: {{ .repository }}
+{{- end }}
+{{- end }}'';
+      html = true;
+      url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
+      url_title = ''View in Prometheus'';
+    }];
+  };
+
   # Helper: severity enumeration
   severityEnum = types.enum [ "critical" "high" "medium" "low" ];
 
@@ -154,9 +202,10 @@ in
             alert = rule.alertname;
             expr = rule.expr;
             for = rule.for;
+            # Prometheus automatically creates an alertname label from the alert field
+            # No need to add it manually
             labels = rule.labels // {
               severity = rule.severity;
-              alertname = rule.alertname;
             };
             annotations = rule.annotations // {
               summary = rule.annotations.summary or "Alert ${rule.alertname} fired";
@@ -385,200 +434,13 @@ in
             equal = [ "instance" ];
           }
         ];
+        # Generate Pushover receivers for all severity levels using helper function
+        # This reduces code duplication and makes template updates consistent
         receivers = [
-          {
-            name = "pushover-critical";
-            pushover_configs = [{
-              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
-              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
-              # Avoid Pushover "emergency" (priority=2) which retries every minute until ack
-              # Use high priority (1) and send resolved notifications
-              priority = 1;
-              send_resolved = true;
-              # Critical alert with clear indicator and count
-              title = ''🚨 CRITICAL: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
-              # Structured, informative message for mobile (max 1024 chars for Pushover)
-              message = ''
-{{- $alertCount := .Alerts.Firing | len -}}
-{{- range $i, $alert := .Alerts -}}
-{{- if lt $i 10 }}
- • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
-{{- if $alert.Annotations.description }}
-   {{ $alert.Annotations.description }}
-{{- end }}
-{{- end -}}
-{{- end -}}
-{{- if gt $alertCount 10 }}
-... and {{ sub $alertCount 10 }} more alerts.
-{{- end }}
-
-{{- with .CommonLabels }}
-Host: {{ .instance }}
-{{- if .service }}
-Service: {{ .service }}
-{{- end }}
-{{- if .category }}
-Category: {{ .category }}
-{{- end }}
-{{- if .dataset }}
-Dataset: {{ .dataset }}
-{{- end }}
-{{- if .target_host }}
-Target: {{ .target_host }}
-{{- end }}
-{{- if .repository }}
-Repository: {{ .repository }}
-{{- end }}
-{{- end }}'';
-              # HTML mode enables rich formatting in Pushover notifications
-              html = true;
-              # Primary action: opens Prometheus graph for debugging
-              # Use first alert's GeneratorURL as representative (all alerts in group typically related)
-              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
-              url_title = ''View in Prometheus'';
-            }];
-          }
-          {
-            name = "pushover-high";
-            pushover_configs = [{
-              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
-              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
-              priority = 1;
-              send_resolved = true;
-              title = ''⚠️ HIGH: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
-              message = ''
-{{- $alertCount := .Alerts.Firing | len -}}
-{{- range $i, $alert := .Alerts -}}
-{{- if lt $i 10 }}
- • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
-{{- if $alert.Annotations.description }}
-   {{ $alert.Annotations.description }}
-{{- end }}
-{{- end -}}
-{{- end -}}
-{{- if gt $alertCount 10 }}
-... and {{ sub $alertCount 10 }} more alerts.
-{{- end }}
-
-{{- with .CommonLabels }}
-Host: {{ .instance }}
-{{- if .service }}
-Service: {{ .service }}
-{{- end }}
-{{- if .category }}
-Category: {{ .category }}
-{{- end }}
-{{- if .dataset }}
-Dataset: {{ .dataset }}
-{{- end }}
-{{- if .target_host }}
-Target: {{ .target_host }}
-{{- end }}
-{{- if .repository }}
-Repository: {{ .repository }}
-{{- end }}
-{{- end }}'';
-              # HTML mode enables rich formatting in Pushover notifications
-              html = true;
-              # Primary action: opens Prometheus graph for debugging
-              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
-              url_title = ''View in Prometheus'';
-            }];
-          }
-          {
-            name = "pushover-medium";
-            pushover_configs = [{
-              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
-              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
-              priority = 0;
-              send_resolved = true;
-              title = ''⚠️ MEDIUM: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
-              message = ''
-{{- $alertCount := .Alerts.Firing | len -}}
-{{- range $i, $alert := .Alerts -}}
-{{- if lt $i 10 }}
- • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
-{{- if $alert.Annotations.description }}
-   {{ $alert.Annotations.description }}
-{{- end }}
-{{- end -}}
-{{- end -}}
-{{- if gt $alertCount 10 }}
-... and {{ sub $alertCount 10 }} more alerts.
-{{- end }}
-
-{{- with .CommonLabels }}
-Host: {{ .instance }}
-{{- if .service }}
-Service: {{ .service }}
-{{- end }}
-{{- if .category }}
-Category: {{ .category }}
-{{- end }}
-{{- if .dataset }}
-Dataset: {{ .dataset }}
-{{- end }}
-{{- if .target_host }}
-Target: {{ .target_host }}
-{{- end }}
-{{- if .repository }}
-Repository: {{ .repository }}
-{{- end }}
-{{- end }}'';
-              # HTML mode enables rich formatting in Pushover notifications
-              html = true;
-              # Primary action: opens Prometheus graph for debugging
-              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
-              url_title = ''View in Prometheus'';
-            }];
-          }
-          {
-            name = "pushover-low";
-            pushover_configs = [{
-              token_file = config.sops.secrets.${cfg.receivers.pushover.tokenSecret}.path;
-              user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
-              priority = -1;
-              send_resolved = true;
-              title = ''ℹ️ LOW: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
-              message = ''
-{{- $alertCount := .Alerts.Firing | len -}}
-{{- range $i, $alert := .Alerts -}}
-{{- if lt $i 10 }}
- • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
-{{- if $alert.Annotations.description }}
-   {{ $alert.Annotations.description }}
-{{- end }}
-{{- end -}}
-{{- end -}}
-{{- if gt $alertCount 10 }}
-... and {{ sub $alertCount 10 }} more alerts.
-{{- end }}
-
-{{- with .CommonLabels }}
-Host: {{ .instance }}
-{{- if .service }}
-Service: {{ .service }}
-{{- end }}
-{{- if .category }}
-Category: {{ .category }}
-{{- end }}
-{{- if .dataset }}
-Dataset: {{ .dataset }}
-{{- end }}
-{{- if .target_host }}
-Target: {{ .target_host }}
-{{- end }}
-{{- if .repository }}
-Repository: {{ .repository }}
-{{- end }}
-{{- end }}'';
-              # HTML mode enables rich formatting in Pushover notifications
-              html = true;
-              # Primary action: opens Prometheus graph for debugging
-              url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
-              url_title = ''View in Prometheus'';
-            }];
-          }
+          (mkPushoverReceiver { name = "critical"; priority = 1; emoji = "🚨"; })
+          (mkPushoverReceiver { name = "high"; priority = 1; emoji = "⚠️"; })
+          (mkPushoverReceiver { name = "medium"; priority = 0; emoji = "⚠️"; })
+          (mkPushoverReceiver { name = "low"; priority = -1; emoji = "ℹ️"; })
         ]
         # Append the healthchecks receiver if configured
         ++ (lib.optional (cfg.receivers.healthchecks.urlSecret != null) {

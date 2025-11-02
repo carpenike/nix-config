@@ -1,16 +1,140 @@
 { lib, pkgs, config, ... }:
 let
   cfg = config.modules.services.gpuMetrics;
+
+  # Script for GPU metrics collection
+  # Using a simple script that we can debug step by step
+  gpuMetricsScript = pkgs.writeShellScript "gpu-metrics-collector" ''
+    set -euo pipefail
+
+    # Add required tools to PATH
+    export PATH="${lib.makeBinPath (with pkgs; [ coreutils gnugrep jq gawk ])}:$PATH"
+
+    METRICS_DIR=${cfg.prometheus.metricsDir}
+    METRICS_FILE="$METRICS_DIR/gpu.prom"
+    TMP_FILE="$METRICS_FILE.tmp"
+    mkdir -p "$METRICS_DIR"
+
+    # Test if wrapper exists and has capabilities
+    if [ ! -x /run/wrappers/bin/intel_gpu_top ]; then
+      echo "gpu-metrics-exporter: intel_gpu_top wrapper not found" >&2
+      cat > "$TMP_FILE" <<EOF
+# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)
+# TYPE gpu_metrics_error gauge
+gpu_metrics_error{hostname="${config.networking.hostName}"} 1
+EOF
+      mv "$TMP_FILE" "$METRICS_FILE"
+      exit 1
+    fi
+
+    # Dynamically detect Intel GPU device by vendor ID (0x8086)
+    TMPOUT=$(mktemp)
+    trap 'rm -f "$TMPOUT"' EXIT
+
+    INTEL_CARD=""
+    for card in /sys/class/drm/card*; do
+      if [ -f "$card/device/vendor" ] && [ "$(cat "$card/device/vendor")" = "0x8086" ]; then
+        INTEL_CARD=$(basename "$card")
+        break
+      fi
+    done
+
+    if [ -z "$INTEL_CARD" ]; then
+      echo "gpu-metrics-exporter: Could not find an Intel GPU device" >&2
+      cat > "$TMP_FILE" <<EOF
+# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)
+# TYPE gpu_metrics_error gauge
+gpu_metrics_error{hostname="${config.networking.hostName}"} 1
+EOF
+      mv "$TMP_FILE" "$METRICS_FILE"
+      exit 1
+    fi
+
+    # Use timeout command instead of background + sleep + kill for safer process management
+    # timeout exits with 124 if command times out (expected behavior)
+    if ! timeout 3s /run/wrappers/bin/intel_gpu_top -d "drm:/dev/dri/$INTEL_CARD" -J -s 1000 -o - > "$TMPOUT" 2>&1; then
+      # Only fail if no output was produced (empty file)
+      if [ ! -s "$TMPOUT" ]; then
+        echo "gpu-metrics-exporter: intel_gpu_top failed or produced no output" >&2
+        cat "$TMPOUT" >&2
+        cat > "$TMP_FILE" <<EOF
+# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)
+# TYPE gpu_metrics_error gauge
+gpu_metrics_error{hostname="${config.networking.hostName}"} 1
+EOF
+        mv "$TMP_FILE" "$METRICS_FILE"
+        exit 1
+      fi
+    fi
+
+    # Extract the last complete JSON object
+    # When killed, intel_gpu_top outputs incomplete JSON: [ { ... } { ... }
+    # (missing closing ] and commas between objects)
+    # Strategy: Skip first line (the '['), then use jq to slurp and get last object
+    # tail -n +2 skips the opening bracket, jq -s slurps the stream into an array
+    if ! JSON_OUTPUT=$(tail -n +2 "$TMPOUT" | jq -es '.[-1]'); then
+      echo "gpu-metrics-exporter: intel_gpu_top failed or produced no JSON output" >&2
+      cat "$TMPOUT" >&2
+
+      # Write error metric and exit non-zero
+      cat > "$TMP_FILE" <<EOF
+# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)
+# TYPE gpu_metrics_error gauge
+gpu_metrics_error{hostname="${config.networking.hostName}"} 1
+EOF
+      mv "$TMP_FILE" "$METRICS_FILE"
+      exit 1
+    fi
+
+    # Validate JSON structure contains required .engines key
+    if ! echo "$JSON_OUTPUT" | jq -e '.engines' > /dev/null; then
+      echo "gpu-metrics-exporter: JSON output is valid but missing required '.engines' key" >&2
+      echo "$JSON_OUTPUT" >&2
+
+      # Write error metric and exit non-zero
+      cat > "$TMP_FILE" <<EOF
+# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)
+# TYPE gpu_metrics_error gauge
+gpu_metrics_error{hostname="${config.networking.hostName}"} 1
+EOF
+      mv "$TMP_FILE" "$METRICS_FILE"
+      exit 1
+    fi
+
+    # On success, write the full metrics file
+    {
+      # The last_run_timestamp is now only updated on success
+      # This makes the "GpuExporterStale" alert meaningful
+      echo "# HELP gpu_metrics_last_run_timestamp Last successful GPU metrics run timestamp"
+      echo "# TYPE gpu_metrics_last_run_timestamp gauge"
+      echo "gpu_metrics_last_run_timestamp{hostname=\"${config.networking.hostName}\"} $(date +%s)"
+
+      # Per-engine busy percent
+      # Extract engines as key-value pairs since the JSON structure uses engine names as keys
+      echo "# HELP gpu_engine_busy_percent Per-engine GPU busy utilization percent"
+      echo "# TYPE gpu_engine_busy_percent gauge"
+      echo "$JSON_OUTPUT" | jq -r '.engines | to_entries[] | [.key, (.value.busy // 0)] | @tsv' | while IFS=$'\t' read -r klass busy; do
+        label="''${klass// /_}"
+        printf "gpu_engine_busy_percent{hostname=\"%s\",engine=\"%s\"} %s\n" "${config.networking.hostName}" "$label" "$busy"
+      done
+
+      # Overall approx utilization: max of engine busy
+      OVERALL=$(echo "$JSON_OUTPUT" | jq -r '[.engines[].busy // 0] | max // 0')
+      echo "# HELP gpu_utilization_percent Approximate overall GPU utilization percent"
+      echo "# TYPE gpu_utilization_percent gauge"
+      printf "gpu_utilization_percent{hostname=\"%s\"} %s\n" "${config.networking.hostName}" "$OVERALL"
+
+      echo "# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)"
+      echo "# TYPE gpu_metrics_error gauge"
+      echo "gpu_metrics_error{hostname=\"${config.networking.hostName}\"} 0"
+    } > "$TMP_FILE"
+
+    mv "$TMP_FILE" "$METRICS_FILE"
+  '';
 in
 {
   options.modules.services.gpuMetrics = {
     enable = lib.mkEnableOption "host-level GPU metrics exporter (textfile for Prometheus)";
-
-    vendor = lib.mkOption {
-      type = lib.types.enum [ "auto" "intel" ];
-      default = "auto";
-      description = "GPU vendor to target for metrics (currently intel supported)";
-    };
 
     interval = lib.mkOption {
       type = lib.types.str;
@@ -41,77 +165,37 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Grant CAP_PERFMON to intel_gpu_top binary directly
+    security.wrappers.intel_gpu_top = {
+      owner = "root";
+      group = "render";
+      capabilities = "cap_perfmon+ep";
+      source = "${pkgs.intel-gpu-tools}/bin/intel_gpu_top";
+    };
+
     # Intel GPU exporter using intel_gpu_top JSON snapshot
     systemd.services.gpu-metrics-exporter = {
       description = "Host GPU metrics exporter (Intel)";
-      path = with pkgs; [ intel-gpu-tools jq coreutils gawk gnused util-linux ];
       serviceConfig = {
         Type = "oneshot";
         # Run as node-exporter with minimal privileges
         User = cfg.user;
         Group = cfg.group;
         SupplementaryGroups = [ "render" ];
-        AmbientCapabilities = [ "CAP_PERFMON" ];
+
+        # Using security.wrappers for CAP_PERFMON instead of AmbientCapabilities
+        # This is more reliable as the capability is set on the binary itself
+
         UMask = "0002";
 
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectHome = true;
-        NoNewPrivileges = true;
         ReadWritePaths = [ cfg.prometheus.metricsDir ];
+
+        # Use ExecStart for direct execution
+        ExecStart = "${gpuMetricsScript}";
       };
-      script = ''
-        set -euo pipefail
-        METRICS_DIR=${cfg.prometheus.metricsDir}
-        METRICS_FILE="$METRICS_DIR/gpu.prom"
-        TMP="$METRICS_FILE.tmp"
-        mkdir -p "$METRICS_DIR"
-
-        TS=$(date +%s)
-        ERROR=0
-        JSON=""
-
-        # For now support Intel. If vendor is auto or intel, attempt collection.
-        if [ "${cfg.vendor}" = "intel" ] || [ "${cfg.vendor}" = "auto" ]; then
-          if JSON=$(timeout 5 intel_gpu_top -J -s 1000 -o - 2>/dev/null | tail -n 1); then
-            :
-          else
-            ERROR=1
-          fi
-        else
-          ERROR=1
-        fi
-
-        {
-          echo "# HELP gpu_metrics_last_run_timestamp Last GPU metrics run timestamp"
-          echo "# TYPE gpu_metrics_last_run_timestamp gauge"
-          echo "gpu_metrics_last_run_timestamp{hostname=\"${config.networking.hostName}\"} $TS"
-
-          if [ "$ERROR" -eq 0 ] && echo "$JSON" | jq -e . >/dev/null 2>&1; then
-            # Per-engine busy percent
-            echo "$JSON" | jq -r '.engines[] | select(.class) | [.class, (.busy // 0)] | @tsv' | while IFS=$'\t' read -r klass busy; do
-              label=$(echo "$klass" | sed 's/\s\+/_/g')
-              printf "gpu_engine_busy_percent{hostname=\"%s\",engine=\"%s\"} %s\n" "${config.networking.hostName}" "$label" "$busy"
-            done
-
-            # Overall approx utilization: max of engine busy
-            OVERALL=$(echo "$JSON" | jq -r '[.engines[].busy // 0] | max // 0')
-            echo "# HELP gpu_utilization_percent Approximate overall GPU utilization percent"
-            echo "# TYPE gpu_utilization_percent gauge"
-            printf "gpu_utilization_percent{hostname=\"%s\"} %s\n" "${config.networking.hostName}" "$OVERALL"
-
-            echo "# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)"
-            echo "# TYPE gpu_metrics_error gauge"
-            echo "gpu_metrics_error{hostname=\"${config.networking.hostName}\"} 0"
-          else
-            echo "# HELP gpu_metrics_error Error flag for GPU metrics collection (1=error)"
-            echo "# TYPE gpu_metrics_error gauge"
-            echo "gpu_metrics_error{hostname=\"${config.networking.hostName}\"} 1"
-          fi
-        } > "$TMP"
-
-        mv "$TMP" "$METRICS_FILE"
-      '';
     };
 
     systemd.timers.gpu-metrics-exporter = {

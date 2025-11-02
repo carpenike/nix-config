@@ -435,7 +435,6 @@ in
   # Enable host-level GPU metrics
   modules.services.gpuMetrics = {
     enable = true;
-    vendor = "intel";
     interval = "minutely";
   };
 
@@ -463,13 +462,26 @@ in
   modules.alerting.rules."gpu-exporter-stale" = {
       type = "promql";
       alertname = "GpuExporterStale";
-      expr = "time() - gpu_metrics_last_run_timestamp > 600";
-      for = "0m";
+      expr = "time() - gpu_metrics_last_run_timestamp > 240";
+      for = "1m";
       severity = "high";
       labels = { service = "gpu"; category = "monitoring"; };
       annotations = {
         summary = "GPU exporter stale on {{ $labels.instance }}";
-        description = "No GPU metrics collected for >10 minutes. Check timer: systemctl status gpu-metrics-exporter.timer";
+        description = "No GPU metrics collected for >4 minutes. Check timer: systemctl status gpu-metrics-exporter.timer";
+      };
+    };
+
+  modules.alerting.rules."gpu-exporter-error" = {
+      type = "promql";
+      alertname = "GpuExporterError";
+      expr = "gpu_metrics_error == 1";
+      for = "2m";
+      severity = "high";
+      labels = { service = "gpu"; category = "monitoring"; };
+      annotations = {
+        summary = "GPU metrics collection failing on {{ $labels.instance }}";
+        description = "The gpu-metrics-exporter service is failing to collect metrics. Check service logs: journalctl -u gpu-metrics-exporter.service";
       };
     };
 
@@ -483,6 +495,23 @@ in
       annotations = {
         summary = "High GPU utilization on {{ $labels.instance }}";
         description = "GPU utilization above 80% for 10m. Investigate Plex/Dispatcharr transcoding load.";
+      };
+    };
+
+  modules.alerting.rules."gpu-engine-stalled" = {
+      type = "promql";
+      alertname = "GpuEngineStalled";
+      expr = ''
+        gpu_engine_busy_percent{engine=~"Video.*"} == 0
+        and
+        max by (hostname)(gpu_engine_busy_percent{engine!~"Video.*"}) > 5
+      '';
+      for = "5m";
+      severity = "medium";
+      labels = { service = "gpu"; category = "hardware"; };
+      annotations = {
+        summary = "GPU engine {{ $labels.engine }} may be stalled on {{ $labels.instance }}";
+        description = "The {{ $labels.engine }} has reported 0% utilization for 5 minutes while other GPU engines are active. This could indicate a driver or hardware issue affecting video transcoding.";
       };
     };
 
@@ -675,15 +704,15 @@ in
   modules.alerting.rules."acme-challenges-failing" = {
     type = "promql";
     alertname = "AcmeChallengesFailing";
-    # Use increase() on the real counter to detect new failures
-    # increase() calculates the total increase over the time range, handling counter resets
-    expr = "increase(caddy_acme_challenges_failed_total[1h]) > 2";
+    # Check for any failures in the last 4 hours
+    # This ensures the alert persists as long as failures have occurred recently
+    expr = "increase(caddy_acme_challenges_failed_total[4h]) > 0";
     for = "5m";
     severity = "high";
     labels = { service = "caddy"; category = "acme"; };
     annotations = {
       summary = "ACME challenges are failing";
-      description = "More than 2 ACME challenge failures detected in the last hour. Check Caddy logs: journalctl -u caddy -n 100 | grep -i acme";
+      description = "ACME challenge failures detected in the last 4 hours. Check Caddy logs: journalctl -u caddy -n 100 | grep -i acme";
     };
   };
 

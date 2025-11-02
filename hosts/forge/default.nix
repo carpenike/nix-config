@@ -1643,16 +1643,19 @@ EOF
         "/run/secrets/rendered/caddy-env"
         "-/run/caddy/monitoring-auth.env"
       ];
+    };
 
-      # Use filesystem ACLs to automatically grant caddy group read access to certificate directories
-      # This eliminates the permission race condition from the periodic timer approach
-      # ACLs ensure new files/directories created by Caddy automatically inherit the correct permissions
-      ExecStartPost = pkgs.writeShellScript "set-caddy-cert-acls" ''
-        #!${pkgs.bash}/bin/bash
+    # Separate service to fix Caddy certificate permissions
+    # Runs on a timer to handle certificates created after Caddy startup
+    systemd.services.fix-caddy-cert-permissions = {
+      description = "Fix Caddy certificate directory permissions";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+        Group = "root";
+      };
+      script = ''
         set -euo pipefail
-
-        # Wait for Caddy to potentially create the certificate directory structure
-        sleep 2
 
         CERT_BASE="/var/lib/caddy/.local/share/caddy/certificates"
 
@@ -1672,6 +1675,17 @@ EOF
           ${pkgs.coreutils}/bin/chmod 750 /var/lib/caddy/.local/share/caddy 2>/dev/null || true
         fi
       '';
+    };
+
+    # Timer to run permission fix periodically (every 5 minutes)
+    systemd.timers.fix-caddy-cert-permissions = {
+      description = "Timer for fixing Caddy certificate permissions";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "2m";
+        OnUnitActiveSec = "5m";
+        Unit = "fix-caddy-cert-permissions.service";
+      };
     };
 
     # Create environment file from SOPS secrets
