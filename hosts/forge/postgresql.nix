@@ -214,17 +214,31 @@
         };
       };
 
-      # Full backup stale (>26 hours)
+      # Backup job failure (immediate)
+      "pgbackrest-backup-failed" = {
+        type = "promql";
+        alertname = "PgBackRestBackupFailed";
+        expr = "increase(pgbackrest_backup_failed_total[1h]) > 0";
+        for = "0m";
+        severity = "critical";
+        labels = { service = "postgresql"; category = "backup"; };
+        annotations = {
+          summary = "pgBackRest backup job failed on {{ $labels.instance }}";
+          description = "A pgBackRest backup job has failed within the last hour. Check pgBackRest logs for details.";
+        };
+      };
+
+      # Full backup stale (>27 hours)
       "pgbackrest-full-backup-stale" = {
         type = "promql";
         alertname = "PgBackRestFullBackupStale";
-        expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"}) > 93600";
+        expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"}) > 97200";
         for = "1h";
         severity = "high";
         labels = { service = "postgresql"; category = "backup"; };
         annotations = {
-          summary = "pgBackRest full backup is stale (>26h) on {{ $labels.instance }}";
-          description = "Last full backup for repo {{ $labels.repo_key }} was {{ $value | humanizeDuration }} ago. Daily full backups should complete within 26 hours.";
+          summary = "pgBackRest full backup is stale (>27h) on {{ $labels.instance }}";
+          description = "Last full backup for repo {{ $labels.repo_key }} was {{ $value | humanizeDuration }} ago. Daily full backups should complete within 27 hours.";
         };
       };
 
@@ -242,17 +256,17 @@
         };
       };
 
-      # WAL archiving stalled (no progress in 15 minutes)
+      # WAL archiving stalled (no progress in 15 minutes while database is active)
       "pgbackrest-wal-archiving-stalled" = {
         type = "promql";
         alertname = "PgBackRestWALArchivingStalled";
-        expr = "rate(pgbackrest_wal_max_lsn[15m]) == 0";
+        expr = "rate(pgbackrest_wal_max_lsn[15m]) == 0 and rate(pg_stat_database_xact_commit[15m]) > 0";
         for = "15m";
         severity = "high";
         labels = { service = "postgresql"; category = "backup"; };
         annotations = {
           summary = "pgBackRest WAL archiving appears stalled on {{ $labels.instance }}";
-          description = "No WAL progress detected in 15 minutes. Check archive_command and NFS mount health.";
+          description = "No WAL progress detected in 15 minutes despite active transactions. Check archive_command and NFS mount health.";
         };
       };
 
@@ -260,6 +274,8 @@
       "pgbackrest-spool-usage-high" = {
         type = "promql";
         alertname = "PgBackRestSpoolUsageHigh";
+        # NOTE: The mountpoint '/var/lib/pgbackrest' is hardcoded and must match the
+        # path defined in systemd.tmpfiles.rules in forge/default.nix (line 1028).
         expr = ''(node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} - node_filesystem_avail_bytes{mountpoint="/var/lib/pgbackrest"}) / node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} > 0.8'';
         for = "10m";
         severity = "high";

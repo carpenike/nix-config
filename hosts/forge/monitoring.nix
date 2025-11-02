@@ -319,16 +319,17 @@ let
 
       # Count ACME failures since Caddy service started (not a sliding window)
       # This creates a proper monotonic counter for use with rate() in Prometheus
+      # Uses --grep for efficient filtering instead of piping full logs through jq
       CADDY_START_TIME=$(${pkgs.systemd}/bin/systemctl show caddy.service --property=ActiveEnterTimestamp --value)
       if [ -n "$CADDY_START_TIME" ] && [ "$CADDY_START_TIME" != "n/a" ]; then
         # Convert systemd timestamp to a format journalctl accepts
         START_TIMESTAMP=$(date -d "$CADDY_START_TIME" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "1 hour ago")
-        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "$START_TIMESTAMP" --no-pager -q -o json | \
-          ${pkgs.jq}/bin/jq -r 'select(.MESSAGE | test("obtaining certificate.*error|challenge failed|acme.*failed"; "i"))' | wc -l)
+        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "$START_TIMESTAMP" --no-pager -q \
+          --grep="obtaining certificate.*error|challenge failed|acme.*failed" --case-sensitive=false | wc -l)
       else
         # Fallback if we can't determine service start time
-        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "1 hour ago" --no-pager -q -o json | \
-          ${pkgs.jq}/bin/jq -r 'select(.MESSAGE | test("obtaining certificate.*error|challenge failed|acme.*failed"; "i"))' | wc -l)
+        CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "1 hour ago" --no-pager -q \
+          --grep="obtaining certificate.*error|challenge failed|acme.*failed" --case-sensitive=false | wc -l)
       fi
 
       echo "caddy_acme_challenges_failed_total ''${CHALLENGES_FAILED}"
@@ -920,7 +921,7 @@ in
   modules.alerting.rules."postgres-too-many-connections" = {
     type = "promql";
     alertname = "PostgresTooManyConnections";
-    expr = "pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80";
+    expr = "sum(pg_stat_database_numbackends) / avg(pg_settings_max_connections) * 100 > 80";
     for = "5m";
     severity = "high";
     labels = { service = "postgresql"; category = "capacity"; };
@@ -956,29 +957,19 @@ in
     };
   };
 
-  modules.alerting.rules."postgres-replication-lag" = {
-    type = "promql";
-    alertname = "PostgresReplicationLag";
-    expr = "pg_replication_lag > 300";
-    for = "5m";
-    severity = "high";
-    labels = { service = "postgresql"; category = "replication"; };
-    annotations = {
-      summary = "PostgreSQL replication lag high on {{ $labels.instance }}";
-      description = "Replication lag is {{ $value }} seconds. Check network and standby performance.";
-    };
-  };
+  # Replication lag alert removed - pg_replication_lag metric doesn't exist in standard postgres_exporter
+  # If replication monitoring is needed, configure postgres_exporter with custom queries
 
-  modules.alerting.rules."postgres-wal-files-high" = {
+  modules.alerting.rules."postgres-wal-archiving-failures" = {
     type = "promql";
-    alertname = "PostgresWalFilesHigh";
-    expr = "pg_stat_archiver_archived_count - pg_stat_archiver_failed_count < 100";
+    alertname = "PostgresWalArchivingFailures";
+    expr = "increase(pg_stat_archiver_failed_count[15m]) > 0";
     for = "15m";
-    severity = "medium";
+    severity = "high";
     labels = { service = "postgresql"; category = "archiving"; };
     annotations = {
-      summary = "PostgreSQL WAL archiving falling behind on {{ $labels.instance }}";
-      description = "WAL archiving is not keeping up. Check archive destination and performance.";
+      summary = "PostgreSQL WAL archiving failures on {{ $labels.instance }}";
+      description = "WAL archiving has failed {{ $value }} times in the last 15 minutes. Check archive_command and destination.";
     };
   };
 

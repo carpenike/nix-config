@@ -1241,11 +1241,27 @@ EOF
               exit 2
             fi
 
+            # Separate connection check from recovery status check for clearer diagnostics
+            if ! psql -Atqc "SELECT 1;" >/dev/null 2>&1; then
+              log_json "ERROR" "connection_failed" "Cannot connect to PostgreSQL - service may not be running" "{\"reason\":\"connection_failed\"}"
+              exit 3
+            fi
+
             # Check if PostgreSQL is still in recovery mode
-            in_recovery=$(psql -Atqc "SELECT pg_is_in_recovery();" 2>/dev/null || echo "t")
+            in_recovery=$(psql -Atqc "SELECT pg_is_in_recovery();" 2>/dev/null)
+            if [ $? -ne 0 ]; then
+              log_json "ERROR" "query_failed" "Failed to query recovery status" "{\"reason\":\"query_failed\"}"
+              exit 3
+            fi
+
             if [ "$in_recovery" = "f" ]; then
               # Verify the database is writable (not read-only)
-              read_only=$(psql -Atqc "SHOW default_transaction_read_only;" 2>/dev/null || echo "on")
+              read_only=$(psql -Atqc "SHOW default_transaction_read_only;" 2>/dev/null)
+              if [ $? -ne 0 ]; then
+                log_json "ERROR" "query_failed" "Failed to query transaction mode" "{\"reason\":\"query_failed\"}"
+                exit 3
+              fi
+
               if [ "$read_only" = "off" ]; then
                 log_json "INFO" "promotion_complete" "PostgreSQL recovery completed successfully" "{\"in_recovery\":false,\"read_only\":false}"
                 break
@@ -1590,35 +1606,31 @@ EOF
             echo "pgbackrest_wal_max_lsn{stanza=\"main\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
         fi
 
-        # Per-repo and per-backup-type metrics
-        echo "$STANZA_JSON" | jq -c '.repo[]' | while read -r repo_json; do
-          REPO_KEY=$(echo "$repo_json" | jq '.key')
+        # Per-repo and per-backup-type metrics using a single, efficient jq command
+        echo "$STANZA_JSON" | jq -r '
+          # First emit repo status metrics for all repos
+          (.repo[] |
+            "pgbackrest_repo_status{stanza=\"main\",repo_key=\(.key)} \(.status.code)"
+          ),
+          # Then process backups - group by repo and type to find latest of each
+          ([.backup[] | select((.type | test("full|incr")) and (.error // null) == null)] |
+            group_by(.database["repo-key"], .type)[] |
+            sort_by(.timestamp.start) | .[-1] |
+            (
+              "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=\(.database["repo-key"]),type=\"\(.type)\"} \(.timestamp.stop)",
+              "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=\(.database["repo-key"]),type=\"\(.type)\"} \(.timestamp.stop - .timestamp.start)",
+              "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=\(.database["repo-key"]),type=\"\(.type)\"} \(.info.size)",
+              "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=\(.database["repo-key"]),type=\"\(.type)\"} \(.info.delta)",
+              "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=\(.database["repo-key"]),type=\"\(.type)\"} \(.info.repository.size)"
+            )
+          )
+        ' >> "$METRICS_TEMP"
 
-          REPO_STATUS=$(echo "$repo_json" | jq '.status.code')
-          echo "pgbackrest_repo_status{stanza=\"main\",repo_key=$REPO_KEY} $REPO_STATUS" >> "$METRICS_TEMP"
-
-          for backup_type in full diff incr; do
-            LAST_BACKUP_JSON=$(echo "$STANZA_JSON" | jq \
-              --argjson repo_key "$REPO_KEY" \
-              --arg backup_type "$backup_type" \
-              '[.backup[] | select(.database["repo-key"] == $repo_key and .type == $backup_type and .error == false)] | sort_by(.timestamp.start) | .[-1] // empty')
-
-            if [ -n "$LAST_BACKUP_JSON" ] && [ "$LAST_BACKUP_JSON" != "null" ]; then
-              LAST_COMPLETION=$(echo "$LAST_BACKUP_JSON" | jq '.timestamp.stop')
-              START_TIME=$(echo "$LAST_BACKUP_JSON" | jq '.timestamp.start')
-              DURATION=$((LAST_COMPLETION - START_TIME))
-              DB_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.size')
-              DELTA_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.delta')
-              REPO_SIZE=$(echo "$LAST_BACKUP_JSON" | jq '.info.repository.size')
-
-              echo "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $LAST_COMPLETION" >> "$METRICS_TEMP"
-              echo "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $DURATION" >> "$METRICS_TEMP"
-              echo "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $DB_SIZE" >> "$METRICS_TEMP"
-              echo "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $DELTA_SIZE" >> "$METRICS_TEMP"
-              echo "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=$REPO_KEY,type=\"$backup_type\"} $REPO_SIZE" >> "$METRICS_TEMP"
-            fi
-          done
-        done
+        # Count failed backups
+        # HELP pgbackrest_backup_failed_total Total number of failed backups found in the last info scrape.
+        # TYPE pgbackrest_backup_failed_total counter
+        FAILED_COUNT=$(echo "$STANZA_JSON" | jq '[.backup[] | select(.error == true)] | length')
+        echo "pgbackrest_backup_failed_total{stanza=\"main\"} $FAILED_COUNT" >> "$METRICS_TEMP"
 
         # Atomically replace the old metrics file
         mv "$METRICS_TEMP" "$METRICS_FILE"
