@@ -170,6 +170,25 @@
       environmentFile = config.sops.secrets."restic/r2-prod-env".path;
     };
 
+    # Override preseed service to include repo2 configuration for disaster recovery
+    # repo2 is not in /etc/pgbackrest.conf (removed to fix WAL archiving issue)
+    # but is needed for preseed fallback when nas-1 is unavailable (site-wide failure)
+    # NOTE: This mirrors repo2EnvVars from default.nix - keep in sync!
+    # TODO: Consider extracting to shared module if more services need this
+    systemd.services.postgresql-preseed = {
+      serviceConfig = {
+        # pgBackRest repo2 configuration via environment variables
+        Environment = [
+          "PGBACKREST_REPO2_TYPE=s3"
+          "PGBACKREST_REPO2_PATH=/forge-pgbackrest"
+          "PGBACKREST_REPO2_S3_BUCKET=nix-homelab-prod-servers"
+          "PGBACKREST_REPO2_S3_ENDPOINT=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com"
+          "PGBACKREST_REPO2_S3_REGION=auto"
+          "PGBACKREST_REPO2_S3_URI_STYLE=path"
+        ];
+      };
+    };
+
     # Co-located alert rules for PostgreSQL and pgBackRest
     # These rules are automatically enabled when PostgreSQL is enabled
     # and are aggregated by the alerting module into Prometheus rule files

@@ -7,6 +7,28 @@
 }:
 let
   ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
+
+  # Centralized repo2 (R2/S3) configuration - Single Source of Truth
+  # repo2 is NOT in /etc/pgbackrest.conf to prevent archive_command from requiring S3 credentials
+  # but IS needed for backup services and disaster recovery preseed
+  repo2Flags = lib.concatStringsSep " " [
+    "--repo2-type=s3"
+    "--repo2-path=/forge-pgbackrest"
+    "--repo2-s3-bucket=nix-homelab-prod-servers"
+    "--repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com"
+    "--repo2-s3-region=auto"
+    "--repo2-s3-uri-style=path"
+  ];
+
+  # Environment variables for preseed service (pgBackRest auto-reads these)
+  repo2EnvVars = [
+    "PGBACKREST_REPO2_TYPE=s3"
+    "PGBACKREST_REPO2_PATH=/forge-pgbackrest"
+    "PGBACKREST_REPO2_S3_BUCKET=nix-homelab-prod-servers"
+    "PGBACKREST_REPO2_S3_ENDPOINT=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com"
+    "PGBACKREST_REPO2_S3_REGION=auto"
+    "PGBACKREST_REPO2_S3_URI_STYLE=path"
+  ];
 in
 {
   imports = [
@@ -1056,6 +1078,7 @@ in
     ];
 
     # pgBackRest systemd services
+    # Note: repo2 configuration defined in top-level let block as repo2Flags and repo2EnvVars
     systemd.services = {
       # Stanza creation (runs once at setup)
       pgbackrest-stanza-create = {
@@ -1079,10 +1102,8 @@ in
         script = ''
           set -euo pipefail
 
-          # Define repo2 configuration via command-line flags (not in /etc/pgbackrest.conf)
-          # This prevents archive_command from requiring S3 credentials
-          # Note: retention settings are NOT valid for stanza-create/upgrade, only for backup commands
-          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+          # Use centralized repo2 configuration (defined in top-level let block)
+          REPO2_FLAGS="${repo2Flags}"
 
           # Directory is managed by systemd.tmpfiles.rules
           # This service handles three scenarios:
@@ -1336,8 +1357,8 @@ EOF
           cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
           log_json "INFO" "system_id_check" "Checking for existing backups for current system-id." "{\"system_id\":\"$cur_sysid\"}"
 
-          # Define repo2 configuration via command-line flags
-          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+          # Use centralized repo2 configuration
+          REPO2_FLAGS="${repo2Flags}"
 
           # Transform AWS env vars to pgBackRest format for repo2 operations
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
@@ -1466,8 +1487,8 @@ EOF
         script = ''
           set -euo pipefail
 
-          # Define repo2 configuration via command-line flags
-          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+          # Use centralized repo2 configuration
+          REPO2_FLAGS="${repo2Flags}"
 
           # Transform AWS env vars to pgBackRest format
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
@@ -1505,8 +1526,8 @@ EOF
         script = ''
           set -euo pipefail
 
-          # Define repo2 configuration via command-line flags
-          REPO2_FLAGS="--repo2-type=s3 --repo2-path=/forge-pgbackrest --repo2-s3-bucket=nix-homelab-prod-servers --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com --repo2-s3-region=auto --repo2-s3-uri-style=path"
+          # Use centralized repo2 configuration
+          REPO2_FLAGS="${repo2Flags}"
 
           # Transform AWS env vars to pgBackRest format
           export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
@@ -1673,13 +1694,7 @@ HEADER3
         # Run pgbackrest info, capturing JSON. Timeout prevents hangs on network issues.
         # Pass repo2 config via flags since it's not in global config
         # Credentials are provided via environment variables (see EnvironmentFile)
-        INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json \
-          --repo2-type=s3 \
-          --repo2-path=/forge-pgbackrest \
-          --repo2-s3-bucket=nix-homelab-prod-servers \
-          --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-          --repo2-s3-region=auto \
-          info 2>&1)
+        INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json ${repo2Flags} info 2>&1)
 
         # Exit gracefully if command fails or returns empty/invalid JSON
         if ! echo "$INFO_JSON" | jq -e '.[0].name == "main"' > /dev/null; then
