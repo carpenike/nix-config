@@ -5,6 +5,8 @@ set -euo pipefail
 # Triggers all backup systems (Sanoid, Syncoid, Restic, pgBackRest) before major deployments
 # Version: 2.0 (incorporating Gemini Pro critical feedback)
 
+# shellcheck disable=SC2034  # Variables accessed via eval in array_size() function appear unused
+
 # Color output for better readability
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,7 +37,8 @@ check_disk_space() {
     local path=$1
     local required=$2
     # BUG FIX #3: Use --output=avail to avoid issues with spaces in mount point names
-    local available=$(df -BG --output=avail "$path" | tail -1 | sed 's/G//' | tr -d ' ')
+    local available
+    available=$(df -BG --output=avail "$path" | tail -1 | sed 's/G//' | tr -d ' ')
 
     if [ "$available" -lt "$required" ]; then
         return 1
@@ -71,7 +74,30 @@ declare -A skipped_services
 declare -a syncoid_services
 declare -a restic_services
 
+# Helper function to safely get associative array size (works with empty arrays under set -u)
+# Returns 0 for empty/unset arrays, actual count otherwise
+array_size() {
+    local array_name=$1
+    # Temporarily disable 'unbound variable' check for empty array access
+    set +u
+    eval "local size=\${#${array_name}[@]}"
+    set -u
+    echo "${size:-0}"
+}
+
+# Helper function to check if key exists in associative array (works with set -u)
+# Returns 0 (true) if key exists, 1 (false) otherwise
+array_has_key() {
+    local array_name=$1
+    local key=$2
+    set +u
+    eval "local value=\${${array_name}[$key]}"
+    set -u
+    [ -n "$value" ]
+}
+
 # Cleanup trap for interrupt handling (defined early, before main execution)
+# shellcheck disable=SC2317  # Function invoked via trap, not directly
 cleanup() {
     log_warn "Interrupted! Attempting to stop running backup services..."
 
@@ -286,12 +312,14 @@ else
         done
 
         # BUG FIX #5: Check result only if not timed out (already present, but adding comment)
-        if [ -z "${timeout_services[sanoid.service]}" ]; then
+        if ! array_has_key timeout_services "sanoid.service"; then
             result=$(systemctl show -p Result --value sanoid.service)
             if [ "$result" != "success" ]; then
                 log_warn "sanoid.service failed with result: $result (continuing with existing snapshots)"
+                # shellcheck disable=SC2034  # Used via eval in array_size()
                 failed_services["sanoid.service"]="$result"
             else
+                # shellcheck disable=SC2034  # Used via eval in array_size()
                 success_services["sanoid.service"]=1
                 log_info "Stage 1 complete: Sanoid snapshots created successfully"
             fi
@@ -340,11 +368,11 @@ else
     timeout=1800  # 30 minutes per service
     for service in "${syncoid_services[@]}"; do
         # Skip if already marked as skipped
-        if [ -n "${skipped_services[$service]}" ]; then
+        if array_has_key skipped_services "$service"; then
             continue
         fi
         # Skip if it was skipped earlier
-        if [ -n "${skipped_services[$service]}" ]; then
+        if array_has_key skipped_services "$service"; then
             continue
         fi
 
@@ -361,7 +389,7 @@ else
         done
 
         # Check result if not timed out
-        if [ -z "${timeout_services[$service]}" ]; then
+        if ! array_has_key timeout_services "$service"; then
             result=$(systemctl show -p Result --value "$service")
             if [ "$result" != "success" ]; then
                 log_warn "$service failed with result: $result"
@@ -417,7 +445,7 @@ else
         done
 
         # Check result
-        if [ -z "${timeout_services[$pgbackrest_service]}" ]; then
+        if ! array_has_key timeout_services "$pgbackrest_service"; then
             result=$(systemctl show -p Result --value "$pgbackrest_service")
             if [ "$result" != "success" ]; then
                 log_warn "$pgbackrest_service failed with result: $result"
@@ -469,7 +497,7 @@ else
         while [ ${#active_services[@]} -ge $concurrent_limit ]; do
             # Check which services have completed
             # BUG FIX #10: More robust array reindexing
-            local temp=()
+            temp=()
             for svc in "${active_services[@]}"; do
                 if systemctl is-active --quiet "$svc"; then
                     temp+=("$svc")
@@ -491,7 +519,7 @@ else
     timeout=2700  # 45 minutes per service
     for service in "${restic_services[@]}"; do
         # Skip if it was skipped earlier
-        if [ -n "${skipped_services[$service]}" ]; then
+        if array_has_key skipped_services "$service"; then
             continue
         fi
 
@@ -508,7 +536,7 @@ else
         done
 
         # Check result if not timed out
-        if [ -z "${timeout_services[$service]}" ]; then
+        if ! array_has_key timeout_services "$service"; then
             result=$(systemctl show -p Result --value "$service")
             if [ "$result" != "success" ]; then
                 log_warn "$service failed with result: $result"
@@ -530,14 +558,16 @@ if [ "$QUIET" = false ]; then
     log_info "========================================"
 fi
 
-total_attempted=$((${#success_services[@]} + ${#failed_services[@]} + ${#timeout_services[@]} + ${#skipped_services[@]}))
-total_executed=$((${#success_services[@]} + ${#failed_services[@]} + ${#timeout_services[@]}))
-total_failures=$((${#failed_services[@]} + ${#timeout_services[@]}))
+# Handle empty arrays in dry-run mode (set -u compatible)
+total_attempted=$(( $(array_size success_services) + $(array_size failed_services) + $(array_size timeout_services) + $(array_size skipped_services) ))
+total_executed=$(( $(array_size success_services) + $(array_size failed_services) + $(array_size timeout_services) ))
+total_failures=$(( $(array_size failed_services) + $(array_size timeout_services) ))
 
 # BUG FIX #9: Check if any services actually ran (prevent false success)
-if [ $total_executed -eq 0 ]; then
+# Skip this check in dry-run mode where zero executions are expected
+if [ $total_executed -eq 0 ] && [ "$DRY_RUN" = false ]; then
     if [ "$QUIET" = false ]; then
-        log_error "No backups were executed (all ${#skipped_services[@]} services already running)"
+        log_error "No backups were executed (all $(array_size skipped_services) services already running)"
         log_error "This could indicate timer conflicts - check systemd timers"
     fi
     exit 2  # Critical failure
@@ -550,7 +580,7 @@ fi
 
 # BUG FIX #11: Calculate exit code cleanly before using it
 exit_code=1  # Default: partial failure
-if [ ${#failed_services[@]} -eq 0 ] && [ ${#timeout_services[@]} -eq 0 ]; then
+if [ "$(array_size failed_services)" -eq 0 ] && [ "$(array_size timeout_services)" -eq 0 ]; then
     exit_code=0  # All successful
 elif [ $failure_rate -gt 50 ]; then
     exit_code=2  # Critical failure (>50%)
@@ -562,10 +592,10 @@ if [ "$JSON_OUTPUT" = true ]; then
     cat << EOF
 {
   "total_services": $total_attempted,
-  "successful": ${#success_services[@]},
-  "failed": ${#failed_services[@]},
-  "timed_out": ${#timeout_services[@]},
-  "skipped": ${#skipped_services[@]},
+  "successful": $(array_size success_services),
+  "failed": $(array_size failed_services),
+  "timed_out": $(array_size timeout_services),
+  "skipped": $(array_size skipped_services),
   "failure_rate_percent": $failure_rate,
   "exit_code": $exit_code
 }
@@ -576,12 +606,12 @@ fi
 # Human-readable output
 if [ "$QUIET" = false ]; then
     log_info "Total services: $total_attempted"
-    log_info "Successful: ${#success_services[@]}"
-    log_info "Failed: ${#failed_services[@]}"
-    log_info "Timed out: ${#timeout_services[@]}"
-    log_info "Skipped (already running): ${#skipped_services[@]}"
+    log_info "Successful: $(array_size success_services)"
+    log_info "Failed: $(array_size failed_services)"
+    log_info "Timed out: $(array_size timeout_services)"
+    log_info "Skipped (already running): $(array_size skipped_services)"
 
-    if [ ${#skipped_services[@]} -gt 0 ]; then
+    if [ "$(array_size skipped_services)" -gt 0 ]; then
         echo ""
         log_warn "Skipped services (already running from timers):"
         for service in "${!skipped_services[@]}"; do
@@ -589,7 +619,7 @@ if [ "$QUIET" = false ]; then
         done
     fi
 
-    if [ ${#failed_services[@]} -gt 0 ]; then
+    if [ "$(array_size failed_services)" -gt 0 ]; then
         echo ""
         log_error "Failed services:"
         for service in "${!failed_services[@]}"; do
@@ -597,7 +627,7 @@ if [ "$QUIET" = false ]; then
         done
     fi
 
-    if [ ${#timeout_services[@]} -gt 0 ]; then
+    if [ "$(array_size timeout_services)" -gt 0 ]; then
         echo ""
         log_error "Timed out services:"
         for service in "${!timeout_services[@]}"; do

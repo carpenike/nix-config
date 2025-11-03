@@ -13,6 +13,9 @@ pkgs.writeShellApplication {
 
   text = builtins.readFile ./backup-orchestrator.sh;
 
+  # Exclude SC2034 (unused variable) - arrays are used via eval in array_size()
+  excludeShellChecks = [ "SC2034" ];
+
   meta = with lib; {
     description = "Pre-deployment backup orchestrator for NixOS homelab";
     longDescription = ''
