@@ -3,6 +3,9 @@
 version: "3"
 
 includes:
+  backup:
+    taskfile: ".taskfiles/backup"
+    dir: "{{.ROOT_DIR}}"
   sops:
     taskfile: ".taskfiles/sops"
     dir: .taskfiles/sops

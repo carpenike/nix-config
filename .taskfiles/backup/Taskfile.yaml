@@ -1,0 +1,117 @@
+---
+version: "3"
+
+tasks:
+  orchestrate:
+    desc: Trigger all backup systems before deployment
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Triggers all backup systems (Sanoid, Syncoid, Restic, pgBackRest) on the
+      specified host before deployment. This is a safety measure to ensure you
+      have recent backups before making major system changes.
+
+      Args:
+        host: Target host (default: forge)
+        NIXOS_DOMAIN: Domain suffix (default: holthome.net)
+
+      What it does:
+        - Stage 0: Pre-flight checks (disk space validation)
+        - Stage 1: Creates ZFS snapshots (Sanoid)
+        - Stage 2: Replicates to NAS (Syncoid - parallel)
+        - Stage 3a: PostgreSQL full backup (pgBackRest - sequential)
+        - Stage 3b: Application backups (Restic - limited parallel)
+        - Stage 4: Verification and reporting
+
+      Expected duration: 30-90 minutes
+
+      Exit codes:
+        0 = All backups completed successfully
+        1 = Partial failure (<50%) - acceptable for deployment
+        2 = Critical failure (>50%) - DO NOT deploy
+
+      Examples:
+        task backup:orchestrate
+        task backup:orchestrate host=forge
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo backup-orchestrator"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: ssh {{.host}}.{{.NIXOS_DOMAIN}} "which backup-orchestrator" 2>/dev/null
+        msg: |
+          backup-orchestrator not installed on {{.host}}.{{.NIXOS_DOMAIN}}
+
+          Please deploy the package first:
+            task nix:apply-nixos host={{.host}}
+
+  orchestrate-dry-run:
+    desc: Preview backup orchestration without executing
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Dry-run mode shows what would be executed without actually running any backups.
+      Useful for validating service discovery and checking which backups would trigger.
+
+      Args:
+        host: Target host (default: forge)
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo backup-orchestrator --dry-run"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: ssh {{.host}}.{{.NIXOS_DOMAIN}} "which backup-orchestrator" 2>/dev/null
+        msg: "backup-orchestrator not installed on {{.host}}.{{.NIXOS_DOMAIN}}"
+
+  orchestrate-verbose:
+    desc: Trigger backups with detailed progress output
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Verbose mode provides detailed progress information including:
+        - Individual service status updates
+        - Timing information
+        - Debug logging
+
+      Useful for troubleshooting or monitoring long-running backups.
+
+      Args:
+        host: Target host (default: forge)
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo backup-orchestrator --verbose"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: ssh {{.host}}.{{.NIXOS_DOMAIN}} "which backup-orchestrator" 2>/dev/null
+        msg: "backup-orchestrator not installed on {{.host}}.{{.NIXOS_DOMAIN}}"
+
+  orchestrate-automated:
+    desc: Trigger backups without prompts (for automation/CI)
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Automated mode skips all confirmation prompts and runs backups immediately.
+      Returns JSON output for parsing by monitoring systems.
+
+      Intended for:
+        - CI/CD pipelines
+        - Automated deployment workflows
+        - Monitoring/alerting integrations
+
+      Args:
+        host: Target host (default: forge)
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo backup-orchestrator --yes --json"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: ssh {{.host}}.{{.NIXOS_DOMAIN}} "which backup-orchestrator" 2>/dev/null
+        msg: "backup-orchestrator not installed on {{.host}}.{{.NIXOS_DOMAIN}}"
