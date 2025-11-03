@@ -894,6 +894,12 @@ in
         # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
         nfsMountDependency = "media";  # Use shared NFS mount and auto-configure mediaDir
         healthcheck.enable = true;  # Enable container health monitoring
+
+        # Reverse proxy configuration for external access
+        reverseProxy = {
+          enable = true;
+          hostName = "sonarr.holthome.net";
+        };
         backup = {
           enable = true;
           repository = "nas-primary";  # Primary NFS backup repository
