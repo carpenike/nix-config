@@ -115,7 +115,7 @@ tasks:
         msg: "nix not found"
 
   remote-install:
-    desc: Remotely format disks and install NixOS bootstrap
+    desc: Remotely format disks and install NixOS bootstrap (or recover from backup)
     silent: true
     summary: |
       Performs complete remote NixOS installation including disk formatting.
@@ -125,18 +125,22 @@ tasks:
         host: Target hostname (required)
         ssh_user: SSH user for LiveCD (default: nixos)
         NIXOS_DOMAIN: Domain suffix (default: holthome.net)
+        RECOVER: Enable disaster recovery mode - restore system datasets from nas-1 (default: false)
 
       Examples:
         task bootstrap:remote-install host=forge
         task bootstrap:remote-install host=luna ssh_user=nixos
+        task bootstrap:remote-install host=forge RECOVER=true  # Disaster recovery
 
       Prerequisites:
         - LiveCD booted on target system
         - SSH password set: sudo passwd nixos
         - Network connectivity established
+        - For RECOVER=true: SSH agent running with nas-1 key loaded
     vars:
       ssh_user: '{{.ssh_user | default "nixos"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      RECOVER: '{{.RECOVER | default "false"}}'
       fqdn:
         sh: 'echo "{{.host}}.{{.NIXOS_DOMAIN}}"'
     requires:
@@ -169,19 +173,50 @@ tasks:
         echo "✅ Disk formatting completed" >&2
         echo "" >&2
 
-        # Step 2: Install NixOS
-        echo "📡 Step 2/3: Installing NixOS bootstrap..." >&2
+        # Step 1.5: Conditional disaster recovery preseed restoration
+        if [ "{{.RECOVER}}" = "true" ]; then
+          echo "🔄 Step 1.5/4: Restoring datasets from nas-1 (DISASTER RECOVERY MODE)..." >&2
+          echo "  Using SSH agent forwarding for authentication" >&2
+
+          # Use SSH agent forwarding (-A) to authenticate to nas-1 without exposing keys
+          ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "{{.ssh_user}}@{{.fqdn}}" \
+            'set -euo pipefail
+             echo "📡 Adding nas-1 to known_hosts..."
+             ssh-keyscan -H nas-1 >> ~/.ssh/known_hosts 2>/dev/null || true
+
+             echo "💾 Restoring system datasets..."
+             echo "  → rpool/safe/persist (SSH keys, SOPS secrets, system state)"
+             syncoid -r --no-sync-snap \
+               ryan@nas-1:rpool/backup/{{.host}}/persist \
+               root@localhost:rpool/safe/persist
+
+             echo "  → rpool/safe/home (user data)"
+             syncoid -r --no-sync-snap \
+               ryan@nas-1:rpool/backup/{{.host}}/home \
+               root@localhost:rpool/safe/home
+
+             echo ""
+             echo "ℹ️  Service datasets will be restored automatically by preseed services on first boot"
+             echo "✅ System dataset restoration completed"'
+
+          echo "✅ Preseed restoration completed" >&2
+          echo "" >&2
+        fi
+
+        # Step 2: Always install nixos-bootstrap (never full config during install)
+        echo "📡 Step 2/4: Installing NixOS bootstrap..." >&2
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
           "{{.ssh_user}}@{{.fqdn}}" \
           'set -euo pipefail
-           echo "🔧 Installing NixOS bootstrap configuration..."
+           echo "🔧 Installing minimal NixOS bootstrap configuration..."
            sudo nixos-install --flake github:carpenike/nix-config#nixos-bootstrap --root /mnt --no-root-password'
 
         echo "✅ NixOS installation completed" >&2
         echo "" >&2
 
         # Step 3: Reboot
-        echo "📡 Step 3/3: Rebooting to installed system..." >&2
+        echo "📡 Step 3/4: Rebooting to installed system..." >&2
         echo "🔄 Initiating reboot (connection will drop)..." >&2
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
           "{{.ssh_user}}@{{.fqdn}}" \
@@ -190,11 +225,28 @@ tasks:
         echo "" >&2
         echo "✅ Remote installation completed!" >&2
         echo "" >&2
-        echo "📝 Next steps:" >&2
-        echo "  1. Wait for system to reboot (~2-3 minutes)" >&2
-        echo "  2. Extract SSH key: task bootstrap:extract-ssh-key host={{.host}}" >&2
-        echo "  3. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt" >&2
-        echo "  4. Deploy full config: task nix:apply-nixos host={{.host}}" >&2
+
+        if [ "{{.RECOVER}}" = "true" ]; then
+          echo "🎉 DISASTER RECOVERY MODE - Datasets restored from backup!" >&2
+          echo "" >&2
+          echo "📝 Next steps:" >&2
+          echo "  1. Wait for system to reboot (~2-3 minutes)" >&2
+          echo "  2. ⚠️  NO SSH key extraction needed (keys restored from backup)" >&2
+          echo "  3. Deploy full config: task nix:apply-nixos host={{.host}}" >&2
+          echo "  4. Verify restoration: ssh ryan@{{.fqdn}}" >&2
+          echo "  5. Check services: systemctl status" >&2
+          echo "" >&2
+          echo "ℹ️  After reboot:" >&2
+          echo "    - Impermanence will activate (/persist → /etc/ssh bind mounts)" >&2
+          echo "    - Full config deployment will decrypt secrets with restored keys" >&2
+          echo "    - Services will start with restored data" >&2
+        else
+          echo "📝 Next steps:" >&2
+          echo "  1. Wait for system to reboot (~2-3 minutes)" >&2
+          echo "  2. Extract SSH key: task bootstrap:extract-ssh-key host={{.host}}" >&2
+          echo "  3. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt" >&2
+          echo "  4. Deploy full config: task nix:apply-nixos host={{.host}}" >&2
+        fi
         echo "" >&2
     preconditions:
       - sh: which ssh
@@ -211,12 +263,24 @@ tasks:
         echo ""
         echo "📚 Full documentation: docs/bootstrap-quickstart.md"
         echo ""
-        echo "⚡ Remote workflow (recommended - from your Mac):"
+        echo "⚡ Remote workflow for NEW HOSTS (from your Mac):"
         echo "  1. Boot LiveCD on target, set password: sudo passwd nixos"
         echo "  2. Remote install: task bootstrap:remote-install host=HOSTNAME"
         echo "  3. Extract SSH key: task bootstrap:extract-ssh-key host=HOSTNAME"
         echo "  4. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt"
         echo "  5. Deploy full config: task nix:apply-nixos host=HOSTNAME"
+        echo ""
+        echo "🔄 DISASTER RECOVERY workflow (restore from nas-1 backup):"
+        echo "  1. Boot LiveCD on target, set password: sudo passwd nixos"
+        echo "  2. Ensure SSH agent has nas-1 key: ssh-add -l"
+        echo "  3. Remote install with recovery: task bootstrap:remote-install host=HOSTNAME RECOVER=true"
+        echo "     (Restores: persist + home from nas-1; services auto-restore on boot)"
+        echo "  4. Wait for reboot, then deploy full config: task nix:apply-nixos host=HOSTNAME"
+        echo "  5. Verify restoration: ssh ryan@HOSTNAME.holthome.net"
+        echo ""
+        echo "  ℹ️  DR uses two-phase bootstrap (same as new host):"
+        echo "      Phase 1: Install nixos-bootstrap (activates impermanence on first boot)"
+        echo "      Phase 2: Deploy full config (SOPS works with restored SSH keys)"
         echo ""
         echo "⚙️  Manual workflow (if you prefer local install):"
         echo "  1. Boot LiveCD, set password: sudo passwd nixos"
