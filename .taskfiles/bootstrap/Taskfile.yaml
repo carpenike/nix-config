@@ -182,19 +182,28 @@ tasks:
           ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "{{.ssh_user}}@{{.fqdn}}" \
             'set -euo pipefail
-             echo "📡 Adding nas-1 to known_hosts..."
-             ssh-keyscan -H nas-1 >> ~/.ssh/known_hosts 2>/dev/null || true
+             echo "� Installing syncoid (required for dataset restoration)..."
+             nix-shell -p sanoid --run "echo syncoid available"
+
+             echo " Setting up SSH known_hosts for root..."
+             # Root needs to know nas-1 host key (syncoid runs as root)
+             sudo mkdir -p /root/.ssh
+             sudo sh -c "ssh-keyscan -H nas-1 >> /root/.ssh/known_hosts 2>/dev/null || true"
 
              echo "💾 Restoring system datasets..."
              echo "  → rpool/safe/persist (SSH keys, SOPS secrets, system state)"
-             syncoid -r --no-sync-snap \
-               ryan@nas-1:rpool/backup/{{.host}}/persist \
-               root@localhost:rpool/safe/persist
+             # Run syncoid as root with SSH agent forwarding (-E preserves SSH_AUTH_SOCK)
+             # Source: ryan@nas-1 (uses your forwarded SSH key)
+             # Destination: local dataset (no SSH needed)
+             # --force-delete: Allow overwriting empty datasets created by disko
+             sudo -E nix-shell -p sanoid --run "syncoid -r --no-sync-snap --force-delete \
+               ryan@nas-1:backup/{{.host}}/zfs-recv/persist \
+               rpool/safe/persist"
 
              echo "  → rpool/safe/home (user data)"
-             syncoid -r --no-sync-snap \
-               ryan@nas-1:rpool/backup/{{.host}}/home \
-               root@localhost:rpool/safe/home
+             sudo -E nix-shell -p sanoid --run "syncoid -r --no-sync-snap --force-delete \
+               ryan@nas-1:backup/{{.host}}/zfs-recv/home \
+               rpool/safe/home"
 
              echo ""
              echo "ℹ️  Service datasets will be restored automatically by preseed services on first boot"

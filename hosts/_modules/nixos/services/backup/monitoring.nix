@@ -249,8 +249,8 @@ in {
         labels = { service = "backup"; category = "restic"; };
         annotations = {
           summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
-          description = "Restic backup job failed for repository: {{ $labels.repository }}. Check systemd logs for errors.";
-          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2 hours ago'";
+          description = "Backup to {{ $labels.repository }} failed. Immediate investigation required.";
+          command = "systemctl status restic-backups-{{ $labels.backup_job }}.service && journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
         };
       };
 
@@ -263,9 +263,9 @@ in {
         severity = "high";
         labels = { service = "backup"; category = "restic"; };
         annotations = {
-          summary = "Restic backup job {{ $labels.backup_job }} is stale on {{ $labels.hostname }}";
-          description = "No successful Restic backup in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours for repository: {{ $labels.repository }}";
-          command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '24 hours ago'";
+          summary = "Restic backup job {{ $labels.backup_job }} hasn't run in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours on {{ $labels.hostname }}";
+          description = "Last successful backup: {{ $value | humanizeDuration }} ago. Check timer status and scheduling.";
+          command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer && systemctl list-timers restic-backups-{{ $labels.backup_job }}.timer";
         };
       };
 

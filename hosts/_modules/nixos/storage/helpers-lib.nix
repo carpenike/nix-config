@@ -182,13 +182,19 @@ EOF
             FRIENDLY_LOGICAL=$("$NUMFMT" --to=iec "$DATASET_LOGICAL_BYTES" 2>/dev/null || echo "$DATASET_LOGICAL_BYTES")
             echo "Target dataset ${dataset} exists with $SNAPSHOT_COUNT snapshots (used: $DATASET_USED, logical: $FRIENDLY_LOGICAL)"
 
-            # Only destroy if dataset has no snapshots AND is essentially empty (< 1MB logical)
-            # SAFETY: Use conservative 1MB threshold on LOGICAL size to protect against race conditions where:
-            # - New service creates data but no snapshot exists yet (first sanoid run is hourly)
-            # - Service restarts before first snapshot, preseed runs again
-            # - Compression/dedup makes physical size misleading (10MB data might show as 1MB used)
-            # Original syncoid check was 64MB physical, we use 1MB logical for maximum safety
-            if [ "$SNAPSHOT_COUNT" -eq 0 ] && [ "$DATASET_LOGICAL_BYTES" -lt 1048576 ]; then
+            # CRITICAL: During disaster recovery, if mountpoint is empty but dataset exists with no snapshots,
+            # destroy it regardless of size. This handles the case where the storage module created an empty
+            # dataset before preseed ran. In this scenario, the dataset has no user data (mountpoint empty)
+            # but may have filesystem overhead that exceeds our normal 1MB threshold.
+            #
+            # Normal operation: Use conservative 1MB threshold to protect against race conditions
+            # DR operation (empty mountpoint + no snapshots): Always destroy to allow syncoid initial replication
+            MOUNTPOINT_EMPTY=$([ -z "$(ls -A "${mountpoint}" 2>/dev/null)" ] && echo "true" || echo "false")
+
+            # Only destroy if dataset has no snapshots AND either:
+            # 1. Mountpoint is empty (disaster recovery scenario), OR
+            # 2. Dataset is < 1MB logical (normal safety threshold)
+            if [ "$SNAPSHOT_COUNT" -eq 0 ] && { [ "$MOUNTPOINT_EMPTY" = "true" ] || [ "$DATASET_LOGICAL_BYTES" -lt 1048576 ]; }; then
               # Double-check immediately before destroy to avoid racing with sanoid
               SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
               RESUME_TOKEN=$("$ZFS" get -H -o value receive_resume_token "${dataset}" 2>/dev/null || echo "-")

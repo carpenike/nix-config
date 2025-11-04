@@ -518,39 +518,8 @@ in
             };
           };
 
-          # Restic backup failed
-          "restic-backup-failed" = {
-            type = "promql";
-            alertname = "ResticBackupFailed";
-            expr = ''
-              restic_backup_status == 0
-            '';
-            for = "5m";
-            severity = "high";
-            labels = { service = "backup"; category = "restic"; };
-            annotations = {
-              summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
-              description = "Backup to {{ $labels.repository }} failed. Check: systemctl status restic-backups-{{ $labels.backup_job }}.service";
-              command = "systemctl status restic-backups-{{ $labels.backup_job }}.service && journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
-            };
-          };
-
-          # Restic backup hasn't run recently
-          "restic-backup-stale" = {
-            type = "promql";
-            alertname = "ResticBackupStale";
-            expr = ''
-              (time() - restic_backup_last_success_timestamp) > 86400
-            '';
-            for = "1h";
-            severity = "high";
-            labels = { service = "backup"; category = "restic"; };
-            annotations = {
-              summary = "Restic backup job {{ $labels.backup_job }} hasn't run in 24+ hours on {{ $labels.hostname }}";
-              description = "Last successful backup: {{ $value | humanizeDuration }} ago. Check timer: systemctl status restic-backups-{{ $labels.backup_job }}.timer";
-              command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer && systemctl list-timers restic-backups-{{ $labels.backup_job }}.timer";
-            };
-          };
+          # NOTE: Restic backup alerts (restic-backup-failed, restic-backup-stale) are defined
+          # in hosts/_modules/nixos/services/backup/monitoring.nix alongside the backup module
         }  # End system health alerts
         ];  # End alerting.rules mkMerge
       };  # End alerting block
