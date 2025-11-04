@@ -16,6 +16,63 @@ let
   cfg = config.modules.services.grafana;
   # Import shared type definitions
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
+
+  # Import storage helpers for preseed service generation
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+
+  # Define storage configuration for consistent access
+  storageCfg = config.modules.storage;
+
+  # Construct the dataset path for grafana
+  datasetPath = "${storageCfg.datasets.parentDataset}/grafana";
+
+  # Recursively find the replication config from the most specific dataset path upwards.
+  findReplication = dsPath:
+    let
+      sanoidDatasets = config.modules.backup.sanoid.datasets;
+      replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+    in
+    if replicationInfo != null then
+      {
+        sourcePath = dsPath;
+        replication = replicationInfo;
+      }
+    else
+      let
+        parts = lib.splitString "/" dsPath;
+        parentPath = lib.concatStringsSep "/" (lib.init parts);
+      in
+      if parentPath == "" || parts == [] then
+        null
+      else
+        findReplication parentPath;
+
+  foundReplication = findReplication datasetPath;
+
+  # Compute replication config for preseed service
+  replicationConfig =
+    if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then
+      null
+    else
+      let
+        datasetSuffix =
+          if foundReplication.sourcePath == datasetPath then
+            ""
+          else
+            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+      in
+      {
+        targetHost = foundReplication.replication.targetHost;
+        targetDataset =
+          if datasetSuffix == "" then
+            foundReplication.replication.targetDataset
+          else
+            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
+        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+        sendOptions = foundReplication.replication.sendOptions or "w";
+        recvOptions = foundReplication.replication.recvOptions or "u";
+      };
 in
 {
   ###### Options
@@ -119,6 +176,34 @@ in
       };
     };
 
+    # Preseed configuration for disaster recovery
+    preseed = {
+      enable = mkEnableOption "automatic data restore before service start";
+      repositoryUrl = mkOption {
+        type = types.str;
+        default = "";
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Path to Restic password file";
+      };
+      environmentFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = mkOption {
+        type = types.listOf (types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds.
+        '';
+      };
+    };
+
     # Standardized systemd resource management
     resources = mkOption {
       type = sharedTypes.systemdResourcesSubmodule;
@@ -217,7 +302,8 @@ in
 
   ###### Implementation
 
-  config = mkIf cfg.enable (
+  config = lib.mkMerge [
+    (mkIf cfg.enable (
     let
       # Auto-generate Loki data source if enabled and the Loki module is active
       lokiDataSource = if (cfg.autoConfigure.loki && (config.modules.services.loki.enable or false)) then {
@@ -372,10 +458,48 @@ in
           ReadWritePaths = [ cfg.dataDir ];
         };
 
-        # Service dependencies for ZFS dataset mounting
-        after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
-        wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
+        # Service dependencies for ZFS dataset mounting and preseed
+        after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
+          ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
+        wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
+          ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
       };
+
+      # Validations
+      assertions = [
+        {
+          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+          message = "Grafana preseed.enable requires preseed.repositoryUrl to be set.";
+        }
+        {
+          assertion = cfg.preseed.enable -> (cfg.preseed.passwordFile != null);
+          message = "Grafana preseed.enable requires preseed.passwordFile to be set.";
+        }
+      ];
     }
-  );
+    ))
+
+    # Add the preseed service itself
+    (mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
+        serviceName = "grafana";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = "grafana.service";
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          compression = "zstd";
+          atime = "off";
+        } // cfg.zfs.properties;
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = true;
+        owner = "grafana";
+        group = "grafana";
+      }
+    ))
+  ];
 }

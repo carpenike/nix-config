@@ -144,6 +144,73 @@ in
         }
       '';
     };
+
+    utility = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule {
+        options = {
+          recordsize = lib.mkOption {
+            type = zfsRecordsizeType;
+            default = "128K";
+            description = "ZFS recordsize property";
+          };
+
+          compression = lib.mkOption {
+            type = lib.types.enum [ "on" "off" "lz4" "lzjb" "gzip" "gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" "gzip-6" "gzip-7" "gzip-8" "gzip-9" "zstd" "zstd-fast" "zle" ];
+            default = "lz4";
+            description = "ZFS compression algorithm";
+          };
+
+          properties = lib.mkOption {
+            type = lib.types.attrsOf lib.types.str;
+            default = {};
+            description = "Additional ZFS properties";
+          };
+
+          mountpoint = lib.mkOption {
+            type = lib.types.str;
+            default = "none";
+            description = ''
+              Mountpoint for this utility dataset.
+              Typically "none" for utility datasets used as parent containers.
+            '';
+          };
+
+          owner = lib.mkOption {
+            type = lib.types.str;
+            default = "root";
+            description = "User to own the mountpoint directory (if not 'none')";
+          };
+
+          group = lib.mkOption {
+            type = lib.types.str;
+            default = "root";
+            description = "Group to own the mountpoint directory (if not 'none')";
+          };
+
+          mode = lib.mkOption {
+            type = lib.types.str;
+            default = "0750";
+            description = "Permission mode for the mountpoint directory (if not 'none')";
+          };
+        };
+      });
+      default = {};
+      description = ''
+        Utility datasets with absolute paths (not under parentDataset).
+        Use this for datasets like tank/temp that are siblings to parentDataset.
+        Keys should be the full ZFS path (e.g., "tank/temp").
+      '';
+      example = lib.literalExpression ''
+        {
+          "tank/temp" = {
+            mountpoint = "none";
+            properties = {
+              "com.sun:auto-snapshot" = "false";
+            };
+          };
+        }
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -184,6 +251,56 @@ in
           fi
         fi
 
+        # Process utility datasets first (they may be parents of service datasets)
+        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (datasetPath: datasetConfig:
+          let
+            mountpoint = datasetConfig.mountpoint;
+            allProperties = lib.mergeAttrs {
+              inherit (datasetConfig) recordsize compression;
+              mountpoint = mountpoint;
+            } datasetConfig.properties;
+          in ''
+            # --- Utility Dataset: ${datasetPath} ---
+
+            if ${pkgs.zfs}/bin/zfs list -H ${escape datasetPath} >/dev/null 2>&1; then
+              echo "Utility dataset exists: ${datasetPath}"
+            else
+              echo "Creating utility dataset: ${datasetPath}"
+              if ${pkgs.zfs}/bin/zfs create -p ${escape datasetPath}; then
+                echo "  ✓ Created successfully"
+              else
+                echo "  ✗ Failed to create dataset ${datasetPath}"
+                exit 1
+              fi
+            fi
+
+            echo "Configuring properties for ${datasetPath}:"
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (prop: value: ''
+              CURRENT_VALUE=$(${pkgs.zfs}/bin/zfs get -H -o value ${escape prop} ${escape datasetPath})
+              if [ "$CURRENT_VALUE" != "${value}" ]; then
+                echo "  Setting property: ${prop}=${value}"
+                if ${pkgs.zfs}/bin/zfs set ${escape "${prop}=${value}"} ${escape datasetPath}; then
+                  echo "    ✓ Property set successfully"
+                else
+                  echo "    ✗ Failed to set property"
+                fi
+              else
+                echo "  ✓ Property is already set: ${prop}=${value}"
+              fi
+            '') allProperties)}
+
+            ${lib.optionalString (mountpoint != "none" && mountpoint != "legacy") ''
+              if [ ! -d "${mountpoint}" ]; then
+                echo "Creating mount directory: ${mountpoint}"
+                mkdir -p "${mountpoint}"
+              fi
+            ''}
+
+            echo ""
+          ''
+        ) cfg.utility)}
+
+        # Process service datasets under parentDataset
         ${lib.concatStringsSep "\n" (lib.mapAttrsToList (serviceName: serviceConfig:
           let
             datasetPath = "${cfg.parentDataset}/${serviceName}";
@@ -254,28 +371,41 @@ in
     # Generate tmpfiles rules to ensure directories exist
     # For native systemd services: Permissions are managed by StateDirectoryMode
     # For OCI containers: Permissions are managed via tmpfiles (they don't support StateDirectory)
-    systemd.tmpfiles.rules = lib.flatten (lib.mapAttrsToList (serviceName: serviceConfig:
-      let
-        mountpoint = if serviceConfig.mountpoint != null
-                    then serviceConfig.mountpoint
-                    else "${cfg.parentMount}/${serviceName}";
-        # Check if explicit permissions are set (OCI containers) or should use defaults (native services)
-        hasExplicitPermissions = (serviceConfig.mode or null) != null
-                               && (serviceConfig.owner or null) != null
-                               && (serviceConfig.group or null) != null;
-      in
-        # Only create tmpfiles entries if it's a real mountpoint (not "none" or "legacy")
-        if (mountpoint != "none" && mountpoint != "legacy") then (
-          if hasExplicitPermissions then [
-            # OCI containers: Use explicit permissions via tmpfiles
-            "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
-            "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
-          ] else [
-            # Native services: No tmpfiles rules - rely on StateDirectory + StateDirectoryMode
-            # (tmpfiles with "-" defaults to root:root which interferes with StateDirectory ownership)
-          ]
-        ) else []
-    ) cfg.services);
+    systemd.tmpfiles.rules = lib.flatten (
+      # Service datasets
+      (lib.mapAttrsToList (serviceName: serviceConfig:
+        let
+          mountpoint = if serviceConfig.mountpoint != null
+                      then serviceConfig.mountpoint
+                      else "${cfg.parentMount}/${serviceName}";
+          hasExplicitPermissions = (serviceConfig.mode or null) != null
+                                 && (serviceConfig.owner or null) != null
+                                 && (serviceConfig.group or null) != null;
+        in
+          if (mountpoint != "none" && mountpoint != "legacy") then (
+            if hasExplicitPermissions then [
+              "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+              "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+            ] else []
+          ) else []
+      ) cfg.services)
+      ++
+      # Utility datasets
+      (lib.mapAttrsToList (datasetPath: datasetConfig:
+        let
+          mountpoint = datasetConfig.mountpoint;
+          hasExplicitPermissions = (datasetConfig.mode or null) != null
+                                 && (datasetConfig.owner or null) != null
+                                 && (datasetConfig.group or null) != null;
+        in
+          if (mountpoint != "none" && mountpoint != "legacy") then (
+            if hasExplicitPermissions then [
+              "d \"${mountpoint}\" ${datasetConfig.mode} ${datasetConfig.owner} ${datasetConfig.group} - -"
+              "z \"${mountpoint}\" ${datasetConfig.mode} ${datasetConfig.owner} ${datasetConfig.group} - -"
+            ] else []
+          ) else []
+      ) cfg.utility)
+    );
 
     # Add assertions to validate configuration
     assertions = [

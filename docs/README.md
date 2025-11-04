@@ -25,10 +25,23 @@ This directory contains comprehensive documentation for the NixOS configuration 
   - Integration with backup system
   - Troubleshooting and best practices
 
+### Disaster Recovery & Persistence
+
+- **[Disaster Recovery Preseed Pattern](./disaster-recovery-preseed-pattern.md)** - ⚡ **Automated service restoration** using ZFS Syncoid replication
+  - Multi-tier restore strategy (Syncoid → Local → Restic)
+  - Implementation guide for native and containerized services
+  - Validated for Plex, Loki, Grafana, Sonarr, Radarr, Dispatcharr
+  - Testing procedures and troubleshooting
+
+- **[Persistence Quick Reference](./persistence-quick-reference.md)** - ZFS dataset management and service persistence patterns
+
+- **[Storage Module Guide](./storage-module-guide.md)** - Comprehensive guide for storage configuration
+
 ### PostgreSQL & Database
 
 - **[PostgreSQL Auto-Restore (Quick Start)](./postgresql-auto-restore-quickstart.md)** - ⚡ **Automatic disaster recovery** for homelab servers - PostgreSQL restores from backup automatically when you rebuild
 - **[PostgreSQL Auto-Restore (Full Guide)](./postgresql-auto-restore-homelab.md)** - Complete documentation for automatic PostgreSQL restore on server rebuild
+- **[PostgreSQL Preseed Marker Fix](./postgresql-preseed-marker-fix.md)** - Root cause analysis and fix for PostgreSQL preseed marker persistence
 - **[PostgreSQL Repository Selection](./postgresql-preseed-repository-selection.md)** - repo1 (NFS) vs repo2 (R2) comparison and decision guide
 - **[PostgreSQL PITR Guide](./postgresql-pitr-guide.md)** - Manual point-in-time recovery procedures
 - **[PostgreSQL pgBackRest Migration](./postgresql-pgbackrest-migration.md)** - Migration from custom backup scripts to pgBackRest

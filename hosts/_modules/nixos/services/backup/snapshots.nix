@@ -27,6 +27,9 @@ let
     in {
       "zfs-snapshot-${jobName}" = {
         description = "Create ZFS snapshot and clone for ${jobName} backup";
+        # Ensure the declarative datasets service has run first (creates tank/temp)
+        after = [ "zfs-service-datasets.service" ];
+        wants = [ "zfs-service-datasets.service" ];
         # Automatically stop when no longer needed by any active unit
         # This works with BindsTo= on the backup service to trigger cleanup
         unitConfig = {

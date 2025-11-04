@@ -138,6 +138,37 @@ in
           description = "Include log chunks in backup (not recommended with ZFS snapshots)";
         };
       };
+
+      preseed = {
+        enable = mkEnableOption "automatic data restore before Loki service start";
+
+        repositoryUrl = mkOption {
+          type = types.str;
+          default = "";
+          description = "Restic repository URL for restore operations";
+        };
+
+        passwordFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = "Path to Restic password file";
+        };
+
+        environmentFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = "Optional environment file for Restic (e.g., for B2 credentials)";
+        };
+
+        restoreMethods = mkOption {
+          type = types.listOf (types.enum [ "syncoid" "local" "restic" ]);
+          default = [ "syncoid" "local" "restic" ];
+          description = ''
+            Order and selection of restore methods to attempt. Methods are tried
+            sequentially until one succeeds.
+          '';
+        };
+      };
     };
 
     promtail = {
@@ -294,6 +325,37 @@ in
           type = types.bool;
           default = true;
           description = "Automatically configure Prometheus data source if available";
+        };
+      };
+
+      preseed = {
+        enable = mkEnableOption "automatic data restore before Grafana service start";
+
+        repositoryUrl = mkOption {
+          type = types.str;
+          default = "";
+          description = "Restic repository URL for restore operations";
+        };
+
+        passwordFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = "Path to Restic password file";
+        };
+
+        environmentFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = "Optional environment file for Restic (e.g., for B2 credentials)";
+        };
+
+        restoreMethods = mkOption {
+          type = types.listOf (types.enum [ "syncoid" "local" "restic" ]);
+          default = [ "syncoid" "local" "restic" ];
+          description = ''
+            Order and selection of restore methods to attempt. Methods are tried
+            sequentially until one succeeds.
+          '';
         };
       };
     };
@@ -513,6 +575,15 @@ in
         MemoryReservation = "256M";
         CPUQuota = "50%";
       };
+
+      # Preseed configuration for disaster recovery
+      preseed = lib.mkIf cfg.loki.preseed.enable {
+        enable = true;
+        repositoryUrl = cfg.loki.preseed.repositoryUrl;
+        passwordFile = cfg.loki.preseed.passwordFile;
+        environmentFile = cfg.loki.preseed.environmentFile;
+        restoreMethods = cfg.loki.preseed.restoreMethods;
+      };
     };
 
     # Enable Promtail service
@@ -654,6 +725,15 @@ in
           "**/csv/*"         # Exclude CSV exports
           "**/pdf/*"         # Exclude PDF exports
         ];
+      };
+
+      # Preseed configuration for disaster recovery
+      preseed = lib.mkIf cfg.grafana.preseed.enable {
+        enable = true;
+        repositoryUrl = cfg.grafana.preseed.repositoryUrl;
+        passwordFile = cfg.grafana.preseed.passwordFile;
+        environmentFile = cfg.grafana.preseed.environmentFile;
+        restoreMethods = cfg.grafana.preseed.restoreMethods;
       };
     };
 

@@ -547,6 +547,21 @@ in
               };
             };
           };
+
+          # Utility datasets (not under parentDataset/services)
+          utility = {
+            # Temporary dataset for ZFS clone-based backups
+            # Used by snapshot-based backup services (dispatcharr, plex)
+            # to avoid .zfs directory issues when backing up mounted filesystems
+            "tank/temp" = {
+              mountpoint = "none";
+              compression = "lz4";
+              recordsize = "128K";
+              properties = {
+                "com.sun:auto-snapshot" = "false";  # Don't snapshot temporary clones
+              };
+            };
+          };
         };
 
         # Shared NFS mount for media access from NAS
@@ -637,12 +652,23 @@ in
             # No replication - individual services handle their own replication
           };
 
-          # Parent dataset for temporary backup clones
-          # Used by snapshot-based backups to avoid .zfs directory traversal issues
-          "tank/temp" = {
+          # NOTE: tank/temp is now managed via storage.datasets.utility (see above)
+          # Removed from Sanoid config to avoid delegation permission errors during bootstrap
+
+          # Dispatcharr request orchestration service
+          # Enable snapshots and replication for configuration and state
+          "tank/services/dispatcharr" = {
+            useTemplate = [ "services" ];
             recursive = false;
-            autosnap = false;
-            autoprune = false;
+            autosnap = true;
+            autoprune = true;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/dispatcharr";
+              sendOptions = "wp";  # Raw encrypted send with property preservation
+              recvOptions = "u";   # Don't mount on receive
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+            };
           };
 
           # Explicitly disable snapshots on PostgreSQL dataset (rely on pgBackRest)
@@ -724,6 +750,22 @@ in
               hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
             };
           };
+
+          # Sonarr TV series management application data
+          # Enable snapshots and replication for library metadata and settings
+          "tank/services/sonarr" = {
+            useTemplate = [ "services" ];
+            recursive = false;
+            autosnap = true;
+            autoprune = true;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/sonarr";
+              sendOptions = "wp";  # Raw encrypted send with property preservation
+              recvOptions = "u";   # Don't mount on receive
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+            };
+          };
         };
 
         # Restic backup jobs configuration
@@ -784,6 +826,12 @@ in
             enable = true;
             retentionDays = 30; # Longer retention for primary server
             zfsDataset = "tank/services/loki";
+            preseed = {
+              enable = true;
+              repositoryUrl = "/mnt/nas-backup";
+              passwordFile = config.sops.secrets."restic/password".path;
+              restoreMethods = [ "syncoid" "local" "restic" ];
+            };
           };
           promtail = {
             enable = true;
@@ -854,6 +902,12 @@ in
               prometheus = true;  # Auto-configure Prometheus if available
             };
             plugins = [];
+            preseed = {
+              enable = true;
+              repositoryUrl = "/mnt/nas-backup";
+              passwordFile = config.sops.secrets."restic/password".path;
+              restoreMethods = [ "syncoid" "local" "restic" ];
+            };
           };
           reverseProxy = {
             enable = true;

@@ -60,7 +60,12 @@ let
     else
       let
         # Get the suffix, e.g., "sonarr" from "tank/services/sonarr" relative to "tank/services"
-        datasetSuffix = lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+        # Handle exact match case: if source path equals dataset path, suffix is empty
+        datasetSuffix =
+          if foundReplication.sourcePath == datasetPath then
+            ""
+          else
+            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
       in
       {
         targetHost = foundReplication.replication.targetHost;
@@ -344,24 +349,11 @@ in
       mode = "0750";  # Allow group read access for backup systems
     };
 
-    # Configure ZFS snapshots and replication for sonarr dataset
-    # This is managed per-service to avoid centralized config coupling
-    modules.backup.sanoid.datasets."tank/services/sonarr" = lib.mkIf config.modules.backup.sanoid.enable {
-      useTemplate = [ "services" ];  # Use the services retention policy
-      recursive = false;  # Don't snapshot child datasets
-      autosnap = true;
-      autoprune = true;
-
-      # Replication to nas-1 for disaster recovery
-      replication = {
-        targetHost = "nas-1.holthome.net";
-        # Align with authorized_keys restriction and other services
-        targetDataset = "backup/forge/zfs-recv/sonarr";
-        sendOptions = "wp";  # raw encrypted send with property preservation
-        recvOptions = "u";   # u = don't mount on receive
-        hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-      };
-    };
+    # NOTE: ZFS snapshots and replication for sonarr dataset should be configured
+    # in the host-level config (e.g., hosts/forge/default.nix), not here.
+    # Reason: Replication targets are host-specific (forge → nas-1, luna → nas-2, etc.)
+    # Defining them in a shared module would hardcode "forge" in the target path,
+    # breaking reusability across different hosts.
 
     # Create local users to match container UIDs
     # This ensures proper file ownership on the host

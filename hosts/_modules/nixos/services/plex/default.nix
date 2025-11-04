@@ -8,6 +8,72 @@ let
   cfg = config.modules.services.plex;
   # Import shared type definitions
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
+
+  # Import storage helpers for preseed service generation
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+
+  # Define storage configuration for consistent access
+  storageCfg = config.modules.storage;
+
+  # Construct the dataset path for plex
+  datasetPath = "${storageCfg.datasets.parentDataset}/plex";
+
+  # Recursively find the replication config from the most specific dataset path upwards.
+  # This allows a service dataset (e.g., tank/services/plex) to inherit replication
+  # config from a parent dataset (e.g., tank/services) without duplication.
+  findReplication = dsPath:
+    let
+      sanoidDatasets = config.modules.backup.sanoid.datasets;
+      # Check if replication is defined for the current path (datasets are flat keys, not nested)
+      replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+    in
+    if replicationInfo != null then
+      {
+        sourcePath = dsPath;
+        replication = replicationInfo;
+      }
+    else
+      let
+        # Split the path and try the parent (e.g., "tank/services/plex" -> "tank/services")
+        parts = lib.splitString "/" dsPath;
+        parentPath = lib.concatStringsSep "/" (lib.init parts);
+      in
+      if parentPath == "" || parts == [] then
+        null
+      else
+        findReplication parentPath;
+
+  # Execute the search for the current service's dataset
+  foundReplication = findReplication datasetPath;
+
+  # Compute replication config for preseed service (if any)
+  replicationConfig =
+    if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then
+      null
+    else
+      let
+        # Get the suffix, e.g., "plex" from "tank/services/plex" relative to "tank/services"
+        # Handle exact match case: if source path equals dataset path, suffix is empty
+        datasetSuffix =
+          if foundReplication.sourcePath == datasetPath then
+            ""
+          else
+            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+      in
+      {
+        targetHost = foundReplication.replication.targetHost;
+        # Construct the full target dataset path, e.g., "backup/forge/zfs-recv/plex"
+        targetDataset =
+          if datasetSuffix == "" then
+            foundReplication.replication.targetDataset
+          else
+            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
+        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+        # Pass through sendOptions and recvOptions for syncoid
+        sendOptions = foundReplication.replication.sendOptions or "w";
+        recvOptions = foundReplication.replication.recvOptions or "u";
+      };
 in
 {
   options.modules.services.plex = {
@@ -152,6 +218,38 @@ in
       description = "Systemd resource limits for Plex";
     };
 
+    # Preseed configuration for disaster recovery
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds. Examples:
+          - [ "syncoid" "local" "restic" ] - Default, try replication first
+          - [ "local" "restic" ] - Skip replication, try local snapshots first
+          - [ "restic" ] - Restic-only (for air-gapped systems)
+          - [ "local" "restic" "syncoid" ] - Local-first for quick recovery
+        '';
+      };
+    };
+
     # Lightweight health monitoring with Prometheus textfile metrics
     monitoring = {
       enable = lib.mkEnableOption "monitoring for Plex";
@@ -181,7 +279,8 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
     # Core Plex service using NixOS built-in module
     services.plex = {
       enable = true;
@@ -265,10 +364,16 @@ in
     ];
 
     # Ensure Plex starts after mounts and tmpfiles rules are applied
-    systemd.services.plex.unitConfig = lib.mkIf (cfg.zfs.dataset != null) {
-      RequiresMountsFor = [ cfg.dataDir ];
-      After = [ "zfs-mount.service" "zfs-service-datasets.service" ];
-    };
+    systemd.services.plex.unitConfig = lib.mkMerge [
+      (lib.mkIf (cfg.zfs.dataset != null) {
+        RequiresMountsFor = [ cfg.dataDir ];
+        After = [ "zfs-mount.service" "zfs-service-datasets.service" ];
+      })
+      (lib.mkIf cfg.preseed.enable {
+        After = [ "preseed-plex.service" ];
+        Wants = [ "preseed-plex.service" ];
+      })
+    ];
 
     # Fix VA-API library mismatch: avoid injecting system libva into Plex FHS runtime
     # Override upstream LD_LIBRARY_PATH and point only to driver directory; set LIBVA envs
@@ -345,6 +450,38 @@ EOF
         assertion = cfg.monitoring.prometheus.enable -> (config.services.prometheus.exporters.node.enable or false);
         message = "Prometheus metrics export requires Node Exporter to be enabled";
       }
+      {
+        assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+        message = "Plex preseed.enable requires preseed.repositoryUrl to be set.";
+      }
+      {
+        assertion = cfg.preseed.enable -> (cfg.preseed.passwordFile != null);
+        message = "Plex preseed.enable requires preseed.passwordFile to be set.";
+      }
     ];
-  };
+    })
+
+    # Add the preseed service itself
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
+        serviceName = "plex";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = "plex.service";
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          recordsize = cfg.zfs.recordsize;
+          compression = cfg.zfs.compression;
+        } // cfg.zfs.properties;
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = true;  # Plex integrates with centralized alerting
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
+  ];
 }

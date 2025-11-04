@@ -57,6 +57,15 @@
         endpoint = "http://127.0.0.1:32400/web";
         interval = "minutely";
       };
+
+      # Enable preseed for disaster recovery
+      preseed = {
+        enable = true;
+        repositoryUrl = "/mnt/nas-backup";
+        passwordFile = config.sops.secrets."restic/password".path;
+        # environmentFile not needed for local filesystem repository
+        restoreMethods = [ "syncoid" "local" "restic" ];
+      };
     };
 
     # Prometheus alerts for Plex
