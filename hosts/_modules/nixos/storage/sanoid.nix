@@ -401,51 +401,82 @@ in
       # Populate known_hosts for the replication user to avoid interactive SSH prompts
       # Declarative known_hosts is provided via users.users.<replicationUser>.openssh.knownHosts; remove imperative service
       # ZFS Delegated Permissions
+      # Timer-based reconciliation ensures permissions are applied to datasets created after boot
+      # (e.g., by preseed services during DR). Idempotent operations run periodically.
       {
         services.zfs-delegate-permissions = {
           description = "Delegate ZFS permissions for Sanoid and Syncoid";
-          wantedBy = [ "multi-user.target" ];
           after = [ "zfs-import.target" "systemd-sysusers.service" "zfs-service-datasets.service" ];
           before = [ "sanoid.service" ] ++ (lib.optional (datasetsWithReplication != {}) "syncoid.service");
           serviceConfig = {
             Type = "oneshot";
-            RemainAfterExit = true;
           };
           script = ''
             echo "Applying ZFS delegated permissions..."
             # Grant permissions for Sanoid to manage snapshots
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
-              ${pkgs.zfs}/bin/zfs allow sanoid send,snapshot,hold,destroy ${lib.escapeShellArg dataset}
+              if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
+                ${pkgs.zfs}/bin/zfs allow sanoid send,snapshot,hold,destroy ${lib.escapeShellArg dataset}
+              else
+                echo "Dataset ${lib.escapeShellArg dataset} does not exist yet, skipping delegation"
+              fi
             '') cfg.datasets)}
 
             # Grant permissions for Syncoid to send snapshots for replication
             # NOTE: 'hold' permission removed - syncoid only needs send,snapshot for replication
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
-              ${pkgs.zfs}/bin/zfs allow ${cfg.replicationUser} send,snapshot ${lib.escapeShellArg dataset}
+              if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
+                ${pkgs.zfs}/bin/zfs allow ${cfg.replicationUser} send,snapshot ${lib.escapeShellArg dataset}
+              else
+                echo "Dataset ${lib.escapeShellArg dataset} does not exist yet, skipping delegation"
+              fi
             '') datasetsWithReplication)}
             echo "ZFS delegated permissions applied successfully."
           '';
         };
+
+        timers.zfs-delegate-permissions = {
+          description = "Periodically reconcile ZFS delegated permissions";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnBootSec = "1min";          # Run 1 minute after boot
+            OnUnitActiveSec = "15min";   # Then every 15 minutes
+            Unit = "zfs-delegate-permissions.service";
+          };
+        };
       }
       # Ensure snapdir is visible for Sanoid-managed datasets
       # Only make visible if autosnap is enabled; hide for databases and services that don't need it
+      # Timer-based reconciliation ensures settings are applied to datasets created after boot
       {
         services.zfs-set-snapdir-visible = {
           description = "Set ZFS snapdir visibility for Sanoid datasets";
-          wantedBy = [ "multi-user.target" ];
           after = [ "zfs-import.target" "zfs-service-datasets.service" ];
           serviceConfig = {
             Type = "oneshot";
-            RemainAfterExit = true;
           };
           script = ''
             echo "Setting snapdir visibility for Sanoid datasets..."
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
               # Only make visible if autosnap is enabled (databases and excluded services get hidden)
-              ${pkgs.zfs}/bin/zfs set snapdir=${if (conf.autosnap or false) then "visible" else "hidden"} ${lib.escapeShellArg dataset}
+              if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
+                ${pkgs.zfs}/bin/zfs set snapdir=${if (conf.autosnap or false) then "visible" else "hidden"} ${lib.escapeShellArg dataset}
+              else
+                echo "Dataset ${lib.escapeShellArg dataset} does not exist yet, skipping snapdir configuration"
+              fi
             '') cfg.datasets)}
             echo "snapdir visibility configured successfully."
           '';
+        };
+
+        timers.zfs-set-snapdir-visible = {
+          description = "Periodically reconcile ZFS snapdir visibility";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnBootSec = "1min";          # Run 1 minute after boot
+            OnUnitActiveSec = "15min";   # Then every 15 minutes
+            Unit = "zfs-set-snapdir-visible.service";
+          };
         };
       }
       # Use a static user for sanoid to allow pre-boot permission delegation

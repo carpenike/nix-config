@@ -56,6 +56,8 @@ let
         bindsTo = lib.optionals jobConfig.useSnapshots [
           "zfs-snapshot-${jobName}.service"
         ];
+        # Prevent concurrent execution with Syncoid replication (heavy I/O + prevents replicating ephemeral backup snapshots)
+        conflicts = [ "syncoid.target" ];
 
         serviceConfig = {
           Type = "oneshot";
