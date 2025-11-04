@@ -1741,6 +1741,58 @@ EOF
           };
         }
       ) cfg.restic.jobs))
+      # ZFS Hold Garbage Collector Service (Gemini Pro recommendation)
+      # Stateless safety net that cleans up orphaned ZFS holds from failed backups
+      (mkIf (cfg.restic.enable && cfg.zfs.enable) {
+        restic-zfs-hold-gc = {
+          description = "Cleanup orphaned ZFS holds from Restic backups";
+          path = with pkgs; [ zfs systemd gawk ];
+          script = ''
+            set -euo pipefail
+
+            echo "Starting ZFS hold garbage collection..."
+            STALE_THRESHOLD=$(($(date +%s) - 21600))  # 6 hours
+            CLEANED_COUNT=0
+
+            # Get all ZFS holds with restic-* tags
+            ${config.boot.zfs.package}/bin/zfs holds -rH | ${pkgs.gawk}/bin/awk -F'\t' '
+              $2 ~ /^restic-/ { print $2 "\t" $1 }
+            ' | while IFS=$'\t' read -r HOLD_TAG SNAPSHOT; do
+              # Extract job name from hold tag (restic-jobname -> jobname)
+              JOB_NAME="''${HOLD_TAG#restic-}"
+
+              # Check if corresponding backup service is currently active
+              if systemctl is-active --quiet "restic-backups-''${JOB_NAME}.service" 2>/dev/null; then
+                echo "Skipping hold '$HOLD_TAG' on $SNAPSHOT (service restic-backups-''${JOB_NAME}.service is active)"
+                continue
+              fi
+
+              # Check snapshot creation time
+              SNAP_CREATION=$(${config.boot.zfs.package}/bin/zfs get -H -o value creation "$SNAPSHOT" 2>/dev/null || echo "")
+              if [ -z "$SNAP_CREATION" ]; then
+                echo "Skipping $SNAPSHOT (cannot determine age)"
+                continue
+              fi
+
+              SNAP_TS=$(date -d "$SNAP_CREATION" +%s 2>/dev/null || echo 0)
+
+              # Release hold if older than threshold and service not running
+              if [ "$SNAP_TS" -lt "$STALE_THRESHOLD" ]; then
+                echo "Releasing stale hold '$HOLD_TAG' on $SNAPSHOT (snapshot age: $((($(date +%s) - SNAP_TS) / 3600))h, service inactive)"
+                if ${config.boot.zfs.package}/bin/zfs release "$HOLD_TAG" "$SNAPSHOT" 2>/dev/null; then
+                  CLEANED_COUNT=$((CLEANED_COUNT + 1))
+                fi
+              fi
+            done
+
+            echo "ZFS hold garbage collection complete: $CLEANED_COUNT holds released"
+          '';
+          serviceConfig = {
+            Type = "oneshot";
+            User = "root";  # Required for ZFS operations
+          };
+        };
+      })
     ];
 
     # Group target for all restic backup services to enable coordination with other subsystems
@@ -1856,7 +1908,7 @@ EOF
                 echo "Checking for stale ZFS holds from previous runs (state-based)..."
                 HOLD_TAG="restic-${jobName}"
                 STATE_FILE="/var/lib/restic-backup/${jobName}-holds.jsonl"
-                STALE_THRESHOLD=$(($(${pkgs.coreutils}/bin/date +%s) - 86400))  # 24 hours ago
+                STALE_THRESHOLD=$(($(${pkgs.coreutils}/bin/date +%s) - 21600))  # 6 hours ago (reduced from 24h per Gemini Pro recommendation)
                 if [ -f "$STATE_FILE" ]; then
                   TMP_KEEP="$STATE_FILE.tmp"
                   : > "$TMP_KEEP"
@@ -1905,6 +1957,20 @@ EOF
                     if [ -n "$LATEST_SNAP" ]; then
                       # Extract snapshot name (everything after @)
                       SNAPNAME="''${LATEST_SNAP#*@}"
+
+                      # Export snapshot age metric for Prometheus monitoring (Gemini Pro recommendation)
+                      SNAP_CREATION=$(${config.boot.zfs.package}/bin/zfs get -H -o value creation "$LATEST_SNAP")
+                      SNAP_CREATION_TS=$(${pkgs.coreutils}/bin/date -d "$SNAP_CREATION" +%s 2>/dev/null || echo 0)
+                      NOW=$(${pkgs.coreutils}/bin/date +%s)
+                      SNAP_AGE=$((NOW - SNAP_CREATION_TS))
+
+                      # Write snapshot age metric to temp file (will be moved to textfile collector in cleanup)
+                      mkdir -p /run/restic-backups-${jobName}
+                      cat >> /run/restic-backups-${jobName}/metrics.prom << EOF
+# HELP zfs_latest_snapshot_age_seconds Age of the latest ZFS snapshot for a given dataset
+# TYPE zfs_latest_snapshot_age_seconds gauge
+zfs_latest_snapshot_age_seconds{dataset="$DATASET",hostname="${config.networking.hostName}",job="${jobName}"} $SNAP_AGE
+EOF
 
                       # Place a ZFS hold to prevent Sanoid from pruning this snapshot during backup
                       # CRITICAL: Make hold placement fail-fast to prevent inconsistent backups
@@ -2084,6 +2150,13 @@ EOF
                   }' >> "$LOG_FILE" || true
               ''}
               ${optionalString cfg.monitoring.prometheus.enable ''
+                # Move snapshot age metrics to Prometheus textfile collector (Gemini Pro recommendation)
+                if [ -f /run/restic-backups-${jobName}/metrics.prom ]; then
+                  mkdir -p ${cfg.monitoring.prometheus.metricsDir}
+                  mv /run/restic-backups-${jobName}/metrics.prom \
+                     ${cfg.monitoring.prometheus.metricsDir}/restic-${jobName}-snapshot-age.prom
+                fi
+
                 # Export Prometheus metrics
                 METRICS_FILE="${cfg.monitoring.prometheus.metricsDir}/restic_backup_${jobName}.prom"
                 METRICS_TEMP="$METRICS_FILE.tmp"
@@ -2167,6 +2240,19 @@ EOF
           };
         }
       ) cfg.restic.repositories))
+
+      # ZFS Hold Garbage Collector Timer (Gemini Pro recommendation)
+      (mkIf (cfg.restic.enable && cfg.zfs.enable) {
+        restic-zfs-hold-gc = {
+          description = "Timer for ZFS hold garbage collection";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnCalendar = "*-*-* 03,15:00:00";  # 3 AM and 3 PM daily
+            Persistent = true;
+            RandomizedDelaySec = "30m";  # Spread load across 30 minutes
+          };
+        };
+      })
 
       # Error analysis timer
       (mkIf cfg.monitoring.errorAnalysis.enable {

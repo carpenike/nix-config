@@ -464,6 +464,93 @@ in
               command = "podman stats {{ $labels.name }} --no-stream";
             };
           };
+
+          # Backup and ZFS snapshot health alerts (Gemini Pro recommendations)
+
+          # ZFS snapshot age too old - Sanoid not running
+          "zfs-snapshot-too-old" = {
+            type = "promql";
+            alertname = "ZFSSnapshotTooOld";
+            expr = ''
+              zfs_latest_snapshot_age_seconds > 86400
+            '';
+            for = "30m";
+            severity = "high";
+            labels = { service = "backup"; category = "zfs"; };
+            annotations = {
+              summary = "ZFS snapshot for {{ $labels.dataset }} is over 24 hours old on {{ $labels.hostname }}";
+              description = "Latest snapshot age: {{ $value | humanizeDuration }}. Sanoid may not be running. Check: systemctl status sanoid.service";
+              command = "systemctl status sanoid.service && journalctl -u sanoid.service --since '24h'";
+            };
+          };
+
+          # ZFS snapshot critically old - backup data at risk
+          "zfs-snapshot-critical" = {
+            type = "promql";
+            alertname = "ZFSSnapshotCritical";
+            expr = ''
+              zfs_latest_snapshot_age_seconds > 172800
+            '';
+            for = "1h";
+            severity = "critical";
+            labels = { service = "backup"; category = "zfs"; };
+            annotations = {
+              summary = "ZFS snapshot for {{ $labels.dataset }} is over 48 hours old on {{ $labels.hostname }}";
+              description = "Latest snapshot age: {{ $value | humanizeDuration }}. CRITICAL: Backup data is stale. Immediate investigation required.";
+              command = "systemctl status sanoid.service && zfs list -t snapshot {{ $labels.dataset }}";
+            };
+          };
+
+          # Stale ZFS holds detected
+          "zfs-holds-stale" = {
+            type = "promql";
+            alertname = "ZFSHoldsStale";
+            expr = ''
+              count(zfs_hold_age_seconds > 21600) by (hostname) > 3
+            '';
+            for = "2h";
+            severity = "medium";
+            labels = { service = "backup"; category = "zfs"; };
+            annotations = {
+              summary = "Multiple stale ZFS holds detected on {{ $labels.hostname }}";
+              description = "{{ $value }} holds are older than 6 hours. Backup jobs may have failed. Check: systemctl status restic-zfs-hold-gc.service";
+              command = "zfs holds -rH | grep restic- && systemctl status restic-zfs-hold-gc.service";
+            };
+          };
+
+          # Restic backup failed
+          "restic-backup-failed" = {
+            type = "promql";
+            alertname = "ResticBackupFailed";
+            expr = ''
+              restic_backup_status == 0
+            '';
+            for = "5m";
+            severity = "high";
+            labels = { service = "backup"; category = "restic"; };
+            annotations = {
+              summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
+              description = "Backup to {{ $labels.repository }} failed. Check: systemctl status restic-backups-{{ $labels.backup_job }}.service";
+              command = "systemctl status restic-backups-{{ $labels.backup_job }}.service && journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
+            };
+          };
+
+          # Restic backup hasn't run recently
+          "restic-backup-stale" = {
+            type = "promql";
+            alertname = "ResticBackupStale";
+            expr = ''
+              (time() - restic_backup_last_success_timestamp) > 86400
+            '';
+            for = "1h";
+            severity = "high";
+            labels = { service = "backup"; category = "restic"; };
+            annotations = {
+              summary = "Restic backup job {{ $labels.backup_job }} hasn't run in 24+ hours on {{ $labels.hostname }}";
+              description = "Last successful backup: {{ $value | humanizeDuration }} ago. Check timer: systemctl status restic-backups-{{ $labels.backup_job }}.timer";
+              command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer && systemctl list-timers restic-backups-{{ $labels.backup_job }}.timer";
+            };
+          };
         }  # End system health alerts
         ];  # End alerting.rules mkMerge
       };  # End alerting block
