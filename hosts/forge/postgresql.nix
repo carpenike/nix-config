@@ -128,8 +128,10 @@
       # CRITICAL: Ensure Podman network exists before PostgreSQL starts
       # The podman0 bridge (10.88.0.1) must be available for PostgreSQL to bind to it
       # Without this, PostgreSQL will only bind to localhost despite the listen_addresses setting
-      after = [ "network-online.target" "podman.service" ];
+      after = [ "network-online.target" "podman.service" "sys-devices-virtual-net-podman0.device" ];
       wants = [ "network-online.target" ];
+      # Require the podman0 device to exist before starting (stronger than after)
+      requires = [ "sys-devices-virtual-net-podman0.device" ];
 
       # Add a pre-start script to ensure the Podman bridge is up
       # This prevents the "Cannot assign requested address" error when binding to 10.88.0.1
