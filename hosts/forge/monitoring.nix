@@ -606,8 +606,11 @@ in
   # TLS metrics exporter service and timer
   systemd.services.tls-metrics-exporter = {
     description = "TLS Certificate Metrics Exporter for Prometheus";
-    after = [ "caddy.service" ];
-    wants = [ "caddy.service" ];
+    # Wait for both Caddy and the permission fixer to complete
+    # The permission fixer sets ACLs on /var/lib/caddy/.local/share/caddy/certificates
+    # so that node-exporter (in caddy group) can read certificates
+    after = [ "caddy.service" "fix-caddy-cert-permissions.service" ];
+    wants = [ "caddy.service" "fix-caddy-cert-permissions.service" ];
     serviceConfig = {
       Type = "oneshot";
       User = "node-exporter";
@@ -627,7 +630,7 @@ in
     description = "Run TLS metrics exporter every 5 minutes";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "2m";    # Wait for Caddy to start
+      OnBootSec = "3m";    # Wait for Caddy to start AND permissions to be fixed (longer than fix-caddy-cert-permissions)
       OnUnitActiveSec = "5m";  # Check every 5 minutes
       Unit = "tls-metrics-exporter.service";
     };
