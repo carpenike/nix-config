@@ -64,6 +64,14 @@ let
               ${pkgs.zfs}/bin/zfs mount "${cloneName}"
             fi
 
+            # Grant the backup user access to the mountpoint directory itself.
+            # This is NOT recursive and does NOT alter the permissions within the clone.
+            # The clone inherits the original dataset's permissions structure, we just need
+            # to allow the backup user to traverse into the mountpoint directory.
+            echo "Setting permissions on ${cloneMountpoint}"
+            ${pkgs.coreutils}/bin/chown root:restic-backup "${cloneMountpoint}"
+            ${pkgs.coreutils}/bin/chmod g+rx "${cloneMountpoint}"
+
             # Record snapshot creation time for monitoring
             echo "zfs_backup_snapshot_created{dataset=\"${dataset}\",snapshot=\"${snapshotName}\",job=\"${jobName}\",hostname=\"${config.networking.hostName}\"} $(date +%s)" \
               > /var/lib/node_exporter/textfile_collector/zfs_snapshot_${jobName}.prom

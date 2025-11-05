@@ -1216,7 +1216,8 @@ in
       # Mode 2755 sets setgid bit so files inherit systemd-journal group
       "d /var/log/journal 2755 root systemd-journal - -"
       # Ensure textfile_collector directory exists before creating metrics file
-      "d /var/lib/node_exporter/textfile_collector 0755 node-exporter node-exporter - -"
+      # Mode 0775 allows node-exporter group members to write metrics files
+      "d /var/lib/node_exporter/textfile_collector 0775 node-exporter node-exporter - -"
       # Create metrics file at boot with correct ownership so postgres user can write to it
       # and node-exporter group can read it. Type "f" creates the file if it doesn't exist.
       "f /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"

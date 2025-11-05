@@ -211,6 +211,16 @@ let
     set -euo pipefail
     PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.findutils pkgs.gnugrep pkgs.systemd ]}"
 
+    # Default to DEBUG=0 unless the variable is already set
+    DEBUG="''${DEBUG:-0}"
+
+    # Helper function for debug logging
+    log_debug() {
+      if [[ "''${DEBUG}" -eq 1 ]]; then
+        echo "DEBUG: $*" >&2
+      fi
+    }
+
     METRICS_FILE="/var/lib/node_exporter/textfile_collector/tls.prom"
     TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
     CADDY_CERT_DIR="/var/lib/caddy/.local/share/caddy/certificates"
@@ -218,10 +228,14 @@ let
     # Clean up the temp file on script exit
     trap 'rm -f "''${TMP_METRICS_FILE}"' EXIT
 
+    # Ensure the destination directory exists and is writable
+    mkdir -p "$(dirname "''${METRICS_FILE}")"
+
     # Function to check a certificate file's expiry and extract all SANs
     # Optimized to parse certificate only once for better performance
     check_certificate_file() {
       local certfile="$1"
+      log_debug "Checking certificate: $certfile"
       local cert_filename
       cert_filename=$(basename "$certfile")
 
@@ -287,6 +301,9 @@ let
     }
 
     # Generate metrics atomically
+    log_debug "Starting metrics generation"
+    log_debug "METRICS_FILE=$METRICS_FILE"
+
     {
       echo "# HELP tls_certificate_check_success Whether certificate file was successfully read and parsed"
       echo "# TYPE tls_certificate_check_success gauge"
@@ -298,6 +315,8 @@ let
       # Find all certificate files in Caddy's storage directory
       if [[ -d "''${CADDY_CERT_DIR}" ]]; then
         mapfile -t cert_files < <(find "''${CADDY_CERT_DIR}" -type f -name "*.crt")
+        log_debug "Found ''${#cert_files[@]} certificate files"
+
         echo "tls_certificates_found ''${#cert_files[@]}"
 
         # Only iterate if we have certificates (avoids "unbound variable" error with set -u)
@@ -326,13 +345,15 @@ let
       if [ -n "$CADDY_START_TIME" ] && [ "$CADDY_START_TIME" != "n/a" ]; then
         # Convert systemd timestamp to a format journalctl accepts
         START_TIMESTAMP=$(date -d "$CADDY_START_TIME" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "1 hour ago")
+        # Fallback to 0 if journalctl fails (e.g., due to permissions)
         CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "$START_TIMESTAMP" --no-pager -q \
-          --grep="obtaining certificate.*error|challenge failed|acme.*failed" --case-sensitive=false | wc -l)
+          --grep="obtaining certificate.*error|challenge failed|acme.*failed" --case-sensitive=false 2>&1 | wc -l) || CHALLENGES_FAILED=0
       else
         # Fallback if we can't determine service start time
         CHALLENGES_FAILED=$(${pkgs.systemd}/bin/journalctl -u caddy.service --since "1 hour ago" --no-pager -q \
-          --grep="obtaining certificate.*error|challenge failed|acme.*failed" --case-sensitive=false | wc -l)
+          --grep="obtaining certificate.*error|challenge failed|acme.*failed" --case-sensitive=false 2>&1 | wc -l) || CHALLENGES_FAILED=0
       fi
+      log_debug "ACME challenges failed: $CHALLENGES_FAILED"
 
       echo "caddy_acme_challenges_failed_total ''${CHALLENGES_FAILED}"
 
@@ -343,8 +364,10 @@ let
       # Use --fail to ensure curl returns a non-zero exit code on HTTP errors
       if ${pkgs.curl}/bin/curl -s --fail --max-time 5 http://localhost:2019/metrics >/dev/null 2>&1; then
         echo "caddy_service_up 1"
+        log_debug "Caddy health check: UP"
       else
         echo "caddy_service_up 0"
+        log_debug "Caddy health check: DOWN"
       fi
 
     } > "''${TMP_METRICS_FILE}"
@@ -352,6 +375,7 @@ let
     # Atomic move and set permissions
     mv "''${TMP_METRICS_FILE}" "''${METRICS_FILE}"
     chmod 644 "''${METRICS_FILE}"
+    log_debug "Metrics exported successfully to $METRICS_FILE"
   '';
 in
 {
@@ -617,11 +641,17 @@ in
       Type = "oneshot";
       User = "node-exporter";
       Group = "node-exporter";
+      WorkingDirectory = "/var/lib/node_exporter";
       ExecStart = "${tlsMetricsScript}/bin/export-tls-metrics";
 
-      # Grant write access to the textfile collector directory
-      # This is necessary because of systemd's default sandboxing in NixOS
-      ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
+      # Grant read access to Caddy certificates and write access to node_exporter directory
+      # Note: ReadWritePaths must include the parent directory to allow path traversal
+      ReadWritePaths = [ "/var/lib/node_exporter" ];
+      ReadOnlyPaths = [ "/var/lib/caddy/.local/share/caddy/certificates" ];
+
+      # Capture output to journal for debugging
+      StandardOutput = "journal";
+      StandardError = "journal";
 
       # Add timeout to prevent hanging on certificate checks
       TimeoutStartSec = "60s";
@@ -632,7 +662,7 @@ in
     description = "Run TLS metrics exporter every 5 minutes";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "3m";    # Wait for Caddy to start AND permissions to be fixed (longer than fix-caddy-cert-permissions)
+      OnBootSec = "5m";    # Wait for Caddy to start AND permissions to be fixed (fix-caddy runs at 2m + processing time)
       OnUnitActiveSec = "5m";  # Check every 5 minutes
       Unit = "tls-metrics-exporter.service";
     };
