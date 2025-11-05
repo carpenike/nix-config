@@ -64,6 +64,10 @@ let
           User = "restic-backup";
           Group = "restic-backup";
 
+          # Restic exit codes: 0=success, 3=warning (some files couldn't be read but backup succeeded)
+          # We treat warnings as success since the backup itself succeeded
+          SuccessExitStatus = [ 3 ];
+
           # Security hardening
           PrivateTmp = true;
           ProtectSystem = "strict";

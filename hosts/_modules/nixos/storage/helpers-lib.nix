@@ -276,6 +276,10 @@ EOF
               cleanup_protective_snapshots
             fi
 
+            # Set ZFS property to mark preseed as complete
+            echo "Marking preseed as complete..."
+            "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
+
             # Write success metrics
             END_TIME=$(date +%s)
             DURATION=$((END_TIME - START_TIME))
@@ -362,6 +366,10 @@ EOF
                 cleanup_protective_snapshots
               fi
 
+              # Set ZFS property to mark preseed as complete
+              echo "Marking preseed as complete..."
+              "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
+
               # Write success metrics
               END_TIME=$(date +%s)
               DURATION=$((END_TIME - START_TIME))
@@ -435,6 +443,10 @@ EOF
               cleanup_protective_snapshots
             fi
 
+            # Set ZFS property to mark preseed as complete
+            echo "Marking preseed as complete..."
+            "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
+
             # Write success metrics
             END_TIME=$(date +%s)
             DURATION=$((END_TIME - START_TIME))
@@ -457,6 +469,10 @@ EOF
                 "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
                 cleanup_protective_snapshots
               fi
+
+              # Set ZFS property to mark preseed as complete
+              echo "Marking preseed as complete..."
+              "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
 
               # Write success metrics
               END_TIME=$(date +%s)
@@ -510,51 +526,33 @@ EOF
         fi
         echo "ZFS pool '$PARENT_POOL' is healthy (status: $POOL_HEALTH)."
 
-        # Step 1: Check if data directory is empty AND verify dataset state
-        # Using `ls -A` to account for hidden files.
-        if [ -n "$(ls -A "${mountpoint}" 2>/dev/null)" ]; then
-          # If dataset exists and has zero snapshots, take a protective one to close vulnerability window
+        # Step 1: Check ZFS user property to see if preseed has already completed
+        # This is the authoritative source of truth - if the property is set to "yes",
+        # the dataset has been successfully restored and should not be restored again.
+        # This approach is robust against:
+        # - Race conditions with dataset creation/mounting
+        # - Service-created symlinks/directories
+        # - Partial data states
+        # The property is destroyed when the dataset is destroyed, correctly signaling need for restore.
+        PRESEED_PROPERTY="holthome:preseed_complete"
+        PRESEED_STATUS=$("$ZFS" get -H -o value "$PRESEED_PROPERTY" "${dataset}" 2>/dev/null || echo "-")
+
+        if [ "$PRESEED_STATUS" = "yes" ]; then
+          echo "Dataset ${dataset} has already been restored (property $PRESEED_PROPERTY=yes). Skipping."
+          # Ensure dataset is mounted if not already
           if "$ZFS" list "${dataset}" &>/dev/null; then
-            SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
-            if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
-              echo "Dataset has data but no snapshots. Taking protective snapshot..."
-              "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
-              cleanup_protective_snapshots
-            fi
+            "$ZFS" mount "${dataset}" 2>/dev/null || echo "Dataset already mounted or mount failed"
           fi
 
           # Write skipped metrics
           write_metrics "success" "skipped" "0"
 
           rm -f "$PROGRESS_MARKER"
-          ${notify "preseed-skipped" "Data for ${serviceName} already exists. Skipping restore."}
+          ${notify "preseed-skipped" "Data for ${serviceName} already restored. Skipping."}
           exit 0
         fi
 
-        # Additional safety: If dataset exists and is mounted with ANY data, skip restore
-        # This protects against race conditions where mountpoint appears empty but dataset has data
-        if "$ZFS" list "${dataset}" &>/dev/null; then
-          DATASET_USED_BYTES=$("$ZFS" get -H -o value -p used "${dataset}" 2>/dev/null || echo "0")
-          # Use logicalreferenced to account for compression/dedup (fallback to used)
-          DATASET_LOGICAL_BYTES=$("$ZFS" get -H -o value -p logicalreferenced "${dataset}" 2>/dev/null || echo "0")
-          # Fallback if logicalreferenced isn't supported or non-numeric
-          if ! echo "$DATASET_LOGICAL_BYTES" | ${pkgs.gnugrep}/bin/grep -qE '^[0-9]+$'; then
-            DATASET_LOGICAL_BYTES="$DATASET_USED_BYTES"
-          fi
-          IS_MOUNTED=$("$ZFS" get -H -o value mounted "${dataset}" 2>/dev/null || echo "no")
-
-          # If dataset is mounted and has ANY logical data beyond ZFS metadata (>192KB), skip restore
-          # 192KB threshold accounts for empty ZFS filesystem overhead
-          # Using logicalreferenced prevents compression from hiding real data size
-          if [ "$IS_MOUNTED" = "yes" ] && [ "$DATASET_LOGICAL_BYTES" -gt 196608 ]; then
-            echo "Dataset ${dataset} is mounted with $DATASET_LOGICAL_BYTES logical bytes. Skipping restore for safety."
-            FRIENDLY_SIZE=$("$NUMFMT" --to=iec "$DATASET_LOGICAL_BYTES" 2>/dev/null || echo "$DATASET_LOGICAL_BYTES bytes")
-            ${notify "preseed-skipped" "Dataset ${serviceName} exists with data ($FRIENDLY_SIZE logical). Skipping restore."}
-            exit 0
-          fi
-        fi
-
-        echo "Data directory is empty. Attempting restore..."
+        echo "Dataset ${dataset} requires preseed (property $PRESEED_PROPERTY is not set). Attempting restore..."
 
         # Build restore method sequence from Nix-normalized list
         ORDER=()
