@@ -73,7 +73,7 @@
       # Aggregate under storage-preseed target for clearer boot phase orchestration
       wantedBy = [ "storage-preseed.target" ];
       wants = [ "network-online.target" ];  # Declare dependency to avoid warning
-      after = [ "network-online.target" "zfs-import.target" "zfs-mount.service" ];
+      after = [ "network-online.target" "zfs-import.target" "zfs-mount.service" "zfs-service-datasets.service" ];
       before = [ mainServiceUnit ];
 
       path = with pkgs; [ zfs coreutils gnugrep gawk restic systemd openssh sanoid ];

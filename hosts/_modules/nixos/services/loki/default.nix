@@ -396,9 +396,9 @@ in
       };
 
       # Service dependencies for ZFS dataset mounting and preseed
-      after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ]
+      after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
         ++ lib.optionals cfg.preseed.enable [ "preseed-loki.service" ];
-      wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" ]
+      wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
         ++ lib.optionals cfg.preseed.enable [ "preseed-loki.service" ];
     };
 
