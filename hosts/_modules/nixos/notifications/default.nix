@@ -383,13 +383,11 @@ in
 
         echo "[notify] Payload created at $PAYLOAD_FILE"
 
-        # Explicitly trigger the backend service
-        # The .path unit pattern doesn't work with templated services, so we start directly
+        # The backend service will be triggered automatically by its .path unit
+        # which watches for the creation of $PAYLOAD_FILE
+        # No need to explicitly start the service - avoids permission issues with DynamicUser
         BACKEND_SERVICE="notify-$BACKEND@$INSTANCE_STRING.service"
-        echo "[notify] Starting backend service: $BACKEND_SERVICE"
-        ${pkgs.systemd}/bin/systemctl start "$BACKEND_SERVICE" || {
-          echo "[notify] WARNING: Failed to start $BACKEND_SERVICE" >&2
-        }
+        echo "[notify] Backend service $BACKEND_SERVICE will be triggered by path unit"
 
         # Clean up the environment file now that it has been consumed
         ENV_FILE="/run/notify/env/$INSTANCE_STRING.env"

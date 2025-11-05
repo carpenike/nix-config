@@ -43,9 +43,18 @@ let
           ExecStart = pkgs.writeShellScript "create-snapshot-${jobName}" ''
             set -euo pipefail
 
+            # CRITICAL: Create lock file to signal syncoid that backup is in progress
+            # This prevents "dataset is busy" errors during replication
+            LOCK_DIR="/run/lock/backup-active"
+            DATASET_LOCK="$LOCK_DIR/${lib.strings.replaceStrings ["/"] ["-"] dataset}"
+            mkdir -p "$LOCK_DIR"
+            touch "$DATASET_LOCK"
+            echo "Created backup lock at $DATASET_LOCK"
+
             # Check if dataset exists
             if ! ${pkgs.zfs}/bin/zfs list "${dataset}" >/dev/null 2>&1; then
               echo "Dataset ${dataset} does not exist, skipping snapshot"
+              rm -f "$DATASET_LOCK"  # Clean up lock if dataset doesn't exist
               exit 0
             fi
 
@@ -82,6 +91,12 @@ let
           # Script to cleanup clone and snapshot
           ExecStop = pkgs.writeShellScript "cleanup-snapshot-${jobName}" ''
             set -euo pipefail
+
+            # CRITICAL: Remove lock file first to allow syncoid to proceed as soon as possible
+            LOCK_DIR="/run/lock/backup-active"
+            DATASET_LOCK="$LOCK_DIR/${lib.strings.replaceStrings ["/"] ["-"] dataset}"
+            rm -f "$DATASET_LOCK"
+            echo "Removed backup lock at $DATASET_LOCK"
 
             # Unmount and destroy clone if it exists
             if ${pkgs.zfs}/bin/zfs list "${cloneName}" >/dev/null 2>&1; then

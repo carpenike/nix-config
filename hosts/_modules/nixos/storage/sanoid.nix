@@ -426,7 +426,10 @@ in
             # Grant permissions for Sanoid to manage snapshots
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
               if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
-                ${pkgs.zfs}/bin/zfs allow sanoid send,snapshot,hold,destroy ${lib.escapeShellArg dataset}
+                # Redirect output to suppress verbose permission listings
+                if ! ${pkgs.zfs}/bin/zfs allow sanoid send,snapshot,hold,destroy ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
+                  echo "Warning: Could not set Sanoid permissions on ${lib.escapeShellArg dataset}"
+                fi
               else
                 echo "Dataset ${lib.escapeShellArg dataset} does not exist yet, skipping delegation"
               fi
@@ -436,7 +439,10 @@ in
             # NOTE: 'hold' permission removed - syncoid only needs send,snapshot for replication
             ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
               if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
-                ${pkgs.zfs}/bin/zfs allow ${cfg.replicationUser} send,snapshot ${lib.escapeShellArg dataset}
+                # Redirect output to suppress verbose permission listings
+                if ! ${pkgs.zfs}/bin/zfs allow ${cfg.replicationUser} send,snapshot ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
+                  echo "Warning: Could not set Syncoid permissions on ${lib.escapeShellArg dataset}"
+                fi
               else
                 echo "Dataset ${lib.escapeShellArg dataset} does not exist yet, skipping delegation"
               fi
@@ -546,8 +552,13 @@ in
               PartOf = [ "syncoid.target" ];
               # Prevent concurrent execution with restic backups (heavy I/O serialization)
               Conflicts = [ "restic-backups.target" ];
-              # Ensure key file exists before starting (works for persistent or ephemeral paths)
-              ConditionPathExists = toString cfg.sshKeyPath;
+              # CRITICAL: Multiple conditions - all must be satisfied for service to run
+              # 1. SSH key must exist (works for persistent or ephemeral paths)
+              # 2. No active backup lock for this dataset (prevents "dataset is busy" errors)
+              ConditionPathExists = [
+                (toString cfg.sshKeyPath)
+                "!/run/lock/backup-active/${lib.strings.replaceStrings ["/"] ["-"] dataset}"
+              ];
               # CRITICAL: Add network dependency to prevent startup race conditions
               After = [ "network-online.target" ];
               Wants = [ "network-online.target" ];
@@ -635,6 +646,20 @@ in
 
               mv "${metricFile}.tmp" "${metricFile}"
             '';
+          };
+        };
+      }
+    ) datasetsWithReplication) ++ (lib.mapAttrsToList (dataset: conf:
+      let
+        serviceName = "syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}";
+      in
+      {
+        # CRITICAL: Add RandomizedDelaySec to syncoid timers to prevent simultaneous startup
+        # This prevents race conditions during system rebuild when all timers trigger at once
+        # 5 minutes is sufficient to stagger startup without delaying normal operations
+        timers.${serviceName} = {
+          timerConfig = {
+            RandomizedDelaySec = "5m";
           };
         };
       }
