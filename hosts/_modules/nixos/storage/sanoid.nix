@@ -461,40 +461,12 @@ in
           };
         };
       }
-      # Ensure snapdir is visible for Sanoid-managed datasets
-      # Only make visible if autosnap is enabled; hide for databases and services that don't need it
-      # Timer-based reconciliation ensures settings are applied to datasets created after boot
-      {
-        services.zfs-set-snapdir-visible = {
-          description = "Set ZFS snapdir visibility for Sanoid datasets";
-          after = [ "zfs-import.target" "zfs-service-datasets.service" ];
-          serviceConfig = {
-            Type = "oneshot";
-          };
-          script = ''
-            echo "Setting snapdir visibility for Sanoid datasets..."
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
-              # Only make visible if autosnap is enabled (databases and excluded services get hidden)
-              if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
-                ${pkgs.zfs}/bin/zfs set snapdir=${if (conf.autosnap or false) then "visible" else "hidden"} ${lib.escapeShellArg dataset}
-              else
-                echo "Dataset ${lib.escapeShellArg dataset} does not exist yet, skipping snapdir configuration"
-              fi
-            '') cfg.datasets)}
-            echo "snapdir visibility configured successfully."
-          '';
-        };
+      # REMOVED: zfs-set-snapdir-visible service and timer
+      # This service was designed to make .zfs/snapshot directories visible for datasets.
+      # However, the backup system now uses ZFS clones mounted at /var/lib/backup-snapshots/
+      # which completely avoids the .zfs virtual directory, making this service obsolete.
+      # See hosts/_modules/nixos/services/backup/snapshots.nix for the clone-based approach.
 
-        timers.zfs-set-snapdir-visible = {
-          description = "Periodically reconcile ZFS snapdir visibility";
-          wantedBy = [ "timers.target" ];
-          timerConfig = {
-            OnBootSec = "1min";          # Run 1 minute after boot
-            OnUnitActiveSec = "15min";   # Then every 15 minutes
-            Unit = "zfs-set-snapdir-visible.service";
-          };
-        };
-      }
       # Use a static user for sanoid to allow pre-boot permission delegation
       {
         services.sanoid.serviceConfig = {
