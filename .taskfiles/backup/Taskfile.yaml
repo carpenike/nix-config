@@ -115,3 +115,107 @@ tasks:
         msg: "ssh not found"
       - sh: ssh {{.host}}.{{.NIXOS_DOMAIN}} "which backup-orchestrator" 2>/dev/null
         msg: "backup-orchestrator not installed on {{.host}}.{{.NIXOS_DOMAIN}}"
+
+  status:
+    desc: Show current status of all backup systems
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prometheus.{{.host}}.{{.NIXOS_DOMAIN}}'
+    summary: |
+      Displays a consolidated dashboard of all backup system statuses by querying
+      Prometheus metrics. Shows:
+        - pgBackRest: Last backup time, repo status, backup type
+        - Syncoid: ZFS replication status to nas-1
+        - Restic: Application backups to both NAS and B2
+
+      The dashboard highlights:
+        - OK: Green (backup completed < 26 hours ago)
+        - STALE: Yellow (backup > 26 hours old)
+        - FAILED: Red (last run failed)
+        - RUNNING: Cyan (currently in progress)
+
+      Args:
+        host: Target host with Prometheus (default: forge)
+
+      Environment Variables (required):
+        PROMETHEUS_USERNAME: Username for Prometheus authentication
+        PROMETHEUS_PASSWORD: Password for Prometheus authentication
+
+      Examples:
+        task backup:status
+        task backup:status host=forge
+    cmds:
+      - backup-status --prometheus-url {{.PROMETHEUS_URL}}
+    preconditions:
+      - sh: which backup-status
+        msg: "backup-status command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_USERNAME"
+        msg: "PROMETHEUS_USERNAME environment variable not set"
+      - sh: test -n "$PROMETHEUS_PASSWORD"
+        msg: "PROMETHEUS_PASSWORD environment variable not set"
+
+  pgbackrest-info:
+    desc: Show pgBackRest backup info for both repositories
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Displays pgBackRest backup information for both repositories:
+        - Repo1 (NFS): /mnt/nas-postgresql/pgbackrest
+        - Repo2 (R2): s3://nix-homelab-prod-servers/forge-pgbackrest
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest-info
+        task backup:pgbackrest-info host=forge
+    cmds:
+      - |
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres bash -c '
+          source /run/secrets/restic/r2-prod-env
+          export PGBACKREST_REPO2_S3_KEY=\$AWS_ACCESS_KEY_ID
+          export PGBACKREST_REPO2_S3_KEY_SECRET=\$AWS_SECRET_ACCESS_KEY
+          pgbackrest --stanza=main \\
+            --repo2-type=s3 \\
+            --repo2-path=/forge-pgbackrest \\
+            --repo2-s3-bucket=nix-homelab-prod-servers \\
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \\
+            --repo2-s3-region=auto \\
+            --repo2-s3-uri-style=path \\
+            info
+        '"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  pgbackrest-metrics-check:
+    desc: Check pgBackRest metrics collection status
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Checks the status of pgBackRest metrics collection:
+        - Service status
+        - Last run time
+        - Metrics file content
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest-metrics-check
+    cmds:
+      - |
+        echo "=== pgBackRest Metrics Service Status ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "systemctl status pgbackrest-metrics.service --no-pager"
+        echo ""
+        echo "=== Last Metrics Collection ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo tail -30 /var/lib/node_exporter/textfile_collector/pgbackrest.prom"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"

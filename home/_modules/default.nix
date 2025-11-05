@@ -14,6 +14,7 @@
     ./security
     ./shell
     ./themes
+    ./utilities
   ];
 
   config = {

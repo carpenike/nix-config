@@ -129,6 +129,18 @@ in
             description = "Repository type for optimization";
           };
 
+          repositoryName = lib.mkOption {
+            type = lib.types.str;
+            default = "NFS";
+            description = "Friendly name for the repository type (e.g., 'NFS', 'R2'). Used in Prometheus metrics for consistent naming across backup systems.";
+          };
+
+          repositoryLocation = lib.mkOption {
+            type = lib.types.str;
+            default = "nas-1";
+            description = "Friendly location identifier (e.g., 'nas-1', 'offsite'). Used in Prometheus metrics for consistent naming across backup systems.";
+          };
+
           pruneSchedule = lib.mkOption {
             type = lib.types.str;
             default = "weekly";

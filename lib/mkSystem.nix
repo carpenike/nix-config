@@ -95,6 +95,7 @@
           home-manager = {
             useUserPackages = true;
             useGlobalPkgs = true;
+            backupFileExtension = "backup";
             sharedModules = [
               inputs.sops-nix.homeManagerModules.sops
               inputs.nixvim.homeManagerModules.nixvim

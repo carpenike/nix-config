@@ -98,5 +98,8 @@
         "tree": {
           "renderIndentGuides": "none"
         }
-      }
+      },
+    "chat.mcp.discovery.enabled": {
+        "claude-desktop": true
+    }
 }

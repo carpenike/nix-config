@@ -27,6 +27,10 @@ in {
           { name = "puffer"; inherit (pkgs.fishPlugins.puffer) src; }
         ];
 
+        shellAliases = {
+          backups = "task backup:status";
+        };
+
         interactiveShellInit = ''
           function remove_path
             if set -l index (contains -i $argv[1] $PATH)

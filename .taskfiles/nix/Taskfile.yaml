@@ -16,7 +16,7 @@ tasks:
         vars:
           host: "{{ .host }}"
       - task: .prompt_to_continue
-      - darwin-rebuild switch --flake "{{.ROOT_DIR}}/#{{.host}}"
+      - sudo darwin-rebuild switch --flake "{{.ROOT_DIR}}/#{{.host}}"
     preconditions:
       - sh: which nix
         msg: "nix not found"

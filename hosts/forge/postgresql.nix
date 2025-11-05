@@ -125,6 +125,11 @@
         ];
       };
 
+      # REMOVED: EnvironmentFile and environment variables for R2 credentials
+      # These were overriding the config file values and preventing WAL archiving.
+      # The pgbackrest-config-generator.service now manages credentials in /etc/pgbackrest.conf
+      # which is the single source of truth for pgBackRest configuration.
+
       # CRITICAL: Ensure Podman network exists before PostgreSQL starts
       # The podman0 bridge (10.88.0.1) must be available for PostgreSQL to bind to it
       # Without this, PostgreSQL will only bind to localhost despite the listen_addresses setting
@@ -178,6 +183,10 @@
     # NOTE: This mirrors repo2EnvVars from default.nix - keep in sync!
     # TODO: Consider extracting to shared module if more services need this
     systemd.services.postgresql-preseed = {
+      # Ensure config file is generated before preseed attempts restore
+      after = [ "pgbackrest-config-generator.service" ];
+      requires = [ "pgbackrest-config-generator.service" ];
+
       serviceConfig = {
         # pgBackRest repo2 configuration via environment variables
         Environment = [

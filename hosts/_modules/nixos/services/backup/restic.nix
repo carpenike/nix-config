@@ -114,16 +114,16 @@ let
             {
               echo "# HELP restic_backup_status Backup job status (1=success, 0=failure)"
               echo "# TYPE restic_backup_status gauge"
-              echo "restic_backup_status{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $([[ $exit_code -eq 0 ]] && echo 1 || echo 0)"
+              echo "restic_backup_status{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\"} $([[ $exit_code -eq 0 ]] && echo 1 || echo 0)"
 
               echo "# HELP restic_backup_duration_seconds Backup job duration in seconds"
               echo "# TYPE restic_backup_duration_seconds gauge"
-              echo "restic_backup_duration_seconds{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $duration"
+              echo "restic_backup_duration_seconds{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\"} $duration"
 
               echo "# HELP restic_backup_last_success_timestamp Last successful backup timestamp"
               echo "# TYPE restic_backup_last_success_timestamp gauge"
               if [[ $exit_code -eq 0 ]]; then
-                echo "restic_backup_last_success_timestamp{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",hostname=\"${config.networking.hostName}\"} $end_time"
+                echo "restic_backup_last_success_timestamp{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\"} $end_time"
               fi
             } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
           }

@@ -126,6 +126,16 @@ in
                   type = lib.types.str;
                   description = "Full path to the target ZFS dataset on the remote host.";
                 };
+                targetName = lib.mkOption {
+                  type = lib.types.str;
+                  default = "NFS";
+                  description = "Friendly name for the target type (e.g., 'NFS', 'R2'). Used in Prometheus metrics for consistent naming across backup systems.";
+                };
+                targetLocation = lib.mkOption {
+                  type = lib.types.str;
+                  default = "nas-1";
+                  description = "Friendly location identifier (e.g., 'nas-1', 'offsite'). Used in Prometheus metrics for consistent naming across backup systems.";
+                };
                 sendOptions = lib.mkOption {
                   type = lib.types.nullOr lib.types.str;
                   default = null;
@@ -590,10 +600,10 @@ in
                 cat > "${metricFile}.tmp" <<EOF
                 # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
                 # TYPE syncoid_replication_status gauge
-                syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} 2
+                syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} 2
                 # HELP syncoid_replication_info Static information about replication configuration
                 # TYPE syncoid_replication_info gauge
-                syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} 1
+                syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} 1
                 EOF
                 mv "${metricFile}.tmp" "${metricFile}"
               '')
@@ -608,10 +618,10 @@ in
               cat > "${metricFile}.tmp" <<EOF
               # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
               # TYPE syncoid_replication_status gauge
-              syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} $STATUS
+              syncoid_replication_status{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} $STATUS
               # HELP syncoid_replication_info Static information about replication configuration
               # TYPE syncoid_replication_info gauge
-              syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} 1
+              syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} 1
               EOF
 
               # Only add timestamp metric on success
@@ -619,7 +629,7 @@ in
                 cat >> "${metricFile}.tmp" <<EOF
               # HELP syncoid_replication_last_success_timestamp Timestamp of the last successful replication
               # TYPE syncoid_replication_last_success_timestamp gauge
-              syncoid_replication_last_success_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",unit="${serviceName}"} $(date +%s)
+              syncoid_replication_last_success_timestamp{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} $(date +%s)
               EOF
               fi
 

@@ -8,15 +8,20 @@
   ];
 
   # Basic attic client configuration for all hosts (read-only access to public cache)
-  environment.etc."attic/config.toml" = {
-    text = ''
-      [default]
-      default-server = "homelab"
+  environment.etc."attic/config.toml" = lib.mkMerge [
+    {
+      text = ''
+        [default]
+        default-server = "homelab"
 
-      [servers.homelab]
-      url = "https://attic.holthome.net/"
-      # Public cache - no token needed for read access
-    '';
-    mode = "0644";
-  };
+        [servers.homelab]
+        url = "https://attic.holthome.net/"
+        # Public cache - no token needed for read access
+      '';
+    }
+    # mode is only supported on NixOS, not nix-darwin
+    (lib.mkIf pkgs.stdenv.isLinux {
+      mode = "0644";
+    })
+  ];
 }

@@ -5,18 +5,7 @@
   ...
 }:
 let
-  inherit (pkgs.stdenv.hostPlatform) isDarwin;
-
   cfg = config.modules.editor.vscode;
-  userDir = if isDarwin then
-    "Library/Application Support/Code/User"
-  else
-    "${config.xdg.configHome}/Code/User";
-  configFilePath = "${userDir}/settings.json";
-
-  pathsToMakeWritable = lib.flatten [
-    configFilePath
-  ];
 in
 {
   options.modules.editor.vscode = {
@@ -42,10 +31,8 @@ in
         profiles.default.userSettings = cfg.userSettings;
       };
 
-      home.file = lib.genAttrs pathsToMakeWritable (_: {
-        force = true;
-        mutable = true;
-      });
+      # The profiles.default.userSettings already manages settings.json
+      # No need for explicit home.file configuration
     })
   ];
 }

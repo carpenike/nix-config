@@ -1,7 +1,6 @@
-{ pkgs, flake-packages, ... }: {
+{ pkgs, ... }: {
   config = {
-    home.packages = with pkgs;
-      with flake-packages.${pkgs.system}; [
+    home.packages = with pkgs; [
         curl
         du-dust
         envsubst
@@ -12,6 +11,9 @@
         jq
         vim
         wget
+
+        # Custom packaged tools
+        backup-status
       ];
   };
 }

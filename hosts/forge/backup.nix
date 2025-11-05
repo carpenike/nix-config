@@ -4,15 +4,22 @@
 #
 # PostgreSQL backups are handled by pgBackRest (see postgresql.nix and default.nix)
 # - Application-consistent backups with Point-in-Time Recovery (PITR)
-# - Multi-repo: Local NFS (repo1) + Offsite R2 (repo2)
+# - Dual-repository with full PITR on both: Local NFS (repo1) + Offsite R2 (repo2)
 # - Integrated with monitoring and Prometheus metrics
 # - Archive-async with local spool for high availability
 #
 # PostgreSQL Backup Strategy:
-# - pgBackRest repo1 (NFS): Full/diff/incr backups + continuous WAL archiving (primary recovery)
-# - pgBackRest repo2 (R2): Full/diff/incr backups ONLY - pure DR repository (no continuous WALs)
-#   * RPO for R2 recovery: ~1 hour (last incremental backup)
-#   * Design rationale: Cost optimization, operational simplicity, fast local recovery priority
+# - pgBackRest repo1 (NFS): Full/incr backups + continuous WAL archiving
+#   * 7-day retention
+#   * Full PITR capability
+#   * Primary recovery source (fastest)
+#
+# - pgBackRest repo2 (Cloudflare R2): Full/incr backups + continuous WAL archiving
+#   * 30-day retention
+#   * Full PITR capability
+#   * Geographic redundancy for disaster recovery
+#   * Cost-effective (R2 has zero egress fees)
+#
 # - ZFS snapshots: Service data only (tank/services excluding PostgreSQL PGDATA)
 # - ZFS replication: Service data to nas-1 every 15 minutes (configured in default.nix, excludes PostgreSQL)
 #
@@ -36,16 +43,6 @@
 #      AWS_SECRET_ACCESS_KEY=<your_secret>
 # 4. Deploy configuration and verify first backup succeeds
 
-let
-  # Reference centralized primary backup repository config from default.nix
-  # See hosts/forge/default.nix for the single source of truth
-  primaryRepoName = "nas-primary";
-  primaryRepoUrl = "/mnt/nas-backup";
-  primaryRepoPasswordFile = config.sops.secrets."restic/password".path;
-
-  # Cloudflare R2 offsite repository configuration (DRY principle)
-  r2OffsetUrl = "s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
-in
 {
   config = {
     # Note: restic-backup user/group created by backup module
@@ -130,6 +127,9 @@ in
           passwordFile = config.sops.secrets."restic/password".path;
           primary = true;
           type = "local";
+          # Consistent naming for Prometheus metrics
+          repositoryName = "NFS";
+          repositoryLocation = "nas-1";
         };
         r2-offsite = {
           url = "s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
@@ -137,14 +137,19 @@ in
           environmentFile = config.sops.secrets."restic/r2-prod-env".path;
           primary = false;
           type = "s3";
+          # Consistent naming for Prometheus metrics
+          repositoryName = "R2";
+          repositoryLocation = "offsite";
         };
       };
 
-      # PostgreSQL hybrid backup (pgBackRest + Restic offsite)
+      # PostgreSQL backup (pgBackRest with dual-repo PITR)
+      # Restic meta-backup DISABLED - redundant now that repo2 has WAL archiving
+      # Both repo1 (NFS) and repo2 (R2) now support full Point-in-Time Recovery
       postgres = {
         enable = true;
-        pgbackrest.enableOffsite = true;
-        pgbackrest.offsiteRepository = "r2-offsite";
+        pgbackrest.enableOffsite = false;  # Disabled - repo2 now handles offsite PITR
+        # pgbackrest.offsiteRepository = "r2-offsite";  # No longer needed
       };
 
       # Restic backup discovery and management
@@ -157,195 +162,6 @@ in
       monitoring.enable = true;
       verification.enable = true;
     };
-
-    # DISABLED: Old backup module replaced by unified backup system
-    # modules.backup = {
-    #   enable = true;
-    #
-    #   # Configure ZFS snapshots for backup consistency (multi-pool support)
-    #   zfs = {
-#        enable = true;
-#        pools = [
-#          # Boot pool datasets
-#          {
-#            pool = "rpool";
-#            datasets = [
-#              "safe/home"      # User home directories
-#              "safe/persist"   # System state and persistent data
-#              # local/nix excluded - fully reproducible from NixOS configuration
-#            ];
-#          }
-#          # Service data pool
-#          {
-#            pool = "tank";
-#            datasets = [
-#              "services/dispatcharr"          # dispatcharr application data
-#              # Removed services/postgresql/main-wal - obsolete directory not used by pgBackRest
-#            ];
-#          }
-#        ];
-#        retention = {
-#          daily = 7;
-#          weekly = 4;
-#          monthly = 3;
-#        };
-#      };
-#
-#      # Configure Restic backups
-#      restic = {
-#        enable = true;
-#
-#        globalSettings = {
-#          compression = "auto";
-#          readConcurrency = 2;
-#          retention = {
-#            daily = 14;
-#            weekly = 8;
-#            monthly = 6;
-#            yearly = 2;
-#          };
-#        };
-#
-#        # Define backup repositories
-#        # Note: Repository details defined inline from config.sops.secrets to avoid _module.args circular dependency
-#        repositories = {
-#          ${primaryRepoName} = {
-#            url = primaryRepoUrl;
-#            passwordFile = primaryRepoPasswordFile;
-#            primary = true;
-#          };
-#
-#          # Cloudflare R2 for offsite geographic redundancy
-#          # Zero egress fees make restore testing and actual DR affordable
-#          #
-#          # Bucket Organization: Per-Environment Strategy
-#          # - production-servers: forge, luna, nas-1 (critical infrastructure)
-#          # - edge-devices: nixpi (monitoring/edge services)
-#          # - workstations: rydev, rymac (development machines)
-#          #
-#          # Security: Each bucket has scoped API token (least privilege)
-#          # - Compromised workstation cannot access server backups
-#          # - Separate credentials per environment tier
-#          #
-#          # Security Note: Account ID in URL is NOT sensitive (identifier, not secret)
-#          # - Industry standard: account IDs are public (like AWS Account IDs)
-#          # - Actual secrets (API keys) are in sops: restic/r2-prod-env
-#          # - Defense in depth: scoped IAM + API credentials + Restic encryption
-#          r2-offsite = {
-#            url = r2OffsetUrl;  # DRY: Defined once in let block
-#            passwordFile = primaryRepoPasswordFile;  # Reuse same Restic encryption password
-#            environmentFile = config.sops.secrets."restic/r2-prod-env".path;  # Production bucket credentials
-#            primary = false;  # Secondary repository for DR
-#          };
-#        };
-#
-#        # Define backup jobs
-#        jobs = {
-#          system = {
-#            enable = true;
-#            repository = "r2-offsite";  # Send to R2 for offsite DR (NAS covered by Syncoid)
-#            paths = [
-#              "/home"
-#              "/persist"
-#              "/var/lib/backup-docs"  # Backup the documentation for DR
-#            ];
-#            excludePatterns = [
-#              # Exclude cache directories
-#              "**/.cache"
-#              "**/.local/share/Trash"
-#              "**/Cache"
-#              "**/cache"
-#              # Exclude build artifacts
-#              "**/.direnv"
-#              "**/result"
-#              "**/target"
-#              "**/node_modules"
-#              # Exclude temporary files
-#              "**/*.tmp"
-#              "**/*.temp"
-#            ];
-#            tags = [ "system" "forge" "nixos" ];
-#            resources = {
-#              memory = "512M";
-#              memoryReservation = "256M";
-#              cpus = "1.0";
-#            };
-#          };
-#
-#          nix-store = {
-#            enable = false;  # Optional: enable if you want to backup Nix store
-#            repository = primaryRepoName;
-#            paths = [ "/nix" ];
-#            tags = [ "nix" "forge" ];
-#            resources = {
-#              memory = "1G";
-#              memoryReservation = "512M";
-#              cpus = "1.0";
-#            };
-#          };
-#
-#          # PostgreSQL backups now handled by pgBackRest (see default.nix)
-#          # - Full backups: Daily at 2 AM to /mnt/nas-backup/pgbackrest + R2
-#          # - Incremental backups: Hourly
-#          # - Differential backups: Every 6 hours
-#          # - WAL archiving: Continuous via archive_command
-#        };
-#      };
-#
-#      # Enable monitoring and notifications
-#      monitoring = {
-#        enable = true;
-#
-#        # Enable Prometheus metrics via Node Exporter textfile collector
-#        prometheus = {
-#          enable = true;
-#          metricsDir = "/var/lib/node_exporter/textfile_collector";
-#        };
-#
-#        # Error analysis
-#        errorAnalysis = {
-#          enable = true;
-#        };
-#
-#        logDir = "/var/log/backup";
-#      };
-#
-#      # Enable automated verification
-#      verification = {
-#        enable = true;
-#        schedule = "weekly";
-#        checkData = false;  # Set to true for thorough data verification (slow)
-#        checkDataSubset = "10%";  # Increase subset for stronger offsite verification
-#      };
-#
-#      # Enable restore testing
-#      restoreTesting = {
-#        enable = true;
-#        schedule = "monthly";
-#        sampleFiles = 5;
-#        testDir = "/tmp/restore-tests";
-#      };
-#
-#      # Performance settings
-#      performance = {
-#        cacheDir = "/var/cache/restic";
-#        cacheSizeLimit = "5G";
-#        ioScheduling = {
-#          enable = true;
-#          ioClass = "idle";
-#          priority = 7;
-#        };
-#      };
-#
-#      # Enable documentation generation
-#      documentation = {
-#        enable = true;
-#        outputDir = "/var/lib/backup-docs";
-#      };
-#
-#      # Backup schedule
-#      schedule = "daily";
-#    };
 
     # Forge-specific backup monitoring alerts
     # Standard Restic alerts are co-located with the backup service module
