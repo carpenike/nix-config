@@ -52,6 +52,13 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
   # Comment out ensure_utf8_encoding call
   sed -i 's|^ensure_utf8_encoding$|# DISABLED: ensure_utf8_encoding|g' /tmp/entrypoint-modified.sh
 
+  # Fix the su command that starts uwsgi - remove the login flag (-) that conflicts with -p
+  # Original: su -p - $POSTGRES_USER -c "cd /app && uwsgi $uwsgi_args &"
+  # Fixed: su -p $POSTGRES_USER -c "cd /app && uwsgi $uwsgi_args &"
+  # The -p flag preserves environment (including PATH), while - creates a login shell that resets it
+  # These flags are mutually exclusive and cause "su: ignoring --preserve-environment" errors
+  sed -i 's|su -p - \$POSTGRES_USER -c|su -p \$POSTGRES_USER -c|g' /tmp/entrypoint-modified.sh
+
   # Patch ALL scripts to skip /data/db operations when using external PostgreSQL
   echo "   Patching scripts to skip /data/db operations..."
   # Patch the init script

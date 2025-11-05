@@ -76,6 +76,7 @@ in
         [
           "wheel"
           "users"
+          "podman"  # Rootless podman container management
         ]
         ++ ifGroupsExist [
           "network"
