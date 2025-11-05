@@ -53,11 +53,14 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
   sed -i 's|^ensure_utf8_encoding$|# DISABLED: ensure_utf8_encoding|g' /tmp/entrypoint-modified.sh
 
   # Fix the su command that starts uwsgi - remove the login flag (-) that conflicts with -p
+  # and use full path to uwsgi since PATH doesn't include the virtualenv
   # Original: su -p - $POSTGRES_USER -c "cd /app && uwsgi $uwsgi_args &"
-  # Fixed: su -p $POSTGRES_USER -c "cd /app && uwsgi $uwsgi_args &"
+  # Fixed: su -p $POSTGRES_USER -c "cd /app && /dispatcharrpy/bin/uwsgi $uwsgi_args &"
   # The -p flag preserves environment (including PATH), while - creates a login shell that resets it
   # These flags are mutually exclusive and cause "su: ignoring --preserve-environment" errors
+  # uwsgi is in /dispatcharrpy/bin/ which is not in the default PATH
   sed -i 's|su -p - \$POSTGRES_USER -c|su -p \$POSTGRES_USER -c|g' /tmp/entrypoint-modified.sh
+  sed -i 's|uwsgi \$uwsgi_args|/dispatcharrpy/bin/uwsgi \$uwsgi_args|g' /tmp/entrypoint-modified.sh
 
   # Patch ALL scripts to skip /data/db operations when using external PostgreSQL
   echo "   Patching scripts to skip /data/db operations..."
