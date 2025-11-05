@@ -4,13 +4,24 @@
 # Provides uptime monitoring and status pages for homelab services.
 # Uses native NixOS service (not containerized) wrapped with homelab patterns.
 #
-# ARCHITECTURE PIVOT (Nov 5, 2025):
-# Initially implemented as Podman container (369 lines), but discovered NixOS
-# has a native uptime-kuma service. Pivoted to native wrapper approach:
-#   - Simpler: ~150 lines vs 369
-#   - No Podman dependency
-#   - Better NixOS integration
-#   - Easier updates via nix flake update
+# ARCHITECTURE EVOLUTION:
+#
+# 1. Container Version (369 lines) - Nov 5, 2025
+#    Initially implemented as Podman container with full homelab patterns
+#
+# 2. Native Wrapper (200 lines) - Nov 5, 2025
+#    Discovered NixOS has native uptime-kuma service, pivoted to wrapper approach:
+#    - Simpler: ~150 lines vs 369
+#    - No Podman dependency
+#    - Better NixOS integration
+#    - Easier updates via nix flake update
+#
+# 3. Pragmatic Monitoring (current) - Nov 5, 2025
+#    Gemini Pro analysis: Skip uptime-kuma-exporter, use blackbox approach
+#    - Uptime Kuma handles notifications for services it monitors
+#    - Prometheus monitors Uptime Kuma itself (meta-monitoring via systemd healthcheck)
+#    - No additional exporter service = simpler, more reliable
+#    - Avoids "monitoring the monitor" complexity trap
 #
 # Retains all homelab integrations: ZFS, backups, preseed, monitoring, DR.
 {
@@ -48,32 +59,52 @@
     };
 
     # Prometheus alerts for Uptime Kuma
+    # ARCHITECTURE: Pragmatic blackbox monitoring approach (Gemini Pro recommendation, Nov 5 2025)
+    #
+    # MONITORING PHILOSOPHY:
+    # - Uptime Kuma monitors downstream services (black-box checks)
+    # - Prometheus monitors Uptime Kuma itself (meta-monitoring)
+    # - Uptime Kuma's native notification system handles alerts for services it monitors
+    # - No uptime-kuma-exporter needed (avoids monitoring-the-monitor complexity)
+    #
+    # WHY NOT THE EXPORTER?
+    # Adding uptime-kuma-exporter creates a new point of failure to get visibility into
+    # Uptime Kuma's state. If the exporter breaks, you lose monitoring of the monitor.
+    # The real risk is "Is Uptime Kuma completely down?" not "What's the status of each
+    # individual monitor?" (Uptime Kuma already notifies about those).
+    #
+    # This approach uses systemd health checks (already running) to detect if Uptime Kuma
+    # is responsive. It's simple, robust, and requires zero additional dependencies.
     modules.alerting.rules = lib.mkIf (config.modules.services.uptime-kuma.enable) {
-      "uptime-kuma-down" = {
+      # CRITICAL: Service is running but unresponsive (zombie process or frozen)
+      # The systemd health check (curl to localhost:3001) is failing
+      # This is the PRIMARY alert - if this fires, Uptime Kuma is not working
+      "uptime-kuma-unhealthy" = {
         type = "promql";
-        alertname = "UptimeKumaDown";
-        expr = ''up{job="service-uptime-kuma"} == 0'';
-        for = "5m";
+        alertname = "UptimeKumaUnhealthy";
+        expr = ''node_systemd_unit_state{name="uptime-kuma-healthcheck.service", state="failed", instance=~".*forge.*"} == 1'';
         severity = "critical";
         labels = { service = "uptime-kuma"; category = "availability"; };
         annotations = {
-          summary = "Uptime Kuma is down on {{ $labels.instance }}";
-          description = "Uptime Kuma service is not responding to Prometheus scrapes. Check: systemctl status uptime-kuma.service";
-          command = "systemctl status uptime-kuma.service && journalctl -u uptime-kuma.service --since '30m'";
+          summary = "Uptime Kuma is unhealthy on {{ $labels.instance }}";
+          description = "The Uptime Kuma service is running but failing its internal health check (cannot be reached via local curl). The application may be frozen, deadlocked, or the web server crashed.";
+          command = "systemctl status uptime-kuma-healthcheck.service uptime-kuma.service && journalctl -u uptime-kuma.service --since '30m'";
         };
       };
 
-      "uptime-kuma-monitor-failing" = {
+      # CRITICAL: Systemd service is stopped or crashed
+      # This catches cases where the process isn't running at all
+      "uptime-kuma-service-down" = {
         type = "promql";
-        alertname = "UptimeKumaMonitoredServiceDown";
-        # Uptime Kuma /metrics reports status: 1=UP, 2=DOWN
-        expr = ''monitor_status{job="service-uptime-kuma"} == 2'';
+        alertname = "UptimeKumaServiceDown";
+        expr = ''node_systemd_unit_state{name="uptime-kuma.service", state="active", instance=~".*forge.*"} == 0'';
         for = "2m";
-        severity = "high";
-        labels = { service = "uptime-kuma"; category = "monitoring"; };
+        severity = "critical";
+        labels = { service = "uptime-kuma"; category = "availability"; };
         annotations = {
-          summary = "Monitored service '{{ $labels.monitor_name }}' is down";
-          description = "Uptime Kuma reports that '{{ $labels.monitor_name }}' is failing checks. Check status page: https://status.${config.networking.domain}";
+          summary = "Uptime Kuma systemd service is not active on {{ $labels.instance }}";
+          description = "The uptime-kuma.service is not in 'active' state. It may be stopped, failed, or in restart loop.";
+          command = "systemctl status uptime-kuma.service && journalctl -u uptime-kuma.service --since '30m'";
         };
       };
     };

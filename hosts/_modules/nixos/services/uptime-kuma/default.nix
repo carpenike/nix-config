@@ -33,7 +33,8 @@ let
   storageCfg = config.modules.storage;
   hasCentralizedNotifications = notificationsCfg.enable or false;
   uptimeKumaPort = 3001;
-  mainServiceUnit = "uptime-kuma.service";
+  serviceName = "uptime-kuma";
+  serviceUnitFile = "${serviceName}.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/uptime-kuma";
 
   # Recursively find the replication config from the most specific dataset path upwards.
@@ -137,7 +138,7 @@ in
       type = lib.types.nullOr sharedTypes.loggingSubmodule;
       default = {
         enable = true;
-        journalUnit = mainServiceUnit;
+        journalUnit = serviceUnitFile;
         labels = {
           service = "uptime-kuma";
           service_type = "monitoring";
@@ -217,10 +218,11 @@ in
       services.uptime-kuma = {
         enable = true;
         package = cfg.package;
+        # Note: Native module sets DATA_DIR to StateDirectory automatically
+        # We only override HOST and PORT for reverse proxy integration
         settings = {
-          DATA_DIR = cfg.dataDir;
-          HOST = "127.0.0.1";  # Bind to localhost for reverse proxy
-          PORT = toString uptimeKumaPort;
+          HOST = mkDefault "127.0.0.1";  # Bind to localhost for reverse proxy
+          PORT = mkDefault (toString uptimeKumaPort);
         };
       };
 
@@ -236,7 +238,7 @@ in
         auth = cfg.reverseProxy.auth or null;
         security = cfg.reverseProxy.security or {};
         # WebSocket support for real-time UI
-        extraConfig = ''
+        reverseProxyBlock = ''
           header_up -Connection
           header_up Connection "Upgrade"
           ${cfg.reverseProxy.extraConfig or ""}
@@ -249,25 +251,37 @@ in
         recordsize = "16K";  # Optimal for SQLite
         compression = "zstd";
         properties = { "com.sun:auto-snapshot" = "true"; };
-        owner = "uptime-kuma";  # Created by native module
+        owner = "uptime-kuma";
         group = "uptime-kuma";
         mode = "0750";
       };
 
-      # Systemd service overrides
-      systemd.services."${mainServiceUnit}" = {
-        unitConfig = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+            # Systemd service dependencies and notifications
+      systemd.services."${serviceName}" = {
+        unitConfig = {
+          # Ensure ZFS mount is available before service starts
+          RequiresMountsFor = [ cfg.dataDir ];
+        } // (mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           OnFailure = [ "notify@uptime-kuma-failure:%n.service" ];
-        };
+        });
         wants = mkIf cfg.preseed.enable [ "preseed-uptime-kuma.service" ];
         after = mkIf cfg.preseed.enable [ "preseed-uptime-kuma.service" ];
       };
+
+      # Create static user for uptime-kuma
+      users.users.uptime-kuma = {
+        isSystemUser = true;
+        group = "uptime-kuma";
+        description = "Uptime Kuma service user";
+      };
+
+      users.groups.uptime-kuma = {};
 
       # Health check timer (no Podman dependency - uses curl)
       systemd.timers.uptime-kuma-healthcheck = mkIf cfg.healthcheck.enable {
         description = "Uptime Kuma Health Check Timer";
         wantedBy = [ "timers.target" ];
-        after = [ mainServiceUnit ];
+        after = [ serviceUnitFile ];
         timerConfig = {
           OnActiveSec = cfg.healthcheck.startPeriod;
           OnUnitActiveSec = cfg.healthcheck.interval;
@@ -277,7 +291,7 @@ in
 
       systemd.services.uptime-kuma-healthcheck = mkIf cfg.healthcheck.enable {
         description = "Uptime Kuma Health Check";
-        after = [ mainServiceUnit ];
+        after = [ serviceUnitFile ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "uptime-kuma-healthcheck" ''
@@ -317,7 +331,7 @@ in
         serviceName = "uptime-kuma";
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
-        mainServiceUnit = mainServiceUnit;
+        mainServiceUnit = serviceUnitFile;
         replicationCfg = replicationConfig;
         datasetProperties = {
           recordsize = "16K";
@@ -334,5 +348,24 @@ in
         group = "uptime-kuma";
       }
     ))
+
+    # CRITICAL: Separate config block to override native module's DynamicUser settings
+    # This must be in a separate block to ensure it's evaluated AFTER the native module
+        # CRITICAL: This block overrides the native module's DynamicUser settings.
+    # The key is targeting the correct service name ("uptime-kuma") in the attribute path.
+    (mkIf cfg.enable {
+      systemd.services."${serviceName}".serviceConfig = {
+        # Disable DynamicUser and StateDirectory to use our ZFS-backed directory
+        DynamicUser = lib.mkForce false;
+        StateDirectory = lib.mkForce ""; # Empty string unsets the option
+        User = lib.mkForce "uptime-kuma";
+        Group = lib.mkForce "uptime-kuma";
+        WorkingDirectory = lib.mkForce cfg.dataDir;
+        # Explicitly grant write access to the data directory.
+        # This is necessary because we disabled StateDirectory, which would
+        # normally handle this automatically by punching through the sandbox.
+        ReadWritePaths = lib.mkForce [ cfg.dataDir ];
+      };
+    })
   ];
 }

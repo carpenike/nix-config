@@ -37,6 +37,7 @@
     ./promtail                                # Promtail log shipping agent
     ./sonarr
     ./unifi
+    ./uptime-kuma                             # Uptime Kuma monitoring service (native wrapper)
     # ./ups                                   # REMOVED: Use services.nut directly in host configs
   ];
 }
