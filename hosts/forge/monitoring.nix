@@ -208,7 +208,6 @@ let
   # TLS Certificate Monitoring Script (Direct File Access)
   # Reads certificates directly from Caddy's storage directory for reliability
   tlsMetricsScript = pkgs.writeShellScriptBin "export-tls-metrics" ''
-    #!/usr/bin/env bash
     set -euo pipefail
     PATH="${lib.makeBinPath [ pkgs.coreutils pkgs.openssl pkgs.findutils pkgs.gnugrep pkgs.systemd ]}"
 
@@ -301,9 +300,12 @@ let
         mapfile -t cert_files < <(find "''${CADDY_CERT_DIR}" -type f -name "*.crt")
         echo "tls_certificates_found ''${#cert_files[@]}"
 
-        for certfile in "''${cert_files[@]}"; do
-          check_certificate_file "$certfile"
-        done
+        # Only iterate if we have certificates (avoids "unbound variable" error with set -u)
+        if [ ''${#cert_files[@]} -gt 0 ]; then
+          for certfile in "''${cert_files[@]}"; do
+            check_certificate_file "$certfile"
+          done
+        fi
       else
         echo "tls_certificates_found 0"
         # Export a canary metric to detect misconfiguration (directory may not exist yet on fresh installs)

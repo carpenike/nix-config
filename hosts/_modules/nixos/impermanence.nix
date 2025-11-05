@@ -39,6 +39,15 @@ with lib;
         "/var/lib/nixos"    # NixOS state
         "/var/lib/omada"    # Omada controller data
         "/var/lib/unifi"    # Unifi controller data
+        # Persist Caddy's ACME certificates to avoid Let's Encrypt rate limiting
+        # during frequent rebuilds/DR testing. Caddy still handles automatic renewal.
+        # This also ensures TLS metrics are immediately available on boot.
+        {
+          directory = "/var/lib/caddy";
+          user = "caddy";
+          group = "caddy";
+          mode = "0750";
+        }
       ];
       files = [
         # Machine-id is handled by tmpfiles.rules as a symlink, not persisted directly
