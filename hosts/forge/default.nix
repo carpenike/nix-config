@@ -23,6 +23,7 @@ in
     ./postgresql.nix
     ./dispatcharr.nix
     ./plex.nix
+    ./uptime-kuma.nix    # Uptime monitoring and status page
     ./ups.nix            # UPS monitoring configuration
     ../../profiles/hardware/intel-gpu.nix
   ];
