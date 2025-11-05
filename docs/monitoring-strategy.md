@@ -1,0 +1,382 @@
+# Monitoring Strategy: Black-Box vs White-Box
+
+This document establishes the strategic division of monitoring responsibilities between Uptime Kuma (black-box) and Prometheus/Alertmanager (white-box) for homelab services.
+
+**Last Updated**: November 5, 2025
+**Gemini Pro Analysis**: Pragmatic monitoring approach for homelab context
+
+---
+
+## Core Principle
+
+**"Use Uptime Kuma for user-facing availability (is it up?) and Prometheus for system internals (how well is it running?)."**
+
+These two monitoring perspectives are **complementary, not redundant**:
+- **Uptime Kuma alert** tells you *what* is broken (user impact)
+- **Prometheus alert** tells you *why* it's breaking (system health)
+
+---
+
+## Black-Box Monitoring (Uptime Kuma)
+
+### Purpose
+External validation from the user's perspective. Answers: **"Is this service available and behaving as a user would expect from the outside?"**
+
+### Characteristics
+- **Knows nothing about internal state** - interacts as a client would
+- **Binary checks**: Service is UP ✅ or DOWN ❌
+- **Immediate alerts**: User-facing failures require immediate action
+- **Public status page**: Family/users can see service availability
+
+### What to Monitor in Uptime Kuma
+
+Add to Uptime Kuma if the service meets ANY of these criteria:
+- ✅ Users directly interact with it (web UI, API, network service)
+- ✅ You want it displayed on a public status page
+- ✅ The check is simple and external (HTTP 200, port open, ping)
+- ✅ Failure immediately impacts user experience
+
+### Check Types
+
+| Check Type | Use Case | Example |
+|------------|----------|---------|
+| **HTTP(S)** | Web services, APIs | Status 200 + keyword "Login" |
+| **TCP Port** | Database connections | Port 5432 accepting connections |
+| **DNS** | DNS resolution | Query google.com through AdGuard |
+| **Ping** | Host reachability | NAS, other homelab nodes |
+| **TLS Certificate** | Certificate expiry | Certificate valid, >30 days remaining |
+
+### Alert Routing
+- **Target**: Phone notifications (critical/immediate)
+- **When**: User-visible service failures
+- **Configure in**: Uptime Kuma UI (per-monitor notifications)
+
+---
+
+## White-Box Monitoring (Prometheus)
+
+### Purpose
+Internal health and performance measurement. Answers: **"What is the internal state, load, and performance of this service and its components?"**
+
+### Characteristics
+- **Requires metrics exposure** - service must instrument itself
+- **Quantitative measurements**: Gauges, counters, histograms, trends
+- **Predictive alerts**: Warn before failures occur (disk filling, memory leak)
+- **Historical analysis**: Grafana dashboards, capacity planning
+
+### What to Monitor in Prometheus
+
+Add to Prometheus if the service meets ANY of these criteria:
+- ✅ Exposes metrics (native exporter or instrumented)
+- ✅ Resource usage matters (CPU, memory, disk, network)
+- ✅ Needs predictive alerting (trending toward failure)
+- ✅ Requires historical trending and dashboards
+
+### Metric Sources
+
+| Source | Purpose | Examples |
+|--------|---------|----------|
+| **node_exporter** | System-level metrics | CPU, memory, disk, network, systemd units |
+| **postgres_exporter** | Database internals | Connection pools, query latency, replication lag |
+| **Application exporters** | App-specific metrics | Auth failures, request rates, queue depths |
+| **Textfile collectors** | Custom metrics | ZFS health, GPU usage, container stats |
+
+### Alert Types
+
+| Alert Category | Severity | Example |
+|----------------|----------|---------|
+| **Resource Critical** | Critical | Disk <10%, Memory >90% sustained |
+| **Degradation** | High | Query latency >500ms p95 |
+| **Predictive** | Warning | Disk will fill in 4 hours (trend) |
+| **Internal Failure** | High | Backup job failed, systemd restart loop |
+
+### Alert Routing
+- **Target**: Alertmanager → Slack/Email/Phone (severity-based)
+- **When**: System trending toward failure or internal problems
+- **Configure in**: NixOS configuration (`modules.alerting.rules`)
+
+---
+
+## When to Use BOTH
+
+Use both monitoring systems when:
+1. **Service is critical AND complex** - PostgreSQL, authentication services
+2. **Different perspectives provide different value** - External availability ≠ internal health
+3. **Alerts serve different purposes** - User impact vs operational health
+
+### Example: PostgreSQL
+
+**Uptime Kuma Check:**
+- Type: TCP Port
+- Target: `localhost:5432`
+- Alert: "Database is completely unreachable"
+- Purpose: Fast validation that users/apps can connect
+
+**Prometheus Monitoring:**
+- Exporter: postgres_exporter
+- Metrics: Connection pool usage, query latency, replication lag, backup status
+- Alerts: High connection count, slow queries, backup failures
+- Purpose: Catch slow degradation before total failure
+
+**Why both?** TCP check is immediate user-perspective validation. Prometheus catches internal problems (slow queries, connection exhaustion) before they cause complete outages.
+
+---
+
+## Service-Specific Guidance
+
+### Authentication (Authelia, Keycloak)
+| System | Check | Purpose |
+|--------|-------|---------|
+| **Uptime Kuma** | HTTPS → login page returns 200 + "Login" keyword | Users can access login |
+| **Prometheus** | Auth success/failure rate, request latency | Detect attacks or misconfig |
+
+### DNS (AdGuard Home, Pihole)
+| System | Check | Purpose |
+|--------|-------|---------|
+| **Uptime Kuma** | DNS query for google.com succeeds | DNS resolution working |
+| **Prometheus** | systemd unit state, query rate, block rate | Service health, performance |
+
+### Reverse Proxy (Caddy, Traefik)
+| System | Check | Purpose |
+|--------|-------|---------|
+| **Uptime Kuma** | HTTP(S) checks on **proxied services** (not Caddy itself) | Detect broken routes |
+| **Prometheus** | systemd unit state, restart count | Caddy service health |
+
+**Note**: Don't monitor "Caddy itself" in Uptime Kuma. Monitor the services **behind** Caddy. If Caddy is down, all HTTP checks fail - that's your signal.
+
+### Media (Plex, Jellyfin)
+| System | Check | Purpose |
+|--------|-------|---------|
+| **Uptime Kuma** | HTTPS → web UI returns 200 | Status page for family 📊 |
+| **Prometheus** | Memory usage (transcode leaks), CPU (encoding) | Prevent OOM, resource exhaustion |
+
+### Databases (PostgreSQL, MySQL)
+| System | Check | Purpose |
+|--------|-------|---------|
+| **Uptime Kuma** | TCP port check (optional - systemd check may suffice) | Basic reachability |
+| **Prometheus** | Connection pools, query performance, backup status | Internal health, capacity |
+
+### Monitoring Itself (Uptime Kuma, Prometheus)
+| System | Check | Purpose |
+|--------|-------|---------|
+| **Uptime Kuma** | ❌ Don't monitor itself (circular dependency) | N/A |
+| **Prometheus** | systemd health check service state | Meta-monitoring |
+
+**Critical Pattern**: Use systemd health check timers to probe Uptime Kuma, then monitor the timer state in Prometheus. This avoids the "monitoring the monitor" complexity trap.
+
+---
+
+## Implementation Checklist
+
+### For New Services
+
+When adding a service to your homelab, follow this decision tree:
+
+```
+┌─────────────────────────────────────────┐
+│ New Service: "example-service"          │
+└─────────────────┬───────────────────────┘
+                  │
+                  ↓
+      ┌───────────────────────────┐
+      │ Do users interact with    │
+      │ this service?             │
+      └───────┬───────────────────┘
+              │
+         Yes  │  No
+              ↓   ↓
+    ┌─────────┐  └──────────────┐
+    │ Add to  │                 │
+    │ Uptime  │                 │
+    │ Kuma    │                 │
+    └─────┬───┘                 │
+          │                     │
+          ↓                     ↓
+    ┌─────────────────────────────────────┐
+    │ Does it expose metrics or use       │
+    │ significant resources?              │
+    └───────┬─────────────────────────────┘
+            │
+       Yes  │  No
+            ↓   ↓
+    ┌───────┐  └─────────────────┐
+    │ Enable│   │ Only systemd    │
+    │ Prom  │   │ unit monitoring │
+    │ scrape│   │ is sufficient   │
+    └───────┘   └─────────────────┘
+```
+
+### Prometheus Configuration (Keep Simple)
+
+**Current exporters to maintain:**
+- ✅ `node_exporter` - System metrics (already configured)
+- ✅ `postgres_exporter` - Database metrics (already configured)
+- ✅ Systemd unit state monitoring (already configured)
+- ✅ Textfile collectors: ZFS, GPU, containers (already configured)
+
+**When to add application exporters:**
+- Only for **critical services** where internal metrics provide significant value
+- Examples: Authelia (auth failures), Caddy (request latency), critical APIs
+- **Default to NO** - infrastructure monitoring is usually sufficient
+
+### Uptime Kuma Configuration (User-Facing Only)
+
+For each **user-facing** service, add ONE check in Uptime Kuma UI:
+
+1. **Web services**: HTTP(S) check with keyword validation
+2. **DNS services**: DNS query check
+3. **Databases**: TCP port check (if not sufficiently covered by Prometheus)
+4. **Infrastructure hosts**: Ping check for critical nodes (NAS, etc.)
+
+**Configure notifications**: Set up Discord/Slack/Email alerts per monitor for immediate user-impact failures.
+
+---
+
+## Alert Philosophy
+
+### Prometheus Alerts
+**Goal**: Predict and prevent failures before user impact
+
+**Characteristics**:
+- Threshold-based (CPU >90% for 5m)
+- Trend-based (disk will fill in 4h)
+- Internal failures (backup failed, restart loop)
+- **Route through Alertmanager** with severity-based routing
+
+### Uptime Kuma Alerts
+**Goal**: Immediate notification of user-visible failures
+
+**Characteristics**:
+- Binary (service up or down)
+- External perspective (as users see it)
+- **Configure in Uptime Kuma UI** per monitor
+- Direct notifications (phone, critical channels)
+
+### Alert Fatigue Prevention
+
+**Anti-Pattern**: Don't alert on "guesses" (CPU high, memory high) unless you've validated they predict failures.
+
+**Best Practice**: Alert on **symptoms** (service down, backup failed) and **validated thresholds** (disk <10%).
+
+**Homelab Optimization**:
+- Keep alert count low (high signal-to-noise)
+- Validate every alert adds value
+- Remove alerts that trigger without actionable issues
+
+---
+
+## Visualization Strategy
+
+### Uptime Kuma
+- **Purpose**: Public status page for users/family
+- **Audience**: Non-technical users
+- **Content**: Service availability (green/red), uptime percentages
+
+### Grafana Dashboards
+- **Purpose**: Operational visibility and analysis
+- **Audience**: Homelab operator (you)
+- **Content**: Resource trends, performance metrics, capacity planning
+
+**Separation of Concerns**: Users see "Is Plex up?", operators see "Why is Plex using 8GB RAM?"
+
+---
+
+## Migration Path
+
+### Current State
+- ✅ Prometheus + node_exporter deployed
+- ✅ postgres_exporter deployed
+- ✅ Custom textfile collectors (ZFS, GPU, containers)
+- ✅ Alertmanager integrated
+- ✅ Uptime Kuma deployed with systemd health checks
+
+### To Implement
+1. **Configure Uptime Kuma monitors** for user-facing services (manual, in UI)
+2. **Review Prometheus alert rules** - ensure they follow "alert on symptoms" philosophy
+3. **Document runbooks** for each alert type (what to do when it fires)
+4. **Test alert delivery** - verify both Uptime Kuma and Prometheus alerts reach you
+
+### Future Enhancements (Optional)
+- Add application exporters for critical services (if justified by value)
+- Implement predictive alerting for capacity planning
+- Create Grafana dashboards for specific service deep-dives
+
+---
+
+## Anti-Patterns to Avoid
+
+❌ **Don't monitor Uptime Kuma inside Uptime Kuma** (circular dependency)
+✅ **Do** use Prometheus + systemd health check timer to monitor Uptime Kuma
+
+❌ **Don't add both Uptime Kuma and Prometheus checks for the same thing**
+✅ **Do** use Uptime Kuma for availability, Prometheus for internals (different perspectives)
+
+❌ **Don't add uptime-kuma-exporter** to expose Uptime Kuma metrics
+✅ **Do** let Uptime Kuma handle its own notifications, use Prometheus to monitor Uptime Kuma's health
+
+❌ **Don't monitor Caddy directly in Uptime Kuma**
+✅ **Do** monitor the services **behind** Caddy (if Caddy is down, all checks fail)
+
+❌ **Don't alert on resource usage without validation**
+✅ **Do** alert on symptoms (service down) and validated thresholds (disk <10%)
+
+---
+
+## Decision Framework Summary
+
+### Quick Reference Table
+
+| Question | Uptime Kuma | Prometheus | Both |
+|----------|-------------|------------|------|
+| User-facing web service? | ✅ HTTP(S) check | Optional: app metrics | If critical |
+| Database service? | Optional: TCP check | ✅ Internal metrics | Usually |
+| Infrastructure host? | ✅ Ping check | ✅ node_exporter | Yes |
+| Monitoring service itself? | ❌ No | ✅ Health check state | No |
+| Reverse proxy? | ❌ Monitor services behind it | ✅ Systemd state | Yes |
+| Internal-only service? | ❌ No | ✅ If exposes metrics | No |
+
+### The Mental Model
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    User Perspective                          │
+│                  (Uptime Kuma Checks)                        │
+│                                                              │
+│  "Can users access the service right now?"                  │
+│   → HTTP 200? DNS resolving? Port open?                     │
+│   → Binary: UP ✅ or DOWN ❌                                 │
+│   → Alert immediately on failure                            │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                Service is running
+                           │
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│                   System Perspective                         │
+│              (Prometheus/Grafana Metrics)                    │
+│                                                              │
+│  "How healthy is the service internally?"                   │
+│   → CPU/Memory usage? Disk space? Query latency?            │
+│   → Quantitative: Trends, thresholds, predictions           │
+│   → Alert on degradation before failure                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## References
+
+- **Uptime Kuma Module**: `hosts/_modules/nixos/services/uptime-kuma/default.nix`
+- **Prometheus Configuration**: `hosts/forge/monitoring.nix`
+- **Alerting Module**: `hosts/_modules/nixos/alerting.nix`
+- **Alert Definitions**: Co-located with services (e.g., `hosts/forge/uptime-kuma.nix`)
+- **Gemini Pro Analysis**: Session Nov 5, 2025 - "Pragmatic blackbox monitoring approach"
+
+---
+
+## Revision History
+
+- **Nov 5, 2025**: Initial document created based on Gemini Pro strategic analysis
+  - Established black-box vs white-box monitoring principles
+  - Defined clear decision framework for service monitoring
+  - Documented anti-patterns and best practices for homelab context

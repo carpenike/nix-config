@@ -17,7 +17,346 @@ This document establishes standardized design patterns for NixOS service modules
 - **Web Services**: `hosts/_modules/nixos/services/caddy/default.nix` - Structured backend configuration, security options, automatic DNS record generation
 - **Storage Services**: `hosts/_modules/nixos/services/postgresql/` - Database provisioning, secure credential handling, systemd integration
 - **Observability Services**: `hosts/_modules/nixos/services/loki/default.nix`, `hosts/_modules/nixos/services/promtail/default.nix` - Complete observability stack with standardized patterns
+- **Monitoring Services**: `hosts/_modules/nixos/services/uptime-kuma/default.nix` - Black-box monitoring with pragmatic Prometheus integration
 - **Shared Types**: `hosts/_modules/lib/types.nix` - Centralized type definitions for all standardized submodules
+
+### Related Documentation
+
+- **Monitoring Strategy**: `docs/monitoring-strategy.md` - Black-box vs white-box monitoring principles, service-specific guidance
+
+---
+
+## Creating New Service Modules
+
+### Native vs Container Decision
+
+**CRITICAL PRINCIPLE**: Always prefer native NixOS services over containerized implementations when available.
+
+#### Decision Framework
+
+When adding a new service, follow this priority order:
+
+1. **Check for native NixOS module** (`search.nixos.org/options`)
+   - ✅ **PREFERRED**: Wrap native module with homelab patterns
+   - Example: Uptime Kuma has `services.uptime-kuma` - use this instead of container
+   - Benefits: Better NixOS integration, easier updates, no container overhead
+
+2. **If native module doesn't exist**, check if upstream provides one
+   - Sometimes services have NixOS modules in their own repos
+   - Consider contributing the module to nixpkgs
+
+3. **Only use containers when**:
+   - No native NixOS module exists or is practical
+   - Service explicitly requires containerization (security isolation)
+   - Rapid prototyping before creating native module
+
+#### Architecture Pivot Example: Uptime Kuma
+
+The Uptime Kuma module demonstrates the preferred approach:
+
+**Initial Implementation** (Nov 5, 2025):
+- Podman container with full homelab patterns (369 lines)
+- Custom image management, systemd integration, volume mounts
+
+**Discovery & Pivot**:
+- Found native `services.uptime-kuma` module in NixOS
+- Pivoted to wrapper approach (~200 lines, 46% reduction)
+
+**Final Architecture**:
+```nix
+# Wrapper around native module adds homelab patterns
+config = mkIf cfg.enable {
+  # Enable native NixOS service
+  services.uptime-kuma = {
+    enable = true;
+    settings.HOST = "0.0.0.0";
+    settings.PORT = "3001";
+  };
+
+  # Add homelab integrations
+  # - ZFS storage management
+  # - Backup integration
+  # - Reverse proxy registration
+  # - Monitoring/alerting
+  # - Preseed/DR capability
+};
+```
+
+**Benefits of Native Approach**:
+- ✅ Simpler implementation (46% less code)
+- ✅ No Podman dependency
+- ✅ Better systemd integration
+- ✅ Automatic NixOS updates (`nix flake update`)
+- ✅ Native privilege management (no container user mapping)
+- ✅ Direct filesystem access (no volume mounts)
+
+### Service Module Creation Workflow
+
+#### Step 1: Research & Discovery
+
+1. **Search for native NixOS module**:
+   ```bash
+   # Search nixpkgs options
+   nix search nixpkgs#<service-name>
+
+   # Check NixOS options
+   # https://search.nixos.org/options?query=services.<service>
+   ```
+
+2. **Evaluate existing module** (if found):
+   - Does it provide sufficient configuration options?
+   - Is it actively maintained?
+   - Does it follow modern NixOS patterns?
+
+3. **Decision point**:
+   - Native module exists and is sufficient → **Wrapper approach** (preferred)
+   - Native module incomplete/outdated → **Contribute fixes or full implementation**
+   - No native module → **Container or custom implementation**
+
+#### Step 2: Module Structure
+
+Create your module in `hosts/_modules/nixos/services/<service-name>/`:
+
+```nix
+{ config, lib, pkgs, ... }:
+
+let
+  cfg = config.modules.services.<service-name>;
+
+  # Import shared types for consistency
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+
+  # Storage helpers for ZFS dataset management
+  storageHelpers = import ../../../lib/storage-helpers.nix { inherit lib; };
+in
+{
+  options.modules.services.<service-name> = {
+    enable = lib.mkEnableOption "<service-name>";
+
+    # Add standardized submodules (choose applicable ones)
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration";
+    };
+
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = null;
+      description = "Prometheus metrics collection";
+    };
+
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = null;
+      description = "Log shipping configuration";
+    };
+
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = null;
+      description = "Backup configuration";
+    };
+
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = null;
+      description = "Notification channels";
+    };
+
+    # Add preseed for disaster recovery (if stateful)
+    preseed = {
+      enable = lib.mkEnableOption "automatic restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        description = "URL to Restic repository";
+      };
+      # ... (see preseed pattern below)
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    # Service implementation here
+  };
+}
+```
+
+#### Step 3: Native Wrapper Pattern (PREFERRED)
+
+When wrapping a native NixOS module:
+
+```nix
+config = lib.mkIf cfg.enable {
+  # 1. Enable and configure native service
+  services.<service-name> = {
+    enable = true;
+    # Pass through relevant configuration
+    # Keep it minimal - let native module handle defaults
+  };
+
+  # 2. Override systemd service if needed (for ZFS, etc.)
+  systemd.services."<service-name>" = {
+    # Add dependencies
+    after = [ "zfs-mount.service" ];
+    requires = [ "zfs-mount.service" ];
+
+    # Override user/permissions if needed
+    serviceConfig = {
+      User = lib.mkForce "<service-user>";
+      Group = lib.mkForce "<service-group>";
+      StateDirectory = lib.mkForce ""; # Disable if using ZFS
+      ReadWritePaths = [ cfg.dataDir ]; # For sandboxing
+    };
+  };
+
+  # 3. Add ZFS storage management
+  systemd.services."ensure-<service-name>-storage" =
+    storageHelpers.mkZfsStorageService {
+      dataset = "tank/services/<service-name>";
+      mountpoint = cfg.dataDir;
+      owner = "<service-user>";
+      properties = {
+        recordsize = "16K"; # Optimize for workload
+        compression = "zstd";
+      };
+    };
+
+  # 4. Add homelab integrations (backup, monitoring, etc.)
+  # See subsequent patterns below
+};
+```
+
+#### Step 4: Add Homelab Integrations
+
+Follow the standardized submodule patterns:
+
+1. **Reverse Proxy** (if web service):
+   ```nix
+   modules.services.caddy.virtualHosts."<service>" = lib.mkIf (cfg.reverseProxy != null) {
+     enable = cfg.reverseProxy.enable;
+     hostName = cfg.reverseProxy.hostName;
+     backend = cfg.reverseProxy.backend;
+   };
+   ```
+
+2. **Monitoring** (see Monitoring Strategy doc):
+   - Add to Uptime Kuma (user-facing check)
+   - Configure Prometheus alerts (system health)
+   - Add systemd health check if needed
+
+3. **Backup** (if stateful):
+   ```nix
+   modules.services.backup.jobs."<service-name>" = lib.mkIf (cfg.backup != null) {
+     enable = cfg.backup.enable;
+     repository = cfg.backup.repository;
+     paths = [ cfg.dataDir ];
+     useSnapshots = cfg.backup.useSnapshots;
+     # ... (see backup pattern)
+   };
+   ```
+
+4. **Preseed/DR** (for critical services):
+   ```nix
+   # Add pre-start restore logic
+   # See Disaster Recovery Preseed Pattern doc
+   ```
+
+#### Step 5: Testing & Validation
+
+1. **Build configuration**:
+   ```bash
+   nix build .#nixosConfigurations.<host>.config.system.build.toplevel
+   ```
+
+2. **Deploy and verify**:
+   ```bash
+   # Check service status
+   systemctl status <service-name>.service
+
+   # Verify ZFS dataset
+   zfs list | grep <service-name>
+
+   # Test backup
+   systemctl start backup-<service-name>.service
+
+   # Check monitoring
+   curl http://localhost:<metrics-port>/metrics
+   ```
+
+3. **Validate integrations**:
+   - Reverse proxy: `curl https://<service>.domain.tld`
+   - Backup: Check Restic snapshots
+   - Monitoring: Verify Prometheus scrape targets
+   - Logs: Check Loki for service logs
+
+#### Step 6: Documentation
+
+Add inline comments explaining:
+- Why native vs container choice was made
+- Any workarounds or special considerations
+- Dependencies and assumptions
+- Reference to relevant design pattern docs
+
+### Common Patterns by Service Type
+
+#### Web Application
+- ✅ Reverse proxy (Caddy)
+- ✅ Uptime Kuma health check
+- ✅ Backup (if stores data)
+- ⚠️ Metrics (only if critical)
+
+#### Database
+- ✅ Backup with snapshots
+- ✅ Metrics (postgres_exporter, etc.)
+- ✅ Preseed/DR capability
+- ✅ TCP health check (optional)
+
+#### Infrastructure Service
+- ✅ Systemd monitoring (Prometheus)
+- ✅ Metrics (node_exporter or custom)
+- ⚠️ Backup (if configuration is critical)
+
+#### Monitoring Service
+- ✅ Systemd health check
+- ✅ Prometheus monitoring (meta-monitoring)
+- ❌ NO recursive monitoring (avoid complexity)
+
+### Anti-Patterns to Avoid
+
+❌ **Don't create container version without checking for native module**
+- Always search nixpkgs first
+- Containers should be last resort
+
+❌ **Don't duplicate functionality that exists in native modules**
+- Use native module features when available
+- Only override what you need to change
+
+❌ **Don't skip standardized submodules**
+- Every service should use applicable patterns
+- Consistency makes maintenance easier
+
+❌ **Don't create per-service backup scripts**
+- Use unified backup system
+- Declare backup needs, don't implement them
+
+❌ **Don't implement custom metric exporters**
+- Use existing exporters when available
+- Consider if metrics are actually needed (see Monitoring Strategy)
+
+### Migration Path for Existing Containers
+
+If you have existing container-based services:
+
+1. **Check for native module** (may not have existed when originally deployed)
+2. **Evaluate migration effort** vs benefits
+3. **Save container version** as `.container-backup` file
+4. **Implement native wrapper** with same functionality
+5. **Test thoroughly** before removing container
+6. **Document architecture change** with reasoning
+
+Example: Uptime Kuma migration saved as `hosts/_modules/nixos/services/uptime-kuma/default.nix.container-backup` for reference.
+
+---
 
 ## Shared Types Library
 

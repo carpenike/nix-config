@@ -53,6 +53,22 @@ This directory contains comprehensive documentation for the NixOS configuration 
 
 - **[DNSdist Shared Config](./dnsdist-shared-config.md)** - DNSdist configuration for shared DNS infrastructure
 
+### Monitoring & Observability
+
+- **[Monitoring Strategy](./monitoring-strategy.md)** - ⚡ **Black-box vs white-box monitoring** principles for homelab services
+  - Decision framework for Uptime Kuma vs Prometheus
+  - Service-specific monitoring guidance
+  - Alert routing and configuration strategies
+  - Anti-patterns to avoid
+
+### Module Development
+
+- **[Modular Design Patterns](./modular-design-patterns.md)** - ⚡ **Required reading for new services**
+  - Creating new service modules (native vs container decision)
+  - Standardized submodule patterns (reverseProxy, metrics, logging, backup)
+  - Service module architecture and best practices
+  - Anti-patterns to avoid
+
 ### Package Management
 
 - **[Package Management Strategy](./package-management-strategy.md)** - Nix package management patterns and strategies
@@ -69,16 +85,18 @@ This directory contains comprehensive documentation for the NixOS configuration 
 
 ### Getting Started
 
-1. **Setting up backups**: Start with [Backup System Onboarding](./backup-system-onboarding.md#quick-start)
-2. **Configuring NFS mounts**: See [NFS Mount Management Quick Start](./nfs-mount-management.md#quick-start)
-3. **Understanding the flake structure**: Review [Nix Flake Improvement Plan](./nix-flake-improvement-plan.md)
+1. **Creating a new service**: Read [Modular Design Patterns - Creating New Service Modules](./modular-design-patterns.md#creating-new-service-modules)
+2. **Setting up backups**: Start with [Backup System Onboarding](./backup-system-onboarding.md#quick-start)
+3. **Configuring NFS mounts**: See [NFS Mount Management Quick Start](./nfs-mount-management.md#quick-start)
+4. **Understanding the flake structure**: Review [Nix Flake Improvement Plan](./nix-flake-improvement-plan.md)
 
 ### Common Tasks
 
+- **Create a new service module**: [Creating New Service Modules](./modular-design-patterns.md#creating-new-service-modules)
+- **Add monitoring to a service**: [Monitoring Strategy](./monitoring-strategy.md)
 - **Add a new host to backups**: [Host Onboarding](./backup-system-onboarding.md#host-onboarding)
 - **Enable service backups**: [Service Onboarding](./backup-system-onboarding.md#service-onboarding)
 - **Configure NAS mounts**: [NFS Configuration Reference](./nfs-mount-management.md#configuration-reference)
-- **Set up monitoring**: [Monitoring & Alerting](./backup-system-onboarding.md#monitoring--alerting)
 
 ### Troubleshooting
 

@@ -76,14 +76,34 @@ Combine tools and commands to accomplish common goals efficiently.
 5. Deploy carefully with validation at each step
 
 ### Infrastructure Service Development Workflow
-1. **Research**: Use Perplexity for current best practices and security considerations
-2. **Code Review**: Use Zen or Gemini Pro for security and architecture review
-3. **Module Creation**: **CRITICAL** - Follow the standardized modular design patterns documented in `/docs/modular-design-patterns.md`
-4. **Pattern Compliance**: Ensure new services use standardized submodules (reverseProxy, metrics, logging, backup, notifications, container)
-5. **Auto-Registration**: Services must automatically register with infrastructure systems (Caddy, Prometheus, Promtail)
-6. **Security**: Localhost binding + reverse proxy + authentication + systemd hardening
-7. **Testing**: Validate with `/nix-validate` and test deployment on `rydev` first
-8. **Migration Planning**: For existing services, follow the roadmap in `/docs/service-migration-roadmap.md`
+1. **Research & Discovery**:
+   - Check for native NixOS module first (`search.nixos.org/options`)
+   - **CRITICAL**: Prefer native modules over containers (see `/docs/modular-design-patterns.md#native-vs-container-decision`)
+   - Use Perplexity for current best practices and security considerations
+2. **Architecture Review**:
+   - Use Zen or Gemini Pro to evaluate native vs container approach
+   - Review security implications and integration complexity
+3. **Module Creation**:
+   - **REQUIRED**: Follow `/docs/modular-design-patterns.md#creating-new-service-modules`
+   - Use wrapper pattern for native modules (preferred)
+   - Only use containers when native module doesn't exist or isn't practical
+4. **Pattern Compliance**:
+   - Ensure new services use standardized submodules (reverseProxy, metrics, logging, backup, notifications)
+   - Follow auto-registration patterns for infrastructure integration
+5. **Monitoring Setup**:
+   - Add to Uptime Kuma for user-facing checks (if applicable)
+   - Configure Prometheus alerts for system health
+   - Follow guidance in `/docs/monitoring-strategy.md`
+6. **Security**:
+   - Localhost binding + reverse proxy + authentication + systemd hardening
+   - Follow principle of least privilege
+7. **Testing**:
+   - Validate with `/nix-validate` and test deployment on `rydev` first
+   - Verify all integrations (backup, monitoring, logging, proxy)
+8. **Migration Planning**:
+   - For existing container services, evaluate migration to native
+   - Save container version as `.container-backup` for reference
+   - Document architecture changes and reasoning
 9. **Tracking**: Update Taskmaster with findings and completed work
 
 ### Package Management Workflow
