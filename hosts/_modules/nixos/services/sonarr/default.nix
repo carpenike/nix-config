@@ -328,7 +328,33 @@ in
       security = cfg.reverseProxy.security;
 
       extraConfig = cfg.reverseProxy.extraConfig;
+
+      # Pass through authelia config - Caddy module will handle forward_auth generation
+      authelia = cfg.reverseProxy.authelia;
     };
+
+    # Register with Authelia if SSO protection is enabled
+    # This declares INTENT - Caddy module handles IMPLEMENTATION
+    modules.services.authelia.accessControl.declarativelyProtectedServices.sonarr = lib.mkIf (
+      config.modules.services.authelia.enable &&  # Check global Authelia is enabled
+      cfg.reverseProxy != null &&
+      cfg.reverseProxy.enable &&
+      cfg.reverseProxy.authelia != null &&
+      cfg.reverseProxy.authelia.enable
+    ) (
+      let
+        authCfg = cfg.reverseProxy.authelia;
+      in {
+        domain = cfg.reverseProxy.hostName;
+        policy = authCfg.policy;
+        # Convert groups to Authelia subject format
+        subject = map (g: "group:${g}") authCfg.allowedGroups;
+        # Authelia will handle ALL bypass logic - no Caddy-level bypass
+        bypassResources =
+          (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+          ++ authCfg.bypassResources;
+      }
+    );
 
     # Declare dataset requirements for per-service ZFS isolation
     # This integrates with the storage.datasets module to automatically
@@ -378,6 +404,12 @@ in
         PGID = cfg.group;
         TZ = cfg.timezone;
         UMASK = "002";  # Ensure group-writable files on shared media
+
+        # Authentication handled entirely by Authelia/Caddy upstream
+        # Sonarr is set to "External" mode - it trusts that any request reaching it has been authenticated
+        # Note: Sonarr does NOT support multiple users - everyone who passes Authelia gets admin access
+        # Authelia's allowedGroups controls WHO can access, but Sonarr has no per-user authorization
+        SONARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
       };
       volumes = [
         "${cfg.dataDir}:/config:rw"

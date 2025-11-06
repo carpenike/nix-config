@@ -26,6 +26,7 @@ in
     ./uptime-kuma.nix    # Uptime monitoring and status page
     ./ups.nix            # UPS monitoring configuration
     ./pgweb.nix          # PostgreSQL web management interface
+    ./authelia.nix       # SSO authentication service
     ../../profiles/hardware/intel-gpu.nix
   ];
 
@@ -1011,6 +1012,26 @@ in
         reverseProxy = {
           enable = true;
           hostName = "sonarr.holthome.net";
+
+          # Enable Authelia SSO protection
+          authelia = {
+            enable = true;
+            instance = "main";  # Use the main Authelia instance
+            authDomain = "auth.holthome.net";  # Where users go to authenticate
+            policy = "one_factor";  # Allow passwordless WebAuthn (passkey with biometric/PIN = strong single factor)
+            allowedGroups = [ "admins" "users" ];  # Who can access this service
+
+            # Bypass authentication for API endpoints (needed for Prowlarr, mobile apps, RSS)
+            bypassPaths = [ "/api" "/feed" ];
+
+            # Restrict API access to internal networks only (enhanced security)
+            # This prevents external access to API endpoints even with a leaked API key
+            allowedNetworks = [
+              "172.16.0.0/12"    # Docker internal networks (172.16-31.x.x)
+              "192.168.1.0/24"   # Local LAN
+              "10.0.0.0/8"       # Internal private network range
+            ];
+          };
         };
         backup = {
           enable = true;

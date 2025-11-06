@@ -101,6 +101,50 @@
           owner = "grafana";
           group = "grafana";
         };
+
+        # Authelia secrets
+        "authelia/jwt_secret" = {
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
+
+        "authelia/session_secret" = {
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
+
+        "authelia/storage_encryption_key" = {
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
+
+        "authelia/oidc/hmac_secret" = {
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
+
+        "authelia/oidc/issuer_private_key" = {
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
+
+        "authelia/smtp_password" = {
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
+
+        "authelia/users.yaml" = {
+          path = "/var/lib/authelia-main/users.yaml";
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
       };
     };
   };

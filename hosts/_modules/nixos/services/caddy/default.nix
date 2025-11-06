@@ -4,6 +4,10 @@ with lib;
 let
   cfg = config.modules.services.caddy;
 
+  # Find all vhosts with Authelia enabled to dynamically build systemd dependencies
+  autheliaEnabledVhosts = filter (vhost: vhost.enable && vhost.authelia != null && vhost.authelia.enable) (attrValues cfg.virtualHosts);
+  autheliaInstances = unique (map (vhost: vhost.authelia.instance or "main") autheliaEnabledVhosts);
+
   # Helper: Build backend URL from structured config
   buildBackendUrl = vhost:
     if vhost.backend != null then
@@ -276,6 +280,14 @@ in
             default = "";
             description = "Additional site-level Caddy directives";
           };
+
+          # Authelia forward authentication (passed through from service reverseProxy.authelia)
+          authelia = mkOption {
+            type = types.nullOr types.attrs;
+            default = null;
+            internal = true;
+            description = "Authelia configuration passed from service module (handled by Caddy module)";
+          };
         };
       });
       default = {};
@@ -314,6 +326,13 @@ in
         message = "Caddy ACME provider '${cfg.acme.provider}' requires credentials.envVar to be set.";
       }];
 
+    # Add systemd dependencies on Authelia if any vhost uses it
+    # Dynamically builds dependencies for all Authelia instances in use
+    systemd.services.caddy = mkIf (autheliaEnabledVhosts != []) {
+      wants = map (instance: "authelia-${instance}.service") autheliaInstances;
+      after = map (instance: "authelia-${instance}.service") autheliaInstances;
+    };
+
     # Enable the standard NixOS Caddy service
     services.caddy = {
       enable = true;
@@ -322,28 +341,73 @@ in
       # Generate configuration from virtual hosts using new structured approach
       extraConfig =
         let
+          # Helper: Build Authelia verification URL
+          buildAutheliaUrl = authCfg:
+            "${authCfg.autheliaScheme}://${authCfg.autheliaHost}:${toString authCfg.autheliaPort}";
+
+          # Helper: Generate forward_auth block for Authelia-protected hosts
+          generateAutheliaForwardAuth = authCfg: ''
+            # Authelia SSO forward authentication
+            # NOTE: ALL traffic goes through forward_auth - Authelia handles bypass logic
+            forward_auth ${buildAutheliaUrl authCfg} {
+              uri /api/verify?rd=https://${authCfg.authDomain}
+              copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+            }'';
+
           # Generate configuration for each virtual host
           vhostConfigs = filter (s: s != "") (mapAttrsToList (name: vhost:
-            if vhost.enable then ''
-              ${vhost.hostName} {
-                # ACME TLS configuration
-                ${cfg.acme.generateTlsBlock}
+            let
+              hasAuthelia = vhost.authelia != null && vhost.authelia.enable;
+              # Disable basic auth if Authelia is enabled
+              useBasicAuth = vhost.auth != null && !hasAuthelia;
 
-                # Security headers (includes HSTS by default)
-                ${generateSecurityHeaders vhost}
-                ${optionalString (vhost.auth != null) ''
-                # Basic authentication
-                basic_auth {
-                  ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
+              # IP-restricted bypass configuration
+              hasBypassPaths = hasAuthelia && (vhost.authelia.bypassPaths or []) != [];
+              hasNetworkRestrictions = hasAuthelia && (vhost.authelia.allowedNetworks or []) != [];
+              useIpRestrictedBypass = hasBypassPaths && hasNetworkRestrictions;
+              bypassPathPatterns = map (path: "${path}*") (vhost.authelia.bypassPaths or []);
+
+              backendUrl = buildBackendUrl vhost;
+              tlsTransport = generateTlsTransport vhost;
+
+              # Generate IP-restricted routes for bypass paths
+              ipRestrictedBypassConfig = optionalString useIpRestrictedBypass ''
+                # Matcher: API/bypass paths from internal networks only
+                @internalApi {
+                  path ${concatStringsSep " " bypassPathPatterns}
+                  remote_ip ${concatStringsSep " " vhost.authelia.allowedNetworks}
                 }
-                ''}
-                # Reverse proxy to backend
-                reverse_proxy ${buildBackendUrl vhost} {${generateTlsTransport vhost}
-                  ${vhost.reverseProxyBlock}
+
+                # Route: Direct access for trusted internal IPs (skip Authelia)
+                route @internalApi {
+                  reverse_proxy ${backendUrl} {${tlsTransport}
+                    ${vhost.reverseProxyBlock}
+                  }
                 }
-                ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                ${vhost.extraConfig}"}
-              }
-            '' else ""
+
+              '';
+            in
+              if vhost.enable then ''
+                ${vhost.hostName} {
+                  # ACME TLS configuration
+                  ${cfg.acme.generateTlsBlock}
+
+                  # Security headers (includes HSTS by default)
+                  ${generateSecurityHeaders vhost}
+                  ${optionalString useBasicAuth ''
+                  # Basic authentication
+                  basic_auth {
+                    ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
+                  }
+                  ''}
+                  ${ipRestrictedBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
+                  # Reverse proxy to backend
+                  reverse_proxy ${backendUrl} {${tlsTransport}
+                    ${vhost.reverseProxyBlock}
+                  }
+                  ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}
+                }
+              '' else ""
           ) cfg.virtualHosts);
         in
           concatStringsSep "\n\n" vhostConfigs;

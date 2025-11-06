@@ -6,6 +6,7 @@
     ./adguardhome
     ./attic.nix
     ./attic-admin.nix
+    ./authelia                                # Authelia SSO authentication service
     ./backup                                  # Unified backup management system
     ./backup-integration.nix                  # Legacy auto-discovery for service backup configurations
     ./bind
