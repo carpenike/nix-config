@@ -324,13 +324,13 @@ in
       # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
 
+      # Authelia SSO configuration from shared types
+      authelia = cfg.reverseProxy.authelia;
+
       # Security configuration from shared types
       security = cfg.reverseProxy.security;
 
       extraConfig = cfg.reverseProxy.extraConfig;
-
-      # Pass through authelia config - Caddy module will handle forward_auth generation
-      authelia = cfg.reverseProxy.authelia;
     };
 
     # Register with Authelia if SSO protection is enabled

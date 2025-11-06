@@ -305,6 +305,7 @@ in
 
       # Pass-through auth/security from shared types
       auth = cfg.reverseProxy.auth;
+      authelia = cfg.reverseProxy.authelia;
       security = cfg.reverseProxy.security;
 
       # Caddy-specific headers for Plex compatibility
@@ -314,6 +315,26 @@ in
       ]
         + (if (cfg.reverseProxy.extraConfig or "") != "" then "\n" + cfg.reverseProxy.extraConfig else "");
     };
+
+    # Register with Authelia if SSO protection is enabled
+    modules.services.authelia.accessControl.declarativelyProtectedServices.plex = lib.mkIf (
+      config.modules.services.authelia.enable &&
+      cfg.reverseProxy != null &&
+      cfg.reverseProxy.enable &&
+      cfg.reverseProxy.authelia != null &&
+      cfg.reverseProxy.authelia.enable
+    ) (
+      let
+        authCfg = cfg.reverseProxy.authelia;
+      in {
+        domain = cfg.reverseProxy.hostName;
+        policy = authCfg.policy;
+        subject = map (g: "group:${g}") authCfg.allowedGroups;
+        bypassResources =
+          (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
+          ++ (authCfg.bypassResources or []);
+      }
+    );
 
     # ZFS dataset auto-registration
     # Permissions are managed by systemd StateDirectoryMode, not tmpfiles

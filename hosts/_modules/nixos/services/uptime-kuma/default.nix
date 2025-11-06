@@ -236,6 +236,7 @@ in
           port = uptimeKumaPort;
         };
         auth = cfg.reverseProxy.auth or null;
+        authelia = cfg.reverseProxy.authelia or null;
         security = cfg.reverseProxy.security or {};
         # WebSocket support for real-time UI
         reverseProxyBlock = ''
@@ -244,6 +245,26 @@ in
           ${cfg.reverseProxy.extraConfig or ""}
         '';
       };
+
+      # Register with Authelia if SSO protection is enabled
+      modules.services.authelia.accessControl.declarativelyProtectedServices."uptime-kuma" = mkIf (
+        config.modules.services.authelia.enable &&
+        cfg.reverseProxy != null &&
+        cfg.reverseProxy.enable &&
+        cfg.reverseProxy.authelia != null &&
+        cfg.reverseProxy.authelia.enable
+      ) (
+        let
+          authCfg = cfg.reverseProxy.authelia;
+        in {
+          domain = cfg.reverseProxy.hostName;
+          policy = authCfg.policy;
+          subject = map (g: "group:${g}") authCfg.allowedGroups;
+          bypassResources =
+            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
+            ++ (authCfg.bypassResources or []);
+        }
+      );
 
       # ZFS dataset management
       modules.storage.datasets.services."uptime-kuma" = {

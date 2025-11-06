@@ -185,6 +185,9 @@ in
         # Pass through auth configuration if provided
         auth = cfg.reverseProxy.auth or null;
 
+        # Pass through Authelia SSO configuration if provided
+        authelia = cfg.reverseProxy.authelia or null;
+
         backend = mkDefault {
           scheme = "http";
           host = cfg.listenAddress;
@@ -195,6 +198,23 @@ in
           hsts.enable = true;
         };
       };
+    })
+
+    # Register with Authelia if SSO protection is enabled
+    (mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) {
+      modules.services.authelia.accessControl.declarativelyProtectedServices.pgweb =
+        let
+          authCfg = cfg.reverseProxy.authelia;
+        in {
+          domain = cfg.reverseProxy.hostName;
+          policy = authCfg.policy;
+          # Convert groups to Authelia subject format
+          subject = map (g: "group:${g}") authCfg.allowedGroups;
+          # Authelia will handle ALL bypass logic
+          bypassResources =
+            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
+            ++ (authCfg.bypassResources or []);
+        };
     })
 
     # Metrics integration (if enabled)

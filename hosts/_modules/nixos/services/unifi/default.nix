@@ -138,6 +138,9 @@ in
       # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
 
+      # Authelia SSO configuration from shared types
+      authelia = cfg.reverseProxy.authelia;
+
       # Security configuration from shared types
       security = cfg.reverseProxy.security;
 
@@ -151,6 +154,26 @@ in
         header_up Connection {>Connection}
       '';
     };
+
+    # Register with Authelia if SSO protection is enabled
+    modules.services.authelia.accessControl.declarativelyProtectedServices.unifi = lib.mkIf (
+      config.modules.services.authelia.enable &&
+      cfg.reverseProxy != null &&
+      cfg.reverseProxy.enable &&
+      cfg.reverseProxy.authelia != null &&
+      cfg.reverseProxy.authelia.enable
+    ) (
+      let
+        authCfg = cfg.reverseProxy.authelia;
+      in {
+        domain = cfg.reverseProxy.hostName;
+        policy = authCfg.policy;
+        subject = map (g: "group:${g}") authCfg.allowedGroups;
+        bypassResources =
+          (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
+          ++ (authCfg.bypassResources or []);
+      }
+    );
 
     # Ensure directories exist before services start
     systemd.tmpfiles.rules =

@@ -83,6 +83,22 @@
     '';
   };
 
+  # Register Prometheus with Authelia access control
+  modules.services.authelia.accessControl.declarativelyProtectedServices.prometheus = {
+    domain = "prometheus.forge.holthome.net";
+    policy = "one_factor";
+    subject = [ "group:admins" ];
+    bypassResources = [];
+  };
+
+  # Register Alertmanager with Authelia access control
+  modules.services.authelia.accessControl.declarativelyProtectedServices.alertmanager = {
+    domain = "alertmanager.forge.holthome.net";
+    policy = "one_factor";
+    subject = [ "group:admins" ];
+    bypassResources = [];
+  };
+
   # Note: Monitoring UIs now use Authelia SSO instead of basic auth
   # The monitoring/basic-auth-password secret can be removed after successful migration
 }

@@ -518,6 +518,7 @@ in
         port = cfg.prometheus.port;
       };
       auth = cfg.reverseProxy.auth;
+      authelia = cfg.reverseProxy.authelia;
       security.customHeaders = {
         "X-Frame-Options" = "SAMEORIGIN";
         "X-Content-Type-Options" = "nosniff";

@@ -97,9 +97,20 @@ in
     modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
       enable = true;
       hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
-      proxyTo = "localhost:${toString apiPort}";
-      httpsBackend = false; # 1Password Connect uses HTTP locally
+
+      # Use structured backend configuration
+      backend = {
+        scheme = "http";  # 1Password Connect uses HTTP locally
+        host = "localhost";
+        port = apiPort;
+      };
+
+      # Authentication from shared types
       auth = lib.mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
+
+      # Authelia SSO configuration from shared types
+      authelia = cfg.reverseProxy.authelia;
+
       extraConfig = ''
         # High security headers for vault access
         header / {

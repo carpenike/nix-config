@@ -113,6 +113,9 @@ in
       # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
 
+      # Authelia SSO configuration from shared types
+      authelia = cfg.reverseProxy.authelia;
+
       # Security configuration with AdGuardHome-specific headers
       security = cfg.reverseProxy.security // {
         customHeaders = cfg.reverseProxy.security.customHeaders // {
@@ -125,6 +128,27 @@ in
 
       extraConfig = cfg.reverseProxy.extraConfig;
     };
+
+    # Register with Authelia if SSO protection is enabled
+    modules.services.authelia.accessControl.declarativelyProtectedServices.adguard = lib.mkIf (
+      config.modules.services.authelia.enable &&
+      cfg.reverseProxy != null &&
+      cfg.reverseProxy.enable &&
+      cfg.reverseProxy.authelia != null &&
+      cfg.reverseProxy.authelia.enable
+    ) (
+      let
+        authCfg = cfg.reverseProxy.authelia;
+      in {
+        domain = cfg.reverseProxy.hostName;
+        policy = authCfg.policy;
+        subject = map (g: "group:${g}") authCfg.allowedGroups;
+        bypassResources =
+          (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
+          ++ (authCfg.bypassResources or []);
+      }
+    );
+
     # add user, needed to access the secret
     users.users.${adguardUser} = {
       isSystemUser = true;
