@@ -84,10 +84,19 @@
       reverseProxy = {
         enable = true;
         hostName = "pgweb.${config.networking.domain}";
-        auth = {
-          user = "admin";
-          passwordHashEnvVar = "PGWEB_ADMIN_BCRYPT";
+
+        # Authelia SSO protection (passwordless WebAuthn)
+        authelia = {
+          enable = true;
+          instance = "main";
+          autheliaHost = "127.0.0.1";
+          autheliaPort = 9091;
+          autheliaScheme = "http";
+          authDomain = "auth.holthome.net";
+          policy = "one_factor";  # Allow passwordless with passkey
+          allowedGroups = [ "admins" ];
         };
+
         backend = {
           scheme = "http";
           host = "127.0.0.1";

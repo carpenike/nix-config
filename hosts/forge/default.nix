@@ -1019,7 +1019,7 @@ in
             instance = "main";  # Use the main Authelia instance
             authDomain = "auth.holthome.net";  # Where users go to authenticate
             policy = "one_factor";  # Allow passwordless WebAuthn (passkey with biometric/PIN = strong single factor)
-            allowedGroups = [ "admins" "users" ];  # Who can access this service
+            allowedGroups = [ "media" ];  # Who can access this service
 
             # Bypass authentication for API endpoints (needed for Prowlarr, mobile apps, RSS)
             bypassPaths = [ "/api" "/feed" ];

@@ -148,9 +148,14 @@ in
               host = "127.0.0.1";
               port = 61208;
             };
-            auth = {
-              user = "admin";
-              passwordHashEnvVar = "CADDY_GLANCES_HASH";
+            # Authelia SSO protection (passwordless WebAuthn)
+            authelia = {
+              enable = true;
+              instance = "main";
+              autheliaHost = "forge.holthome.net";  # Cross-host Authelia
+              authDomain = "auth.holthome.net";
+              policy = "one_factor";  # Allow passwordless with passkey
+              allowedGroups = [ "admins" ];
             };
           };
         };
@@ -160,11 +165,9 @@ in
           credentialsFile = config.sops.secrets.onepassword-credentials.path;
           reverseProxy = {
             enable = true;
-            requireAuth = true;
-            auth = {
-              user = "vault";
-              passwordHashEnvVar = "CADDY_VAULT_HASH";
-            };
+            # NOTE: Uses native token-based auth (OP_CONNECT_TOKEN)
+            # No additional auth needed at reverse proxy level
+            requireAuth = false;
           };
         };
 

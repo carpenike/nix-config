@@ -5,7 +5,7 @@
 { config, pkgs, ... }:
 
 {
-  # Expose Prometheus UI on subdomain with LAN-only access
+  # Expose Prometheus UI on subdomain with SSO protection
   modules.services.caddy.virtualHosts."prometheus" = {
     enable = true;
     hostName = "prometheus.forge.holthome.net";
@@ -17,10 +17,16 @@
       port = 9090;
     };
 
-    # Basic authentication using SOPS secret
-    auth = {
-      user = "admin";
-      passwordHashEnvVar = "MONITORING_BASIC_AUTH_PASSWORD";
+    # Authelia SSO protection (passwordless WebAuthn)
+    authelia = {
+      enable = true;
+      instance = "main";
+      autheliaHost = "127.0.0.1";
+      autheliaPort = 9091;
+      autheliaScheme = "http";
+      authDomain = "auth.holthome.net";
+      policy = "one_factor";  # Allow passwordless with passkey
+      allowedGroups = [ "admins" ];
     };
 
     # Security headers for web interface
@@ -38,7 +44,7 @@
     '';
   };
 
-  # Expose Alertmanager UI on subdomain with LAN-only access
+  # Expose Alertmanager UI on subdomain with SSO protection
   modules.services.caddy.virtualHosts."alertmanager" = {
     enable = true;
     hostName = "alertmanager.forge.holthome.net";
@@ -50,10 +56,16 @@
       port = 9093;
     };
 
-    # Basic authentication using SOPS secret
-    auth = {
-      user = "admin";
-      passwordHashEnvVar = "MONITORING_BASIC_AUTH_PASSWORD";
+    # Authelia SSO protection (passwordless WebAuthn)
+    authelia = {
+      enable = true;
+      instance = "main";
+      autheliaHost = "127.0.0.1";
+      autheliaPort = 9091;
+      autheliaScheme = "http";
+      authDomain = "auth.holthome.net";
+      policy = "one_factor";  # Allow passwordless with passkey
+      allowedGroups = [ "admins" ];
     };
 
     # Security headers for web interface
@@ -71,32 +83,6 @@
     '';
   };
 
-  # Load the monitoring basic auth password from SOPS
-  sops.secrets."monitoring/basic-auth-password" = {
-    sopsFile = ./secrets.sops.yaml;
-    restartUnits = [ "caddy.service" "caddy-monitoring-env.service" ];
-  };
-
-  # Create environment file that Caddy can read
-  # This service runs before Caddy and writes the password hash to an env file
-  systemd.services.caddy-monitoring-env = {
-    description = "Prepare Caddy monitoring authentication environment";
-    unitConfig.PartOf = [ "caddy.service" ];
-    before = [ "caddy.service" ];
-    after = [ "sops-nix.service" ];
-    wantedBy = [ "caddy.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-    path = [ pkgs.coreutils ];
-    script = ''
-      mkdir -p /run/caddy
-      echo "MONITORING_BASIC_AUTH_PASSWORD=$(cat ${config.sops.secrets."monitoring/basic-auth-password".path})" > /run/caddy/monitoring-auth.env
-      chmod 600 /run/caddy/monitoring-auth.env
-      chown ${config.services.caddy.user}:${config.services.caddy.group} /run/caddy/monitoring-auth.env
-    '';
-  };
-
-  # Environment file is loaded in main configuration to avoid conflicts
+  # Note: Monitoring UIs now use Authelia SSO instead of basic auth
+  # The monitoring/basic-auth-password secret can be removed after successful migration
 }
