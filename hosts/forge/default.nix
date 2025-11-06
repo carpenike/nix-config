@@ -25,6 +25,7 @@ in
     ./plex.nix
     ./uptime-kuma.nix    # Uptime monitoring and status page
     ./ups.nix            # UPS monitoring configuration
+    ./pgweb.nix          # PostgreSQL web management interface
     ../../profiles/hardware/intel-gpu.nix
   ];
 
@@ -2000,6 +2001,7 @@ EOF
       content = ''
         CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
         CADDY_LOKI_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/loki-admin-bcrypt"}
+        PGWEB_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/pgweb-admin-bcrypt"}
       '';
       owner = config.services.caddy.user;
       group = config.services.caddy.group;

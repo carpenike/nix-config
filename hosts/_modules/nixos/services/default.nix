@@ -29,6 +29,7 @@
     ./openssh
     ./omada
     ./podman
+    ./pgweb                                   # Pgweb PostgreSQL database browser
     ./plex
     ./postgresql                              # PostgreSQL module (simplified single-instance)
     ./postgresql/databases.nix                # Database provisioning (systemd units)
