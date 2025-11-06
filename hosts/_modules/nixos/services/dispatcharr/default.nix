@@ -62,6 +62,14 @@ if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
   sed -i 's|su -p - \$POSTGRES_USER -c|su -p \$POSTGRES_USER -c|g' /tmp/entrypoint-modified.sh
   sed -i 's|uwsgi \$uwsgi_args|/dispatcharrpy/bin/uwsgi \$uwsgi_args|g' /tmp/entrypoint-modified.sh
 
+  # Fix uwsgi.ini to use full paths for daphne and celery (which are also in /dispatcharrpy/bin/)
+  # These are started as attach-daemon directives in the uwsgi config and need absolute paths
+  # because they run under the dispatcharr user which doesn't have /dispatcharrpy/bin in PATH
+  echo "   Fixing uwsgi.ini to use full paths for daphne and celery..."
+  sed -i 's|attach-daemon = celery |attach-daemon = /dispatcharrpy/bin/celery |g' /app/docker/uwsgi.ini
+  sed -i 's|attach-daemon = nice -n 5 celery |attach-daemon = nice -n 5 /dispatcharrpy/bin/celery |g' /app/docker/uwsgi.ini
+  sed -i 's|attach-daemon = daphne |attach-daemon = /dispatcharrpy/bin/daphne |g' /app/docker/uwsgi.ini
+
   # Patch ALL scripts to skip /data/db operations when using external PostgreSQL
   echo "   Patching scripts to skip /data/db operations..."
   # Patch the init script
