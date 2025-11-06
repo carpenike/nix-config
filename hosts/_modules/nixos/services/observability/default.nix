@@ -298,6 +298,69 @@ in
         description = "Path to file containing Grafana admin password (SOPS managed)";
       };
 
+      # OIDC/OAuth authentication
+      oidc = {
+        enable = mkEnableOption "OIDC authentication for Grafana";
+
+        clientId = mkOption {
+          type = types.str;
+          default = "grafana";
+          description = "OIDC client ID";
+        };
+
+        clientSecretFile = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = "Path to file containing OIDC client secret";
+        };
+
+        authUrl = mkOption {
+          type = types.str;
+          default = "";
+          example = "https://auth.example.com/api/oidc/authorization";
+          description = "OIDC authorization endpoint";
+        };
+
+        tokenUrl = mkOption {
+          type = types.str;
+          default = "";
+          example = "https://auth.example.com/api/oidc/token";
+          description = "OIDC token endpoint";
+        };
+
+        apiUrl = mkOption {
+          type = types.str;
+          default = "";
+          example = "https://auth.example.com/api/oidc/userinfo";
+          description = "OIDC userinfo endpoint";
+        };
+
+        scopes = mkOption {
+          type = types.listOf types.str;
+          default = [ "openid" "profile" "email" "groups" ];
+          description = "OAuth scopes to request";
+        };
+
+        roleAttributePath = mkOption {
+          type = types.str;
+          default = "contains(groups[*], 'admins') && 'Admin' || 'Viewer'";
+          description = "JMESPath expression to map groups to Grafana roles";
+        };
+
+        allowSignUp = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Allow users to sign up via OIDC";
+        };
+
+        signoutRedirectUrl = mkOption {
+          type = types.str;
+          default = "";
+          example = "https://auth.example.com/logout?rd=https://grafana.example.com";
+          description = "URL to redirect to after logout (for OIDC logout)";
+        };
+      };
+
       plugins = mkOption {
         type = with types; listOf package;
         default = [];
@@ -689,7 +752,8 @@ in
           host = "127.0.0.1";
           port = 3000;
         };
-        auth = cfg.reverseProxy.auth;
+        # No Caddy auth for Grafana - it uses OIDC authentication instead
+        auth = null;
       };
 
       # Secrets configuration
@@ -697,6 +761,20 @@ in
         adminUser = cfg.grafana.adminUser;
       } // lib.optionalAttrs (cfg.grafana.adminPasswordFile != null) {
         adminPasswordFile = cfg.grafana.adminPasswordFile;
+      };
+
+      # OIDC configuration passthrough
+      oidc = lib.mkIf cfg.grafana.oidc.enable {
+        enable = true;
+        clientId = cfg.grafana.oidc.clientId;
+        clientSecretFile = cfg.grafana.oidc.clientSecretFile;
+        authUrl = cfg.grafana.oidc.authUrl;
+        tokenUrl = cfg.grafana.oidc.tokenUrl;
+        apiUrl = cfg.grafana.oidc.apiUrl;
+        scopes = cfg.grafana.oidc.scopes;
+        roleAttributePath = cfg.grafana.oidc.roleAttributePath;
+        allowSignUp = cfg.grafana.oidc.allowSignUp;
+        signoutRedirectUrl = cfg.grafana.oidc.signoutRedirectUrl;
       };
 
       # Plugin configuration

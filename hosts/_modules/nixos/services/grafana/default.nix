@@ -252,6 +252,69 @@ in
       };
     };
 
+    # OIDC/OAuth authentication
+    oidc = {
+      enable = mkEnableOption "OIDC authentication";
+
+      clientId = mkOption {
+        type = types.str;
+        default = "grafana";
+        description = "OIDC client ID";
+      };
+
+      clientSecretFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Path to file containing OIDC client secret";
+      };
+
+      authUrl = mkOption {
+        type = types.str;
+        default = "";
+        example = "https://auth.example.com/api/oidc/authorization";
+        description = "OIDC authorization endpoint";
+      };
+
+      tokenUrl = mkOption {
+        type = types.str;
+        default = "";
+        example = "https://auth.example.com/api/oidc/token";
+        description = "OIDC token endpoint";
+      };
+
+      apiUrl = mkOption {
+        type = types.str;
+        default = "";
+        example = "https://auth.example.com/api/oidc/userinfo";
+        description = "OIDC userinfo endpoint";
+      };
+
+      scopes = mkOption {
+        type = types.listOf types.str;
+        default = [ "openid" "profile" "email" "groups" ];
+        description = "OAuth scopes to request";
+      };
+
+      roleAttributePath = mkOption {
+        type = types.str;
+        default = "contains(groups[*], 'admins') && 'Admin' || 'Viewer'";
+        description = "JMESPath expression to map groups to Grafana roles";
+      };
+
+      allowSignUp = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Allow users to sign up via OIDC";
+      };
+
+      signoutRedirectUrl = mkOption {
+        type = types.str;
+        default = "";
+        example = "https://auth.example.com/logout";
+        description = "URL to redirect to after logout (for OIDC logout)";
+      };
+    };
+
     # Declarative Provisioning
     provisioning = {
       plugins = mkOption {
@@ -436,7 +499,26 @@ in
           } // (lib.optionalAttrs (cfg.secrets.adminPasswordFile != null) {
             admin_password = "$__file{${cfg.secrets.adminPasswordFile}}";
           });
-        };
+          # Disable login form when OIDC is enabled to force SSO
+          auth = lib.optionalAttrs cfg.oidc.enable {
+            disable_login_form = true;
+          };
+        } // (lib.optionalAttrs cfg.oidc.enable {
+          "auth.generic_oauth" = {
+            enabled = true;
+            name = "Authelia";
+            client_id = cfg.oidc.clientId;
+            client_secret = "$__file{${cfg.oidc.clientSecretFile}}";
+            scopes = lib.concatStringsSep " " cfg.oidc.scopes;
+            auth_url = cfg.oidc.authUrl;
+            token_url = cfg.oidc.tokenUrl;
+            api_url = cfg.oidc.apiUrl;
+            role_attribute_path = cfg.oidc.roleAttributePath;
+            allow_sign_up = cfg.oidc.allowSignUp;
+          } // (lib.optionalAttrs (cfg.oidc.signoutRedirectUrl != "") {
+            signout_redirect_url = cfg.oidc.signoutRedirectUrl;
+          });
+        });
 
         provision = {
           enable = true;

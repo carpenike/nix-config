@@ -229,19 +229,23 @@ in
       };
 
       clients = mkOption {
-        type = types.listOf (types.submodule {
+        type = types.attrsOf (types.submodule {
           options = {
-            id = mkOption {
-              type = types.str;
-              description = "OIDC client ID";
-            };
             description = mkOption {
               type = types.str;
               description = "Human-readable client description";
             };
-            secretFile = mkOption {
-              type = types.path;
-              description = "Path to file containing client secret (SOPS-managed)";
+            secret = mkOption {
+              type = types.str;
+              description = ''
+                Argon2id hashed client secret.
+                Generate the hash with: authelia crypto hash generate argon2 --password "your-secret"
+                This should be the hash output (starting with $argon2id$...), not the plaintext secret.
+
+                Storing the hash in configuration is safe - Authelia's security model relies on
+                cryptographic hashing, and the hash cannot be reversed to obtain the original secret.
+                This is the only supported method for OIDC client secrets per Authelia documentation.
+              '';
             };
             redirectUris = mkOption {
               type = types.listOf types.str;
@@ -254,8 +258,11 @@ in
             };
           };
         });
-        default = [];
-        description = "OIDC client configurations";
+        default = {};
+        description = ''
+          OIDC client configurations (attribute set keyed by client ID).
+          Client secrets are loaded via environment variables at runtime.
+        '';
       };
     };
 
@@ -474,7 +481,14 @@ in
       ];
 
       # Enable native Authelia service
-      services.authelia.instances.${instanceName} = {
+      services.authelia.instances.${instanceName} = let
+        # Convert OIDC clients from attribute set to list for Authelia YAML config
+        # The attribute name becomes the client ID
+        oidcClientsList = lib.mapAttrsToList (id: client: {
+          inherit id;
+          inherit (client) description redirectUris scopes secret;
+        }) cfg.oidc.clients;
+      in {
         enable = true;
 
         # Secrets configuration for native service
@@ -640,18 +654,17 @@ in
                 allowed_origins_from_client_redirect_uris = true;
               };
 
+              # Clients config with secret loaded from environment variables
+              # Each client's secret is loaded via $env:CLIENT_ID_SECRET syntax
               clients = map (client: {
-                id = client.id;
-                description = client.description;
-                secret = "$argon2id$..."; # Placeholder, actual secret loaded from file
+                inherit (client) id description scopes secret;
                 authorization_policy = "two_factor";
                 redirect_uris = client.redirectUris;
-                scopes = client.scopes;
                 grant_types = [ "refresh_token" "authorization_code" ];
                 response_types = [ "code" ];
                 response_modes = [ "form_post" "query" "fragment" ];
                 token_endpoint_auth_method = "client_secret_basic";
-              }) cfg.oidc.clients;
+              }) oidcClientsList;
             };
           };
         };

@@ -102,6 +102,13 @@
           group = "grafana";
         };
 
+        # Grafana OIDC client secret (must match Authelia)
+        "grafana/oidc_client_secret" = {
+          mode = "0400";
+          owner = "grafana";
+          group = "grafana";
+        };
+
         # Authelia secrets
         "authelia/jwt_secret" = {
           mode = "0400";
@@ -128,6 +135,12 @@
         };
 
         "authelia/oidc/issuer_private_key" = {
+          mode = "0400";
+          owner = "authelia-main";
+          group = "authelia-main";
+        };
+
+        "authelia/oidc/grafana_client_secret" = {
           mode = "0400";
           owner = "authelia-main";
           group = "authelia-main";

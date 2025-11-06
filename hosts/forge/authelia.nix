@@ -51,24 +51,24 @@
       };
 
       # OIDC provider for services that support it
-      # Disabled until we have actual clients configured
       oidc = {
-        enable = false;
+        enable = true;
         issuerUrl = "https://auth.${config.networking.domain}";
 
-        # Example OIDC clients (add more as needed)
-        clients = [
-          # Uncomment and configure when ready:
-          # {
-          #   id = "grafana";
-          #   description = "Grafana Dashboards";
-          #   secretFile = config.sops.secrets."authelia/oidc/grafana".path;
-          #   redirectUris = [
-          #     "https://grafana.${config.networking.domain}/login/generic_oauth"
-          #   ];
-          #   scopes = [ "openid" "profile" "email" "groups" ];
-          # }
-        ];
+        # OIDC clients (attribute set keyed by client ID)
+        # Client secrets must be Argon2id hashes (safe to store in configuration)
+        clients = {
+          grafana = {
+            description = "Grafana Dashboards";
+            # Argon2id hash of the client secret - generated with:
+            # authelia crypto hash generate argon2 --password "vI7RglAFqsV7Ip6ahUtiHu0xHIyibsB+3p4tvZVKDtM="
+            secret = "$argon2id$v=19$m=65536,t=3,p=4$Z4gXKb56uE/bJwhBtW3BPw$ILLszq7PH8dX/J6f6hYHXG/xyl2a3TGUpzlQgjkqRPw";
+            redirectUris = [
+              "https://grafana.${config.networking.domain}/login/generic_oauth"
+            ];
+            scopes = [ "openid" "profile" "email" "groups" ];
+          };
+        };
       };
 
       # Email notifier for 2FA registration and password resets
