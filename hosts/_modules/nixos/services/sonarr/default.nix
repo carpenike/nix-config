@@ -95,13 +95,13 @@ in
     user = lib.mkOption {
       type = lib.types.str;
       default = "568";
-      description = "User ID to own the data directory (sonarr:sonarr in container)";
+      description = "User account under which Sonarr runs.";
     };
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "568";
-      description = "Group ID to own the data directory";
+      default = "993"; # shared media group
+      description = "Group under which Sonarr runs.";
     };
 
     # This option is now automatically configured by nfsMountDependency
@@ -411,6 +411,12 @@ in
         # Authelia's allowedGroups controls WHO can access, but Sonarr has no per-user authorization
         SONARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
       };
+      environmentFiles = [
+        # Pre-generated API key for declarative configuration
+        # Allows Bazarr and other services to integrate from first startup
+        # See: https://wiki.servarr.com/sonarr/environment-variables
+        config.sops.templates."sonarr-env".path
+      ];
       volumes = [
         "${cfg.dataDir}:/config:rw"
         "${cfg.mediaDir}:/media:rw"

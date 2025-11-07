@@ -89,6 +89,11 @@ in
       gid = 1000;
     };
 
+    # Shared media group for *arr services and download clients
+    users.groups.media = {
+      gid = 993;
+    };
+
     # Add postgres user to restic-backup group for R2 secret access
     # and node-exporter group for metrics file write access
     # Required for pgBackRest to read AWS credentials and write Prometheus metrics
@@ -1062,6 +1067,128 @@ in
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;
           # environmentFile not needed for local filesystem repository
+        };
+      };
+
+      # Prowlarr - Indexer manager for *arr services
+      prowlarr = {
+        enable = true;
+        image = "ghcr.io/home-operations/prowlarr:latest";
+        healthcheck.enable = true;
+
+        reverseProxy = {
+          enable = true;
+          hostName = "prowlarr.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            bypassPaths = [ "/api" ];
+            allowedNetworks = [
+              "172.16.0.0/12"
+              "192.168.1.0/24"
+              "10.0.0.0/8"
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+        };
+      };
+
+      # Radarr - Movie collection manager
+      radarr = {
+        enable = true;
+        image = "ghcr.io/home-operations/radarr:latest";
+        nfsMountDependency = "media";
+        healthcheck.enable = true;
+
+        reverseProxy = {
+          enable = true;
+          hostName = "radarr.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            bypassPaths = [ "/api" "/feed" ];
+            allowedNetworks = [
+              "172.16.0.0/12"
+              "192.168.1.0/24"
+              "10.0.0.0/8"
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+        };
+      };
+
+      # Bazarr - Subtitle manager for Sonarr and Radarr
+      bazarr = {
+        enable = true;
+        image = "ghcr.io/home-operations/bazarr:latest";
+        # Bazarr needs to access both TV and movie directories
+        tvDir = "/mnt/media/tv";
+        moviesDir = "/mnt/media/movies";
+        healthcheck.enable = true;
+
+        # Configure dependencies on Sonarr and Radarr
+        # API keys are automatically injected via SOPS templates
+        dependencies = {
+          sonarr = {
+            enable = true;
+            url = "http://localhost:8989";
+          };
+          radarr = {
+            enable = true;
+            url = "http://localhost:7878";
+          };
+        };
+
+        reverseProxy = {
+          enable = true;
+          hostName = "bazarr.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            bypassPaths = [ "/api" ];
+            allowedNetworks = [
+              "172.16.0.0/12"
+              "192.168.1.0/24"
+              "10.0.0.0/8"
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
         };
       };
 
