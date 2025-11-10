@@ -123,18 +123,21 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "lscr.io/linuxserver/qbittorrent:latest";
+      default = "lscr.io/linuxserver/qbittorrent:5.0.2";
       description = ''
         Full container image name including tag or digest.
 
         Best practices:
-        - Pin to specific version tags (e.g., "4.6.3-r0-ls332")
-        - Use digest pinning for immutability (e.g., "4.6.3-r0-ls332@sha256:...")
+        - Pin to specific version tags (e.g., "5.0.2")
+        - Use digest pinning for immutability (e.g., "5.0.2@sha256:...")
         - Avoid 'latest' tag for production systems
 
         Use Renovate bot to automate version updates with digest pinning.
+
+        When updating qBittorrent version, verify VueTorrent compatibility:
+        https://github.com/WDaan/VueTorrent#compatibility
       '';
-      example = "lscr.io/linuxserver/qbittorrent:4.6.3-r0-ls332@sha256:f3ad4f59e6e5e4a...";
+      example = "lscr.io/linuxserver/qbittorrent:5.0.2@sha256:f3ad4f59e6e5e4a...";
     };
 
     mediaGroup = lib.mkOption {
@@ -157,6 +160,26 @@ in
         cpus = "4.0";
       };
       description = "Resource limits for the container";
+    };
+
+    vuetorrent = {
+      enable = lib.mkEnableOption "VueTorrent alternative WebUI";
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = pkgs.fetchzip {
+          url = "https://github.com/WDaan/VueTorrent/releases/download/v2.30.2/vuetorrent.zip";
+          hash = "sha256-GF63FBTDMDS0qFOjV6NPOFg4XbelOYhYtWaOCeiEIRs=";
+          stripRoot = false;
+        };
+        description = ''
+          VueTorrent package to mount into the container.
+
+          Pinned to a specific version for reproducibility.
+          Update the URL and hash together when upgrading.
+
+          Check compatibility: https://github.com/WDaan/VueTorrent#compatibility
+        '';
+      };
     };
 
     healthcheck = {
@@ -223,22 +246,17 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
-        enable = lib.mkDefault true;
-        repository = lib.mkDefault "nas-primary";
-        frequency = lib.mkDefault "daily";
-        tags = lib.mkDefault [ "media" "qbittorrent" "config" ];
-        # CRITICAL: Enable ZFS snapshots for database consistency
-        useSnapshots = lib.mkDefault true;
-        zfsDataset = lib.mkDefault "tank/services/qbittorrent";
-        excludePatterns = lib.mkDefault [
-          "**/*.log"         # Exclude log files
-          "**/cache/**"      # Exclude cache directories
-          "**/logs/**"       # Exclude additional log directories
-          # NOTE: Downloads are NOT backed up - only configuration
-        ];
-      };
-      description = "Backup configuration for qBittorrent (config only, not downloads)";
+      default = null;
+      description = ''
+        Backup configuration for qBittorrent configuration.
+
+        qBittorrent stores configuration in a SQLite database and config files.
+        Only the config directory is backed up - downloads are transient and excluded.
+
+        Recommended settings:
+        - useSnapshots: true (for SQLite consistency)
+        - recordsize: 16K (optimal for SQLite)
+      '';
     };
 
     # Standardized notifications
@@ -374,11 +392,15 @@ in
         TZ = cfg.timezone;
         UMASK = "002";  # Ensure group-writable files for *arr services to read
         WEBUI_PORT = toString qbittorrentPort;
+      } // lib.optionalAttrs cfg.vuetorrent.enable {
+        WEBUI_PATH = "/vuetorrent";
       };
       volumes = [
         "${cfg.dataDir}:/config:rw"
         "${cfg.downloadsDir}:/downloads:rw"
         # SECURITY: NO media directory mount - download clients should not have direct media access
+      ] ++ lib.optionals cfg.vuetorrent.enable [
+        "${cfg.vuetorrent.package}:/vuetorrent:ro"
       ];
       ports = [
         "${toString qbittorrentPort}:${toString qbittorrentPort}"

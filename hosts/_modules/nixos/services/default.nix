@@ -7,6 +7,7 @@
     ./attic.nix
     ./attic-admin.nix
     ./authelia                                # Authelia SSO authentication service
+    ./autobrr                                 # Autobrr IRC announce bot for torrents
     ./backup                                  # Unified backup management system
     ./backup-integration.nix                  # Legacy auto-discovery for service backup configurations
     ./bazarr                                  # Bazarr subtitle manager
@@ -31,6 +32,7 @@
     ./onepassword-connect
     ./openssh
     ./omada
+    ./overseerr                               # Overseerr request management
     ./podman
     ./pgweb                                   # Pgweb PostgreSQL database browser
     ./plex
@@ -38,6 +40,7 @@
     ./postgresql/databases.nix                # Database provisioning (systemd units)
     ./postgresql/storage-integration.nix      # ZFS dataset creation (one-way integration)
     # ./postgresql/backup-integration.nix     # REMOVED: PostgreSQL backups now handled by pgBackRest
+    ./profilarr                               # Profilarr quality profile sync
     ./promtail                                # Promtail log shipping agent
     ./prowlarr                                # Prowlarr indexer manager
     ./qbittorrent                             # qBittorrent torrent download client
@@ -45,6 +48,7 @@
     ./readarr                                 # Readarr book/audiobook collection manager
     ./sabnzbd                                 # SABnzbd usenet download client
     ./sonarr
+    ./tdarr                                   # Tdarr transcoding automation
     ./unifi
     ./uptime-kuma                             # Uptime Kuma monitoring service (native wrapper)
     # ./ups                                   # REMOVED: Use services.nut directly in host configs

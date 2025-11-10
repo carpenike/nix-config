@@ -262,6 +262,20 @@ in
       description = "VA-API driver name to set inside the container (iHD for modern Intel, i965 for legacy).";
     };
 
+    accelerationDevices = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "/dev/dri/renderD128" "/dev/dri/card0" ];
+      description = ''
+        Device paths for hardware acceleration (VA-API /dev/dri).
+
+        Common configurations:
+        - Intel Quick Sync: ["/dev/dri/renderD128" "/dev/dri/card0"]
+        - Render-only: ["/dev/dri/renderD128"]
+        - Empty list: CPU-only processing
+      '';
+      example = [ "/dev/dri/renderD128" "/dev/dri/card0" ];
+    };
+
     healthcheck = {
       enable = lib.mkEnableOption "container health check";
       interval = lib.mkOption {
@@ -545,8 +559,10 @@ in
       group = "dispatcharr";
       isSystemUser = true;
       description = "Dispatcharr service user";
+      # Add to render group for GPU access
       # Note: Dispatcharr doesn't need NFS media access (IPTV streams only)
       # If you add media library integration later, add: extraGroups = [ "media" ];
+      extraGroups = lib.optionals (cfg.accelerationDevices != []) [ "render" ];
     };
 
     users.groups.dispatcharr = {
@@ -611,8 +627,6 @@ in
         # This allows restic-backup user (member of dispatcharr group) to read data
         "--umask=0027"  # Creates directories with 750 and files with 640
         "--pull=newer"  # Automatically pull newer images
-        # Pass through only the render node to the container for VA-API (least privilege)
-        "--device=/dev/dri/renderD128:/dev/dri/renderD128:rwm"
         # Override the container's entrypoint to use our custom wrapper
         # CRITICAL: Must use two separate list items for proper option ordering
         # The wrapper script is bind-mounted as executable at /entrypoint-wrapper.sh
@@ -623,7 +637,11 @@ in
         # system files, then it drops privileges to PUID/PGID. Using --user prevents
         # the entrypoint from completing its setup tasks.
         # The container will honor PUID/PGID environment variables for privilege dropping.
-      ] ++ lib.optionals cfg.healthcheck.enable [
+      ]
+      ++ lib.optionals (cfg.accelerationDevices != []) (
+        map (dev: "--device=${dev}:${dev}:rwm") cfg.accelerationDevices
+      )
+      ++ lib.optionals cfg.healthcheck.enable [
         # Define the health check on the container itself.
         # This allows `podman healthcheck run` to work and updates status in `podman ps`.
         # NOTE: Dispatcharr container doesn't include curl/wget by default, so we use a TCP connection test

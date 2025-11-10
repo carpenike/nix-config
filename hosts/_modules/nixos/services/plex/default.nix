@@ -139,28 +139,22 @@ in
 
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
-        enable = lib.mkDefault true;
-        repository = lib.mkDefault "nas-primary";
-        frequency = lib.mkDefault "weekly";
-        tags = lib.mkDefault [ "plex" "media-metadata" ];
-        # CRITICAL: Enable ZFS snapshots for SQLite database consistency
-        useSnapshots = lib.mkDefault true;
-        zfsDataset = lib.mkDefault "tank/services/plex";
-        excludePatterns = lib.mkDefault [
-          "**/Plex Media Server/Cache/**"
-          "**/Plex Media Server/Logs/**"
-          "**/Plex Media Server/Crash Reports/**"
-          "**/Plex Media Server/Updates/**"
-          "**/Transcode/**"
-          # Exclude security-sensitive files created by Plex with 600 permissions
-          # These files cannot be read by restic-backup user (even with group membership)
-          # Both files are non-critical: .LocalAdminToken is ephemeral, Setup Plex.html is static
-          "**/Plex Media Server/.LocalAdminToken"
-          "**/Plex Media Server/Setup Plex.html"
-        ];
-      };
-      description = "Backup configuration for Plex application data";
+      default = null;
+      description = ''
+        Backup configuration for Plex application data.
+
+        Plex stores media metadata, watch history, and user preferences in a SQLite database.
+        The database directory contains critical application state that cannot be easily recreated.
+
+        Recommended settings:
+        - enable: true (critical metadata and watch history)
+        - useSnapshots: true (CRITICAL for SQLite database consistency)
+        - zfsDataset: "tank/services/plex" (or your actual dataset path)
+        - frequency: "weekly" (balance between protection and storage)
+        - excludePatterns: Cache, Logs, Crash Reports, Updates, Transcode directories
+          * Also exclude .LocalAdminToken (ephemeral, 600 permissions)
+          * Also exclude Setup Plex.html (static file, 600 permissions)
+      '';
     };
 
     notifications = lib.mkOption {
@@ -458,8 +452,11 @@ EOF
     };
 
 
-  # Ensure plex user can read shared media group mounts and write metrics
-  users.users.plex.extraGroups = lib.mkIf (config.users.users ? plex) [ "media" "node-exporter" ];
+  # Ensure plex user can read shared media group mounts, access GPU, and write metrics
+  users.users.plex.extraGroups = lib.mkIf (config.users.users ? plex) (
+    [ "media" "node-exporter" ]
+    ++ lib.optionals (cfg.accelerationDevices != []) [ "render" ]
+  );
 
     # Validations
     assertions = [
