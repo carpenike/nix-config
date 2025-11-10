@@ -110,7 +110,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/linuxserver/readarr:latest";
+      default = "ghcr.io/home-operations/readarr:latest";
       description = "Full container image name for Readarr.";
     };
 

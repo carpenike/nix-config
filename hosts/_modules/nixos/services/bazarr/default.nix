@@ -81,7 +81,7 @@ in
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "993"; # shared media group
+      default = "media"; # shared media group (GID 993)
       description = "Group under which Bazarr runs.";
     };
 
@@ -319,20 +319,19 @@ in
           "com.sun:auto-snapshot" = "true";
         };
         owner = "bazarr";
-        group = "bazarr";
+        group = cfg.group; # Use configured group
         mode = "0750";
       };
 
       users.users.bazarr = {
         uid = lib.mkDefault (lib.toInt cfg.user);
-        group = "bazarr";
+        group = cfg.group; # Use configured group (defaults to "media")
         isSystemUser = true;
         description = "Bazarr service user";
       };
 
-      users.groups.bazarr = {
-        gid = lib.mkDefault (lib.toInt cfg.group);
-      };
+      # Group is expected to be pre-defined (e.g., media group with GID 993)
+      # users.groups.bazarr removed - use shared media group instead
 
       virtualisation.oci-containers.containers.bazarr = podmanLib.mkContainer "bazarr" {
         image = cfg.image;
@@ -342,7 +341,7 @@ in
           RADARR_URL = cfg.dependencies.radarr.url;
         }) // {
           PUID = cfg.user;
-          PGID = cfg.group;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
           TZ = cfg.timezone;
         };
         environmentFiles = [
@@ -361,7 +360,7 @@ in
         resources = cfg.resources;
         extraOptions = [
           "--pull=newer"
-          "--user=${cfg.user}:${cfg.group}"
+          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
         ] ++ lib.optionals cfg.healthcheck.enable [
           ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:6767/)" = 200 ]' ''
           "--health-interval=0s"

@@ -90,8 +90,9 @@ in
     };
 
     # Shared media group for *arr services and download clients
+    # Override the high GID (65537) defined in modules.users.groups
     users.groups.media = {
-      gid = 993;
+      gid = lib.mkForce 993;
     };
 
     # Add postgres user to restic-backup group for R2 secret access
@@ -418,6 +419,40 @@ in
             };
           };
 
+          # qBittorrent container service down
+          "qbittorrent-service-down" = {
+            type = "promql";
+            alertname = "QbittorrentServiceDown";
+            expr = ''
+              container_service_active{service="qbittorrent"} == 0
+            '';
+            for = "2m";
+            severity = "high";
+            labels = { service = "qbittorrent"; category = "container"; };
+            annotations = {
+              summary = "qBittorrent service is down on {{ $labels.instance }}";
+              description = "Torrent download client is not running. Check: systemctl status podman-qbittorrent.service";
+              command = "systemctl status podman-qbittorrent.service && journalctl -u podman-qbittorrent.service --since '30m'";
+            };
+          };
+
+          # SABnzbd container service down
+          "sabnzbd-service-down" = {
+            type = "promql";
+            alertname = "SabnzbdServiceDown";
+            expr = ''
+              container_service_active{service="sabnzbd"} == 0
+            '';
+            for = "2m";
+            severity = "high";
+            labels = { service = "sabnzbd"; category = "container"; };
+            annotations = {
+              summary = "SABnzbd service is down on {{ $labels.instance }}";
+              description = "Usenet download client is not running. Check: systemctl status podman-sabnzbd.service";
+              command = "systemctl status podman-sabnzbd.service && journalctl -u podman-sabnzbd.service --since '30m'";
+            };
+          };
+
           # Container health check failures
           "container-health-check-failed" = {
             type = "promql";
@@ -613,7 +648,7 @@ in
           automount = false;  # Disable automount for always-on media services (prevents idle timeout cascade stops)
           server = "nas.holthome.net";
           remotePath = "/mnt/tank/share";
-          localPath = "/mnt/media";  # Use /mnt to avoid conflict with tank/media at /srv/media
+          localPath = "/mnt/data";  # Mount point for shared NAS data (contains media/, backups/, etc.)
           group = "media";
           mode = "02775";  # setgid bit ensures new files inherit media group
           mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
@@ -830,6 +865,44 @@ in
               targetLocation = "nas-1";
             };
           };
+
+          # qBittorrent torrent download client configuration data
+          # Enable snapshots and replication for application settings
+          # NOTE: Downloads are NOT backed up (transient data on NFS)
+          "tank/services/qbittorrent" = {
+            useTemplate = [ "services" ];
+            recursive = false;
+            autosnap = true;
+            autoprune = true;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/qbittorrent";
+              sendOptions = "wp";
+              recvOptions = "u";
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+              targetName = "NFS";
+              targetLocation = "nas-1";
+            };
+          };
+
+          # SABnzbd usenet download client configuration data
+          # Enable snapshots and replication for application settings
+          # NOTE: Downloads are NOT backed up (transient data on NFS)
+          "tank/services/sabnzbd" = {
+            useTemplate = [ "services" ];
+            recursive = false;
+            autosnap = true;
+            autoprune = true;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/sabnzbd";
+              sendOptions = "wp";
+              recvOptions = "u";
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+              targetName = "NFS";
+              targetLocation = "nas-1";
+            };
+          };
         };
 
         # Restic backup jobs configuration
@@ -894,7 +967,7 @@ in
               enable = true;
               repositoryUrl = "/mnt/nas-backup";
               passwordFile = config.sops.secrets."restic/password".path;
-              restoreMethods = [ "syncoid" "local" "restic" ];
+              restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
             };
           };
           promtail = {
@@ -985,7 +1058,7 @@ in
               enable = true;
               repositoryUrl = "/mnt/nas-backup";
               passwordFile = config.sops.secrets."restic/password".path;
-              restoreMethods = [ "syncoid" "local" "restic" ];
+              restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
             };
           };
           reverseProxy = {
@@ -1073,7 +1146,7 @@ in
       # Prowlarr - Indexer manager for *arr services
       prowlarr = {
         enable = true;
-        image = "ghcr.io/home-operations/prowlarr:latest";
+        image = "ghcr.io/home-operations/prowlarr:2.1.5.5216@sha256:affb671fa367f4b7029d58f4b7d04e194e887ed6af1cf5a678f3c7aca5caf6ca";
         healthcheck.enable = true;
 
         reverseProxy = {
@@ -1108,7 +1181,7 @@ in
       # Radarr - Movie collection manager
       radarr = {
         enable = true;
-        image = "ghcr.io/home-operations/radarr:latest";
+        image = "ghcr.io/home-operations/radarr:6.0.3@sha256:0ebc60aa20afb0df76b52694cee846b7cf7bd96bb0157f3b68b916e77c8142a0";
         nfsMountDependency = "media";
         healthcheck.enable = true;
 
@@ -1144,10 +1217,10 @@ in
       # Bazarr - Subtitle manager for Sonarr and Radarr
       bazarr = {
         enable = true;
-        image = "ghcr.io/home-operations/bazarr:latest";
-        # Bazarr needs to access both TV and movie directories
-        tvDir = "/mnt/media/tv";
-        moviesDir = "/mnt/media/movies";
+        image = "ghcr.io/home-operations/bazarr:1.5.3@sha256:2f1c32cb1420b2e56f60cfdf7823737eb501fdb2c13669429d23ab3a02e9ad90";
+        # Bazarr needs to access both TV and movie directories (host paths)
+        tvDir = "/mnt/data/media/tv";
+        moviesDir = "/mnt/data/media/movies";
         healthcheck.enable = true;
 
         # Configure dependencies on Sonarr and Radarr
@@ -1192,6 +1265,100 @@ in
         };
       };
 
+      # Download clients (infrastructure services)
+      qbittorrent = {
+        enable = true;
+        # Use home-operations container image (version 5.1.2)
+        # Pinned with SHA256 digest for immutability
+        image = "ghcr.io/home-operations/qbittorrent:5.1.2@sha256:31ac39705e31f7cdcc04dc46c1c0b0cdf8dc6f9865d4894efc097a33adc41524";
+
+        # Downloads directory on NFS (category-based structure already exists)
+        # /mnt/data/qb/downloads/{sonarr,radarr,lidarr,readarr,prowlarr}
+        nfsMountDependency = "media";  # Use shared NFS mount
+        healthcheck.enable = true;
+
+        reverseProxy = {
+          enable = true;
+          hostName = "qbittorrent.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            # Bypass authentication for API endpoints (needed for *arr services)
+            bypassPaths = [ "/api" ];
+            allowedNetworks = [
+              "172.16.0.0/12"    # Docker internal networks
+              "192.168.1.0/24"   # Local LAN
+              "10.0.0.0/8"       # Internal private network range
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          # Config only - downloads are NOT backed up (transient data)
+          useSnapshots = true;
+          zfsDataset = "tank/services/qbittorrent";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
+        };
+      };
+
+      sabnzbd = {
+        enable = true;
+        # Use home-operations container image (version 4.5.5)
+        # Pinned with SHA256 digest for immutability
+        image = "ghcr.io/home-operations/sabnzbd:4.5.5@sha256:da57e01cdebc547852b6df85c8df8c0e4d87792742c7608c5590dc653b184e8c";
+
+        # Override default port (8081 already in use on this host)
+        port = 8082;
+
+        # Downloads directory on NFS (category-based structure)
+        # /mnt/data/sabnzbd/downloads/
+        nfsMountDependency = "media";  # Use shared NFS mount
+        healthcheck.enable = true;
+
+        reverseProxy = {
+          enable = true;
+          hostName = "sabnzbd.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            # Bypass authentication for API endpoints (needed for *arr services)
+            bypassPaths = [ "/api" ];
+            allowedNetworks = [
+              "172.16.0.0/12"    # Docker internal networks
+              "192.168.1.0/24"   # Local LAN
+              "10.0.0.0/8"       # Internal private network range
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          # Config only - downloads are NOT backed up (transient data)
+          useSnapshots = true;
+          zfsDataset = "tank/services/sabnzbd";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
+        };
+      };
+
       # (rsyslogd configured at top-level services.rsyslogd)
 
       # Additional service-specific configurations are in their own files
@@ -1207,11 +1374,7 @@ in
               "ryan"
             ];
           };
-          # Shared media group for *arr services NFS access
-          # High GID to avoid conflicts with system/user GIDs
-          media = {
-            gid = 65537;
-          };
+          # media group now defined at top level with GID 993 for *arr services
         };
       };
     };

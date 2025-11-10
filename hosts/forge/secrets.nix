@@ -1,5 +1,6 @@
 {
   pkgs,
+  config,
   ...
 }:
 {
@@ -157,6 +158,59 @@
           mode = "0400";
           owner = "authelia-main";
           group = "authelia-main";
+        };
+
+        # *arr service API keys (for cross-service integration)
+        # Sonarr/Radarr inject these via SONARR__AUTH__APIKEY/RADARR__AUTH__APIKEY env vars
+        # Bazarr reads these files to authenticate with Sonarr/Radarr APIs
+        # Root-only readable (0400) - secrets are injected at container creation time
+        "sonarr/api-key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "radarr/api-key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+      };
+
+      # Templates for generating .env files for containers.
+      # This is the correct pattern for injecting secrets into the environment
+      # of OCI containers, as it defers secret injection until system activation time.
+      templates = {
+        "sonarr-env" = {
+          content = ''
+            SONARR__AUTH__APIKEY=${config.sops.placeholder."sonarr/api-key"}
+            SONARR__AUTH__METHOD=None
+            SONARR__LOG__LEVEL=Info
+            SONARR__UPDATE__BRANCH=master
+          '';
+          mode = "0400"; # root-only readable
+          owner = "root";
+          group = "root";
+        };
+        "radarr-env" = {
+          content = ''
+            RADARR__AUTH__APIKEY=${config.sops.placeholder."radarr/api-key"}
+            RADARR__AUTH__METHOD=None
+            RADARR__LOG__LEVEL=Info
+            RADARR__UPDATE__BRANCH=master
+          '';
+          mode = "0400"; # root-only readable
+          owner = "root";
+          group = "root";
+        };
+        "bazarr-env" = {
+          content = ''
+            SONARR_API_KEY=${config.sops.placeholder."sonarr/api-key"}
+            RADARR_API_KEY=${config.sops.placeholder."radarr/api-key"}
+          '';
+          mode = "0400"; # root-only readable
+          owner = "root";
+          group = "root";
         };
       };
     };

@@ -1,6 +1,6 @@
 # Disaster Recovery Preseed Pattern
 
-**Last Updated**: 2025-11-03
+**Last Updated**: 2025-11-10
 **Status**: Active - Production Pattern
 **Architecture**: ZFS Syncoid-based Multi-tier Restoration
 
@@ -19,17 +19,49 @@ The preseed system attempts restoration in order of preference:
 1. **Syncoid (Primary)**: Block-level replication from remote host (nas-1)
    - Fastest for large datasets
    - Preserves ZFS properties and snapshots
+   - Maintains incremental replication lineage
    - Requires replication configured in Sanoid
 
 2. **Local Snapshots**: ZFS snapshots on the same host
    - Instant rollback for recent snapshots
    - No network dependency
+   - Preserves ZFS lineage
    - Limited to snapshot retention window
 
-3. **Restic (Fallback)**: File-based backup from repository
+3. **Restic (Manual DR Only)**: File-based backup from repository
+   - ⚠️ **NOT recommended for automated preseed** (breaks ZFS lineage)
    - Geographic redundancy (NFS/cloud)
-   - Slower but most reliable
-   - Works when replication is unavailable
+   - Use only for true disaster recovery when ZFS sources unavailable
+   - Requires manual intervention to re-establish replication after restore
+
+### Restore Method Selection
+
+**Recommended for homelab (default):**
+
+```nix
+restoreMethods = [ "syncoid" "local" ];
+```
+
+This configuration:
+
+- Preserves ZFS snapshot lineage and incremental replication
+- Fails preseed if nas-1 unavailable (correct signal for infrastructure issue)
+- Allows manual intervention to fix root cause before bootstrapping
+
+**When to include Restic:**
+
+Only for services where immediate availability from offsite backup is more important than maintaining ZFS lineage:
+
+```nix
+restoreMethods = [ "syncoid" "local" "restic" ];  # Use sparingly
+```
+
+**Trade-offs:**
+
+- ✅ Automatic recovery from offsite backup if ZFS sources fail
+- ❌ Breaks ZFS incremental replication (future sends must be full)
+- ❌ Hides infrastructure issues (nas-1 down = silent failover)
+- ❌ Creates manual cleanup work to re-establish replication
 
 ### Component Architecture
 
@@ -236,7 +268,8 @@ modules.services.servicename = {
     enable = true;
     repositoryUrl = "/mnt/nas-backup";
     passwordFile = config.sops.secrets."restic/password".path;
-    restoreMethods = [ "syncoid" "local" "restic" ];
+    # Recommended: Exclude restic to preserve ZFS lineage
+    restoreMethods = [ "syncoid" "local" ];
   };
 };
 
@@ -404,7 +437,7 @@ The preseed pattern integrates with the unified backup system:
 
 2. **Restic**: Provides file-based backups as fallback
    - Configured in service preseed options
-   - Used when Syncoid/local snapshots unavailable
+   - Use sparingly to preserve ZFS lineage
 
 3. **Monitoring**: Preseed services emit metrics
    - Success/failure status
@@ -412,27 +445,68 @@ The preseed pattern integrates with the unified backup system:
    - Data volume restored
    - Method used (syncoid/local/restic)
 
+## Bootstrap Data Loss Protection
+
+**Issue Identified**: 2025-11-10
+
+New services with no pre-existing backups could lose data if a system rebuild occurred between initial bootstrap and the first Sanoid snapshot.
+
+**Scenario:**
+
+1. New service deploys with empty dataset (no backups exist)
+2. All restore methods fail (expected for new service)
+3. Service starts and creates initial configuration
+4. Sanoid creates first snapshot
+5. System rebuild happens before second snapshot
+6. Preseed finds local snapshot, rolls back
+7. **Data loss**: Changes between snapshots lost
+
+**Solution Implemented:**
+
+The preseed script now sets `holthome:preseed_complete=yes` property even when all restore methods fail. This treats "bootstrap with empty dataset" as a successful one-time event, preventing automatic rollback on subsequent rebuilds.
+
+**Trade-off Accepted (Homelab Context):**
+
+If nas-1 is down during first boot of a new service:
+
+- Preseed marks complete anyway (no backup sources available)
+- Service starts empty
+- **Recovery**: `zfs destroy -r tank/services/SERVICE` + rebuild
+
+This is acceptable for homelab because:
+
+- Single operator with full context
+- Notification alerts to preseed failure
+- Recovery is trivial (one command)
+- Alternative (complex error parsing) not worth maintenance burden
+
 ## Best Practices
 
 1. **Always configure replication** for critical services
    - Syncoid provides fastest restoration
    - Preserves ZFS snapshots and properties
 
-2. **Use all three restore methods** in order
-   - `restoreMethods = ["syncoid" "local" "restic"]`
-   - Provides maximum resilience
+2. **Use ZFS-native restore methods by default** (homelab recommended)
+   - `restoreMethods = ["syncoid" "local"]`
+   - Preserves incremental replication capability
+   - Provides clear signal when infrastructure issues occur
 
-3. **Test disaster recovery regularly**
+3. **Reserve Restic for true disaster recovery**
+   - Only include in `restoreMethods` if immediate availability > ZFS lineage
+   - Understand trade-off: automatic failover vs broken replication
+   - Have plan to re-establish replication after Restic restore
+
+4. **Test disaster recovery regularly**
    - Validates preseed functionality
    - Confirms backup integrity
    - Measures restoration time
 
-4. **Monitor preseed services**
+5. **Monitor preseed services**
    - Alert on preseed failures
    - Track restoration metrics
    - Review logs after DR events
 
-5. **Document service-specific requirements**
+6. **Document service-specific requirements**
    - Special restore procedures
    - Post-restoration validation steps
    - Service dependencies

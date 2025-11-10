@@ -604,6 +604,20 @@ EOF
           fi
         ''}
 
+        # CRITICAL FIX: Mark preseed as complete to prevent future rollbacks on this
+        # newly-bootstrapped dataset. This prevents the data loss scenario where
+        # a subsequent rebuild would roll back to the first sanoid snapshot, losing
+        # any data created between the initial bootstrap and the first snapshot.
+        # Manual disaster recovery still works: destroying the dataset removes this
+        # property, triggering a fresh restore attempt.
+        if "$ZFS" list "${dataset}" &>/dev/null; then
+          echo "Marking preseed as complete for bootstrapped dataset..."
+          "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
+        else
+          # This should be an exceptional case - warn but allow service to start
+          echo "WARNING: Dataset ${dataset} does not exist after restore failures. Cannot mark as complete."
+        fi
+
         exit 0 # Exit successfully to not block service start
       '';
       } // (lib.optionalAttrs hasCentralizedNotifications {

@@ -93,7 +93,7 @@ in
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "993"; # shared media group
+      default = "media"; # shared media group (GID 993)
       description = "Group under which Prowlarr runs.";
     };
 
@@ -313,51 +313,40 @@ in
           "com.sun:auto-snapshot" = "true";
         };
         owner = "prowlarr";
-        group = "prowlarr";
+        group = cfg.group; # Use configured group
         mode = "0750";
       };
 
       # Create local users to match container UIDs
       users.users.prowlarr = {
-        group = "prowlarr";
+        uid = lib.mkDefault (lib.toInt cfg.user);
+        group = cfg.group; # Use configured group (defaults to "media")
         isSystemUser = true;
         description = "Prowlarr service user";
       };
 
-      users.groups.prowlarr = { };
+      # Group is expected to be pre-defined (e.g., media group with GID 993)
+      # users.groups.prowlarr removed - use shared media group instead
 
-      # Prowlarr container configuration
-      virtualisation.oci-containers.containers.prowlarr = podmanLib.mkContainer "prowlarr" {
-        image = cfg.image;
-        environment = {
-          PUID = cfg.user;
-          PGID = cfg.group;
-          TZ = cfg.timezone;
-          UMASK = "002";
-          PROWLARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
-        };
-        volumes = [
-          "${cfg.dataDir}:/config:rw"
-        ];
-        ports = [
-          "${toString prowlarrPort}:9696"
-        ];
-        resources = cfg.resources;
-        extraOptions = [
-          "--umask=0027"
-          "--pull=newer"
-          "--user=${cfg.user}:${cfg.group}"
-        ] ++ lib.optionals cfg.healthcheck.enable [
-          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:9696/ping)" = 200 ]' ''
-          "--health-interval=0s"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-        ];
+    # Prowlarr container configuration
+    virtualisation.oci-containers.containers.prowlarr = podmanLib.mkContainer "prowlarr" {
+      image = cfg.image;
+      environment = {
+        PUID = cfg.user;
+        PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+        TZ = cfg.timezone;
+        UMASK = "002";  # Ensure group-writable files on shared media
       };
+      volumes = [
+        "${cfg.dataDir}:/config:rw"
+      ];
+      extraOptions = [
+        "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+      ];
+    };
 
-      # Add systemd dependencies for the service
-      systemd.services."${config.virtualisation.oci-containers.backend}-prowlarr" = lib.mkMerge [
+    # Add systemd dependencies for the service
+    systemd.services."${config.virtualisation.oci-containers.backend}-prowlarr" = lib.mkMerge [
         # Add failure notifications via systemd
         (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           unitConfig.OnFailure = [ "notify@prowlarr-failure:%n.service" ];

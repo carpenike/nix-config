@@ -100,7 +100,7 @@ in
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "993"; # shared media group
+      default = "media"; # shared media group (GID 993)
       description = "Group under which Radarr runs.";
     };
 
@@ -350,53 +350,51 @@ in
           "com.sun:auto-snapshot" = "true";
         };
         owner = "radarr";
-        group = "radarr";
+        group = cfg.group; # Use configured group
         mode = "0750";
       };
 
       # Create local users to match container UIDs
       users.users.radarr = {
         uid = lib.mkDefault (lib.toInt cfg.user);
-        group = "radarr";
+        group = cfg.group; # Use configured group (defaults to "media")
         isSystemUser = true;
         description = "Radarr service user";
         # Add to media group for NFS access if dependency is set
         extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
       };
 
-      users.groups.radarr = {
-        gid = lib.mkDefault (lib.toInt cfg.group);
+      # Group is expected to be pre-defined (e.g., media group with GID 993)
+      # users.groups.radarr removed - use shared media group instead
+
+    # Radarr container configuration
+    virtualisation.oci-containers.containers.radarr = podmanLib.mkContainer "radarr" {
+      image = cfg.image;
+      environment = {
+        PUID = cfg.user;
+        PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+        TZ = cfg.timezone;
+        UMASK = "002";  # Ensure group-writable files on shared media
+        RADARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
       };
-
-      # Radarr container configuration
-      virtualisation.oci-containers.containers.radarr = podmanLib.mkContainer "radarr" {
-        image = cfg.image;
-        environment = {
-          PUID = cfg.user;
-          PGID = cfg.group;
-          TZ = cfg.timezone;
-          UMASK = "002"; # Ensure group-writable files on shared media
-
-          RADARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
-        };
-        environmentFiles = [
-          # Pre-generated API key for declarative configuration
-          # Allows Bazarr and other services to integrate from first startup
-          # See: https://wiki.servarr.com/radarr/environment-variables
-          config.sops.templates."radarr-env".path
-        ];
-        volumes = [
-          "${cfg.dataDir}:/config:rw"
-          "${cfg.mediaDir}:/movies:rw" # Use /movies for clarity
-        ];
-        ports = [
-          "${toString radarrPort}:7878"
-        ];
+      environmentFiles = [
+        # Pre-generated API key for declarative configuration
+        # Allows Bazarr and other services to integrate from first startup
+        # See: https://wiki.servarr.com/radarr/environment-variables
+        config.sops.templates."radarr-env".path
+      ];
+      volumes = [
+        "${cfg.dataDir}:/config:rw"
+        "${cfg.mediaDir}:/movies:rw" # Use /movies for clarity
+      ];
+      ports = [
+        "${toString radarrPort}:7878"
+      ];
         resources = cfg.resources;
         extraOptions = [
           "--umask=0027"
           "--pull=newer"
-          "--user=${cfg.user}:${cfg.group}"
+          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
         ] ++ lib.optionals (nfsMountConfig != null) [
           # Add media group to container so process can write to group-owned NFS mount
           "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"

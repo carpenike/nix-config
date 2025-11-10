@@ -110,7 +110,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/linuxserver/lidarr:latest";
+      default = "ghcr.io/home-operations/lidarr:latest";
       description = "Full container image name for Lidarr.";
     };
 
