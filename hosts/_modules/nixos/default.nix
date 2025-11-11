@@ -10,6 +10,7 @@
     ./systemd.nix
     ./filesystems
     ./hardware
+    ./virtualization  # Podman network and container infrastructure
     ./services
     ./services/attic.nix
     # FIXME: Circular dependency - database-interface.nix defines options.modules.services.postgresql.databases

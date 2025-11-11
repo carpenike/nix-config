@@ -336,12 +336,34 @@ in
         PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
         TZ = cfg.timezone;
         UMASK = "002";  # Ensure group-writable files on shared media
+        PROWLARR__AUTH__METHOD = if (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) then "External" else "None";
       };
+      environmentFiles = [
+        # Pre-generated API key for declarative configuration
+        # Allows cross-seed and other services to integrate from first startup
+        # See: https://wiki.servarr.com/prowlarr/environment-variables
+        config.sops.templates."prowlarr-env".path
+      ];
       volumes = [
         "${cfg.dataDir}:/config:rw"
       ];
+      ports = [
+        "9696:9696"
+      ];
       extraOptions = [
         "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+      ] ++ lib.optionals cfg.healthcheck.enable [
+        # Define the health check on the container itself.
+        # This allows `podman healthcheck run` to work and updates status in `podman ps`.
+        # Use explicit HTTP 200 check to avoid false positives from redirects
+        # Prowlarr runs on port 9696 by default
+        ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:9696/ping)" = 200 ]' ''
+        # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
+        # Use "0s" instead of "disable" for better Podman version compatibility
+        "--health-interval=0s"
+        "--health-timeout=${cfg.healthcheck.timeout}"
+        "--health-retries=${toString cfg.healthcheck.retries}"
+        "--health-start-period=${cfg.healthcheck.startPeriod}"
       ];
     };
 

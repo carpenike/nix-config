@@ -152,6 +152,17 @@ in
       description = "Timezone for the container";
     };
 
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach this container to.
+        Enables DNS resolution to other containers on the same network.
+        Network must be defined in `modules.virtualization.podman.networks`.
+      '';
+      example = "media-services";
+    };
+
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
@@ -413,6 +424,9 @@ in
         "--pull=newer"  # Automatically pull newer images
         # Force container to run as the specified user:group
         "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+      ] ++ lib.optionals (cfg.podmanNetwork != null) [
+        # Attach to Podman network for DNS-based service discovery
+        "--network=${cfg.podmanNetwork}"
       ] ++ lib.optionals (nfsMountConfig != null) [
         # Add media group to container so process can write to group-owned NFS mount
         "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
@@ -432,6 +446,10 @@ in
       (lib.mkIf (nfsMountConfig != null) {
         requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];  # TODO: derive from nfsMountConfig.localPath
         after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
+      })
+      (lib.mkIf (cfg.podmanNetwork != null) {
+        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
       })
       {
       # Service should remain stopped if explicitly stopped by admin

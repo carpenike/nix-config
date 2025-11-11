@@ -17,6 +17,8 @@ let
   crossSeedPort = 2468;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-cross-seed.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/cross-seed";
+  nfsMountName = cfg.nfsMountDependency;
+  nfsMountConfig = if nfsMountName != null then config.modules.storage.nfsMounts.${nfsMountName} or null else null;
 
   # Recursively find the replication config from the most specific dataset path upwards.
   findReplication = dsPath:
@@ -63,34 +65,71 @@ let
       };
 
   # Generate config.js from Nix attributes
+  # Base configuration matching v6 format and best practices
+  # See: https://www.cross-seed.org/docs/v6-migration
   baseConfig = {
-    delay = 30;
-    torrentDir = "/torrents";
-    outputDir = "/output";
-    includeEpisodes = true;
-    includeSingleEpisodes = true;
-    includeNonVideos = false;
-    duplicateCategories = true;
-    linkCategory = "cross-seed";
-    linkDir = "/output";
-    dataDirs = [ "/data" ];
-    maxDataDepth = 3;
-    torznab = [];
+    # Required fields for daemon mode
+    delay = 30;  # Seconds between searches
     port = crossSeedPort;
+    action = "inject";  # Inject torrents directly into qBittorrent
+
+    # Matching configuration (v6 options: "strict", "flexible", "partial")
+    # - strict: Exact file name and size matches only
+    # - flexible: Allows renames and slight inconsistencies (recommended default)
+    # - partial: Most comprehensive, handles different file trees
+    matchMode = "flexible";  # Default in v6, good balance of accuracy and flexibility
+
+    # Torrent client configuration (populated by extraSettings)
+    torrentClients = [];  # Format: ["type:http://user:pass@host:port"]
+    useClientTorrents = true;  # Use torrents from client for matching (recommended over torrentDir)
+
+    # Directory configuration
+    # CRITICAL: linkDirs CANNOT be inside outputDir, dataDirs, or torrentDir
+    # Note: When dataDirs is set, dataDir is redundant and should be omitted
+    # Note: When linkDirs is set, linkDir is redundant and should be omitted
+    # Note: When useClientTorrents=true, torrentDir is not needed
+    outputDir = "/output";  # For retry torrents (mostly empty with action=inject)
+    linkDirs = [];  # Will be populated by extraSettings - MUST be on same filesystem as dataDirs for hardlinks
+    dataDirs = [];  # Will be populated by extraSettings (searches these directories)
+    maxDataDepth = 1;
+
+    # Indexer configuration
+    torznab = [];  # Will be populated by extraSettings with Prowlarr indexers
+
+    # Content filtering (v6 format)
+    # Note: includeEpisodes was REMOVED in v6 - use includeSingleEpisodes instead
+    includeSingleEpisodes = true;  # Include single episodes (not from season packs)
+    includeNonVideos = true;  # Include non-video content (music, books, etc.)
+
+    # Linking configuration
+    linkCategory = "cross-seed";  # Category for cross-seeded torrents
+    linkType = "hardlink";  # Use hardlinks (recommended for same filesystem)
+    duplicateCategories = true;  # Allow multiple categories
+    skipRecheck = true;  # Skip recheck on injection (faster)
+
+    # Season pack configuration
+    seasonFromEpisodes = null;  # Disable season packs from episodes (null = disabled)
   };
 
   mergedConfig = baseConfig // cfg.extraSettings;
 
-  # Convert Nix attrs to JavaScript object notation
-  toJS = val:
+  # Convert Nix attrs to JavaScript - multiline for better readability
+  toJS = indent: val:
     if builtins.isAttrs val then
       let
-        pairs = lib.mapAttrsToList (k: v: "${lib.escapeShellArg k}: ${toJS v}") val;
-      in "{ ${lib.concatStringsSep ", " pairs} }"
+        pairs = lib.mapAttrsToList (k: v: "${indent}  ${k}: ${toJS (indent + "  ") v}") val;
+        content = lib.concatStringsSep ",\n" pairs;
+      in "{\n${content}\n${indent}}"
     else if builtins.isList val then
-      "[ ${lib.concatMapStringsSep ", " toJS val} ]"
+      if builtins.length val == 0 then
+        "[]"
+      else
+        let
+          items = map (v: "${indent}  ${toJS (indent + "  ") v}") val;
+          content = lib.concatStringsSep ",\n" items;
+        in "[\n${content}\n${indent}]"
     else if builtins.isString val then
-      lib.escapeShellArg val
+      "\"${val}\""
     else if builtins.isBool val then
       if val then "true" else "false"
     else if builtins.isInt val || builtins.isFloat val then
@@ -99,7 +138,7 @@ let
       "null";
 
   configJs = pkgs.writeText "config.js" ''
-    module.exports = ${toJS mergedConfig};
+    module.exports = ${toJS "" mergedConfig};
   '';
 in
 {
@@ -128,6 +167,34 @@ in
       type = lib.types.path;
       default = "/var/lib/qbittorrent";
       description = "Path to qBittorrent data directory (for BT_backup mount)";
+    };
+
+    # This option is now automatically configured by nfsMountDependency
+    mediaDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/mnt/media"; # Kept for standalone use, but will be overridden
+      description = "Path to media library (qBittorrent downloads). Set automatically by nfsMountDependency.";
+    };
+
+    nfsMountDependency = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the NFS mount defined in `modules.storage.nfsMounts` to use for media.
+        This will automatically set `mediaDir` and systemd dependencies.
+      '';
+      example = "media";
+    };
+
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach this container to.
+        Enables DNS resolution to other containers on the same network.
+        Network must be defined in `modules.virtualization.podman.networks`.
+      '';
+      example = "media-services";
     };
 
     image = lib.mkOption {
@@ -161,6 +228,15 @@ in
           qbittorrentUrl = "http://127.0.0.1:8080";
           torznab = [ "http://prowlarr:9696/1/api?apikey=..." ];
         }
+      '';
+    };
+
+    prowlarrApiKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Path to file containing Prowlarr API key.
+        If set, torznab URLs in extraSettings can use {{API_KEY}} placeholder.
       '';
     };
 
@@ -259,12 +335,6 @@ in
       description = "Notification configuration for cross-seed service events";
     };
 
-    dataset = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.datasetSubmodule;
-      default = null;
-      description = "ZFS dataset configuration for cross-seed data directory";
-    };
-
     preseed = {
       enable = lib.mkEnableOption "automatic data restore before service start";
       repositoryUrl = lib.mkOption {
@@ -292,8 +362,13 @@ in
 
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
+      # Validate NFS mount dependency if specified
       assertions =
-        (lib.optional cfg.preseed.enable {
+        (lib.optional (nfsMountName != null) {
+          assertion = nfsMountConfig != null;
+          message = "cross-seed nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
+        })
+        ++ (lib.optional cfg.preseed.enable {
           assertion = cfg.preseed.repositoryUrl != "";
           message = "cross-seed preseed.enable requires preseed.repositoryUrl to be set.";
         })
@@ -301,6 +376,9 @@ in
           assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
           message = "cross-seed preseed.enable requires preseed.passwordFile to be set.";
         });
+
+    # Automatically set mediaDir from the NFS mount configuration
+    modules.services.cross-seed.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
 
       users.groups.${cfg.group} = lib.mkIf (cfg.group == "media") {
         gid = 993;
@@ -313,6 +391,22 @@ in
         home = cfg.dataDir;
         createHome = false;
         description = "cross-seed automatic cross-seeding daemon";
+      };
+
+      # Configure ZFS dataset with appropriate properties
+      # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
+      # via tmpfiles by keeping owner/group/mode here
+      modules.storage.datasets.services.cross-seed = {
+        mountpoint = cfg.dataDir;
+        recordsize = "16K";  # Optimal for configuration and small files
+        compression = "zstd";  # Better compression for text/config files
+        properties = {
+          "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
+        };
+        # Ownership matches the container user/group
+        owner = "cross-seed";
+        group = cfg.group;
+        mode = "0750";  # Allow group read access for backup systems
       };
 
       # Automatically register with Caddy reverse proxy if enabled
@@ -352,16 +446,37 @@ in
         }
       );
 
+      # Ensure subdirectories exist with proper permissions
+      systemd.tmpfiles.rules = [
+        "d '${cfg.dataDir}' 0750 ${cfg.user} ${cfg.group} - -"
+        "d '${cfg.dataDir}/data' 0750 ${cfg.user} ${cfg.group} - -"
+        "d '${cfg.dataDir}/output' 0750 ${cfg.user} ${cfg.group} - -"
+      ];
+
       # Configuration file generation service
       systemd.services."cross-seed-config" = {
         description = "Generate cross-seed configuration";
         wantedBy = [ "multi-user.target" ];
         before = [ mainServiceUnit ];
+        after = [ "var-lib-cross\\x2dseed.mount" ];
+        requires = [ "var-lib-cross\\x2dseed.mount" ];
         script = ''
-          mkdir -p ${cfg.dataDir}/config
-          cp ${configJs} ${cfg.dataDir}/config/config.js
-          chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}/config
-          chmod 0640 ${cfg.dataDir}/config/config.js
+          mkdir -p ${cfg.dataDir}/data
+          mkdir -p ${cfg.dataDir}/output
+
+          # Copy config.js to the root of dataDir (will be /config/config.js in container)
+          cp ${configJs} ${cfg.dataDir}/config.js
+
+          ${lib.optionalString (cfg.prowlarrApiKeyFile != null) ''
+            # Substitute Prowlarr API key placeholder with actual key from secret file
+            if [ -f "${cfg.prowlarrApiKeyFile}" ]; then
+              PROWLARR_API_KEY=$(cat "${cfg.prowlarrApiKeyFile}")
+              ${pkgs.gnused}/bin/sed -i "s|{{PROWLARR_API_KEY}}|$PROWLARR_API_KEY|g" ${cfg.dataDir}/config.js
+            fi
+          ''}
+
+          chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
+          chmod 0640 ${cfg.dataDir}/config.js
         '';
         serviceConfig = {
           Type = "oneshot";
@@ -369,34 +484,69 @@ in
         };
       };
 
+      # Add systemd dependencies for the container service
+      # Add systemd dependencies
+      systemd.services."${config.virtualisation.oci-containers.backend}-cross-seed" = lib.mkMerge [
+        {
+          after = [ "cross-seed-config.service" "var-lib-cross\\x2dseed.mount" ];
+          requires = [ "var-lib-cross\\x2dseed.mount" ];
+          wants = [ "cross-seed-config.service" ];
+        }
+        # Add NFS mount dependency if configured
+        (lib.mkIf (nfsMountConfig != null) {
+          requires = [ nfsMountConfig.mountUnitName ];
+          after = [ nfsMountConfig.mountUnitName ];
+        })
+        # Add Podman network dependency if configured
+        (lib.mkIf (cfg.podmanNetwork != null) {
+          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        })
+        # Add failure notifications via systemd
+        (lib.mkIf (config.modules.notifications.enable or false && cfg.notifications != null && cfg.notifications.enable) {
+          unitConfig.OnFailure = [ "notify@cross-seed-failure:%n.service" ];
+        })
+        # Add dependency on the preseed service
+        (lib.mkIf cfg.preseed.enable {
+          wants = [ "preseed-cross-seed.service" ];
+          after = [ "preseed-cross-seed.service" ];
+        })
+      ];
+
       # Container service
       virtualisation.oci-containers.containers.cross-seed = {
         image = cfg.image;
         autoStart = true;
         user = "${cfg.user}:${toString config.users.groups.${cfg.group}.gid}";
+        cmd = [ "daemon" ];
         environment = {
           PUID = cfg.user;
           PGID = toString config.users.groups.${cfg.group}.gid;
           TZ = cfg.timezone;
         };
         volumes = [
-          "${cfg.dataDir}/config:/config:rw"
-          "${cfg.dataDir}/data:/data:rw"
-          "${cfg.dataDir}/output:/output:rw"
-          "${cfg.qbittorrentDataDir}/data/BT_backup:/torrents:ro"
+          "/var/lib/cross-seed:/config"
+          "${cfg.mediaDir}:/media"  # Mount NFS share (contains qb/downloads/{sonarr,radarr,prowlarr,xseeds})
+          "/var/lib/cross-seed/output:/output"
+          "${cfg.qbittorrentDataDir}/qBittorrent/BT_backup:/torrents:ro"
         ];
         ports = [
           "127.0.0.1:${toString crossSeedPort}:${toString crossSeedPort}"
         ];
         extraOptions = [
-          "--pull=never"
-        ] ++ lib.optionals cfg.healthcheck.enable [
-          "--health-cmd=curl -f http://localhost:${toString crossSeedPort}/api/healthz || exit 1"
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-        ];
+          "--pull=newer"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          # Attach to Podman network for DNS-based service discovery
+          "--network=${cfg.podmanNetwork}"
+      ] ++ lib.optionals cfg.healthcheck.enable [
+        # Health check using /api/ping endpoint (returns 200 when healthy)
+        # This is the proper health check endpoint used in Kubernetes deployments
+        ''--health-cmd=curl -f http://localhost:${toString crossSeedPort}/api/ping''
+        "--health-interval=${cfg.healthcheck.interval}"
+        "--health-timeout=${cfg.healthcheck.timeout}"
+        "--health-retries=${toString cfg.healthcheck.retries}"
+        "--health-start-period=${cfg.healthcheck.startPeriod}"
+      ];
       };
 
       systemd.services.${mainServiceUnit} = {

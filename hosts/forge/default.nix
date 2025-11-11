@@ -655,6 +655,18 @@ in
         };
       };
 
+      # Podman containerization with DNS-enabled networking
+      virtualization.podman = {
+        enable = true;
+        networks = {
+          "media-services" = {
+            driver = "bridge";
+            # DNS resolution is enabled by default for bridge networks
+            # Containers on this network can reach each other by container name
+          };
+        };
+      };
+
       # ZFS snapshot and replication management (part of backup infrastructure)
       backup.sanoid = {
         enable = true;
@@ -1293,6 +1305,7 @@ in
         # Downloads directory on NFS (category-based structure already exists)
         # /mnt/data/qb/downloads/{sonarr,radarr,lidarr,readarr,prowlarr}
         nfsMountDependency = "media";  # Use shared NFS mount
+        podmanNetwork = "media-services";  # Enable DNS resolution to other media services
         healthcheck.enable = true;
 
         # Enable VueTorrent modern WebUI
@@ -1334,22 +1347,46 @@ in
 
       cross-seed = {
         enable = true;
+        nfsMountDependency = "media";  # Use shared NFS mount for qBittorrent downloads
+        podmanNetwork = "media-services";  # Enable DNS resolution to qBittorrent by container name
         healthcheck.enable = true;
 
-        # Configuration settings for cross-seed daemon
+        # Prowlarr API key for torznab indexers
+        prowlarrApiKeyFile = config.sops.secrets."prowlarr/api-key".path;
+
+        # Configuration settings for cross-seed daemon (matching k8s production config)
         extraSettings = {
           delay = 30;  # Check every 30 seconds
-          qbittorrentUrl = "http://127.0.0.1:8080";
-          # Torznab indexers from Prowlarr - configure these manually via WebUI
-          torznab = [];
-          includeEpisodes = true;
-          includeSingleEpisodes = true;
-          includeNonVideos = false;
-          duplicateCategories = true;
-          linkCategory = "cross-seed";
-          linkDir = "/output";
-          dataDirs = [ "/data" ];
-          maxDataDepth = 3;
+
+          # Torznab indexers from Prowlarr
+          # The placeholder {{PROWLARR_API_KEY}} gets substituted at runtime by cross-seed-config.service
+          # Use container name for Prowlarr (both on media-services network with DNS resolution)
+          # Indexer IDs: Check Prowlarr UI at Settings -> Indexers -> each indexer's ID in the URL
+          # Format: "http://prowlarr:9696/{indexer-id}/api?apikey={{PROWLARR_API_KEY}}"
+          torznab = [
+            "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}"   # Replace with actual indexer IDs
+            "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}"   # after configuring Prowlarr
+          ];
+
+          # Data directories - paths inside container after NFS mount at /media
+          # These point to qBittorrent's category-based download directories
+          # /media maps to /mnt/data on host (NFS share from NAS)
+          # CRITICAL: linkDirs must be on same filesystem as dataDirs for hardlinks to work
+          dataDirs = [
+            "/media/qb/downloads/sonarr"
+            "/media/qb/downloads/radarr"
+            "/media/qb/downloads/prowlarr"
+          ];
+          linkDirs = [ "/media/qb/downloads/xseeds" ];  # Must be on NFS share for hardlinks
+          maxDataDepth = 1;
+
+          # qBittorrent client configuration for inject mode
+          # Format: "type:http://url" or "type:http://user:pass@url"
+          # Both containers are on the media-services Podman network with DNS resolution
+          # qBittorrent has AuthSubnetWhitelistEnabled, so no credentials needed for network connections
+          torrentClients = [
+            "qbittorrent:http://qbittorrent:8080"
+          ];
         };
 
         reverseProxy = {
@@ -1383,13 +1420,6 @@ in
           customMessages = {
             failure = "cross-seed automatic cross-seeding failed on forge";
           };
-        };
-
-        dataset = {
-          enable = true;
-          recordsize = "16K";  # Optimal for SQLite database and small torrent files
-          compression = "lz4";
-          quota = "10G";
         };
 
         preseed = {

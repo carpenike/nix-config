@@ -408,7 +408,7 @@ in
         # Sonarr is set to "External" mode - it trusts that any request reaching it has been authenticated
         # Note: Sonarr does NOT support multiple users - everyone who passes Authelia gets admin access
         # Authelia's allowedGroups controls WHO can access, but Sonarr has no per-user authorization
-        SONARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
+        SONARR__AUTH__METHOD = if (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) then "External" else "None";
       };
       environmentFiles = [
         # Pre-generated API key for declarative configuration

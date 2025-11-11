@@ -175,6 +175,12 @@
           owner = "root";
           group = "root";
         };
+
+        "prowlarr/api-key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
       };
 
       # Templates for generating .env files for containers.
@@ -184,7 +190,6 @@
         "sonarr-env" = {
           content = ''
             SONARR__AUTH__APIKEY=${config.sops.placeholder."sonarr/api-key"}
-            SONARR__AUTH__METHOD=None
             SONARR__LOG__LEVEL=Info
             SONARR__UPDATE__BRANCH=master
           '';
@@ -195,9 +200,18 @@
         "radarr-env" = {
           content = ''
             RADARR__AUTH__APIKEY=${config.sops.placeholder."radarr/api-key"}
-            RADARR__AUTH__METHOD=None
             RADARR__LOG__LEVEL=Info
             RADARR__UPDATE__BRANCH=master
+          '';
+          mode = "0400"; # root-only readable
+          owner = "root";
+          group = "root";
+        };
+        "prowlarr-env" = {
+          content = ''
+            PROWLARR__AUTH__APIKEY=${config.sops.placeholder."prowlarr/api-key"}
+            PROWLARR__LOG__LEVEL=Info
+            PROWLARR__UPDATE__BRANCH=master
           '';
           mode = "0400"; # root-only readable
           owner = "root";

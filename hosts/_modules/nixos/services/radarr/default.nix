@@ -375,7 +375,7 @@ in
         PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
         TZ = cfg.timezone;
         UMASK = "002";  # Ensure group-writable files on shared media
-        RADARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
+        RADARR__AUTH__METHOD = if (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) then "External" else "None";
       };
       environmentFiles = [
         # Pre-generated API key for declarative configuration
