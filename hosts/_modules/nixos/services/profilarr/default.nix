@@ -88,19 +88,61 @@ in
       '';
     };
 
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "media-alerts" ];
+        };
+        customMessages = {
+          failure = "Profilarr profile sync failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Profilarr service events";
+    };
+
     # Dataset configuration
     dataset = lib.mkOption {
       type = lib.types.nullOr sharedTypes.datasetSubmodule;
       default = null;
       description = "ZFS dataset configuration for Profilarr data directory";
     };
+
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.path;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds. Examples:
+          - [ "syncoid" "local" "restic" ] - Default, try replication first
+          - [ "local" "restic" ] - Skip replication, try local snapshots first
+          - [ "restic" ] - Restic-only (for air-gapped systems)
+          - [ "local" "restic" "syncoid" ] - Local-first for quick recovery
+        '';
+      };
+    };
   };
 
-  config = lib.mkIf cfg.enable (
-    let
-      # Move config-dependent variables here to avoid infinite recursion
-      storageCfg = config.modules.storage;
-      datasetPath = "${storageCfg.datasets.parentDataset}/profilarr";
+  config = let
+    # Move config-dependent variables here to avoid infinite recursion
+    storageCfg = config.modules.storage;
+    datasetPath = "${storageCfg.datasets.parentDataset}/profilarr";
 
       # Recursively find the replication config
       findReplication = dsPath:
@@ -145,14 +187,25 @@ in
             sendOptions = foundReplication.replication.sendOptions or "w";
             recvOptions = foundReplication.replication.recvOptions or "u";
           };
-    in
-    {
-    assertions = [
-      {
-        assertion = cfg.backup != null -> cfg.backup.enable;
-        message = "Profilarr backup must be explicitly enabled when configured";
-      }
-    ];
+
+    mainServiceUnit = "profilarr.service";
+    hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
+  in lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      assertions = [
+        {
+          assertion = cfg.backup != null -> cfg.backup.enable;
+          message = "Profilarr backup must be explicitly enabled when configured";
+        }
+        {
+          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+          message = "Profilarr preseed.enable requires preseed.repositoryUrl to be set.";
+        }
+        {
+          assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
+          message = "Profilarr preseed.enable requires preseed.passwordFile to be set.";
+        }
+      ];
 
     warnings =
       (lib.optional (cfg.backup == null) "Profilarr has no backup configured. Profile configurations will not be protected.");
@@ -178,6 +231,11 @@ in
       description = "Profilarr service user";
     };
 
+    # Create system group for Profilarr
+    users.groups.profilarr = {
+      gid = lib.mkDefault (lib.toInt cfg.user);
+    };
+
     # Profilarr sync service (oneshot)
     # This is NOT a long-running container - it's executed on a schedule
     systemd.services."profilarr-sync" = {
@@ -195,7 +253,7 @@ in
           ${pkgs.podman}/bin/podman run --rm \
             --name profilarr-sync \
             --user ${cfg.user}:${toString config.users.groups.${cfg.group}.gid} \
-            --log-driver=${if cfg.logging != null && cfg.logging.enable then cfg.logging.driver else "journald"} \
+            --log-driver=journald \
             -v ${cfg.dataDir}:/config:rw \
             -e TZ=${cfg.timezone} \
             ${cfg.image}
@@ -232,21 +290,30 @@ in
         zfsDataset = cfg.backup.zfsDataset;
       };
     };
+  })
 
-    # Preseed service for disaster recovery
-    systemd.services."profilarr-preseed" = lib.mkIf (cfg.backup != null && cfg.backup.preseed.enable && replicationConfig != null) (
-      storageHelpers.makePreseedService {
+    # Preseed service
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
         serviceName = "profilarr";
-        datasetPath = datasetPath;
-        mountPoint = cfg.dataDir;
-        targetServiceUnit = "profilarr-sync.service";
-        replicationConfig = replicationConfig;
-        restoreMethods = cfg.backup.preseed.restoreMethods;
-        resticRepository = if cfg.backup.preseed.enableResticRestore then cfg.backup.repository else null;
-        user = cfg.user;
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = cfg.user;
         group = cfg.group;
       }
-    );
-  }
-  );
+    ))
+  ];
 }

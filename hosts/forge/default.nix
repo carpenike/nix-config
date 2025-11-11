@@ -1277,6 +1277,9 @@ in
         nfsMountDependency = "media";  # Use shared NFS mount
         healthcheck.enable = true;
 
+        # Enable VueTorrent modern WebUI
+        vuetorrent.enable = true;
+
         reverseProxy = {
           enable = true;
           hostName = "qbittorrent.holthome.net";
@@ -1356,6 +1359,154 @@ in
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;
           restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
+        };
+      };
+
+      # Overseerr - Request management for Plex
+      overseerr = {
+        enable = true;
+        image = "lscr.io/linuxserver/overseerr:latest";
+        healthcheck.enable = true;
+
+        reverseProxy = {
+          enable = true;
+          hostName = "overseerr.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            bypassPaths = [ "/api" ];
+            allowedNetworks = [
+              "172.16.0.0/12"
+              "192.168.1.0/24"
+              "10.0.0.0/8"
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          useSnapshots = true;
+          zfsDataset = "tank/services/overseerr";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ];
+        };
+      };
+
+      # Autobrr - IRC announce bot for private trackers
+      autobrr = {
+        enable = true;
+        image = "ghcr.io/autobrr/autobrr:latest";
+        healthcheck.enable = true;
+
+        reverseProxy = {
+          enable = true;
+          hostName = "autobrr.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            bypassPaths = [ "/api" ];
+            allowedNetworks = [
+              "172.16.0.0/12"
+              "192.168.1.0/24"
+              "10.0.0.0/8"
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          useSnapshots = true;
+          zfsDataset = "tank/services/autobrr";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ];
+        };
+      };
+
+      # Profilarr - Profile sync for *arr services
+      profilarr = {
+        enable = true;
+        image = "ghcr.io/profilarr/profilarr:latest";
+
+        # Run daily at 3 AM to sync quality profiles
+        schedule = "*-*-* 03:00:00";
+
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          useSnapshots = true;
+          zfsDataset = "tank/services/profilarr";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ];
+        };
+      };
+
+      # Tdarr - Transcoding automation
+      tdarr = {
+        enable = true;
+        image = "ghcr.io/haveagitgat/tdarr:latest";
+        nfsMountDependency = "media";
+        healthcheck.enable = true;
+
+        # Intel GPU hardware acceleration
+        accelerationDevices = [ "/dev/dri/renderD128" "/dev/dri/card0" ];
+
+        # Resource limits for transcoding workloads
+        resources = {
+          memory = "4G";
+          memoryReservation = "2G";
+          cpus = "4.0";
+        };
+
+        reverseProxy = {
+          enable = true;
+          hostName = "tdarr.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" ];
+            allowedNetworks = [
+              "172.16.0.0/12"
+              "192.168.1.0/24"
+              "10.0.0.0/8"
+            ];
+          };
+        };
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          # Only backup config/database, not cache
+          useSnapshots = true;
+          zfsDataset = "tank/services/tdarr";
+        };
+        notifications.enable = true;
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ];
         };
       };
 

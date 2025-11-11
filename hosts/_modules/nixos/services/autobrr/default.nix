@@ -116,6 +116,20 @@ in
       description = "Logging configuration for Autobrr";
     };
 
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "media-alerts" ];
+        };
+        customMessages = {
+          failure = "Autobrr IRC announce bot failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Autobrr service events";
+    };
+
     # Standardized backup configuration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
@@ -135,15 +149,43 @@ in
       default = null;
       description = "ZFS dataset configuration for Autobrr data directory";
     };
+
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.path;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds. Examples:
+          - [ "syncoid" "local" "restic" ] - Default, try replication first
+          - [ "local" "restic" ] - Skip replication, try local snapshots first
+          - [ "restic" ] - Restic-only (for air-gapped systems)
+          - [ "local" "restic" "syncoid" ] - Local-first for quick recovery
+        '';
+      };
+    };
   };
 
-  config = lib.mkIf cfg.enable (
-    let
-      # Move config-dependent variables here to avoid infinite recursion
-      storageCfg = config.modules.storage;
-      autobrrPort = 7474;
-      mainServiceUnit = "${config.virtualisation.oci-containers.backend}-autobrr.service";
-      datasetPath = "${storageCfg.datasets.parentDataset}/autobrr";
+  config = let
+    # Move config-dependent variables here to avoid infinite recursion
+    storageCfg = config.modules.storage;
+    autobrrPort = 7474;
+    mainServiceUnit = "${config.virtualisation.oci-containers.backend}-autobrr.service";
+    datasetPath = "${storageCfg.datasets.parentDataset}/autobrr";
 
       # Recursively find the replication config
       findReplication = dsPath:
@@ -188,18 +230,28 @@ in
             sendOptions = foundReplication.replication.sendOptions or "w";
             recvOptions = foundReplication.replication.recvOptions or "u";
           };
-    in
-    {
-    assertions = [
-      {
-        assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
-        message = "Autobrr reverse proxy must be explicitly enabled when configured";
-      }
-      {
-        assertion = cfg.backup != null -> cfg.backup.enable;
-        message = "Autobrr backup must be explicitly enabled when configured";
-      }
-    ];
+
+    hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
+  in lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      assertions = [
+        {
+          assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
+          message = "Autobrr reverse proxy must be explicitly enabled when configured";
+        }
+        {
+          assertion = cfg.backup != null -> cfg.backup.enable;
+          message = "Autobrr backup must be explicitly enabled when configured";
+        }
+        {
+          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+          message = "Autobrr preseed.enable requires preseed.repositoryUrl to be set.";
+        }
+        {
+          assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
+          message = "Autobrr preseed.enable requires preseed.passwordFile to be set.";
+        }
+      ];
 
     warnings =
       (lib.optional (cfg.reverseProxy == null) "Autobrr has no reverse proxy configured. Service will only be accessible locally.")
@@ -226,6 +278,11 @@ in
       description = "Autobrr service user";
     };
 
+    # Create system group for Autobrr
+    users.groups.autobrr = {
+      gid = lib.mkDefault (lib.toInt cfg.user);
+    };
+
     # Autobrr container configuration
     # Note: This image does not use PUID/PGID - must use --user flag
     virtualisation.oci-containers.containers.autobrr = podmanLib.mkContainer "autobrr" {
@@ -237,7 +294,7 @@ in
         "${cfg.dataDir}:/config:rw"
       ];
       ports = [ "${toString autobrrPort}:7474" ];
-      log-driver = if cfg.logging != null && cfg.logging.enable then cfg.logging.driver else "journald";
+      log-driver = "journald";
       extraOptions =
         [
           # Autobrr container doesn't support PUID/PGID - use --user flag
@@ -282,6 +339,16 @@ in
       extraConfig = cfg.reverseProxy.extraConfig;
     };
 
+    # Register with Authelia for SSO protection
+    modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr = lib.mkIf (
+      cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia.enable
+    ) {
+      domain = cfg.reverseProxy.hostName;
+      policy = cfg.reverseProxy.authelia.policy;
+      subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
+      bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
+    };
+
     # Backup integration using standardized restic pattern
     modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
       autobrr = {
@@ -295,21 +362,53 @@ in
         zfsDataset = cfg.backup.zfsDataset;
       };
     };
+  })
 
-    # Preseed service for disaster recovery
-    systemd.services."autobrr-preseed" = lib.mkIf (cfg.backup != null && cfg.backup.preseed.enable && replicationConfig != null) (
-      storageHelpers.makePreseedService {
+    # Preseed service
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
         serviceName = "autobrr";
-        datasetPath = datasetPath;
-        mountPoint = cfg.dataDir;
-        targetServiceUnit = mainServiceUnit;
-        replicationConfig = replicationConfig;
-        restoreMethods = cfg.backup.preseed.restoreMethods;
-        resticRepository = if cfg.backup.preseed.enableResticRestore then cfg.backup.repository else null;
-        user = cfg.user;
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = cfg.user;
         group = cfg.group;
       }
-    );
-  }
-  );
+    ))
+
+    # Register with Authelia if SSO protection is enabled
+    # This declares INTENT - Caddy module handles IMPLEMENTATION
+    (lib.mkIf (
+      config.modules.services.authelia.enable &&
+      cfg.enable &&
+      cfg.reverseProxy != null &&
+      cfg.reverseProxy.enable &&
+      cfg.reverseProxy.authelia != null &&
+      cfg.reverseProxy.authelia.enable
+    ) {
+      modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr =
+        let
+          authCfg = cfg.reverseProxy.authelia;
+        in {
+          domain = cfg.reverseProxy.hostName;
+          policy = authCfg.policy;
+          subject = map (g: "group:${g}") authCfg.allowedGroups;
+          bypassResources =
+            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+            ++ authCfg.bypassResources;
+        };
+    })
+  ];
 }

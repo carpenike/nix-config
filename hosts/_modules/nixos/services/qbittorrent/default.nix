@@ -168,7 +168,7 @@ in
         type = lib.types.package;
         default = pkgs.fetchzip {
           url = "https://github.com/WDaan/VueTorrent/releases/download/v2.30.2/vuetorrent.zip";
-          hash = "sha256-GF63FBTDMDS0qFOjV6NPOFg4XbelOYhYtWaOCeiEIRs=";
+          hash = "sha256-DeRRFZm50ryMP1nS6BAhA60cqtiIU2EVuZy103t/Wic=";
           stripRoot = false;
         };
         description = ''
@@ -521,6 +521,16 @@ in
       };
     };
 
+    })
+
+    # Register with Authelia for SSO protection
+    (lib.mkIf (cfg.enable && cfg.reverseProxy.enable && cfg.reverseProxy.authelia.enable) {
+      modules.services.authelia.accessControl.declarativelyProtectedServices.qbittorrent = {
+        domain = cfg.reverseProxy.hostName;
+        policy = cfg.reverseProxy.authelia.policy;
+        subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
+        bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
+      };
     })
 
     # Add the preseed service using the standard helper

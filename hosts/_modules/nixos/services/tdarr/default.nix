@@ -172,6 +172,20 @@ in
       description = "Logging configuration for Tdarr";
     };
 
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "media-alerts" ];
+        };
+        customMessages = {
+          failure = "Tdarr transcoding automation failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Tdarr service events";
+    };
+
     # Standardized backup configuration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
@@ -207,16 +221,44 @@ in
         - Exclude from backups (ephemeral data)
       '';
     };
+
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.path;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds. Examples:
+          - [ "syncoid" "local" "restic" ] - Default, try replication first
+          - [ "local" "restic" ] - Skip replication, try local snapshots first
+          - [ "restic" ] - Restic-only (for air-gapped systems)
+          - [ "local" "restic" "syncoid" ] - Local-first for quick recovery
+        '';
+      };
+    };
   };
 
-  config = lib.mkIf cfg.enable (
-    let
-      # Move config-dependent variables here to avoid infinite recursion
-      storageCfg = config.modules.storage;
-      tdarrWebPort = 8265;
-      tdarrServerPort = 8266;
-      mainServiceUnit = "${config.virtualisation.oci-containers.backend}-tdarr.service";
-      datasetPath = "${storageCfg.datasets.parentDataset}/tdarr";
+  config = let
+    # Move config-dependent variables here to avoid infinite recursion
+    storageCfg = config.modules.storage;
+    tdarrWebPort = 8265;
+    tdarrServerPort = 8266;
+    mainServiceUnit = "${config.virtualisation.oci-containers.backend}-tdarr.service";
+    datasetPath = "${storageCfg.datasets.parentDataset}/tdarr";
 
       # Look up the NFS mount configuration if a dependency is declared
       nfsMountName = cfg.nfsMountDependency;
@@ -268,22 +310,32 @@ in
             sendOptions = foundReplication.replication.sendOptions or "w";
             recvOptions = foundReplication.replication.recvOptions or "u";
           };
-    in
-    {
-    assertions = [
-      {
-        assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
-        message = "Tdarr reverse proxy must be explicitly enabled when configured";
-      }
-      {
-        assertion = cfg.backup != null -> cfg.backup.enable;
-        message = "Tdarr backup must be explicitly enabled when configured";
-      }
-      {
-        assertion = nfsMountName == null || nfsMountConfig != null;
-        message = "Tdarr references undefined NFS mount '${nfsMountName}'";
-      }
-    ];
+
+    hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
+  in lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      assertions = [
+        {
+          assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
+          message = "Tdarr reverse proxy must be explicitly enabled when configured";
+        }
+        {
+          assertion = cfg.backup != null -> cfg.backup.enable;
+          message = "Tdarr backup must be explicitly enabled when configured";
+        }
+        {
+          assertion = nfsMountName == null || nfsMountConfig != null;
+          message = "Tdarr references undefined NFS mount '${nfsMountName}'";
+        }
+        {
+          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+          message = "Tdarr preseed.enable requires preseed.repositoryUrl to be set.";
+        }
+        {
+          assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
+          message = "Tdarr preseed.enable requires preseed.passwordFile to be set.";
+        }
+      ];
 
     warnings =
       (lib.optional (cfg.reverseProxy == null) "Tdarr has no reverse proxy configured. Service will only be accessible locally.")
@@ -327,6 +379,18 @@ in
         ++ lib.optional (nfsMountName != null) cfg.mediaGroup;
     };
 
+    # Create system group for Tdarr
+    users.groups.tdarr = {
+      gid = lib.mkDefault (lib.toInt cfg.user);
+    };
+
+    # Create subdirectories for Tdarr
+    systemd.tmpfiles.rules = [
+      "d ${cfg.dataDir}/server 0750 tdarr tdarr -"
+      "d ${cfg.dataDir}/configs 0750 tdarr tdarr -"
+      "d ${cfg.dataDir}/logs 0750 tdarr tdarr -"
+    ];
+
     # Tdarr container configuration
     virtualisation.oci-containers.containers.tdarr = podmanLib.mkContainer "tdarr" {
       image = cfg.image;
@@ -350,7 +414,7 @@ in
         "${toString tdarrWebPort}:8265"
         "${toString tdarrServerPort}:8266"
       ];
-      log-driver = if cfg.logging != null && cfg.logging.enable then cfg.logging.driver else "journald";
+      log-driver = "journald";
       extraOptions =
         (lib.optionals (cfg.accelerationDevices != []) (
           map (dev: "--device=${dev}:${dev}:rwm") cfg.accelerationDevices
@@ -372,9 +436,9 @@ in
     # Systemd service dependencies and security
     systemd.services."${mainServiceUnit}" = {
       requires = [ "network-online.target" ]
-        ++ lib.optional (nfsMountName != null) "${nfsMountConfig.mountUnit}";
+        ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
       after = [ "network-online.target" ]
-        ++ lib.optional (nfsMountName != null) "${nfsMountConfig.mountUnit}";
+        ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
       serviceConfig = {
         Restart = lib.mkForce "always";
         RestartSec = "30s";
@@ -388,7 +452,7 @@ in
       backend = {
         scheme = "http";
         host = "127.0.0.1";
-        port = tdarrWebPort;
+        port = tdarrServerPort;
       };
       auth = cfg.reverseProxy.auth;
       authelia = cfg.reverseProxy.authelia;
@@ -409,21 +473,53 @@ in
         zfsDataset = cfg.backup.zfsDataset;
       };
     };
+  })
 
-    # Preseed service for disaster recovery
-    systemd.services."tdarr-preseed" = lib.mkIf (cfg.backup != null && cfg.backup.preseed.enable && replicationConfig != null) (
-      storageHelpers.makePreseedService {
+    # Preseed service
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
         serviceName = "tdarr";
-        datasetPath = datasetPath;
-        mountPoint = cfg.dataDir;
-        targetServiceUnit = mainServiceUnit;
-        replicationConfig = replicationConfig;
-        restoreMethods = cfg.backup.preseed.restoreMethods;
-        resticRepository = if cfg.backup.preseed.enableResticRestore then cfg.backup.repository else null;
-        user = cfg.user;
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = cfg.user;
         group = cfg.group;
       }
-    );
-  }
-  );
+    ))
+
+    # Register with Authelia if SSO protection is enabled
+    # This declares INTENT - Caddy module handles IMPLEMENTATION
+    (lib.mkIf (
+      config.modules.services.authelia.enable &&
+      cfg.enable &&
+      cfg.reverseProxy != null &&
+      cfg.reverseProxy.enable &&
+      cfg.reverseProxy.authelia != null &&
+      cfg.reverseProxy.authelia.enable
+    ) {
+      modules.services.authelia.accessControl.declarativelyProtectedServices.tdarr =
+        let
+          authCfg = cfg.reverseProxy.authelia;
+        in {
+          domain = cfg.reverseProxy.hostName;
+          policy = authCfg.policy;
+          subject = map (g: "group:${g}") authCfg.allowedGroups;
+          bypassResources =
+            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+            ++ authCfg.bypassResources;
+        };
+    })
+  ];
 }
