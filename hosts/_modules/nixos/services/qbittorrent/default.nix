@@ -392,15 +392,13 @@ in
         TZ = cfg.timezone;
         UMASK = "002";  # Ensure group-writable files for *arr services to read
         WEBUI_PORT = toString qbittorrentPort;
-      } // lib.optionalAttrs cfg.vuetorrent.enable {
-        WEBUI_PATH = "/vuetorrent";
       };
       volumes = [
         "${cfg.dataDir}:/config:rw"
         "${cfg.downloadsDir}:/downloads:rw"
         # SECURITY: NO media directory mount - download clients should not have direct media access
       ] ++ lib.optionals cfg.vuetorrent.enable [
-        "${cfg.vuetorrent.package}:/vuetorrent:ro"
+        "${cfg.vuetorrent.package}/vuetorrent:/vuetorrent:ro"
       ];
       ports = [
         "${toString qbittorrentPort}:${toString qbittorrentPort}"
