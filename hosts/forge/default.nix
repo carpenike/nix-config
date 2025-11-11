@@ -903,6 +903,24 @@ in
               targetLocation = "nas-1";
             };
           };
+
+          # cross-seed automatic cross-seeding daemon
+          # Stores cache database and generated torrent files
+          "tank/services/cross-seed" = {
+            useTemplate = [ "services" ];
+            recursive = false;
+            autosnap = true;
+            autoprune = true;
+            replication = {
+              targetHost = "nas-1.holthome.net";
+              targetDataset = "backup/forge/zfs-recv/cross-seed";
+              sendOptions = "wp";
+              recvOptions = "u";
+              hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+              targetName = "NFS";
+              targetLocation = "nas-1";
+            };
+          };
         };
 
         # Restic backup jobs configuration
@@ -1311,6 +1329,74 @@ in
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;
           restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
+        };
+      };
+
+      cross-seed = {
+        enable = true;
+        healthcheck.enable = true;
+
+        # Configuration settings for cross-seed daemon
+        extraSettings = {
+          delay = 30;  # Check every 30 seconds
+          qbittorrentUrl = "http://127.0.0.1:8080";
+          # Torznab indexers from Prowlarr - configure these manually via WebUI
+          torznab = [];
+          includeEpisodes = true;
+          includeSingleEpisodes = true;
+          includeNonVideos = false;
+          duplicateCategories = true;
+          linkCategory = "cross-seed";
+          linkDir = "/output";
+          dataDirs = [ "/data" ];
+          maxDataDepth = 3;
+        };
+
+        reverseProxy = {
+          enable = true;
+          hostName = "cross-seed.holthome.net";
+          authelia = {
+            enable = true;
+            instance = "main";
+            authDomain = "auth.holthome.net";
+            policy = "one_factor";
+            allowedGroups = [ "media" "admin" ];
+          };
+        };
+
+        metrics = {
+          enable = true;
+        };
+
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          useSnapshots = true;
+          zfsDataset = "tank/services/cross-seed";
+        };
+
+        notifications = {
+          enable = true;
+          channels = {
+            onFailure = [ "media-alerts" ];
+          };
+          customMessages = {
+            failure = "cross-seed automatic cross-seeding failed on forge";
+          };
+        };
+
+        dataset = {
+          enable = true;
+          recordsize = "16K";  # Optimal for SQLite database and small torrent files
+          compression = "lz4";
+          quota = "10G";
+        };
+
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ];
         };
       };
 

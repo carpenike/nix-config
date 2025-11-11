@@ -18,6 +18,7 @@
     ./chrony
     ./cloudflared
     ./coachiq
+    ./cross-seed                              # cross-seed automatic cross-seeding daemon
     ./dispatcharr
     ./dnsdist
     ./glances
