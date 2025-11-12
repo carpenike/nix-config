@@ -69,15 +69,15 @@ let
   # See: https://www.cross-seed.org/docs/v6-migration
   baseConfig = {
     # Required fields for daemon mode
-    delay = 30;  # Seconds between searches
+    delay = 30;  # Seconds between searches (can be overridden in extraSettings)
     port = crossSeedPort;
     action = "inject";  # Inject torrents directly into qBittorrent
 
-    # Matching configuration (v6 options: "strict", "flexible", "partial")
+    # Matching configuration (v6 options: "strict", "safe", "risky")
     # - strict: Exact file name and size matches only
-    # - flexible: Allows renames and slight inconsistencies (recommended default)
-    # - partial: Most comprehensive, handles different file trees
-    matchMode = "flexible";  # Default in v6, good balance of accuracy and flexibility
+    # - safe: Allows renames and slight inconsistencies (recommended default)
+    # - risky: Most comprehensive, handles different file trees (formerly "partial")
+    matchMode = "safe";  # Recommended default - prevents false positives
 
     # Torrent client configuration (populated by extraSettings)
     torrentClients = [];  # Format: ["type:http://user:pass@host:port"]
@@ -88,13 +88,14 @@ let
     # Note: When dataDirs is set, dataDir is redundant and should be omitted
     # Note: When linkDirs is set, linkDir is redundant and should be omitted
     # Note: When useClientTorrents=true, torrentDir is not needed
-    outputDir = "/output";  # For retry torrents (mostly empty with action=inject)
+    outputDir = null;  # Set to null for action=inject (recommended by cross-seed - prevents unnecessary fallback saves)
     linkDirs = [];  # Will be populated by extraSettings - MUST be on same filesystem as dataDirs for hardlinks
     dataDirs = [];  # Will be populated by extraSettings (searches these directories)
     maxDataDepth = 1;
 
-    # Indexer configuration
-    torznab = [];  # Will be populated by extraSettings with Prowlarr indexers
+    # Indexer configuration (v6 modern format)
+    # Use indexers array with object format for better maintainability and logging
+    indexers = [];  # Will be populated by extraSettings with Prowlarr indexers
 
     # Content filtering (v6 format)
     # Note: includeEpisodes was REMOVED in v6 - use includeSingleEpisodes instead
@@ -113,32 +114,12 @@ let
 
   mergedConfig = baseConfig // cfg.extraSettings;
 
-  # Convert Nix attrs to JavaScript - multiline for better readability
-  toJS = indent: val:
-    if builtins.isAttrs val then
-      let
-        pairs = lib.mapAttrsToList (k: v: "${indent}  ${k}: ${toJS (indent + "  ") v}") val;
-        content = lib.concatStringsSep ",\n" pairs;
-      in "{\n${content}\n${indent}}"
-    else if builtins.isList val then
-      if builtins.length val == 0 then
-        "[]"
-      else
-        let
-          items = map (v: "${indent}  ${toJS (indent + "  ") v}") val;
-          content = lib.concatStringsSep ",\n" items;
-        in "[\n${content}\n${indent}]"
-    else if builtins.isString val then
-      "\"${val}\""
-    else if builtins.isBool val then
-      if val then "true" else "false"
-    else if builtins.isInt val || builtins.isFloat val then
-      toString val
-    else
-      "null";
-
+  # Generate config.js using built-in JSON serialization
+  # NOTE: JSON is a valid subset of JavaScript object literal syntax
+  # Using builtins.toJSON is more robust than custom string concatenation
+  # and properly handles special characters, escaping, and edge cases
   configJs = pkgs.writeText "config.js" ''
-    module.exports = ${toJS "" mergedConfig};
+    module.exports = ${builtins.toJSON mergedConfig};
   '';
 in
 {
@@ -163,11 +144,8 @@ in
       description = "Group under which cross-seed runs.";
     };
 
-    qbittorrentDataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/qbittorrent";
-      description = "Path to qBittorrent data directory (for BT_backup mount)";
-    };
+    # NOTE: qbittorrentDataDir option removed - no longer needed with useClientTorrents=true
+    # cross-seed uses the qBittorrent API directly instead of mounting BT_backup directory
 
     # This option is now automatically configured by nfsMountDependency
     mediaDir = lib.mkOption {
@@ -226,7 +204,12 @@ in
         {
           delay = 30;
           qbittorrentUrl = "http://127.0.0.1:8080";
-          torznab = [ "http://prowlarr:9696/1/api?apikey=..." ];
+          indexers = [
+            {
+              name = "prowlarr-indexer-1";
+              torznab = "http://prowlarr:9696/1/api?apikey=...";
+            }
+          ];
         }
       '';
     };
@@ -236,7 +219,25 @@ in
       default = null;
       description = ''
         Path to file containing Prowlarr API key.
-        If set, torznab URLs in extraSettings can use {{API_KEY}} placeholder.
+        If set, torznab URLs in extraSettings can use {{PROWLARR_API_KEY}} placeholder.
+      '';
+    };
+
+    sonarrApiKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Path to file containing Sonarr API key.
+        If set, sonarr URLs in extraSettings can use {{SONARR_API_KEY}} placeholder.
+      '';
+    };
+
+    radarrApiKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Path to file containing Radarr API key.
+        If set, radarr URLs in extraSettings can use {{RADARR_API_KEY}} placeholder.
       '';
     };
 
@@ -450,7 +451,7 @@ in
       systemd.tmpfiles.rules = [
         "d '${cfg.dataDir}' 0750 ${cfg.user} ${cfg.group} - -"
         "d '${cfg.dataDir}/data' 0750 ${cfg.user} ${cfg.group} - -"
-        "d '${cfg.dataDir}/output' 0750 ${cfg.user} ${cfg.group} - -"
+        # NOTE: output directory removed - outputDir is null for action=inject mode
       ];
 
       # Configuration file generation service
@@ -462,7 +463,7 @@ in
         requires = [ "var-lib-cross\\x2dseed.mount" ];
         script = ''
           mkdir -p ${cfg.dataDir}/data
-          mkdir -p ${cfg.dataDir}/output
+          # NOTE: output directory removed - outputDir is null for action=inject mode
 
           # Copy config.js to the root of dataDir (will be /config/config.js in container)
           cp ${configJs} ${cfg.dataDir}/config.js
@@ -472,6 +473,22 @@ in
             if [ -f "${cfg.prowlarrApiKeyFile}" ]; then
               PROWLARR_API_KEY=$(cat "${cfg.prowlarrApiKeyFile}")
               ${pkgs.gnused}/bin/sed -i "s|{{PROWLARR_API_KEY}}|$PROWLARR_API_KEY|g" ${cfg.dataDir}/config.js
+            fi
+          ''}
+
+          ${lib.optionalString (cfg.sonarrApiKeyFile != null) ''
+            # Substitute Sonarr API key placeholder with actual key from secret file
+            if [ -f "${cfg.sonarrApiKeyFile}" ]; then
+              SONARR_API_KEY=$(cat "${cfg.sonarrApiKeyFile}")
+              ${pkgs.gnused}/bin/sed -i "s|{{SONARR_API_KEY}}|$SONARR_API_KEY|g" ${cfg.dataDir}/config.js
+            fi
+          ''}
+
+          ${lib.optionalString (cfg.radarrApiKeyFile != null) ''
+            # Substitute Radarr API key placeholder with actual key from secret file
+            if [ -f "${cfg.radarrApiKeyFile}" ]; then
+              RADARR_API_KEY=$(cat "${cfg.radarrApiKeyFile}")
+              ${pkgs.gnused}/bin/sed -i "s|{{RADARR_API_KEY}}|$RADARR_API_KEY|g" ${cfg.dataDir}/config.js
             fi
           ''}
 
@@ -527,8 +544,12 @@ in
         volumes = [
           "/var/lib/cross-seed:/config"
           "${cfg.mediaDir}:/media"  # Mount NFS share (contains qb/downloads/{sonarr,radarr,prowlarr,xseeds})
-          "/var/lib/cross-seed/output:/output"
-          "${cfg.qbittorrentDataDir}/qBittorrent/BT_backup:/torrents:ro"
+          # NOTE: outputDir is set to null in config.js for action=inject mode
+          # No /output volume mount needed - torrents go directly to qBittorrent via API
+          # NOTE: qBittorrent's BT_backup directory is NOT mounted here.
+          # With useClientTorrents=true (set in config.js), cross-seed uses the qBittorrent API
+          # directly and does not need filesystem access to .torrent files.
+          # This mount was deprecated in cross-seed v6.9.0+
         ];
         ports = [
           "127.0.0.1:${toString crossSeedPort}:${toString crossSeedPort}"

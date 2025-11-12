@@ -36,6 +36,17 @@ in
       description = "Group under which Overseerr runs.";
     };
 
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach this container to.
+        Enables DNS resolution to other containers on the same network.
+        Network must be defined in `modules.virtualization.podman.networks`.
+      '';
+      example = "media-services";
+    };
+
     image = lib.mkOption {
       type = lib.types.str;
       default = "lscr.io/linuxserver/overseerr:latest";
@@ -310,18 +321,22 @@ in
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
         ]);
     };
 
     # Systemd service dependencies and security
-    systemd.services."${mainServiceUnit}" = {
-      requires = [ "network-online.target" ];
-      after = [ "network-online.target" ];
-      serviceConfig = {
-        Restart = lib.mkForce "always";
-        RestartSec = "10s";
-      };
-    };
+    systemd.services."${mainServiceUnit}" = lib.mkMerge [
+      {
+        requires = [ "network-online.target" ] ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ];
+        after = [ "network-online.target" ] ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ];
+        serviceConfig = {
+          Restart = lib.mkForce "always";
+          RestartSec = "10s";
+        };
+      }
+    ];
 
     # Integrate with centralized Caddy reverse proxy if configured
     modules.services.caddy.virtualHosts.overseerr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {

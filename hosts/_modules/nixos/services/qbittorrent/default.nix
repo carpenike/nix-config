@@ -18,6 +18,7 @@ let
   qbittorrentPort = 8080;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-qbittorrent.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/qbittorrent";
+  configFile = "${cfg.dataDir}/qBittorrent/qBittorrent.conf";
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
@@ -317,6 +318,128 @@ in
         '';
       };
     };
+
+    settings = lib.mkOption {
+      type = with lib.types; attrsOf (attrsOf (oneOf [ str int bool ]));
+      default = {
+        Application = {
+          "FileLogger\\Enabled" = "true";
+          "FileLogger\\Path" = "/config/qBittorrent/logs";
+          "FileLogger\\MaxSizeBytes" = "66560";
+          "FileLogger\\Age" = "1";
+          "FileLogger\\AgeType" = "1";
+          "FileLogger\\DeleteOld" = "true";
+          "FileLogger\\Backup" = "true";
+        };
+        AutoRun = {
+          enabled = "false";
+          program = "";
+        };
+        BitTorrent = {
+          "Session\\AddTorrentStopped" = "false";
+          "Session\\AnonymousModeEnabled" = "true";
+          "Session\\AsyncIOThreadsCount" = "10";
+          "Session\\BTProtocol" = "TCP";
+          "Session\\Categories" = "@Variant(\\0\\0\\0\\b\\0\\0\\0\\x6\\0\\0\\0\\x18\\0m\\0u\\0s\\0i\\0c\\0-\\0l\\0i\\0d\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\n\\0m\\0y\\0l\\0a\\0r\\0\\0\\0\\n\\0\\0\\0\\0\\0\\0\\0\\x10\\0p\\0r\\0o\\0w\\0l\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\f\\0r\\0a\\0d\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\xe\\0r\\0e\\0a\\0d\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\x12\\0t\\0v\\0-\\0s\\0o\\0n\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff)";
+          "Session\\DefaultSavePath" = "/downloads/qb/downloads/";
+          "Session\\DHTEnabled" = "false";
+          "Session\\DisableAutoTMMByDefault" = "false";
+          "Session\\DiskCacheSize" = "-1";
+          "Session\\DiskIOReadMode" = "DisableOSCache";
+          "Session\\DiskIOType" = "SimplePreadPwrite";
+          "Session\\DiskIOWriteMode" = "EnableOSCache";
+          "Session\\DiskQueueSize" = "65536";
+          "Session\\Encryption" = "0";
+          "Session\\ExcludedFileNames" = "";
+          "Session\\FilePoolSize" = "40";
+          "Session\\GlobalDLSpeedLimit" = "81920";
+          "Session\\HashingThreadsCount" = "2";
+          "Session\\Interface" = "eth0";
+          "Session\\LSDEnabled" = "false";
+          "Session\\PeXEnabled" = "false";
+          "Session\\Port" = "6881";
+          "Session\\QueueingSystemEnabled" = "true";
+          "Session\\ResumeDataStorageType" = "SQLite";
+          "Session\\SSL\\Port" = "57024";
+          "Session\\ShareLimitAction" = "Stop";
+          "Session\\Tags" = "activity:1d, activity:7d, activity:30d, activity:180d, activity:>180d, added:1d, added:7d, added:30d, added:180d, added:>180d, cross-seed, expired, Not Working, site:anthelion, site:blutopia, site:filelist, site:morethantv, site:scenetime, site:torrentleech, site:unmapped, Tracker Errors, unregistered";
+          "Session\\TempPath" = "/downloads/qb/incomplete/";
+          "Session\\UseAlternativeGlobalSpeedLimit" = "false";
+          "Session\\UseOSCache" = "true";
+          "Session\\UseRandomPort" = "false";
+        };
+        Core = {
+          "AutoDeleteAddedTorrentFile" = "Never";
+        };
+        LegalNotice = {
+          Accepted = "true";
+        };
+        Meta = {
+          MigrationVersion = "8";
+        };
+        Network = {
+          "PortForwardingEnabled" = "false";
+          "Proxy\\HostnameLookupEnabled" = "false";
+          "Proxy\\Profiles\\BitTorrent" = "true";
+          "Proxy\\Profiles\\Misc" = "true";
+          "Proxy\\Profiles\\RSS" = "true";
+        };
+        Preferences = {
+          "Advanced\\AnonymousMode" = "true";
+          "Advanced\\RecheckOnCompletion" = "false";
+          "Advanced\\trackerPort" = "9000";
+          "Advanced\\trackerPortForwarding" = "false";
+          "Bittorrent\\DHT" = "false";
+          "Bittorrent\\Encryption" = "0";
+          "Bittorrent\\LSD" = "false";
+          "Bittorrent\\PeX" = "false";
+          "Connection\\PortRangeMin" = "6881";
+          "Connection\\ResolvePeerCountries" = "true";
+          "Connection\\UPnP" = "false";
+          "Connection\\alt_speeds_on" = "false";
+          "Downloads\\SavePath" = "/downloads/qb/downloads/";
+          "Downloads\\TempPath" = "/downloads/qb/incomplete/";
+          "General\\Locale" = "en";
+          "General\\UseRandomPort" = "false";
+          "Queueing\\MaxActiveDownloads" = "5";
+          "Queueing\\MaxActiveTorrents" = "100";
+          "Queueing\\MaxActiveUploads" = "10";
+          "Queueing\\QueueingEnabled" = "true";
+          "WebUI\\Address" = "*";
+          "WebUI\\AlternativeUIEnabled" = "true";
+          "WebUI\\AuthSubnetWhitelist" = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16";
+          "WebUI\\AuthSubnetWhitelistEnabled" = "true";
+          "WebUI\\CSRFProtection" = "false";
+          "WebUI\\HostHeaderValidation" = "false";
+          "WebUI\\LocalHostAuth" = "false";
+          "WebUI\\Port" = "8080";
+          "WebUI\\RootFolder" = "/vuetorrent";
+          "WebUI\\ServerDomains" = "*";
+          "WebUI\\SessionTimeout" = "3600";
+          "WebUI\\UseUPnP" = "false";
+        };
+        RSS = {
+          "AutoDownloader\\DownloadRepacks" = "true";
+          "AutoDownloader\\SmartEpisodeFilter" = "s(\\\\d+)e(\\\\d+), (\\\\d+)x(\\\\d+), \"(\\\\d{4}[.\\\\-]\\\\d{1,2}[.\\\\-]\\\\d{1,2})\", \"(\\\\d{1,2}[.\\\\-]\\\\d{1,2}[.\\\\-]\\\\d{4})\"";
+        };
+      };
+      description = ''
+        Declarative settings for qBittorrent.conf.
+
+        These settings are used to generate the configuration file on the first run
+        or after the configuration file has been manually deleted.
+
+        This "Declarative Initial Seeding" approach allows for:
+        - Reproducible initial setup (version controlled in Git)
+        - WebUI remains fully functional for runtime changes
+        - Easy disaster recovery (delete config file, restart service)
+        - Intentional updates (delete config to apply new Nix defaults)
+
+        Note: Username and Password are not included here to avoid storing
+        credentials in the Nix store. qBittorrent will use defaults on first
+        run, which can then be changed through the WebUI.
+      '';
+    };
   };
 
   config = lib.mkMerge [
@@ -444,7 +567,7 @@ in
     # Standardized systemd integration for container restart behavior
     systemd.services."${mainServiceUnit}" = lib.mkMerge [
       (lib.mkIf (nfsMountConfig != null) {
-        requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];  # TODO: derive from nfsMountConfig.localPath
+        requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
         after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
       })
       (lib.mkIf (cfg.podmanNetwork != null) {
@@ -452,28 +575,64 @@ in
         after = [ "podman-network-${cfg.podmanNetwork}.service" ];
       })
       {
-      # Service should remain stopped if explicitly stopped by admin
-      unitConfig = {
-        # If the service fails, automatically restart it
-        # But if it's stopped manually (systemctl stop), keep it stopped
-        StartLimitBurst = 5;
-        StartLimitIntervalSec = 300;
-      };
-      serviceConfig = {
-        Restart = "on-failure";
-        RestartSec = "30s";
-        # Add NFS mount dependency if configured
-        RequiresMountsFor = lib.optional (nfsMountConfig != null) nfsMountConfig.localPath;
-      };
-      # Wait for preseed service before starting container
-      after = lib.optionals cfg.preseed.enable [
-        "qbittorrent-preseed.service"
-      ];
-      wants = lib.optionals cfg.preseed.enable [
-        "qbittorrent-preseed.service"
-      ];
+        # Service should remain stopped if explicitly stopped by admin
+        unitConfig = {
+          # If the service fails, automatically restart it
+          # But if it's stopped manually (systemctl stop), keep it stopped
+          StartLimitBurst = 5;
+          StartLimitIntervalSec = 300;
+        };
+        serviceConfig = {
+          Restart = "on-failure";
+          RestartSec = "30s";
+          # Add NFS mount dependency if configured
+          RequiresMountsFor = lib.optional (nfsMountConfig != null) nfsMountConfig.localPath;
+        };
+        # Generator runs before main service, checks if config missing
+        # For manual config regeneration: rm /var/lib/qbittorrent/qBittorrent/qBittorrent.conf && systemctl restart qbittorrent-config-generator.service podman-qbittorrent.service
+        wants = [ "qbittorrent-config-generator.service" ]
+          ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
+        after = [ "qbittorrent-config-generator.service" ]
+          ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
       }
     ];
+
+    # Declarative Initial Seeding: Generate config on-demand before service starts
+    # Generator service is triggered by main service's wants/after dependencies
+
+    # Config generator service - creates config only if missing
+    # This preserves WebUI changes while ensuring correct initial configuration
+    # To reset to Nix defaults: delete config file and restart this service
+    systemd.services.qbittorrent-config-generator = {
+      description = "Generate qBittorrent configuration if missing";
+      before = [ mainServiceUnit ];
+      serviceConfig = {
+        Type = "oneshot";
+        User = cfg.user;
+        Group = cfg.group;
+        ExecStart = pkgs.writeShellScript "generate-qb-config" ''
+          set -eu
+          CONFIG_FILE="${configFile}"
+          CONFIG_DIR=$(dirname "$CONFIG_FILE")
+
+          # Only generate if config doesn't exist
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "Config missing, generating from Nix settings..."
+            mkdir -p "$CONFIG_DIR"
+
+            # Generate config using toINI
+            cat > "$CONFIG_FILE" << 'EOF'
+${lib.generators.toINI {} cfg.settings}
+EOF
+
+            chmod 640 "$CONFIG_FILE"
+            echo "Configuration generated at $CONFIG_FILE"
+          else
+            echo "Config exists at $CONFIG_FILE, preserving existing file"
+          fi
+        '';
+      };
+    };
 
     # Standardized health monitoring service
     systemd.services."qbittorrent-healthcheck" = lib.mkIf cfg.healthcheck.enable {

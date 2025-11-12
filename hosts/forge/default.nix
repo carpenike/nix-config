@@ -1130,6 +1130,7 @@ in
 
         # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
         nfsMountDependency = "media";  # Use shared NFS mount and auto-configure mediaDir
+        podmanNetwork = "media-services";  # Enable DNS resolution to other media services (cross-seed, qBittorrent, Prowlarr)
         healthcheck.enable = true;  # Enable container health monitoring
 
         # Reverse proxy configuration for external access
@@ -1178,6 +1179,7 @@ in
       prowlarr = {
         enable = true;
         image = "ghcr.io/home-operations/prowlarr:2.1.5.5216@sha256:affb671fa367f4b7029d58f4b7d04e194e887ed6af1cf5a678f3c7aca5caf6ca";
+        podmanNetwork = "media-services";  # Enable DNS resolution to other media services (Sonarr, Radarr, cross-seed)
         healthcheck.enable = true;
 
         reverseProxy = {
@@ -1214,6 +1216,7 @@ in
         enable = true;
         image = "ghcr.io/home-operations/radarr:6.0.3@sha256:0ebc60aa20afb0df76b52694cee846b7cf7bd96bb0157f3b68b916e77c8142a0";
         nfsMountDependency = "media";
+        podmanNetwork = "media-services";  # Enable DNS resolution to other media services (cross-seed, qBittorrent, Prowlarr)
         healthcheck.enable = true;
 
         reverseProxy = {
@@ -1252,18 +1255,20 @@ in
         # Bazarr needs to access both TV and movie directories (host paths)
         tvDir = "/mnt/data/media/tv";
         moviesDir = "/mnt/data/media/movies";
+        podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr and Radarr
         healthcheck.enable = true;
 
         # Configure dependencies on Sonarr and Radarr
         # API keys are automatically injected via SOPS templates
+        # Use container names for DNS resolution within media-services network
         dependencies = {
           sonarr = {
             enable = true;
-            url = "http://localhost:8989";
+            url = "http://sonarr:8989";
           };
           radarr = {
             enable = true;
-            url = "http://localhost:7878";
+            url = "http://radarr:7878";
           };
         };
 
@@ -1352,34 +1357,54 @@ in
         podmanNetwork = "media-services";  # Enable DNS resolution to qBittorrent by container name
         healthcheck.enable = true;
 
-        # Prowlarr API key for torznab indexers
+        # API key files for service integrations
         prowlarrApiKeyFile = config.sops.secrets."prowlarr/api-key".path;
+        sonarrApiKeyFile = config.sops.secrets."sonarr/api-key".path;
+        radarrApiKeyFile = config.sops.secrets."radarr/api-key".path;
 
-        # Configuration settings for cross-seed daemon (matching k8s production config)
+        # Configuration settings for cross-seed daemon (optimized based on cross-seed best practices)
         extraSettings = {
-          delay = 30;  # Check every 30 seconds
+          delay = 30;  # Minimum allowed by cross-seed v6 (30 seconds to 1 hour)
 
-          # Torznab indexers from Prowlarr
+          # Indexers from Prowlarr (v6 modern format for better maintainability)
           # The placeholder {{PROWLARR_API_KEY}} gets substituted at runtime by cross-seed-config.service
           # Use container name for Prowlarr (both on media-services network with DNS resolution)
           # Indexer IDs: Check Prowlarr UI at Settings -> Indexers -> each indexer's ID in the URL
-          # Format: "http://prowlarr:9696/{indexer-id}/api?apikey={{PROWLARR_API_KEY}}"
-          torznab = [
-            "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}"   # Replace with actual indexer IDs
-            "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}"   # after configuring Prowlarr
+          # Replace "prowlarr-indexer-X" with actual indexer names from Prowlarr UI for better logging
+          indexers = [
+            {
+              name = "prowlarr-indexer-1";  # Replace with actual indexer name (e.g., "IPTorrents", "TorrentLeech")
+              torznab = "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}";
+            }
+            {
+              name = "prowlarr-indexer-2";  # Replace with actual indexer name after configuring Prowlarr
+              torznab = "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}";
+            }
           ];
 
+          # Sonarr/Radarr API integration - more efficient than dataDirs scanning
+          # Allows cross-seed to query *arr APIs directly for media library information
+          # Reduces I/O overhead and improves accuracy
+          sonarr = [ "http://sonarr:8989?apikey={{SONARR_API_KEY}}" ];
+          radarr = [ "http://radarr:7878?apikey={{RADARR_API_KEY}}" ];
+
           # Data directories - paths inside container after NFS mount at /media
-          # These point to qBittorrent's category-based download directories
-          # /media maps to /mnt/data on host (NFS share from NAS)
-          # CRITICAL: linkDirs must be on same filesystem as dataDirs for hardlinks to work
+          # NOTE: With Sonarr/Radarr API integration, these become redundant but kept for backward compatibility
+          # /media/prowlarr removed - Prowlarr is an indexer manager, not media storage
           dataDirs = [
             "/media/qb/downloads/sonarr"
             "/media/qb/downloads/radarr"
-            "/media/qb/downloads/prowlarr"
           ];
           linkDirs = [ "/media/qb/downloads/xseeds" ];  # Must be on NFS share for hardlinks
-          maxDataDepth = 1;
+          maxDataDepth = 1;  # Correct for flat directory structure
+
+          # Match mode configuration - changed from "partial" to "safe" to prevent false positives
+          # "safe" provides better accuracy and protects tracker ratios from incorrect matches
+          matchMode = "safe";
+
+          # Output directory - set to null for action=inject (recommended by cross-seed)
+          # With inject action, torrents go directly to qBittorrent via API, no filesystem save needed
+          outputDir = null;
 
           # qBittorrent client configuration for inject mode
           # Format: "type:http://url" or "type:http://user:pass@url"
@@ -1483,6 +1508,7 @@ in
       overseerr = {
         enable = true;
         image = "lscr.io/linuxserver/overseerr:latest";
+        podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr, Radarr, and Plex
         healthcheck.enable = true;
 
         reverseProxy = {

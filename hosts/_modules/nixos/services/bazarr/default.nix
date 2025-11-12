@@ -128,6 +128,17 @@ in
       };
     };
 
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach this container to.
+        Enables DNS resolution to other containers on the same network.
+        Network must be defined in `modules.virtualization.podman.networks`.
+      '';
+      example = "media-services";
+    };
+
     image = lib.mkOption {
       type = lib.types.str;
       default = "ghcr.io/home-operations/bazarr:latest";
@@ -367,10 +378,17 @@ in
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
         ];
       };
 
       systemd.services."${config.virtualisation.oci-containers.backend}-bazarr" = lib.mkMerge [
+        # Add Podman network dependency if configured
+        (lib.mkIf (cfg.podmanNetwork != null) {
+          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        })
         (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           unitConfig.OnFailure = [ "notify@bazarr-failure:%n.service" ];
         })
