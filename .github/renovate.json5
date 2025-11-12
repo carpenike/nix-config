@@ -13,8 +13,8 @@
     {
       customType: 'regex',
       description: 'Process various dependencies in nix files',
-      fileMatch: [
-        '\\.nix$',
+      managerFilePatterns: [
+        '/\\.nix$/',
       ],
       matchStrings: [
         '(?m:^[ \\t]*?# ?renovate: depName=(?<depName>\\S+)( datasource=(?<datasource>\\S+))?( versioning=(?<versioning>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n[ \\t ]*?\\S+ = "?(?<currentValue>[^" ]+?)";?$)',
