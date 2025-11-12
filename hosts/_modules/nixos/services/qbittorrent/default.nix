@@ -15,7 +15,7 @@ let
   notificationsCfg = config.modules.notifications;
   storageCfg = config.modules.storage;
   hasCentralizedNotifications = notificationsCfg.enable or false;
-  qbittorrentPort = 8080;
+  qbittorrentPort = 8080;  # WebUI port (internal to container)
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-qbittorrent.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/qbittorrent";
   configFile = "${cfg.dataDir}/qBittorrent/qBittorrent.conf";
@@ -151,6 +151,16 @@ in
       type = lib.types.str;
       default = "America/New_York";
       description = "Timezone for the container";
+    };
+
+    torrentPort = lib.mkOption {
+      type = lib.types.port;
+      default = 6881;
+      description = ''
+        BitTorrent listening port (TCP and UDP).
+        This is the port used for peer connections and DHT.
+      '';
+      example = 61144;
     };
 
     podmanNetwork = lib.mkOption {
@@ -357,7 +367,7 @@ in
           "Session\\Interface" = "eth0";
           "Session\\LSDEnabled" = "false";
           "Session\\PeXEnabled" = "false";
-          "Session\\Port" = "6881";
+          "Session\\Port" = toString cfg.torrentPort;
           "Session\\QueueingSystemEnabled" = "true";
           "Session\\ResumeDataStorageType" = "SQLite";
           "Session\\SSL\\Port" = "57024";
@@ -393,7 +403,7 @@ in
           "Bittorrent\\Encryption" = "0";
           "Bittorrent\\LSD" = "false";
           "Bittorrent\\PeX" = "false";
-          "Connection\\PortRangeMin" = "6881";
+          "Connection\\PortRangeMin" = toString cfg.torrentPort;
           "Connection\\ResolvePeerCountries" = "true";
           "Connection\\UPnP" = "false";
           "Connection\\alt_speeds_on" = "false";
@@ -536,8 +546,8 @@ in
       ];
       ports = [
         "${toString qbittorrentPort}:${toString qbittorrentPort}"
-        "6881:6881/tcp"  # BitTorrent port
-        "6881:6881/udp"  # BitTorrent DHT port
+        "${toString cfg.torrentPort}:${toString cfg.torrentPort}/tcp"  # BitTorrent port
+        "${toString cfg.torrentPort}:${toString cfg.torrentPort}/udp"  # BitTorrent DHT port
       ];
       resources = cfg.resources;
       extraOptions = [

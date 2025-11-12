@@ -1308,6 +1308,9 @@ in
         # Pinned with SHA256 digest for immutability
         image = "ghcr.io/home-operations/qbittorrent:5.1.2@sha256:31ac39705e31f7cdcc04dc46c1c0b0cdf8dc6f9865d4894efc097a33adc41524";
 
+        # BitTorrent port (migrated from k8s)
+        torrentPort = 61144;
+
         # Downloads directory on NFS (category-based structure already exists)
         # /mnt/data/qb/downloads/{sonarr,radarr,lidarr,readarr,prowlarr}
         nfsMountDependency = "media";  # Use shared NFS mount
@@ -1445,6 +1448,378 @@ in
           };
           customMessages = {
             failure = "cross-seed automatic cross-seeding failed on forge";
+          };
+        };
+
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ];
+        };
+      };
+
+      # tqm - Comprehensive torrent lifecycle management
+      # GEMINI PRO OPTIMIZED CONFIGURATION (Nov 2025)
+      # Based on deep analysis of 421 torrent environment:
+      # - 77% BTN (landof.tv) torrents requiring careful ratio management
+      # - 67% under 1.0 ratio (283 torrents) - strategic removal needed
+      # - 422GB stalled downloads - quarantine approach
+      # - Phased implementation: tag first, remove later
+      # Reference: https://github.com/autobrr/tqm
+      tqm = {
+        enable = true;
+
+        client = {
+          type = "qbittorrent";
+          host = "localhost";
+          port = 8080;
+          user = null;  # Auth disabled on local network
+          password = null;
+          downloadPath = "/mnt/data/qb/downloads";
+          downloadPathMapping = {
+            "/downloads" = "/mnt/data/qb/downloads";
+          };
+          enableAutoTmmAfterRelabel = true;
+          createTagsUpfront = false;
+        };
+
+        bypassIgnoreIfUnregistered = true;
+
+        filters = {
+          default = {
+            # Hardlink protection for clean and retag commands
+            MapHardlinksFor = [ "clean" "retag" ];
+
+            DeleteData = true;
+
+            # ========================================================================
+            # IGNORE FILTERS - Protection Layer (NEVER touch these torrents)
+            # ========================================================================
+            ignore = [
+              # --- Core Protection ---
+              "IsTrackerDown()"                    # Skip when tracker is down
+              "Downloaded == false"                # Skip incomplete downloads
+              "SeedingHours < 26"                  # Minimum 26 hours before considering removal
+              "HardlinkedOutsideClient == true"   # CRITICAL: Never remove hardlinked content
+
+              # --- Manual Protection Tags ---
+              "HasAnyTag(\"tqm-keep\")"           # User-applied protection
+              "HasAnyTag(\"tqm-permaseed\")"      # Auto-identified permanent seeds
+
+              # --- BTN (landof.tv) - 326 torrents, 77% of collection ---
+              # Protect until: ratio >= 1.0 OR seed time >= 14 days
+              "TrackerName contains 'landof.tv' && (Ratio < 1.0 || SeedingDays < 14)"
+
+              # --- PTP/RED - Ratio-Focused Trackers ---
+              "(TrackerName contains 'passthepopcorn' || TrackerName contains 'redacted') && Ratio < 1.5"
+
+              # --- MyAnonamouse (MAM) - Seed Time Focused ---
+              "TrackerName contains 'myanonamouse' && SeedingDays < 30"
+
+              # --- FileList/TorrentLeech - Balanced Approach ---
+              "(TrackerName contains 'filelist' || TrackerName contains 'torrentleech') && (Ratio < 1.0 || SeedingDays < 7)"
+
+              # --- Blutopia/MoreThanTV/SceneTime/Anthelion - Standard Private ---
+              "(TrackerName contains 'blutopia' || TrackerName contains 'morethantv' || TrackerName contains 'scenetime' || TrackerName contains 'anthelion') && (Ratio < 1.0 || SeedingDays < 7)"
+            ];
+
+            # ========================================================================
+            # REMOVE FILTERS - DESTRUCTIVE (Phased Implementation)
+            # ========================================================================
+            remove = [
+              # --- PHASE 1: Active (Safe) ---
+              "IsUnregistered()"                   # Always remove confirmed unregistered torrents
+
+              # --- PHASE 2: Two-Step Removal (COMMENTED OUT - Enable after monitoring) ---
+              # Uncomment after 1-2 weeks of tag monitoring to enable graduated removal
+              # "HasAnyTag(['tqm-removal-candidate']) && TagAddedDays('tqm-removal-candidate') > 1"
+
+              # --- PHASE 3: Space-Based Removal (COMMENTED OUT - Enable when needed) ---
+              # Uncomment when space management becomes critical
+              # "FreeSpaceSet == true && FreeSpaceGB() < 100 && Ratio > 2.0 && SeedingDays > 60 && Seeds > 20"
+            ];
+
+            # ========================================================================
+            # PAUSE FILTERS - Performance Optimization
+            # ========================================================================
+            pause = [
+              # Always pause public torrents (no ratio obligation)
+              "IsPrivate == false"
+
+              # Pause low-ratio long-seeders on private trackers
+              "Ratio < 0.5 && SeedingDays > 7"
+
+              # Performance: Pause highly inactive torrents that have met minimum ratio
+              "LastActivityDays > 30 && Ratio > 1.5"
+            ];
+
+            # ========================================================================
+            # LABEL RULES - Category Management
+            # ========================================================================
+            label = [
+              # Move stalled downloads to investigation category (422GB problem)
+              {
+                name = "tqm/stalled";
+                update = [
+                  "HasAnyTag(\"tqm-investigate\")"
+                ];
+              }
+
+              # Move torrents with missing files to cleanup category (commented out - feature not available yet)
+              # {
+              #   name = "tqm/cleanup";
+              #   update = [
+              #     "HasAnyTag(\"tqm-missing-files\")"
+              #   ];
+              # }
+            ];
+
+            # ========================================================================
+            # TAG RULES - Monitoring, Workflow, and Upload Limiting
+            # ========================================================================
+            tag = [
+              # --- Investigation Tags (Non-Destructive) ---
+
+              # Tag stalled/incomplete downloads for manual review (addresses 422GB of stuck downloads)
+              # Note: Using Downloaded==false as proxy for incomplete torrents
+              {
+                name = "tqm-investigate";
+                mode = "add";
+                update = [
+                  "Downloaded == false && AddedDays > 30"
+                ];
+              }
+
+              # Tag torrents with missing files (if supported by tqm version)
+              # {
+              #   name = "tqm-missing-files";
+              #   mode = "add";
+              #   update = [
+              #     "HasMissingFiles()"
+              #   ];
+              # }
+
+              # --- Permaseed Identification ---
+
+              # Tag torrents that should be permanently seeded
+              # Criteria: old + cross-seeded, OR rare (low seed count)
+              {
+                name = "tqm-permaseed";
+                mode = "add";
+                update = [
+                  "HasAllTags(\"activity:>180d\", \"cross-seed\") || Seeds < 3"
+                ];
+              }
+
+              # --- Two-Step Removal Workflow (Step 1: Tag Candidates) ---
+
+              # BTN torrents that have exceeded minimums and are well-seeded
+              {
+                name = "tqm-removal-candidate";
+                mode = "add";
+                update = [
+                  "TrackerName contains 'landof.tv' && Ratio >= 1.5 && SeedingDays >= 21 && Seeds > 10"
+                ];
+              }
+
+              # Other private trackers with high ratio/seed time
+              {
+                name = "tqm-removal-candidate";
+                mode = "add";
+                update = [
+                  "IsPrivate == true && !(TrackerName contains 'landof.tv') && Ratio > 3.0 && SeedingDays > 90 && Seeds > 10"
+                ];
+              }
+
+              # --- Priority Tags ---
+
+              # Low-priority: high ratio, well-seeded, inactive
+              {
+                name = "tqm-lowpriority";
+                mode = "add";
+                update = [
+                  "HasAnyTag(\"activity:>180d\", \"inactive\") && Ratio > 2.0 && Seeds > 10"
+                ];
+              }
+
+              # Active torrents with low seed count (keep seeding!)
+              {
+                name = "low-seed";
+                mode = "add";
+                update = [
+                  "Seeds <= 3"
+                ];
+              }
+
+              # Inactive torrents (no activity in 30+ days)
+              {
+                name = "inactive";
+                mode = "add";
+                update = [
+                  "LastActivityDays > 30"
+                ];
+              }
+
+              # --- Upload Speed Limiting ---
+
+              # Limit public torrents to 100 KB/s
+              {
+                name = "public-limited";
+                mode = "full";
+                uploadKb = 100;
+                update = [
+                  "IsPrivate == false"
+                ];
+              }
+
+              # Limit low-priority torrents to 500 KB/s (save bandwidth for active)
+              {
+                name = "lowpriority-limited";
+                mode = "full";
+                uploadKb = 500;
+                update = [
+                  "HasAnyTag(\"tqm-lowpriority\")"
+                ];
+              }
+            ];
+
+            # ========================================================================
+            # ORPHAN FILE DETECTION
+            # ========================================================================
+            orphan = {
+              grace_period = "10m";
+              ignore_paths = [
+                "/mnt/data/qb/downloads/tv-4k"
+                "/mnt/data/qb/downloads/movie-4k"
+              ];
+            };
+          };
+        };
+
+        # Schedules optimized for 421 torrent collection
+        schedules = {
+          clean = "*:0/15";    # Every 15 min - remove torrents (conservative frequency)
+          relabel = "*:0/30";  # Every 30 min - fix categories
+          retag = "*:0/30";    # Every 30 min - update tags (critical for workflows)
+          orphan = "daily";    # Daily at midnight - cleanup orphans
+          pause = "*:0/30";    # Every 30 min - pause torrents (performance optimization)
+        };
+      };
+
+      # qbit_manage - DISABLED: Migrated to tqm
+      # tqm provides more powerful expression-based filtering
+      # Reference: https://trash-guides.info/qbit_manage/
+      qbit-manage = {
+        enable = false;
+        qbittorrent = {
+          host = "localhost";
+          port = 8080;
+          # login and password = null (auth disabled on local network)
+        };
+
+        contentDirectory = "/mnt/data/qb/downloads";  # Root where torrents are stored
+        recycleBinEnabled = true;  # Safety net for deleted data
+        dryRun = false;  # Set to true initially to test configuration
+
+        schedule = "*/15 * * * *";  # Good, safe default interval
+
+        # Production-ready configuration based on TRaSH Guides best practices
+        extraConfig = {
+          # General settings for qbit_manage behavior
+          settings = {
+            # Tag torrents with tracker errors for easy filtering in qBittorrent
+            tracker_error_tag = "issue";
+
+            # Don't manage torrents added in the last 10 minutes (600 seconds)
+            # Prevents interference with newly added torrents still being processed
+            ignore_torrents_younger_than = 600;
+          };
+
+          # --- SEEDING RULES (MOST IMPORTANT) ---
+          # CRITICAL: You MUST configure rules for your specific private trackers
+          # Reference: https://trash-guides.info/qbit_manage/settings/tracker/
+          tracker = {
+            # CATCH-ALL DEFAULT: Extremely safe, seeds forever
+            # Applies to any tracker NOT explicitly defined below
+            "default" = {
+              max_ratio = -1;              # Never remove based on ratio
+              max_seeding_time = -1;       # Never remove based on time
+              tag = "qbm-default-seed";    # Tag for easy filtering
+            };
+
+            # --- EXAMPLE FOR YOUR PRIVATE TRACKERS ---
+            # Replace "tracker.example.com" with your actual tracker domain
+            # Get tracker domain: Right-click torrent in qBittorrent -> Copy -> Tracker URLs
+            # Then extract just the domain (e.g., tracker.domain.com)
+            #
+            # "tracker.example.com" = {
+            #   max_ratio = 2.0;              # Stop seeding at 2.0 ratio
+            #   max_seeding_time = 20160;     # OR after 14 days (in minutes)
+            #   limit_upload_speed = 0;       # 0 = pause after goals met, -1 = no limit
+            #   tag = "qbm-example-tracker";  # Tag for easy filtering
+            # };
+            #
+            # Add more tracker blocks above for each of your private trackers
+          };
+
+          # --- CATEGORY & SAVE PATH MANAGEMENT ---
+          # Integrates with Sonarr/Radarr/Lidarr stack
+          cat = {
+            "radarr" = {
+              save_path = "/mnt/data/qb/downloads/radarr";
+            };
+            "sonarr" = {
+              save_path = "/mnt/data/qb/downloads/sonarr";
+            };
+            "lidarr" = {
+              save_path = "/mnt/data/qb/downloads/lidarr";
+            };
+            "readarr" = {
+              save_path = "/mnt/data/qb/downloads/readarr";
+            };
+
+            # CRITICAL: Tell qbit_manage to IGNORE cross-seed categories
+            # This prevents conflicts with tqm which manages these torrents
+            "cross-seed" = {
+              managed = false;  # Don't touch cross-seeded torrents
+            };
+            "xseeds" = {
+              managed = false;  # Alternative cross-seed category name
+            };
+          };
+
+          # --- ORPHANED FILE CLEANUP (DISABLED BY DEFAULT) ---
+          # Finds files not linked to any torrent in qBittorrent
+          # DANGEROUS: Only enable after you're confident in your setup
+          # When enabled, moves orphaned files to recycleBinDir
+          #
+          # orphaned = {
+          #   exclude_patterns = [
+          #     "*.!qB"        # qBittorrent temp files
+          #     "*.parts"      # Partial downloads
+          #     "*.fastresume" # Resume data
+          #     "*.torrent"    # Torrent files
+          #     "*.magnet"     # Magnet links
+          #   ];
+          # };
+        };
+
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          frequency = "daily";
+          useSnapshots = true;
+          zfsDataset = "tank/services/qbit-manage";
+        };
+
+        notifications = {
+          enable = true;
+          channels = {
+            onFailure = [ "media-alerts" ];
+          };
+          customMessages = {
+            failure = "qbit_manage torrent lifecycle management failed on forge";
           };
         };
 

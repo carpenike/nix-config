@@ -45,11 +45,13 @@
     ./promtail                                # Promtail log shipping agent
     ./prowlarr                                # Prowlarr indexer manager
     ./qbittorrent                             # qBittorrent torrent download client
+    ./qbit-manage                             # qbit_manage torrent lifecycle management
     ./radarr                                  # Radarr movie collection manager
     ./readarr                                 # Readarr book/audiobook collection manager
     ./sabnzbd                                 # SABnzbd usenet download client
     ./sonarr
     ./tdarr                                   # Tdarr transcoding automation
+    ./tqm                                     # tqm fast torrent management for racing
     ./unifi
     ./uptime-kuma                             # Uptime Kuma monitoring service (native wrapper)
     # ./ups                                   # REMOVED: Use services.nut directly in host configs

@@ -1,0 +1,38 @@
+# tqm package definition
+# Based on https://github.com/autobrr/tqm
+
+{ lib
+, buildGoModule
+, fetchFromGitHub
+}:
+
+buildGoModule rec {
+  pname = "tqm";
+  version = "1.17.0";
+
+  src = fetchFromGitHub {
+    owner = "autobrr";
+    repo = "tqm";
+    rev = "v${version}";
+    hash = "sha256-4zbv8VoCf95xteGdgMiS+cw/nawoYwzksSXXKK0r06M=";
+  };
+
+  vendorHash = "sha256-IUAqY4w0Akm1lJJU5fZkVQpc5fWUx/88+hAinwZN3y4=";
+
+  ldflags = [
+    "-s"
+    "-w"
+    "-X main.version=${version}"
+  ];
+
+  # Skip tests - they try to create directories in /homeless-shelter during build
+  doCheck = false;
+
+  meta = with lib; {
+    description = "Torrent qBittorrent Manager - Fast, lightweight qBittorrent automation";
+    homepage = "https://github.com/autobrr/tqm";
+    license = licenses.mit;
+    maintainers = [ ];
+    platforms = platforms.linux;
+  };
+}
