@@ -457,6 +457,12 @@ in
           };
         };
 
+        # Cloudflare Tunnel - expose Grafana externally
+        cloudflare = {
+          enable = true;
+          tunnel = "forge";
+        };
+
         # Additional Caddy configuration
         extraConfig = cfg.reverseProxy.extraConfig;
       };

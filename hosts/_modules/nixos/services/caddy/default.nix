@@ -288,6 +288,22 @@ in
             internal = true;
             description = "Authelia configuration passed from service module (handled by Caddy module)";
           };
+
+          # Cloudflare Tunnel integration
+          cloudflare = mkOption {
+            type = types.nullOr (types.submodule {
+              options = {
+                enable = mkEnableOption "exposing this service via a Cloudflare Tunnel";
+                tunnel = mkOption {
+                  type = types.str;
+                  description = "The name of the tunnel to expose this service through. Must match a key in `modules.services.cloudflared.tunnels`.";
+                  example = "homelab";
+                };
+              };
+            });
+            default = null;
+            description = "Declarative opt-in for Cloudflare Tunnel exposure.";
+          };
         };
       });
       default = {};

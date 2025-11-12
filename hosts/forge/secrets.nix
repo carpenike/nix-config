@@ -82,6 +82,15 @@
           group = "caddy";
         };
 
+        # Cloudflare Tunnel credentials (JSON file)
+        # Contains: AccountTag, TunnelSecret, TunnelID, TunnelName
+        # Created via: cloudflared tunnel create forge
+        "networking/cloudflare/forge-credentials" = {
+          mode = "0400";
+          owner = config.users.users.cloudflared.name;
+          group = config.users.groups.cloudflared.name;
+        };
+
         # Loki Basic Auth password hash for Caddy reverse proxy (environment variable)
         "services/caddy/environment/loki-admin-bcrypt" = {
           mode = "0400";
