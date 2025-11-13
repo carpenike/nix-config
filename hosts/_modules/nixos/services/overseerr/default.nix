@@ -278,8 +278,8 @@ in
       properties = {
         "com.sun:auto-snapshot" = "true";
       };
-      owner = "overseerr";
-      group = "overseerr";
+      owner = cfg.user;
+      group = cfg.group;
       mode = "0750";
     };
 

@@ -381,8 +381,8 @@ in
         # snapdir managed by sanoid module - no longer needed with clone-based backups
       };
       # Ownership matches the container user/group
-      owner = "sonarr";
-      group = "sonarr";
+      owner = cfg.user;
+      group = cfg.group;  # Use configured group (defaults to "media")
       mode = "0750";  # Allow group read access for backup systems
     };
 

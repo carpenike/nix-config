@@ -350,8 +350,8 @@ in
       properties = {
         "com.sun:auto-snapshot" = "true";
       };
-      owner = "tdarr";
-      group = "tdarr";
+      owner = cfg.user;
+      group = cfg.group;
       mode = "0750";
     };
 
@@ -363,8 +363,8 @@ in
         "com.sun:auto-snapshot" = "false";  # Don't snapshot cache
         atime = "off";
       };
-      owner = "tdarr";
-      group = "tdarr";
+      owner = cfg.user;
+      group = cfg.group;
       mode = "0750";
     };
 

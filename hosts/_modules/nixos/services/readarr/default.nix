@@ -312,14 +312,14 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = "readarr";
-        group = "readarr";
+        owner = cfg.user;
+        group = cfg.group;
         mode = "0750";
       };
 
       users.users.readarr = {
         uid = lib.mkDefault (lib.toInt cfg.user);
-        group = "readarr";
+        group = cfg.group;
         isSystemUser = true;
         description = "Readarr service user";
         extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;

@@ -357,8 +357,8 @@ in
         "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
       };
       # Ownership matches the container user/group
-      owner = "sabnzbd";
-      group = "sabnzbd";
+      owner = cfg.user;
+      group = cfg.group;
       mode = "0750";  # Allow group read access for backup systems
     };
 

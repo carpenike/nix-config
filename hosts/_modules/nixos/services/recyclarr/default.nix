@@ -376,8 +376,8 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = "recyclarr";
-        group = "recyclarr";
+        owner = cfg.user;  # Use configured user (UID 922)
+        group = cfg.group; # Use configured group (defaults to "media")
         mode = "0750";
       };
 

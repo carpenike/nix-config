@@ -312,14 +312,14 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = "lidarr";
-        group = "lidarr";
+        owner = cfg.user;
+        group = cfg.group;
         mode = "0750";
       };
 
       users.users.lidarr = {
         uid = lib.mkDefault (lib.toInt cfg.user);
-        group = "lidarr";
+        group = cfg.group;
         isSystemUser = true;
         description = "Lidarr service user";
         extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;

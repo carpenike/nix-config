@@ -265,8 +265,8 @@ in
       properties = {
         "com.sun:auto-snapshot" = "true";
       };
-      owner = "autobrr";
-      group = "autobrr";
+      owner = cfg.user;
+      group = cfg.group;
       mode = "0750";
     };
 

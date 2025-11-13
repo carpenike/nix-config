@@ -329,7 +329,7 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = "bazarr";
+        owner = cfg.user;  # Use configured user
         group = cfg.group; # Use configured group
         mode = "0750";
       };

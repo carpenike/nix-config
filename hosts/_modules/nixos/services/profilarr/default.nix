@@ -218,8 +218,8 @@ in
       properties = {
         "com.sun:auto-snapshot" = "true";
       };
-      owner = "profilarr";
-      group = "profilarr";
+      owner = cfg.user;
+      group = cfg.group;
       mode = "0750";
     };
 

@@ -495,8 +495,8 @@ in
         # snapdir managed by sanoid module - no longer needed with clone-based backups
       };
       # Ownership matches the container user/group
-      owner = "dispatcharr";
-      group = "dispatcharr";
+      owner = cfg.user;
+      group = cfg.group;
       mode = "0750";  # Allow group read access for backup systems
     };
 
