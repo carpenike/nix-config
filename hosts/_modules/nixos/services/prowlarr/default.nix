@@ -93,7 +93,7 @@ in
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "media"; # shared media group (GID 993)
+      default = "media"; # shared media group (GID 65537)
       description = "Group under which Prowlarr runs.";
     };
 
@@ -336,7 +336,7 @@ in
         description = "Prowlarr service user";
       };
 
-      # Group is expected to be pre-defined (e.g., media group with GID 993)
+      # Group is expected to be pre-defined (e.g., media group with GID 65537)
       # users.groups.prowlarr removed - use shared media group instead
 
     # Prowlarr container configuration

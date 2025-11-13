@@ -100,7 +100,7 @@ in
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "media"; # shared media group (GID 993)
+      default = "media"; # shared media group (GID 65537)
       description = "Group under which Radarr runs.";
     };
 
@@ -375,7 +375,7 @@ in
         extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
       };
 
-      # Group is expected to be pre-defined (e.g., media group with GID 993)
+      # Group is expected to be pre-defined (e.g., media group with GID 65537)
       # users.groups.radarr removed - use shared media group instead
 
     # Radarr container configuration

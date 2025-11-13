@@ -81,7 +81,7 @@ in
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "media"; # shared media group (GID 993)
+      default = "media"; # shared media group (GID 65537)
       description = "Group under which Bazarr runs.";
     };
 
@@ -341,7 +341,7 @@ in
         description = "Bazarr service user";
       };
 
-      # Group is expected to be pre-defined (e.g., media group with GID 993)
+      # Group is expected to be pre-defined (e.g., media group with GID 65537)
       # users.groups.bazarr removed - use shared media group instead
 
       virtualisation.oci-containers.containers.bazarr = podmanLib.mkContainer "bazarr" {

@@ -301,7 +301,7 @@ in
     sharedGroup = lib.mkOption {
       type = lib.types.str;
       default = "media";
-      description = "Shared group for media automation services (GID 993)";
+      description = "Shared group for media automation services (GID 65537)";
     };
 
     # Global monitoring toggle

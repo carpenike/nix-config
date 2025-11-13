@@ -382,7 +382,7 @@ in
     modules.services.cross-seed.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
 
       users.groups.${cfg.group} = lib.mkIf (cfg.group == "media") {
-        gid = 993;
+        gid = 65537;  # Shared media group (993 was taken by alertmanager)
       };
 
       users.users.cross-seed = {

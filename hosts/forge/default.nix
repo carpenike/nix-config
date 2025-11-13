@@ -92,15 +92,27 @@ in
     };
 
     # Shared media group for *arr services and download clients
-    # Override the high GID (65537) defined in modules.users.groups
+    # Shared media group for *arr services
+    # GID 65537 (993 was taken by alertmanager)
     users.groups.media = {
-      gid = lib.mkForce 993;
+      gid = 65537;
     };
 
     # Add postgres user to restic-backup group for R2 secret access
     # and node-exporter group for metrics file write access
     # Required for pgBackRest to read AWS credentials and write Prometheus metrics
     users.users.postgres.extraGroups = [ "restic-backup" "node-exporter" ];
+
+    # Add restic-backup user to media group for backup access
+    # Media services (sonarr, radarr, bazarr, prowlarr, qbittorrent, recyclarr, etc.)
+    # all run as group "media" (GID 65537) with 0750 directory permissions
+    # Also add monitoring service groups (grafana, loki, promtail)
+    users.users.restic-backup.extraGroups = [
+      "media"      # All *arr services, qbittorrent, recyclarr, etc.
+      "grafana"    # Grafana dashboards and database
+      "loki"       # Loki log storage
+      "promtail"   # Promtail positions file
+    ];
 
     system.activationScripts.postActivation.text = ''
       # Must match what is in /etc/shells
@@ -2091,7 +2103,7 @@ in
               "ryan"
             ];
           };
-          # media group now defined at top level with GID 993 for *arr services
+          # media group now defined at top level with GID 65537 for *arr services
         };
       };
     };
