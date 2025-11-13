@@ -49,6 +49,7 @@
     ./qui                                     # qui modern qBittorrent web interface
     ./radarr                                  # Radarr movie collection manager
     ./readarr                                 # Readarr book/audiobook collection manager
+    ./recyclarr                               # Recyclarr TRaSH Guides automation
     ./sabnzbd                                 # SABnzbd usenet download client
     ./sonarr
     ./tdarr                                   # Tdarr transcoding automation

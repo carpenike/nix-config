@@ -1302,6 +1302,53 @@ in
         };
       };
 
+      # Recyclarr - TRaSH Guides automation for Sonarr/Radarr
+      recyclarr = {
+        enable = true;
+        image = "ghcr.io/recyclarr/recyclarr:7.4.1";
+        schedule = "daily";  # Sync TRaSH guides once per day at a random time
+        podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr and Radarr
+
+        # Sonarr configuration - WEB-1080p quality profile
+        sonarr.main = {
+          baseUrl = "http://sonarr:8989";
+          apiKeyFile = config.sops.secrets."sonarr/api-key".path;
+          templates = [
+            "sonarr-quality-definition-series"
+            "sonarr-v4-quality-profile-web-1080p"
+            "sonarr-v4-custom-formats-web-1080p"
+          ];
+        };
+
+        # Radarr configuration - HD Bluray + WEB quality profile
+        radarr.main = {
+          baseUrl = "http://radarr:7878";
+          apiKeyFile = config.sops.secrets."radarr/api-key".path;
+          templates = [
+            "radarr-quality-definition-movie"
+            "radarr-quality-profile-hd-bluray-web"
+            "radarr-custom-formats-hd-bluray-web"
+          ];
+        };
+
+        backup = {
+          enable = true;
+          repository = "nas-primary";
+          frequency = "daily";
+          tags = [ "media" "recyclarr" "config" ];
+          useSnapshots = true;
+          zfsDataset = "tank/services/recyclarr";
+        };
+
+        notifications.enable = true;
+
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+        };
+      };
+
       # Download clients (infrastructure services)
       qbittorrent = {
         enable = true;
