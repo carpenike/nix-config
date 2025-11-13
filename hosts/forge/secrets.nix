@@ -156,6 +156,12 @@
           group = "authelia-main";
         };
 
+        "authelia/oidc/qui_client_secret" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
         "authelia/smtp_password" = {
           mode = "0400";
           owner = "authelia-main";
@@ -230,6 +236,14 @@
           content = ''
             SONARR_API_KEY=${config.sops.placeholder."sonarr/api-key"}
             RADARR_API_KEY=${config.sops.placeholder."radarr/api-key"}
+          '';
+          mode = "0400"; # root-only readable
+          owner = "root";
+          group = "root";
+        };
+        "qui-env" = {
+          content = ''
+            QUI__OIDC_CLIENT_SECRET=${config.sops.placeholder."authelia/oidc/qui_client_secret"}
           '';
           mode = "0400"; # root-only readable
           owner = "root";

@@ -27,6 +27,7 @@ in
     ./ups.nix            # UPS monitoring configuration
     ./pgweb.nix          # PostgreSQL web management interface
     ./authelia.nix       # SSO authentication service
+    ./qui.nix            # qui - Modern qBittorrent web interface with OIDC
     ./cloudflare-tunnel.nix  # Cloudflare Tunnel for external access
     ../../profiles/hardware/intel-gpu.nix
   ];

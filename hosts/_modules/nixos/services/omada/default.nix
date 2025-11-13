@@ -179,7 +179,7 @@ in
       security = cfg.reverseProxy.security;
 
       # Omada-specific reverse proxy directives
-      extraConfig = ''
+      reverseProxyBlock = ''
         # Handle websockets for real-time updates
         header_up Host {upstream_hostport}
         header_up X-Real-IP {remote_host}

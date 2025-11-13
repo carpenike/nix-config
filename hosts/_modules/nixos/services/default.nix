@@ -46,6 +46,7 @@
     ./prowlarr                                # Prowlarr indexer manager
     ./qbittorrent                             # qBittorrent torrent download client
     ./qbit-manage                             # qbit_manage torrent lifecycle management
+    ./qui                                     # qui modern qBittorrent web interface
     ./radarr                                  # Radarr movie collection manager
     ./readarr                                 # Readarr book/audiobook collection manager
     ./sabnzbd                                 # SABnzbd usenet download client

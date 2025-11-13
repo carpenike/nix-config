@@ -41,7 +41,7 @@
       # Using latest v0.2.1 release
       plugins = [ "github.com/caddy-dns/cloudflare@v0.2.1" ];
       # Let Nix calculate the hash - will fail first time with correct hash
-      hash = "sha256-XwZ0Hkeh2FpQL/fInaSq+/3rCLmQRVvwBM0Y1G1FZNU=";
+      hash = "sha256-iRzpN9awuEFsc7hqKzOMNiCFFEv833xhd4LM+VFQedI=";
     };
   };
 }

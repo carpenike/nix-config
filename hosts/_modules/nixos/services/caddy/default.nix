@@ -396,7 +396,8 @@ in
 
                 # Route: Direct access for trusted internal IPs (skip Authelia)
                 route @internalApi {
-                  reverse_proxy ${backendUrl} {${tlsTransport}
+                  reverse_proxy ${backendUrl} {
+                    ${tlsTransport}
                     ${vhost.reverseProxyBlock}
                   }
                 }
@@ -418,7 +419,8 @@ in
                   ''}
                   ${ipRestrictedBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
                   # Reverse proxy to backend
-                  reverse_proxy ${backendUrl} {${tlsTransport}
+                  reverse_proxy ${backendUrl} {
+                    ${tlsTransport}
                     ${vhost.reverseProxyBlock}
                   }
                   ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}
