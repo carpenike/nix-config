@@ -1439,8 +1439,9 @@ in
 
       cross-seed = {
         enable = true;
-        # Pure API mode - no filesystem access needed with full API integration
-        # nfsMountDependency removed - cross-seed uses Sonarr/Radarr/qBittorrent APIs for all data
+        # Hybrid mode: APIs for metadata, filesystem for hardlinking
+        # nfsMountDependency required - cross-seed needs write access to linkDirs for hardlink creation
+        nfsMountDependency = "media";  # Use shared NFS mount
         podmanNetwork = "media-services";  # Enable DNS resolution to qBittorrent by container name
         healthcheck.enable = true;
 
@@ -1464,17 +1465,16 @@ in
           ];
 
           # Sonarr/Radarr API integration - cross-seed queries APIs directly for all media information
-          # This eliminates the need for filesystem access (dataDirs/linkDirs)
-          # More efficient, accurate, and reduces I/O overhead
           sonarr = [ "http://sonarr:8989?apikey={{SONARR_API_KEY}}" ];
           radarr = [ "http://radarr:7878?apikey={{RADARR_API_KEY}}" ];
 
-          # Pure API mode - no filesystem paths needed
-          # With Sonarr/Radarr/qBittorrent API integration, cross-seed gets all necessary data via APIs
-          # dataDirs removed - API provides torrent file information
-          # linkDirs removed - inject mode doesn't need filesystem links
+          # Hybrid mode: API for metadata, filesystem for hardlinking
+          # dataDirs = [] because we use useClientTorrents (queries qBittorrent API for existing torrents)
+          # linkDirs required for webhook workflow: when *arr webhook fires, cross-seed creates
+          # hardlink from media library -> qBittorrent download dir, then injects torrent
+          # NOTE: Paths are INSIDE the container (host /mnt/data is mounted as /media in container)
           dataDirs = [];
-          linkDirs = [];
+          linkDirs = [ "/media/qb/downloads" ];
 
           # Match mode configuration - changed from "partial" to "safe" to prevent false positives
           # "safe" provides better accuracy and protects tracker ratios from incorrect matches
@@ -1916,10 +1916,49 @@ in
         # Override default port (8081 already in use on this host)
         port = 8082;
 
-        # Downloads directory on NFS (category-based structure)
-        # /mnt/data/sabnzbd/downloads/
+        # Downloads directory on NFS (new structure: /mnt/data/sab/)
+        # Structure: /mnt/data/sab/{incomplete,complete/{sonarr,radarr,readarr,lidarr}}
+        # Follows Gemini Pro recommendations for optimal SABnzbd + cross-seed integration
         nfsMountDependency = "media";  # Use shared NFS mount
+        downloadsDir = "/mnt/data/sab";  # Override to use new directory structure
         healthcheck.enable = true;
+
+        # Pre-configured categories (unlike qBittorrent's dynamic approach)
+        # SABnzbd categories control final output directory via lookup rules
+        categories = {
+          sonarr = { dir = "sonarr"; priority = "0"; };
+          radarr = { dir = "radarr"; priority = "0"; };
+          readarr = { dir = "readarr"; priority = "0"; };
+          lidarr = { dir = "lidarr"; priority = "0"; };
+        };
+
+        # Allow *arr services to connect to SABnzbd API
+        extraHostWhitelist = [ "sonarr" "radarr" "readarr" "lidarr" "sabnzbd.holthome.net" ];
+
+        # Declarative API key management via sops-nix (matches *arr pattern)
+        apiKeyFile = config.sops.secrets."sabnzbd/api-key".path;
+
+        # Declarative Usenet provider configuration
+        usenetProviders = {
+          newsgroup-ninja = {
+            host = "news-us.newsgroup.ninja";
+            port = 563;
+            connections = 8;
+            ssl = true;
+            retention = 0;
+            priority = 0;
+            usernameFile = config.sops.secrets."sabnzbd/usenet/username".path;
+            passwordFile = config.sops.secrets."sabnzbd/usenet/password".path;
+          };
+        };
+
+        # Critical operational settings (Gemini Pro recommendations)
+        fixedPorts = true;              # CRITICAL: Prevent silent port changes on boot
+        enableHttpsVerification = true; # SECURITY: MITM protection for updates/RSS
+        cacheLimit = "2G";              # forge has 32GB RAM, can afford 2G cache
+        bandwidthPercent = 90;          # 90% to leave headroom for Plex/SSH
+        queueLimit = 50;                # Higher limit for bulk *arr operations
+        logLevel = 1;                   # Info level for operational visibility
 
         reverseProxy = {
           enable = true;

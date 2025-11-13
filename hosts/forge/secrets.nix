@@ -196,6 +196,24 @@
           owner = "root";
           group = "root";
         };
+
+        "sabnzbd/api-key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "sabnzbd/usenet/username" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "sabnzbd/usenet/password" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
       };
 
       # Templates for generating .env files for containers.
@@ -253,6 +271,16 @@
         "qui-env" = {
           content = ''
             QUI__OIDC_CLIENT_SECRET=${config.sops.placeholder."authelia/oidc/qui_client_secret"}
+          '';
+          mode = "0400"; # root-only readable
+          owner = "root";
+          group = "root";
+        };
+        "sabnzbd-env" = {
+          content = ''
+            SABNZBD__API_KEY=${config.sops.placeholder."sabnzbd/api-key"}
+            SABNZBD__USENET__USERNAME=${config.sops.placeholder."sabnzbd/usenet/username"}
+            SABNZBD__USENET__PASSWORD=${config.sops.placeholder."sabnzbd/usenet/password"}
           '';
           mode = "0400"; # root-only readable
           owner = "root";
