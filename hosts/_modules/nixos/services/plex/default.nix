@@ -107,8 +107,12 @@ in
 
     accelerationDevices = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [ "/dev/dri/renderD128" "/dev/dri/card0" ];
-      description = "Device paths for hardware acceleration (VA-API /dev/dri)";
+      default = [ "/dev/dri" ];
+      description = ''
+        Device paths for hardware acceleration (VA-API /dev/dri).
+        Default passes entire /dev/dri directory for robust device detection
+        across reboots (device node numbers can change).
+      '';
     };
 
     # Standardized integration submodules
@@ -405,6 +409,8 @@ in
     # Healthcheck service exporting Prometheus textfile metrics
     systemd.services.plex-healthcheck = lib.mkIf cfg.monitoring.enable {
       description = "Plex healthcheck exporter";
+      after = [ "plex.service" ];
+      requires = [ "plex.service" ];
       path = with pkgs; [ curl coreutils ];
       serviceConfig = {
         Type = "oneshot";

@@ -24,8 +24,8 @@
       description = "APC Smart-UPS 2200 RM XL";
 
       # SNMP driver configuration for APC
+      # Note: Not specifying mibs directive - let NUT auto-detect the correct MIB
       directives = [
-        "mibs = apcc"           # Use APC MIB for Smart-UPS series
         "community = public"     # Default SNMP community string (TODO: verify/change)
       ];
     };
@@ -52,6 +52,14 @@
   # Install NUT client utilities for manual UPS querying
   # Use: upsc apc@localhost to check UPS status
   environment.systemPackages = [ pkgs.nut ];
+
+  # Add network dependency to UPS driver service
+  # The UPS is accessed via SNMP over the network at 10.9.18.245
+  # Without this, the service can start before network is available, causing failures
+  systemd.services.upsdrv = {
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+  };
 
   # Export UPS metrics to Prometheus via node_exporter textfile collector
   # Metrics are written to /var/lib/node_exporter/textfile_collector/ups.prom

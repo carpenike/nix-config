@@ -503,8 +503,9 @@ in
     };
 
     systemd.services.sonarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-      description = "Sonarr Container Health Check";
+      description = "Sonarr Health Check";
       after = [ mainServiceUnit ];
+      requires = [ mainServiceUnit ];
       serviceConfig = {
         Type = "oneshot";
         # We allow the unit to fail for better observability. The timer's OnActiveSec

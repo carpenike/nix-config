@@ -751,8 +751,21 @@ in
             "/var/lib/postgresql/provisioning"
           ] ++ lib.optional (config.modules.monitoring.enable or false) metricsDir;
 
-          # Secrets access
-          SupplementaryGroups = lib.optional (config.modules.monitoring.enable or false) "node-exporter";
+          # Secrets access - need access to read password files that may have different group ownership
+          # Collect all unique groups from the password files to add as supplementary groups
+          SupplementaryGroups = lib.unique (
+            (lib.optional (config.modules.monitoring.enable or false) "node-exporter")
+            ++ (lib.mapAttrsToList (dbName: dbCfg:
+              # Extract group from password file secret config
+              let
+                secretName = lib.removePrefix "/run/secrets/" (dbCfg.ownerPasswordFile or "");
+                secretCfg = config.sops.secrets.${secretName} or null;
+              in
+                if secretCfg != null && secretCfg ? group
+                then secretCfg.group
+                else null
+            ) mergedDatabases)
+          );
 
           ExecStart = "${mkProvisionScript}";
         };

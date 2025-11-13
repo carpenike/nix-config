@@ -313,6 +313,7 @@ in
       systemd.services.uptime-kuma-healthcheck = mkIf cfg.healthcheck.enable {
         description = "Uptime Kuma Health Check";
         after = [ serviceUnitFile ];
+        requires = [ serviceUnitFile ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "uptime-kuma-healthcheck" ''

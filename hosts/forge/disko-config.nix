@@ -133,18 +133,19 @@ in
                 mountpoint = "legacy";
                 recordsize = "64K";
                 "com.sun:auto-snapshot" = "true";
-              };
             };
+          };
 
-            "apps/media" = {
-              type = "zfs_fs";
-              mountpoint = "/srv/media";
-              options = {
-                mountpoint = "legacy";
-                recordsize = "1M";
-                "com.sun:auto-snapshot" = "true";
-              };
-            };
+            # REMOVED: rpool/apps/media - now using NFS mount at /mnt/data instead
+            # "apps/media" = {
+            #   type = "zfs_fs";
+            #   mountpoint = "/srv/media";
+            #   options = {
+            #     mountpoint = "legacy";
+            #     recordsize = "1M";
+            #     "com.sun:auto-snapshot" = "true";
+            #   };
+            # };
 
             "apps/backups" = {
               type = "zfs_fs";
@@ -208,18 +209,19 @@ in
               mountpoint = "legacy";
               recordsize = "64K";
               "com.sun:auto-snapshot" = "true";
-            };
           };
+        };
 
-          "media" = {
-            type = "zfs_fs";
-            mountpoint = "/srv/media";
-            options = {
-              mountpoint = "legacy";
-              recordsize = "1M";
-              "com.sun:auto-snapshot" = "true";
-            };
-          };
+          # REMOVED: tank/media - now using NFS mount at /mnt/data instead
+          # "media" = {
+          #   type = "zfs_fs";
+          #   mountpoint = "/srv/media";
+          #   options = {
+          #     mountpoint = "legacy";
+          #     recordsize = "1M";
+          #     "com.sun:auto-snapshot" = "true";
+          #   };
+          # };
 
           "backups" = {
             type = "zfs_fs";

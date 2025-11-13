@@ -411,8 +411,9 @@ in
       };
 
       systemd.services.prowlarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Prowlarr Container Health Check";
+        description = "Prowlarr Health Check";
         after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "prowlarr-healthcheck" ''

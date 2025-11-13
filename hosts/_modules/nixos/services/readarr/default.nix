@@ -387,8 +387,9 @@ in
       };
 
       systemd.services.readarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Readarr Container Health Check";
+        description = "Readarr Health Check";
         after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "readarr-healthcheck" ''

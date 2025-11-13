@@ -387,8 +387,9 @@ in
       };
 
       systemd.services.lidarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Lidarr Container Health Check";
+        description = "Lidarr Health Check";
         after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "lidarr-healthcheck" ''

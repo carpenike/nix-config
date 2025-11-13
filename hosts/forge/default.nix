@@ -1322,9 +1322,21 @@ in
         podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr and Radarr
 
         # Sonarr configuration - WEB-1080p quality profile
-        sonarr.main = {
+        sonarr.sonarr-main = {
           baseUrl = "http://sonarr:8989";
           apiKeyFile = config.sops.secrets."sonarr/api-key".path;
+
+          # Enable automatic cleanup of obsolete custom formats
+          deleteOldCustomFormats = true;
+
+          # Media naming configuration disabled - configure manually in Sonarr UI
+          # The TRaSH guide formats need to be set directly in the UI, not via API
+          # Recommended formats from TRaSH:
+          # - Series Folder: {Series TitleYear} {tvdb-{TvdbId}}
+          # - Season Folder: Season {season:00}
+          # - Episode Format: {Series TitleYear} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
+          # mediaNaming = null;
+
           templates = [
             "sonarr-quality-definition-series"
             "sonarr-v4-quality-profile-web-1080p"
@@ -1333,9 +1345,20 @@ in
         };
 
         # Radarr configuration - HD Bluray + WEB quality profile
-        radarr.main = {
+        radarr.radarr-main = {
           baseUrl = "http://radarr:7878";
           apiKeyFile = config.sops.secrets."radarr/api-key".path;
+
+          # Enable automatic cleanup of obsolete custom formats
+          deleteOldCustomFormats = true;
+
+          # Media naming configuration disabled - configure manually in Radarr UI
+          # The TRaSH guide formats need to be set directly in the UI, not via API
+          # Recommended formats from TRaSH:
+          # - Folder Names: {Movie CleanTitle} ({Release Year}) {tmdb-{TmdbId}}
+          # - File Names: {Movie CleanTitle} {(Release Year)} {tmdb-{TmdbId}} - {edition-{Edition Tags}} {[MediaInfo 3D]}{[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
+          # mediaNaming = null;
+
           templates = [
             "radarr-quality-definition-movie"
             "radarr-quality-profile-hd-bluray-web"
@@ -1416,7 +1439,8 @@ in
 
       cross-seed = {
         enable = true;
-        nfsMountDependency = "media";  # Use shared NFS mount for qBittorrent downloads
+        # Pure API mode - no filesystem access needed with full API integration
+        # nfsMountDependency removed - cross-seed uses Sonarr/Radarr/qBittorrent APIs for all data
         podmanNetwork = "media-services";  # Enable DNS resolution to qBittorrent by container name
         healthcheck.enable = true;
 
@@ -1429,37 +1453,28 @@ in
         extraSettings = {
           delay = 30;  # Minimum allowed by cross-seed v6 (30 seconds to 1 hour)
 
-          # Indexers from Prowlarr (v6 modern format for better maintainability)
+          # Torznab indexers from Prowlarr (v6 simplified format)
           # The placeholder {{PROWLARR_API_KEY}} gets substituted at runtime by cross-seed-config.service
           # Use container name for Prowlarr (both on media-services network with DNS resolution)
           # Indexer IDs: Check Prowlarr UI at Settings -> Indexers -> each indexer's ID in the URL
-          # Replace "prowlarr-indexer-X" with actual indexer names from Prowlarr UI for better logging
-          indexers = [
-            {
-              name = "prowlarr-indexer-1";  # Replace with actual indexer name (e.g., "IPTorrents", "TorrentLeech")
-              torznab = "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}";
-            }
-            {
-              name = "prowlarr-indexer-2";  # Replace with actual indexer name after configuring Prowlarr
-              torznab = "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}";
-            }
+          # cross-seed v6.13+ requires just an array of Torznab URLs (not objects with names)
+          torznab = [
+            "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}"
+            "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}"
           ];
 
-          # Sonarr/Radarr API integration - more efficient than dataDirs scanning
-          # Allows cross-seed to query *arr APIs directly for media library information
-          # Reduces I/O overhead and improves accuracy
+          # Sonarr/Radarr API integration - cross-seed queries APIs directly for all media information
+          # This eliminates the need for filesystem access (dataDirs/linkDirs)
+          # More efficient, accurate, and reduces I/O overhead
           sonarr = [ "http://sonarr:8989?apikey={{SONARR_API_KEY}}" ];
           radarr = [ "http://radarr:7878?apikey={{RADARR_API_KEY}}" ];
 
-          # Data directories - paths inside container after NFS mount at /media
-          # NOTE: With Sonarr/Radarr API integration, these become redundant but kept for backward compatibility
-          # /media/prowlarr removed - Prowlarr is an indexer manager, not media storage
-          dataDirs = [
-            "/media/qb/downloads/sonarr"
-            "/media/qb/downloads/radarr"
-          ];
-          linkDirs = [ "/media/qb/downloads/xseeds" ];  # Must be on NFS share for hardlinks
-          maxDataDepth = 1;  # Correct for flat directory structure
+          # Pure API mode - no filesystem paths needed
+          # With Sonarr/Radarr/qBittorrent API integration, cross-seed gets all necessary data via APIs
+          # dataDirs removed - API provides torrent file information
+          # linkDirs removed - inject mode doesn't need filesystem links
+          dataDirs = [];
+          linkDirs = [];
 
           # Match mode configuration - changed from "partial" to "safe" to prevent false positives
           # "safe" provides better accuracy and protects tracker ratios from incorrect matches
@@ -1619,6 +1634,7 @@ in
             # ========================================================================
             label = [
               # Move stalled downloads to investigation category (422GB problem)
+              # Note: Category must be created in qBittorrent first (slashes ARE allowed for subcategories)
               {
                 name = "tqm/stalled";
                 update = [
@@ -2047,7 +2063,11 @@ in
         healthcheck.enable = true;
 
         # Intel GPU hardware acceleration
-        accelerationDevices = [ "/dev/dri/renderD128" "/dev/dri/card0" ];
+        # Pass the entire /dev/dri directory to the container. This is more robust
+        # than hardcoding specific device nodes, which can change between reboots.
+        # The application inside the container will automatically find the correct
+        # render node for VA-API transcoding.
+        accelerationDevices = [ "/dev/dri" ];
 
         # Resource limits for transcoding workloads
         resources = {

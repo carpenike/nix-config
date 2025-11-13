@@ -670,6 +670,22 @@ in
         };
       };
 
+      # Register notification template for authelia failures
+      modules.notifications.templates.authelia-failure = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        enable = mkDefault true;
+        priority = mkDefault "high";
+        title = mkDefault "🔐 Authelia SSO Failed";
+        body = mkDefault ''
+<b>Service:</b> authelia-${instanceName}
+<b>Host:</b> ${config.networking.hostName}
+<b>Status:</b> Service failed
+<b>Time:</b> $(date)
+
+${cfg.notifications.customMessages.failure or "Authelia authentication service has failed"}
+'';
+        backend = mkDefault notificationsCfg.defaultBackend;
+      };
+
       # Override systemd service for notifications and preseed
       systemd.services."authelia-${instanceName}" = mkMerge [
         # Add failure notifications

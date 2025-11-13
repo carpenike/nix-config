@@ -453,8 +453,9 @@ in
       };
 
       systemd.services.radarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Radarr Container Health Check";
+        description = "Radarr Health Check";
         after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "radarr-healthcheck" ''

@@ -264,16 +264,19 @@ in
 
     accelerationDevices = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [ "/dev/dri/renderD128" "/dev/dri/card0" ];
+      default = [ "/dev/dri" ];
       description = ''
         Device paths for hardware acceleration (VA-API /dev/dri).
 
+        Default passes entire /dev/dri directory for robust device detection
+        across reboots (device node numbers can change). The application will
+        automatically select the correct render node.
+
         Common configurations:
-        - Intel Quick Sync: ["/dev/dri/renderD128" "/dev/dri/card0"]
-        - Render-only: ["/dev/dri/renderD128"]
+        - Default (recommended): [ "/dev/dri" ]
         - Empty list: CPU-only processing
       '';
-      example = [ "/dev/dri/renderD128" "/dev/dri/card0" ];
+      example = [ "/dev/dri" ];
     };
 
     healthcheck = {
@@ -728,6 +731,7 @@ in
     systemd.services.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
       description = "Dispatcharr Container Health Check";
       after = [ mainServiceUnit ];
+      requires = [ mainServiceUnit ];
       serviceConfig = {
         Type = "oneshot";
         # We allow the unit to fail for better observability. The timer's OnActiveSec

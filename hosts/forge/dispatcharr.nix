@@ -44,6 +44,11 @@ in
         enable = dispatcharrEnabled;
         # DRY: derive VA-API driver from host hardware profile
         vaapiDriver = config.modules.common.intelDri.driver;
+        # Pass the entire /dev/dri directory to the container. This is more robust
+        # than hardcoding specific device nodes, which can change between reboots.
+        # The application inside the container will automatically find the correct
+        # render node for VA-API transcoding.
+        accelerationDevices = [ "/dev/dri" ];
 
       # Database connection configuration
       database = {

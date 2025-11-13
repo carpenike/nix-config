@@ -418,8 +418,9 @@ in
       };
 
       systemd.services.bazarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Bazarr Container Health Check";
+        description = "Bazarr Health Check";
         after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = pkgs.writeShellScript "bazarr-healthcheck" ''

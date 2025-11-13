@@ -350,7 +350,7 @@ in
           "Session\\AnonymousModeEnabled" = "true";
           "Session\\AsyncIOThreadsCount" = "10";
           "Session\\BTProtocol" = "TCP";
-          "Session\\Categories" = "@Variant(\\0\\0\\0\\b\\0\\0\\0\\a\\0\\0\\0\\x14\\0c\\0r\\0o\\0s\\0s\\0-\\0s\\0e\\0e\\0d\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\x18\\0m\\0u\\0s\\0i\\0c\\0-\\0l\\0i\\0d\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\n\\0m\\0y\\0l\\0a\\0r\\0\\0\\0\\n\\0\\0\\0\\0\\0\\0\\0\\x10\\0p\\0r\\0o\\0w\\0l\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\f\\0r\\0a\\0d\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\xe\\0r\\0e\\0a\\0d\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff\\0\\0\\0\\x12\\0t\\0v\\0-\\0s\\0o\\0n\\0a\\0r\\0r\\0\\0\\0\\n\\xff\\xff\\xff\\xff)";
+          # No predefined categories - let *arr services, tqm, and cross-seed create them as needed
           "Session\\DefaultSavePath" = "/downloads/qb/downloads/";
           "Session\\DHTEnabled" = "false";
           "Session\\DisableAutoTMMByDefault" = "false";
@@ -372,7 +372,7 @@ in
           "Session\\ResumeDataStorageType" = "SQLite";
           "Session\\SSL\\Port" = "57024";
           "Session\\ShareLimitAction" = "Stop";
-          "Session\\Tags" = "activity:1d, activity:7d, activity:30d, activity:180d, activity:>180d, added:1d, added:7d, added:30d, added:180d, added:>180d, cross-seed, expired, Not Working, site:anthelion, site:blutopia, site:filelist, site:morethantv, site:scenetime, site:torrentleech, site:unmapped, Tracker Errors, unregistered";
+          # No predefined tags - let tqm, cross-seed, and other tools create them dynamically
           "Session\\TempPath" = "/downloads/qb/incomplete/";
           "Session\\UseAlternativeGlobalSpeedLimit" = "false";
           "Session\\UseOSCache" = "true";

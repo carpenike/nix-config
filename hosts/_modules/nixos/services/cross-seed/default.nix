@@ -93,9 +93,9 @@ let
     dataDirs = [];  # Will be populated by extraSettings (searches these directories)
     maxDataDepth = 1;
 
-    # Indexer configuration (v6 modern format)
-    # Use indexers array with object format for better maintainability and logging
-    indexers = [];  # Will be populated by extraSettings with Prowlarr indexers
+    # Indexer configuration (v6 format)
+    # cross-seed v6 requires 'torznab' as an array of URLs (simplified from 'indexers')
+    torznab = [];  # Will be populated by extraSettings with Prowlarr Torznab URLs
 
     # Content filtering (v6 format)
     # Note: includeEpisodes was REMOVED in v6 - use includeSingleEpisodes instead
@@ -543,7 +543,10 @@ in
         };
         volumes = [
           "/var/lib/cross-seed:/config"
-          "${cfg.mediaDir}:/media"  # Mount NFS share (contains qb/downloads/{sonarr,radarr,prowlarr,xseeds})
+          # Mount NFS share only when nfsMountDependency is configured (hybrid filesystem+API mode)
+          # In pure API mode (nfsMountDependency = null), no media mount needed
+        ] ++ lib.optionals (cfg.nfsMountDependency != null) [
+          "${cfg.mediaDir}:/media"  # Optional mount for hybrid mode (contains qb/downloads/{sonarr,radarr,prowlarr,xseeds})
           # NOTE: outputDir is set to null in config.js for action=inject mode
           # No /output volume mount needed - torrents go directly to qBittorrent via API
           # NOTE: qBittorrent's BT_backup directory is NOT mounted here.
