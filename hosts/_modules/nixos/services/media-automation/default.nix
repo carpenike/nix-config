@@ -381,7 +381,7 @@ in
     # Ensure shared group exists
     {
       users.groups.${cfg.sharedGroup} = lib.mkIf (cfg.sharedGroup != "root") {
-        gid = lib.mkDefault 993;
+        gid = lib.mkDefault 65537;  # Shared media group (993 was taken by alertmanager)
       };
     }
   ]);
