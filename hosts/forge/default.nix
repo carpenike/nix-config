@@ -31,6 +31,7 @@ in
     ./cloudflare-tunnel.nix  # Cloudflare Tunnel for external access
     ./services/sonarr.nix    # Sonarr TV series management
     ./services/prowlarr.nix  # Prowlarr indexer manager
+    ./services/radarr.nix    # Radarr movie manager
     ../../profiles/hardware/intel-gpu.nix
   ];
 
@@ -1125,43 +1126,7 @@ in
       # Media management services
       # Sonarr configuration moved to ./services/sonarr.nix
       # Prowlarr configuration moved to ./services/prowlarr.nix
-
-      # Radarr - Movie collection manager
-      radarr = {
-        enable = true;
-        image = "ghcr.io/home-operations/radarr:6.0.3@sha256:0ebc60aa20afb0df76b52694cee846b7cf7bd96bb0157f3b68b916e77c8142a0";
-        nfsMountDependency = "media";
-        podmanNetwork = "media-services";  # Enable DNS resolution to other media services (cross-seed, qBittorrent, Prowlarr)
-        healthcheck.enable = true;
-
-        reverseProxy = {
-          enable = true;
-          hostName = "radarr.holthome.net";
-          authelia = {
-            enable = true;
-            instance = "main";
-            authDomain = "auth.holthome.net";
-            policy = "one_factor";
-            allowedGroups = [ "media" ];
-            bypassPaths = [ "/api" "/feed" ];
-            allowedNetworks = [
-              "172.16.0.0/12"
-              "192.168.1.0/24"
-              "10.0.0.0/8"
-            ];
-          };
-        };
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-        };
-        notifications.enable = true;
-        preseed = {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-        };
-      };
+      # Radarr configuration moved to ./services/radarr.nix
 
       # Bazarr - Subtitle manager for Sonarr and Radarr
       bazarr = {
