@@ -32,8 +32,10 @@ in
     ./services/sonarr.nix    # Sonarr TV series management
     ./services/prowlarr.nix  # Prowlarr indexer manager
     ./services/radarr.nix    # Radarr movie manager
-    ./services/bazarr.nix    # Bazarr subtitle manager
-    ./services/recyclarr.nix # Recyclarr TRaSH guides automation
+    ./services/bazarr.nix      # Bazarr subtitle manager
+    ./services/recyclarr.nix   # Recyclarr TRaSH guides automation
+    ./services/qbittorrent.nix # qBittorrent download client
+    ./services/cross-seed.nix  # cross-seed torrent automation
     ../../profiles/hardware/intel-gpu.nix
   ];
 
@@ -1132,163 +1134,9 @@ in
       # Bazarr configuration moved to ./services/bazarr.nix
       # Recyclarr configuration moved to ./services/recyclarr.nix
 
-      # Download clients (infrastructure services)
-      qbittorrent = {
-        enable = true;
-        # Use home-operations container image (version 5.1.2)
-        # Pinned with SHA256 digest for immutability
-        image = "ghcr.io/home-operations/qbittorrent:5.1.2@sha256:31ac39705e31f7cdcc04dc46c1c0b0cdf8dc6f9865d4894efc097a33adc41524";
-
-        # BitTorrent port (migrated from k8s)
-        torrentPort = 61144;
-
-        # Downloads directory on NFS (category-based structure already exists)
-        # /mnt/data/qb/downloads/{sonarr,radarr,lidarr,readarr,prowlarr}
-        nfsMountDependency = "media";  # Use shared NFS mount
-        podmanNetwork = "media-services";  # Enable DNS resolution to other media services
-        healthcheck.enable = true;
-
-        # Enable VueTorrent modern WebUI
-        vuetorrent.enable = true;
-
-        reverseProxy = {
-          enable = true;
-          hostName = "qbittorrent.holthome.net";
-          authelia = {
-            enable = true;
-            instance = "main";
-            authDomain = "auth.holthome.net";
-            policy = "one_factor";
-            allowedGroups = [ "media" ];
-            # Bypass authentication for API endpoints (needed for *arr services)
-            bypassPaths = [ "/api" ];
-            allowedNetworks = [
-              "172.16.0.0/12"    # Docker internal networks
-              "192.168.1.0/24"   # Local LAN
-              "10.0.0.0/8"       # Internal private network range
-            ];
-          };
-        };
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          # Config only - downloads are NOT backed up (transient data)
-          useSnapshots = true;
-          zfsDataset = "tank/services/qbittorrent";
-        };
-        notifications.enable = true;
-        preseed = {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-          restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
-        };
-      };
-
-      cross-seed = {
-        enable = true;
-        # Hybrid mode: APIs for metadata, filesystem for hardlinking
-        # nfsMountDependency required - cross-seed needs write access to linkDirs for hardlink creation
-        nfsMountDependency = "media";  # Use shared NFS mount
-        podmanNetwork = "media-services";  # Enable DNS resolution to qBittorrent by container name
-        healthcheck.enable = true;
-
-        # API key files for service integrations
-        apiKeyFile = config.sops.secrets."cross-seed/api-key".path;  # For webhook authentication
-        prowlarrApiKeyFile = config.sops.secrets."prowlarr/api-key".path;
-        sonarrApiKeyFile = config.sops.secrets."sonarr/api-key".path;
-        radarrApiKeyFile = config.sops.secrets."radarr/api-key".path;
-
-        # Configuration settings for cross-seed daemon (optimized based on cross-seed best practices)
-        extraSettings = {
-          delay = 30;  # Minimum allowed by cross-seed v6 (30 seconds to 1 hour)
-
-          # Torznab indexers from Prowlarr (v6 simplified format)
-          # The placeholder {{PROWLARR_API_KEY}} gets substituted at runtime by cross-seed-config.service
-          # Use container name for Prowlarr (both on media-services network with DNS resolution)
-          # cross-seed v6.13+ requires just an array of Torznab URLs (not objects with names)
-          # Only torrent indexers included (cross-seed doesn't support usenet)
-          torznab = [
-            "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}"   # Anthelion (API)
-            "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}"   # Blutopia (API)
-            "http://prowlarr:9696/3/api?apikey={{PROWLARR_API_KEY}}"   # BroadcasTheNet
-            "http://prowlarr:9696/6/api?apikey={{PROWLARR_API_KEY}}"   # FileList.io
-            "http://prowlarr:9696/8/api?apikey={{PROWLARR_API_KEY}}"   # MoreThanTV
-            "http://prowlarr:9696/9/api?apikey={{PROWLARR_API_KEY}}"   # MyAnonamouse
-            # "http://prowlarr:9696/12/api?apikey={{PROWLARR_API_KEY}}" # Orpheus (disabled in Prowlarr)
-            "http://prowlarr:9696/13/api?apikey={{PROWLARR_API_KEY}}"  # SceneTime
-            "http://prowlarr:9696/14/api?apikey={{PROWLARR_API_KEY}}"  # TorrentLeech
-          ];
-
-          # Sonarr/Radarr API integration - cross-seed queries APIs directly for all media information
-          sonarr = [ "http://sonarr:8989?apikey={{SONARR_API_KEY}}" ];
-          radarr = [ "http://radarr:7878?apikey={{RADARR_API_KEY}}" ];
-
-          # Hybrid mode: API for metadata, filesystem for hardlinking
-          # dataDirs = [] because we use useClientTorrents (queries qBittorrent API for existing torrents)
-          # linkDirs required for webhook workflow: when *arr webhook fires, cross-seed creates
-          # hardlink from media library -> qBittorrent download dir, then injects torrent
-          # NOTE: Paths are INSIDE the container (host /mnt/data is mounted as /data in container)
-          dataDirs = [];
-          linkDirs = [ "/data/qb/downloads" ];
-
-          # Match mode configuration - changed from "partial" to "safe" to prevent false positives
-          # "safe" provides better accuracy and protects tracker ratios from incorrect matches
-          matchMode = "safe";
-
-          # Output directory - set to null for action=inject (recommended by cross-seed)
-          # With inject action, torrents go directly to qBittorrent via API, no filesystem save needed
-          outputDir = null;
-
-          # qBittorrent client configuration for inject mode
-          # Format: "type:http://url" or "type:http://user:pass@url"
-          # Both containers are on the media-services Podman network with DNS resolution
-          # qBittorrent has AuthSubnetWhitelistEnabled, so no credentials needed for network connections
-          torrentClients = [
-            "qbittorrent:http://qbittorrent:8080"
-          ];
-        };
-
-        reverseProxy = {
-          enable = true;
-          hostName = "cross-seed.holthome.net";
-          authelia = {
-            enable = true;
-            instance = "main";
-            authDomain = "auth.holthome.net";
-            policy = "one_factor";
-            allowedGroups = [ "media" "admin" ];
-          };
-        };
-
-        metrics = {
-          enable = true;
-        };
-
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          useSnapshots = true;
-          zfsDataset = "tank/services/cross-seed";
-        };
-
-        notifications = {
-          enable = true;
-          channels = {
-            onFailure = [ "media-alerts" ];
-          };
-          customMessages = {
-            failure = "cross-seed automatic cross-seeding failed on forge";
-          };
-        };
-
-        preseed = {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-          restoreMethods = [ "syncoid" "local" ];
-        };
-      };
+      # Download clients and torrent tools
+      # qBittorrent configuration moved to ./services/qbittorrent.nix
+      # cross-seed configuration moved to ./services/cross-seed.nix
 
       # tqm - Comprehensive torrent lifecycle management
       # GEMINI PRO OPTIMIZED CONFIGURATION (Nov 2025)
