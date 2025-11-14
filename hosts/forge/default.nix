@@ -20,30 +20,33 @@ in
     ./monitoring.nix
     ./monitoring-ui.nix  # Web UI exposure for Prometheus/Alertmanager
     ./alerting.nix
-    ./postgresql.nix
-    ./dispatcharr.nix
-    ./plex.nix
-    ./uptime-kuma.nix    # Uptime monitoring and status page
-    ./ups.nix            # UPS monitoring configuration
-    ./pgweb.nix          # PostgreSQL web management interface
-    ./authelia.nix       # SSO authentication service
-    ./qui.nix            # qui - Modern qBittorrent web interface with OIDC
-    ./cloudflare-tunnel.nix  # Cloudflare Tunnel for external access
-    ./services/sonarr.nix    # Sonarr TV series management
-    ./services/prowlarr.nix  # Prowlarr indexer manager
-    ./services/radarr.nix    # Radarr movie manager
-    ./services/bazarr.nix      # Bazarr subtitle manager
-    ./services/recyclarr.nix   # Recyclarr TRaSH guides automation
-    ./services/qbittorrent.nix # qBittorrent download client
-    ./services/cross-seed.nix  # cross-seed torrent automation
-    ./services/tqm.nix         # tqm torrent lifecycle management
-    ./services/qbit-manage.nix # qbit-manage (DISABLED - migrated to tqm)
-    ./services/sabnzbd.nix     # SABnzbd usenet downloader
-    ./services/overseerr.nix   # Overseerr media request management
-    ./services/autobrr.nix     # Autobrr IRC announce bot
-    ./services/profilarr.nix   # Profilarr profile sync for *arr services
-    ./services/tdarr.nix       # Tdarr transcoding automation
-    ./services/pgbackrest.nix  # pgBackRest PostgreSQL backup system
+
+    # Application Services
+    ./services/postgresql.nix      # PostgreSQL database
+    ./services/pgbackrest.nix      # pgBackRest PostgreSQL backup system
+    ./services/dispatcharr.nix     # Dispatcharr service
+    ./services/plex.nix            # Plex media server
+    ./services/uptime-kuma.nix     # Uptime monitoring and status page
+    ./services/ups.nix             # UPS monitoring configuration
+    ./services/pgweb.nix           # PostgreSQL web management interface
+    ./services/authelia.nix        # SSO authentication service
+    ./services/qui.nix             # qui - Modern qBittorrent web interface with OIDC
+    ./services/cloudflare-tunnel.nix  # Cloudflare Tunnel for external access
+    ./services/sonarr.nix          # Sonarr TV series management
+    ./services/prowlarr.nix        # Prowlarr indexer manager
+    ./services/radarr.nix          # Radarr movie manager
+    ./services/bazarr.nix          # Bazarr subtitle manager
+    ./services/recyclarr.nix       # Recyclarr TRaSH guides automation
+    ./services/qbittorrent.nix     # qBittorrent download client
+    ./services/cross-seed.nix      # cross-seed torrent automation
+    ./services/tqm.nix             # tqm torrent lifecycle management
+    ./services/qbit-manage.nix     # qbit-manage (DISABLED - migrated to tqm)
+    ./services/sabnzbd.nix         # SABnzbd usenet downloader
+    ./services/overseerr.nix       # Overseerr media request management
+    ./services/autobrr.nix         # Autobrr IRC announce bot
+    ./services/profilarr.nix       # Profilarr profile sync for *arr services
+    ./services/tdarr.nix           # Tdarr transcoding automation
+
     ../../profiles/hardware/intel-gpu.nix
   ];
 
