@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, config, mylib, ... }:
 {
   config = {
     # Enable Plex via modular service
@@ -69,20 +69,22 @@
     };
 
     # Prometheus alerts for Plex
+    # Using monitoring-helpers library for consistency
     modules.alerting.rules = lib.mkIf (config.modules.services.plex.enable) {
-      "plex-down" = {
-        type = "promql";
+      # Service availability alert using standard helper
+      "plex-down" = mylib.monitoring-helpers.mkThresholdAlert {
+        name = "plex";
         alertname = "PlexDown";
         expr = "plex_up == 0";
+        threshold = 0;
         for = "5m";
         severity = "critical";
-        labels = { service = "plex"; category = "availability"; };
-        annotations = {
-          summary = "Plex is down on {{ $labels.instance }}";
-          description = "Plex healthcheck failing. Check service: systemctl status plex.service";
-        };
+        category = "availability";
+        summary = "Plex is down on {{ $labels.instance }}";
+        description = "Plex healthcheck failing. Check service: systemctl status plex.service";
       };
 
+      # Healthcheck staleness - custom alert (no helper fits this pattern)
       "plex-healthcheck-stale" = {
         type = "promql";
         alertname = "PlexHealthcheckStale";

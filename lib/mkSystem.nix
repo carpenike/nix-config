@@ -28,6 +28,10 @@
     };
 
   mkNixosSystem = system: hostname:
+    let
+      # Import custom library helpers for injection into modules
+      mylib = import ./default.nix { lib = inputs.nixpkgs.lib; };
+    in
     inputs.nixpkgs.lib.nixosSystem {
       inherit system;
       pkgs = import inputs.nixpkgs {
@@ -42,7 +46,7 @@
         {
           nixpkgs.hostPlatform = system;
           _module.args = {
-            inherit inputs system;
+            inherit inputs system mylib;
           };
         }
         inputs.disko.nixosModules.disko

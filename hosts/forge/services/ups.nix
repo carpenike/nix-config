@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, mylib, ... }:
 
 {
   # UPS system control (graceful shutdown on low battery)
@@ -183,23 +183,23 @@
   };
 
   # Alert rules for UPS monitoring
-  # These integrate with the alerting module defined in alerting.nix
+  # Using monitoring-helpers library for consistency where patterns fit
   modules.alerting.rules = {
-    # Metrics scraping failure
-    "ups-metrics-scrape-failed" = {
-      type = "promql";
+    # Metrics scraping failure - using threshold helper
+    "ups-metrics-scrape-failed" = mylib.monitoring-helpers.mkThresholdAlert {
+      name = "ups";
       alertname = "UPSMetricsScrapeFailure";
       expr = "ups_metrics_scrape_success == 0";
+      threshold = 0;
       for = "5m";
       severity = "high";
-      labels = { service = "ups"; category = "monitoring"; };
-      annotations = {
-        summary = "UPS metrics collection failed on {{ $labels.instance }}";
-        description = "Unable to scrape UPS metrics from NUT. Check ups-metrics.service and upsd.service logs.";
-      };
+      category = "monitoring";
+      summary = "UPS metrics collection failed on {{ $labels.instance }}";
+      description = "Unable to scrape UPS metrics from NUT. Check ups-metrics.service and upsd.service logs.";
     };
 
-    # UPS on battery power
+    # UPS-specific alerts - these have unique descriptions/context that don't fit generic helpers
+    # Keeping them as custom alerts for clarity and UPS-specific language
     "ups-on-battery" = {
       type = "promql";
       alertname = "UPSOnBattery";
@@ -213,8 +213,7 @@
       };
     };
 
-    # Low battery warning
-    # Runtime calibration completed (October 2025) - UPS now reports accurate runtime (~1000-1200s)
+    # Low battery warning - Runtime calibration completed (October 2025)
     "ups-low-battery" = {
       type = "promql";
       alertname = "UPSLowBattery";
@@ -228,22 +227,19 @@
       };
     };
 
-    # Battery charge below threshold
-    "ups-battery-charge-low" = {
-      type = "promql";
-      alertname = "UPSBatteryChargeLow";
+    # Battery charge threshold using capacity helper
+    "ups-battery-charge-low" = mylib.monitoring-helpers.mkHighCapacityAlert {
+      name = "ups";
       expr = "ups_battery_charge < 50";
+      threshold = 50;
       for = "5m";
       severity = "medium";
-      labels = { service = "ups"; category = "power"; };
-      annotations = {
-        summary = "UPS {{ $labels.ups }} battery charge below 50%";
-        description = "Battery charge at {{ $value }}%. Runtime remaining: {{ with query \"ups_battery_runtime_seconds{ups='apc'}\" }}{{ . | first | value | humanizeDuration }}{{ end }}";
-      };
+      category = "power";
+      summary = "UPS {{ $labels.ups }} battery charge below 50%";
+      description = "Battery charge at {{ $value }}%. Runtime remaining: {{ with query \"ups_battery_runtime_seconds{ups='apc'}\" }}{{ . | first | value | humanizeDuration }}{{ end }}";
     };
 
     # Runtime critically low (less than 5 minutes)
-    # After calibration, UPS reports accurate runtime, so 5min threshold is appropriate
     "ups-runtime-critical" = {
       type = "promql";
       alertname = "UPSRuntimeCritical";
@@ -257,46 +253,43 @@
       };
     };
 
-    # High load warning (>80%)
-    "ups-load-high" = {
-      type = "promql";
+    # High load warning using threshold helper
+    "ups-load-high" = mylib.monitoring-helpers.mkThresholdAlert {
+      name = "ups";
       alertname = "UPSLoadHigh";
       expr = "ups_load_percent > 80";
+      threshold = 80;
       for = "10m";
       severity = "medium";
-      labels = { service = "ups"; category = "capacity"; };
-      annotations = {
-        summary = "UPS {{ $labels.ups }} load is high";
-        description = "Current load: {{ $value }}%. Consider load balancing or UPS upgrade if sustained.";
-      };
+      category = "capacity";
+      summary = "UPS {{ $labels.ups }} load is high";
+      description = "Current load: {{ $value }}%. Consider load balancing or UPS upgrade if sustained.";
     };
 
-    # Temperature warning (>30°C)
-    "ups-temperature-high" = {
-      type = "promql";
+    # Temperature warning using threshold helper
+    "ups-temperature-high" = mylib.monitoring-helpers.mkThresholdAlert {
+      name = "ups";
       alertname = "UPSTemperatureHigh";
       expr = "ups_temperature_celsius > 30";
+      threshold = 30;
       for = "15m";
       severity = "medium";
-      labels = { service = "ups"; category = "health"; };
-      annotations = {
-        summary = "UPS {{ $labels.ups }} temperature elevated";
-        description = "UPS temperature at {{ $value }}°C. Check ventilation and ambient temperature.";
-      };
+      category = "health";
+      summary = "UPS {{ $labels.ups }} temperature elevated";
+      description = "UPS temperature at {{ $value }}°C. Check ventilation and ambient temperature.";
     };
 
-    # UPS offline (no longer online)
-    "ups-offline" = {
-      type = "promql";
+    # UPS offline using threshold helper
+    "ups-offline" = mylib.monitoring-helpers.mkThresholdAlert {
+      name = "ups";
       alertname = "UPSOffline";
       expr = "ups_online == 0";
+      threshold = 0;
       for = "2m";
       severity = "critical";
-      labels = { service = "ups"; category = "connectivity"; };
-      annotations = {
-        summary = "UPS {{ $labels.ups }} appears offline";
-        description = "Cannot communicate with UPS or UPS reports offline status. Check network connectivity and UPS health.";
-      };
+      category = "connectivity";
+      summary = "UPS {{ $labels.ups }} appears offline";
+      description = "Cannot communicate with UPS or UPS reports offline status. Check network connectivity and UPS health.";
     };
   };
 }

@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, mylib, ... }:
 # PostgreSQL Configuration for forge
 #
 # Provides a shared PostgreSQL instance for services on forge that need a database backend.
@@ -14,6 +14,8 @@
 #
 # Secret paths are passed via postgresSecrets parameter (defined in forge/default.nix)
 # to avoid circular dependencies in module evaluation
+#
+# Monitoring: Uses mylib.monitoring-helpers for alert templates (injected via flake)
 {
       config = {
         # Enable PostgreSQL service
@@ -357,6 +359,94 @@
         annotations = {
           summary = "PostgreSQL service is down on {{ $labels.instance }}";
           description = "PostgreSQL service is not active. Check systemctl status postgresql.service.";
+        };
+      };
+
+      # PostgreSQL Performance Monitoring Alerts
+      # These alerts monitor database performance metrics from postgres_exporter
+      # Previously centralized in infrastructure/monitoring.nix, now co-located with service config
+
+      # Database server connectivity
+      "postgres-down" = {
+        type = "promql";
+        alertname = "PostgresDown";
+        expr = "pg_up == 0";
+        for = "2m";
+        severity = "critical";
+        labels = { service = "postgresql"; category = "availability"; };
+        annotations = {
+          summary = "PostgreSQL is down on {{ $labels.instance }}";
+          description = "PostgreSQL database server is not responding. Check service status.";
+        };
+      };
+
+      # Connection pool exhaustion
+      "postgres-too-many-connections" = {
+        type = "promql";
+        alertname = "PostgresTooManyConnections";
+        expr = "sum(pg_stat_database_numbackends) / avg(pg_settings_max_connections) * 100 > 80";
+        for = "5m";
+        severity = "high";
+        labels = { service = "postgresql"; category = "capacity"; };
+        annotations = {
+          summary = "PostgreSQL connection usage high on {{ $labels.instance }}";
+          description = "PostgreSQL is using {{ $value }}% of max connections. Consider increasing max_connections or investigating connection leaks.";
+        };
+      };
+
+      # Query performance degradation
+      "postgres-slow-queries" = {
+        type = "promql";
+        alertname = "PostgresSlowQueries";
+        expr = "increase(pg_stat_database_tup_returned[5m]) / increase(pg_stat_database_tup_fetched[5m]) < 0.1";
+        for = "10m";
+        severity = "medium";
+        labels = { service = "postgresql"; category = "performance"; };
+        annotations = {
+          summary = "PostgreSQL slow queries detected on {{ $labels.instance }}";
+          description = "Database {{ $labels.datname }} has low efficiency ratio. Check for missing indexes or inefficient queries.";
+        };
+      };
+
+      # Transaction deadlocks
+      "postgres-deadlocks" = {
+        type = "promql";
+        alertname = "PostgresDeadlocks";
+        expr = "increase(pg_stat_database_deadlocks[1h]) > 0";
+        for = "0m";
+        severity = "medium";
+        labels = { service = "postgresql"; category = "performance"; };
+        annotations = {
+          summary = "PostgreSQL deadlocks detected on {{ $labels.instance }}";
+          description = "Database {{ $labels.datname }} has {{ $value }} deadlocks in the last hour. Review transaction patterns.";
+        };
+      };
+
+      # WAL archiving health (critical for backup integrity)
+      "postgres-wal-archiving-failures" = {
+        type = "promql";
+        alertname = "PostgresWalArchivingFailures";
+        expr = "increase(pg_stat_archiver_failed_count[15m]) > 0";
+        for = "15m";
+        severity = "high";
+        labels = { service = "postgresql"; category = "archiving"; };
+        annotations = {
+          summary = "PostgreSQL WAL archiving failures on {{ $labels.instance }}";
+          description = "WAL archiving has failed {{ $value }} times in the last 15 minutes. Check archive_command and destination.";
+        };
+      };
+
+      # Database size monitoring
+      "postgres-database-size-large" = {
+        type = "promql";
+        alertname = "PostgresDatabaseSizeLarge";
+        expr = "pg_database_size_bytes > 5 * 1024 * 1024 * 1024"; # 5GB
+        for = "30m";
+        severity = "medium";
+        labels = { service = "postgresql"; category = "capacity"; };
+        annotations = {
+          summary = "PostgreSQL database {{ $labels.datname }} is large on {{ $labels.instance }}";
+          description = "Database {{ $labels.datname }} is {{ $value }} bytes (>5GB). Consider cleanup or archiving.";
         };
       };
     };

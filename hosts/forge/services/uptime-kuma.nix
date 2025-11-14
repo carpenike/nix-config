@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+{ config, lib, mylib, ... }:
 # Uptime Kuma Configuration for forge
 #
 # Provides uptime monitoring and status pages for homelab services.
@@ -75,37 +75,38 @@
     #
     # This approach uses systemd health checks (already running) to detect if Uptime Kuma
     # is responsive. It's simple, robust, and requires zero additional dependencies.
+    # Monitoring alerts using helper library where applicable
+    # These are systemd-based alerts (not standard service down patterns)
     modules.alerting.rules = lib.mkIf (config.modules.services.uptime-kuma.enable) {
       # CRITICAL: Service is running but unresponsive (zombie process or frozen)
       # The systemd health check (curl to localhost:3001) is failing
       # This is the PRIMARY alert - if this fires, Uptime Kuma is not working
-      "uptime-kuma-unhealthy" = {
-        type = "promql";
+      # Custom alert - no helper fits this systemd healthcheck pattern
+      "uptime-kuma-unhealthy" = mylib.monitoring-helpers.mkThresholdAlert {
+        name = "uptime-kuma";
         alertname = "UptimeKumaUnhealthy";
         expr = ''node_systemd_unit_state{name="uptime-kuma-healthcheck.service", state="failed", instance=~".*forge.*"} == 1'';
+        threshold = 1;
+        for = "0m";
         severity = "critical";
-        labels = { service = "uptime-kuma"; category = "availability"; };
-        annotations = {
-          summary = "Uptime Kuma is unhealthy on {{ $labels.instance }}";
-          description = "The Uptime Kuma service is running but failing its internal health check (cannot be reached via local curl). The application may be frozen, deadlocked, or the web server crashed.";
-          command = "systemctl status uptime-kuma-healthcheck.service uptime-kuma.service && journalctl -u uptime-kuma.service --since '30m'";
-        };
+        category = "availability";
+        summary = "Uptime Kuma is unhealthy on {{ $labels.instance }}";
+        description = "The Uptime Kuma service is running but failing its internal health check (cannot be reached via local curl). The application may be frozen, deadlocked, or the web server crashed. Command: systemctl status uptime-kuma-healthcheck.service uptime-kuma.service && journalctl -u uptime-kuma.service --since '30m'";
       };
 
       # CRITICAL: Systemd service is stopped or crashed
       # This catches cases where the process isn't running at all
-      "uptime-kuma-service-down" = {
-        type = "promql";
+      # Custom alert - systemd-specific monitoring
+      "uptime-kuma-service-down" = mylib.monitoring-helpers.mkThresholdAlert {
+        name = "uptime-kuma";
         alertname = "UptimeKumaServiceDown";
         expr = ''node_systemd_unit_state{name="uptime-kuma.service", state="active", instance=~".*forge.*"} == 0'';
+        threshold = 0;
         for = "2m";
         severity = "critical";
-        labels = { service = "uptime-kuma"; category = "availability"; };
-        annotations = {
-          summary = "Uptime Kuma systemd service is not active on {{ $labels.instance }}";
-          description = "The uptime-kuma.service is not in 'active' state. It may be stopped, failed, or in restart loop.";
-          command = "systemctl status uptime-kuma.service && journalctl -u uptime-kuma.service --since '30m'";
-        };
+        category = "availability";
+        summary = "Uptime Kuma systemd service is not active on {{ $labels.instance }}";
+        description = "The uptime-kuma.service is not in 'active' state. It may be stopped, failed, or in restart loop. Command: systemctl status uptime-kuma.service && journalctl -u uptime-kuma.service --since '30m'";
       };
     };
   };

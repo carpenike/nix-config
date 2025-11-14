@@ -938,88 +938,10 @@ in
     ];
   };
 
-
-  # PostgreSQL Performance Alerts
-  modules.alerting.rules."postgres-down" = {
-    type = "promql";
-    alertname = "PostgresDown";
-    expr = "pg_up == 0";
-    for = "2m";
-    severity = "critical";
-    labels = { service = "postgresql"; category = "availability"; };
-    annotations = {
-      summary = "PostgreSQL is down on {{ $labels.instance }}";
-      description = "PostgreSQL database server is not responding. Check service status.";
-    };
-  };
-
-  modules.alerting.rules."postgres-too-many-connections" = {
-    type = "promql";
-    alertname = "PostgresTooManyConnections";
-    expr = "sum(pg_stat_database_numbackends) / avg(pg_settings_max_connections) * 100 > 80";
-    for = "5m";
-    severity = "high";
-    labels = { service = "postgresql"; category = "capacity"; };
-    annotations = {
-      summary = "PostgreSQL connection usage high on {{ $labels.instance }}";
-      description = "PostgreSQL is using {{ $value }}% of max connections. Consider increasing max_connections or investigating connection leaks.";
-    };
-  };
-
-  modules.alerting.rules."postgres-slow-queries" = {
-    type = "promql";
-    alertname = "PostgresSlowQueries";
-    expr = "increase(pg_stat_database_tup_returned[5m]) / increase(pg_stat_database_tup_fetched[5m]) < 0.1";
-    for = "10m";
-    severity = "medium";
-    labels = { service = "postgresql"; category = "performance"; };
-    annotations = {
-      summary = "PostgreSQL slow queries detected on {{ $labels.instance }}";
-      description = "Database {{ $labels.datname }} has low efficiency ratio. Check for missing indexes or inefficient queries.";
-    };
-  };
-
-  modules.alerting.rules."postgres-deadlocks" = {
-    type = "promql";
-    alertname = "PostgresDeadlocks";
-    expr = "increase(pg_stat_database_deadlocks[1h]) > 0";
-    for = "0m";
-    severity = "medium";
-    labels = { service = "postgresql"; category = "performance"; };
-    annotations = {
-      summary = "PostgreSQL deadlocks detected on {{ $labels.instance }}";
-      description = "Database {{ $labels.datname }} has {{ $value }} deadlocks in the last hour. Review transaction patterns.";
-    };
-  };
-
-  # Replication lag alert removed - pg_replication_lag metric doesn't exist in standard postgres_exporter
-  # If replication monitoring is needed, configure postgres_exporter with custom queries
-
-  modules.alerting.rules."postgres-wal-archiving-failures" = {
-    type = "promql";
-    alertname = "PostgresWalArchivingFailures";
-    expr = "increase(pg_stat_archiver_failed_count[15m]) > 0";
-    for = "15m";
-    severity = "high";
-    labels = { service = "postgresql"; category = "archiving"; };
-    annotations = {
-      summary = "PostgreSQL WAL archiving failures on {{ $labels.instance }}";
-      description = "WAL archiving has failed {{ $value }} times in the last 15 minutes. Check archive_command and destination.";
-    };
-  };
-
-  modules.alerting.rules."postgres-database-size-large" = {
-    type = "promql";
-    alertname = "PostgresDatabaseSizeLarge";
-    expr = "pg_database_size_bytes > 5 * 1024 * 1024 * 1024"; # 5GB
-    for = "30m";
-    severity = "medium";
-    labels = { service = "postgresql"; category = "capacity"; };
-    annotations = {
-      summary = "PostgreSQL database {{ $labels.datname }} is large on {{ $labels.instance }}";
-      description = "Database {{ $labels.datname }} is {{ $value }} bytes (>5GB). Consider cleanup or archiving.";
-    };
-  };
+  # NOTE: PostgreSQL-specific alert rules have been moved to services/postgresql.nix
+  # This follows the contribution pattern where each service defines its own monitoring rules.
+  # Infrastructure-level alerts (GPU, ZFS, TLS, containers, etc.) remain here as they are
+  # host/platform concerns rather than application-specific.
 
   # Ensure node-exporter can access /dev/dri and systemd journal for TLS monitoring
   users.users.node-exporter.extraGroups = [ "render" "systemd-journal" "caddy" ];
