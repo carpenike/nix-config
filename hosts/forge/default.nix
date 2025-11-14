@@ -30,6 +30,7 @@ in
     ./qui.nix            # qui - Modern qBittorrent web interface with OIDC
     ./cloudflare-tunnel.nix  # Cloudflare Tunnel for external access
     ./services/sonarr.nix    # Sonarr TV series management
+    ./services/prowlarr.nix  # Prowlarr indexer manager
     ../../profiles/hardware/intel-gpu.nix
   ];
 
@@ -1123,42 +1124,7 @@ in
 
       # Media management services
       # Sonarr configuration moved to ./services/sonarr.nix
-
-      # Prowlarr - Indexer manager for *arr services
-      prowlarr = {
-        enable = true;
-        image = "ghcr.io/home-operations/prowlarr:2.1.5.5216@sha256:affb671fa367f4b7029d58f4b7d04e194e887ed6af1cf5a678f3c7aca5caf6ca";
-        podmanNetwork = "media-services";  # Enable DNS resolution to other media services (Sonarr, Radarr, cross-seed)
-        healthcheck.enable = true;
-
-        reverseProxy = {
-          enable = true;
-          hostName = "prowlarr.holthome.net";
-          authelia = {
-            enable = true;
-            instance = "main";
-            authDomain = "auth.holthome.net";
-            policy = "one_factor";
-            allowedGroups = [ "media" ];
-            bypassPaths = [ "/api" ];
-            allowedNetworks = [
-              "172.16.0.0/12"
-              "192.168.1.0/24"
-              "10.0.0.0/8"
-            ];
-          };
-        };
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-        };
-        notifications.enable = true;
-        preseed = {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-        };
-      };
+      # Prowlarr configuration moved to ./services/prowlarr.nix
 
       # Radarr - Movie collection manager
       radarr = {
