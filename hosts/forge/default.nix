@@ -1472,9 +1472,9 @@ in
           # dataDirs = [] because we use useClientTorrents (queries qBittorrent API for existing torrents)
           # linkDirs required for webhook workflow: when *arr webhook fires, cross-seed creates
           # hardlink from media library -> qBittorrent download dir, then injects torrent
-          # NOTE: Paths are INSIDE the container (host /mnt/data is mounted as /media in container)
+          # NOTE: Paths are INSIDE the container (host /mnt/data is mounted as /data in container)
           dataDirs = [];
-          linkDirs = [ "/media/qb/downloads" ];
+          linkDirs = [ "/data/qb/downloads" ];
 
           # Match mode configuration - changed from "partial" to "safe" to prevent false positives
           # "safe" provides better accuracy and protects tracker ratios from incorrect matches
@@ -1916,11 +1916,11 @@ in
         # Override default port (8081 already in use on this host)
         port = 8082;
 
-        # Downloads directory on NFS (new structure: /mnt/data/sab/)
+        # Use unified /data mount (same as Sonarr/Radarr/qBittorrent for hardlinks)
         # Structure: /mnt/data/sab/{incomplete,complete/{sonarr,radarr,readarr,lidarr}}
-        # Follows Gemini Pro recommendations for optimal SABnzbd + cross-seed integration
-        nfsMountDependency = "media";  # Use shared NFS mount
-        downloadsDir = "/mnt/data/sab";  # Override to use new directory structure
+        # This allows all services to see the same paths for atomic moves/hardlinks
+        nfsMountDependency = "media";  # Use shared NFS mount (auto-configures downloadsDir to /mnt/data)
+        podmanNetwork = "media-services";  # Enable DNS resolution to other media services (Sonarr, Radarr, Prowlarr)
         healthcheck.enable = true;
 
         # Pre-configured categories (unlike qBittorrent's dynamic approach)
@@ -2001,22 +2001,13 @@ in
         podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr, Radarr, and Plex
         healthcheck.enable = true;
 
+        # Ensure Overseerr starts after its dependencies to prevent connection errors during startup
+        dependsOn = [ "sonarr" "radarr" ];
+
         reverseProxy = {
           enable = true;
-          hostName = "overseerr.holthome.net";
-          authelia = {
-            enable = true;
-            instance = "main";
-            authDomain = "auth.holthome.net";
-            policy = "one_factor";
-            allowedGroups = [ "media" ];
-            bypassPaths = [ "/api" ];
-            allowedNetworks = [
-              "172.16.0.0/12"
-              "192.168.1.0/24"
-              "10.0.0.0/8"
-            ];
-          };
+          hostName = "requests.holthome.net";
+          # No Authelia - Overseerr has native authentication with Plex OAuth
         };
         backup = {
           enable = true;
@@ -2037,6 +2028,7 @@ in
       autobrr = {
         enable = true;
         image = "ghcr.io/autobrr/autobrr:latest";
+        podmanNetwork = "media-services";  # Enable DNS resolution to download clients (qBittorrent, SABnzbd)
         healthcheck.enable = true;
 
         reverseProxy = {
@@ -2075,6 +2067,7 @@ in
       profilarr = {
         enable = true;
         image = "ghcr.io/profilarr/profilarr:latest";
+        podmanNetwork = "media-services";  # Enable DNS resolution to *arr services (Sonarr, Radarr)
 
         # Run daily at 3 AM to sync quality profiles
         schedule = "*-*-* 03:00:00";
@@ -2099,6 +2092,7 @@ in
         enable = true;
         image = "ghcr.io/haveagitgat/tdarr:latest";
         nfsMountDependency = "media";
+        podmanNetwork = "media-services";  # Enable DNS resolution for media library access
         healthcheck.enable = true;
 
         # Intel GPU hardware acceleration

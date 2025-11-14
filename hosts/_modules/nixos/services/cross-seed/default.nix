@@ -546,7 +546,7 @@ in
           # Mount NFS share only when nfsMountDependency is configured (hybrid filesystem+API mode)
           # In pure API mode (nfsMountDependency = null), no media mount needed
         ] ++ lib.optionals (cfg.nfsMountDependency != null) [
-          "${cfg.mediaDir}:/media"  # Optional mount for hybrid mode (contains qb/downloads/{sonarr,radarr,prowlarr,xseeds})
+          "${cfg.mediaDir}:/data"  # Unified mount point for hardlinks (TRaSH Guides best practice)
           # NOTE: outputDir is set to null in config.js for action=inject mode
           # No /output volume mount needed - torrents go directly to qBittorrent via API
           # NOTE: qBittorrent's BT_backup directory is NOT mounted here.

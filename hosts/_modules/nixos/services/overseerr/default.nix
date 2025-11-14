@@ -76,7 +76,28 @@ in
         memoryReservation = "256M";
         cpus = "1.0";
       };
-      description = "Resource limits for the container";
+      description = ''
+        Resource limits for the container.
+
+        Note: Default 512MB memory may be insufficient for large libraries (50K+ items).
+        Monitor memory usage and increase limits if you observe OOM kills or performance degradation.
+        Consider scaling to 1-2GB for production environments with extensive media collections.
+      '';
+    };
+
+    dependsOn = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      description = ''
+        List of service names that Overseerr depends on (e.g., "sonarr", "radarr").
+
+        This ensures Overseerr starts after its dependencies are ready, preventing
+        connection errors and log spam during startup. Service names should match
+        the base service name without the "podman-" prefix or ".service" suffix.
+
+        Example: `dependsOn = [ "sonarr" "radarr" ];`
+      '';
+      example = [ "sonarr" "radarr" ];
     };
 
     healthcheck = {
@@ -273,7 +294,14 @@ in
     # Create ZFS dataset for Overseerr data
     modules.storage.datasets.services.overseerr = {
       mountpoint = cfg.dataDir;
-      recordsize = "16K";  # Optimal for SQLite databases
+      # 16K recordsize is optimal for SQLite databases (Overseerr uses SQLite for all data storage)
+      # Rationale: SQLite's default page size is 4KB, but modern SSDs benefit from larger block sizes.
+      # 16K provides a balance between:
+      # - Reduced write amplification (fewer ZFS metadata updates per SQLite transaction)
+      # - Efficient SSD alignment (matches common NAND page sizes)
+      # - Minimal read overhead (SQLite rarely needs sub-16K reads)
+      # This is a well-established best practice for SQLite on ZFS.
+      recordsize = "16K";
       compression = "zstd";
       properties = {
         "com.sun:auto-snapshot" = "true";
@@ -329,8 +357,12 @@ in
     # Systemd service dependencies and security
     systemd.services."${mainServiceUnit}" = lib.mkMerge [
       {
-        requires = [ "network-online.target" ] ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ];
-        after = [ "network-online.target" ] ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ];
+        requires = [ "network-online.target" ]
+          ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
+          ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
+        after = [ "network-online.target" ]
+          ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
+          ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
         serviceConfig = {
           Restart = lib.mkForce "always";
           RestartSec = "10s";
@@ -355,7 +387,7 @@ in
 
     # Register with Authelia for SSO protection
     modules.services.authelia.accessControl.declarativelyProtectedServices.overseerr = lib.mkIf (
-      cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia.enable
+      cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
     ) {
       domain = cfg.reverseProxy.hostName;
       policy = cfg.reverseProxy.authelia.policy;

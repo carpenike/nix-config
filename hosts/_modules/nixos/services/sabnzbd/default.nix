@@ -129,6 +129,17 @@ in
       example = "media";
     };
 
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach the container to.
+        Enables DNS resolution between containers on the same network.
+        This allows *arr services to resolve SABnzbd by container name.
+      '';
+      example = "media-services";
+    };
+
     extraHostWhitelist = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [];
@@ -612,8 +623,7 @@ in
       ];
       volumes = [
         "${cfg.dataDir}:/config:rw"
-        "${cfg.downloadsDir}:/downloads:rw"
-        # SECURITY: NO media directory mount - download clients should not have direct media access
+        "${cfg.downloadsDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
       ];
       ports = [
         "${toString cfg.port}:8080"  # Map configurable host port to container port 8080
@@ -629,6 +639,9 @@ in
       ] ++ lib.optionals (nfsMountConfig != null) [
         # Add media group to container so process can write to group-owned NFS mount
         "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
+      ] ++ lib.optionals (cfg.podmanNetwork != null) [
+        # Connect to Podman network for inter-container DNS resolution
+        "--network=${cfg.podmanNetwork}"
       ] ++ lib.optionals cfg.healthcheck.enable [
         # Define the health check on the container itself
         ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8080/api?mode=version)" = 200 ]' ''
@@ -673,8 +686,8 @@ in
 # === Basic Connection & Path Settings ===
 host = 0.0.0.0
 port = 8080
-download_dir = /downloads/incomplete
-complete_dir = /downloads/complete
+download_dir = /data/sab/incomplete
+complete_dir = /data/sab/complete
 permissions = 0775
 # Create files with 664, directories with 775 for *arr service access
 umask = 002
@@ -803,6 +816,10 @@ EOF
         requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];  # TODO: derive from nfsMountConfig.localPath
         after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
       })
+      (lib.mkIf (cfg.podmanNetwork != null) {
+        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+      })
       {
       # Service should remain stopped if explicitly stopped by admin
       unitConfig = {
@@ -892,7 +909,7 @@ EOF
     })
 
     # Register with Authelia for SSO protection
-    (lib.mkIf (cfg.enable && cfg.reverseProxy.enable && cfg.reverseProxy.authelia.enable) {
+    (lib.mkIf (cfg.enable && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) {
       modules.services.authelia.accessControl.declarativelyProtectedServices.sabnzbd = {
         domain = cfg.reverseProxy.hostName;
         policy = cfg.reverseProxy.authelia.policy;

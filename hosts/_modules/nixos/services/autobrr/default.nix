@@ -68,6 +68,17 @@ in
       description = "Resource limits for the container";
     };
 
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach the container to.
+        Enables DNS resolution between containers on the same network.
+        This allows autobrr to resolve download clients by container name.
+      '';
+      example = "media-services";
+    };
+
     healthcheck = {
       enable = lib.mkEnableOption "container health check";
       interval = lib.mkOption {
@@ -300,6 +311,10 @@ in
           # Autobrr container doesn't support PUID/PGID - use --user flag
           "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
         ]
+        ++ (lib.optionals (cfg.podmanNetwork != null) [
+          # Connect to Podman network for inter-container DNS resolution
+          "--network=${cfg.podmanNetwork}"
+        ])
         ++ (lib.optionals (cfg.resources != null) [
           "--memory=${cfg.resources.memory}"
           "--memory-reservation=${cfg.resources.memoryReservation}"
@@ -315,14 +330,20 @@ in
     };
 
     # Systemd service dependencies and security
-    systemd.services."${mainServiceUnit}" = {
-      requires = [ "network-online.target" ];
-      after = [ "network-online.target" ];
-      serviceConfig = {
-        Restart = lib.mkForce "always";
-        RestartSec = "10s";
-      };
-    };
+    systemd.services."${mainServiceUnit}" = lib.mkMerge [
+      (lib.mkIf (cfg.podmanNetwork != null) {
+        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+      })
+      {
+        requires = [ "network-online.target" ];
+        after = [ "network-online.target" ];
+        serviceConfig = {
+          Restart = lib.mkForce "always";
+          RestartSec = "10s";
+        };
+      }
+    ];
 
     # Integrate with centralized Caddy reverse proxy if configured
     modules.services.caddy.virtualHosts.autobrr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
@@ -341,7 +362,7 @@ in
 
     # Register with Authelia for SSO protection
     modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr = lib.mkIf (
-      cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia.enable
+      cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
     ) {
       domain = cfg.reverseProxy.hostName;
       policy = cfg.reverseProxy.authelia.policy;

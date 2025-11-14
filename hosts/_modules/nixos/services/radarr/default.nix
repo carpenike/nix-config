@@ -396,7 +396,7 @@ in
       ];
       volumes = [
         "${cfg.dataDir}:/config:rw"
-        "${cfg.mediaDir}:/movies:rw" # Use /movies for clarity
+        "${cfg.mediaDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
       ];
       ports = [
         "${toString radarrPort}:7878"

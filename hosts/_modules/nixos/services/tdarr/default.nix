@@ -128,6 +128,16 @@ in
       description = "Resource limits for the container (transcoding is resource-intensive)";
     };
 
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach the container to.
+        Enables DNS resolution between containers on the same network.
+      '';
+      example = "media-services";
+    };
+
     healthcheck = {
       enable = lib.mkEnableOption "container health check";
       interval = lib.mkOption {
@@ -428,6 +438,9 @@ in
           "--memory-reservation=${cfg.resources.memoryReservation}"
           "--cpus=${cfg.resources.cpus}"
         ])
+        ++ (lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
+        ])
         ++ (lib.optionals (cfg.healthcheck.enable) [
           "--health-cmd=curl --fail http://localhost:8265/api/v2/status || exit 1"
           "--health-interval=${cfg.healthcheck.interval}"
@@ -438,16 +451,22 @@ in
     };
 
     # Systemd service dependencies and security
-    systemd.services."${mainServiceUnit}" = {
-      requires = [ "network-online.target" ]
-        ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
-      after = [ "network-online.target" ]
-        ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
-      serviceConfig = {
-        Restart = lib.mkForce "always";
-        RestartSec = "30s";
-      };
-    };
+    systemd.services."${mainServiceUnit}" = lib.mkMerge [
+      (lib.mkIf (cfg.podmanNetwork != null) {
+        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+      })
+      {
+        requires = [ "network-online.target" ]
+          ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
+        after = [ "network-online.target" ]
+          ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
+        serviceConfig = {
+          Restart = lib.mkForce "always";
+          RestartSec = "30s";
+        };
+      }
+    ];
 
     # Integrate with centralized Caddy reverse proxy if configured
     modules.services.caddy.virtualHosts.tdarr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {

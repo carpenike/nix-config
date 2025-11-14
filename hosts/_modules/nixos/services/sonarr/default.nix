@@ -429,7 +429,7 @@ in
       ];
       volumes = [
         "${cfg.dataDir}:/config:rw"
-        "${cfg.mediaDir}:/media:rw"
+        "${cfg.mediaDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
       ];
       ports = [
         "${toString sonarrPort}:8989"

@@ -351,7 +351,7 @@ in
           "Session\\AsyncIOThreadsCount" = "10";
           "Session\\BTProtocol" = "TCP";
           # No predefined categories - let *arr services, tqm, and cross-seed create them as needed
-          "Session\\DefaultSavePath" = "/downloads/qb/downloads/";
+          "Session\\DefaultSavePath" = "/data/qb/downloads/";
           "Session\\DHTEnabled" = "false";
           "Session\\DisableAutoTMMByDefault" = "false";
           "Session\\DiskCacheSize" = "-1";
@@ -373,7 +373,7 @@ in
           "Session\\SSL\\Port" = "57024";
           "Session\\ShareLimitAction" = "Stop";
           # No predefined tags - let tqm, cross-seed, and other tools create them dynamically
-          "Session\\TempPath" = "/downloads/qb/incomplete/";
+          "Session\\TempPath" = "/data/qb/incomplete/";
           "Session\\UseAlternativeGlobalSpeedLimit" = "false";
           "Session\\UseOSCache" = "true";
           "Session\\UseRandomPort" = "false";
@@ -407,8 +407,8 @@ in
           "Connection\\ResolvePeerCountries" = "true";
           "Connection\\UPnP" = "false";
           "Connection\\alt_speeds_on" = "false";
-          "Downloads\\SavePath" = "/downloads/qb/downloads/";
-          "Downloads\\TempPath" = "/downloads/qb/incomplete/";
+          "Downloads\\SavePath" = "/data/qb/downloads/";
+          "Downloads\\TempPath" = "/data/qb/incomplete/";
           "General\\Locale" = "en";
           "General\\UseRandomPort" = "false";
           "Queueing\\MaxActiveDownloads" = "5";
@@ -539,8 +539,7 @@ in
       };
       volumes = [
         "${cfg.dataDir}:/config:rw"
-        "${cfg.downloadsDir}:/downloads:rw"
-        # SECURITY: NO media directory mount - download clients should not have direct media access
+        "${cfg.downloadsDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
       ] ++ lib.optionals cfg.vuetorrent.enable [
         "${cfg.vuetorrent.package}/vuetorrent:/vuetorrent:ro"
       ];
@@ -709,7 +708,7 @@ EOF
     })
 
     # Register with Authelia for SSO protection
-    (lib.mkIf (cfg.enable && cfg.reverseProxy.enable && cfg.reverseProxy.authelia.enable) {
+    (lib.mkIf (cfg.enable && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) {
       modules.services.authelia.accessControl.declarativelyProtectedServices.qbittorrent = {
         domain = cfg.reverseProxy.hostName;
         policy = cfg.reverseProxy.authelia.policy;

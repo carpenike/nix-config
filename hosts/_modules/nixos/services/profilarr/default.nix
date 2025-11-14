@@ -65,6 +65,16 @@ in
       example = "*-*-* 03:00:00";
     };
 
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach the container to.
+        Enables DNS resolution between containers on the same network.
+      '';
+      example = "media-services";
+    };
+
     # Standardized logging integration
     logging = lib.mkOption {
       type = lib.types.nullOr sharedTypes.loggingSubmodule;
@@ -238,10 +248,15 @@ in
 
     # Profilarr sync service (oneshot)
     # This is NOT a long-running container - it's executed on a schedule
-    systemd.services."profilarr-sync" = {
-      description = "Profilarr Profile Sync";
-      wants = [ "network-online.target" ];
-      after = [ "network-online.target" ];
+    systemd.services."profilarr-sync" = lib.mkMerge [
+      (lib.mkIf (cfg.podmanNetwork != null) {
+        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+      })
+      {
+        description = "Profilarr Profile Sync";
+        wants = [ "network-online.target" ];
+        after = [ "network-online.target" ];
 
       serviceConfig = {
         Type = "oneshot";
@@ -254,6 +269,7 @@ in
             --name profilarr-sync \
             --user ${cfg.user}:${toString config.users.groups.${cfg.group}.gid} \
             --log-driver=journald \
+            ${lib.optionalString (cfg.podmanNetwork != null) "--network=${cfg.podmanNetwork}"} \
             -v ${cfg.dataDir}:/config:rw \
             -e TZ=${cfg.timezone} \
             ${cfg.image}
@@ -264,7 +280,8 @@ in
           -${pkgs.podman}/bin/podman rm -f profilarr-sync
         '';
       };
-    };
+    }
+    ];
 
     # Systemd timer to trigger the sync service
     systemd.timers."profilarr-sync" = {
