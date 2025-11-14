@@ -32,6 +32,8 @@ in
     ./services/sonarr.nix    # Sonarr TV series management
     ./services/prowlarr.nix  # Prowlarr indexer manager
     ./services/radarr.nix    # Radarr movie manager
+    ./services/bazarr.nix    # Bazarr subtitle manager
+    ./services/recyclarr.nix # Recyclarr TRaSH guides automation
     ../../profiles/hardware/intel-gpu.nix
   ];
 
@@ -1127,129 +1129,8 @@ in
       # Sonarr configuration moved to ./services/sonarr.nix
       # Prowlarr configuration moved to ./services/prowlarr.nix
       # Radarr configuration moved to ./services/radarr.nix
-
-      # Bazarr - Subtitle manager for Sonarr and Radarr
-      bazarr = {
-        enable = true;
-        image = "ghcr.io/home-operations/bazarr:1.5.3@sha256:2f1c32cb1420b2e56f60cfdf7823737eb501fdb2c13669429d23ab3a02e9ad90";
-        # Bazarr needs to access both TV and movie directories (host paths)
-        tvDir = "/mnt/data/media/tv";
-        moviesDir = "/mnt/data/media/movies";
-        podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr and Radarr
-        healthcheck.enable = true;
-
-        # Configure dependencies on Sonarr and Radarr
-        # API keys are automatically injected via SOPS templates
-        # Use container names for DNS resolution within media-services network
-        dependencies = {
-          sonarr = {
-            enable = true;
-            url = "http://sonarr:8989";
-          };
-          radarr = {
-            enable = true;
-            url = "http://radarr:7878";
-          };
-        };
-
-        reverseProxy = {
-          enable = true;
-          hostName = "bazarr.holthome.net";
-          authelia = {
-            enable = true;
-            instance = "main";
-            authDomain = "auth.holthome.net";
-            policy = "one_factor";
-            allowedGroups = [ "media" ];
-            bypassPaths = [ "/api" ];
-            allowedNetworks = [
-              "172.16.0.0/12"
-              "192.168.1.0/24"
-              "10.0.0.0/8"
-            ];
-          };
-        };
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-        };
-        notifications.enable = true;
-        preseed = {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-        };
-      };
-
-      # Recyclarr - TRaSH Guides automation for Sonarr/Radarr
-      recyclarr = {
-        enable = true;
-        image = "ghcr.io/recyclarr/recyclarr:7.4.1";
-        schedule = "daily";  # Sync TRaSH guides once per day at a random time
-        podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr and Radarr
-
-        # Sonarr configuration - WEB-1080p quality profile
-        sonarr.sonarr-main = {
-          baseUrl = "http://sonarr:8989";
-          apiKeyFile = config.sops.secrets."sonarr/api-key".path;
-
-          # Enable automatic cleanup of obsolete custom formats
-          deleteOldCustomFormats = true;
-
-          # Media naming configuration disabled - configure manually in Sonarr UI
-          # The TRaSH guide formats need to be set directly in the UI, not via API
-          # Recommended formats from TRaSH:
-          # - Series Folder: {Series TitleYear} {tvdb-{TvdbId}}
-          # - Season Folder: Season {season:00}
-          # - Episode Format: {Series TitleYear} - S{season:00}E{episode:00} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
-          # mediaNaming = null;
-
-          templates = [
-            "sonarr-quality-definition-series"
-            "sonarr-v4-quality-profile-web-1080p"
-            "sonarr-v4-custom-formats-web-1080p"
-          ];
-        };
-
-        # Radarr configuration - HD Bluray + WEB quality profile
-        radarr.radarr-main = {
-          baseUrl = "http://radarr:7878";
-          apiKeyFile = config.sops.secrets."radarr/api-key".path;
-
-          # Enable automatic cleanup of obsolete custom formats
-          deleteOldCustomFormats = true;
-
-          # Media naming configuration disabled - configure manually in Radarr UI
-          # The TRaSH guide formats need to be set directly in the UI, not via API
-          # Recommended formats from TRaSH:
-          # - Folder Names: {Movie CleanTitle} ({Release Year}) {tmdb-{TmdbId}}
-          # - File Names: {Movie CleanTitle} {(Release Year)} {tmdb-{TmdbId}} - {edition-{Edition Tags}} {[MediaInfo 3D]}{[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
-          # mediaNaming = null;
-
-          templates = [
-            "radarr-quality-definition-movie"
-            "radarr-quality-profile-hd-bluray-web"
-            "radarr-custom-formats-hd-bluray-web"
-          ];
-        };
-
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          frequency = "daily";
-          tags = [ "media" "recyclarr" "config" ];
-          useSnapshots = true;
-          zfsDataset = "tank/services/recyclarr";
-        };
-
-        notifications.enable = true;
-
-        preseed = {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-        };
-      };
+      # Bazarr configuration moved to ./services/bazarr.nix
+      # Recyclarr configuration moved to ./services/recyclarr.nix
 
       # Download clients (infrastructure services)
       qbittorrent = {
