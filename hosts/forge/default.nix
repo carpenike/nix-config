@@ -29,6 +29,7 @@ in
     ./authelia.nix       # SSO authentication service
     ./qui.nix            # qui - Modern qBittorrent web interface with OIDC
     ./cloudflare-tunnel.nix  # Cloudflare Tunnel for external access
+    ./services/sonarr.nix    # Sonarr TV series management
     ../../profiles/hardware/intel-gpu.nix
   ];
 
@@ -1121,72 +1122,7 @@ in
         };
 
       # Media management services
-      sonarr = {
-        enable = true;
-
-        # -- Container Image Configuration --
-        # Pin to specific version tags for stability and reproducibility.
-        # Avoid ':latest' tag in production to prevent unexpected updates.
-        #
-        # Renovate bot will automatically update this when configured.
-        # Find available tags at: https://fleet.linuxserver.io/image?name=linuxserver/sonarr
-        #
-        # Example formats:
-        # 1. Version pin only:
-        #    image = "lscr.io/linuxserver/sonarr:4.0.10.2544-ls294";
-        #
-        # 2. Version + digest (recommended - immutable and reproducible):
-        #    image = "lscr.io/linuxserver/sonarr:4.0.10.2544-ls294@sha256:abc123...";
-        #
-        # Uncomment and set when ready to pin version:
-        image = "ghcr.io/home-operations/sonarr:4.0.15.2940@sha256:ca6c735014bdfb04ce043bf1323a068ab1d1228eea5bab8305ca0722df7baf78";
-
-        # dataDir defaults to /var/lib/sonarr (dataset mountpoint)
-        nfsMountDependency = "media";  # Use shared NFS mount and auto-configure mediaDir
-        podmanNetwork = "media-services";  # Enable DNS resolution to other media services (cross-seed, qBittorrent, Prowlarr)
-        healthcheck.enable = true;  # Enable container health monitoring
-
-        # Reverse proxy configuration for external access
-        reverseProxy = {
-          enable = true;
-          hostName = "sonarr.holthome.net";
-
-          # Enable Authelia SSO protection
-          authelia = {
-            enable = true;
-            instance = "main";  # Use the main Authelia instance
-            authDomain = "auth.holthome.net";  # Where users go to authenticate
-            policy = "one_factor";  # Allow passwordless WebAuthn (passkey with biometric/PIN = strong single factor)
-            allowedGroups = [ "media" ];  # Who can access this service
-
-            # Bypass authentication for API endpoints (needed for Prowlarr, mobile apps, RSS)
-            bypassPaths = [ "/api" "/feed" ];
-
-            # Restrict API access to internal networks only (enhanced security)
-            # This prevents external access to API endpoints even with a leaked API key
-            allowedNetworks = [
-              "172.16.0.0/12"    # Docker internal networks (172.16-31.x.x)
-              "192.168.1.0/24"   # Local LAN
-              "10.0.0.0/8"       # Internal private network range
-            ];
-          };
-        };
-        backup = {
-          enable = true;
-          repository = "nas-primary";  # Primary NFS backup repository
-          # TODO: Enable ZFS snapshots for SQLite consistency when Sonarr gets ZFS dataset
-          # useSnapshots = true;
-          # zfsDataset = "tank/services/sonarr";
-        };
-        notifications.enable = true;  # Enable failure notifications
-        preseed = {
-          enable = true;  # Enable self-healing restore
-          # Pass repository config explicitly (reading from config.sops.secrets to avoid circular dependency)
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-          # environmentFile not needed for local filesystem repository
-        };
-      };
+      # Sonarr configuration moved to ./services/sonarr.nix
 
       # Prowlarr - Indexer manager for *arr services
       prowlarr = {
