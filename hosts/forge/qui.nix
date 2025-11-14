@@ -32,20 +32,7 @@ let
 in
 {
   config = {
-    # Register qui as OIDC client in Authelia
-    modules.services.authelia.oidc.clients.qui = {
-      description = "qui - qBittorrent Web Interface";
-      # Secret generated with: openssl rand -base64 32
-      # Stored in secrets.sops.yaml as authelia/oidc/qui_client_secret
-      secret = "$argon2id$v=19$m=65536,t=3,p=4$QHFBgOOhea2y9niGcPsshQ$XJsy22DBqlsSjW1I7xoAgIVJqQCafiKAINUqu+Xlqbw";
-      redirectUris = [
-        "https://qui.${domain}/api/auth/oidc/callback"
-      ];
-      scopes = [ "openid" "profile" "email" "groups" ];
-      # All authenticated users can access qui
-      # Fine-grained access control done within qui itself
-    };
-
+    # OIDC client registration is in authelia.nix
     # Configure qui service
     modules.services.qui = {
       enable = true;

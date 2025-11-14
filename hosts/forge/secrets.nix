@@ -197,7 +197,25 @@
           group = "root";
         };
 
+        "cross-seed/api-key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
         "sabnzbd/api-key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "autobrr/session-secret" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "autobrr/oidc-client-secret" = {
           mode = "0400";
           owner = "root";
           group = "root";
@@ -281,6 +299,15 @@
             SABNZBD__API_KEY=${config.sops.placeholder."sabnzbd/api-key"}
             SABNZBD__USENET__USERNAME=${config.sops.placeholder."sabnzbd/usenet/username"}
             SABNZBD__USENET__PASSWORD=${config.sops.placeholder."sabnzbd/usenet/password"}
+          '';
+          mode = "0400"; # root-only readable
+          owner = "root";
+          group = "root";
+        };
+        "autobrr-env" = {
+          content = ''
+            AUTOBRR__SESSION_SECRET=${config.sops.placeholder."autobrr/session-secret"}
+            AUTOBRR__OIDC_CLIENT_SECRET=${config.sops.placeholder."autobrr/oidc-client-secret"}
           '';
           mode = "0400"; # root-only readable
           owner = "root";

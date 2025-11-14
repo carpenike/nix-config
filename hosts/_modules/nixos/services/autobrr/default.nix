@@ -103,6 +103,89 @@ in
       };
     };
 
+    # Declarative settings for config.toml generation
+    settings = {
+      host = lib.mkOption {
+        type = lib.types.str;
+        default = "0.0.0.0";
+        description = "Host address for Autobrr to listen on.";
+      };
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 7474;
+        description = "Port for Autobrr to listen on (internal to container).";
+      };
+      baseUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = ''
+          Optional base URL for reverse proxy setups (e.g., "/autobrr/").
+          Not needed for subdomain configurations.
+        '';
+      };
+      logLevel = lib.mkOption {
+        type = lib.types.enum [ "ERROR" "WARN" "INFO" "DEBUG" "TRACE" ];
+        default = "INFO";
+        description = "Logging verbosity level.";
+      };
+      checkForUpdates = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Whether to enable in-app update checks.
+          Set to false as updates are managed declaratively via Nix and Renovate.
+        '';
+      };
+      sessionSecretFile = lib.mkOption {
+        type = lib.types.path;
+        description = ''
+          Path to a file containing the session secret.
+          This is CRITICAL for session security and must be a random string.
+          Managed via sops-nix.
+        '';
+        example = "config.sops.secrets.\"autobrr/session-secret\".path";
+      };
+    };
+
+    # OIDC authentication configuration
+    oidc = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          enable = lib.mkEnableOption "OIDC authentication";
+          issuer = lib.mkOption {
+            type = lib.types.str;
+            description = "OIDC issuer URL (e.g., https://auth.example.com)";
+          };
+          clientId = lib.mkOption {
+            type = lib.types.str;
+            description = "OIDC client ID";
+          };
+          clientSecretFile = lib.mkOption {
+            type = lib.types.path;
+            description = ''
+              Path to file containing OIDC client secret.
+              Managed via sops-nix.
+            '';
+          };
+          redirectUrl = lib.mkOption {
+            type = lib.types.str;
+            description = "OIDC redirect URL (callback URL)";
+            example = "https://autobrr.example.com/api/auth/oidc/callback";
+          };
+          disableBuiltInLogin = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Disable the built-in login form.
+              Only works when OIDC is enabled.
+            '';
+          };
+        };
+      });
+      default = null;
+      description = "OIDC authentication configuration for SSO via Authelia";
+    };
+
     # Standardized reverse proxy integration
     reverseProxy = lib.mkOption {
       type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
@@ -112,8 +195,45 @@ in
 
     # Standardized metrics collection pattern
     metrics = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.metricsSubmodule;
-      default = null;
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          enable = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+            description = "Enable Prometheus metrics collection";
+          };
+          host = lib.mkOption {
+            type = lib.types.str;
+            default = "0.0.0.0";
+            description = "Host for the metrics server to listen on.";
+          };
+          port = lib.mkOption {
+            type = lib.types.port;
+            default = 9074;
+            description = "Port for the metrics server to listen on.";
+          };
+          path = lib.mkOption {
+            type = lib.types.str;
+            default = "/metrics";
+            description = "Path for metrics endpoint";
+          };
+          labels = lib.mkOption {
+            type = lib.types.attrsOf lib.types.str;
+            default = {};
+            description = "Additional Prometheus labels";
+          };
+        };
+      });
+      default = {
+        enable = true;
+        host = "0.0.0.0";
+        port = 9074;
+        path = "/metrics";
+        labels = {
+          service_type = "automation";
+          function = "irc_grabber";
+        };
+      };
       description = "Prometheus metrics collection configuration for Autobrr";
     };
 
@@ -197,6 +317,7 @@ in
     autobrrPort = 7474;
     mainServiceUnit = "${config.virtualisation.oci-containers.backend}-autobrr.service";
     datasetPath = "${storageCfg.datasets.parentDataset}/autobrr";
+    configFile = "${cfg.dataDir}/config.toml";
 
       # Recursively find the replication config
       findReplication = dsPath:
@@ -247,6 +368,10 @@ in
     (lib.mkIf cfg.enable {
       assertions = [
         {
+          assertion = cfg.settings.sessionSecretFile != null;
+          message = "Autobrr requires settings.sessionSecretFile to be set for session security.";
+        }
+        {
           assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
           message = "Autobrr reverse proxy must be explicitly enabled when configured";
         }
@@ -294,6 +419,82 @@ in
       gid = lib.mkDefault (lib.toInt cfg.user);
     };
 
+    # Config generator service - creates config only if missing
+    # This preserves UI changes (indexers, filters, IRC connections) while ensuring correct initial configuration
+    systemd.services.autobrr-config-generator = {
+      description = "Generate Autobrr configuration if missing";
+      before = [ mainServiceUnit ];
+      serviceConfig = {
+        Type = "oneshot";
+        User = cfg.user;
+        Group = cfg.group;
+        EnvironmentFile = config.sops.templates."autobrr-env".path;
+        ExecStart = pkgs.writeShellScript "generate-autobrr-config" ''
+          set -eu
+          CONFIG_FILE="${configFile}"
+          CONFIG_DIR=$(dirname "$CONFIG_FILE")
+
+          # Only generate if config doesn't exist
+          if [ ! -f "$CONFIG_FILE" ]; then
+            echo "Config missing, generating from Nix settings..."
+            mkdir -p "$CONFIG_DIR"
+
+            # Secrets injected via environment variables from sops template
+            # AUTOBRR__SESSION_SECRET and AUTOBRR__OIDC_CLIENT_SECRET available
+
+            # Generate config using heredoc
+            cat > "$CONFIG_FILE" << EOF
+# Autobrr configuration - generated by Nix
+# Changes to indexers, filters, and IRC connections are preserved
+# Base configuration is declaratively managed
+
+# Network configuration
+host = "${cfg.settings.host}"
+port = ${toString cfg.settings.port}
+${lib.optionalString (cfg.settings.baseUrl != "") ''baseUrl = "${cfg.settings.baseUrl}"''}
+
+# Logging
+logLevel = "${cfg.settings.logLevel}"
+
+# Update management (disabled - using Nix/Renovate)
+checkForUpdates = ${if cfg.settings.checkForUpdates then "true" else "false"}
+
+# Session security
+sessionSecret = "$AUTOBRR__SESSION_SECRET"
+
+# OIDC authentication
+${lib.optionalString (cfg.oidc != null && cfg.oidc.enable) ''
+oidcEnabled = true
+oidcIssuer = "${cfg.oidc.issuer}"
+oidcClientId = "${cfg.oidc.clientId}"
+oidcClientSecret = "$AUTOBRR__OIDC_CLIENT_SECRET"
+oidcRedirectUrl = "${cfg.oidc.redirectUrl}"
+oidcDisableBuiltInLogin = ${if cfg.oidc.disableBuiltInLogin then "true" else "false"}
+''}
+${lib.optionalString (cfg.oidc == null || !cfg.oidc.enable) ''
+oidcEnabled = false
+''}
+
+# Metrics configuration
+${lib.optionalString (cfg.metrics != null && cfg.metrics.enable) ''
+metricsEnabled = true
+metricsHost = "${cfg.metrics.host}"
+metricsPort = "${toString cfg.metrics.port}"
+''}
+${lib.optionalString (cfg.metrics == null || !cfg.metrics.enable) ''
+metricsEnabled = false
+''}
+EOF
+
+            chmod 640 "$CONFIG_FILE"
+            echo "Configuration generated at $CONFIG_FILE"
+          else
+            echo "Config exists at $CONFIG_FILE, preserving existing file"
+          fi
+        '';
+      };
+    };
+
     # Autobrr container configuration
     # Note: This image does not use PUID/PGID - must use --user flag
     virtualisation.oci-containers.containers.autobrr = podmanLib.mkContainer "autobrr" {
@@ -304,7 +505,8 @@ in
       volumes = [
         "${cfg.dataDir}:/config:rw"
       ];
-      ports = [ "${toString autobrrPort}:7474" ];
+      ports = [ "${toString autobrrPort}:7474" ]
+        ++ (lib.optional (cfg.metrics != null && cfg.metrics.enable) "${toString cfg.metrics.port}:${toString cfg.metrics.port}");
       log-driver = "journald";
       extraOptions =
         [
@@ -337,7 +539,8 @@ in
       })
       {
         requires = [ "network-online.target" ];
-        after = [ "network-online.target" ];
+        after = [ "network-online.target" "autobrr-config-generator.service" ];
+        wants = [ "autobrr-config-generator.service" ];
         serviceConfig = {
           Restart = lib.mkForce "always";
           RestartSec = "10s";

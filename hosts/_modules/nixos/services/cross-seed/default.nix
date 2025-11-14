@@ -73,6 +73,10 @@ let
     port = crossSeedPort;
     action = "inject";  # Inject torrents directly into qBittorrent
 
+    # API authentication for webhook endpoint
+    # Placeholder will be replaced with actual key from apiKeyFile at runtime
+    apiKey = if cfg.apiKeyFile != null then "{{CROSS_SEED_API_KEY}}" else null;
+
     # Matching configuration (v6 options: "strict", "safe", "risky")
     # - strict: Exact file name and size matches only
     # - safe: Allows renames and slight inconsistencies (recommended default)
@@ -238,6 +242,16 @@ in
       description = ''
         Path to file containing Radarr API key.
         If set, radarr URLs in extraSettings can use {{RADARR_API_KEY}} placeholder.
+      '';
+    };
+
+    apiKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Path to file containing cross-seed API key for webhook authentication.
+        This key must be provided by Sonarr/Radarr in the X-Api-Key header when calling the webhook endpoint.
+        If set, the {{CROSS_SEED_API_KEY}} placeholder in extraSettings will be replaced.
       '';
     };
 
@@ -489,6 +503,14 @@ in
             if [ -f "${cfg.radarrApiKeyFile}" ]; then
               RADARR_API_KEY=$(cat "${cfg.radarrApiKeyFile}")
               ${pkgs.gnused}/bin/sed -i "s|{{RADARR_API_KEY}}|$RADARR_API_KEY|g" ${cfg.dataDir}/config.js
+            fi
+          ''}
+
+          ${lib.optionalString (cfg.apiKeyFile != null) ''
+            # Substitute cross-seed API key placeholder with actual key from secret file
+            if [ -f "${cfg.apiKeyFile}" ]; then
+              CROSS_SEED_API_KEY=$(cat "${cfg.apiKeyFile}")
+              ${pkgs.gnused}/bin/sed -i "s|{{CROSS_SEED_API_KEY}}|$CROSS_SEED_API_KEY|g" ${cfg.dataDir}/config.js
             fi
           ''}
 

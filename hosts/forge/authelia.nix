@@ -68,6 +68,30 @@
             ];
             scopes = [ "openid" "profile" "email" "groups" ];
           };
+
+          autobrr = {
+            description = "autobrr - IRC Announce Bot";
+            # Argon2id hash of the client secret - generated with:
+            # nix-shell -p authelia --run 'authelia crypto hash generate argon2 --password "nOnnJrvIGEHWT+2PDcbUNW8DUZqQ120FC6oMvtwcPpw="'
+            # Plaintext secret stored in secrets.sops.yaml as autobrr/oidc-client-secret
+            secret = "$argon2id$v=19$m=65536,t=3,p=4$ZCs4ZmH0mATD1c1P6hT8Cg$dkbk2/EzRcDiSYET+VT4gN130O1eRKMc3nZ3YeXM9+c";
+            redirectUris = [
+              "https://autobrr.${config.networking.domain}/api/auth/oidc/callback"
+            ];
+            scopes = [ "openid" "profile" "email" "groups" ];
+          };
+
+          qui = {
+            description = "qui - qBittorrent Web Interface";
+            # Argon2id hash of the client secret - generated with:
+            # openssl rand -base64 32 | xargs -I {} authelia crypto hash generate argon2 --password {}
+            # Plaintext secret stored in secrets.sops.yaml as authelia/oidc/qui_client_secret
+            secret = "$argon2id$v=19$m=65536,t=3,p=4$QHFBgOOhea2y9niGcPsshQ$XJsy22DBqlsSjW1I7xoAgIVJqQCafiKAINUqu+Xlqbw";
+            redirectUris = [
+              "https://qui.${config.networking.domain}/api/auth/oidc/callback"
+            ];
+            scopes = [ "openid" "profile" "email" "groups" ];
+          };
         };
       };
 

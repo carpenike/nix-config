@@ -1446,6 +1446,7 @@ in
         healthcheck.enable = true;
 
         # API key files for service integrations
+        apiKeyFile = config.sops.secrets."cross-seed/api-key".path;  # For webhook authentication
         prowlarrApiKeyFile = config.sops.secrets."prowlarr/api-key".path;
         sonarrApiKeyFile = config.sops.secrets."sonarr/api-key".path;
         radarrApiKeyFile = config.sops.secrets."radarr/api-key".path;
@@ -1457,11 +1458,18 @@ in
           # Torznab indexers from Prowlarr (v6 simplified format)
           # The placeholder {{PROWLARR_API_KEY}} gets substituted at runtime by cross-seed-config.service
           # Use container name for Prowlarr (both on media-services network with DNS resolution)
-          # Indexer IDs: Check Prowlarr UI at Settings -> Indexers -> each indexer's ID in the URL
           # cross-seed v6.13+ requires just an array of Torznab URLs (not objects with names)
+          # Only torrent indexers included (cross-seed doesn't support usenet)
           torznab = [
-            "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}"
-            "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}"
+            "http://prowlarr:9696/1/api?apikey={{PROWLARR_API_KEY}}"   # Anthelion (API)
+            "http://prowlarr:9696/2/api?apikey={{PROWLARR_API_KEY}}"   # Blutopia (API)
+            "http://prowlarr:9696/3/api?apikey={{PROWLARR_API_KEY}}"   # BroadcasTheNet
+            "http://prowlarr:9696/6/api?apikey={{PROWLARR_API_KEY}}"   # FileList.io
+            "http://prowlarr:9696/8/api?apikey={{PROWLARR_API_KEY}}"   # MoreThanTV
+            "http://prowlarr:9696/9/api?apikey={{PROWLARR_API_KEY}}"   # MyAnonamouse
+            # "http://prowlarr:9696/12/api?apikey={{PROWLARR_API_KEY}}" # Orpheus (disabled in Prowlarr)
+            "http://prowlarr:9696/13/api?apikey={{PROWLARR_API_KEY}}"  # SceneTime
+            "http://prowlarr:9696/14/api?apikey={{PROWLARR_API_KEY}}"  # TorrentLeech
           ];
 
           # Sonarr/Radarr API integration - cross-seed queries APIs directly for all media information
@@ -2030,6 +2038,31 @@ in
         image = "ghcr.io/autobrr/autobrr:latest";
         podmanNetwork = "media-services";  # Enable DNS resolution to download clients (qBittorrent, SABnzbd)
         healthcheck.enable = true;
+
+        settings = {
+          host = "0.0.0.0";
+          port = 7474;
+          logLevel = "INFO";
+          checkForUpdates = false;  # Managed via Nix/Renovate
+          sessionSecretFile = config.sops.secrets."autobrr/session-secret".path;
+        };
+
+        # OIDC authentication via Authelia
+        oidc = {
+          enable = true;
+          issuer = "https://auth.${config.networking.domain}";
+          clientId = "autobrr";
+          clientSecretFile = config.sops.secrets."autobrr/oidc-client-secret".path;
+          redirectUrl = "https://autobrr.${config.networking.domain}/api/auth/oidc/callback";
+          disableBuiltInLogin = false;  # Keep built-in login as fallback
+        };
+
+        # Prometheus metrics
+        metrics = {
+          enable = true;
+          host = "0.0.0.0";
+          port = 9084;  # qui uses 9074, so use 9084 for autobrr
+        };
 
         reverseProxy = {
           enable = true;
