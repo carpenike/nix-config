@@ -381,9 +381,9 @@ in
 {
   imports = [
     # This host is a standard monitored agent.
-    ../common/monitoring-agent.nix
+    ../../common/monitoring-agent.nix
     # This host is also designated as the central monitoring hub.
-    ../common/monitoring-hub.nix
+    ../../common/monitoring-hub.nix
   ];
 
   # Enable textfile collector via the monitoring module

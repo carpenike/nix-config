@@ -1,25 +1,29 @@
-{
-  pkgs,
-  lib,
-  config,
-  hostname,
-  ...
-}:
-let
-  ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
-in
+{ lib, config, pkgs, ... }:
+
 {
   imports = [
+    # Hardware & Disk Configuration
     (import ./disko-config.nix {
       disks = [ "/dev/disk/by-id/nvme-Samsung_SSD_950_PRO_512GB_S2GMNX0H803986M" "/dev/disk/by-id/nvme-WDS100T3X0C-00SJG0_200278801343" ];
       inherit lib;  # Pass lib here
     })
+    ../../profiles/hardware/intel-gpu.nix
+
+    # Core System Configuration
+    ./core/networking.nix
+    ./core/boot.nix
+    ./core/users.nix
+    ./core/packages.nix
+    ./core/hardware.nix
+
+    # Infrastructure (Cross-cutting operational concerns)
+    ./infrastructure/backup.nix
+    ./infrastructure/monitoring.nix
+    ./infrastructure/monitoring-ui.nix
+    ./infrastructure/alerting.nix
+
+    # Secrets
     ./secrets.nix
-    ./systemPackages.nix
-    ./backup.nix
-    ./monitoring.nix
-    ./monitoring-ui.nix  # Web UI exposure for Prometheus/Alertmanager
-    ./alerting.nix
 
     # Application Services
     ./services/postgresql.nix      # PostgreSQL database
@@ -46,103 +50,11 @@ in
     ./services/autobrr.nix         # Autobrr IRC announce bot
     ./services/profilarr.nix       # Profilarr profile sync for *arr services
     ./services/tdarr.nix           # Tdarr transcoding automation
-
-    ../../profiles/hardware/intel-gpu.nix
   ];
 
   config = {
     # Primary IP for DNS record generation
     my.hostIp = "10.20.0.30";
-
-    networking = {
-      hostName = hostname;
-      hostId = "1b3031e7";  # Preserved from nixos-bootstrap
-      useDHCP = true;
-      # Firewall disabled; per-service modules will declare their own rules
-      firewall.enable = false;
-      domain = "holthome.net";
-
-      # REMOVED 2025-11-01: These /etc/hosts entries are no longer needed.
-      # The TLS certificate exporter was rewritten to read cert files directly from disk
-      # instead of making network connections via openssl s_client. All intra-host
-      # monitoring connections properly use 127.0.0.1 or localhost directly in their
-      # scrape configs. Keeping these entries created confusing split-horizon DNS behavior.
-      #
-      # Commented out for observation period - will be fully removed if no issues arise.
-      #
-      # extraHosts = ''
-      #   127.0.0.1 alertmanager.forge.holthome.net
-      #   127.0.0.1 prometheus.forge.holthome.net
-      #   127.0.0.1 loki.holthome.net
-      #   127.0.0.1 grafana.holthome.net
-      #   127.0.0.1 iptv.holthome.net
-      #   127.0.0.1 plex.holthome.net
-      # '';
-    };
-
-    # Boot loader configuration
-    boot.loader = {
-      systemd-boot.enable = true;
-      efi.canTouchEfiVariables = true;
-    };
-
-    # User configuration
-    users.users.ryan = {
-      uid = 1000;
-      name = "ryan";
-      home = "/home/ryan";
-      group = "ryan";
-      shell = pkgs.fish;
-      openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../home/ryan/config/ssh/ssh.pub);
-      isNormalUser = true;
-      extraGroups =
-        [
-          "wheel"
-          "users"
-          "podman"  # Rootless podman container management
-        ]
-        ++ ifGroupsExist [
-          "network"
-        ];
-    };
-    users.groups.ryan = {
-      gid = 1000;
-    };
-
-    # Shared media group for *arr services and download clients
-    # Shared media group for *arr services
-    # GID 65537 (993 was taken by alertmanager)
-    users.groups.media = {
-      gid = 65537;
-    };
-
-    # Add postgres user to restic-backup group for R2 secret access
-    # and node-exporter group for metrics file write access
-    # Required for pgBackRest to read AWS credentials and write Prometheus metrics
-    users.users.postgres.extraGroups = [ "restic-backup" "node-exporter" ];
-
-    # Add restic-backup user to media group for backup access
-    # Media services (sonarr, radarr, bazarr, prowlarr, qbittorrent, recyclarr, etc.)
-    # all run as group "media" (GID 65537) with 0750 directory permissions
-    # Also add monitoring service groups (grafana, loki, promtail)
-    users.users.restic-backup.extraGroups = [
-      "media"      # All *arr services, qbittorrent, recyclarr, etc.
-      "grafana"    # Grafana dashboards and database
-      "loki"       # Loki log storage
-      "promtail"   # Promtail positions file
-    ];
-
-    system.activationScripts.postActivation.text = ''
-      # Must match what is in /etc/shells
-      chsh -s /run/current-system/sw/bin/fish ryan
-    '';
-
-    # Expose VA-API drivers for host-side tools (vainfo, ffmpeg)
-    # hardware.opengl was renamed; migrate to hardware.graphics
-    hardware.graphics = {
-      enable = true;
-      extraPackages = with pkgs; [ intel-media-driver libva libva-utils ];
-    };
 
     modules = {
       # Explicitly enable ZFS filesystem module
