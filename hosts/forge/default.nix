@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, ... }:
 
 {
   imports = [
@@ -15,11 +15,14 @@
     ./core/users.nix
     ./core/packages.nix
     ./core/hardware.nix
-    ./core/system-services.nix  # System service configurations (rsyslog, caddy, journald)
+    ./core/monitoring.nix           # Core system health monitoring (CPU, memory, disk, systemd)
+    ./core/system-services.nix      # System service configurations (rsyslog, journald)
 
     # Infrastructure (Cross-cutting operational concerns)
     ./infrastructure/alerts.nix       # Infrastructure monitoring alerts
     ./infrastructure/backup.nix
+    ./infrastructure/containerization.nix  # Podman container networking
+    ./infrastructure/notifications.nix     # Notification system (Pushover, system events)
     ./infrastructure/storage.nix      # ZFS storage management and Sanoid templates
     ./infrastructure/reverse-proxy.nix  # Caddy reverse proxy configuration
     ./infrastructure/monitoring-ui.nix
@@ -77,56 +80,11 @@
       # (moved) VA-API driver exposure configured via top-level 'hardware.opengl'
 
       # Alert monitoring rules now defined in infrastructure/alerts.nix
-
       # Storage dataset management now configured in infrastructure/storage.nix
-      # Includes: ZFS dataset creation, NFS mounts, snapshot policies
-
-      # Podman containerization with DNS-enabled networking
-      virtualization.podman = {
-        enable = true;
-        networks = {
-          "media-services" = {
-            driver = "bridge";
-            # DNS resolution is enabled by default for bridge networks
-            # Containers on this network can reach each other by container name
-          };
-        };
-      };
-
-      # ZFS snapshot and replication management now configured in infrastructure/storage.nix
-      # and distributed across service files (contribution pattern)
-      # Service-specific Sanoid configs: observability/*.nix, services/*.nix
+      # Podman containerization now configured in infrastructure/containerization.nix
+      # Notification system now configured in infrastructure/notifications.nix
 
       system.impermanence.enable = true;
-
-      # Enable persistent journald storage for log retention across reboots
-      # Critical for disaster recovery operation visibility and debugging
-
-      # System health monitoring alerts are defined above in the alerting.rules mkMerge block
-      # See line ~85 for the complete alert rule definitions including system health metrics
-
-      # Distributed notification system
-      # Templates auto-register from service modules (backup.nix, zfs-replication.nix, etc.)
-      # No need to explicitly enable individual templates here
-      notifications = {
-        enable = true;
-        defaultBackend = "pushover";
-
-        pushover = {
-          enable = true;
-          tokenFile = config.sops.secrets."pushover/token".path;
-          userKeyFile = config.sops.secrets."pushover/user-key".path;
-          defaultPriority = 0;  # Normal priority
-          enableHtml = true;
-        };
-      };
-
-      # System-level notifications (boot/shutdown)
-      systemNotifications = {
-        enable = true;
-        boot.enable = true;
-        shutdown.enable = true;
-      };
 
       services = {
         openssh.enable = true;

@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, lib, ... }:
 
 {
   # System-level ZFS storage management
@@ -7,6 +7,7 @@
   # - System-level datasets (home, persist)
   # - PostgreSQL-specific datasets (controlled by postgresql service)
   # - Parent container dataset (tank/services)
+  # - ZFS monitoring alerts (co-located with storage configuration)
   #
   # Service-specific datasets are configured in their respective service files
   # following the contribution pattern (e.g., services/sonarr.nix configures tank/services/sonarr)
@@ -220,6 +221,117 @@
       group = "media";
       mode = "02775";  # setgid bit ensures new files inherit media group
       mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
+    };
+  };
+
+  # ZFS monitoring alerts (co-located with storage configuration following contribution pattern)
+  modules.alerting.rules = lib.mkIf config.modules.filesystems.zfs.enable {
+    # ZFS pool health degraded
+    "zfs-pool-degraded" = {
+      type = "promql";
+      alertname = "ZFSPoolDegraded";
+      expr = "node_zfs_zpool_state{state!=\"online\",zpool!=\"\"} > 0";
+      for = "5m";
+      severity = "critical";
+      labels = { service = "zfs"; category = "storage"; };
+      annotations = {
+        summary = "ZFS pool {{ $labels.zpool }} is degraded on {{ $labels.instance }}";
+        description = "Pool state: {{ $labels.state }}. Check 'zpool status {{ $labels.zpool }}' for details.";
+        command = "zpool status {{ $labels.zpool }}";
+      };
+    };
+
+    # ZFS snapshot age violations
+    "zfs-snapshot-stale" = {
+      type = "promql";
+      alertname = "ZFSSnapshotStale";
+      expr = "(time() - zfs_snapshot_latest_timestamp{dataset!=\"\"}) > 3600";
+      for = "30m";
+      severity = "high";
+      labels = { service = "zfs"; category = "backup"; };
+      annotations = {
+        summary = "ZFS snapshots are stale for {{ $labels.dataset }} on {{ $labels.instance }}";
+        description = "Last snapshot was {{ $value | humanizeDuration }} ago. Check sanoid service.";
+        command = "systemctl status sanoid.service && journalctl -u sanoid.service --since '2 hours ago'";
+      };
+    };
+
+    # ZFS snapshot count too low
+    "zfs-snapshot-count-low" = {
+      type = "promql";
+      alertname = "ZFSSnapshotCountLow";
+      expr = "zfs_snapshot_count{dataset!=\"\"} < 2";
+      for = "1h";
+      severity = "high";
+      labels = { service = "zfs"; category = "backup"; };
+      annotations = {
+        summary = "ZFS snapshot count is low for {{ $labels.dataset }} on {{ $labels.instance }}";
+        description = "Only {{ $value }} snapshots exist. Sanoid autosnap may be failing.";
+        command = "zfs list -t snapshot | grep {{ $labels.dataset }}";
+      };
+    };
+
+    # ZFS pool space usage high
+    "zfs-pool-space-high" = {
+      type = "promql";
+      alertname = "ZFSPoolSpaceHigh";
+      expr = "(node_zfs_zpool_used_bytes{zpool!=\"\"} / node_zfs_zpool_size_bytes) > 0.80";
+      for = "15m";
+      severity = "high";
+      labels = { service = "zfs"; category = "storage"; };
+      annotations = {
+        summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
+        description = "Pool usage exceeds 80%. Consider expanding pool or cleaning up data.";
+        command = "zpool list {{ $labels.zpool }} && zfs list -o space";
+      };
+    };
+
+    # ZFS pool space critical
+    "zfs-pool-space-critical" = {
+      type = "promql";
+      alertname = "ZFSPoolSpaceCritical";
+      expr = "(node_zfs_zpool_used_bytes{zpool!=\"\"} / node_zfs_zpool_size_bytes) > 0.90";
+      for = "5m";
+      severity = "critical";
+      labels = { service = "zfs"; category = "storage"; };
+      annotations = {
+        summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
+        description = "CRITICAL: Pool usage exceeds 90%. Immediate action required to prevent write failures.";
+        command = "zpool list {{ $labels.zpool }} && df -h";
+      };
+    };
+
+    # ZFS preseed restore failed
+    "zfs-preseed-failed" = {
+      type = "promql";
+      alertname = "ZFSPreseedFailed";
+      expr = "zfs_preseed_status == 0 and changes(zfs_preseed_last_completion_timestamp_seconds[15m]) > 0";
+      for = "0m";
+      severity = "critical";
+      labels = { service = "zfs-preseed"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "ZFS pre-seed restore failed for {{ $labels.service }}";
+        description = "The automated restore for service '{{ $labels.service }}' using method '{{ $labels.method }}' has failed. The service will start with an empty data directory. Manual intervention is required. Check logs with: journalctl -u preseed-{{ $labels.service }}.service";
+      };
+    };
+
+    # ZFS preseed aborted due to unhealthy pool
+    "zfs-preseed-pool-unhealthy" = {
+      type = "promql";
+      alertname = "ZFSPreseedPoolUnhealthy";
+      expr = ''
+        zfs_preseed_status{method="pool_unhealthy"} == 0
+        and
+        changes(zfs_preseed_last_completion_timestamp_seconds{method="pool_unhealthy"}[15m]) > 0
+      '';
+      for = "0m";
+      severity = "critical";
+      labels = { service = "zfs-preseed"; category = "storage"; };
+      annotations = {
+        summary = "ZFS pre-seed for {{ $labels.service }} aborted due to unhealthy pool";
+        description = "The pre-seed restore for '{{ $labels.service }}' was aborted because its parent ZFS pool is not in an ONLINE state. Check 'zpool status' for details.";
+        command = "zpool status";
+      };
     };
   };
 }
