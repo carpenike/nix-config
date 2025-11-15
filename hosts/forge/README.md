@@ -33,9 +33,8 @@ hosts/forge/
 **Purpose**: Cross-cutting operational concerns that span multiple services
 
 **Contents**:
-- `alerts.nix` - Backup/snapshot age monitoring (cross-cutting alerts)
-- `backup.nix` - Backup orchestration and scheduling
-- `storage.nix` - **ZFS datasets, Sanoid templates, NFS mounts, ZFS monitoring alerts**
+- `backup.nix` - Restic backup configuration and monitoring (including zfs-holds-stale)
+- `storage.nix` - **Complete ZFS lifecycle: datasets, Sanoid/Syncoid config, replication, all ZFS/snapshot/replication alerts**
 - `containerization.nix` - Podman networking, generic container health alerts
 - `notifications.nix` - Notification system (Pushover, system events)
 - `reverse-proxy.nix` - Caddy reverse proxy configuration
@@ -101,25 +100,30 @@ When adding a new service (e.g., `myapp`), create `services/myapp.nix` containin
 
 ### Alert Organization
 
-Alerts are distributed according to their scope:
+Alerts are distributed according to their scope following the **co-location principle**:
 
 | Alert Type | Location | Example |
 |------------|----------|---------|
 | Core OS health | `core/monitoring.nix` | CPU, memory, disk, systemd units, watchdog |
-| ZFS storage | `infrastructure/storage.nix` | Pool degraded, snapshot stale, pool space |
+| ZFS storage & snapshots | `infrastructure/storage.nix` | Pool degraded, snapshot age (24hr/48hr), pool space, preseed failures |
+| ZFS replication | `infrastructure/storage.nix` | Replication lag, stale, never-run, syncoid failures |
+| Restic backups | `infrastructure/backup.nix` | Backup errors, zfs-holds-stale (Restic cleanup) |
 | Container health | `infrastructure/containerization.nix` | Health check failed, high memory |
-| Backup/snapshot age | `infrastructure/alerts.nix` | Snapshot too old, stale holds |
 | Infrastructure services | With service | `observability/prometheus.nix` → prometheus-down alert |
 | Application services | With service | `services/sonarr.nix` → sonarr-service-down alert |
+
+**Key Principle**: Configuration and monitoring are co-located. For example, `storage.nix` defines both the Sanoid/Syncoid configuration AND all the alerts that monitor ZFS health, snapshots, and replication.
 
 ## Finding Configuration
 
 ### "Where is X configured?"
 
 - **System health monitoring?** → `core/monitoring.nix`
-- **ZFS datasets and alerts?** → `infrastructure/storage.nix`
+- **ZFS datasets, snapshots, replication + alerts?** → `infrastructure/storage.nix` (complete ZFS lifecycle)
+- **Restic backups + alerts?** → `infrastructure/backup.nix`
 - **Container networking?** → `infrastructure/containerization.nix`
 - **Notifications (Pushover)?** → `infrastructure/notifications.nix`
+- **Alertmanager routing/receivers?** → `infrastructure/observability/alertmanager.nix`
 - **Service X's config?** → `services/X.nix`
 - **Service X's alerts?** → `services/X.nix` (co-located with service)
 - **Service X's storage?** → `services/X.nix` (contributes to `modules.storage.datasets`)
@@ -180,15 +184,18 @@ This makes the host's capabilities immediately visible without scrolling through
 ## Metrics
 
 - **Original**: 3,168 lines in `default.nix`
-- **Current**: 140 lines in `default.nix` (95.6% reduction)
+- **Current**: 139 lines in `default.nix` (95.6% reduction)
 - **Extracted**:
-  - `core/monitoring.nix`: 117 lines
-  - `infrastructure/storage.nix`: 337 lines (includes ZFS alerts)
-  - `infrastructure/alerts.nix`: 74 lines (backup/snapshot age)
-  - `infrastructure/containerization.nix`: 55 lines (includes container alerts)
-  - `infrastructure/notifications.nix`: 30 lines
-  - `infrastructure/reverse-proxy.nix`: 80 lines
-  - `core/system-services.nix`: 74 lines
+  - `core/monitoring.nix`: 117 lines (system health alerts)
+  - `core/system-services.nix`: 74 lines (rsyslogd, journald)
+  - `infrastructure/storage.nix`: 538 lines (complete ZFS lifecycle: datasets, Sanoid, Syncoid, 18 alerts)
+  - `infrastructure/backup.nix`: 207 lines (Restic backups, zfs-holds-stale alert)
+  - `infrastructure/containerization.nix`: 55 lines (Podman + container alerts)
+  - `infrastructure/notifications.nix`: 30 lines (Pushover, system notifications)
+  - `infrastructure/reverse-proxy.nix`: 80 lines (Caddy)
+  - `infrastructure/observability/alertmanager.nix`: 49 lines (alert routing + receivers)
+
+**Key Achievement**: Perfect co-location of configuration and monitoring throughout the architecture.
 
 ## Maintenance
 
@@ -208,8 +215,10 @@ Consolidate files if they are **always modified together** in the same commit. I
 ### Enforcing the pattern
 
 In code reviews, verify:
-- Services contribute their own alerts (not in central files)
-- ZFS-related config stays in `storage.nix`
+- Services contribute their own alerts (not in central alert files)
+- ZFS lifecycle (datasets, snapshots, replication, monitoring) stays in `storage.nix`
+- Backup tool monitoring (Restic) stays in `backup.nix`
+- Configuration and monitoring are co-located
 - Core OS concerns stay in `core/`
 - Infrastructure provides platforms, not applications
 
