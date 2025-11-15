@@ -20,6 +20,11 @@
       userSecret = "pushover/user-key";
     };
 
+    # Dead man's switch - Healthchecks.io receiver for Watchdog alert
+    receivers.healthchecks = {
+      urlSecret = "monitoring/healthchecks-url";
+    };
+
     # Alert rules are defined co-located with services via modules.alerting.rules
     # This keeps them modular and DRY
     # Example: modules.alerting.rules."sonarr-failure" = { type = "event"; ... };

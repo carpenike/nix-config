@@ -26,10 +26,5 @@
       boot.enable = true;
       shutdown.enable = true;
     };
-
-    # Dead man's switch configuration for monitoring system health
-    alerting.receivers.healthchecks = {
-      urlSecret = "monitoring/healthchecks-url";
-    };
   };
 }

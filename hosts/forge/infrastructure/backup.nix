@@ -379,6 +379,24 @@
           command = "ls -lh /var/lib/node_exporter/textfile_collector/{{ $labels.file }} && systemctl list-timers --all | grep syncoid";
         };
       };
+
+      # ZFS Holds Stale Detection (Restic cleanup monitoring)
+      # Co-located with backup logic since it monitors backup tool behavior (Restic hold cleanup)
+      "zfs-holds-stale" = {
+        type = "promql";
+        alertname = "ZFSHoldsStale";
+        expr = ''
+          count(zfs_hold_age_seconds > 21600) by (hostname) > 3
+        '';
+        for = "2h";
+        severity = "medium";
+        labels = { category = "backup"; service = "restic"; };
+        annotations = {
+          summary = "Stale ZFS holds detected on {{ $labels.hostname }}";
+          description = "More than 3 ZFS holds on '{{ $labels.hostname }}' are older than 6 hours. This may indicate Restic backup cleanup issues.";
+          command = "zfs holds -H | awk '{print $1, $2}' | sort";
+        };
+      };
     };
   };
 }

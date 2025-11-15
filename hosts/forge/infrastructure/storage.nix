@@ -241,21 +241,6 @@
       };
     };
 
-    # ZFS snapshot age violations
-    "zfs-snapshot-stale" = {
-      type = "promql";
-      alertname = "ZFSSnapshotStale";
-      expr = "(time() - zfs_snapshot_latest_timestamp{dataset!=\"\"}) > 3600";
-      for = "30m";
-      severity = "high";
-      labels = { service = "zfs"; category = "backup"; };
-      annotations = {
-        summary = "ZFS snapshots are stale for {{ $labels.dataset }} on {{ $labels.instance }}";
-        description = "Last snapshot was {{ $value | humanizeDuration }} ago. Check sanoid service.";
-        command = "systemctl status sanoid.service && journalctl -u sanoid.service --since '2 hours ago'";
-      };
-    };
-
     # ZFS snapshot count too low
     "zfs-snapshot-count-low" = {
       type = "promql";
@@ -363,22 +348,6 @@
         summary = "ZFS snapshot on {{ $labels.hostname }}:{{ $labels.name }} is critically old (>48 hours)";
         description = "The latest snapshot for dataset '{{ $labels.name }}' on '{{ $labels.hostname }}' is {{ $value | humanizeDuration }} old. Backup system may be failing.";
         command = "zfs list -t snapshot -o name,creation -s creation {{ $labels.name }}";
-      };
-    };
-
-    # ZFS Holds Stale Detection (Restic cleanup monitoring)
-    zfs-holds-stale = {
-      alertname = "zfs-holds-stale";
-      expr = ''
-        count(zfs_hold_age_seconds > 21600) by (hostname) > 3
-      '';
-      for = "2h";
-      severity = "medium";
-      labels = { category = "storage"; };
-      annotations = {
-        summary = "Stale ZFS holds detected on {{ $labels.hostname }}";
-        description = "More than 3 ZFS holds on '{{ $labels.hostname }}' are older than 6 hours. This may indicate Restic backup cleanup issues.";
-        command = "zfs holds -H | awk '{print $1, $2}' | sort";
       };
     };
   };
