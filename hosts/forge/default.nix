@@ -19,7 +19,6 @@
     ./core/system-services.nix      # System service configurations (rsyslog, journald)
 
     # Infrastructure (Cross-cutting operational concerns)
-    ./infrastructure/alerts.nix       # Infrastructure monitoring alerts
     ./infrastructure/backup.nix
     ./infrastructure/containerization.nix  # Podman container networking
     ./infrastructure/notifications.nix     # Notification system (Pushover, system events)

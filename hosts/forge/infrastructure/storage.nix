@@ -333,5 +333,53 @@
         command = "zpool status";
       };
     };
+
+    # ZFS Snapshot Age Monitoring (24hr threshold)
+    zfs-snapshot-too-old = {
+      alertname = "zfs-snapshot-too-old";
+      expr = ''
+        zfs_latest_snapshot_age_seconds > 86400
+      '';
+      for = "30m";
+      severity = "high";
+      labels = { category = "storage"; };
+      annotations = {
+        summary = "ZFS snapshot on {{ $labels.hostname }}:{{ $labels.name }} is older than 24 hours";
+        description = "The latest snapshot for dataset '{{ $labels.name }}' on '{{ $labels.hostname }}' is {{ $value | humanizeDuration }} old. Expected daily snapshots.";
+        command = "zfs list -t snapshot -o name,creation -s creation {{ $labels.name }}";
+      };
+    };
+
+    # ZFS Snapshot Age Critical (48hr threshold)
+    zfs-snapshot-critical = {
+      alertname = "zfs-snapshot-critical";
+      expr = ''
+        zfs_latest_snapshot_age_seconds > 172800
+      '';
+      for = "1h";
+      severity = "critical";
+      labels = { category = "storage"; };
+      annotations = {
+        summary = "ZFS snapshot on {{ $labels.hostname }}:{{ $labels.name }} is critically old (>48 hours)";
+        description = "The latest snapshot for dataset '{{ $labels.name }}' on '{{ $labels.hostname }}' is {{ $value | humanizeDuration }} old. Backup system may be failing.";
+        command = "zfs list -t snapshot -o name,creation -s creation {{ $labels.name }}";
+      };
+    };
+
+    # ZFS Holds Stale Detection (Restic cleanup monitoring)
+    zfs-holds-stale = {
+      alertname = "zfs-holds-stale";
+      expr = ''
+        count(zfs_hold_age_seconds > 21600) by (hostname) > 3
+      '';
+      for = "2h";
+      severity = "medium";
+      labels = { category = "storage"; };
+      annotations = {
+        summary = "Stale ZFS holds detected on {{ $labels.hostname }}";
+        description = "More than 3 ZFS holds on '{{ $labels.hostname }}' are older than 6 hours. This may indicate Restic backup cleanup issues.";
+        command = "zfs holds -H | awk '{print $1, $2}' | sort";
+      };
+    };
   };
 }
