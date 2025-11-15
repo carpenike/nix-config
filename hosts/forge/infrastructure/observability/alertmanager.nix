@@ -25,6 +25,20 @@
     # Example: modules.alerting.rules."sonarr-failure" = { type = "event"; ... };
   };
 
+  # Alertmanager self-monitoring alert
+  modules.alerting.rules."alertmanager-down" = {
+    type = "promql";
+    alertname = "AlertmanagerDown";
+    expr = "up{job=\"alertmanager\"} == 0";
+    for = "5m";
+    severity = "high";
+    labels = { service = "monitoring"; category = "alertmanager"; };
+    annotations = {
+      summary = "Alertmanager is down on {{ $labels.instance }}";
+      description = "Alert delivery system is not functioning. Check alertmanager.service status.";
+    };
+  };
+
   # Note: Prometheus configuration has been moved to monitoring.nix
   # This file only handles Alertmanager (notification routing/delivery)
 }

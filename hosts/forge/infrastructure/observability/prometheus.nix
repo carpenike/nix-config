@@ -943,6 +943,20 @@ in
   # Infrastructure-level alerts (GPU, ZFS, TLS, containers, etc.) remain here as they are
   # host/platform concerns rather than application-specific.
 
+  # Prometheus self-monitoring alert
+  modules.alerting.rules."prometheus-down" = {
+    type = "promql";
+    alertname = "PrometheusDown";
+    expr = "up{job=\"prometheus\"} == 0";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "monitoring"; category = "prometheus"; };
+    annotations = {
+      summary = "Prometheus is down on {{ $labels.instance }}";
+      description = "Monitoring system is not functioning. Check prometheus.service status.";
+    };
+  };
+
   # Ensure node-exporter can access /dev/dri and systemd journal for TLS monitoring
   users.users.node-exporter.extraGroups = [ "render" "systemd-journal" "caddy" ];
 }

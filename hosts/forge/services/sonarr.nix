@@ -82,5 +82,23 @@
         targetLocation = "nas-1";
       };
     };
+
+    # Service-specific monitoring alerts
+    # Contributes to host-level alerting configuration following the contribution pattern
+    modules.alerting.rules."sonarr-service-down" = {
+      type = "promql";
+      alertname = "SonarrServiceDown";
+      expr = ''
+        container_service_active{service="sonarr"} == 0
+      '';
+      for = "2m";
+      severity = "high";
+      labels = { service = "sonarr"; category = "container"; };
+      annotations = {
+        summary = "Sonarr service is down on {{ $labels.instance }}";
+        description = "TV series management service is not running. Check: systemctl status podman-sonarr.service";
+        command = "systemctl status podman-sonarr.service && journalctl -u podman-sonarr.service --since '30m'";
+      };
+    };
   };
 }

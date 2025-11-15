@@ -207,33 +207,8 @@
             };
           };
 
-          # Prometheus self-monitoring
-          "prometheus-down" = {
-            type = "promql";
-            alertname = "PrometheusDown";
-            expr = "up{job=\"prometheus\"} == 0";
-            for = "5m";
-            severity = "critical";
-            labels = { service = "monitoring"; category = "prometheus"; };
-            annotations = {
-              summary = "Prometheus is down on {{ $labels.instance }}";
-              description = "Monitoring system is not functioning. Check prometheus.service status.";
-            };
-          };
-
-          # Alertmanager down
-          "alertmanager-down" = {
-            type = "promql";
-            alertname = "AlertmanagerDown";
-            expr = "up{job=\"alertmanager\"} == 0";
-            for = "5m";
-            severity = "high";
-            labels = { service = "monitoring"; category = "alertmanager"; };
-            annotations = {
-              summary = "Alertmanager is down on {{ $labels.instance }}";
-              description = "Alert delivery system is not functioning. Check alertmanager.service status.";
-            };
-          };
+          # Observability service alerts (prometheus-down, alertmanager-down) are now
+          # co-located with their respective service files following the contribution pattern
 
           # Dead Man's Switch / Watchdog
           # This alert always fires to test the entire monitoring pipeline
@@ -329,73 +304,8 @@
             };
           };
 
-          # Dispatcharr container service down
-          "dispatcharr-service-down" = {
-            type = "promql";
-            alertname = "DispatcharrServiceDown";
-            expr = ''
-              container_service_active{service="dispatcharr"} == 0
-            '';
-            for = "2m";
-            severity = "high";
-            labels = { service = "dispatcharr"; category = "container"; };
-            annotations = {
-              summary = "Dispatcharr service is down on {{ $labels.instance }}";
-              description = "IPTV stream management service is not running. Check: systemctl status podman-dispatcharr.service";
-              command = "systemctl status podman-dispatcharr.service && journalctl -u podman-dispatcharr.service --since '30m'";
-            };
-          };
-
-          # Sonarr container service down
-          "sonarr-service-down" = {
-            type = "promql";
-            alertname = "SonarrServiceDown";
-            expr = ''
-              container_service_active{service="sonarr"} == 0
-            '';
-            for = "2m";
-            severity = "high";
-            labels = { service = "sonarr"; category = "container"; };
-            annotations = {
-              summary = "Sonarr service is down on {{ $labels.instance }}";
-              description = "TV series management service is not running. Check: systemctl status podman-sonarr.service";
-              command = "systemctl status podman-sonarr.service && journalctl -u podman-sonarr.service --since '30m'";
-            };
-          };
-
-          # qBittorrent container service down
-          "qbittorrent-service-down" = {
-            type = "promql";
-            alertname = "QbittorrentServiceDown";
-            expr = ''
-              container_service_active{service="qbittorrent"} == 0
-            '';
-            for = "2m";
-            severity = "high";
-            labels = { service = "qbittorrent"; category = "container"; };
-            annotations = {
-              summary = "qBittorrent service is down on {{ $labels.instance }}";
-              description = "Torrent download client is not running. Check: systemctl status podman-qbittorrent.service";
-              command = "systemctl status podman-qbittorrent.service && journalctl -u podman-qbittorrent.service --since '30m'";
-            };
-          };
-
-          # SABnzbd container service down
-          "sabnzbd-service-down" = {
-            type = "promql";
-            alertname = "SabnzbdServiceDown";
-            expr = ''
-              container_service_active{service="sabnzbd"} == 0
-            '';
-            for = "2m";
-            severity = "high";
-            labels = { service = "sabnzbd"; category = "container"; };
-            annotations = {
-              summary = "SABnzbd service is down on {{ $labels.instance }}";
-              description = "Usenet download client is not running. Check: systemctl status podman-sabnzbd.service";
-              command = "systemctl status podman-sabnzbd.service && journalctl -u podman-sabnzbd.service --since '30m'";
-            };
-          };
+          # Service-specific alerts (dispatcharr, sonarr, qbittorrent, sabnzbd) are now
+          # co-located with their respective service files following the contribution pattern
 
           # Container health check failures
           "container-health-check-failed" = {

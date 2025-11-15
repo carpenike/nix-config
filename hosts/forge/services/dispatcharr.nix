@@ -106,6 +106,24 @@ in
       targetLocation = "nas-1";
     };
   };
+
+  # Service-specific monitoring alerts
+  # Contributes to host-level alerting configuration following the contribution pattern
+  modules.alerting.rules."dispatcharr-service-down" = {
+    type = "promql";
+    alertname = "DispatcharrServiceDown";
+    expr = ''
+      container_service_active{service="dispatcharr"} == 0
+    '';
+    for = "2m";
+    severity = "high";
+    labels = { service = "dispatcharr"; category = "container"; };
+    annotations = {
+      summary = "Dispatcharr service is down on {{ $labels.instance }}";
+      description = "IPTV stream management service is not running. Check: systemctl status podman-dispatcharr.service";
+      command = "systemctl status podman-dispatcharr.service && journalctl -u podman-dispatcharr.service --since '30m'";
+    };
+  };
   }
 
   # If the dispatcharr container/service runs locally as a podman/docker unit,

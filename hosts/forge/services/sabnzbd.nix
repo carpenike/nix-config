@@ -107,5 +107,23 @@
         targetLocation = "nas-1";
       };
     };
+
+    # Service-specific monitoring alerts
+    # Contributes to host-level alerting configuration following the contribution pattern
+    modules.alerting.rules."sabnzbd-service-down" = {
+      type = "promql";
+      alertname = "SabnzbdServiceDown";
+      expr = ''
+        container_service_active{service="sabnzbd"} == 0
+      '';
+      for = "2m";
+      severity = "high";
+      labels = { service = "sabnzbd"; category = "container"; };
+      annotations = {
+        summary = "SABnzbd service is down on {{ $labels.instance }}";
+        description = "Usenet download client is not running. Check: systemctl status podman-sabnzbd.service";
+        command = "systemctl status podman-sabnzbd.service && journalctl -u podman-sabnzbd.service --since '30m'";
+      };
+    };
   };
 }

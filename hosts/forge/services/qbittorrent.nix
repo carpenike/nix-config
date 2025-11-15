@@ -87,5 +87,23 @@
         targetLocation = "nas-1";
       };
     };
+
+    # Service-specific monitoring alerts
+    # Contributes to host-level alerting configuration following the contribution pattern
+    modules.alerting.rules."qbittorrent-service-down" = {
+      type = "promql";
+      alertname = "QbittorrentServiceDown";
+      expr = ''
+        container_service_active{service="qbittorrent"} == 0
+      '';
+      for = "2m";
+      severity = "high";
+      labels = { service = "qbittorrent"; category = "container"; };
+      annotations = {
+        summary = "qBittorrent service is down on {{ $labels.instance }}";
+        description = "Torrent download client is not running. Check: systemctl status podman-qbittorrent.service";
+        command = "systemctl status podman-qbittorrent.service && journalctl -u podman-qbittorrent.service --since '30m'";
+      };
+    };
   };
 }
