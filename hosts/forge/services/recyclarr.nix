@@ -81,4 +81,19 @@
       passwordFile = config.sops.secrets."restic/password".path;
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."recyclarr-service-down" = {
+    type = "promql";
+    alertname = "RecyclarrServiceInactive";
+    expr = "container_service_active{name=\"recyclarr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "recyclarr"; category = "availability"; };
+    annotations = {
+      summary = "Recyclarr service is down on {{ $labels.instance }}";
+      description = "The Recyclarr TRaSH guide automation service is not active.";
+      command = "systemctl status podman-recyclarr.service";
+    };
+  };
 }

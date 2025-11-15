@@ -65,4 +65,19 @@
       };
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."autobrr-service-down" = {
+    type = "promql";
+    alertname = "AutobrrServiceInactive";
+    expr = "container_service_active{name=\"autobrr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "autobrr"; category = "availability"; };
+    annotations = {
+      summary = "Autobrr service is down on {{ $labels.instance }}";
+      description = "The Autobrr IRC announce bot service is not active.";
+      command = "systemctl status podman-autobrr.service";
+    };
+  };
 }

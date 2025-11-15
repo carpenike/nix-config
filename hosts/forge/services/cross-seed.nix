@@ -10,9 +10,8 @@
     modules.services.cross-seed = {
       enable = true;
 
-      # Hybrid mode: APIs for metadata, filesystem for hardlinking
-      # nfsMountDependency required - cross-seed needs write access for hardlink creation
-      nfsMountDependency = "media";
+      # Pure API mode: inject torrents directly via qBittorrent API
+      # No NFS mount needed - all operations via API
       podmanNetwork = "media-services";
       healthcheck.enable = true;
 
@@ -43,14 +42,15 @@
         sonarr = [ "http://sonarr:8989?apikey={{SONARR_API_KEY}}" ];
         radarr = [ "http://radarr:7878?apikey={{RADARR_API_KEY}}" ];
 
-        # Hybrid mode: API for metadata, filesystem for hardlinking
+        # Pure API mode: inject torrents directly via qBittorrent API
+        # No filesystem paths needed - cross-seed uses API for everything
         dataDirs = [];
-        linkDirs = [ "/data/qb/downloads" ];
+        linkDirs = [];
 
         # Match mode - "safe" prevents false positives
         matchMode = "safe";
 
-        # Output directory - null for action=inject
+        # Output directory - null for action=inject (API mode)
         outputDir = null;
 
         # qBittorrent client configuration for inject mode
@@ -122,6 +122,21 @@
         # Consistent naming for Prometheus metrics
         targetName = "NFS";
         targetLocation = "nas-1";
+      };
+    };
+
+    # Co-located Service Monitoring
+    modules.alerting.rules."cross-seed-service-down" = {
+      type = "promql";
+      alertname = "CrossSeedServiceInactive";
+      expr = "container_service_active{name=\"cross-seed\"} == 0";
+      for = "2m";
+      severity = "high";
+      labels = { service = "cross-seed"; category = "availability"; };
+      annotations = {
+        summary = "cross-seed service is down on {{ $labels.instance }}";
+        description = "The cross-seed automation service is not active.";
+        command = "systemctl status podman-cross-seed.service";
       };
     };
   };

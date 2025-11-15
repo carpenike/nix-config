@@ -165,5 +165,20 @@ in
     # Note: Backup integration now handled by backup-integration module
     # The backup submodule configuration will be auto-discovered and converted
     # to a Restic job named "service-qui" with the specified settings
+
+    # Co-located Service Monitoring
+    modules.alerting.rules."qui-service-down" = {
+      type = "promql";
+      alertname = "QuiServiceInactive";
+      expr = "container_service_active{name=\"qui\"} == 0";
+      for = "2m";
+      severity = "high";
+      labels = { service = "qui"; category = "availability"; };
+      annotations = {
+        summary = "qui service is down on {{ $labels.instance }}";
+        description = "The qui qBittorrent web interface service is not active.";
+        command = "systemctl status podman-qui.service";
+      };
+    };
   };
 }

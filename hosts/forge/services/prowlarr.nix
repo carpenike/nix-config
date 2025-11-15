@@ -55,4 +55,19 @@
       passwordFile = config.sops.secrets."restic/password".path;
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."prowlarr-service-down" = {
+    type = "promql";
+    alertname = "ProwlarrServiceInactive";
+    expr = "container_service_active{name=\"prowlarr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "prowlarr"; category = "availability"; };
+    annotations = {
+      summary = "Prowlarr service is down on {{ $labels.instance }}";
+      description = "The Prowlarr indexer manager service is not active.";
+      command = "systemctl status podman-prowlarr.service";
+    };
+  };
 }

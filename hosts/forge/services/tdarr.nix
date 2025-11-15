@@ -55,4 +55,19 @@
       };
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."tdarr-service-down" = {
+    type = "promql";
+    alertname = "TdarrServiceInactive";
+    expr = "container_service_active{name=\"tdarr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "tdarr"; category = "availability"; };
+    annotations = {
+      summary = "Tdarr service is down on {{ $labels.instance }}";
+      description = "The Tdarr transcoding automation service is not active.";
+      command = "systemctl status podman-tdarr.service";
+    };
+  };
 }

@@ -73,4 +73,19 @@
       passwordFile = config.sops.secrets."restic/password".path;
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."bazarr-service-down" = {
+    type = "promql";
+    alertname = "BazarrServiceInactive";
+    expr = "container_service_active{name=\"bazarr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "bazarr"; category = "availability"; };
+    annotations = {
+      summary = "Bazarr service is down on {{ $labels.instance }}";
+      description = "The Bazarr subtitle manager service is not active.";
+      command = "systemctl status podman-bazarr.service";
+    };
+  };
 }

@@ -583,6 +583,10 @@ in
           Restart = "always";
           RestartSec = "10s";
         };
+        # Ensure SOPS secrets are available before qui starts
+        # Prevents crash-loop when /run/qui-env doesn't exist yet
+        requires = [ "sops-nix.service" ];
+        after = [ "sops-nix.service" ];
       }
       (lib.mkIf (cfg.podmanNetwork != null) {
         requires = [ "podman-network-${cfg.podmanNetwork}.service" ];

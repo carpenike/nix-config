@@ -37,4 +37,19 @@
   #     tunnel = "forge";
   #   };
   # };
+
+  # Co-located Service Monitoring
+  modules.alerting.rules."cloudflare-tunnel-service-down" = {
+    type = "promql";
+    alertname = "CloudflareTunnelServiceInactive";
+    expr = "container_service_active{name=\"cloudflared\"} == 0";
+    for = "2m";
+    severity = "critical"; # Critical - external access gateway
+    labels = { service = "cloudflare-tunnel"; category = "availability"; };
+    annotations = {
+      summary = "Cloudflare Tunnel service is down on {{ $labels.instance }}";
+      description = "The Cloudflare Tunnel service is not active. External access to homelab services is unavailable.";
+      command = "systemctl status cloudflared-tunnel-forge.service";
+    };
+  };
 }

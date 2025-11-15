@@ -56,4 +56,19 @@
       passwordFile = config.sops.secrets."restic/password".path;
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."radarr-service-down" = {
+    type = "promql";
+    alertname = "RadarrServiceInactive";
+    expr = "container_service_active{name=\"radarr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "radarr"; category = "availability"; };
+    annotations = {
+      summary = "Radarr service is down on {{ $labels.instance }}";
+      description = "The Radarr movie management service is not active.";
+      command = "systemctl status podman-radarr.service";
+    };
+  };
 }

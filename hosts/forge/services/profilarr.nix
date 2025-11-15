@@ -25,4 +25,19 @@
       };
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."profilarr-service-down" = {
+    type = "promql";
+    alertname = "ProfilarrServiceInactive";
+    expr = "container_service_active{name=\"profilarr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "profilarr"; category = "availability"; };
+    annotations = {
+      summary = "Profilarr service is down on {{ $labels.instance }}";
+      description = "The Profilarr profile sync service is not active.";
+      command = "systemctl status podman-profilarr.service";
+    };
+  };
 }

@@ -2,37 +2,33 @@
 
 # Forge Backup Configuration
 #
-# PostgreSQL backups are handled by pgBackRest (see postgresql.nix and default.nix)
+# BACKUP STRATEGY OVERVIEW
+# ========================
+#
+# PostgreSQL (Database backups - pgBackRest only, NOT Restic):
+# -----------------------------------------------------------
+# Handled by pgBackRest with dual-repository strategy (see postgresql.nix and default.nix)
 # - Application-consistent backups with Point-in-Time Recovery (PITR)
-# - Dual-repository with full PITR on both: Local NFS (repo1) + Offsite R2 (repo2)
-# - Integrated with monitoring and Prometheus metrics
+# - repo1 (NFS): 7-day retention, full PITR, primary recovery source
+# - repo2 (Cloudflare R2): 30-day retention, full PITR, disaster recovery
+# - Continuous WAL archiving to both repositories
 # - Archive-async with local spool for high availability
+# - Integrated monitoring with Prometheus metrics
 #
-# PostgreSQL Backup Strategy:
-# - pgBackRest repo1 (NFS): Full/incr backups + continuous WAL archiving
-#   * 7-day retention
-#   * Full PITR capability
-#   * Primary recovery source (fastest)
+# Recovery: See /Users/ryan/src/nix-config/docs/postgresql-pitr-guide.md
+# Important: pgBackRest handles ALL PostgreSQL backup/restore - no Restic involvement
 #
-# - pgBackRest repo2 (Cloudflare R2): Full/incr backups + continuous WAL archiving
-#   * 30-day retention
-#   * Full PITR capability
-#   * Geographic redundancy for disaster recovery
-#   * Cost-effective (R2 has zero egress fees)
+# Non-Database Services (This file - Restic backups):
+# ----------------------------------------------------
+# This file configures Restic backups for system state and service configurations:
+# - System state: /home, /persist
+# - Service configurations and application data
+# - Documentation and scripts
+# - ZFS snapshots: Service data only (tank/services - PostgreSQL PGDATA excluded)
+# - ZFS replication: Service data to nas-1 every 15 minutes (excludes PostgreSQL)
 #
-# - ZFS snapshots: Service data only (tank/services excluding PostgreSQL PGDATA)
-# - ZFS replication: Service data to nas-1 every 15 minutes (configured in default.nix, excludes PostgreSQL)
-#
-# This file manages Restic backups for non-database services:
-# - System state (/home, /persist)
-# - Service configurations
-# - Documentation
-#
-# PostgreSQL Recovery Process:
-# PostgreSQL backups are now handled entirely by pgBackRest (not Restic)
-# For recovery procedures, see: /Users/ryan/src/nix-config/docs/postgresql-pitr-guide.md
-# WAL archive is managed by pgBackRest at: /mnt/nas-postgresql/pgbackrest/archive/
-# No separate WAL restoration needed - pgBackRest handles this automatically
+# Repository: Cloudflare R2 bucket "nix-homelab-backups"
+# Credentials: Configured via config.my.r2.* (centralized in default.nix)
 #
 # Setup Requirements:
 # 1. Create Cloudflare R2 bucket: "nix-homelab-backups"

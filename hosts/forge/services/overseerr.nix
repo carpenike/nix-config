@@ -31,4 +31,19 @@
       };
     };
   };
+
+  # Co-located Service Monitoring
+  config.modules.alerting.rules."overseerr-service-down" = {
+    type = "promql";
+    alertname = "OverseerrServiceInactive";
+    expr = "container_service_active{name=\"overseerr\"} == 0";
+    for = "2m";
+    severity = "high";
+    labels = { service = "overseerr"; category = "availability"; };
+    annotations = {
+      summary = "Overseerr service is down on {{ $labels.instance }}";
+      description = "The Overseerr request management service is not active.";
+      command = "systemctl status podman-overseerr.service";
+    };
+  };
 }
