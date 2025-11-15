@@ -625,93 +625,12 @@ EOF
   # General ZFS snapshot metrics exporter for all backup datasets
   # Monitors all datasets from backup.zfs.pools configuration
   # Provides comprehensive snapshot health metrics for Prometheus
-  systemd.services.zfs-snapshot-metrics =
-    let
-      # Dynamically generate dataset list from backup.zfs.pools configuration
-      # This ensures metrics stay in sync with backup configuration
-      allDatasets = lib.flatten (
-        map (pool:
-          map (dataset: "${pool.pool}/${dataset}") pool.datasets
-        ) config.modules.backup.zfs.pools
-      );
-      # Convert to bash array format
-      datasetsArray = lib.concatMapStrings (ds: ''"${ds}" '') allDatasets;
-    in
-    {
-      description = "Export ZFS snapshot metrics for all backup datasets";
-      serviceConfig = {
-        Type = "oneshot";
-        User = "root";
-      };
-      script = ''
-        set -euo pipefail
-
-        METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs_snapshots.prom"
-        METRICS_TEMP="$METRICS_FILE.tmp"
-
-        # Start metrics file
-        cat > "$METRICS_TEMP" <<'HEADER'
-# HELP zfs_snapshot_count Number of snapshots per dataset
-# TYPE zfs_snapshot_count gauge
-HEADER
-
-        # Datasets to monitor (dynamically generated from backup.nix)
-        DATASETS=(${datasetsArray})
-
-        # Count snapshots per dataset
-        for dataset in "''${DATASETS[@]}"; do
-          SNAPSHOT_COUNT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name | ${pkgs.gnugrep}/bin/grep -c "^$dataset@" || echo 0)
-          echo "zfs_snapshot_count{dataset=\"$dataset\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
-        done
-
-        # Add latest snapshot age metrics (using locale-safe Unix timestamps)
-        cat >> "$METRICS_TEMP" <<'HEADER2'
-
-# HELP zfs_snapshot_latest_timestamp Creation time of most recent snapshot per dataset (Unix timestamp)
-# TYPE zfs_snapshot_latest_timestamp gauge
-HEADER2
-
-        for dataset in "''${DATASETS[@]}"; do
-          # Get most recent snapshot name
-          LATEST_SNAPSHOT=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name -s creation "$dataset" 2>/dev/null | tail -n 1 || echo "")
-          if [ -n "$LATEST_SNAPSHOT" ]; then
-            # Get creation time as Unix timestamp (locale-safe, uses -p for parseable output)
-            LATEST_TIMESTAMP=$(${pkgs.zfs}/bin/zfs get -H -p -o value creation "$LATEST_SNAPSHOT" 2>/dev/null || echo 0)
-            echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
-          fi
-        done
-
-        # Add total space used by all snapshots per dataset
-        cat >> "$METRICS_TEMP" <<'HEADER3'
-
-# HELP zfs_snapshot_total_used_bytes Total space used by all snapshots for a dataset
-# TYPE zfs_snapshot_total_used_bytes gauge
-HEADER3
-
-        for dataset in "''${DATASETS[@]}"; do
-          TOTAL_USED=$(${pkgs.zfs}/bin/zfs list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | ${pkgs.gawk}/bin/awk '{sum+=$1} END {print sum}' || echo 0)
-          echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\"} $TOTAL_USED" >> "$METRICS_TEMP"
-        done
-
-        mv "$METRICS_TEMP" "$METRICS_FILE"
-      '';
-      after = [ "zfs-mount.service" ];
-      wants = [ "zfs-mount.service" ];
-    };
-
-  systemd.timers.zfs-snapshot-metrics = {
-    description = "Collect ZFS snapshot metrics every 5 minutes";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      # Run 1 minute after snapshots (avoids race condition with pg-zfs-snapshot)
-      OnCalendar = "*:1/5";
-      Persistent = true;
-    };
-  };
-
   # =============================================================================
   # pgBackRest Monitoring Metrics (REVISED)
   # =============================================================================
+  # NOTE: ZFS snapshot metrics have been moved to infrastructure/storage.nix
+  # for proper co-location (ZFS snapshot monitoring belongs with ZFS lifecycle management)
+
   systemd.services.pgbackrest-metrics = {
     description = "Collect pgBackRest backup metrics for Prometheus";
     path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest ];

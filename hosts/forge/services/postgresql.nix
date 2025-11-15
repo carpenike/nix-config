@@ -163,6 +163,9 @@
       '';
     };
 
+    # NOTE: postgresql-readiness-wait.service is provided by hosts/_modules/nixos/services/postgresql
+    # It polls pg_isready until the database is ready, used by pgbackrest-stanza-create
+
     # Automatic restore from backup on server rebuild (disaster recovery)
     # This enables automatic PostgreSQL restore when PGDATA is empty (e.g., fresh install, hardware migration)
     # Uses the standard NixOS services.postgresql namespace (not modules.services.postgresql)
