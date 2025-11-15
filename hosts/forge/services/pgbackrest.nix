@@ -841,4 +841,149 @@ EOF
       RandomizedDelaySec = "2m";
     };
   };
+
+  # Co-located alert rules for pgBackRest
+  # Monitoring the pgBackRest backup service
+  # Moved from postgresql.nix for proper co-location (service monitors itself)
+  modules.alerting.rules = {
+    # Metrics scraping failure
+    "pgbackrest-metrics-scrape-failed" = {
+      type = "promql";
+      alertname = "PgBackRestMetricsScrapeFailure";
+      expr = "pgbackrest_scrape_success == 0";
+      for = "5m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "monitoring"; };
+      annotations = {
+        summary = "pgBackRest metrics collection failed on {{ $labels.instance }}";
+        description = "Unable to scrape pgBackRest metrics. Check pgbackrest-metrics.service logs.";
+      };
+    };
+
+    # Stanza unhealthy
+    "pgbackrest-stanza-unhealthy" = {
+      type = "promql";
+      alertname = "PgBackRestStanzaUnhealthy";
+      expr = "pgbackrest_stanza_status > 0";
+      for = "5m";
+      severity = "critical";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest stanza unhealthy on {{ $labels.instance }}";
+        description = "Stanza status code: {{ $value }}. Check pgBackRest configuration and logs.";
+      };
+    };
+
+    # Repository status error
+    "pgbackrest-repo-error" = {
+      type = "promql";
+      alertname = "PgBackRestRepositoryError";
+      expr = "pgbackrest_repo_status > 0";
+      for = "5m";
+      severity = "critical";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest repository error on {{ $labels.instance }}";
+        description = "Repository {{ $labels.repo_key }} status code: {{ $value }}. Verify NFS mount and R2 connectivity.";
+      };
+    };
+
+    # Backup job failure (immediate)
+    "pgbackrest-backup-failed" = {
+      type = "promql";
+      alertname = "PgBackRestBackupFailed";
+      expr = "increase(pgbackrest_backup_failed_total[1h]) > 0";
+      for = "0m";
+      severity = "critical";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest backup job failed on {{ $labels.instance }}";
+        description = "A pgBackRest backup job has failed within the last hour. Check pgBackRest logs for details.";
+      };
+    };
+
+    # Preseed restore failure (disaster recovery)
+    "postgresql-preseed-failed" = {
+      type = "promql";
+      alertname = "PostgreSQLPreseedFailed";
+      expr = "postgresql_preseed_status{stanza=\"main\"} == 0";
+      for = "0m";
+      severity = "critical";
+      labels = { service = "pgbackrest"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "PostgreSQL pre-seed restore failed on {{ $labels.instance }}";
+        description = "The automated restore process from backup failed during disaster recovery. Manual intervention is required to bring the database online. Check postgresql-preseed.service logs with: journalctl -u postgresql-preseed.service -xe";
+      };
+    };
+
+    # Post-preseed backup failure
+    "postgresql-post-preseed-backup-failed" = {
+      type = "promql";
+      alertname = "PostgreSQLPostPreseedBackupFailed";
+      expr = "postgresql_postpreseed_status{stanza=\"main\"} == 0";
+      for = "0m";
+      severity = "critical";
+      labels = { service = "pgbackrest"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "PostgreSQL post-preseed backup failed on {{ $labels.instance }}";
+        description = "The automated backup after a disaster recovery restore failed. The database is running but has no fresh baseline backup in one or both repositories. Check pgbackrest-post-preseed.service logs with: journalctl -u pgbackrest-post-preseed.service -xe";
+      };
+    };
+
+    # Full backup stale (>27 hours)
+    "pgbackrest-full-backup-stale" = {
+      type = "promql";
+      alertname = "PgBackRestFullBackupStale";
+      expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"}) > 97200";
+      for = "1h";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest full backup is stale (>27h) on {{ $labels.instance }}";
+        description = "Last full backup for repo {{ $labels.repo_key }} was {{ $value | humanizeDuration }} ago. Daily full backups should complete within 27 hours.";
+      };
+    };
+
+    # Incremental backup stale (>2 hours)
+    "pgbackrest-incremental-backup-stale" = {
+      type = "promql";
+      alertname = "PgBackRestIncrementalBackupStale";
+      expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"incr\"}) > 7200";
+      for = "30m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest incremental backup is stale (>2h) on {{ $labels.instance }}";
+        description = "Last incremental backup for repo {{ $labels.repo_key }} was {{ $value | humanizeDuration }} ago. Hourly incrementals should complete within 2 hours.";
+      };
+    };
+
+    # WAL archiving stalled (no progress in 15 minutes while database is active)
+    "pgbackrest-wal-archiving-stalled" = {
+      type = "promql";
+      alertname = "PgBackRestWALArchivingStalled";
+      expr = "rate(pgbackrest_wal_max_lsn[15m]) == 0 and rate(pg_stat_database_xact_commit[15m]) > 0";
+      for = "15m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest WAL archiving appears stalled on {{ $labels.instance }}";
+        description = "No WAL progress detected in 15 minutes despite active transactions. Check archive_command and NFS mount health.";
+      };
+    };
+
+    # Local spool usage high (archive-async backlog)
+    "pgbackrest-spool-usage-high" = {
+      type = "promql";
+      alertname = "PgBackRestSpoolUsageHigh";
+      expr = ''(node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} - node_filesystem_avail_bytes{mountpoint="/var/lib/pgbackrest"}) / node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} > 0.8'';
+      for = "10m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest spool usage high on {{ $labels.instance }}";
+        description = "Local spool >80% used ({{ $value | humanizePercentage }}). WAL archiving backlog likely. Check NFS repo1 health.";
+      };
+    };
+  };
 }

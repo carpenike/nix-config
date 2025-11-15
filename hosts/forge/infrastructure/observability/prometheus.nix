@@ -959,4 +959,32 @@ in
 
   # Ensure node-exporter can access /dev/dri and systemd journal for TLS monitoring
   users.users.node-exporter.extraGroups = [ "render" "systemd-journal" "caddy" ];
+
+  # Declare Prometheus storage dataset (contribution pattern)
+  # Multi-model consensus (GPT-5 + Gemini 2.5 Pro + Gemini 2.5 Flash): 8.7/10 confidence
+  # Verdict: Prometheus TSDB is correct tool; ZFS snapshots are excessive for disposable metrics
+  modules.storage.datasets.services.prometheus = {
+    recordsize = "128K";  # Aligned with Prometheus WAL segments and 2h block files
+    compression = "lz4";  # Minimal overhead; TSDB chunks already compressed
+    mountpoint = "/var/lib/prometheus2";
+    owner = "prometheus";
+    group = "prometheus";
+    mode = "0755";
+    properties = {
+      # Industry best practice: Do NOT snapshot Prometheus TSDB (metrics are disposable)
+      # Reasoning: 15-day retention doesn't justify 6-month snapshots; configs in Git, data replaceable
+      # CoW amplification during TSDB compaction significantly impacts performance under snapshots
+      "com.sun:auto-snapshot" = "false";  # Disable snapshots (was: true)
+      logbias = "throughput";  # Optimize for streaming writes, not low-latency sync
+      primarycache = "metadata";  # Avoid ARC pollution; Prometheus has its own caching
+      atime = "off";  # Reduce metadata writes on read-heavy query workloads
+    };
+  };
+
+  # Declare Prometheus Sanoid policy (no snapshots for disposable metrics)
+  modules.backup.sanoid.datasets."tank/services/prometheus" = {
+    autosnap = false;
+    autoprune = false;
+    recursive = false;
+  };
 }

@@ -46,4 +46,33 @@
 
   # Note: Prometheus configuration has been moved to monitoring.nix
   # This file only handles Alertmanager (notification routing/delivery)
+
+  # Declare Alertmanager storage dataset (contribution pattern)
+  # Rationale (GPT-5 validated):
+  # - Only stores silences and notification deduplication state
+  # - Homelab acceptable to lose silences on restart
+  # - Duplicate notifications after restart are tolerable
+  # - Dedicated dataset unnecessary for minimal administrative state
+  # Location: /var/lib/alertmanager on tank/services/alertmanager (not snapshotted)
+  modules.storage.datasets.services.alertmanager = {
+    recordsize = "16K";     # Small files; minimal overhead
+    compression = "lz4";    # Fast, default
+    mountpoint = "/var/lib/alertmanager";
+    owner = "alertmanager";
+    group = "alertmanager";
+    mode = "0750";
+    properties = {
+      "com.sun:auto-snapshot" = "false";  # Do not snapshot (non-critical state)
+      logbias = "throughput";
+      primarycache = "metadata";
+      atime = "off";
+    };
+  };
+
+  # Declare Alertmanager Sanoid policy (no snapshots for non-critical state)
+  modules.backup.sanoid.datasets."tank/services/alertmanager" = {
+    autosnap = false;
+    autoprune = false;
+    recursive = false;
+  };
 }

@@ -50,5 +50,22 @@
       targetLocation = "nas-1";
     };
   };
+
+  # Declare Loki storage dataset (contribution pattern)
+  # Optimized for log chunks and WAL files with appropriate compression
+  modules.storage.datasets.services.loki = {
+    recordsize = "1M";      # Optimized for log chunks (large sequential writes)
+    compression = "zstd";   # Better compression for text logs than lz4
+    mountpoint = "/var/lib/loki";
+    owner = "loki";
+    group = "loki";
+    mode = "0750";
+    properties = {
+      "com.sun:auto-snapshot" = "true";   # Enable snapshots for log retention
+      logbias = "throughput";             # Optimize for streaming log writes
+      atime = "off";                      # Reduce metadata overhead
+      primarycache = "metadata";          # Don't cache log data in ARC
+    };
+  };
   };
 }
