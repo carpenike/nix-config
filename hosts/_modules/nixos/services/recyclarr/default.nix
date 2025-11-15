@@ -1,3 +1,33 @@
+# Recyclarr Module - TRaSH Guides Automation for Sonarr/Radarr
+#
+# This module provides automated synchronization of TRaSH guides recommendations
+# to Sonarr and Radarr instances, including:
+# - Quality definitions (file size limits for quality levels)
+# - Quality profiles (upgrade rules and quality cutoffs)
+# - Custom formats (release group scoring, codecs, HDR formats, etc.)
+# - Media naming conventions (file and folder naming patterns)
+#
+# **Architecture**:
+# - Runs as scheduled systemd timer (not a long-running daemon)
+# - Uses Podman containers for isolation
+# - Secrets managed via SOPS with environment variable injection
+# - Supports multiple Sonarr/Radarr instances simultaneously
+#
+# **Configuration Levels** (from simple to advanced):
+# 1. Templates: Use TRaSH guide presets (recommended for most users)
+# 2. Custom Formats: Fine-tune individual format scores
+# 3. Quality Profiles: Full control over upgrade rules and thresholds
+#
+# **Best Practices**:
+# - Start with templates, add custom formats only when needed
+# - Enable deleteOldCustomFormats to prevent obsolete formats
+# - Run dry-run mode first to preview changes
+# - Use specific version tags for production (avoid 'latest')
+# - Schedule during low-traffic periods (default: daily at random time)
+#
+# **References**:
+# - TRaSH Guides: https://trash-guides.info/
+# - Recyclarr Documentation: https://recyclarr.dev/
 {
   lib,
   pkgs,
@@ -126,6 +156,24 @@ ${templates}${customFormats}${qualityProfiles}'';
   '';
 
   # Instance submodule definition (shared between sonarr and radarr)
+  #
+  # This module provides type-safe configuration for Recyclarr instances with three levels of control:
+  #
+  # 1. **Templates** (Recommended for most users):
+  #    - Use TRaSH guide presets for quality definitions, profiles, and custom formats
+  #    - Simple, maintainable, automatically updated with TRaSH guide changes
+  #    - Example: [ "sonarr-quality-definition-series" "sonarr-v4-quality-profile-web-1080p" ]
+  #
+  # 2. **Custom Formats** (Advanced):
+  #    - Fine-grained control over individual custom format scores
+  #    - Use when you need to deviate from TRaSH presets
+  #    - Requires TRaSH custom format IDs (found in TRaSH guides documentation)
+  #
+  # 3. **Quality Profiles** (Expert):
+  #    - Full control over upgrade rules and scoring thresholds
+  #    - Maximum flexibility but requires deep understanding of *arr quality management
+  #
+  # These options can be combined: templates for baseline + custom formats for tweaks
   instanceSubmodule = lib.types.submodule {
     options = {
       baseUrl = lib.mkOption {
@@ -165,11 +213,39 @@ ${templates}${customFormats}${qualityProfiles}'';
       };
 
       customFormats = lib.mkOption {
-        type = lib.types.listOf lib.types.attrs;
+        type = lib.types.listOf (lib.types.submodule {
+          options = {
+            trash_ids = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              description = "List of TRaSH custom format IDs to include";
+              example = [ "EBC725268D687D588A20BBC5462E3F" ];
+            };
+
+            assign_scores_to = lib.mkOption {
+              type = lib.types.listOf (lib.types.submodule {
+                options = {
+                  name = lib.mkOption {
+                    type = lib.types.str;
+                    description = "Name of the quality profile to assign scores to";
+                    example = "WEB-1080p";
+                  };
+
+                  score = lib.mkOption {
+                    type = lib.types.int;
+                    description = "Score to assign to this custom format in the quality profile";
+                    example = 100;
+                  };
+                };
+              });
+              default = [];
+              description = "Quality profiles to assign custom format scores to";
+            };
+          };
+        });
         default = [];
         description = ''
           Advanced custom format definitions with scoring.
-          Each entry should have trash_ids and assign_scores_to attributes.
+          Allows fine-grained control over TRaSH custom formats and their scores in quality profiles.
         '';
         example = lib.literalExpression ''
           [
@@ -184,9 +260,58 @@ ${templates}${customFormats}${qualityProfiles}'';
       };
 
       qualityProfiles = lib.mkOption {
-        type = lib.types.listOf lib.types.attrs;
+        type = lib.types.listOf (lib.types.submodule {
+          options = {
+            name = lib.mkOption {
+              type = lib.types.str;
+              description = "Name of the quality profile to configure";
+              example = "WEB-1080p";
+            };
+
+            reset_unmatched_scores = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Reset scores for custom formats not defined in this configuration";
+            };
+
+            upgrade = lib.mkOption {
+              type = lib.types.nullOr (lib.types.submodule {
+                options = {
+                  allowed = lib.mkOption {
+                    type = lib.types.bool;
+                    default = true;
+                    description = "Allow automatic upgrades within this quality profile";
+                  };
+
+                  until_quality = lib.mkOption {
+                    type = lib.types.str;
+                    description = "Quality level to upgrade until (e.g., 'WEB 1080p', 'Bluray-1080p')";
+                    example = "WEB 1080p";
+                  };
+
+                  until_score = lib.mkOption {
+                    type = lib.types.int;
+                    description = "Custom format score threshold to stop upgrading";
+                    example = 10000;
+                  };
+                };
+              });
+              default = null;
+              description = "Upgrade configuration for this quality profile";
+            };
+
+            min_format_score = lib.mkOption {
+              type = lib.types.int;
+              default = 0;
+              description = "Minimum custom format score required for downloads";
+            };
+          };
+        });
         default = [];
-        description = "Advanced quality profile configurations";
+        description = ''
+          Advanced quality profile configurations with upgrade rules and scoring thresholds.
+          Provides type-safe configuration for quality management.
+        '';
         example = lib.literalExpression ''
           [
             {

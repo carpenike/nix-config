@@ -118,6 +118,20 @@ Alerts are distributed according to their scope following the **co-location prin
 
 **Key Principle**: Configuration and monitoring are co-located. For example, `storage.nix` defines both the Sanoid/Syncoid configuration AND all the alerts that monitor ZFS health, snapshots, and replication.
 
+### Monitoring Coverage
+
+**Active Services**: 23 out of 25 services have comprehensive monitoring alerts (92% coverage)
+
+**Services Without Monitoring** (intentional):
+- `pgweb` - Auxiliary PostgreSQL web UI tool, not critical infrastructure. If down, admins will notice when accessing it. The underlying PostgreSQL database has comprehensive monitoring.
+- `qbit-manage` - **DISABLED** service (migrated to `tqm`), no monitoring needed for inactive services.
+
+**Monitoring Strategy by Service Type**:
+- **Container Services**: Service-down alerts using `container_service_active` metric
+- **Databases**: Connection pool, query performance, deadlocks, WAL archiving
+- **Backup Tools**: Job status, staleness, repository health, spool usage
+- **Hardware**: Device-specific metrics (UPS battery, temperature, load)
+
 ## Finding Configuration
 
 ### "Where is X configured?"
