@@ -113,4 +113,113 @@
       };
     };
   };
+
+  # ZFS dataset creation and configuration
+  # forge uses the tank pool (2x NVME) for service data
+  # tank/services acts as a logical parent (not mounted)
+  # Individual services mount to standard FHS paths
+  modules.storage = {
+    datasets = {
+      enable = true;
+      parentDataset = "tank/services";
+      parentMount = "/srv";  # Fallback for services without explicit mountpoint
+
+      services = {
+        # PostgreSQL dataset is now managed by the PostgreSQL module's storage-integration.nix
+        # to avoid duplicate dataset creation and configuration conflicts.
+        # See: hosts/_modules/nixos/services/postgresql/storage-integration.nix
+
+        # Prometheus time-series database
+        # Multi-model consensus (GPT-5 + Gemini 2.5 Pro + Gemini 2.5 Flash): 8.7/10 confidence
+        # Verdict: Prometheus TSDB is correct tool; ZFS snapshots are excessive for disposable metrics
+        prometheus = {
+          recordsize = "128K";  # Aligned with Prometheus WAL segments and 2h block files
+          compression = "lz4";  # Minimal overhead; TSDB chunks already compressed
+          mountpoint = "/var/lib/prometheus2";
+          owner = "prometheus";
+          group = "prometheus";
+          mode = "0755";
+          properties = {
+            # Industry best practice: Do NOT snapshot Prometheus TSDB (metrics are disposable)
+            # Reasoning: 15-day retention doesn't justify 6-month snapshots; configs in Git, data replaceable
+            # CoW amplification during TSDB compaction significantly impacts performance under snapshots
+            "com.sun:auto-snapshot" = "false";  # Disable snapshots (was: true)
+            logbias = "throughput";  # Optimize for streaming writes, not low-latency sync
+            primarycache = "metadata";  # Avoid ARC pollution; Prometheus has its own caching
+            atime = "off";  # Reduce metadata writes on read-heavy query workloads
+          };
+        };
+
+        # Loki log aggregation storage
+        # Optimized for log chunks and WAL files with appropriate compression
+        loki = {
+          recordsize = "1M";      # Optimized for log chunks (large sequential writes)
+          compression = "zstd";   # Better compression for text logs than lz4
+          mountpoint = "/var/lib/loki";
+          owner = "loki";
+          group = "loki";
+          mode = "0750";
+          properties = {
+            "com.sun:auto-snapshot" = "true";   # Enable snapshots for log retention
+            logbias = "throughput";             # Optimize for streaming log writes
+            atime = "off";                      # Reduce metadata overhead
+            primarycache = "metadata";          # Don't cache log data in ARC
+          };
+        };
+
+        # Alertmanager: Using ephemeral root filesystem storage
+        # Rationale (GPT-5 validated):
+        # - Only stores silences and notification deduplication state
+        # - Homelab acceptable to lose silences on restart
+        # - Duplicate notifications after restart are tolerable
+        # - Dedicated dataset unnecessary for minimal administrative state
+        # Location: /var/lib/alertmanager on rpool/local/root (not snapshotted)
+        #
+        # Updated: Manage Alertmanager storage via ZFS storage module for consistency
+        # (still not snapshotted; data is non-critical). This creates the mountpoint
+        # with correct ownership/permissions and ensures ordering via zfs-service-datasets.
+        alertmanager = {
+          recordsize = "16K";     # Small files; minimal overhead
+          compression = "lz4";    # Fast, default
+          mountpoint = "/var/lib/alertmanager";
+          owner = "alertmanager";
+          group = "alertmanager";
+          mode = "0750";
+          properties = {
+            "com.sun:auto-snapshot" = "false";  # Do not snapshot (non-critical state)
+            logbias = "throughput";
+            primarycache = "metadata";
+            atime = "off";
+          };
+        };
+      };
+
+      # Utility datasets (not under parentDataset/services)
+      utility = {
+        # Temporary dataset for ZFS clone-based backups
+        # Used by snapshot-based backup services (dispatcharr, plex)
+        # to avoid .zfs directory issues when backing up mounted filesystems
+        "tank/temp" = {
+          mountpoint = "none";
+          compression = "lz4";
+          recordsize = "128K";
+          properties = {
+            "com.sun:auto-snapshot" = "false";  # Don't snapshot temporary clones
+          };
+        };
+      };
+    };
+
+    # Shared NFS mount for media access from NAS
+    nfsMounts.media = {
+      enable = true;
+      automount = false;  # Disable automount for always-on media services (prevents idle timeout cascade stops)
+      server = "nas.holthome.net";
+      remotePath = "/mnt/tank/share";
+      localPath = "/mnt/data";  # Mount point for shared NAS data (contains media/, backups/, etc.)
+      group = "media";
+      mode = "02775";  # setgid bit ensures new files inherit media group
+      mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
+    };
+  };
 }
