@@ -197,8 +197,8 @@
         Environment = [
           "PGBACKREST_REPO2_TYPE=s3"
           "PGBACKREST_REPO2_PATH=/forge-pgbackrest"
-          "PGBACKREST_REPO2_S3_BUCKET=nix-homelab-prod-servers"
-          "PGBACKREST_REPO2_S3_ENDPOINT=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com"
+          "PGBACKREST_REPO2_S3_BUCKET=${config.my.r2.bucket}"
+          "PGBACKREST_REPO2_S3_ENDPOINT=${config.my.r2.endpoint}"
           "PGBACKREST_REPO2_S3_REGION=auto"
           "PGBACKREST_REPO2_S3_URI_STYLE=path"
         ];

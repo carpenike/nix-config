@@ -251,7 +251,7 @@
       '';
       for = "30m";
       severity = "high";
-      labels = { category = "storage"; };
+      labels = { category = "storage"; service = "zfs"; };
       annotations = {
         summary = "ZFS snapshot on {{ $labels.hostname }}:{{ $labels.name }} is older than 24 hours";
         description = "The latest snapshot for dataset '{{ $labels.name }}' on '{{ $labels.hostname }}' is {{ $value | humanizeDuration }} old. Expected daily snapshots.";
@@ -267,7 +267,7 @@
       '';
       for = "1h";
       severity = "critical";
-      labels = { category = "storage"; };
+      labels = { category = "storage"; service = "zfs"; };
       annotations = {
         summary = "ZFS snapshot on {{ $labels.hostname }}:{{ $labels.name }} is critically old (>48 hours)";
         description = "The latest snapshot for dataset '{{ $labels.name }}' on '{{ $labels.hostname }}' is {{ $value | humanizeDuration }} old. Backup system may be failing.";
@@ -439,6 +439,64 @@
         summary = "ZFS replication info metric missing for {{ $labels.dataset }}";
         description = "The syncoid_replication_info metric for dataset '{{ $labels.dataset }}' to '{{ $labels.target_host }}' has disappeared, but replication is still active. This will prevent stale alerts from firing. Check the metric exporter script and textfile collector.";
         command = "ls -l /var/lib/node_exporter/textfile_collector/syncoid-*.prom && systemctl status syncoid-replication-info.service";
+      };
+    };
+
+    # ZFS Pool Health Monitoring
+    # Co-located with ZFS lifecycle management following co-location principle
+    "zfs-pool-unhealthy" = {
+      type = "promql";
+      alertname = "ZfsPoolUnhealthy";
+      expr = "zfs_pool_health{pool!=\"\"} > 0";
+      for = "5m";
+      severity = "critical";
+      labels = { service = "zfs"; category = "storage"; };
+      annotations = {
+        summary = "ZFS pool {{ $labels.pool }} is unhealthy";
+        description = "Pool {{ $labels.pool }} has status {{ $labels.health }}. Run 'zpool status {{ $labels.pool }}' to investigate.";
+        command = "zpool status {{ $labels.pool }}";
+      };
+    };
+
+    "zfs-capacity-critical" = {
+      type = "promql";
+      alertname = "ZfsPoolCapacityCritical";
+      expr = "zfs_pool_capacity_percent{pool!=\"\"} > 95";
+      for = "5m";
+      severity = "critical";
+      labels = { service = "zfs"; category = "capacity"; };
+      annotations = {
+        summary = "ZFS pool {{ $labels.pool }} critically full";
+        description = "Pool {{ $labels.pool }} is {{ $value }}% full. Immediate cleanup required to prevent write failures.";
+        command = "zpool list {{ $labels.pool }} && df -h";
+      };
+    };
+
+    "zfs-capacity-warning" = {
+      type = "promql";
+      alertname = "ZfsPoolCapacityHigh";
+      expr = "zfs_pool_capacity_percent{pool!=\"\"} > 85";
+      for = "15m";
+      severity = "high";
+      labels = { service = "zfs"; category = "capacity"; };
+      annotations = {
+        summary = "ZFS pool {{ $labels.pool }} reaching capacity";
+        description = "Pool {{ $labels.pool }} is {{ $value }}% full. Plan cleanup or expansion.";
+        command = "zpool list {{ $labels.pool }}";
+      };
+    };
+
+    "zfs-fragmentation-high" = {
+      type = "promql";
+      alertname = "ZfsPoolFragmentationHigh";
+      expr = "zfs_pool_fragmentation_percent{pool!=\"\"} > 50";
+      for = "30m";
+      severity = "medium";
+      labels = { service = "zfs"; category = "performance"; };
+      annotations = {
+        summary = "ZFS pool {{ $labels.pool }} highly fragmented";
+        description = "Pool {{ $labels.pool }} is {{ $value }}% fragmented. May impact performance.";
+        command = "zpool list -v {{ $labels.pool }}";
       };
     };
 

@@ -42,8 +42,8 @@
     # Now includes WAL archiving for complete offsite PITR
     repo2-type=s3
     repo2-path=/forge-pgbackrest
-    repo2-s3-bucket=nix-homelab-prod-servers
-    repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com
+    repo2-s3-bucket=${config.my.r2.bucket}
+    repo2-s3-endpoint=${config.my.r2.endpoint}
     repo2-s3-region=auto
     repo2-s3-uri-style=path
     repo2-retention-full=30
@@ -902,6 +902,20 @@ EOF
       annotations = {
         summary = "pgBackRest spool usage high on {{ $labels.instance }}";
         description = "Local spool >80% used ({{ $value | humanizePercentage }}). WAL archiving backlog likely. Check NFS repo1 health.";
+      };
+    };
+
+    # pgBackRest Config Generator Failure Monitoring
+    pgbackrest-config-generator-failed = {
+      alertname = "PgBackRestConfigGeneratorFailed";
+      expr = ''node_systemd_unit_state{name="pgbackrest-config-generator.service",state="failed"} == 1'';
+      for = "5m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "config"; };
+      annotations = {
+        summary = "pgBackRest config generator failed";
+        description = "The pgbackrest-config-generator.service failed to update configuration. Credentials may not be properly injected. Check systemctl status pgbackrest-config-generator.service";
+        command = "systemctl status pgbackrest-config-generator.service";
       };
     };
   };

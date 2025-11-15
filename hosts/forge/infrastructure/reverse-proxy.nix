@@ -77,4 +77,96 @@
     owner = config.services.caddy.user;
     group = config.services.caddy.group;
   };
+
+  # TLS/Caddy Monitoring Alerts - Co-located with reverse proxy infrastructure
+  modules.alerting.rules."tls-certificate-expiring-soon" = {
+    type = "promql";
+    alertname = "TlsCertificateExpiringSoon";
+    expr = "tls_certificate_check_success == 1 and tls_certificate_expiry_seconds < 604800"; # 7 days
+    for = "5m";
+    severity = "high";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "TLS certificate expiring soon for {{ $labels.domain }}";
+      description = "Certificate for {{ $labels.domain }} ({{ $labels.certfile }}) expires in {{ $value | humanizeDuration }}. Renew soon.";
+    };
+  };
+
+  modules.alerting.rules."tls-certificate-expiring-critical" = {
+    type = "promql";
+    alertname = "TlsCertificateExpiringCritical";
+    expr = "tls_certificate_check_success == 1 and tls_certificate_expiry_seconds < 172800"; # 2 days
+    for = "0m"; # Immediate alert
+    severity = "critical";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "TLS certificate expiring very soon for {{ $labels.domain }}";
+      description = "Certificate for {{ $labels.domain }} ({{ $labels.certfile }}) expires in {{ $value | humanizeDuration }}. URGENT renewal required.";
+    };
+  };
+
+  modules.alerting.rules."tls-certificate-check-failed" = {
+    type = "promql";
+    alertname = "TlsCertificateCheckFailed";
+    expr = "tls_certificate_check_success == 0";
+    for = "10m";
+    severity = "high";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "TLS certificate check failed for {{ $labels.domain }}";
+      description = "Cannot parse certificate file {{ $labels.certfile }} for domain {{ $labels.domain }}. Certificate may be malformed or unreadable.";
+    };
+  };
+
+  modules.alerting.rules."acme-challenges-failing" = {
+    type = "promql";
+    alertname = "AcmeChallengesFailing";
+    expr = "increase(caddy_acme_challenges_failed_total[4h]) > 0";
+    for = "5m";
+    severity = "high";
+    labels = { service = "caddy"; category = "acme"; };
+    annotations = {
+      summary = "ACME challenges are failing";
+      description = "ACME challenge failures detected in the last 4 hours. Check Caddy logs: journalctl -u caddy -n 100 | grep -i acme";
+    };
+  };
+
+  modules.alerting.rules."caddy-certificate-storage-missing" = {
+    type = "promql";
+    alertname = "CaddyCertificateStorageMissing";
+    expr = "tls_certificate_check_success{domain=\"caddy.storage.missing\"} == 0";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "Caddy certificate storage directory is missing";
+      description = "The TLS metrics exporter cannot find the Caddy certificate directory. This indicates a serious configuration or storage issue.";
+    };
+  };
+
+  modules.alerting.rules."tls-certificates-all-missing" = {
+    type = "promql";
+    alertname = "TlsCertificatesAllMissing";
+    expr = ''tls_certificates_found == 0 and absent(tls_certificate_check_success{domain="caddy.storage.missing"})'';
+    for = "15m";
+    severity = "high";
+    labels = { service = "caddy"; category = "tls"; };
+    annotations = {
+      summary = "No TLS certificates found in Caddy storage";
+      description = "The TLS metrics exporter found 0 certificate files in the Caddy storage directory, but the directory itself exists. This might indicate a problem with Caddy's certificate management, storage, or permissions.";
+    };
+  };
+
+  modules.alerting.rules."caddy-service-down" = {
+    type = "promql";
+    alertname = "CaddyServiceDown";
+    expr = "caddy_service_up == 0";
+    for = "2m";
+    severity = "critical";
+    labels = { service = "caddy"; category = "availability"; };
+    annotations = {
+      summary = "Caddy service is down";
+      description = "Caddy reverse proxy is not responding. All web services may be unavailable.";
+    };
+  };
 }

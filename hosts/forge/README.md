@@ -90,7 +90,7 @@ When adding a new service (e.g., `myapp`), create `services/myapp.nix` containin
   modules.alerting.rules."myapp-service-down" = {
     type = "promql";
     alertname = "MyAppServiceDown";
-    expr = "container_service_active{service=\"myapp\"} == 0";
+    expr = "container_service_active{name=\"myapp\"} == 0";
     for = "2m";
     severity = "high";
     # ... alert config
@@ -105,11 +105,15 @@ Alerts are distributed according to their scope following the **co-location prin
 | Alert Type | Location | Example |
 |------------|----------|---------|
 | Core OS health | `core/monitoring.nix` | CPU, memory, disk, systemd units, watchdog |
-| ZFS storage & snapshots | `infrastructure/storage.nix` | Pool degraded, snapshot age (24hr/48hr), pool space, preseed failures |
+| GPU hardware | `infrastructure/monitoring.nix` | GPU exporter, utilization, engine stalls |
+| ZFS storage & snapshots | `infrastructure/storage.nix` | Pool health, capacity, fragmentation, snapshot age (24hr/48hr) |
 | ZFS replication | `infrastructure/storage.nix` | Replication lag, stale, never-run, syncoid failures |
 | Restic backups | `infrastructure/backup.nix` | Backup errors, zfs-holds-stale (Restic cleanup) |
-| Container health | `infrastructure/containerization.nix` | Health check failed, high memory |
-| Infrastructure services | With service | `observability/prometheus.nix` → prometheus-down alert |
+| Container health | `infrastructure/containerization.nix` | Health check failed, high memory, service down |
+| TLS/Caddy | `infrastructure/reverse-proxy.nix` | Certificate expiry, ACME failures, Caddy service down |
+| Prometheus/metrics | `infrastructure/observability/prometheus.nix` | prometheus-down, scrape failures |
+| PostgreSQL | `services/postgresql.nix` | Database down, connection exhaustion |
+| pgBackRest | `services/pgbackrest.nix` | Backup failures, spool usage, config generator |
 | Application services | With service | `services/sonarr.nix` → sonarr-service-down alert |
 
 **Key Principle**: Configuration and monitoring are co-located. For example, `storage.nix` defines both the Sanoid/Syncoid configuration AND all the alerts that monitor ZFS health, snapshots, and replication.

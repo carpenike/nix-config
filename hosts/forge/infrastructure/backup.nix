@@ -132,7 +132,7 @@
           repositoryLocation = "nas-1";
         };
         r2-offsite = {
-          url = "s3:https://21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com/nix-homelab-prod-servers/forge";
+          url = "s3:https://${config.my.r2.endpoint}/${config.my.r2.bucket}/forge";
           passwordFile = config.sops.secrets."restic/password".path;
           environmentFile = config.sops.secrets."restic/r2-prod-env".path;
           primary = false;

@@ -1,7 +1,19 @@
 { lib, ... }:
 
+let
+  # Centralized Cloudflare R2 configuration for offsite backups
+  # Used by: pgBackRest (PostgreSQL), Restic (system backups)
+  r2Config = {
+    endpoint = "21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com";
+    bucket = "nix-homelab-prod-servers";
+  };
+in
+
 {
   imports = [
+    # Common modules
+    ../_modules/common/r2-config.nix
+
     # Hardware & Disk Configuration
     (import ./disko-config.nix {
       disks = [ "/dev/disk/by-id/nvme-Samsung_SSD_950_PRO_512GB_S2GMNX0H803986M" "/dev/disk/by-id/nvme-WDS100T3X0C-00SJG0_200278801343" ];
@@ -60,6 +72,9 @@
   config = {
     # Primary IP for DNS record generation
     my.hostIp = "10.20.0.30";
+
+    # Centralized R2 configuration accessible to all services
+    my.r2 = r2Config;
 
     modules = {
       # Explicitly enable ZFS filesystem module
