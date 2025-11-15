@@ -87,9 +87,28 @@ in
         # environmentFile not needed for local filesystem repository
       };
     };
-    }
 
-    # If the dispatcharr container/service runs locally as a podman/docker unit,
+  # ZFS snapshot and replication configuration for Dispatcharr dataset
+  # Contributes to host-level Sanoid configuration following the contribution pattern
+  modules.backup.sanoid.datasets."tank/services/dispatcharr" = {
+    useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+    recursive = false;
+    autosnap = true;
+    autoprune = true;
+    replication = {
+      targetHost = "nas-1.holthome.net";
+      targetDataset = "backup/forge/zfs-recv/dispatcharr";
+      sendOptions = "wp";  # Raw encrypted send with property preservation
+      recvOptions = "u";   # Don't mount on receive
+      hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+      # Consistent naming for Prometheus metrics
+      targetName = "NFS";
+      targetLocation = "nas-1";
+    };
+  };
+  }
+
+  # If the dispatcharr container/service runs locally as a podman/docker unit,
     # allow it to access the Intel render node for VA-API without adding broad
     # privileges. This grants only the render node device; prefer DeviceAllow
     # instead of making the service user a member of the host "video" group.

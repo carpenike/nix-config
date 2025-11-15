@@ -1,7 +1,7 @@
 { config, ... }:
 {
-  config.modules.services = {
-    sabnzbd = {
+  config = {
+    modules.services.sabnzbd = {
       enable = true;
       # Use home-operations container image (version 4.5.5)
       # Pinned with SHA256 digest for immutability
@@ -85,6 +85,26 @@
         repositoryUrl = "/mnt/nas-backup";
         passwordFile = config.sops.secrets."restic/password".path;
         restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage, use only for manual DR
+      };
+    };
+
+    # ZFS snapshot and replication configuration for SABnzbd dataset
+    # Contributes to host-level Sanoid configuration following the contribution pattern
+    # NOTE: Downloads are NOT backed up (transient data on NFS)
+    modules.backup.sanoid.datasets."tank/services/sabnzbd" = {
+      useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+      recursive = false;
+      autosnap = true;
+      autoprune = true;
+      replication = {
+        targetHost = "nas-1.holthome.net";
+        targetDataset = "backup/forge/zfs-recv/sabnzbd";
+        sendOptions = "wp";  # Raw encrypted send with property preservation
+        recvOptions = "u";   # Don't mount on receive
+        hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+        # Consistent naming for Prometheus metrics
+        targetName = "NFS";
+        targetLocation = "nas-1";
       };
     };
   };

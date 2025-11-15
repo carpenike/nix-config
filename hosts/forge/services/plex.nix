@@ -68,7 +68,26 @@
       };
     };
 
-    # Prometheus alerts for Plex
+  # ZFS snapshot and replication configuration for Plex dataset
+  # Contributes to host-level Sanoid configuration following the contribution pattern
+  modules.backup.sanoid.datasets."tank/services/plex" = {
+    useTemplate = [ "services" ];
+    recursive = false;
+    autosnap = true;
+    autoprune = true;
+    replication = {
+      targetHost = "nas-1.holthome.net";
+      targetDataset = "backup/forge/zfs-recv/plex";
+      sendOptions = "w";  # Raw encrypted send (no property preservation)
+      recvOptions = "u";  # Don't mount on receive
+      hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+      # Consistent naming for Prometheus metrics
+      targetName = "NFS";
+      targetLocation = "nas-1";
+    };
+  };
+
+  # Prometheus alerts for Plex
     # Using monitoring-helpers library for consistency
     modules.alerting.rules = lib.mkIf (config.modules.services.plex.enable) {
       # Service availability alert using standard helper
