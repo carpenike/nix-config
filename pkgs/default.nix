@@ -14,6 +14,7 @@
   kubectl-klock = pkgs.callPackage ./kubectl-klock.nix {};
   kubectl-netshoot = pkgs.callPackage ./kubectl-netshoot.nix {};
   kubectl-pgo = pkgs.callPackage ./kubectl-pgo.nix {};
+  cooklang-cli = pkgs.callPackage ./cooklang-cli.nix {};
   nvim = pkgs.callPackage ./nvim.nix _inputs;
   shcopy = pkgs.callPackage ./shcopy.nix {};
   # talhelper = inputs.talhelper.packages.${pkgs.system}.default;

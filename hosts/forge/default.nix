@@ -67,6 +67,7 @@ in
     ./services/autobrr.nix         # Autobrr IRC announce bot
     ./services/profilarr.nix       # Profilarr profile sync for *arr services
     ./services/tdarr.nix           # Tdarr transcoding automation
+    ./services/cooklang.nix        # Cooklang recipe management
   ];
 
   config = {
