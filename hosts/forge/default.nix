@@ -68,6 +68,7 @@ in
     ./services/profilarr.nix       # Profilarr profile sync for *arr services
     ./services/tdarr.nix           # Tdarr transcoding automation
     ./services/cooklang.nix        # Cooklang recipe management
+    ./services/cooklang-federation.nix  # Cooklang federation search service
   ];
 
   config = {

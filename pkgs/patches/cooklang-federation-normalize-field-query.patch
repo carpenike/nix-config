@@ -1,0 +1,96 @@
+diff --git a/src/indexer/search.rs b/src/indexer/search.rs
+index ea43215..22b5e3a 100644
+--- a/src/indexer/search.rs
++++ b/src/indexer/search.rs
+@@ -8,6 +8,18 @@ use tantivy::query::{Query, QueryParser};
+ use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, Term};
+ use tracing::{debug, info};
+
++const FIELD_NAMES: [&str; 9] = [
++    "title",
++    "summary",
++    "instructions",
++    "ingredients",
++    "tags",
++    "difficulty",
++    "servings",
++    "total_time",
++    "file_path",
++];
++
+ pub struct SearchIndex {
+     index: Index,
+     reader: IndexReader,
+@@ -184,16 +196,20 @@ impl SearchIndex {
+                 self.schema.ingredients,
+                 self.schema.tags,
+                 self.schema.difficulty,
++                self.schema.servings,
++                self.schema.total_time,
+                 self.schema.file_path,
+             ],
+         );
+
++        let normalized_query = normalize_field_queries(&query.q);
++
+         // Parse unified query string
+-        let tantivy_query = if query.q.is_empty() {
++        let tantivy_query = if normalized_query.trim().is_empty() {
+             Box::new(tantivy::query::AllQuery) as Box<dyn Query>
+         } else {
+             query_parser
+-                .parse_query(&query.q)
++                .parse_query(&normalized_query)
+                 .map_err(|e| Error::Search(format!("Invalid query: {e}")))?
+         };
+
+@@ -273,6 +289,49 @@ impl SearchIndex {
+     }
+ }
+
++fn normalize_field_queries(input: &str) -> String {
++    if !input.contains(':') {
++        return input.to_string();
++    }
++
++    let chars: Vec<char> = input.chars().collect();
++    let mut normalized = String::with_capacity(chars.len());
++    let mut idx = 0;
++
++    while idx < chars.len() {
++        let ch = chars[idx];
++        normalized.push(ch);
++
++        if ch == ':' {
++            let mut field_start = idx;
++
++            while field_start > 0 {
++                let prev = chars[field_start - 1];
++                if prev.is_alphanumeric() || prev == '_' {
++                    field_start -= 1;
++                } else {
++                    break;
++                }
++            }
++
++            let field = chars[field_start..idx]
++                .iter()
++                .collect::<String>()
++                .to_ascii_lowercase();
++
++            if FIELD_NAMES.iter().any(|candidate| candidate == &field) {
++                while idx + 1 < chars.len() && chars[idx + 1].is_whitespace() {
++                    idx += 1;
++                }
++            }
++        }
++
++        idx += 1;
++    }
++
++    normalized
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;

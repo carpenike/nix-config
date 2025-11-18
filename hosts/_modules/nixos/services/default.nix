@@ -19,6 +19,7 @@
     ./cloudflared
     ./coachiq
     ./cooklang                                # Cooklang recipe management server
+  ./cooklang-federation                     # Cooklang Federation discovery service
     ./cross-seed                              # cross-seed automatic cross-seeding daemon
     ./dispatcharr
     ./dnsdist
