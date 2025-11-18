@@ -97,6 +97,12 @@
           group = config.modules.services.cooklang.group;
         };
 
+        "github/cooklang-token" = {
+          mode = "0400";
+          owner = config.modules.services.cooklangFederation.user;
+          group = config.modules.services.cooklangFederation.group;
+        };
+
         # Loki Basic Auth password hash for Caddy reverse proxy (environment variable)
         "services/caddy/environment/loki-admin-bcrypt" = {
           mode = "0400";

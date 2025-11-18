@@ -37,9 +37,10 @@ rustPlatform.buildRustPackage {
   ];
 
   preFixup = ''
-    srcDir="$NIX_BUILD_TOP/source/src"
-    stylesDir="$NIX_BUILD_TOP/source/styles"
-    configFile="$NIX_BUILD_TOP/source/tailwind.config.js"
+  srcDir="$NIX_BUILD_TOP/source/src"
+  stylesDir="$NIX_BUILD_TOP/source/styles"
+  configFile="$NIX_BUILD_TOP/source/tailwind.config.js"
+  configDir="$NIX_BUILD_TOP/source/config"
 
     install -d $out/share/cooklang-federation
 
@@ -48,6 +49,9 @@ rustPlatform.buildRustPackage {
     fi
     if [ -d "$stylesDir" ]; then
       cp -r --no-preserve=ownership "$stylesDir" $out/share/cooklang-federation/
+    fi
+    if [ -d "$configDir" ]; then
+      cp -r --no-preserve=ownership "$configDir" $out/share/cooklang-federation/
     fi
     if [ -f "$configFile" ]; then
       install -D "$configFile" $out/share/cooklang-federation/tailwind.config.js

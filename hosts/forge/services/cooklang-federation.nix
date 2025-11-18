@@ -6,18 +6,19 @@
     datasetPath = "tank/services/cooklang-federation";
     listenAddress = "127.0.0.1";
     port = 9086;
-    externalUrl = "https://recipes-search.holthome.net";
+    externalUrl = "https://fedcook.holthome.net";
+    feedConfigFile = ../../files/cooklang-federation/feeds.yaml;
 
     reverseProxy = {
       enable = true;
-      hostName = "recipes-search.holthome.net";
+      hostName = "fedcook.holthome.net";
       backend = {
         scheme = "http";
         host = "127.0.0.1";
         port = 9086;
       };
       authelia = {
-        enable = true;
+        enable = false;
         instance = "main";
         authDomain = "auth.holthome.net";
         policy = "one_factor";
@@ -48,6 +49,11 @@
     };
 
     notifications.enable = true;
+
+    github = {
+      enable = true;
+      tokenFile = config.sops.secrets."github/cooklang-token".path;
+    };
   };
 
   modules.storage.datasets.services."cooklang-federation" = {
@@ -93,5 +99,10 @@
       description = "Federation service on {{ $labels.instance }} has been down for 5 minutes";
       command = "journalctl -u cooklang-federation.service -n 200";
     };
+  };
+
+  modules.services.caddy.virtualHosts.cooklangFederation.cloudflare = {
+    enable = true;
+    tunnel = "forge";
   };
 }

@@ -194,6 +194,12 @@ in
       description = "Additional environment variables passed to the service.";
     };
 
+    feedConfigFile = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = "Optional override for feeds.yaml that seeds the federation. When unset, the packaged config/feeds.yaml is used.";
+    };
+
     healthcheck = {
       enable = mkEnableOption "Enable HTTP health checks";
       path = mkOption {
@@ -318,7 +324,10 @@ in
   tailwindConfigSource = "${cfg.package}/share/cooklang-federation/tailwind.config.js";
   tailwindPackage = pkgs.tailwindcss_3;
   tailwindBinary = lib.getExe tailwindPackage;
+  bundledFeedConfig = "${cfg.package}/share/cooklang-federation/config/feeds.yaml";
         usesDefaultSqlite = cfg.databaseUrl == null;
+  feedConfigDestination = "${dataDir}/config/feeds.yaml";
+  feedConfigSource = if cfg.feedConfigFile != null then cfg.feedConfigFile else bundledFeedConfig;
         databaseUrl =
           if cfg.databaseUrl != null then cfg.databaseUrl
           else "sqlite://${localDatabasePath}";
@@ -339,6 +348,7 @@ in
           MAX_RECIPE_SIZE = toString cfg.maxRecipeSize;
           INDEX_PATH = indexPath;
           RUST_LOG = cfg.rustLog;
+          FEED_CONFIG_PATH = feedConfigDestination;
           API_MAX_LIMIT = "100";
           WEB_DEFAULT_LIMIT = "50";
           FEED_PAGE_SIZE = "20";
@@ -459,6 +469,10 @@ in
                     -o src/web/static/css/output.css \
                     --minify
                   chown ${cfg.user}:${cfg.group} src/web/static/css/output.css
+                fi
+                install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${dataDir}/config
+                if [ -f "${feedConfigSource}" ]; then
+                  install -D -m 0640 -o ${cfg.user} -g ${cfg.group} "${feedConfigSource}" ${feedConfigDestination}
                 fi
                 ${lib.optionalString usesDefaultSqlite ''
                   install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${dataDir}/data

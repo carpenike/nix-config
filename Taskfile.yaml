@@ -15,6 +15,9 @@ includes:
   bootstrap:
     taskfile: ".taskfiles/bootstrap"
     dir: "{{.ROOT_DIR}}"
+  cooklang:
+    taskfile: ".taskfiles/cooklang"
+    dir: "{{.ROOT_DIR}}"
 
 tasks:
   default:

@@ -1,0 +1,759 @@
+# Cooklang Federation - Feed Configuration
+# Version 1.0
+#
+# Instructions:
+# 1. Fork this repository
+# 2. Add your feed below
+# 3. Submit a pull request
+# 4. Wait for CI validation and approval
+
+
+version: 1
+
+feeds:
+  # GitHub repository feed
+  - url: "https://github.com/dubadub/cookbook"
+    title: "DubaDub's Cookbook"
+    feed_type: github
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Personal cookbook repository"
+    added_by: "@dubadub"
+    added_at: "2025-10-13"
+
+  - url: "https://github.com/ornicar/recipes"
+    title: "[FR] My vegan recipes in cooklang"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Personal cookbook repository"
+    added_by: "@dubadub"
+    added_at: "2025-10-13"
+
+  - url: "https://github.com/simcard0000/recipes"
+    title: "Simran's recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "🏺 Dishes from my family and other sources."
+    added_by: "@dubadub"
+    added_at: "2025-10-13"
+
+  - url: "https://github.com/LiHRaM/cooklang-recipes"
+    title: "LiHRaM's Cooklang Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/andoriyu/cooking"
+    title: "andoriyu's CookLang Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/yolocitrus/cooking-website"
+    title: "A website dedicated to cooking recipes."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/surzycki/recipes"
+    title: "Food recipe collection"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/lingualearner/awesome-vegetarian-cookbook"
+    title: "Vegetarian cookbook"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/tdstein/recipes"
+    title: "My recipe book"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/2xAA/cookbook"
+    title: "A cookbook repository for Cooklang files made with Nuxt 3, Vue 3 and Pinia."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/ignacio-gn/cook"
+    title: "Ignacio's Cooking Notes & Recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/algorist-ahmad/recipes"
+    title: "my cooking recipes written in Cooklang"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/cco2/Recipes"
+    title: "cco2's Cooking Notes & Recipes"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/Eilgap/Recipository"
+    title: "Family recipies in Cooklang"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/demosjarco/recipes"
+    title: "demosjarco's Recipe Repository"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/XpiritBV/innovation-dinner-2022"
+    title: "Recipes for the Xpirit Innovation Dinner served on 20-05-2022."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/ngalaiko/galaiko.rocks"
+    title: "my website "
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/OmTheTurtle/recipes"
+    title: "OmTheTurtle's Recipe Collection"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/crhuber/cooking"
+    title: "Open source recipes writting in Cooklang"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/cvhooser/recipes"
+    title: "cvhooser's Favorite Recipes"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/pakohan/recipes"
+    title: "pakohan's Cooklang Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/leMaik/rezepte"
+    title: "My recipes, written using Cooklang."
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/MikeEgan1/recipies"
+    title: "Mike Egan's CookLang Recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/firefly2442/my-recipes-cooklang"
+    title: "My personal recipes in markdown cooklang format."
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/iandennismiller/recipes"
+    title: "Recipes for preparing food. All recipes written in CookLang."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/justintout/recipes"
+    title: "justintout's Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/meastburn/recipes"
+    title: "My Recipe collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/luizribeiro/menu"
+    title: "Luiz Ribeiro's Menu"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/TyHil/recipes"
+    title: "Website to catalog personal recipes."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/edibotopic/cook-labs"
+    title: "Prototype for a recipe documentation site. Recipes are written in CookLang syntax, parsed into JSON and then represented on a webpage. The prototype uses examples from molecular gastronomy."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/0xbenc/recipes"
+    title: "cooking recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/marcusolsson/recipes"
+    title: "Marcus Olsson's Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/azlekov/recipebook"
+    title: "Our family recipe book organized using CookLang"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/easymac/my-cookbook"
+    title: "A collection of my recipes and a beautiful Next.js app to use them in the kitchen."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/notslang/recipes"
+    title: "notslang's Recipe Collection"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/shalinkpatel/recipes"
+    title: "Personal Recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/bubonicfred/cookbook"
+    title: "Repository of cooklang recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/shicks/cookbook"
+    title: "Cooklang cookbook"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/JorenC/helanxiaochu"
+    title: "Chinese Recipes for Everyone"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/johanbrook/johanbrook.com"
+    title: "Naming the repo \"johanbrook.com\" was a mistake."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/Gunde/recipes"
+    title: "Cooklang Recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/ManeeshChiba/cookbook"
+    title: "Meal management and recommendations "
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/stusmall/stuartsmall.com"
+    title: "Stuart Small's Personal Website"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/matt-auckland/personal-site"
+    title: "Lazy blog"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/tntraina/recipe_archive"
+    title: "Archive of various recipes I use a bunch"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/isaacvando/recipes"
+    title: "Isaac's Recipes"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/derphilipp/rezepte"
+    title: "Recipes of things to cook / bake. Mostly in german."
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/albe2669/recipes"
+    title: "My collection of recipes written in Cooklang"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/Diegothx/CookBook"
+    title: "A recopilation of recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/brendanmckenzie/recipes"
+    title: "Brendan McKenzie's Multi-Cuisine Recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/BraeTroutman/cookbook"
+    title: "Repository of Recipes in CookLang"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/jnobles/RecipeBook"
+    title: "JNobles' Recipe Book"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/gnawcire/recipes"
+    title: "gnawcire's Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/shen-sat/cooklang"
+    title: "shen-sat's CookLang Recipe Management"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/ericroberts/cookbook"
+    title: "Eric Roberts' Cookbook"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/Net-Mist/remy"
+    title: "cooking recipes"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/ggalmazor/recipes"
+    title: "ggalmazor's Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/briansunter/site"
+    title: "Brian Sunter's Personal Site"
+    feed_type: github
+    branch: "master"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/tasty-eats/tasty-eats"
+    title: "Tasty Eats: Community Recipe Collection"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/schurmann/blog"
+    title: "Schurmann's Personal Blog"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+  - url: "https://github.com/nicholaswilde/recipes"
+    title: "🥗 My collection of recipes made with cooklang 📖"
+    feed_type: github
+    branch: "main"
+    enabled: true
+    tags:
+      - cookbook
+      - github
+    notes: "Found via GitHub search"
+    added_by: "@dubadub"
+    added_at: "2025-10-24"
+
+
+# Validation configuration
+validation:
+  max_feeds: 1000
+  allowed_protocols:
+    - https
+    - http
+  url_patterns:
+    deny:
+      - "*localhost*"
+      - "*127.0.0.1*"
+      - "*192.168.*"
+      - "*10.0.*"
+      - "*.local"

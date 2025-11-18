@@ -72,7 +72,7 @@
     # Reverse proxy via Caddy with Authelia SSO
     reverseProxy = {
       enable = true;
-      hostName = "recipes.holthome.net";
+      hostName = "cook.holthome.net";
 
       # Authelia SSO protection
       authelia = {

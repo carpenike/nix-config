@@ -22,7 +22,7 @@ Create or edit `hosts/forge/services/cooklang.nix`:
 
     reverseProxy = {
       enable = true;
-      domain = "recipes.holthome.net";
+  domain = "cook.holthome.net";
     };
   };
 
@@ -48,7 +48,7 @@ task nix:apply-nixos host=forge
 
 ### 3. Access
 
-Navigate to: https://recipes.holthome.net
+Navigate to: [cook.holthome.net](https://cook.holthome.net)
 
 ## Adding Recipes
 
@@ -194,6 +194,7 @@ sudo zfs rollback tank/services/cooklang@2025-11-15-12:00:00
 ### Disaster Recovery
 
 The preseed service automatically restores recipes on fresh deployment:
+
 1. Checks if recipe directory is empty
 2. Attempts restore from Syncoid (replicated snapshots)
 3. Falls back to Restic if Syncoid unavailable
@@ -225,7 +226,7 @@ ss -tlnp | grep 9080
 
 # Check Caddy proxy
 systemctl status caddy
-journalctl -u caddy | grep recipes.holthome.net
+journalctl -u caddy | grep cook.holthome.net
 
 # Test direct access (from forge)
 curl http://127.0.0.1:9080
@@ -267,11 +268,11 @@ sudo nixos-rebuild switch --flake .
 
 ## Resources
 
-- **Cooklang Spec**: https://cooklang.org/docs/spec/
-- **Getting Started**: https://cooklang.org/docs/getting-started/
-- **CLI Documentation**: https://github.com/cooklang/cookcli
-- **Recipe Examples**: https://github.com/cooklang/awesome-cooklang-recipes
-- **Community**: https://discord.gg/fUVVvUzEEK
+- **Cooklang Spec**: [cooklang.org/docs/spec](https://cooklang.org/docs/spec/)
+- **Getting Started**: [cooklang.org/docs/getting-started](https://cooklang.org/docs/getting-started/)
+- **CLI Documentation**: [github.com/cooklang/cookcli](https://github.com/cooklang/cookcli)
+- **Recipe Examples**: [github.com/cooklang/awesome-cooklang-recipes](https://github.com/cooklang/awesome-cooklang-recipes)
+- **Community**: [discord.gg/fUVVvUzEEK](https://discord.gg/fUVVvUzEEK)
 
 ## Related Modules
 

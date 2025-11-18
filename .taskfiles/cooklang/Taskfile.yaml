@@ -1,0 +1,9 @@
+---
+version: "3"
+
+tasks:
+  update-feeds:
+    desc: "Refresh Cooklang federation feeds.yaml from upstream"
+    dir: "{{.ROOT_DIR}}"
+    cmds:
+      - ./scripts/update-cooklang-feeds.sh
