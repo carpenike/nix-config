@@ -47,6 +47,7 @@
     ./prowlarr                                # Prowlarr indexer manager
     ./qbittorrent                             # qBittorrent torrent download client
     ./qbit-manage                             # qbit_manage torrent lifecycle management
+  ./resilio-sync                            # Resilio Sync helper for declarative shared folders
     ./qui                                     # qui modern qBittorrent web interface
     ./radarr                                  # Radarr movie collection manager
     ./readarr                                 # Readarr book/audiobook collection manager

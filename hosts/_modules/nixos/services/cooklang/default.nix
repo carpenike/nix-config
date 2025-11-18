@@ -25,7 +25,7 @@ let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
 
   cfg = config.modules.services.cooklang;
-  notificationsCfg = config.modules.notifications;
+  notificationsCfg = config.modules.notifications or {};
   storageCfg = config.modules.storage;
   datasetsCfg = storageCfg.datasets or {};
   hasCentralizedNotifications = notificationsCfg.enable or false;
@@ -36,11 +36,11 @@ let
       storageCfg.datasets.services.cooklang
     else
       null;
-  datasetRoot =
+  defaultDatasetPath =
     if datasetsCfg ? parentDataset then
-      datasetsCfg.parentDataset
+      "${datasetsCfg.parentDataset}/${serviceName}"
     else
-      "rpool/safe/persist";
+      null;
 
   serviceName = "cooklang";
   serviceUnitFile = "${serviceName}.service";
@@ -81,11 +81,7 @@ let
         findReplication parentPath;
 
   # Determine ZFS dataset path for replication
-  datasetPath =
-    if cooklangDataset != null then
-      "${datasetRoot}/${serviceName}"
-    else
-      null;
+  datasetPath = cfg.datasetPath;
 
   foundReplication =
     if datasetPath != null then
@@ -147,6 +143,17 @@ in
         Should point to a ZFS dataset mountpoint for durability.
       '';
       example = "/data/cooklang/recipes";
+    };
+
+    datasetPath = mkOption {
+      type = types.nullOr types.str;
+      default = defaultDatasetPath;
+      description = ''
+        Full ZFS dataset path backing the Cooklang recipe directory.
+        Defaults to the storage parent dataset (e.g., tank/services/cooklang) when defined.
+        Set to null to opt-out of declarative dataset management (e.g., when using non-ZFS storage).
+      '';
+      example = "tank/services/cooklang";
     };
 
     dataDir = mkOption {
@@ -297,6 +304,18 @@ in
         description = "Timeout per curl invocation";
       };
 
+      user = mkOption {
+        type = types.str;
+        default = "cooklang-health";
+        description = "System user that executes the healthcheck";
+      };
+
+      group = mkOption {
+        type = types.str;
+        default = "cooklang-health";
+        description = "Primary group for the healthcheck user";
+      };
+
       startPeriod = mkOption {
         type = types.str;
         default = "2m";
@@ -348,20 +367,39 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
-      users.users.${cfg.user} = {
-        isSystemUser = true;
-        group = cfg.group;
-        home = lib.mkForce "/var/empty";
-        description = "Cooklang service user";
-      };
+      users.users =
+        {
+          ${cfg.user} = {
+            isSystemUser = true;
+            group = cfg.group;
+            home = lib.mkForce "/var/empty";
+            description = "Cooklang service user";
+          };
+        }
+        // lib.optionalAttrs (cfg.healthcheck.enable) {
+          ${cfg.healthcheck.user} = {
+            isSystemUser = true;
+            group = cfg.healthcheck.group;
+            home = lib.mkForce "/var/empty";
+            description = "Cooklang health check user";
+            extraGroups = lib.optional (cfg.healthcheck.metrics.enable) "node-exporter";
+          };
+        };
 
-      users.groups.${cfg.group} = {};
+      users.groups =
+        {
+          ${cfg.group} = {};
+        }
+        // lib.optionalAttrs (cfg.healthcheck.enable) {
+          ${cfg.healthcheck.group} = {};
+        };
 
       systemd.tmpfiles.rules = [
         "d '${cfg.recipeDir}/config' 0750 ${cfg.user} ${cfg.group} - -"
-      ];
+      ] ++ lib.optional (cfg.healthcheck.enable && cfg.healthcheck.metrics.enable)
+        "d ${cfg.healthcheck.metrics.textfileDir} 0775 node-exporter node-exporter - -";
 
-      modules.storage.datasets.services.cooklang = {
+      modules.storage.datasets.services.cooklang = mkIf (cfg.datasetPath != null) {
         mountpoint = mkDefault cfg.recipeDir;
         recordsize = mkDefault "16K";
         compression = mkDefault "zstd";
@@ -440,11 +478,14 @@ in
               [
                 "${cfg.package}/bin/cook"
                 "server"
-                "--host"
-                cfg.listenAddress
+              ]
+              ++ lib.optional (cfg.listenAddress != "127.0.0.1") "--host"
+              ++ [
                 "--port"
                 (toString cfg.port)
-              ] ++ lib.optional (!cfg.openBrowser) "--no-open"
+                (toString cfg.recipeDir)
+              ]
+              ++ lib.optional cfg.openBrowser "--open"
             );
             Restart = "on-failure";
             RestartSec = "10s";
@@ -560,8 +601,9 @@ in
         requires = [ "${serviceName}.service" ];
         serviceConfig = {
           Type = "oneshot";
-          User = cfg.user;
-          Group = cfg.group;
+          User = cfg.healthcheck.user;
+          Group = cfg.healthcheck.group;
+          ReadWritePaths = lib.optional cfg.healthcheck.metrics.enable cfg.healthcheck.metrics.textfileDir;
         };
         script = ''
           set -euo pipefail
@@ -574,7 +616,10 @@ in
           ${lib.optionalString cfg.healthcheck.metrics.enable ''
             METRICS_DIR="${cfg.healthcheck.metrics.textfileDir}"
             METRICS_FILE="$METRICS_DIR/cooklang.prom"
-            mkdir -p "$METRICS_DIR"
+            if [ ! -d "$METRICS_DIR" ]; then
+              echo "Cooklang healthcheck metrics directory $METRICS_DIR is missing" >&2
+              exit 1
+            fi
             TS=$(date +%s)
             cat > "$METRICS_FILE.tmp" <<EOF
 # HELP cooklang_up Cooklang HTTP health status (1=up, 0=down)
@@ -606,6 +651,27 @@ EOF
         };
       };
 
+      system.activationScripts."cooklang-preseed-validation" = mkIf preseedEnabled ''
+        set -euo pipefail
+
+        if [ ! -r ${preseedCfg.passwordFile} ]; then
+          echo "Cooklang preseed password file (${preseedCfg.passwordFile}) is missing or unreadable" >&2
+          exit 1
+        fi
+
+        ${lib.optionalString (preseedCfg.environmentFile != null) ''
+          if [ ! -r ${preseedCfg.environmentFile} ]; then
+            echo "Cooklang preseed environment file (${preseedCfg.environmentFile}) is missing or unreadable" >&2
+            exit 1
+          fi
+        ''}
+
+        if ! printf '%s' "${preseedCfg.repositoryUrl}" | ${pkgs.gnugrep}/bin/grep -Eq '^[A-Za-z0-9+.-]+:'; then
+          echo "Cooklang preseed repository URL (${preseedCfg.repositoryUrl}) must include a scheme (e.g., rest:http:// or sftp://)" >&2
+          exit 1
+        fi
+      '';
+
       assertions = [
         {
           assertion = cfg.user != "root";
@@ -624,6 +690,10 @@ EOF
         {
           assertion = preseedEnabled -> (preseedCfg.passwordFile != null);
           message = "Cooklang preseed.enable requires preseed.passwordFile to be set.";
+        }
+        {
+          assertion = (!preseedEnabled) || (cfg.datasetPath != null);
+          message = "Cooklang preseed requires datasetPath to be set (provide modules.services.cooklang.datasetPath or configure a storage parent dataset).";
         }
         {
           assertion = cfg.recipeDir != "";

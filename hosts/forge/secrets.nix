@@ -91,6 +91,12 @@
           group = config.users.groups.cloudflared.name;
         };
 
+        "resilio/cooklang-secret" = {
+          mode = "0400";
+          owner = "rslsync";
+          group = config.modules.services.cooklang.group;
+        };
+
         # Loki Basic Auth password hash for Caddy reverse proxy (environment variable)
         "services/caddy/environment/loki-admin-bcrypt" = {
           mode = "0400";

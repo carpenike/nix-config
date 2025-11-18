@@ -22,7 +22,7 @@
 
     # Network configuration (localhost only, accessed via Caddy)
     listenAddress = "127.0.0.1";
-    port = 9080;
+    port = 9085;
 
     # Declarative configuration
     settings = {
@@ -116,6 +116,38 @@
     owner = config.modules.services.cooklang.user;
     group = config.modules.services.cooklang.group;
     mode = "0750";
+  };
+
+  modules.services.resilioSync = {
+    enable = true;
+    deviceName = "${config.networking.hostName}-cooklang";
+    listeningPort = 4444;
+
+    folders.cooklang = {
+      path = config.modules.services.cooklang.recipeDir;
+      secretFile = config.sops.secrets."resilio/cooklang-secret".path;
+      owner = config.modules.services.cooklang.user;
+      group = config.modules.services.cooklang.group;
+      ensurePermissions = true;
+      mode = "2770";
+
+      # Enable all discovery methods for better connectivity
+      useRelayServer = true;    # Helps with NAT traversal
+      useTracker = true;         # Public tracker for peer discovery
+      useDHT = true;            # Distributed peer discovery
+      searchLAN = true;         # Local network discovery
+
+      # Explicit hosts for direct connection (optional but helpful)
+      knownHosts = [
+        "nas-1.holthome.net:4444"
+        "forge.holthome.net:4444"  # Add forge's own hostname for external access
+      ];
+    };
+  };
+
+  systemd.services.cooklang = {
+    after = lib.mkAfter [ "resilio.service" ];
+    wants = lib.mkAfter [ "resilio.service" ];
   };
 
   # Backup configuration - Sanoid snapshots

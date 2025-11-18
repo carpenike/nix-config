@@ -3,14 +3,9 @@
   pkgs,
   rustPlatform,
   fetchFromGitHub,
-  nodePackages ? pkgs.nodePackages,
   ...
 }:
 let
-  tailwindcss = nodePackages.tailwindcss;
-in
-rustPlatform.buildRustPackage rec {
-  pname = "cooklang-cli";
   version = "0.18.2";
 
   src = fetchFromGitHub {
@@ -20,16 +15,28 @@ rustPlatform.buildRustPackage rec {
     hash = "sha256-uw1xwE7hIE00OADV9kOXR1/gKSzvleW1/5PwfhH4fvE=";
   };
 
+  tailwindAssets = pkgs.buildNpmPackage {
+    pname = "cooklang-tailwind-assets";
+    inherit version src;
+    npmDepsHash = "sha256-HxC9Tf+PZvvETuNqm1W3jaZx7SpYXlxZlI8FwGouK+s=";
+    npmBuildScript = "build-css";
+    installPhase = ''
+      runHook preInstall
+      install -Dm644 static/css/output.css $out/static/css/output.css
+      runHook postInstall
+    '';
+  };
+in
+rustPlatform.buildRustPackage {
+  pname = "cooklang-cli";
+  inherit version src;
+
   cargoHash = "sha256-Yxln5eKNXONGd4Hy9Ru9t92iqK9zcTSpzu2j75bc3fk=";
 
-  nativeBuildInputs = [
-    tailwindcss
-    pkgs.perl
-  ];
+  nativeBuildInputs = [ pkgs.perl ];
 
-  # Generate the Tailwind CSS bundle used by the web UI before building.
   preBuild = ''
-    tailwindcss -i static/css/input.css -o static/css/output.css --minify
+    install -Dm644 ${tailwindAssets}/static/css/output.css static/css/output.css
   '';
 
   doCheck = false;
