@@ -299,6 +299,56 @@ in
                   description = "The name of the tunnel to expose this service through. Must match a key in `modules.services.cloudflared.tunnels`.";
                   example = "homelab";
                 };
+
+                dns = mkOption {
+                  type = types.submodule {
+                    options = {
+                      register = mkOption {
+                        type = types.bool;
+                        default = true;
+                        description = "If false, skip DNS automation for this host while still adding it to the tunnel ingress.";
+                      };
+
+                      zoneName = mkOption {
+                        type = types.nullOr types.str;
+                        default = null;
+                        description = "Optional zone override for this host (defaults to the tunnel's zone).";
+                      };
+
+                      recordType = mkOption {
+                        type = types.nullOr (types.enum [ "CNAME" ]);
+                        default = null;
+                        description = "DNS record type to create for this host (falls back to the tunnel default when null).";
+                      };
+
+                      proxied = mkOption {
+                        type = types.nullOr types.bool;
+                        default = null;
+                        description = "Override whether Cloudflare should proxy this hostname.";
+                      };
+
+                      ttl = mkOption {
+                        type = types.nullOr types.int;
+                        default = null;
+                        description = "Override TTL (seconds) for this hostname.";
+                      };
+
+                      target = mkOption {
+                        type = types.nullOr types.str;
+                        default = null;
+                        description = "Override DNS record content (defaults to the tunnel's cfargotunnel endpoint).";
+                      };
+
+                      comment = mkOption {
+                        type = types.nullOr types.str;
+                        default = null;
+                        description = "Optional comment/metadata attached to the DNS record when using the API.";
+                      };
+                    };
+                  };
+                  default = {};
+                  description = "Per-host DNS registration overrides.";
+                };
               };
             });
             default = null;

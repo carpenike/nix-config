@@ -107,6 +107,60 @@ modules.services.caddy.virtualHosts.grafana = {
 }
 ```
 
+### 4. DNS Automation Enhancements (January 2025)
+
+Recent improvements to the tunnel module add richer DNS automation without breaking the existing service declarations:
+
+1. **Explicit registration modes** – `dnsRegistration.mode` accepts `"cli"`, `"api"`, or `"auto"` (prefers CLI when an origin cert exists). CLI runs now reuse a persistent cert inside the tunnel state directory unless `persistOriginCert = false`.
+2. **Payload caching** – a JSON snapshot of the desired DNS state is stored on disk (default: `/var/lib/cloudflared-<tunnel>/dns-records.json`). When nothing changes, registration is skipped entirely.
+3. **Per-host overrides** – every Caddy vhost can override zone, record target, TTL, proxied flag, comments, or disable registration via `modules.services.caddy.virtualHosts.<name>.cloudflare.dns.*`.
+4. **Metrics + observability** – enable `dnsRegistration.metrics.enable` to emit Prometheus textfile gauges/counters (point it at `/var/lib/node_exporter/textfile_collector` if you want node-exporter to scrape it).
+5. **Custom DNS defaults** – `dnsRegistration.defaults` lets you define shared TTL/proxied/comment/target values that hosts inherit unless overridden.
+
+Example tunnel configuration with the new options:
+
+```nix
+modules.services.cloudflared.tunnels.forge = {
+  id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
+  credentialsFile = config.sops.secrets."cloudflared/forge".path;
+  originCertFile = config.sops.secrets."cloudflared/origin-cert".path;
+  persistOriginCert = true;
+
+  dnsRegistration = {
+    enable = true;
+    mode = "auto";
+    zoneName = "holthome.net";
+    cache.file = "/var/lib/cloudflared-forge/dns-cache.json";
+    defaults = {
+      proxied = true;
+      ttl = 120;
+      comment = "Managed by Nix";
+    };
+    metrics = {
+      enable = true;
+      textfilePath = "/var/lib/node_exporter/textfile_collector/cloudflared_dns_forge.prom";
+    };
+  };
+};
+```
+
+And a per-host override alongside the service declaration:
+
+```nix
+modules.services.caddy.virtualHosts.cooklangFederation.cloudflare = {
+  enable = true;
+  tunnel = "forge";
+  dns = {
+    ttl = 300;
+    proxied = true;
+    zoneName = "holthome.net";
+    comment = "Cooklang Federation";
+  };
+};
+```
+
+Set `dns.register = false;` when you need to keep a hostname in the tunnel ingress but manage its DNS record elsewhere (for example, split-horizon zones on the LAN resolver).
+
 ## Technical Details
 
 ### Auto-Discovery Mechanism

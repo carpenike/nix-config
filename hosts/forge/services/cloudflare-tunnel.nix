@@ -15,10 +15,12 @@
       # To create: cloudflared tunnel create forge
       # Then encrypt the JSON with: sops hosts/forge/secrets.sops.yaml
       credentialsFile = config.sops.secrets."networking/cloudflare/forge-credentials".path;
+      originCertFile = config.sops.secrets."networking/cloudflare/origin-cert".path;
 
-      # Default backend: route all tunnel traffic through Caddy
-      # This preserves all Authelia authentication, security headers, etc.
-      defaultService = "http://127.0.0.1:80";
+  # Default backend: route all tunnel traffic through Caddy over HTTPS
+  # Connecting with TLS avoids Caddy's automatic HTTP->HTTPS redirects when
+  # requests arrive from Cloudflare, preventing redirect loops at the edge.
+  defaultService = "https://127.0.0.1:443";
 
       # Optional: Enable debug logging
       # extraConfig = {

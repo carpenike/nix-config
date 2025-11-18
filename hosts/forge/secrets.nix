@@ -91,6 +91,12 @@
           group = config.users.groups.cloudflared.name;
         };
 
+        "networking/cloudflare/origin-cert" = {
+          mode = "0400";
+          owner = config.users.users.cloudflared.name;
+          group = config.users.groups.cloudflared.name;
+        };
+
         "resilio/cooklang-secret" = {
           mode = "0400";
           owner = "rslsync";
