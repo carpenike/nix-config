@@ -203,6 +203,11 @@
         command = "systemctl status podman-authelia.service";
       };
     };
+
+    modules.services.caddy.virtualHosts.authelia.cloudflare = {
+      enable = true;
+      tunnel = "forge";
+    };
   };
 }
 
