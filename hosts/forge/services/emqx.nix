@@ -1,7 +1,6 @@
 { config, lib, ... }:
 let
   inherit (config.networking) domain;
-  authDomain = "auth.${domain}";
   dataset = "tank/services/emqx";
   dataDir = "/var/lib/emqx";
   dashboardDomain = "emqx.${domain}";
@@ -34,13 +33,6 @@ let
              backend = {
                host = "127.0.0.1";
                port = 18083;
-             };
-             authelia = {
-               enable = true;
-               instance = "main";
-               authDomain = authDomain;
-               policy = "two_factor";
-               allowedGroups = [ "admins" ];
              };
            };
          };

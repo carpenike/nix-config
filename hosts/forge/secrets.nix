@@ -180,6 +180,7 @@
           group = "root";
         };
 
+
         "authelia/smtp_password" = {
           mode = "0400";
           owner = "authelia-main";

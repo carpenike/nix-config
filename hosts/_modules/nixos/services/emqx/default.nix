@@ -144,6 +144,12 @@ let
 
   boolString = value: if value then "true" else "false";
 
+  dashboardContainerBindAddress =
+    if cfg.dashboard.listenAddress == "127.0.0.1" || cfg.dashboard.listenAddress == "localhost" then
+      "0.0.0.0"
+    else
+      cfg.dashboard.listenAddress;
+
 in {
   options.modules.services.emqx = {
     enable = mkEnableOption "EMQX MQTT broker";
@@ -264,6 +270,7 @@ in {
         default = null;
         description = "Optional reverse proxy registration for the dashboard.";
       };
+
     };
 
     users = mkOption {
@@ -450,7 +457,8 @@ in {
                   -d "$payload" \
                   "$api_base/authentication/$authenticator_id/users" || true)"
                 case "$status" in
-                  200|201|204)
+                  200|201|204|409)
+                    # 409 indicates the user already exists; treat as success
                     ;;
                   *)
                     echo "Failed to sync EMQX user '$user_id' (status $status)" >&2
@@ -567,7 +575,7 @@ in {
                 printf "EMQX_LISTENERS__WS__EXTERNAL__ENABLE=%s\n" true
               ''}
               ${lib.optionalString cfg.dashboard.enable ''
-                printf "EMQX_DASHBOARD__LISTENERS__HTTP__BIND=%s:%s\n" ${lib.escapeShellArg cfg.dashboard.listenAddress} ${lib.escapeShellArg (toString cfg.dashboard.port)}
+                printf "EMQX_DASHBOARD__LISTENERS__HTTP__BIND=%s:%s\n" ${lib.escapeShellArg dashboardContainerBindAddress} ${lib.escapeShellArg (toString cfg.dashboard.port)}
                 printf "EMQX_DASHBOARD__DEFAULT_USERNAME=%s\n" ${lib.escapeShellArg cfg.dashboard.username}
                 printf "EMQX_DASHBOARD__DEFAULT_PASSWORD=%s\n" "$(cat ${lib.escapeShellArg (toString cfg.dashboard.passwordFile)})"
               ''}
