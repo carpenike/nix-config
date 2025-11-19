@@ -208,6 +208,11 @@ in {
       default = "${serviceName}@${config.networking.hostName}";
       description = "EMQX node name (format: name@host).";
     };
+    nodeCookie = mkOption {
+      type = types.str;
+      default = lib.substring 0 64 (builtins.hashString "sha256" config.networking.hostName);
+      description = "Erlang cookie used for cluster authentication (must match across nodes).";
+    };
 
     listeners = {
       mqtt = {
@@ -557,19 +562,14 @@ in {
             {
               printf "TZ=%s\n" ${lib.escapeShellArg cfg.timezone}
               printf "EMQX_NODE__NAME=%s\n" ${lib.escapeShellArg cfg.nodeName}
+              printf "EMQX_NODE__COOKIE=%s\n" ${lib.escapeShellArg cfg.nodeCookie}
               printf "EMQX_LISTENERS__TCP__DEFAULT__ENABLE=%s\n" false
               printf "EMQX_LISTENERS__TCP__EXTERNAL__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.mqtt.host} ${lib.escapeShellArg (toString cfg.listeners.mqtt.port)}
               printf "EMQX_LISTENERS__TCP__EXTERNAL__MAX_CONNECTIONS=%s\n" ${lib.escapeShellArg (toString cfg.listeners.mqtt.maxConnections)}
               printf "EMQX_ALLOW_ANONYMOUS=%s\n" ${lib.escapeShellArg (boolString cfg.allowAnonymous)}
-              printf "EMQX_LOG__LEVEL=%s\n" info
-              printf "EMQX_PROMETHEUS__ENABLE=%s\n" true
-              printf "EMQX_PROMETHEUS__LISTENER__HTTP__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.mqtt.host} ${lib.escapeShellArg (toString (cfg.listeners.mqtt.port + 2000))}
               printf "EMQX_AUTHENTICATION__1__ENABLE=%s\n" true
               printf "EMQX_AUTHENTICATION__1__MECHANISM=%s\n" password_based
               printf "EMQX_AUTHENTICATION__1__BACKEND=%s\n" built_in_database
-              printf "EMQX_AUTHENTICATION__1__CONFIG__USER_ID_TYPE=%s\n" username
-              printf "EMQX_AUTHENTICATION__1__CONFIG__PASSWORD_HASH_ALGORITHM__NAME=%s\n" plain
-              printf "EMQX_AUTHENTICATION__1__CONFIG__PASSWORD_HASH_ALGORITHM__SALT_POSITION=%s\n" suffix
               ${lib.optionalString cfg.listeners.websocket.enable ''
                 printf "EMQX_LISTENERS__WS__EXTERNAL__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.websocket.host} ${lib.escapeShellArg (toString cfg.listeners.websocket.port)}
                 printf "EMQX_LISTENERS__WS__EXTERNAL__ENABLE=%s\n" true
