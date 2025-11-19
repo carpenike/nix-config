@@ -228,6 +228,31 @@
           group = "root";
         };
 
+        # Mealie service secrets
+        "mealie/database_password" = {
+          mode = "0440";
+          owner = "root";
+          group = "postgres";
+        };
+
+        "mealie/smtp_password" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "mealie/oidc_client_secret" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "mealie/openai_api_key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
         "emqx/dashboard_password" = {
           mode = "0400";
           owner = "root";

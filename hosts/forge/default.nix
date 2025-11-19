@@ -69,6 +69,7 @@ in
     ./services/tdarr.nix           # Tdarr transcoding automation
     ./services/cooklang.nix        # Cooklang recipe management
     ./services/cooklang-federation.nix  # Cooklang federation search service
+    ./services/mealie.nix          # Mealie recipe manager
     ./services/emqx.nix            # Shared EMQX MQTT broker
     ./services/teslamate.nix       # TeslaMate telemetry + dashboards
   ];

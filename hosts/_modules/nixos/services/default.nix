@@ -29,6 +29,7 @@
     ./haproxy
     ./lidarr                                  # Lidarr music collection manager
     ./loki                                    # Loki log aggregation server
+    ./mealie                                  # Mealie recipe manager
     ./nginx
     ./gpu-metrics
     ./node-exporter

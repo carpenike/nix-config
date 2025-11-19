@@ -92,6 +92,20 @@
             ];
             scopes = [ "openid" "profile" "email" "groups" ];
           };
+
+          mealie = {
+            description = "Mealie Recipe Manager";
+            # Argon2id hash generated via:
+            # nix shell nixpkgs#authelia -c authelia crypto hash generate argon2 --no-confirm --password "$(sops -d --extract '[\"mealie\"][\"oidc_client_secret\"]' hosts/forge/secrets.sops.yaml)"
+            # Plaintext secret stored in secrets.sops.yaml as mealie/oidc_client_secret
+            secret = "$argon2id$v=19$m=65536,t=3,p=4$exvzS7nAAT0RZufSF5ktqw$bgyOvm9M6sC0aSiKMz8GTQ8H/XkLlv0tC6775SEVtJ4";
+            redirectUris = [
+              # Official docs specify /login (optionally with ?direct=1 for RP-initiated logout)
+              "https://mealie.${config.networking.domain}/login"
+              "https://mealie.${config.networking.domain}/login?direct=1"
+            ];
+            scopes = [ "openid" "profile" "email" "groups" ];
+          };
         };
       };
 
