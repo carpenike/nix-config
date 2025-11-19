@@ -348,7 +348,11 @@ in
       passwordFile = mkOption {
         type = types.nullOr types.path;
         default = null;
-        description = "SOPS-managed secret containing the MQTT password.";
+        description = ''
+          SOPS-managed secret containing the MQTT password. Ensure the file is
+          deployed with mode 0440 and owned by root:${cfg.group} (teslamate) so
+          systemd LoadCredential can pass it into the container securely.
+        '';
       };
     };
 
@@ -537,7 +541,7 @@ in
               ++ lib.optionals cfg.preseed.enable [ "teslamate-preseed.service" ];
             wants = [ "network-online.target" ]
               ++ lib.optionals cfg.preseed.enable [ "teslamate-preseed.service" ];
-            requires = lib.optional cfg.database.manageDatabase "postgresql-provision-databases.service";
+            requires = lib.optionals (cfg.database.manageDatabase && cfg.database.localInstance) [ "postgresql-provision-databases.service" ];
             serviceConfig = {
               LoadCredential =
                 [

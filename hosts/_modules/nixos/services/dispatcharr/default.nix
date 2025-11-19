@@ -399,8 +399,15 @@ in
     database = {
       host = lib.mkOption {
         type = lib.types.str;
-        default = "localhost";
-        description = "PostgreSQL host address";
+        default = "host.containers.internal";
+        description = ''
+          PostgreSQL host address.
+
+          Defaults to Podman's host alias (host.containers.internal) so containers
+          can reach the host PostgreSQL instance without extra network plumbing.
+          Override when pointing Dispatcharr at a remote database or non-standard
+          access path.
+        '';
       };
 
       port = lib.mkOption {
@@ -471,6 +478,10 @@ in
             assertion = config.modules.services.postgresql.enable or false;
             message = "Dispatcharr requires PostgreSQL to be enabled (modules.services.postgresql.enable).";
           }
+          {
+            assertion = cfg.database.passwordFile != null;
+            message = "Dispatcharr database.passwordFile must reference a SOPS secret for POSTGRES_PASSWORD.";
+          }
         ];
 
     # SOPS secret for database password is managed at the host level
@@ -491,7 +502,7 @@ in
     # via tmpfiles by keeping owner/group/mode here
     modules.storage.datasets.services.dispatcharr = {
       mountpoint = cfg.dataDir;
-      recordsize = "8K";  # Optimal for PostgreSQL databases (uses embedded postgres)
+      recordsize = "8K";  # Tuned for PostgreSQL workloads hosted on the shared cluster
       compression = "lz4";  # Fast compression suitable for database workloads
       properties = {
         "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
@@ -592,8 +603,8 @@ in
         # Use TCP host connection to avoid Unix socket peer authentication issues
         # The container user "dispatcharr" (UID 569) doesn't exist on the host, causing peer auth to fail
         # 127.0.0.1 inside container is container loopback, not host - use host.containers.internal instead
-        POSTGRES_HOST = "host.containers.internal";  # Podman DNS alias for host
-        POSTGRES_PORT = "5432";
+  POSTGRES_HOST = cfg.database.host;
+  POSTGRES_PORT = toString cfg.database.port;
         POSTGRES_DB = cfg.database.name;
         POSTGRES_USER = cfg.database.user;
         # POSTGRES_PASSWORD is provided via environmentFiles (generated in preStart)

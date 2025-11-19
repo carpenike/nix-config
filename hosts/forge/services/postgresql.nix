@@ -15,7 +15,13 @@
 # Secret paths are passed via postgresSecrets parameter (defined in forge/default.nix)
 # to avoid circular dependencies in module evaluation
 #
-# Monitoring: Uses mylib.monitoring-helpers for alert templates (injected via flake)
+let
+  # Allow operators to override which Podman CIDRs can reach PostgreSQL without
+  # editing the pg_hba.conf snippet directly. If modules.services.postgresql.podmanCidrs
+  # is unset, fall back to the traditional 10.88.0.0/16 bridge network.
+  podmanAccessCidrs = lib.attrByPath [ "modules" "services" "postgresql" "podmanCidrs" ] [ "10.88.0.0/16" ] config;
+  podmanAuthBlock = lib.concatMapStrings (cidr: "host    all   all       ${cidr}        scram-sha-256\n") podmanAccessCidrs;
+in
 {
       config = {
         # Enable PostgreSQL service
@@ -77,6 +83,16 @@
             log_rotation_size = 0;
             log_line_prefix = "%m [%p] %q%u@%d ";
             log_timezone = "UTC";
+            # Surface long-running maintenance and checkpoint behavior for easier diagnostics
+            log_checkpoints = "on";
+            log_autovacuum_min_duration = "1s";
+            log_temp_files = "10MB";
+            track_io_timing = "on";
+            autovacuum_max_workers = "5";
+            autovacuum_naptime = "30s";
+            autovacuum_vacuum_scale_factor = "0.05";
+            autovacuum_analyze_scale_factor = "0.02";
+            autovacuum_work_mem = "128MB";
           };
 
           # Disable old backup integration (now using pgBackRest directly)
@@ -109,9 +125,10 @@
       host    all   all       127.0.0.1/32        scram-sha-256
       host    all   all       ::1/128             scram-sha-256
 
-      # Podman container network (host.containers.internal = 10.88.0.1)
-      # Allow password-authenticated connections from containers
-      host    all   all       10.88.0.0/16        scram-sha-256
+  # Podman container networks (host.containers.internal = 10.88.0.1 by default)
+  # Allow password-authenticated connections from containers. Operators can
+  # override the list via modules.services.postgresql.podmanCidrs.
+${podmanAuthBlock}
     '';
 
     # Override PostgreSQL systemd service to allow writes to NFS mount and local spool for pgBackRest

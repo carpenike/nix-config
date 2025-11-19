@@ -1,5 +1,23 @@
 { config, pkgs, lib, ... }:
 
+let
+  hardenedServiceConfig = {
+    ProtectSystem = "full";
+    ProtectHome = true;
+    PrivateTmp = true;
+    PrivateDevices = true;
+    NoNewPrivileges = true;
+    LockPersonality = true;
+    RestrictSUIDSGID = true;
+    RestrictRealtime = true;
+    KeyringMode = "private";
+    UMask = "0077";
+    CapabilityBoundingSet = "";
+    SystemCallArchitectures = "native";
+    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+    MemoryDenyWriteExecute = true;
+  };
+in
 {
   # pgBackRest - PostgreSQL Backup & Recovery
   # Replaces custom pg-backup-scripts with industry-standard tooling
@@ -28,15 +46,19 @@
   # CRITICAL: R2 credentials MUST be in the config file for archive_command to work
   # The PostgreSQL archiver process reads /etc/pgbackrest.conf and does NOT have
   # access to environment variables set in backup scripts or systemd services.
-  # This is why backups work (they set env vars) but WAL archiving fails.
+  # To keep a single source of truth, all runtime services now rely solely on the
+  # generated /etc/pgbackrest.conf and never export AWS credentials directly.
   #
   # We generate this config file from a template that includes placeholders,
   # then use a systemd service to substitute the actual credentials at runtime.
+  # Weekly pgBackRest check jobs and async spool metrics provide early warnings
+  # when repositories degrade or the archive queue begins to grow.
   environment.etc."pgbackrest.conf.template".text = ''
     [global]
     # Repo1 (NFS) - Primary for WAL archiving and local backups
     repo1-path=/mnt/nas-postgresql/pgbackrest
     repo1-retention-full=7
+  repo1-retention-archive=7
 
     # Repo2 (Cloudflare R2) - Offsite DR with PITR capability
     # Now includes WAL archiving for complete offsite PITR
@@ -47,6 +69,7 @@
     repo2-s3-region=auto
     repo2-s3-uri-style=path
     repo2-retention-full=30
+  repo2-retention-archive=30
     # Credentials will be substituted by pgbackrest-config-generator service
     repo2-s3-key=__R2_ACCESS_KEY_ID__
     repo2-s3-key-secret=__R2_SECRET_ACCESS_KEY__
@@ -130,19 +153,17 @@
   # Note: repo2 configuration defined in top-level let block as repo2Flags and repo2EnvVars
   systemd.services = {
     # Stanza creation (runs once at setup)
-    pgbackrest-stanza-create = {
+  pgbackrest-stanza-create = {
       description = "pgBackRest stanza initialization";
       after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       wants = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       requires = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
-      serviceConfig = {
+      serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
         RemainAfterExit = true;
-        # Add R2 credentials for repo2 stanza creation
-        EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
       };
       # Add NFS mount dependency
       unitConfig = {
@@ -168,10 +189,6 @@
 
         # Try to create/upgrade stanza to handle both fresh install and disaster recovery
         echo "[$(date -Iseconds)] Attempting stanza creation for both repositories..."
-
-        # Transform AWS env vars to pgBackRest format for repo2 access
-        export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
-        export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
         # Capture output for better error logging
         # Try creating stanza for both repos first (ideal path)
@@ -256,14 +273,12 @@
         OnSuccess = "pgbackrest-metrics.service";
       };
 
-      serviceConfig = {
+      serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
         RemainAfterExit = true;
         Environment = "PGHOST=/var/run/postgresql";
-        # Add R2 credentials for repo2 backup
-        EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
         # Restart on failure with proper backoff for recovery timing issues
         Restart = "on-failure";
         RestartSec = "60s";
@@ -406,10 +421,6 @@ EOF
         cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
         log_json "INFO" "system_id_check" "Checking for existing backups for current system-id." "{\"system_id\":\"$cur_sysid\"}"
 
-        # Transform AWS env vars to pgBackRest format for repo2 operations
-        export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
-        export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
-
         # Check each repository independently to ensure both have fresh backups
         # This prevents skipping repo2 if repo1 succeeds but repo2 failed previously
         INFO_JSON="$(pgbackrest --stanza=main --output=json info 2>/dev/null || echo '[]')"
@@ -449,8 +460,7 @@ EOF
           repo2_ok=true
         else
           log_json "INFO" "backup_repo2_start" "No full backup found for repo2; starting backup to R2..."
-          # Repo2 configuration read from /etc/pgbackrest.conf
-          # Credentials supplied via PGBACKREST_REPO2_S3_KEY environment variables
+          # Repo2 configuration (including credentials) lives in /etc/pgbackrest.conf
           if pgbackrest --stanza=main --type=full --repo=2 backup; then
             log_json "INFO" "backup_repo2_complete" "Repo2 backup completed"
             repo2_ok=true
@@ -524,19 +534,14 @@ EOF
         # Trigger metrics collection on success to immediately update Prometheus
         OnSuccess = "pgbackrest-metrics.service";
       };
-      serviceConfig = {
+      serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
-        EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
         IPAddressDeny = [ "169.254.169.254" ];
       };
       script = ''
         set -euo pipefail
-
-        # Transform AWS env vars to pgBackRest format
-        export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
-        export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
         echo "[$(date -Iseconds)] Starting full backup to repo1 (NFS)..."
         pgbackrest --stanza=main --type=full --repo=1 backup
@@ -562,19 +567,14 @@ EOF
         # Trigger metrics collection on success to immediately update Prometheus
         OnSuccess = "pgbackrest-metrics.service";
       };
-      serviceConfig = {
+      serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
-        EnvironmentFile = config.sops.secrets."restic/r2-prod-env".path;
         IPAddressDeny = [ "169.254.169.254" ];
       };
       script = ''
         set -euo pipefail
-
-        # Transform AWS env vars to pgBackRest format
-        export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
-        export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
 
         echo "[$(date -Iseconds)] Starting incremental backup to repo1 (NFS)..."
         pgbackrest --stanza=main --type=incr --repo=1 backup
@@ -585,6 +585,28 @@ EOF
         # Now includes WAL archiving for complete offsite PITR capability
         pgbackrest --stanza=main --type=incr --repo=2 backup
         echo "[$(date -Iseconds)] Incremental backup to both repos completed"
+      '';
+    };
+
+    pgbackrest-check = {
+      description = "pgBackRest repository health check";
+      after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+      wants = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+      path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.systemd ];
+      unitConfig = {
+        RequiresMountsFor = [ "/mnt/nas-postgresql" ];
+        OnSuccess = "pgbackrest-metrics.service";
+      };
+      serviceConfig = hardenedServiceConfig // {
+        Type = "oneshot";
+        User = "postgres";
+        Group = "postgres";
+        IPAddressDeny = [ "169.254.169.254" ];
+      };
+      script = ''
+        set -euo pipefail
+
+        pgbackrest --stanza=main check --log-level-console=info
       '';
     };
 
@@ -616,6 +638,16 @@ EOF
       };
     };
 
+    pgbackrest-check = {
+      description = "Weekly pgBackRest repository check";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "Sun 03:30";
+        Persistent = true;
+        RandomizedDelaySec = "10m";
+      };
+    };
+
     # Differential backup timer removed - using simplified schedule
     # Daily full (2 AM) + Hourly incremental is sufficient for homelab
   };
@@ -633,8 +665,8 @@ EOF
 
   systemd.services.pgbackrest-metrics = {
     description = "Collect pgBackRest backup metrics for Prometheus";
-    path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest ];
-    serviceConfig = {
+  path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest pkgs.findutils pkgs.gawk ];
+    serviceConfig = hardenedServiceConfig // {
       Type = "oneshot";
       User = "postgres";
       Group = "postgres";
@@ -696,6 +728,10 @@ EOF
 # TYPE pgbackrest_backup_last_delta_bytes gauge
 # HELP pgbackrest_wal_max_lsn The last WAL segment archived, converted to decimal for graphing.
 # TYPE pgbackrest_wal_max_lsn gauge
+# HELP pgbackrest_spool_queue_bytes Size of the archive async spool queue pending upload.
+# TYPE pgbackrest_spool_queue_bytes gauge
+# HELP pgbackrest_spool_queue_files Number of WAL files waiting in the archive async spool queue.
+# TYPE pgbackrest_spool_queue_files gauge
 EOF
 
       echo 'pgbackrest_scrape_success{stanza="main"} 1' >> "$METRICS_TEMP"
@@ -717,6 +753,17 @@ EOF
           MAX_WAL_DEC=$((16#''${MAX_WAL:8}))
           echo "pgbackrest_wal_max_lsn{stanza=\"main\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
       fi
+
+      SPOOL_DIR="/var/lib/pgbackrest/spool/archive/push"
+      if [ -d "$SPOOL_DIR" ]; then
+        SPOOL_BYTES=$(du -sb "$SPOOL_DIR" | cut -f1)
+        SPOOL_FILES=$(find "$SPOOL_DIR" -type f | wc -l | awk '{print $1}')
+      else
+        SPOOL_BYTES=0
+        SPOOL_FILES=0
+      fi
+      echo "pgbackrest_spool_queue_bytes{stanza=\"main\"} $SPOOL_BYTES" >> "$METRICS_TEMP"
+      echo "pgbackrest_spool_queue_files{stanza=\"main\"} $SPOOL_FILES" >> "$METRICS_TEMP"
 
       # Per-repo and per-backup-type metrics using a single, efficient jq command
       echo "$STANZA_JSON" | jq -r '
