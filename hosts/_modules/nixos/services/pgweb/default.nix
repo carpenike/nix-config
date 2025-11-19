@@ -143,7 +143,12 @@ in
         script = ''
           # Read password and build connection string with URL encoding
           ${lib.optionalString (cfg.database.passwordFile != null) ''
-            PASSWORD=$(cat ${cfg.database.passwordFile})
+            PASSWORD_FILE="$CREDENTIALS_DIRECTORY/pgpassword"
+            if [ ! -r "$PASSWORD_FILE" ]; then
+              echo "pgweb: missing credential $PASSWORD_FILE" >&2
+              exit 1
+            fi
+            PASSWORD=$(cat "$PASSWORD_FILE")
             # URL-encode the password to handle special characters like / = +
             ENCODED_PASSWORD=$(${pkgs.python3}/bin/python3 -c 'import urllib.parse; import sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$PASSWORD")
             CONNECTION_URL="postgres://${cfg.database.user}:$ENCODED_PASSWORD@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.database}?sslmode=disable"

@@ -22,6 +22,7 @@
   ./cooklang-federation                     # Cooklang Federation discovery service
     ./cross-seed                              # cross-seed automatic cross-seeding daemon
     ./dispatcharr
+  ./emqx                                    # EMQX MQTT broker service
     ./dnsdist
     ./glances
     ./grafana                                 # Grafana monitoring dashboard
@@ -55,6 +56,7 @@
     ./recyclarr                               # Recyclarr TRaSH Guides automation
     ./sabnzbd                                 # SABnzbd usenet download client
     ./sonarr
+  ./teslamate                               # TeslaMate telemetry stack
     ./tdarr                                   # Tdarr transcoding automation
     ./tqm                                     # tqm fast torrent management for racing
     ./unifi

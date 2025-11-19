@@ -209,6 +209,30 @@
           group = "root";
         };
 
+        "teslamate/database_password" = {
+          mode = "0440";
+          owner = "root";
+          group = "postgres";
+        };
+
+        "teslamate/encryption_key" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "teslamate/mqtt_password" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
+        "emqx/dashboard_password" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
         "prowlarr/api-key" = {
           mode = "0400";
           owner = "root";

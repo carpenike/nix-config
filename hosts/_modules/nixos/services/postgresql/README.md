@@ -24,6 +24,9 @@ Declarative NixOS module for managing PostgreSQL databases, roles, permissions, 
   - Includes automatic backfilling to existing objects
 - **Security Hardening**: Automatic revocation of PUBLIC permissions
 - **Permission Precedence**: Specific patterns override wildcards for fine-tuned control
+- **Extension Specs**: Rich extension declarations (schema, version pinning, drop/recreate policies)
+- **Custom SQL Hooks**: Pre/post provisioning SQL hooks tied into the change hash
+- **Schema Migration Seeding**: Declaratively seed (and optionally prune) migration tables such as `schema_migrations`
 
 ## Architecture
 
@@ -102,6 +105,64 @@ For most common use cases, use permission presets instead of manually configurin
   };
 }
 ```
+
+### Structured Extension Specifications
+
+Extensions can be declared as rich objects instead of plain strings. Strings are automatically coerced to `{ name = "ext"; }` for backward compatibility.
+
+```nix
+extensions = [
+  "pgcrypto"  # Simple string works
+  { name = "cube"; dropBeforeCreate = true; dropCascade = true; updateToLatest = true; }
+  { name = "earthdistance"; schema = "extensions"; version = "1.1"; }
+];
+```
+
+Available fields:
+- `schema` – optional schema for `CREATE EXTENSION ... WITH SCHEMA`
+- `version` – pin to a specific extension version
+- `dropBeforeCreate` – drop the extension before recreating it (handy when migrations rebuild objects)
+- `dropCascade` – toggle `CASCADE` when dropping
+- `updateToLatest` – run `ALTER EXTENSION ... UPDATE` after creation
+
+### Custom SQL Hooks
+
+Per-database SQL snippets can be injected at four hook points. Each hook accepts a list of strings or paths (paths are read during evaluation and included in the provisioning hash).
+
+```nix
+customSql = {
+  preCreate = [ ''SELECT pg_reload_conf();'' ];          # Runs in postgres DB before CREATE DATABASE
+  postCreate = [ ''GRANT CONNECT ON DATABASE myapp TO app_worker;'' ];
+  preConfig = [ ''SET ROLE myapp; SELECT 1;'' ];         # Runs inside target DB after hardening
+  postConfig = [
+    (builtins.readFile ./sql/seed_indexes.sql)
+  ];
+};
+```
+
+Because the snippets are part of the provisioning hash, any change automatically re-runs the provisioning service.
+
+### Schema Migration Seeding
+
+The module can seed application-managed migration tables (e.g., TeslaMate/Ecto `schema_migrations`).
+
+```nix
+schemaMigrations = {
+  table = "schema_migrations";  # default
+  column = "version";           # default
+  schema = null;                # optional schema override
+  columnType = "varchar(255)"; # used when ensureTable = true
+  ensureTable = true;           # create table if missing
+  pruneUnknown = true;          # delete rows not listed in entries
+  entries = [ "20240929084639" "20240930010255" ];
+};
+```
+
+- `ensureTable`: Creates the migrations table (with the specified column type) when absent.
+- `entries`: Versions inserted idempotently using `ON CONFLICT DO NOTHING`.
+- `pruneUnknown`: When true, deletes any row not listed in `entries` (or truncates the table when `entries = []`).
+
+This removes the need for manual superuser intervention when applications expect their migration history to exist before startup.
 
 ### Schema Permissions
 ```nix

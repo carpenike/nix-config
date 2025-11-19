@@ -49,6 +49,25 @@ let
 
   foundReplication = findReplication datasetPath;
 
+  # Shared dashboard provider type so downstream contributions stay consistent
+  dashboardProviderType = types.submodule {
+    options = {
+      name = mkOption {
+        type = types.str;
+        description = "Unique name for the dashboard provider";
+      };
+      folder = mkOption {
+        type = types.str;
+        default = "";
+        description = "Folder to store dashboards in Grafana UI";
+      };
+      path = mkOption {
+        type = types.path;
+        description = "Path to a directory containing dashboard JSON files";
+      };
+    };
+  };
+
   # Compute replication config for preseed service
   replicationConfig =
     if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then
@@ -334,23 +353,7 @@ in
       };
 
       dashboards = mkOption {
-        type = with types; attrsOf (submodule {
-          options = {
-            name = mkOption {
-              type = types.str;
-              description = "Unique name for the dashboard provider";
-            };
-            folder = mkOption {
-              type = types.str;
-              default = "";
-              description = "Folder to store dashboards in Grafana UI";
-            };
-            path = mkOption {
-              type = types.path;
-              description = "Path to a directory containing dashboard JSON files";
-            };
-          };
-        });
+        type = types.attrsOf dashboardProviderType;
         default = {};
         description = "Attribute set of dashboard providers to provision";
       };
@@ -361,6 +364,35 @@ in
       loki = mkEnableOption "automatic configuration of the Loki data source";
       prometheus = mkEnableOption "automatic configuration of the Prometheus data source";
     };
+
+    integrations = mkOption {
+      type = types.attrsOf (types.submodule {
+        options = {
+          datasources = mkOption {
+            type = types.attrs;
+            default = {};
+            description = "Additional datasources contributed by downstream services";
+          };
+
+          dashboards = mkOption {
+            type = types.attrsOf dashboardProviderType;
+            default = {};
+            description = "Dashboard providers contributed by downstream services";
+          };
+
+          loadCredentials = mkOption {
+            type = types.listOf types.str;
+            default = [];
+            description = ''
+              Additional systemd LoadCredential entries (format "name:path") required by this integration.
+              Use this when a datasource needs to read a secret file provisioned outside Grafana's service.
+            '';
+          };
+        };
+      });
+      default = {};
+      description = "Declarative integration points that downstream modules can extend.";
+    };
   };
 
   ###### Implementation
@@ -368,6 +400,11 @@ in
   config = lib.mkMerge [
     (mkIf cfg.enable (
     let
+      integrationValues = lib.attrValues cfg.integrations;
+      integrationDatasources = lib.foldl' (acc: integration: acc // integration.datasources) {} integrationValues;
+      integrationDashboards = lib.foldl' (acc: integration: acc // integration.dashboards) {} integrationValues;
+      integrationLoadCredentials = lib.concatMap (integration: integration.loadCredentials) integrationValues;
+
       # Auto-generate Loki data source if enabled and the Loki module is active
       lokiDataSource = if (cfg.autoConfigure.loki && (config.modules.services.loki.enable or false)) then {
         "loki-auto" = {
@@ -391,16 +428,18 @@ in
       } else {};
 
       # Merge all data sources: user-defined take precedence
-      allDataSources = cfg.provisioning.datasources // lokiDataSource // prometheusDataSource;
+      allDataSources = lokiDataSource // prometheusDataSource // integrationDatasources // cfg.provisioning.datasources;
 
       # Generate YAML files for Grafana provisioning
       datasourcesConfig = {
         apiVersion = 1;
         datasources = mapAttrsToList (name: ds: ds // {
-          uid = "auto-${name}";
-          orgId = 1;
+          uid = ds.uid or "auto-${name}";
+          orgId = ds.orgId or 1;
         }) allDataSources;
       };
+
+      allDashboards = integrationDashboards // cfg.provisioning.dashboards;
 
       dashboardsConfig = {
         apiVersion = 1;
@@ -414,7 +453,7 @@ in
           options = {
             path = toString dashboard.path;
           };
-        }) cfg.provisioning.dashboards;
+        }) allDashboards;
       };
     in
     {
@@ -537,7 +576,7 @@ in
       };
 
       # Apply systemd hardening and resource limits
-      systemd.services.grafana = {
+        systemd.services.grafana = {
         serviceConfig = {
           # Permissions: Managed by systemd StateDirectory (native approach)
           # StateDirectory tells systemd to create /var/lib/grafana with correct ownership
@@ -574,7 +613,11 @@ in
           ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
         wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
           ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
-      };
+        };
+
+        systemd.services.grafana.serviceConfig.LoadCredential = mkIf (integrationLoadCredentials != []) (
+          lib.mkBefore integrationLoadCredentials
+        );
 
       # Validations
       assertions = [

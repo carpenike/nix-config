@@ -115,7 +115,8 @@
     sops.secrets."postgresql/pgweb_password" = {
       mode = "0440";
       owner = "root";
-      group = "pgweb";
+      # Provisioning runs as the postgres user and needs to read the file
+      group = "postgres";
     };
 
     # Pgweb admin password hash is loaded via sops.templates."caddy-env" in default.nix

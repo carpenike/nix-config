@@ -8,6 +8,228 @@
 # - Options defined as a single submodule (not attrsOf)
 # - Service generation included in this file (no separate implementation.nix)
 # - Storage/backup integration remains in separate modules
+let
+  types = lib.types;
+  sanitize = str:
+    lib.replaceStrings [ " " "/" ":" "@" "." "+" "#" "$" "(" ")" "[" "]" ]
+      (lib.replicate 12 "-")
+      str;
+
+  grafanaDashboardContributionType = types.submodule {
+    options = {
+      name = lib.mkOption {
+        type = types.str;
+        description = "Display name for the dashboard provider as it will appear in Grafana.";
+      };
+      folder = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Optional override for the Grafana folder (inherits datasource folder when null).";
+      };
+      path = lib.mkOption {
+        type = types.path;
+        description = "Path to the directory containing dashboard JSON definitions.";
+      };
+      attrName = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Optional override for the attribute key used when wiring into Grafana integrations.";
+      };
+    };
+  };
+
+  grafanaDatasourceContributionType = types.submodule {
+    options = {
+      name = lib.mkOption {
+        type = types.str;
+        description = "Grafana datasource display name.";
+      };
+
+      uid = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Optional datasource UID (defaults to a sanitized auto-generated value).";
+      };
+
+      integrationName = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Override key used under modules.services.grafana.integrations (defaults to derived name).";
+      };
+
+      datasourceKey = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Override attribute key within the integration's datasources set.";
+      };
+
+      credentialName = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Override systemd credential name (defaults to derived name).";
+      };
+
+      folder = lib.mkOption {
+        type = types.str;
+        default = "PostgreSQL";
+        description = "Default Grafana folder for dashboards contributed alongside this datasource.";
+      };
+
+      isDefault = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether this datasource should become the Grafana default.";
+      };
+
+      host = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Optional override for the datasource host (defaults to host.containers.internal).";
+      };
+
+      port = lib.mkOption {
+        type = types.nullOr types.port;
+        default = null;
+        description = "Optional override for the datasource port (defaults to the PostgreSQL instance port).";
+      };
+
+      database = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Optional override for the database name (defaults to this database).";
+      };
+
+      user = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Optional override for the Grafana SQL user (defaults to database owner).";
+      };
+
+      passwordFile = lib.mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Optional override for the password file (defaults to ownerPasswordFile).";
+      };
+
+      sslMode = lib.mkOption {
+        type = types.enum [ "disable" "allow" "prefer" "require" "verify-ca" "verify-full" ];
+        default = "disable";
+        description = "SSL mode hint inserted into Grafana jsonData.";
+      };
+
+      timescaleDB = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = "Set to true when the database has the TimescaleDB extension enabled.";
+      };
+
+      jsonData = lib.mkOption {
+        type = types.attrs;
+        default = {};
+        description = "Additional jsonData overrides merged into the datasource definition.";
+      };
+
+      secureJsonData = lib.mkOption {
+        type = types.attrs;
+        default = {};
+        description = "Additional secureJsonData overrides merged into the datasource definition.";
+      };
+
+      dashboards = lib.mkOption {
+        type = types.listOf grafanaDashboardContributionType;
+        default = [];
+        description = "Optional dashboards that should be provisioned alongside this datasource.";
+      };
+    };
+  };
+
+  sqlSnippetListType = types.listOf (types.coercedTo types.path builtins.readFile types.str);
+
+  extensionSpecType = types.submodule {
+    options = {
+      name = lib.mkOption {
+        type = types.str;
+        description = "Name of the PostgreSQL extension to manage.";
+      };
+
+      schema = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Optional schema where the extension should be installed. When null, PostgreSQL
+          uses the extension's default schema (often public).
+        '';
+        example = "extensions";
+      };
+
+      version = lib.mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Pin the extension to a specific version. Leave null to let PostgreSQL select
+          the latest available version when (re)creating the extension.
+        '';
+        example = "1.3";
+      };
+
+      dropBeforeCreate = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Drop the extension before creating it. Useful when migrations need to rebuild
+          the extension to pick up new objects or ownership changes. Only runs when the
+          provisioning service detects a change.
+        '';
+      };
+
+      dropCascade = lib.mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Whether DROP EXTENSION should cascade to dependent objects when dropBeforeCreate
+          is enabled. Disable this if you need to preserve dependent objects manually.
+        '';
+      };
+
+      updateToLatest = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Run ALTER EXTENSION ... UPDATE after creation to move to the newest available
+          version. This is helpful when the cluster ships upgraded extension binaries.
+        '';
+      };
+    };
+  };
+
+  insertedAtColumnType = types.submodule {
+    options = {
+      name = lib.mkOption {
+        type = types.str;
+        default = "inserted_at";
+        description = "Column name for the inserted-at timestamp tracked by many migration frameworks.";
+      };
+
+      columnType = lib.mkOption {
+        type = types.str;
+        default = "timestamptz";
+        description = "SQL type for the inserted-at column (e.g., timestamptz).";
+      };
+
+      defaultValue = lib.mkOption {
+        type = types.nullOr types.str;
+        default = "CURRENT_TIMESTAMP";
+        description = "Default SQL expression for the inserted-at column (unquoted expression, e.g., NOW()).";
+      };
+
+      notNull = lib.mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether the inserted-at column should be marked NOT NULL.";
+      };
+    };
+  };
+in
 {
   options.modules.services.postgresql = lib.mkOption {
     type = lib.types.submodule {
@@ -106,15 +328,127 @@
               };
 
               extensions = lib.mkOption {
-                type = lib.types.listOf lib.types.str;
+                type = types.listOf (types.coercedTo types.str (name: { inherit name; }) extensionSpecType);
                 default = [];
                 description = ''
-                  List of PostgreSQL extensions to enable for this database.
-                  Extension names are validated at runtime against available extensions.
+                  Declarative extension specifications. Plain strings continue to work for
+                  simple cases and are coerced to `{ name = "extension"; }`. Use the structured
+                  form to specify schema, pin versions, or force drop/recreate flows.
 
                   Common extensions: pg_trgm, btree_gin, btree_gist, pgcrypto, uuid-ossp, hstore
                 '';
-                example = [ "pg_trgm" "btree_gin" ];
+                example = [
+                  "pgcrypto"
+                  { name = "cube"; dropBeforeCreate = true; }
+                  { name = "earthdistance"; schema = "extensions"; updateToLatest = true; }
+                ];
+              };
+
+              customSql = lib.mkOption {
+                type = types.submodule {
+                  options = {
+                    preCreate = lib.mkOption {
+                      type = sqlSnippetListType;
+                      default = [];
+                      description = ''
+                        SQL snippets executed before database creation/ownership checks while connected to postgres.
+                        Useful for cluster-wide setup that must precede CREATE DATABASE.
+                      '';
+                    };
+
+                    postCreate = lib.mkOption {
+                      type = sqlSnippetListType;
+                      default = [];
+                      description = ''
+                        SQL snippets executed immediately after database creation/ownership enforcement (still connected to postgres).
+                        Ideal for cross-database grants or bootstrap tasks prior to per-database configuration.
+                      '';
+                    };
+
+                    preConfig = lib.mkOption {
+                      type = sqlSnippetListType;
+                      default = [];
+                      description = ''
+                        SQL snippets executed right after connecting to the target database and applying security hardening.
+                        Use this to run migrations that must happen before declarative grants/extensions.
+                      '';
+                    };
+
+                    postConfig = lib.mkOption {
+                      type = sqlSnippetListType;
+                      default = [];
+                      description = ''
+                        SQL snippets executed after declarative configuration (extensions/permissions/default privileges).
+                        Useful for custom indexes, seed data, or verification queries tied to provisioning.
+                      '';
+                    };
+                  };
+                };
+                default = {};
+                description = "Per-database SQL hook points executed during provisioning.";
+              };
+
+              schemaMigrations = lib.mkOption {
+                type = types.nullOr (types.submodule {
+                  options = {
+                    table = lib.mkOption {
+                      type = types.str;
+                      default = "schema_migrations";
+                      description = "Table storing historical migration versions.";
+                    };
+
+                    column = lib.mkOption {
+                      type = types.str;
+                      default = "version";
+                      description = "Column name containing the migration identifier/version.";
+                    };
+
+                    schema = lib.mkOption {
+                      type = types.nullOr types.str;
+                      default = null;
+                      description = "Optional schema containing the migration table (defaults to search_path).";
+                    };
+
+                    columnType = lib.mkOption {
+                      type = types.str;
+                      default = "text";
+                      description = "Column type used when ensureTable = true.";
+                    };
+
+                    ensureTable = lib.mkOption {
+                      type = types.bool;
+                      default = false;
+                      description = "Create the migrations table if it does not already exist.";
+                    };
+
+                    insertedAtColumn = lib.mkOption {
+                      type = types.nullOr insertedAtColumnType;
+                      default = null;
+                      description = ''
+                        Optional inserted-at column definition (name, type, defaults) for frameworks like Ecto that
+                        expect `schema_migrations` to track timestamps alongside version numbers.
+                      '';
+                    };
+
+                    pruneUnknown = lib.mkOption {
+                      type = types.bool;
+                      default = false;
+                      description = "Delete rows not listed in entries (dangerous; enables convergence).";
+                    };
+
+                    entries = lib.mkOption {
+                      type = types.listOf types.str;
+                      default = [];
+                      description = "List of migration versions that must exist in the table.";
+                      example = [ "20240929084639" "20240930010255" ];
+                    };
+                  };
+                });
+                default = null;
+                description = ''
+                  Declarative seeding for application-managed migration tables (e.g., TeslaMate/Ecto schema_migrations).
+                  Ensures each version exists and optionally prunes obsolete rows. Use ensureTable to bootstrap fresh clusters.
+                '';
               };
 
               # Permission preset for common patterns
@@ -345,6 +679,16 @@
                     sequences.readonly = [ "SELECT" "USAGE" ];
                   };
                 };
+              };
+
+              grafanaDatasources = lib.mkOption {
+                type = lib.types.listOf grafanaDatasourceContributionType;
+                default = [];
+                description = ''
+                  Declarative Grafana datasource contributions derived from this database.
+                  When Grafana is enabled, each entry provisions a datasource (and optional dashboards)
+                  by extending modules.services.grafana.integrations automatically.
+                '';
               };
             };
           });
@@ -596,6 +940,60 @@
     let
       cfg = config.modules.services.postgresql;
       pgPackage = if cfg.enable then pkgs.${"postgresql_${lib.replaceStrings ["."] [""] cfg.version}"} else null;
+
+      dashboardsToAttrs = folder: dashboards:
+        lib.listToAttrs (lib.imap1 (idx: dash:
+          let
+            attrKey = dash.attrName or "${sanitize dash.name}-${toString idx}";
+          in {
+            name = attrKey;
+            value = {
+              name = dash.name;
+              folder = dash.folder or folder;
+              path = dash.path;
+            };
+          }) dashboards);
+
+      postgresGrafanaIntegrations =
+        lib.flatten (lib.mapAttrsToList (dbName: dbCfg:
+          lib.imap1 (idx: ds:
+            let
+              datasourceName = ds.name;
+              integrationKey = ds.integrationName or "postgres-${sanitize dbName}-${sanitize datasourceName}";
+              datasourceKey = ds.datasourceKey or "${sanitize datasourceName}-${toString idx}";
+              credentialName = ds.credentialName or "postgres-${sanitize dbName}-${toString idx}-password";
+              uid = ds.uid or "postgres-${sanitize dbName}-${toString idx}";
+              host = ds.host or "host.containers.internal";
+              port = toString (ds.port or cfg.port);
+              databaseName = ds.database or dbName;
+              user = ds.user or dbCfg.owner;
+              passwordFile = ds.passwordFile or dbCfg.ownerPasswordFile;
+              jsonData = {
+                sslmode = ds.sslMode;
+                timescaledb = ds.timescaleDB;
+              } // ds.jsonData;
+              secureJsonData = { password = "$__file{/run/credentials/grafana.service/${credentialName}}"; } // ds.secureJsonData;
+              dashboards = dashboardsToAttrs ds.folder ds.dashboards;
+            in
+            [ {
+              ${integrationKey} = {
+                datasources.${datasourceKey} = {
+                  name = datasourceName;
+                  uid = uid;
+                  type = "postgres";
+                  access = "proxy";
+                  url = "${host}:${port}";
+                  database = databaseName;
+                  user = user;
+                  isDefault = ds.isDefault;
+                  jsonData = jsonData;
+                  secureJsonData = secureJsonData;
+                };
+                dashboards = dashboards;
+                loadCredentials = lib.optional (passwordFile != null) "${credentialName}:${passwordFile}";
+              };
+            } ]) (dbCfg.grafanaDatasources or [])
+        ) cfg.databases);
     in
     lib.mkMerge [
     # PostgreSQL service implementation
@@ -748,6 +1146,10 @@
           exit 1
         '';
       };
+    })
+
+    (lib.mkIf (cfg.enable && (config.modules.services.grafana.enable or false) && postgresGrafanaIntegrations != []) {
+      modules.services.grafana.integrations = lib.mkMerge postgresGrafanaIntegrations;
     })
 
     # Notification templates

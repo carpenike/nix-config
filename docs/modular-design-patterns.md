@@ -24,6 +24,22 @@ This document establishes standardized design patterns for NixOS service modules
 
 - **Monitoring Strategy**: `docs/monitoring-strategy.md` - Black-box vs white-box monitoring principles, service-specific guidance
 
+### Cross-Service Contribution Interfaces
+
+Shared services expose dedicated integration points so downstream modules can declaratively contribute resources without patching implementation details:
+
+- **Grafana** (`hosts/_modules/nixos/services/grafana/default.nix`)
+  - Use `modules.services.grafana.integrations.<name>` to bundle datasources, dashboards, and `LoadCredential` entries.
+  - Each integration can provide a map of datasources plus dashboard providers, and the module handles YAML provisioning + credential wiring automatically.
+  - Example: `modules.services.grafana.integrations.teslamate.datasources.teslamate = { ... };` (see TeslaMate module for a real reference).
+- **PostgreSQL → Grafana bridge**
+  - Any database may declare `grafanaDatasources = [ { ... } ]` under `modules.services.postgresql.databases.<dbName>`.
+  - Entries capture datasource metadata (host, user, UID, Timescale toggles) and optional dashboard directories; the module emits the correct Grafana integration and attaches password files safely via systemd credentials.
+- **EMQX MQTT broker**
+  - Global ACLs live in `modules.services.emqx.aclRules`, and downstream services can append via `modules.services.emqx.integrations.<service>.acls`.
+  - MQTT users can also be added through the same integration attribute, keeping per-service credentials close to their owners.
+  - The module now materializes `authz.conf` and sets `EMQX_AUTHORIZATION__*` automatically whenever rules are declared.
+
 ---
 
 ## Creating New Service Modules

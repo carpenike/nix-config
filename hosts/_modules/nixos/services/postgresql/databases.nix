@@ -41,6 +41,8 @@
 # - Cluster-level shared roles
 #
 let
+  # Bump this to force reprovisioning when the provisioning logic changes
+  provisioningSchemaVersion = 8;
   # IMPORTANT: This top-level let block contains ONLY pure helper functions
   # that do NOT depend on config. All config-dependent bindings are moved
   # into the config block below to leverage lazy evaluation and prevent
@@ -71,6 +73,11 @@ let
       escaped = builtins.replaceStrings ["'"] ["''"] str;
     in "'${escaped}'";
 
+    mkQualifiedIdentifier = schema: name:
+      if schema == null then
+        quoteSqlIdentifier name
+      else
+        "${quoteSqlIdentifier schema}.${quoteSqlIdentifier name}";
   # Parse schema.table pattern, handling quoted identifiers with dots
   # Returns { schema = "..."; table = "..."; }
   # Handles complex patterns:
@@ -246,6 +253,209 @@ let
     \echo "--> Ensured owner of ${dbName} is ${owner}"
   '';
 
+  # Ensure the extension object itself is owned by the target database role so applications can drop/recreate it.
+  mkExtensionOwnershipSQL = ext: owner: ''
+    DO $reassign_extension_owner$
+    DECLARE
+      owner_name CONSTANT text := ${quoteSqlString owner};
+      extension_name CONSTANT text := ${quoteSqlString ext};
+      owner_oid oid;
+      current_owner text;
+    BEGIN
+      SELECT oid INTO owner_oid FROM pg_roles WHERE rolname = owner_name;
+      IF owner_oid IS NULL THEN
+        RAISE EXCEPTION 'Owner role % does not exist', owner_name;
+      END IF;
+
+      SELECT r.rolname INTO current_owner
+      FROM pg_extension e
+      JOIN pg_roles r ON r.oid = e.extowner
+      WHERE e.extname = extension_name;
+
+      IF NOT FOUND THEN
+        RAISE NOTICE 'Extension % not installed, skipping owner reassignment', extension_name;
+      ELSIF current_owner = owner_name THEN
+        RAISE NOTICE 'Extension % already owned by %, skipping', extension_name, owner_name;
+      ELSE
+        UPDATE pg_extension
+        SET extowner = owner_oid
+        WHERE extname = extension_name;
+        RAISE NOTICE 'Reassigned extension % owner to %', extension_name, owner_name;
+      END IF;
+    END
+    $reassign_extension_owner$;
+    \echo "Ensured extension ${ext} owned by ${owner}"
+  '';
+
+  # Reassign ownership of all functions shipped by a given extension to the target database role
+  # This mimics "ALTER EXTENSION ... OWNER" (not available on this cluster) so that application roles
+  # can manage extension-provided functions (e.g., TeslaMate altering ll_to_earth search_path)
+  mkExtensionFunctionOwnershipSQL = ext: owner: ''
+    DO $reassign_extension_function_owners$
+    DECLARE
+      func RECORD;
+      owner_name CONSTANT text := ${quoteSqlString owner};
+    BEGIN
+      FOR func IN
+        SELECT
+          n.nspname AS schema_name,
+          p.proname,
+          pg_get_function_identity_arguments(p.oid) AS arguments
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        JOIN pg_depend d ON d.objid = p.oid AND d.deptype = 'e'
+        JOIN pg_extension e ON e.oid = d.refobjid
+        WHERE e.extname = ${quoteSqlString ext}
+      LOOP
+        EXECUTE format(
+          'ALTER FUNCTION %I.%I(%s) OWNER TO %s;',
+          func.schema_name,
+          func.proname,
+          func.arguments,
+          quote_ident(owner_name)
+        );
+      END LOOP;
+    END
+    $reassign_extension_function_owners$;
+    \echo "Reassigned function ownership for extension ${ext}"
+  '';
+
+  mkExtensionSQL = owner: extSpec:
+    let
+      extName = extSpec.name;
+      dropCascadeClause = if (extSpec.dropCascade or true) then " CASCADE" else "";
+      dropStatement = lib.optionalString (extSpec.dropBeforeCreate or false) ''
+        DROP EXTENSION IF EXISTS ${quoteSqlIdentifier extName}${dropCascadeClause};
+        \echo "Dropped extension ${extName} prior to recreation"
+      '';
+      schemaClause = if extSpec.schema != null then "SCHEMA ${quoteSqlIdentifier extSpec.schema}" else "";
+      versionClause = if extSpec.version != null then "VERSION ${quoteSqlString extSpec.version}" else "";
+      withParts = lib.filter (part: part != "") [ schemaClause versionClause ];
+      withClause = if withParts == [] then "" else " WITH " + (lib.concatStringsSep " " withParts);
+      updateClause = lib.optionalString (extSpec.updateToLatest or false) ''
+        ALTER EXTENSION ${quoteSqlIdentifier extName} UPDATE;
+        \echo "Updated extension ${extName} to latest available version"
+      '';
+    in ''
+      ${dropStatement}
+      CREATE EXTENSION IF NOT EXISTS ${quoteSqlIdentifier extName}${withClause};
+      ${mkExtensionOwnershipSQL extName owner}
+      ${mkExtensionFunctionOwnershipSQL extName owner}
+      ${updateClause}
+    '';
+
+  mkCustomSqlHook = dbName: hookName: sqlList:
+    lib.concatMapStringsSep "\n" (sql: ''
+      -- Custom SQL (${hookName}) for ${dbName}
+      ${sql}
+    '') sqlList;
+
+  mkSchemaMigrationsSQL = dbName: owner: seedCfg:
+    let
+      tableName = seedCfg.table or "schema_migrations";
+      columnName = seedCfg.column or "version";
+      schemaName = seedCfg.schema or null;
+      tableIdentifier = mkQualifiedIdentifier schemaName tableName;
+      columnIdentifier = quoteSqlIdentifier columnName;
+      ownerIdentifier = quoteSqlIdentifier owner;
+      schemaForLookup = if schemaName == null then "public" else schemaName;
+      insertedAtCfg = seedCfg.insertedAtColumn or null;
+      insertedAtIdentifier = if insertedAtCfg == null then null else quoteSqlIdentifier (insertedAtCfg.name or "inserted_at");
+      insertedAtType = if insertedAtCfg == null then null else (insertedAtCfg.columnType or "timestamptz");
+      insertedAtDefaultClause =
+        if insertedAtCfg == null || insertedAtCfg.defaultValue == null then ""
+        else " DEFAULT ${insertedAtCfg.defaultValue}";
+      insertedAtNotNullClause =
+        if insertedAtCfg == null || !(insertedAtCfg.notNull or true) then ""
+        else " NOT NULL";
+      insertedAtDefinition =
+        if insertedAtCfg == null then ""
+        else "${insertedAtIdentifier} ${insertedAtType}${insertedAtDefaultClause}${insertedAtNotNullClause}";
+      entries = seedCfg.entries or [];
+      columnType = seedCfg.columnType or "text";
+      ensureTable = seedCfg.ensureTable or false;
+      pruneUnknown = seedCfg.pruneUnknown or false;
+      haveEntries = entries != [];
+      valuesSql =
+        let
+          mkTypedLiteral = entry: "(CAST(${quoteSqlString (toString entry)} AS ${columnType}))";
+        in
+        lib.concatStringsSep ",\n" (map mkTypedLiteral entries);
+      desiredCte = ''
+        WITH desired_versions(desired_value) AS (
+          VALUES
+          ${valuesSql}
+        )
+      '';
+    in ''
+      ${lib.optionalString ensureTable ''
+      CREATE TABLE IF NOT EXISTS ${tableIdentifier} (
+        ${columnIdentifier} ${columnType} PRIMARY KEY${lib.optionalString (insertedAtCfg != null) ''
+        , ${insertedAtDefinition}
+      ''}
+      );
+      \echo "Ensured ${tableIdentifier} exists for schema migrations"
+      ''}
+
+      ${lib.optionalString (insertedAtCfg != null) ''
+      ALTER TABLE ${tableIdentifier}
+        ADD COLUMN IF NOT EXISTS ${insertedAtDefinition};
+      \echo "Ensured inserted-at column for ${tableIdentifier}"
+      ''}
+
+      ALTER TABLE ${tableIdentifier}
+        ALTER COLUMN ${columnIdentifier} TYPE ${columnType}
+        USING ${columnIdentifier}::${columnType};
+      \echo "Ensured ${tableIdentifier}.${columnName} uses ${columnType}"
+
+      ${lib.optionalString (insertedAtCfg != null) ''
+      ALTER TABLE ${tableIdentifier}
+        ALTER COLUMN ${insertedAtIdentifier} TYPE ${insertedAtType}
+        USING ${insertedAtIdentifier}::${insertedAtType};
+      \echo "Ensured ${tableIdentifier}.${insertedAtCfg.name or "inserted_at"} uses ${insertedAtType}"
+      ''}
+
+      ${lib.optionalString haveEntries ''
+      ${desiredCte}
+      INSERT INTO ${tableIdentifier} (${columnIdentifier})
+      SELECT desired_value FROM desired_versions
+      ON CONFLICT (${columnIdentifier}) DO NOTHING;
+      \echo "Seeded schema migrations entries for ${dbName}"
+      ''}
+
+      DO $schema_migrations_owner$
+      DECLARE
+        rel_exists boolean;
+      BEGIN
+        SELECT EXISTS (
+          SELECT 1
+          FROM pg_class c
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = ${quoteSqlString schemaForLookup}
+            AND c.relname = ${quoteSqlString tableName}
+        ) INTO rel_exists;
+
+        IF rel_exists THEN
+          EXECUTE 'ALTER TABLE ${tableIdentifier} OWNER TO ${ownerIdentifier};';
+          RAISE NOTICE 'Ensured ${tableIdentifier} owned by ${owner}';
+        ELSE
+          RAISE NOTICE 'Skipping owner reassignment for ${tableIdentifier} (table missing)';
+        END IF;
+      END
+      $schema_migrations_owner$;
+
+      ${lib.optionalString (pruneUnknown && haveEntries) ''
+      ${desiredCte}
+      DELETE FROM ${tableIdentifier}
+      WHERE ${columnIdentifier} NOT IN (SELECT desired_value FROM desired_versions);
+      \echo "Pruned unknown schema migrations entries for ${dbName}"
+      ''}
+
+      ${lib.optionalString (pruneUnknown && !haveEntries) ''
+      DELETE FROM ${tableIdentifier};
+      \echo "Pruned all schema migrations entries for ${dbName}"
+      ''}
+    '';
   # Generate database-level permission grants (backward compatible)
   # NOTE: GRANT ON DATABASE must be executed from a different database context (e.g., postgres)
   # The calling code handles database context switching, so we don't include \c here
@@ -476,6 +686,11 @@ in
           # Filter to only managed databases (managed = true)
           lib.filterAttrs (_: dbCfg: dbCfg.managed or true) expanded;
 
+        configHashPayload = {
+          version = provisioningSchemaVersion;
+          databases = mergedDatabases;
+        };
+
         # Generate complete provisioning script
         mkProvisionScript = pkgs.writeShellScript "postgresql-provision-databases" ''
           set -euo pipefail
@@ -494,7 +709,7 @@ in
 
           # Compute hash of current configuration AND secret file contents
           # This includes all database declarations to detect any changes
-          CONFIG_HASH="${builtins.hashString "sha256" (builtins.toJSON mergedDatabases)}"
+          CONFIG_HASH="${builtins.hashString "sha256" (builtins.toJSON configHashPayload)}"
 
           # Compute hash of all password files to detect secret rotation
           # This ensures password changes trigger re-provisioning
@@ -610,7 +825,12 @@ in
           -- ========================================
 
           ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-            mkDatabaseSQL dbName dbCfg
+            let hooks = dbCfg.customSql or {};
+            in ''
+            ${lib.optionalString ((hooks.preCreate or []) != []) (mkCustomSqlHook dbName "preCreate" hooks.preCreate)}
+            ${mkDatabaseSQL dbName dbCfg}
+            ${lib.optionalString ((hooks.postCreate or []) != []) (mkCustomSqlHook dbName "postCreate" hooks.postCreate)}
+            ''
           ) mergedDatabases)}
 
           -- ========================================
@@ -625,8 +845,15 @@ in
               hasTablePerms = (dbCfg.tablePermissions or {}) != {};
               hasFunctionPerms = (dbCfg.functionPermissions or {}) != {};
               hasDefaultPrivs = (dbCfg.defaultPrivileges or {}) != {};
+              schemaMigrationsCfg = dbCfg.schemaMigrations or null;
+              hasSchemaMigrations = schemaMigrationsCfg != null;
 
-              needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasFunctionPerms || hasDefaultPrivs;
+              hooks = dbCfg.customSql or {};
+              preConfigHooks = hooks.preConfig or [];
+              postConfigHooks = hooks.postConfig or [];
+              hasCustomSqlConfig = (preConfigHooks != []) || (postConfigHooks != []);
+
+              needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasFunctionPerms || hasDefaultPrivs || hasSchemaMigrations || hasCustomSqlConfig;
             in
             lib.optionalString needsConfig ''
             -- ----------------------------------------
@@ -650,12 +877,11 @@ in
             REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
             \echo Revoked default PUBLIC permissions for security hardening
 
+            ${lib.optionalString (preConfigHooks != []) (mkCustomSqlHook dbName "preConfig" preConfigHooks)}
+
             ${lib.optionalString hasExtensions ''
             -- Extensions for ${dbName}
-            ${lib.concatMapStringsSep "\n" (ext: ''
-            CREATE EXTENSION IF NOT EXISTS ${quoteSqlIdentifier ext};
-            \echo Extension ${ext} ready
-            '') dbCfg.extensions}
+            ${lib.concatMapStringsSep "\n" (extSpec: mkExtensionSQL dbCfg.owner extSpec) dbCfg.extensions}
             ''}
 
             ${lib.optionalString hasDbPerms ''
@@ -672,6 +898,10 @@ in
             ${lib.optionalString hasFunctionPerms (mkFunctionPermissionsSQL dbName dbCfg.functionPermissions)}
 
             ${lib.optionalString hasDefaultPrivs (mkDefaultPrivilegesSQL dbName dbCfg.defaultPrivileges)}
+
+            ${lib.optionalString hasSchemaMigrations (mkSchemaMigrationsSQL dbName dbCfg.owner schemaMigrationsCfg)}
+
+            ${lib.optionalString (postConfigHooks != []) (mkCustomSqlHook dbName "postConfig" postConfigHooks)}
             ''
           ) mergedDatabases)}
 
