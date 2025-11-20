@@ -35,6 +35,7 @@ in
     ./infrastructure/backup.nix
     ./infrastructure/containerization.nix  # Podman container networking
     ./infrastructure/notifications.nix     # Notification system (Pushover, system events)
+    ./infrastructure/dev-access.nix        # VS Code Remote SSH server support
     ./infrastructure/storage.nix      # ZFS storage management and Sanoid templates
     ./infrastructure/reverse-proxy.nix  # Caddy reverse proxy configuration
     ./infrastructure/monitoring-ui.nix

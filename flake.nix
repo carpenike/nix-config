@@ -55,6 +55,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # VSCode Remote SSH server for NixOS hosts
+    nixos-vscode-server = {
+      url = "github:nix-community/nixos-vscode-server";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Rust toolchain overlay
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
