@@ -19,13 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - system: luna
-            os: ubuntu-latest
-          - system: rydev
-            os: ubuntu-latest
-          - system: nixos-bootstrap
-            os: ubuntu-latest
-          - system: nixpi
+          - system: forge
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:

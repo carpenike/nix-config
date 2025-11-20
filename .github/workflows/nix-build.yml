@@ -28,6 +28,8 @@ jobs:
             os: ubuntu-latest
           - system: rydev
             os: ubuntu-latest
+          - system: forge
+            os: ubuntu-latest
           - system: nixos-bootstrap
             os: ubuntu-latest
           - system: nixpi
