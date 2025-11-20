@@ -28,6 +28,7 @@
     ./glances
     ./grafana                                 # Grafana monitoring dashboard
     ./haproxy
+    ./home-assistant
     ./lidarr                                  # Lidarr music collection manager
     ./loki                                    # Loki log aggregation server
     ./mealie                                  # Mealie recipe manager

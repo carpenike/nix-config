@@ -75,6 +75,7 @@ in
     ./services/teslamate.nix       # TeslaMate telemetry + dashboards
     ./services/frigate.nix        # Frigate NVR service
     ./services/scrypted.nix       # Scrypted NVR/automation hub
+    ./services/home-assistant.nix # Home Assistant automation platform
   ];
 
   config = {
