@@ -20,6 +20,7 @@ in
       inherit lib;  # Pass lib here
     })
     ../../profiles/hardware/intel-gpu.nix
+    ../../profiles/hardware/coral-tpu.nix
 
     # Core System Configuration
     ./core/networking.nix
@@ -72,6 +73,8 @@ in
     ./services/mealie.nix          # Mealie recipe manager
     ./services/emqx.nix            # Shared EMQX MQTT broker
     ./services/teslamate.nix       # TeslaMate telemetry + dashboards
+    ./services/frigate.nix        # Frigate NVR service
+    ./services/scrypted.nix       # Scrypted NVR/automation hub
   ];
 
   config = {
@@ -97,6 +100,13 @@ in
       };
 
       # (moved) VA-API driver exposure configured via top-level 'hardware.opengl'
+
+      hardware.coralTpu = {
+        enable = true;
+        usb.enable = true;
+        pcie.enable = false;
+        systemUsers = [ "frigate" ];
+      };
 
       # Alert monitoring rules now defined in infrastructure/alerts.nix
       # Storage dataset management now configured in infrastructure/storage.nix
