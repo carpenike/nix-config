@@ -1,13 +1,7 @@
-name: Build and diff Nix systems
+name: PR Build
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/**
-      - "**.nix"
-      - "flake.lock"
+  pull_request:
 
 permissions:
   contents: read
@@ -17,7 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  nix-build:
+  build:
+    if: github.event.pull_request.draft == false
     permissions:
       contents: read
     strategy:
@@ -102,56 +97,21 @@ jobs:
           exit 1
 
       - name: Diff profile
-        id: diff
         run: |
-          nix profile diff-closures --profile ./profile
-          delimiter="$(openssl rand -hex 16)"
-          echo "diff<<${delimiter}" >> "${GITHUB_OUTPUT}"
-          nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' >> "${GITHUB_OUTPUT}"
-          echo "${delimiter}" >> "${GITHUB_OUTPUT}"
+          nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' > diff.txt
 
       - name: Scan for security issues
-        id: security
         run: |
-          nix run nixpkgs/nixos-unstable#vulnix -- -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml ./profile | tee /tmp/security.txt
-          OUTPUT_SECURITY="$(cat /tmp/security.txt)"
-          OUTPUT_SECURITY="${OUTPUT_SECURITY//'%'/'%25'}"
-          OUTPUT_SECURITY="${OUTPUT_SECURITY//$'\n'/'%0A'}"
-          OUTPUT_SECURITY="${OUTPUT_SECURITY//$'\r'/'%0D'}"
-          echo "$OUTPUT_SECURITY"
+          nix run nixpkgs/nixos-unstable#vulnix -- -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml ./profile | tee security.txt
 
-          delimiter="$(openssl rand -hex 16)"
-          echo "security<<${delimiter}" >> "${GITHUB_OUTPUT}"
-          echo "$OUTPUT_SECURITY" >> "${GITHUB_OUTPUT}"
-          echo "${delimiter}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload build logs
+      - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nix-build-logs-${{ matrix.system }}
+          name: report-${{ matrix.system }}
           path: |
+            diff.txt
+            security.txt
             stdout.log
             /tmp/nix-build-err.log
           if-no-files-found: ignore
-
-      - name: Upload security report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: security-report-${{ matrix.system }}
-          path: /tmp/security.txt
-          if-no-files-found: ignore
-
-  nix-build-success:
-    if: ${{ always() }}
-    needs:
-      - nix-build
-    name: Nix Build Successful
-    permissions:
-      contents: read
-    runs-on: ubuntu-latest
-    steps:
-      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        name: Check matrix status
-        run: exit 1

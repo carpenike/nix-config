@@ -10,19 +10,22 @@ on:
     paths:
       - pkgs/nvfetcher.toml
 
+permissions:
+  contents: read
+
 jobs:
   update-nvfetcher:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v21
+        uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
       - name: Set up Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v13
+        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
 
       - name: Run nvfetcher
         id: run-nvfetcher
@@ -41,7 +44,7 @@ jobs:
         run: nix flake check --no-build
 
       - name: Generate Token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2
         id: app-token
         with:
           app-id: ${{ secrets.CARPENIKE_APP_ID }}
@@ -49,7 +52,7 @@ jobs:
 
       - name: Create Pull Request
         id: create-pull-request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7
         with:
           token: ${{ steps.app-token.outputs.token }}
           branch: nvfetcher/deps
