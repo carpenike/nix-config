@@ -354,6 +354,18 @@ in
           systemd LoadCredential can pass it into the container securely.
         '';
       };
+      registerEmqxIntegration = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Automatically contribute this MQTT user + ACLs to the shared EMQX broker.";
+      };
+      aclTopics = mkOption {
+        type = types.listOf types.str;
+        default = [
+          "teslamate/#"
+        ];
+        description = "Topic filters granted to the TeslaMate MQTT principal when registering with EMQX.";
+      };
     };
 
     grafanaIntegration = {
@@ -622,6 +634,33 @@ Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
             extraConfig = cfg.reverseProxy.extraConfig;
           }
         );
+
+        modules.services.emqx.integrations.${serviceName} = mkIf (
+          cfg.mqtt.enable
+          && cfg.mqtt.registerEmqxIntegration
+          && cfg.mqtt.username != null
+          && cfg.mqtt.passwordFile != null
+        ) {
+          users = [
+            {
+              username = cfg.mqtt.username;
+              passwordFile = cfg.mqtt.passwordFile;
+              tags = [ serviceName "telemetry" ];
+            }
+          ];
+          acls = [
+            {
+              permission = "allow";
+              action = "pubsub";
+              subject = {
+                kind = "user";
+                value = cfg.mqtt.username;
+              };
+              topics = cfg.mqtt.aclTopics;
+              comment = "TeslaMate telemetry topics";
+            }
+          ];
+        };
 
         modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf (
           config.modules.services.authelia.enable or false

@@ -17,13 +17,6 @@ let
          datasetPath = dataset;
          allowAnonymous = false;
          timezone = config.time.timeZone or "UTC";
-         users = [
-           {
-             username = "teslamate";
-             passwordFile = config.sops.secrets."teslamate/mqtt_password".path;
-             tags = [ "teslamate" "telemetry" ];
-           }
-         ];
          dashboard = {
            enable = true;
            passwordFile = config.sops.secrets."emqx/dashboard_password".path;

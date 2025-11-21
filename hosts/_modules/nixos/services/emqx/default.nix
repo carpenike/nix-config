@@ -29,7 +29,7 @@ let
         description = "Whether to allow or deny matching actions.";
       };
       action = mkOption {
-        type = types.enum [ "publish" "subscribe" "pubsub" ];
+        type = types.enum [ "publish" "subscribe" "all" "pubsub" ];
         default = "pubsub";
         description = "MQTT action the rule applies to.";
       };
@@ -128,9 +128,17 @@ let
           throw "modules.services.emqx: ACL rule for ${subjectExpr} must specify at least one topic"
         else
           "[" + (lib.concatStringsSep ", " (map (topic: "\"${topic}\"") rule.topics)) + "]";
-      comment = if rule.comment == "" then "" else "% ${rule.comment}\n";
+      renderSingle = singleRule:
+        let
+          comment = if singleRule.comment == "" then "" else "% ${singleRule.comment}\n";
+        in
+        "${comment}{${singleRule.permission}, ${subjectExpr}, ${singleRule.action}, ${topicsExpr}}.\n";
     in
-    "${comment}{${rule.permission}, ${subjectExpr}, ${rule.action}, ${topicsExpr}}.\n";
+    if rule.action == "pubsub" then
+      (renderSingle (rule // { action = "publish"; }))
+      + (renderSingle (rule // { action = "subscribe"; comment = ""; }))
+    else
+      renderSingle rule;
 
   aclFileContents = lib.concatMapStrings renderAclRule aclRules;
 

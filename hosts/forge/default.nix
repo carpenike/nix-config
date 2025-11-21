@@ -77,6 +77,7 @@ in
     ./services/frigate.nix        # Frigate NVR service
     ./services/scrypted.nix       # Scrypted NVR/automation hub
     ./services/home-assistant.nix # Home Assistant automation platform
+    ./services/zigbee2mqtt.nix    # Zigbee2MQTT coordinator service
   ];
 
   config = {

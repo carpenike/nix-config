@@ -29,6 +29,7 @@
     ./grafana                                 # Grafana monitoring dashboard
     ./haproxy
     ./home-assistant
+    ./zigbee2mqtt
     ./lidarr                                  # Lidarr music collection manager
     ./loki                                    # Loki log aggregation server
     ./mealie                                  # Mealie recipe manager

@@ -228,6 +228,30 @@
           group = "root";
         };
 
+        "zigbee2mqtt/mqtt_password" = {
+          mode = "0400";
+          owner = "zigbee2mqtt";
+          group = "zigbee2mqtt";
+        };
+
+        "zigbee2mqtt/network_key" = {
+          mode = "0400";
+          owner = "zigbee2mqtt";
+          group = "zigbee2mqtt";
+        };
+
+        "zigbee2mqtt/pan_id" = {
+          mode = "0400";
+          owner = "zigbee2mqtt";
+          group = "zigbee2mqtt";
+        };
+
+        "zigbee2mqtt/ext_pan_id" = {
+          mode = "0400";
+          owner = "zigbee2mqtt";
+          group = "zigbee2mqtt";
+        };
+
         # Mealie service secrets
         "mealie/database_password" = {
           mode = "0440";

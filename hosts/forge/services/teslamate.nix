@@ -39,6 +39,7 @@ in
           enable = true;
           host = "host.containers.internal";
           passwordFile = config.sops.secrets."teslamate/mqtt_password".path;
+          aclTopics = [ "teslamate/#" ];
         };
 
         reverseProxy = {
