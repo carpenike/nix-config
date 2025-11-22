@@ -35,13 +35,13 @@
 
   # Your own overlays for stable nixpkgs should be declared here
   nixpkgs-overlays = final: prev: {
-    # Custom Caddy build with Cloudflare DNS plugin for nixpi
+    # Custom Caddy build with Cloudflare DNS provider and caddy-security plugins
     caddy = final.unstable.caddy.withPlugins {
-      # Include Cloudflare DNS provider plugin
-      # Using latest v0.2.1 release
-      plugins = [ "github.com/caddy-dns/cloudflare@v0.2.1" ];
-      # Let Nix calculate the hash - will fail first time with correct hash
-      hash = "sha256-iRzpN9awuEFsc7hqKzOMNiCFFEv833xhd4LM+VFQedI=";
+      plugins = [
+        "github.com/caddy-dns/cloudflare@v0.2.2"
+        "github.com/greenpau/caddy-security@v1.1.31"
+      ];
+      hash = "sha256-CqK5Q2jE49ZKm5SBXfu9mDHL4mo5qsypJkFaQFxikmw=";
     };
   };
 }

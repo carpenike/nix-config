@@ -194,6 +194,31 @@
           group = "authelia-main";
         };
 
+        # Pocket ID secrets
+        "pocketid/environment" = {
+          mode = "0400";
+          owner = "pocket-id";
+          group = "pocket-id";
+        };
+
+        "pocketid/encryption_key" = {
+          mode = "0400";
+          owner = "pocket-id";
+          group = "pocket-id";
+        };
+
+        "pocketid/smtp_password" = {
+          mode = "0400";
+          owner = "pocket-id";
+          group = "pocket-id";
+        };
+
+        "caddy/pocket-id-client-secret" = {
+          mode = "0400";
+          owner = "caddy";
+          group = "caddy";
+        };
+
         # *arr service API keys (for cross-service integration)
         # Sonarr/Radarr inject these via SONARR__AUTH__APIKEY/RADARR__AUTH__APIKEY env vars
         # Bazarr reads these files to authenticate with Sonarr/Radarr APIs
@@ -408,6 +433,7 @@
           owner = "root";
           group = "root";
         };
+
         "bazarr-env" = {
           content = ''
             SONARR_API_KEY=${config.sops.placeholder."sonarr/api-key"}

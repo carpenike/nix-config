@@ -45,6 +45,7 @@
     ./podman
     ./pgweb                                   # Pgweb PostgreSQL database browser
     ./plex
+    ./pocketid                                # Pocket ID authentication portal
     ./postgresql                              # PostgreSQL module (simplified single-instance)
     ./postgresql/databases.nix                # Database provisioning (systemd units)
     ./postgresql/storage-integration.nix      # ZFS dataset creation (one-way integration)

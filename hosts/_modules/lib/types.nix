@@ -262,6 +262,28 @@ in
         description = "Security configuration";
       };
 
+      caddySecurity = mkOption {
+        type = types.nullOr (types.submodule {
+          options = {
+            enable = mkEnableOption "caddy-security protection for this service";
+
+            portal = mkOption {
+              type = types.str;
+              default = "pocketid";
+              description = ''Name of the authentication portal configured in the global Caddy security block.'';
+            };
+
+            policy = mkOption {
+              type = types.str;
+              default = "default";
+              description = ''Authorization policy to enforce for this service (maps to `authorization policy <name>` in Caddy).'';
+            };
+          };
+        });
+        default = null;
+        description = ''Protect this reverse proxy definition with the caddy-security plugin. Requires `modules.services.caddy.security.enable = true`.'';
+      };
+
       authelia = mkOption {
         type = types.nullOr (types.submodule {
           options = {

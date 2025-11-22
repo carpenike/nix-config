@@ -53,6 +53,7 @@ in
     ./services/ups.nix             # UPS monitoring configuration
     ./services/pgweb.nix           # PostgreSQL web management interface
     ./services/authelia.nix        # SSO authentication service
+    ./services/pocketid.nix        # Pocket ID passkey/OIDC provider
     ./services/qui.nix             # qui - Modern qBittorrent web interface with OIDC
     ./services/cloudflare-tunnel.nix  # Cloudflare Tunnel for external access
     ./services/sonarr.nix          # Sonarr TV series management

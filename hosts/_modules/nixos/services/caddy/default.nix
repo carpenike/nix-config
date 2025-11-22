@@ -62,6 +62,79 @@ let
 ${concatStringsSep "\n" headerLines}
           }
 '' else "";
+
+  indentLines = text:
+    let
+      lines = lib.splitString "\n" text;
+    in
+    concatStringsSep "\n" (map (line: "  " + line) lines);
+
+  securityBlock =
+    let
+      sec = cfg.security;
+
+      providerBlocks = mapAttrsToList (name: provider:
+        let
+          secretPlaceholder = "{$" + provider.clientSecretEnvVar + "}";
+          scopesLine = concatStringsSep " " provider.scopes;
+          extra = provider.extraConfig;
+        in ''
+oauth identity provider ${name} {
+  realm ${provider.realm}
+  driver ${provider.driver}
+  client_id ${provider.clientId}
+  client_secret ${secretPlaceholder}
+  scopes ${scopesLine}
+  base_auth_url ${provider.baseAuthUrl}
+  metadata_url ${provider.metadataUrl}
+  delay_start ${toString provider.delayStart}
+${optionalString (extra != "") extra}
+}''
+      ) sec.identityProviders;
+
+      portalBlocks = mapAttrsToList (name: portal:
+        let
+          providerLines = map (providerName: "  enable identity provider ${providerName}") portal.identityProviders;
+          cookieLines = let
+            cookie = portal.cookie;
+          in
+            [ "  cookie insecure ${if cookie.insecure then "on" else "off"}" ]
+            ++ (lib.optional (cookie.domain != null) "  cookie domain ${cookie.domain}")
+            ++ (lib.optional (cookie.path != "") "  cookie path ${cookie.path}");
+          extra = portal.extraConfig;
+        in ''
+authentication portal ${name} {
+  crypto default token lifetime ${toString portal.tokenLifetime}
+${concatStringsSep "\n" providerLines}
+${concatStringsSep "\n" cookieLines}
+${optionalString (extra != "") extra}
+}''
+      ) sec.authenticationPortals;
+
+      policyBlocks = mapAttrsToList (name: policy:
+        let
+          rolesLine = concatStringsSep " " policy.allowRoles;
+          extra = policy.extraConfig;
+        in ''
+authorization policy ${name} {
+  set auth url ${policy.authUrl}
+  allow roles ${rolesLine}
+${optionalString policy.injectHeaders "  inject headers with claims"}
+${optionalString (extra != "") extra}
+}''
+      ) sec.authorizationPolicies;
+
+      innerSections = filter (s: s != "") (providerBlocks ++ portalBlocks ++ policyBlocks ++ [ sec.extraConfig ]);
+      innerBlock = concatStringsSep "\n\n" innerSections;
+      securityBody = if innerBlock == "" then "" else indentLines innerBlock;
+      orderLine = optionalString sec.orderAuthenticateBeforeRespond "  order authenticate before respond\n\n";
+    in
+    if sec.enable then ''
+{
+${orderLine}  security {
+${securityBody}
+  }
+}'' else "";
 in
 {
   imports = [
@@ -81,6 +154,176 @@ in
       type = types.str;
       default = config.networking.domain or "holthome.net";
       description = "Base domain for auto-generated virtual hosts (legacy support). The 'hostName' option in each virtual host is now preferred.";
+    };
+
+    security = mkOption {
+      type = types.submodule {
+        options = {
+          enable = mkEnableOption "caddy-security authentication/authorization integration";
+
+          orderAuthenticateBeforeRespond = mkOption {
+            type = types.bool;
+            default = true;
+            description = "Emit `order authenticate before respond` when the security block is enabled.";
+          };
+
+          identityProviders = mkOption {
+            type = types.attrsOf (types.submodule {
+              options = {
+                driver = mkOption {
+                  type = types.str;
+                  default = "generic";
+                  description = "caddy-security identity provider driver (e.g., generic, github, google).";
+                };
+
+                realm = mkOption {
+                  type = types.str;
+                  default = "default";
+                  description = "Authentication realm label displayed to users.";
+                };
+
+                clientId = mkOption {
+                  type = types.str;
+                  description = "OIDC client ID registered with the upstream identity provider.";
+                };
+
+                clientSecretEnvVar = mkOption {
+                  type = types.str;
+                  description = "Environment variable containing the OIDC client secret (referenced as {$VARNAME} in the generated Caddyfile).";
+                };
+
+                scopes = mkOption {
+                  type = types.listOf types.str;
+                  default = [ "openid" "email" "profile" ];
+                  description = "OAuth scopes requested from the upstream provider.";
+                };
+
+                baseAuthUrl = mkOption {
+                  type = types.str;
+                  description = "Base URL users should be redirected to for authentication (typically the public Pocket ID URL).";
+                };
+
+                metadataUrl = mkOption {
+                  type = types.str;
+                  description = "OIDC discovery metadata URL (usually <issuer>/.well-known/openid-configuration).";
+                };
+
+                delayStart = mkOption {
+                  type = types.int;
+                  default = 3;
+                  description = "Seconds to delay before initializing the provider inside caddy-security (prevents bad gateway errors during boot).";
+                };
+
+                extraConfig = mkOption {
+                  type = types.lines;
+                  default = "";
+                  description = "Additional raw Caddyfile directives for this identity provider block.";
+                };
+              };
+            });
+            default = {};
+            description = "Map of caddy-security identity providers keyed by provider name.";
+          };
+
+          authenticationPortals = mkOption {
+            type = types.attrsOf (types.submodule {
+              options = {
+                identityProviders = mkOption {
+                  type = types.listOf types.str;
+                  default = [];
+                  description = "Identity providers to enable for this portal (must reference keys defined in identityProviders).";
+                };
+
+                tokenLifetime = mkOption {
+                  type = types.int;
+                  default = 86400;
+                  description = "JWT lifetime (seconds) before re-authentication is required.";
+                };
+
+                cookie = mkOption {
+                  type = types.submodule {
+                    options = {
+                      insecure = mkOption {
+                        type = types.bool;
+                        default = false;
+                        description = "Whether to mark the caddy-security session cookie as insecure (HTTP). Leave false for HTTPS deployments.";
+                      };
+
+                      domain = mkOption {
+                        type = types.nullOr types.str;
+                        default = null;
+                        description = "Optional cookie domain override.";
+                      };
+
+                      path = mkOption {
+                        type = types.str;
+                        default = "/";
+                        description = "Cookie path scope.";
+                      };
+                    };
+                  };
+                  default = {};
+                  description = "Cookie attributes for the authentication portal.";
+                };
+
+                extraConfig = mkOption {
+                  type = types.lines;
+                  default = "";
+                  description = "Additional raw directives for the authentication portal block.";
+                };
+              };
+            });
+            default = {};
+            description = "Map of authentication portals keyed by portal name.";
+          };
+
+          authorizationPolicies = mkOption {
+            type = types.attrsOf (types.submodule {
+              options = {
+                authUrl = mkOption {
+                  type = types.str;
+                  default = "/caddy-security/oauth2/generic";
+                  description = "Authorization endpoint handled by the authentication portal (typically /caddy-security/oauth2/<provider>).";
+                };
+
+                allowRoles = mkOption {
+                  type = types.listOf types.str;
+                  default = [ "authenticated" ];
+                  description = "List of roles/groups permitted to access this policy.";
+                };
+
+                injectHeaders = mkOption {
+                  type = types.bool;
+                  default = true;
+                  description = "Whether to inject identity claims into upstream headers (common for apps expecting X-Auth-* headers).";
+                };
+
+                extraConfig = mkOption {
+                  type = types.lines;
+                  default = "";
+                  description = "Additional raw directives for the authorization policy block.";
+                };
+              };
+            });
+            default = {};
+            description = "Map of authorization policies keyed by policy name.";
+          };
+
+          extraConfig = mkOption {
+            type = types.lines;
+            default = "";
+            description = "Additional raw configuration appended to the security block.";
+          };
+        };
+      };
+      default = {
+        enable = false;
+        identityProviders = {};
+        authenticationPortals = {};
+        authorizationPolicies = {};
+        extraConfig = "";
+      };
+      description = "Settings for the caddy-security authentication portal/authorization plugin.";
     };
 
     # ACME/TLS configuration
@@ -263,6 +506,28 @@ in
             description = "Security configuration";
           };
 
+          caddySecurity = mkOption {
+            type = types.nullOr (types.submodule {
+              options = {
+                enable = mkEnableOption "caddy-security authentication enforcement for this host";
+
+                portal = mkOption {
+                  type = types.str;
+                  default = "pocketid";
+                  description = "Authentication portal name to use with `authenticate with <portal>`.";
+                };
+
+                policy = mkOption {
+                  type = types.str;
+                  default = "default";
+                  description = "Authorization policy to apply with `authorize with <policy>`.";
+                };
+              };
+            });
+            default = null;
+            description = "Protect this host with caddy-security (requires modules.services.caddy.security.enable).";
+          };
+
           # Caddy-specific reverse proxy directives
           reverseProxyBlock = mkOption {
             type = types.lines;
@@ -386,6 +651,26 @@ in
         assertion = !vhost.enable || vhost.auth == null || (vhost.auth.user != "" && vhost.auth.passwordHashEnvVar != "");
         message = "Virtual host '${name}' has incomplete authentication configuration.";
       }) cfg.virtualHosts) ++
+      (mapAttrsToList (name: vhost: {
+        assertion = !vhost.enable || vhost.caddySecurity == null || cfg.security.enable;
+        message = "Virtual host '${name}' references caddy-security but modules.services.caddy.security.enable is false.";
+      }) cfg.virtualHosts) ++
+      (mapAttrsToList (name: vhost: {
+        assertion = !vhost.enable || vhost.caddySecurity == null || vhost.authelia == null;
+        message = "Virtual host '${name}' cannot enable both Authelia and caddy-security simultaneously.";
+      }) cfg.virtualHosts) ++
+      (optional (cfg.security.enable && cfg.security.identityProviders == {}) {
+        assertion = false;
+        message = "Caddy security is enabled but no identity providers are defined.";
+      }) ++
+      (optional (cfg.security.enable && cfg.security.authenticationPortals == {}) {
+        assertion = false;
+        message = "Caddy security is enabled but no authentication portals are defined.";
+      }) ++
+      (optional (cfg.security.enable && cfg.security.authorizationPolicies == {}) {
+        assertion = false;
+        message = "Caddy security is enabled but no authorization policies are defined.";
+      }) ++
       # ACME credentials check
       [{
         assertion = cfg.acme.provider != "http" -> (cfg.acme.credentials.envVar != "");
@@ -399,13 +684,9 @@ in
       after = map (instance: "authelia-${instance}.service") autheliaInstances;
     };
 
-    # Enable the standard NixOS Caddy service
-    services.caddy = {
-      enable = true;
-      package = cfg.package;
-
-      # Generate configuration from virtual hosts using new structured approach
-      extraConfig =
+    # Render the Caddyfile once and supply it via configFile so we fully control ordering
+    services.caddy = let
+      caddyfileText =
         let
           # Helper: Build Authelia verification URL
           buildAutheliaUrl = authCfg:
@@ -426,6 +707,7 @@ in
               hasAuthelia = vhost.authelia != null && vhost.authelia.enable;
               # Disable basic auth if Authelia is enabled
               useBasicAuth = vhost.auth != null && !hasAuthelia;
+              useCaddySecurity = vhost.caddySecurity != null && vhost.caddySecurity.enable;
 
               # IP-restricted bypass configuration
               hasBypassPaths = hasAuthelia && (vhost.authelia.bypassPaths or []) != [];
@@ -453,6 +735,23 @@ in
                 }
 
               '';
+
+              reverseProxyDirective =
+                if useCaddySecurity then ''
+                route {
+                  authenticate with ${vhost.caddySecurity.portal}
+                  authorize with ${vhost.caddySecurity.policy}
+                  reverse_proxy ${backendUrl} {
+                    ${tlsTransport}
+                    ${vhost.reverseProxyBlock}
+                  }
+                }
+                '' else ''
+                reverse_proxy ${backendUrl} {
+                  ${tlsTransport}
+                  ${vhost.reverseProxyBlock}
+                }
+                '';
             in
               if vhost.enable then ''
                 ${vhost.hostName} {
@@ -469,16 +768,17 @@ in
                   ''}
                   ${ipRestrictedBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
                   # Reverse proxy to backend
-                  reverse_proxy ${backendUrl} {
-                    ${tlsTransport}
-                    ${vhost.reverseProxyBlock}
-                  }
+                  ${reverseProxyDirective}
                   ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}
                 }
               '' else ""
           ) cfg.virtualHosts);
         in
-          concatStringsSep "\n\n" vhostConfigs;
+          concatStringsSep "\n\n" (filter (s: s != "") ([ securityBlock ] ++ vhostConfigs));
+    in {
+      enable = true;
+      package = cfg.package;
+      configFile = pkgs.writeText "caddy_config" caddyfileText;
     };
 
     # Open firewall for HTTP/HTTPS

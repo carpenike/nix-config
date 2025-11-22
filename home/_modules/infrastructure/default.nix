@@ -9,7 +9,7 @@
     # talhelper - not in nixpkgs, needs custom package or homebrew
 
     # Container tools
-    lima
+    pkgs.unstable.lima
 
     # Other infrastructure tools
     terraform
