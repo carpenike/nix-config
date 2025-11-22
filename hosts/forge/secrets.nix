@@ -252,6 +252,54 @@
           group = "zigbee2mqtt";
         };
 
+        "zwave2mqtt/mqtt_password" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
+        "zwave2mqtt/session_secret" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
+        "zwave2mqtt/s0_legacy_key" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
+        "zwave2mqtt/s2_unauthenticated_key" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
+        "zwave2mqtt/s2_authenticated_key" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
+        "zwave2mqtt/s2_access_control_key" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
+        "zwave2mqtt/s2_long_range_key" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
+        "zwave2mqtt/s2_long_range_access_control_key" = {
+          mode = "0400";
+          owner = "zwave-js-ui";
+          group = "zwave-js-ui";
+        };
+
         # Mealie service secrets
         "mealie/database_password" = {
           mode = "0440";

@@ -30,6 +30,7 @@
     ./haproxy
     ./home-assistant
     ./zigbee2mqtt
+    ./zwave2mqtt
     ./lidarr                                  # Lidarr music collection manager
     ./loki                                    # Loki log aggregation server
     ./mealie                                  # Mealie recipe manager

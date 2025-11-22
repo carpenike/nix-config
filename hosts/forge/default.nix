@@ -78,6 +78,7 @@ in
     ./services/scrypted.nix       # Scrypted NVR/automation hub
     ./services/home-assistant.nix # Home Assistant automation platform
     ./services/zigbee2mqtt.nix    # Zigbee2MQTT coordinator service
+    ./services/zwave2mqtt.nix     # Z-Wave JS UI coordinator service
   ];
 
   config = {
