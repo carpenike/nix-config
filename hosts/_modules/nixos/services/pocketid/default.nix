@@ -30,7 +30,6 @@ let
 
   metricsEnabled = cfg.metrics != null && cfg.metrics.enable;
   listenPort = toString cfg.listen.port;
-  internalAppUrlDefault = "http://${cfg.listen.address}:${listenPort}";
 
   boolToString = value: if value then "true" else "false";
 
@@ -56,7 +55,7 @@ let
 
   baseSettings = {
     APP_URL = cfg.publicUrl;
-    INTERNAL_APP_URL = internalAppUrlDefault;
+    INTERNAL_APP_URL = cfg.internalAppUrl or cfg.publicUrl;
     TRUST_PROXY = cfg.trustProxy;
     PORT = listenPort;
     HOST = cfg.listen.address;
@@ -128,6 +127,12 @@ in
       type = types.bool;
       default = true;
       description = "Whether to set TRUST_PROXY=true (required when running behind Caddy).";
+    };
+
+    internalAppUrl = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "Override the INTERNAL_APP_URL used in OIDC metadata (defaults to publicUrl when null).";
     };
 
     listen = {

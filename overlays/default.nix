@@ -41,7 +41,7 @@
         "github.com/caddy-dns/cloudflare@v0.2.2"
         "github.com/greenpau/caddy-security@v1.1.31"
       ];
-      hash = "sha256-CqK5Q2jE49ZKm5SBXfu9mDHL4mo5qsypJkFaQFxikmw=";
+      hash = "sha256-bsq6GLVN0so0OUHPOqbq17g4i5nrYJdpxeRpkksXCYA=";
     };
   };
 }

@@ -16,7 +16,7 @@ let
 
   caddyClientSecretEnvVar = "CADDY_SECURITY_POCKETID_CLIENT_SECRET";
   metadataUrl = "https://${serviceDomain}/.well-known/openid-configuration";
-  internalAppUrl = "http://127.0.0.1:${toString pocketIdPort}";
+  internalAppUrl = "https://${serviceDomain}";
 in
 {
   config = mkMerge [
@@ -115,6 +115,11 @@ in
           description = "pocket-id.service is not active. Users cannot authenticate with passkeys or OIDC.";
           command = "journalctl -u pocket-id -n 200";
         };
+      };
+
+      modules.services.caddy.virtualHosts.pocketid.cloudflare = {
+        enable = true;
+        tunnel = "forge";
       };
 
       modules.services.caddy.security = {

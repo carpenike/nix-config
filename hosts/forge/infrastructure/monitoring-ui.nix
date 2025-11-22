@@ -5,7 +5,7 @@
 { config, pkgs, ... }:
 
 {
-  # Expose Prometheus UI on subdomain with SSO protection
+  # Expose Prometheus UI on subdomain with Pocket ID + caddy-security protection
   modules.services.caddy.virtualHosts."prometheus" = {
     enable = true;
     hostName = "prometheus.forge.holthome.net";
@@ -17,16 +17,11 @@
       port = 9090;
     };
 
-    # Authelia SSO protection (passwordless WebAuthn)
-    authelia = {
+    # Pocket ID via caddy-security authorization
+    caddySecurity = {
       enable = true;
-      instance = "main";
-      autheliaHost = "127.0.0.1";
-      autheliaPort = 9091;
-      autheliaScheme = "http";
-      authDomain = "auth.holthome.net";
-      policy = "one_factor";  # Allow passwordless with passkey
-      allowedGroups = [ "admins" ];
+      portal = "pocketid";
+      policy = "admins";
     };
 
     # Security headers for web interface
@@ -44,7 +39,7 @@
     '';
   };
 
-  # Expose Alertmanager UI on subdomain with SSO protection
+  # Expose Alertmanager UI on subdomain with Pocket ID + caddy-security protection
   modules.services.caddy.virtualHosts."alertmanager" = {
     enable = true;
     hostName = "alertmanager.forge.holthome.net";
@@ -56,16 +51,11 @@
       port = 9093;
     };
 
-    # Authelia SSO protection (passwordless WebAuthn)
-    authelia = {
+    # Pocket ID via caddy-security authorization
+    caddySecurity = {
       enable = true;
-      instance = "main";
-      autheliaHost = "127.0.0.1";
-      autheliaPort = 9091;
-      autheliaScheme = "http";
-      authDomain = "auth.holthome.net";
-      policy = "one_factor";  # Allow passwordless with passkey
-      allowedGroups = [ "admins" ];
+      portal = "pocketid";
+      policy = "admins";
     };
 
     # Security headers for web interface
@@ -83,22 +73,5 @@
     '';
   };
 
-  # Register Prometheus with Authelia access control
-  modules.services.authelia.accessControl.declarativelyProtectedServices.prometheus = {
-    domain = "prometheus.forge.holthome.net";
-    policy = "one_factor";
-    subject = [ "group:admins" ];
-    bypassResources = [];
-  };
-
-  # Register Alertmanager with Authelia access control
-  modules.services.authelia.accessControl.declarativelyProtectedServices.alertmanager = {
-    domain = "alertmanager.forge.holthome.net";
-    policy = "one_factor";
-    subject = [ "group:admins" ];
-    bypassResources = [];
-  };
-
-  # Note: Monitoring UIs now use Authelia SSO instead of basic auth
-  # The monitoring/basic-auth-password secret can be removed after successful migration
+  # Note: Monitoring UIs now use caddy-security + Pocket ID instead of Authelia
 }
