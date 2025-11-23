@@ -63,11 +63,69 @@ ${concatStringsSep "\n" headerLines}
           }
 '' else "";
 
+  sanitizeForMatcher = name:
+    replaceStrings [ "." ":" "/" "*" "@" "-" ] [ "_" "_" "_" "_" "_" "_" ] name;
+
   indentLines = text:
     let
       lines = lib.splitString "\n" text;
     in
     concatStringsSep "\n" (map (line: "  " + line) lines);
+
+  getPortalConfig = portalName:
+    attrByPath [ portalName ] null cfg.security.authenticationPortals;
+
+  getIdentityProviderConfig = providerName:
+    attrByPath [ providerName ] null cfg.security.identityProviders;
+
+  portalRealm = portalName:
+    let
+      portalCfg = getPortalConfig portalName;
+      firstProvider =
+        if portalCfg != null && portalCfg.identityProviders != [] then
+          builtins.head portalCfg.identityProviders
+        else
+          null;
+      providerCfg = if firstProvider != null then getIdentityProviderConfig firstProvider else null;
+      providerRealm =
+        if providerCfg != null && providerCfg ? realm then providerCfg.realm else null;
+    in
+    if providerRealm != null then providerRealm else portalName;
+
+  formatClaimRoleTransform = { realm, claim, value, role }: ''
+    transform user {
+      match realm ${realm}
+      match ${claim} ${value}
+      action add role ${role}
+    }
+  '';
+
+  portalClaimRoleTransforms =
+    let
+      accumulate = acc: vhost:
+        let
+          secCfg = vhost.caddySecurity;
+        in
+        if vhost.enable && secCfg != null && secCfg.enable && secCfg.claimRoles != [] then
+          let
+            portalName = secCfg.portal;
+            defaultRealm = portalRealm portalName;
+            transforms = map (claimRole:
+              let
+                realm = if claimRole.realm != null then claimRole.realm else defaultRealm;
+                claim = claimRole.claim;
+                value = claimRole.value;
+                role = claimRole.role;
+              in
+              formatClaimRoleTransform { inherit realm claim value role; }
+            ) secCfg.claimRoles;
+            existing = attrByPath [ portalName ] [] acc;
+          in
+          acc // { "${portalName}" = existing ++ transforms; }
+        else
+          acc;
+    in
+    mapAttrs (_: transforms: concatStrings (unique transforms)) (foldl' accumulate {} (attrValues cfg.virtualHosts));
 
   securityBlock =
     let
@@ -79,7 +137,7 @@ ${concatStringsSep "\n" headerLines}
           scopesLine = concatStringsSep " " provider.scopes;
           extra = provider.extraConfig;
         in ''
-oauth identity provider ${name} {
+  oauth identity provider ${name} {
   realm ${provider.realm}
   driver ${provider.driver}
   client_id ${provider.clientId}
@@ -101,9 +159,15 @@ ${optionalString (extra != "") extra}
             [ "  cookie insecure ${if cookie.insecure then "on" else "off"}" ]
             ++ (lib.optional (cookie.domain != null) "  cookie domain ${cookie.domain}")
             ++ (lib.optional (cookie.path != "") "  cookie path ${cookie.path}");
-          extra = portal.extraConfig;
+          contributionText =
+            if builtins.hasAttr name portalClaimRoleTransforms then
+              builtins.getAttr name portalClaimRoleTransforms
+            else
+              "";
+          extraSnippets = filter (s: s != "") [ portal.extraConfig contributionText ];
+          extra = concatStringsSep "\n" extraSnippets;
         in ''
-authentication portal ${name} {
+  authentication portal ${name} {
   crypto default token lifetime ${toString portal.tokenLifetime}
 ${concatStringsSep "\n" providerLines}
 ${concatStringsSep "\n" cookieLines}
@@ -522,6 +586,36 @@ in
                   default = "default";
                   description = "Authorization policy to apply with `authorize with <policy>`.";
                 };
+
+                claimRoles = mkOption {
+                  type = types.listOf (types.submodule {
+                    options = {
+                      realm = mkOption {
+                        type = types.nullOr types.str;
+                        default = null;
+                        description = "Optional realm override for this transform; defaults to the portal's realm.";
+                      };
+
+                      claim = mkOption {
+                        type = types.str;
+                        default = "groups";
+                        description = "Claim to inspect (e.g., groups, email).";
+                      };
+
+                      value = mkOption {
+                        type = types.str;
+                        description = "Exact value the claim must match.";
+                      };
+
+                      role = mkOption {
+                        type = types.str;
+                        description = "Role to grant when the claim matches.";
+                      };
+                    };
+                  });
+                  default = [];
+                  description = "Claim-based role grants contributed by this host.";
+                };
               };
             });
             default = null;
@@ -717,6 +811,20 @@ in
 
               backendUrl = buildBackendUrl vhost;
               tlsTransport = generateTlsTransport vhost;
+              authMatcherName =
+                if useCaddySecurity then
+                  "@caddy_security_${sanitizeForMatcher vhost.hostName}"
+                else
+                  "";
+
+              reverseProxyBlockBase = ''
+reverse_proxy ${backendUrl} {
+  ${tlsTransport}
+  ${vhost.reverseProxyBlock}
+}
+'';
+              reverseProxyBlockIndented = indentLines reverseProxyBlockBase;
+              reverseProxyBlockDoubleIndented = indentLines reverseProxyBlockIndented;
 
               # Generate IP-restricted routes for bypass paths
               ipRestrictedBypassConfig = optionalString useIpRestrictedBypass ''
@@ -738,20 +846,19 @@ in
 
               reverseProxyDirective =
                 if useCaddySecurity then ''
-                route {
+                ${authMatcherName} {
+                  path /caddy-security/* /oauth2/*
+                }
+
+                route ${authMatcherName} {
                   authenticate with ${vhost.caddySecurity.portal}
+                }
+
+                route /* {
                   authorize with ${vhost.caddySecurity.policy}
-                  reverse_proxy ${backendUrl} {
-                    ${tlsTransport}
-                    ${vhost.reverseProxyBlock}
-                  }
+${reverseProxyBlockDoubleIndented}
                 }
-                '' else ''
-                reverse_proxy ${backendUrl} {
-                  ${tlsTransport}
-                  ${vhost.reverseProxyBlock}
-                }
-                '';
+                '' else reverseProxyBlockIndented;
             in
               if vhost.enable then ''
                 ${vhost.hostName} {

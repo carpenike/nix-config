@@ -22,6 +22,13 @@
       enable = true;
       portal = "pocketid";
       policy = "admins";
+      claimRoles = [
+        {
+          claim = "groups";
+          value = "admins";
+          role = "admins";
+        }
+      ];
     };
 
     # Security headers for web interface
@@ -56,6 +63,13 @@
       enable = true;
       portal = "pocketid";
       policy = "admins";
+      claimRoles = [
+        {
+          claim = "groups";
+          value = "admins";
+          role = "admins";
+        }
+      ];
     };
 
     # Security headers for web interface

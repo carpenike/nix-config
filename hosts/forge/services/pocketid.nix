@@ -17,6 +17,15 @@ let
   caddyClientSecretEnvVar = "CADDY_SECURITY_POCKETID_CLIENT_SECRET";
   metadataUrl = "https://${serviceDomain}/.well-known/openid-configuration";
   internalAppUrl = "https://${serviceDomain}";
+
+  authenticatedTransform = ''
+    transform user {
+      match realm forge-pocketid
+      action add role authenticated
+    }
+  '';
+
+  portalExtraConfig = authenticatedTransform;
 in
 {
   config = mkMerge [
@@ -130,7 +139,7 @@ in
           realm = "forge-pocketid";
           clientId = "caddy-security";
           clientSecretEnvVar = caddyClientSecretEnvVar;
-          scopes = [ "openid" "profile" "email" ];
+          scopes = [ "openid" "profile" "email" "groups" ];
           baseAuthUrl = "https://${serviceDomain}";
           metadataUrl = metadataUrl;
         };
@@ -141,16 +150,17 @@ in
             insecure = false;
             domain = ".${domain}";
           };
+          extraConfig = portalExtraConfig;
         };
 
         authorizationPolicies = {
           default = {
-            authUrl = "/caddy-security/oauth2/pocketid";
+            authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "authenticated" ];
           };
 
           admins = {
-            authUrl = "/caddy-security/oauth2/pocketid";
+            authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "admins" ];
           };
         };
