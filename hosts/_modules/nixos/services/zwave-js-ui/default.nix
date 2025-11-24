@@ -509,6 +509,9 @@ Inspect logs with <code>journalctl -u ${serviceUnit} -n 200</code>.
             ];
             preStart = lib.mkAfter ''
               set -euo pipefail
+              ${optionalString (cfg.serial.device != null) ''
+                ${pkgs.udev}/bin/udevadm settle --exit-if-exists=${lib.escapeShellArg cfg.serial.device}
+              ''}
               install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}
               install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${configDbPath}
               install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}/store
