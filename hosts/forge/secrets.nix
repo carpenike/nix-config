@@ -26,7 +26,7 @@ let
   recyclarrEnabled = config.modules.services.recyclarr.enable or false;
   teslamateEnabled = config.modules.services.teslamate.enable or false;
   zigbeeEnabled = config.modules.services.zigbee2mqtt.enable or false;
-  zwaveEnabled = config.modules.services.zwave2mqtt.enable or false;
+  zwaveEnabled = config.modules.services."zwave-js-ui".enable or false;
   mealieEnabled = config.modules.services.mealie.enable or false;
   emqxEnabled = config.modules.services.emqx.enable or false;
   crossSeedEnabled = config.modules.services."cross-seed".enable or false;
@@ -338,49 +338,49 @@ in
           };
         }
         // optionalAttrs zwaveEnabled {
-          "zwave2mqtt/mqtt_password" = {
+          "zwave-js-ui/mqtt_password" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
           };
 
-          "zwave2mqtt/session_secret" = {
+          "zwave-js-ui/session_secret" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
           };
 
-          "zwave2mqtt/s0_legacy_key" = {
+          "zwave-js-ui/s0_legacy_key" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
           };
 
-          "zwave2mqtt/s2_unauthenticated_key" = {
+          "zwave-js-ui/s2_unauthenticated_key" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
           };
 
-          "zwave2mqtt/s2_authenticated_key" = {
+          "zwave-js-ui/s2_authenticated_key" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
           };
 
-          "zwave2mqtt/s2_access_control_key" = {
+          "zwave-js-ui/s2_access_control_key" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
           };
 
-          "zwave2mqtt/s2_long_range_key" = {
+          "zwave-js-ui/s2_long_range_key" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
           };
 
-          "zwave2mqtt/s2_long_range_access_control_key" = {
+          "zwave-js-ui/s2_long_range_access_control_key" = {
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";

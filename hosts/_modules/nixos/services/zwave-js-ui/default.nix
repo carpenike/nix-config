@@ -13,26 +13,71 @@ let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
   storageHelpers = import ../../storage/helpers-lib.nix { inherit lib pkgs; };
 
-  cfg = config.modules.services.zwave2mqtt;
+  cfg = config.modules.services."zwave-js-ui";
   notificationsCfg = config.modules.notifications;
   hasCentralizedNotifications = notificationsCfg.enable or false;
 
-  serviceName = "zwave2mqtt";
+  serviceName = "zwave-js-ui";
   serviceUnit = "${serviceName}.service";
   storageCfg = config.modules.storage;
   datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
-  storePath = "${cfg.dataDir}/store";
+  storeRoot = cfg.dataDir;
+  configDbPath = "${storeRoot}/.config-db";
   runtimeEnvPath = "${cfg.dataDir}/.zwavejs-env";
+  settingsPath = "${cfg.dataDir}/settings.json";
+  dataDirUnderVarLib = lib.hasPrefix "/var/lib/" cfg.dataDir;
+  stateDirectoryName = if dataDirUnderVarLib then lib.removePrefix "/var/lib/" cfg.dataDir else null;
 
   credentialItems = lib.filter (entry: entry != null) [
-    (if cfg.security.sessionSecretFile != null then { name = "session_secret"; path = cfg.security.sessionSecretFile; envVar = "SESSION_SECRET"; } else null)
-    (if cfg.security.s0LegacyKeyFile != null then { name = "s0_key"; path = cfg.security.s0LegacyKeyFile; envVar = "KEY_S0_Legacy"; } else null)
-    (if cfg.security.s2UnauthenticatedKeyFile != null then { name = "s2_unauth"; path = cfg.security.s2UnauthenticatedKeyFile; envVar = "KEY_S2_Unauthenticated"; } else null)
-    (if cfg.security.s2AuthenticatedKeyFile != null then { name = "s2_auth"; path = cfg.security.s2AuthenticatedKeyFile; envVar = "KEY_S2_Authenticated"; } else null)
-    (if cfg.security.s2AccessControlKeyFile != null then { name = "s2_access"; path = cfg.security.s2AccessControlKeyFile; envVar = "KEY_S2_AccessControl"; } else null)
-    (if cfg.security.s2LongRangeKeyFile != null then { name = "s2_lr"; path = cfg.security.s2LongRangeKeyFile; envVar = "KEY_LR_S2_Authenticated"; } else null)
-    (if cfg.security.s2LongRangeAccessControlKeyFile != null then { name = "s2_lr_access"; path = cfg.security.s2LongRangeAccessControlKeyFile; envVar = "KEY_LR_S2_AccessControl"; } else null)
+    (if cfg.security.sessionSecretFile != null then {
+      name = "session_secret";
+      path = cfg.security.sessionSecretFile;
+      envVar = "SESSION_SECRET";
+      jsonPath = null;
+    } else null)
+    (if cfg.security.s0LegacyKeyFile != null then {
+      name = "s0_key";
+      path = cfg.security.s0LegacyKeyFile;
+      envVar = "KEY_S0_Legacy";
+      jsonPath = [ "zwave" "securityKeys" "S0_Legacy" ];
+    } else null)
+    (if cfg.security.s2UnauthenticatedKeyFile != null then {
+      name = "s2_unauth";
+      path = cfg.security.s2UnauthenticatedKeyFile;
+      envVar = "KEY_S2_Unauthenticated";
+      jsonPath = [ "zwave" "securityKeys" "S2_Unauthenticated" ];
+    } else null)
+    (if cfg.security.s2AuthenticatedKeyFile != null then {
+      name = "s2_auth";
+      path = cfg.security.s2AuthenticatedKeyFile;
+      envVar = "KEY_S2_Authenticated";
+      jsonPath = [ "zwave" "securityKeys" "S2_Authenticated" ];
+    } else null)
+    (if cfg.security.s2AccessControlKeyFile != null then {
+      name = "s2_access";
+      path = cfg.security.s2AccessControlKeyFile;
+      envVar = "KEY_S2_AccessControl";
+      jsonPath = [ "zwave" "securityKeys" "S2_AccessControl" ];
+    } else null)
+    (if cfg.security.s2LongRangeKeyFile != null then {
+      name = "s2_lr";
+      path = cfg.security.s2LongRangeKeyFile;
+      envVar = "KEY_LR_S2_Authenticated";
+      jsonPath = [ "zwave" "securityKeysLongRange" "S2_Authenticated" ];
+    } else null)
+    (if cfg.security.s2LongRangeAccessControlKeyFile != null then {
+      name = "s2_lr_access";
+      path = cfg.security.s2LongRangeAccessControlKeyFile;
+      envVar = "KEY_LR_S2_AccessControl";
+      jsonPath = [ "zwave" "securityKeysLongRange" "S2_AccessControl" ];
+    } else null)
   ];
+
+  securityCredentialItems = lib.filter (entry: (entry.jsonPath or null) != null) credentialItems;
+  securityMappingsJson = builtins.toJSON (map (entry: {
+    envVar = entry.envVar;
+    path = entry.jsonPath;
+  }) securityCredentialItems);
 
   loadCredentialEntries = map (entry: "${entry.name}:${toString entry.path}") credentialItems;
   needsRuntimeEnv = credentialItems != [ ];
@@ -45,7 +90,8 @@ let
     ++ [
       "PORT=${toString cfg.ui.port}"
       "HOST=${cfg.ui.listenAddress}"
-      "ZWAVEJS_EXTERNAL_CONFIG=${storePath}"
+      "STORE_DIR=${storeRoot}"
+      "ZWAVEJS_EXTERNAL_CONFIG=${configDbPath}"
     ]
     ++ lib.optional (cfg.serial.device != null) "ZWAVEJS_SERIAL_PORT=${cfg.serial.device}";
 
@@ -98,7 +144,7 @@ let
       };
 in
 {
-  options.modules.services.zwave2mqtt = {
+  options.modules.services."zwave-js-ui" = {
     enable = mkEnableOption "Z-Wave JS UI (zwavejs2mqtt) service wrapper";
 
     package = mkOption {
@@ -378,12 +424,25 @@ in
           ];
         };
 
-        modules.storage.datasets.services.${serviceName} = {
-          mountpoint = cfg.dataDir;
-          recordsize = "16K";
-          compression = "zstd";
-          properties = { "com.sun:auto-snapshot" = "true"; };
-        };
+        modules.storage.datasets.services.${serviceName} =
+          let
+            baseDataset = {
+              mountpoint = cfg.dataDir;
+              recordsize = "16K";
+              compression = "zstd";
+              properties = { "com.sun:auto-snapshot" = "true"; };
+            };
+            permissionAttrs =
+              if dataDirUnderVarLib then
+                { }
+              else
+                {
+                  owner = cfg.user;
+                  group = cfg.group;
+                  mode = "0750";
+                };
+          in
+          baseDataset // permissionAttrs;
 
         modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
           enable = true;
@@ -425,28 +484,34 @@ Inspect logs with <code>journalctl -u ${serviceUnit} -n 200</code>.
             wantedBy = [ "multi-user.target" ];
             after = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
             wants = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
-            serviceConfig =
-              ({
-                ExecStart = "${cfg.package}/bin/zwave-js-ui";
+            serviceConfig = mkMerge [
+              {
+                ExecStart = mkForce "${cfg.package}/bin/zwave-js-ui";
                 Restart = "on-failure";
                 RestartSec = "5s";
                 User = cfg.user;
                 Group = cfg.group;
                 WorkingDirectory = cfg.dataDir;
-                StateDirectory = serviceName;
-                StateDirectoryMode = "0750";
+                PermissionsStartOnly = true;
                 UMask = "0027";
                 SupplementaryGroups = lib.unique cfg.extraGroups;
                 Environment = baseEnvironment;
                 ReadWritePaths = [ cfg.dataDir ];
-              } // mkIf needsRuntimeEnv {
-                EnvironmentFile = [ runtimeEnvPath ];
+              }
+              (mkIf dataDirUnderVarLib {
+                StateDirectory = stateDirectoryName;
+                StateDirectoryMode = "0750";
+              })
+              (mkIf needsRuntimeEnv {
+                EnvironmentFile = [ "-${runtimeEnvPath}" ];
                 LoadCredential = loadCredentialEntries;
-              });
+              })
+            ];
             preStart = lib.mkAfter ''
               set -euo pipefail
               install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}
-              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${storePath}
+              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${configDbPath}
+              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}/store
               ${optionalString needsRuntimeEnv ''
                 envFile=${lib.escapeShellArg runtimeEnvPath}
                 : > "$envFile"
@@ -458,6 +523,76 @@ Inspect logs with <code>journalctl -u ${serviceUnit} -n 200</code>.
                     printf '%s=%s\n' ${lib.escapeShellArg entry.envVar} "$value" >> "$envFile"
                   fi
                 '') credentialItems}
+                ${optionalString (securityCredentialItems != [ ]) ''
+                  settingsFile=${lib.escapeShellArg settingsPath}
+                  if [ -s "$envFile" ]; then
+                    ${pkgs.python3}/bin/python3 - "$settingsFile" "$envFile" ${lib.escapeShellArg securityMappingsJson} <<'PY'
+import json
+import os
+import sys
+
+settings_path = sys.argv[1]
+env_file = sys.argv[2]
+mapping = json.loads(sys.argv[3])
+
+env_values = {}
+try:
+    with open(env_file, encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            env_values[key] = value
+except FileNotFoundError:
+    sys.exit(0)
+
+if not any(env_values.get(entry["envVar"]) for entry in mapping):
+    sys.exit(0)
+
+if os.path.exists(settings_path):
+    try:
+        with open(settings_path, encoding="utf-8") as existing:
+            data = json.load(existing)
+    except json.JSONDecodeError:
+        data = {}
+else:
+    data = {}
+
+def ensure_parent(root, path):
+    current = root
+    for key in path[:-1]:
+        child = current.get(key)
+        if not isinstance(child, dict):
+            child = {}
+            current[key] = child
+        current = child
+    return current
+
+changed = False
+for entry in mapping:
+    value = env_values.get(entry["envVar"])
+    if not value:
+        continue
+    parent = ensure_parent(data, entry["path"])
+    leaf = entry["path"][-1]
+    if parent.get(leaf) != value:
+        parent[leaf] = value
+        changed = True
+
+if changed:
+    tmp_path = settings_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as out:
+        json.dump(data, out, indent=2)
+        out.write("\n")
+    os.replace(tmp_path, settings_path)
+PY
+                    if [ -f "$settingsFile" ]; then
+                      chown ${cfg.user}:${cfg.group} "$settingsFile"
+                      chmod 640 "$settingsFile"
+                    fi
+                  fi
+                ''}
               ''}
             '';
           }
