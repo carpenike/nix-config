@@ -4,19 +4,19 @@
 # - Multi-instance support (manage multiple qBittorrent servers)
 # - Client proxy feature (eliminates auth thrashing for Sonarr/Radarr/autobrr)
 # - Built-in qBittorrent backup/restore
-# - Native OIDC authentication (integrates with Authelia)
+# - Native OIDC authentication (integrates with PocketID)
 # - Prometheus metrics
 #
 # Architecture:
 # - Container: ghcr.io/autobrr/qui
 # - Storage: ZFS dataset at tank/services/qui
-# - Authentication: Authelia OIDC (native qui support)
+# - Authentication: PocketID OIDC (native qui support)
 # - Reverse Proxy: Caddy (https://qui.holthome.net)
 # - Backup: Restic + Sanoid snapshots
 #
 # Post-Deployment Steps:
 # 1. Access https://qui.holthome.net
-# 2. Authenticate via Authelia OIDC
+# 2. Authenticate via PocketID OIDC
 # 3. After first login, manually edit /var/lib/qui/config.toml:
 #    [oidc]
 #    client_secret = "/run/secrets/oidc_client_secret"
@@ -32,7 +32,7 @@ let
 in
 {
   config = {
-    # OIDC client registration is in authelia.nix
+    # PocketID client registration handled in the PocketID admin console (client: "qui")
     # Configure qui service
     modules.services.qui = {
       enable = true;
@@ -47,12 +47,12 @@ in
       timezone = "America/New_York";
       logLevel = "INFO";
 
-      # Native OIDC authentication via Authelia
+      # Native OIDC authentication via PocketID
       oidc = {
         enabled = true;
-        issuer = "https://auth.${domain}";
+        issuer = "https://id.${domain}";
         clientId = "qui";
-        clientSecretFile = config.sops.secrets."authelia/oidc/qui_client_secret".path;
+        clientSecretFile = config.sops.secrets."qui/oidc-client-secret".path;
         redirectUrl = "https://qui.${domain}/api/auth/oidc/callback";
         disableBuiltInLogin = false;  # Allow built-in login for initial setup and admin tasks
       };

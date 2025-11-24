@@ -81,18 +81,6 @@
             scopes = [ "openid" "profile" "email" "groups" ];
           };
 
-          qui = {
-            description = "qui - qBittorrent Web Interface";
-            # Argon2id hash of the client secret - generated with:
-            # openssl rand -base64 32 | xargs -I {} authelia crypto hash generate argon2 --password {}
-            # Plaintext secret stored in secrets.sops.yaml as authelia/oidc/qui_client_secret
-            secret = "$argon2id$v=19$m=65536,t=3,p=4$QHFBgOOhea2y9niGcPsshQ$XJsy22DBqlsSjW1I7xoAgIVJqQCafiKAINUqu+Xlqbw";
-            redirectUris = [
-              "https://qui.${config.networking.domain}/api/auth/oidc/callback"
-            ];
-            scopes = [ "openid" "profile" "email" "groups" ];
-          };
-
           mealie = {
             description = "Mealie Recipe Manager";
             # Argon2id hash generated via:

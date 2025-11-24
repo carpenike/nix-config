@@ -174,13 +174,6 @@
           group = "authelia-main";
         };
 
-        "authelia/oidc/qui_client_secret" = {
-          mode = "0400";
-          owner = "root";
-          group = "root";
-        };
-
-
         "authelia/smtp_password" = {
           mode = "0400";
           owner = "authelia-main";
@@ -386,6 +379,12 @@
           group = "root";
         };
 
+        "qui/oidc-client-secret" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
+        };
+
         "sabnzbd/usenet/username" = {
           mode = "0400";
           owner = "root";
@@ -454,7 +453,7 @@
         };
         "qui-env" = {
           content = ''
-            QUI__OIDC_CLIENT_SECRET=${config.sops.placeholder."authelia/oidc/qui_client_secret"}
+            QUI__OIDC_CLIENT_SECRET=${config.sops.placeholder."qui/oidc-client-secret"}
           '';
           mode = "0400"; # root-only readable
           owner = "root";
