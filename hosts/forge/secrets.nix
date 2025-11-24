@@ -1,8 +1,12 @@
 {
   pkgs,
   config,
+  lib,
   ...
 }:
+let
+  serviceEnabled = config.modules.services.authelia.enable or false;
+in
 {
   config = {
     environment.systemPackages = [
@@ -15,7 +19,8 @@
       age.sshKeyPaths = [
         "/etc/ssh/ssh_host_ed25519_key"
       ];
-      secrets = {
+      secrets =
+        {
         # Restic backup password (used for local NFS and R2 encryption)
         "restic/password" = {
           mode = "0400";
@@ -137,56 +142,6 @@
           group = "grafana";
         };
 
-        # Authelia secrets
-        "authelia/jwt_secret" = {
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
-        "authelia/session_secret" = {
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
-        "authelia/storage_encryption_key" = {
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
-        "authelia/oidc/hmac_secret" = {
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
-        "authelia/oidc/issuer_private_key" = {
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
-        "authelia/oidc/grafana_client_secret" = {
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
-        "authelia/smtp_password" = {
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
-        "authelia/users.yaml" = {
-          path = "/var/lib/authelia-main/users.yaml";
-          mode = "0400";
-          owner = "authelia-main";
-          group = "authelia-main";
-        };
-
         # Pocket ID secrets
         "pocketid/environment" = {
           mode = "0400";
@@ -198,6 +153,57 @@
           mode = "0400";
           owner = "pocket-id";
           group = "pocket-id";
+        }
+        // lib.optionalAttrs serviceEnabled {
+          # Authelia secrets
+          "authelia/jwt_secret" = {
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
+
+          "authelia/session_secret" = {
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
+
+          "authelia/storage_encryption_key" = {
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
+
+          "authelia/oidc/hmac_secret" = {
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
+
+          "authelia/oidc/issuer_private_key" = {
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
+
+          "authelia/oidc/grafana_client_secret" = {
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
+
+          "authelia/smtp_password" = {
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
+
+          "authelia/users.yaml" = {
+            path = "/var/lib/authelia-main/users.yaml";
+            mode = "0400";
+            owner = "authelia-main";
+            group = "authelia-main";
+          };
         };
 
         "pocketid/smtp_password" = {

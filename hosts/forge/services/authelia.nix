@@ -13,17 +13,21 @@
 { config, lib, ... }:
 
 let
-  serviceEnabled = config.modules.services.authelia.enable or false;
+  serviceEnabled = false; # flip to true if we ever need to re-enable Authelia
 in
 {
   config = lib.mkMerge [
     {
-    # Configure Authelia SSO service
-    modules.services.authelia = {
-      enable = true;
-      instance = "main";
-      domain = config.networking.domain;
-      port = 9091;
+      modules.services.authelia.enable = serviceEnabled;
+    }
+
+    (lib.mkIf serviceEnabled {
+      # Configure Authelia SSO service
+      modules.services.authelia = {
+        enable = true;
+        instance = "main";
+        domain = config.networking.domain;
+        port = 9091;
 
       # Use SQLite for simplicity (perfect for homelab)
       storage = {
@@ -192,12 +196,9 @@ in
       };
     };
 
-    # Users file is managed via SOPS (declared in secrets.nix)
-    # The secret is placed at /var/lib/authelia-main/users.yaml automatically
-    }
+      # Users file is managed via SOPS (declared in secrets.nix)
+      # The secret is placed at /var/lib/authelia-main/users.yaml automatically
 
-    (lib.mkIf serviceEnabled {
-      # Co-located Service Monitoring
       modules.alerting.rules."authelia-service-down" = {
         type = "promql";
         alertname = "AutheliaServiceInactive";
