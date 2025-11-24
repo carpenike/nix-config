@@ -8,6 +8,9 @@ let
   replicationTargetHost = "nas-1.holthome.net";
   replicationTargetDataset = "backup/forge/zfs-recv/teslamate";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -70,7 +73,7 @@ in
           tags = [ "teslamate" "telemetry" ];
         };
 
-        preseed = {
+        preseed = lib.mkIf resticEnabled {
           enable = true;
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;

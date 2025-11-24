@@ -2,6 +2,9 @@
 
 let
   serviceEnabled = config.modules.services.cooklangFederation.enable or false;
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -39,7 +42,7 @@ in
       tags = [ "cooklang" "federation" "recipes" ];
     };
 
-    preseed = {
+    preseed = lib.mkIf resticEnabled {
       enable = true;
       repositoryUrl = "r2:forge-backups/cooklang-federation";
       passwordFile = config.sops.secrets."restic/password".path;

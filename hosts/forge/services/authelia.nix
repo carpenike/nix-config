@@ -14,6 +14,9 @@
 
 let
   serviceEnabled = false; # flip to true if we ever need to re-enable Authelia
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -180,7 +183,7 @@ in
       };
 
       # Preseed/DR configuration
-      preseed = {
+      preseed = lib.mkIf resticEnabled {
         enable = true;
         repositoryUrl = "b2:carpenike-nas-backup/forge";
         passwordFile = config.sops.secrets."restic/password".path;

@@ -11,6 +11,9 @@ let
   replicationTargetDataset = "backup/forge/zfs-recv/mealie";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   serviceEnabled = config.modules.services.mealie.enable;
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -96,7 +99,7 @@ in
 
         notifications.enable = true;
 
-        preseed = {
+        preseed = lib.mkIf resticEnabled {
           enable = true;
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;

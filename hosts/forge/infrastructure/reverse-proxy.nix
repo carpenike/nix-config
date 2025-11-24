@@ -1,5 +1,8 @@
 { lib, config, pkgs, ... }:
 
+let
+  pocketIdEnabled = config.modules.services.pocketid.enable or false;
+in
 {
   # Caddy reverse proxy infrastructure configuration
   # This file contains:
@@ -73,7 +76,7 @@
       CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
       CADDY_LOKI_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/loki-admin-bcrypt"}
       PGWEB_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/pgweb-admin-bcrypt"}
-      CADDY_SECURITY_POCKETID_CLIENT_SECRET=${lib.strings.removeSuffix "\n" config.sops.placeholder."caddy/pocket-id-client-secret"}
+${lib.optionalString pocketIdEnabled "      CADDY_SECURITY_POCKETID_CLIENT_SECRET=${lib.strings.removeSuffix "\\n" config.sops.placeholder."caddy/pocket-id-client-secret"}"}
     '';
     owner = config.services.caddy.user;
     group = config.services.caddy.group;

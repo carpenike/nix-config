@@ -1,4 +1,10 @@
 { config, ... }:
+
+let
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
+in
 {
   config.modules.services = {
     # qbit_manage - DISABLED: Migrated to tqm
@@ -117,12 +123,12 @@
         };
       };
 
-      preseed = {
+      preseed = if resticEnabled then {
         enable = true;
         repositoryUrl = "/mnt/nas-backup";
         passwordFile = config.sops.secrets."restic/password".path;
         restoreMethods = [ "syncoid" "local" ];
-      };
+      } else {};
     };
   };
 }

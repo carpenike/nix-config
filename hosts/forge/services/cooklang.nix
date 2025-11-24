@@ -15,6 +15,9 @@
 # - Disaster recovery via Syncoid replication
 let
   serviceEnabled = config.modules.services.cooklang.enable or false;
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -93,7 +96,7 @@ in
     };
 
     # Disaster recovery via preseed
-    preseed = {
+    preseed = lib.mkIf resticEnabled {
       enable = true;
       repositoryUrl = "r2:forge-backups/cooklang";
       passwordFile = config.sops.secrets."restic/password".path;

@@ -1,6 +1,9 @@
 { config, lib, ... }:
 let
   serviceEnabled = config.modules.services.sabnzbd.enable;
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -82,7 +85,7 @@ in
         zfsDataset = "tank/services/sabnzbd";
       };
       notifications.enable = true;
-      preseed = {
+      preseed = lib.mkIf resticEnabled {
         enable = true;
         repositoryUrl = "/mnt/nas-backup";
         passwordFile = config.sops.secrets."restic/password".path;

@@ -435,7 +435,7 @@ in
     # Validation assertions
     assertions = [
       {
-        assertion = cfg.repositories != {};
+        assertion = (!cfg.restic.enable) || cfg.repositories != {};
         message = "At least one backup repository must be configured";
       }
       {

@@ -7,6 +7,9 @@
 
 let
   serviceEnabled = config.modules.services.cross-seed.enable or false;
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -93,7 +96,7 @@ in
       };
 
       # Enable self-healing restore
-      preseed = {
+      preseed = lib.mkIf resticEnabled {
         enable = true;
         repositoryUrl = "/mnt/nas-backup";
         passwordFile = config.sops.secrets."restic/password".path;

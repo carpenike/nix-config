@@ -7,7 +7,12 @@
 { config, lib, ... }:
 
 let
+  inherit (lib) optionalAttrs;
+
   serviceEnabled = config.modules.services.sonarr.enable or false;
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -60,7 +65,8 @@ in
 
         # Enable self-healing restore from backups before service start.
         preseed = {
-          enable = true;
+          enable = resticEnabled;
+        } // optionalAttrs resticEnabled {
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;
         };

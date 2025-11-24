@@ -1,5 +1,10 @@
-{ config, ... }:
+{ config, lib, ... }:
 
+let
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
+in
 {
   config = {
     # Loki centralized log aggregation and storage
@@ -7,7 +12,7 @@
     enable = true;
     retentionDays = 30; # Longer retention for primary server
     zfsDataset = "tank/services/loki";
-    preseed = {
+    preseed = lib.mkIf resticEnabled {
       enable = true;
       repositoryUrl = "/mnt/nas-backup";
       passwordFile = config.sops.secrets."restic/password".path;

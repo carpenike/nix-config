@@ -6,6 +6,9 @@ let
   grafanaUrl = "https://grafana.${domain}";
   logoutRedirect = lib.strings.escapeURL grafanaUrl;
   serviceEnabled = config.modules.services.observability.grafana.enable or false;
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -37,7 +40,7 @@ in
           prometheus = true;  # Auto-configure Prometheus if available
         };
         plugins = [];
-        preseed = {
+        preseed = lib.mkIf resticEnabled {
           enable = true;
           repositoryUrl = "/mnt/nas-backup";
           passwordFile = config.sops.secrets."restic/password".path;

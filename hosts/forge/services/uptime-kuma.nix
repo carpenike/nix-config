@@ -24,6 +24,13 @@
 #    - Avoids "monitoring the monitor" complexity trap
 #
 # Retains all homelab integrations: ZFS, backups, preseed, monitoring, DR.
+let
+  inherit (lib) optionalAttrs;
+
+  resticEnabled =
+    (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
+in
 {
   config = {
     modules.services.uptime-kuma = {
@@ -51,7 +58,8 @@
 
       # Enable self-healing restore from backups
       preseed = {
-        enable = true;
+        enable = resticEnabled;
+      } // optionalAttrs resticEnabled {
         repositoryUrl = "/mnt/nas-backup";
         passwordFile = config.sops.secrets."restic/password".path;
         restoreMethods = [ "syncoid" "local" "restic" ];
