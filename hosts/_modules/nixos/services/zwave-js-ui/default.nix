@@ -594,6 +594,42 @@ PY
                   fi
                 ''}
               ''}
+              ${optionalString (cfg.serial.device != null) ''
+                settingsFile=${lib.escapeShellArg settingsPath}
+                ${pkgs.python3}/bin/python3 - "$settingsFile" ${lib.escapeShellArg cfg.serial.device} <<'PY'
+import json
+import os
+import sys
+
+settings_path = sys.argv[1]
+serial_port = sys.argv[2]
+
+if not serial_port:
+    sys.exit(0)
+
+if os.path.exists(settings_path):
+    try:
+        with open(settings_path, encoding="utf-8") as existing:
+            data = json.load(existing)
+    except json.JSONDecodeError:
+        data = {}
+else:
+    data = {}
+
+zwave_cfg = data.setdefault("zwave", {})
+if zwave_cfg.get("port") != serial_port:
+    zwave_cfg["port"] = serial_port
+    tmp_path = settings_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as out:
+        json.dump(data, out, indent=2)
+        out.write("\n")
+    os.replace(tmp_path, settings_path)
+PY
+                if [ -f "$settingsFile" ]; then
+                  chown ${cfg.user}:${cfg.group} "$settingsFile"
+                  chmod 640 "$settingsFile"
+                fi
+              ''}
             '';
           }
           (mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
