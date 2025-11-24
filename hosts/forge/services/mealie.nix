@@ -4,7 +4,7 @@ let
   serviceDomain = "mealie.${domain}";
   dataset = "tank/services/mealie";
   dataDir = "/var/lib/mealie";
-  authDomain = "auth.${domain}";
+  pocketIdIssuer = "https://id.${domain}";
   listenAddr = "127.0.0.1";
   listenPortNumber = 9925;
   replicationTargetHost = "nas-1.holthome.net";
@@ -54,7 +54,7 @@ in
 
         oidc = {
           enable = true;
-          configurationUrl = "https://${authDomain}/.well-known/openid-configuration";
+          configurationUrl = "${pocketIdIssuer}/.well-known/openid-configuration";
           clientId = "mealie";
           clientSecretFile = config.sops.secrets."mealie/oidc_client_secret".path;
           providerName = "Holthome SSO";

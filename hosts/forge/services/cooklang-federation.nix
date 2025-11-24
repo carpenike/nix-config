@@ -23,14 +23,6 @@ in
         host = "127.0.0.1";
         port = 9086;
       };
-      authelia = {
-        enable = false;
-        instance = "main";
-        authDomain = "auth.holthome.net";
-        policy = "one_factor";
-        allowedGroups = [ "family" "admins" ];
-        bypassPaths = [ "/static" "/favicon.ico" ];
-      };
     };
 
     healthcheck = {

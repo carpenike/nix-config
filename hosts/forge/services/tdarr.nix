@@ -30,16 +30,16 @@ in
       reverseProxy = {
         enable = true;
         hostName = "tdarr.holthome.net";
-        authelia = {
+        caddySecurity = {
           enable = true;
-          instance = "main";
-          authDomain = "auth.holthome.net";
-          policy = "one_factor";
-          allowedGroups = [ "media" ];
-          allowedNetworks = [
-            "172.16.0.0/12"
-            "192.168.1.0/24"
-            "10.0.0.0/8"
+          portal = "pocketid";
+          policy = "media";
+          claimRoles = [
+            {
+              claim = "groups";
+              value = "media";
+              role = "media";
+            }
           ];
         };
       };

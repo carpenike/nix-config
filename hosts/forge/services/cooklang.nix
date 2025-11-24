@@ -74,19 +74,11 @@ in
       pantry = null;
     };
 
-    # Reverse proxy via Caddy with Authelia SSO
+    # Reverse proxy via Caddy (unauthenticated by design)
     reverseProxy = {
       enable = true;
       hostName = "cook.holthome.net";
-
-      # Authelia SSO protection
-      authelia = {
-        enable = true;
-        instance = "main";
-        authDomain = "auth.holthome.net";
-        policy = "one_factor";  # Require authentication
-        allowedGroups = [ "family" "admins" ];
-      };
+      # Intentional: no SSO guard so the shared recipe site stays public to household guests.
     };
 
     # Logging to Loki

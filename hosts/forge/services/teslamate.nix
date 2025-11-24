@@ -5,7 +5,6 @@ let
   serviceDomain = "teslamate.${domain}";
   dataset = "tank/services/teslamate";
   dataDir = "/var/lib/teslamate";
-  authDomain = "auth.${domain}";
   replicationTargetHost = "nas-1.holthome.net";
   replicationTargetDataset = "backup/forge/zfs-recv/teslamate";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
@@ -50,12 +49,17 @@ in
             host = "127.0.0.1";
             port = 4000;
           };
-          authelia = {
+          caddySecurity = {
             enable = true;
-            instance = "main";
-            authDomain = authDomain;
-            policy = "two_factor";
-            allowedGroups = [ "admins" ];
+            portal = "pocketid";
+            policy = "admins";
+            claimRoles = [
+              {
+                claim = "groups";
+                value = "admins";
+                role = "admins";
+              }
+            ];
           };
         };
 

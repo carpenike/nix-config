@@ -148,14 +148,17 @@ in
               host = "127.0.0.1";
               port = 61208;
             };
-            # Authelia SSO protection (passwordless WebAuthn)
-            authelia = {
+            caddySecurity = {
               enable = true;
-              instance = "main";
-              autheliaHost = "forge.holthome.net";  # Cross-host Authelia
-              authDomain = "auth.holthome.net";
-              policy = "one_factor";  # Allow passwordless with passkey
-              allowedGroups = [ "admins" ];
+              portal = "pocketid";
+              policy = "admins";
+              claimRoles = [
+                {
+                  claim = "groups";
+                  value = "admins";
+                  role = "admins";
+                }
+              ];
             };
           };
         };

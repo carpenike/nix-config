@@ -2,7 +2,6 @@
 let
   inherit (config.networking) domain;
   serviceDomain = "frigate.${domain}";
-  authDomain = "auth.${domain}";
   dataset = "tank/services/frigate";
   dataDir = "/var/lib/frigate";
   cacheDir = "/var/cache/frigate";
@@ -25,20 +24,21 @@ in
         reverseProxy = {
           enable = true;
           hostName = serviceDomain;
-          authelia = {
+          caddySecurity = {
             enable = true;
-            instance = "main";
-            authDomain = authDomain;
-            policy = "two_factor";
-            allowedGroups = [ "admins" "security" ];
-            bypassPaths = [
-              "/api/stats"
-              "/api/version"
-            ];
-            allowedNetworks = [
-              "172.16.0.0/12"
-              "192.168.1.0/24"
-              "10.0.0.0/8"
+            portal = "pocketid";
+            policy = "admins";
+            claimRoles = [
+              {
+                claim = "groups";
+                value = "admins";
+                role = "admins";
+              }
+              {
+                claim = "groups";
+                value = "security";
+                role = "admins";
+              }
             ];
           };
         };

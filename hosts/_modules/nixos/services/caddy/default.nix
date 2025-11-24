@@ -617,6 +617,27 @@ in
                   description = "Claim-based role grants contributed by this host.";
                 };
 
+                bypassPaths = mkOption {
+                  type = types.listOf types.str;
+                  default = [];
+                  description = "Exact path prefixes that should bypass authentication (append wildcard automatically).";
+                  example = [ "/api" "/feed" ];
+                };
+
+                bypassResources = mkOption {
+                  type = types.listOf types.str;
+                  default = [];
+                  description = "Regex path matchers that should bypass authentication (converted to expression matchers).";
+                  example = [ "^/api/system/status$" "^/rss/.*$" ];
+                };
+
+                allowedNetworks = mkOption {
+                  type = types.listOf types.str;
+                  default = [];
+                  description = "CIDR ranges allowed to use bypass paths (empty = allow all, not recommended).";
+                  example = [ "10.0.0.0/8" "192.168.0.0/16" ];
+                };
+
                 requireCredentials = mkOption {
                   type = types.bool;
                   default = false;
@@ -814,6 +835,15 @@ in
                   vhost.caddySecurity.requireCredentials or false
                 else
                   false;
+              caddySecurityBypassPaths =
+                if useCaddySecurity then vhost.caddySecurity.bypassPaths else [];
+              caddySecurityBypassResources =
+                if useCaddySecurity then vhost.caddySecurity.bypassResources else [];
+              caddySecurityAllowedNetworks =
+                if useCaddySecurity then vhost.caddySecurity.allowedNetworks else [];
+              hasCaddySecurityBypassPaths = caddySecurityBypassPaths != [];
+              hasCaddySecurityBypassResources = caddySecurityBypassResources != [];
+              hasCaddySecurityBypass = hasCaddySecurityBypassPaths || hasCaddySecurityBypassResources;
 
               # IP-restricted bypass configuration
               hasBypassPaths = hasAuthelia && (vhost.authelia.bypassPaths or []) != [];
@@ -855,6 +885,24 @@ reverse_proxy ${backendUrl} {
                 }
 
               '';
+              escapeForExpression = str: lib.replaceStrings ["\""] ["\\\""] str;
+              caddySecurityBypassMatcher = "@caddy_security_bypass_${sanitizeForMatcher vhost.hostName}";
+              caddySecurityBypassConfig = optionalString (useCaddySecurity && hasCaddySecurityBypass) ''
+                # Matcher: Allowlisted paths that bypass caddy-security
+                ${caddySecurityBypassMatcher} {
+                  ${optionalString hasCaddySecurityBypassPaths "path ${concatStringsSep " " (map (path: "${path}*") caddySecurityBypassPaths)}"}
+                  ${concatStringsSep "\n                  " (map (pattern: "expression {regexp(path, \"${escapeForExpression pattern}\")}") caddySecurityBypassResources)}
+                  ${optionalString (caddySecurityAllowedNetworks != []) "remote_ip ${concatStringsSep " " caddySecurityAllowedNetworks}"}
+                }
+
+                route ${caddySecurityBypassMatcher} {
+                  reverse_proxy ${backendUrl} {
+                    ${tlsTransport}
+                    ${vhost.reverseProxyBlock}
+                  }
+                }
+
+              '';
 
               reverseProxyDirective =
                 if useCaddySecurity then ''
@@ -885,7 +933,7 @@ ${reverseProxyBlockDoubleIndented}
                     ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
                   }
                   ''}
-                  ${ipRestrictedBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
+                    ${ipRestrictedBypassConfig}${caddySecurityBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
                   # Reverse proxy to backend
                   ${reverseProxyDirective}
                   ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}

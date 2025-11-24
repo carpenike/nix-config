@@ -309,6 +309,27 @@ in
               description = "Claim-based role grants contributed by this service.";
             };
 
+            bypassPaths = mkOption {
+              type = types.listOf types.str;
+              default = [];
+              description = "Exact path prefixes that should skip authentication (e.g., API endpoints using their own keys).";
+              example = [ "/api" "/feed" ];
+            };
+
+            bypassResources = mkOption {
+              type = types.listOf types.str;
+              default = [];
+              description = "Regex resources that should bypass caddy-security authorization checks.";
+              example = [ "^/api/system/status$" "^/rss/.*$" ];
+            };
+
+            allowedNetworks = mkOption {
+              type = types.listOf types.str;
+              default = [];
+              description = "List of CIDR ranges permitted to use bypassed paths; leave empty to allow any source (not recommended).";
+              example = [ "10.0.0.0/8" "192.168.0.0/16" ];
+            };
+
             requireCredentials = mkOption {
               type = types.bool;
               default = false;
@@ -413,9 +434,9 @@ in
         });
         default = null;
         description = ''
-          Authelia SSO protection configuration.
+          LEGACY: Authelia SSO protection configuration. Replace with `reverseProxy.caddySecurity`.
           Set to null (default) or omit to disable authentication.
-          Supports both local and cross-host Authelia instances.
+          This option will be removed once all services migrate to Pocket ID.
         '';
       };
 

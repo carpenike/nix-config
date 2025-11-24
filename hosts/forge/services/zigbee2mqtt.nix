@@ -20,13 +20,17 @@ in
         reverseProxy = {
           enable = true;
           hostName = frontendDomain;
-          authelia = {
+          caddySecurity = {
             enable = true;
-            instance = "main";
-            authDomain = "auth.${domain}";
-            policy = "one_factor";
-            allowedGroups = [ "admins" ];
-            bypassPaths = [ "/health" ];
+            portal = "pocketid";
+            policy = "admins";
+            claimRoles = [
+              {
+                claim = "groups";
+                value = "admins";
+                role = "admins";
+              }
+            ];
           };
         };
 
