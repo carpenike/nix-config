@@ -67,15 +67,7 @@ in
       reverseProxy = {
         enable = true;
         hostName = "cross-seed.holthome.net";
-
-        # Enable Authelia SSO protection
-        authelia = {
-          enable = true;
-          instance = "main";
-          authDomain = "auth.holthome.net";
-          policy = "one_factor";
-          allowedGroups = [ "media" "admin" ];
-        };
+        # No external auth: cross-seed’s daemon API already enforces an API key.
       };
 
       # Enable metrics

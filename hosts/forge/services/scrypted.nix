@@ -2,7 +2,6 @@
 let
   inherit (config.networking) domain;
   serviceDomain = "scrypted.${domain}";
-  authDomain = "auth.${domain}";
   dataDir = "/var/lib/scrypted";
   mediaMount =
     let
@@ -48,19 +47,7 @@ in
         reverseProxy = {
           enable = true;
           hostName = serviceDomain;
-          authelia = {
-            enable = true;
-            instance = "main";
-            authDomain = authDomain;
-            policy = "two_factor";
-            allowedGroups = [ "admins" "security" ];
-            allowedNetworks = [
-              "172.16.0.0/12"
-              "192.168.1.0/24"
-              "10.0.0.0/8"
-            ];
-            bypassPaths = [ "/api/health" ];
-          };
+          # No external auth: Scrypted manages its own user database and MFA.
         };
 
         backup = {

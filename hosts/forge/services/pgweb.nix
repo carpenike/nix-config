@@ -22,17 +22,18 @@ in
         reverseProxy = {
           enable = true;
           hostName = "pgweb.${config.networking.domain}";
-
-          # Authelia SSO protection (passwordless WebAuthn)
-          authelia = {
+          # Protect via Pocket ID + caddy-security; restrict access to admins only.
+          caddySecurity = {
             enable = true;
-            instance = "main";
-            autheliaHost = "127.0.0.1";
-            autheliaPort = 9091;
-            autheliaScheme = "http";
-            authDomain = "auth.holthome.net";
-            policy = "one_factor";  # Allow passwordless with passkey
-            allowedGroups = [ "admins" ];
+            portal = "pocketid";
+            policy = "admins";
+            claimRoles = [
+              {
+                claim = "groups";
+                value = "admins";
+                role = "admins";
+              }
+            ];
           };
 
           backend = {
