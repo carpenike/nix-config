@@ -18,6 +18,13 @@ let
   readarrPort = 8787;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-readarr.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/readarr";
+  usesExternalAuth =
+    cfg.reverseProxy != null
+    && cfg.reverseProxy.enable
+    && (
+      (cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable)
+      || (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable)
+    );
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
@@ -281,6 +288,7 @@ in
         };
         auth = cfg.reverseProxy.auth;
         authelia = cfg.reverseProxy.authelia;
+        caddySecurity = cfg.reverseProxy.caddySecurity;
         security = cfg.reverseProxy.security;
         extraConfig = cfg.reverseProxy.extraConfig;
       };
@@ -336,7 +344,7 @@ in
           PGID = cfg.group;
           TZ = cfg.timezone;
           UMASK = "002";
-          READARR__AUTHENTICATIONMETHOD = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) "External";
+          READARR__AUTHENTICATIONMETHOD = if usesExternalAuth then "External" else "None";
         };
         volumes = [
           "${cfg.dataDir}:/config:rw"

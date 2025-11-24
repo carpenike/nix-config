@@ -616,6 +616,13 @@ in
                   default = [];
                   description = "Claim-based role grants contributed by this host.";
                 };
+
+                requireCredentials = mkOption {
+                  type = types.bool;
+                  default = false;
+                  description = ''Force the caddy-security portal to prompt for credentials even when a session cookie exists.
+                    Useful for services that rely on HTTP Basic headers or need re-authentication.'';
+                };
               };
             });
             default = null;
@@ -802,6 +809,11 @@ in
               # Disable basic auth if Authelia is enabled
               useBasicAuth = vhost.auth != null && !hasAuthelia;
               useCaddySecurity = vhost.caddySecurity != null && vhost.caddySecurity.enable;
+              requireCredentials =
+                if useCaddySecurity then
+                  vhost.caddySecurity.requireCredentials or false
+                else
+                  false;
 
               # IP-restricted bypass configuration
               hasBypassPaths = hasAuthelia && (vhost.authelia.bypassPaths or []) != [];
@@ -851,7 +863,7 @@ reverse_proxy ${backendUrl} {
                 }
 
                 route ${authMatcherName} {
-                  authenticate with ${vhost.caddySecurity.portal}
+                  authenticate with ${vhost.caddySecurity.portal}${optionalString requireCredentials " { credentials }"}
                 }
 
                 route /* {

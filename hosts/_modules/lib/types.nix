@@ -278,6 +278,43 @@ in
               default = "default";
               description = ''Authorization policy to enforce for this service (maps to `authorization policy <name>` in Caddy).'';
             };
+
+            claimRoles = mkOption {
+              type = types.listOf (types.submodule {
+                options = {
+                  realm = mkOption {
+                    type = types.nullOr types.str;
+                    default = null;
+                    description = "Optional realm override for this transform; defaults to the portal's realm.";
+                  };
+
+                  claim = mkOption {
+                    type = types.str;
+                    default = "groups";
+                    description = "Claim to inspect (e.g., groups, email).";
+                  };
+
+                  value = mkOption {
+                    type = types.str;
+                    description = "Exact value the claim must match.";
+                  };
+
+                  role = mkOption {
+                    type = types.str;
+                    description = "Role to grant when the claim matches.";
+                  };
+                };
+              });
+              default = [];
+              description = "Claim-based role grants contributed by this service.";
+            };
+
+            requireCredentials = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''Force caddy-security to prompt for credentials even when an SSO session exists.
+                Useful for services (like Sonarr) that expect HTTP Basic headers.'';
+            };
           };
         });
         default = null;

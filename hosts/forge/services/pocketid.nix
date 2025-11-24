@@ -163,6 +163,11 @@ in
             authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "admins" ];
           };
+
+          media = {
+            authUrl = "/caddy-security/oauth2/forge-pocketid";
+            allowRoles = [ "media" ];
+          };
         };
       };
     }

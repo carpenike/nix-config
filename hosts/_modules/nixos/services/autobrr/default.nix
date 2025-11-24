@@ -559,6 +559,7 @@ EOF
       };
       auth = cfg.reverseProxy.auth;
       authelia = cfg.reverseProxy.authelia;
+      caddySecurity = cfg.reverseProxy.caddySecurity;
       security = cfg.reverseProxy.security;
       extraConfig = cfg.reverseProxy.extraConfig;
     };

@@ -16,14 +16,14 @@
         sessionSecretFile = config.sops.secrets."autobrr/session-secret".path;
       };
 
-      # OIDC authentication via Authelia
+      # Native PocketID OIDC integration
       oidc = {
         enable = true;
-        issuer = "https://auth.${config.networking.domain}";
+        issuer = "https://id.${config.networking.domain}";
         clientId = "autobrr";
         clientSecretFile = config.sops.secrets."autobrr/oidc-client-secret".path;
         redirectUrl = "https://autobrr.${config.networking.domain}/api/auth/oidc/callback";
-        disableBuiltInLogin = false;  # Keep built-in login as fallback
+        disableBuiltInLogin = false;
       };
 
       # Prometheus metrics
@@ -36,19 +36,6 @@
       reverseProxy = {
         enable = true;
         hostName = "autobrr.holthome.net";
-        authelia = {
-          enable = true;
-          instance = "main";
-          authDomain = "auth.holthome.net";
-          policy = "one_factor";
-          allowedGroups = [ "media" ];
-          bypassPaths = [ "/api" ];
-          allowedNetworks = [
-            "172.16.0.0/12"
-            "192.168.1.0/24"
-            "10.0.0.0/8"
-          ];
-        };
       };
       backup = {
         enable = true;

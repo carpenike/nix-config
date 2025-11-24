@@ -57,18 +57,16 @@
       reverseProxy = {
         enable = true;
         hostName = "sabnzbd.holthome.net";
-        authelia = {
+        caddySecurity = {
           enable = true;
-          instance = "main";
-          authDomain = "auth.holthome.net";
-          policy = "one_factor";
-          allowedGroups = [ "media" ];
-          # Bypass authentication for API endpoints (needed for *arr services)
-          bypassPaths = [ "/api" ];
-          allowedNetworks = [
-            "172.16.0.0/12"    # Docker internal networks
-            "192.168.1.0/24"   # Local LAN
-            "10.0.0.0/8"       # Internal private network range
+          portal = "pocketid";
+          policy = "media";
+          claimRoles = [
+            {
+              claim = "groups";
+              value = "media";
+              role = "media";
+            }
           ];
         };
       };

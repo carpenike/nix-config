@@ -39,20 +39,17 @@
       enable = true;
       hostName = "bazarr.holthome.net";
 
-      # Enable Authelia SSO protection
-      authelia = {
+      # Protect via Pocket ID + caddy-security; use media claim for authorization
+      caddySecurity = {
         enable = true;
-        instance = "main";
-        authDomain = "auth.holthome.net";
-        policy = "one_factor";
-        allowedGroups = [ "media" ];
-
-        # Bypass auth for API, restrict to internal networks
-        bypassPaths = [ "/api" ];
-        allowedNetworks = [
-          "172.16.0.0/12"  # Docker internal
-          "192.168.1.0/24" # Local LAN
-          "10.0.0.0/8"     # Internal private
+        portal = "pocketid";
+        policy = "media";
+        claimRoles = [
+          {
+            claim = "groups";
+            value = "media";
+            role = "media";
+          }
         ];
       };
     };

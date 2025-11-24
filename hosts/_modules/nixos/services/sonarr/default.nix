@@ -18,6 +18,13 @@ let
   sonarrPort = 8989;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-sonarr.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/sonarr";
+  usesExternalAuth =
+    cfg.reverseProxy != null
+    && cfg.reverseProxy.enable
+    && (
+      (cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable)
+      || (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable)
+    );
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
@@ -338,6 +345,9 @@ in
       # Authelia SSO configuration from shared types
       authelia = cfg.reverseProxy.authelia;
 
+        # PocketID / caddy-security configuration
+        caddySecurity = cfg.reverseProxy.caddySecurity;
+
       # Security configuration from shared types
       security = cfg.reverseProxy.security;
 
@@ -415,11 +425,10 @@ in
         TZ = cfg.timezone;
         UMASK = "002";  # Ensure group-writable files on shared media
 
-        # Authentication handled entirely by Authelia/Caddy upstream
-        # Sonarr is set to "External" mode - it trusts that any request reaching it has been authenticated
-        # Note: Sonarr does NOT support multiple users - everyone who passes Authelia gets admin access
-        # Authelia's allowedGroups controls WHO can access, but Sonarr has no per-user authorization
-        SONARR__AUTH__METHOD = if (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) then "External" else "None";
+        # Authentication handled entirely by upstream SSO (Authelia or caddy-security via Pocket ID)
+        # Sonarr is set to "External" mode whenever a reverse proxy authentication layer is enabled
+        # Note: Sonarr does NOT support multiple users - whoever passes upstream auth has admin access
+        SONARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
       };
       environmentFiles = [
         # Pre-generated API key for declarative configuration

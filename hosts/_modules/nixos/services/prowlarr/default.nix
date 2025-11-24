@@ -18,6 +18,13 @@ let
   prowlarrPort = 9696;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-prowlarr.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/prowlarr";
+  usesExternalAuth =
+    cfg.reverseProxy != null
+    && cfg.reverseProxy.enable
+    && (
+      (cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable)
+      || (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable)
+    );
 
   # Recursively find the replication config from the most specific dataset path upwards.
   # This allows a service dataset (e.g., tank/services/prowlarr) to inherit replication
@@ -290,6 +297,7 @@ in
         };
         auth = cfg.reverseProxy.auth;
         authelia = cfg.reverseProxy.authelia;
+        caddySecurity = cfg.reverseProxy.caddySecurity;
         security = cfg.reverseProxy.security;
         extraConfig = cfg.reverseProxy.extraConfig;
       };
@@ -347,7 +355,7 @@ in
         PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
         TZ = cfg.timezone;
         UMASK = "002";  # Ensure group-writable files on shared media
-        PROWLARR__AUTH__METHOD = if (cfg.reverseProxy != null && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) then "External" else "None";
+        PROWLARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
       };
       environmentFiles = [
         # Pre-generated API key for declarative configuration

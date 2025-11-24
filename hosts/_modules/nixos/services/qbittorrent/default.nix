@@ -494,6 +494,9 @@ in
       # Authelia SSO configuration from shared types
       authelia = cfg.reverseProxy.authelia;
 
+      # PocketID / caddy-security configuration
+      caddySecurity = cfg.reverseProxy.caddySecurity;
+
       # Security configuration from shared types
       security = cfg.reverseProxy.security;
 

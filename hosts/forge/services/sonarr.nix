@@ -25,20 +25,18 @@
         enable = true;
         hostName = "sonarr.holthome.net";
 
-        # Enable Authelia SSO protection.
-        authelia = {
+        # Protect via Pocket ID + caddy-security; grant "media" role when the
+        # upstream claim exposes the media group membership.
+        caddySecurity = {
           enable = true;
-          instance = "main";
-          authDomain = "auth.holthome.net";
-          policy = "one_factor";
-          allowedGroups = [ "media" ];
-
-          # Bypass authentication for API endpoints, but restrict to internal networks.
-          bypassPaths = [ "/api" "/feed" ];
-          allowedNetworks = [
-            "172.16.0.0/12"  # Docker internal networks
-            "192.168.1.0/24" # Local LAN
-            "10.0.0.0/8"     # Internal private network range
+          portal = "pocketid";
+          policy = "media";
+          claimRoles = [
+            {
+              claim = "groups";
+              value = "media";
+              role = "media";
+            }
           ];
         };
       };
