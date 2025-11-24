@@ -92,6 +92,16 @@ let
         sendOptions = foundReplication.replication.sendOptions or "w";
         recvOptions = foundReplication.replication.recvOptions or "u";
       };
+
+  autheliaEnabled = config.modules.services.authelia.enable or false;
+  pocketIdEnabled = config.modules.services.pocketid.enable or false;
+  oidcProviderName =
+    if pocketIdEnabled then
+      "Pocket ID"
+    else if autheliaEnabled then
+      "Authelia"
+    else
+      "OIDC";
 in
 {
   ###### Options
@@ -551,7 +561,7 @@ in
         } // (lib.optionalAttrs cfg.oidc.enable {
           "auth.generic_oauth" = {
             enabled = true;
-            name = "Authelia";
+            name = oidcProviderName;
             client_id = cfg.oidc.clientId;
             client_secret = "$__file{${cfg.oidc.clientSecretFile}}";
             scopes = lib.concatStringsSep " " cfg.oidc.scopes;

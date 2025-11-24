@@ -31,7 +31,7 @@ in
           apiUrl = "${pocketIdBase}/api/oidc/userinfo";
           scopes = [ "openid" "profile" "email" "groups" ];
           roleAttributePath = "contains(groups[*], 'admins') && 'Admin' || 'Viewer'";
-          allowSignUp = true;
+          allowSignUp = false;
           signoutRedirectUrl = "${pocketIdBase}/api/oidc/end-session?post_logout_redirect_uri=${logoutRedirect}";
         };
 
