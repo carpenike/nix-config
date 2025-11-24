@@ -1,5 +1,7 @@
-{ pkgs, lib, mylib, ... }:
-
+{ config, pkgs, lib, mylib, ... }:
+let
+  serviceEnabled = config.power.ups.enable or false;
+in
 {
   # UPS system control (graceful shutdown on low battery)
   # Using Network UPS Tools (NUT) to monitor APC Smart-UPS 2200 RM XL at 10.9.18.245
@@ -184,7 +186,7 @@
 
   # Alert rules for UPS monitoring
   # Using monitoring-helpers library for consistency where patterns fit
-  modules.alerting.rules = {
+  modules.alerting.rules = lib.mkIf serviceEnabled {
     # Metrics scraping failure - using threshold helper
     "ups-metrics-scrape-failed" = mylib.monitoring-helpers.mkThresholdAlert {
       name = "ups";

@@ -21,9 +21,11 @@ let
   # is unset, fall back to the traditional 10.88.0.0/16 bridge network.
   podmanAccessCidrs = lib.attrByPath [ "modules" "services" "postgresql" "podmanCidrs" ] [ "10.88.0.0/16" ] config;
   podmanAuthBlock = lib.concatMapStrings (cidr: "host    all   all       ${cidr}        scram-sha-256\n") podmanAccessCidrs;
+  serviceEnabled = config.modules.services.postgresql.enable or false;
 in
 {
-      config = {
+  config = lib.mkMerge [
+    {
         # Enable PostgreSQL service
         modules.services.postgresql = {
           enable = true;
@@ -222,119 +224,123 @@ ${podmanAuthBlock}
       };
     };
 
-  # Co-located alert rules for PostgreSQL
-  # pgBackRest alerts have been moved to pgbackrest.nix for proper service co-location
-  # These rules are automatically enabled when PostgreSQL is enabled
-  # and are aggregated by the alerting module into Prometheus rule files
-  modules.alerting.rules = {
-    # PostgreSQL service down
-    "postgresql-service-down" = {
-        type = "promql";
-        alertname = "PostgreSQLServiceDown";
-        expr = ''node_systemd_unit_state{name="postgresql.service",state="active"} == 0'';
-        for = "2m";
-        severity = "critical";
-        labels = { service = "postgresql"; category = "service"; };
-        annotations = {
-          summary = "PostgreSQL service is down on {{ $labels.instance }}";
-          description = "PostgreSQL service is not active. Check systemctl status postgresql.service.";
-        };
+    }
+
+    (lib.mkIf serviceEnabled {
+      # Co-located alert rules for PostgreSQL
+      # pgBackRest alerts have been moved to pgbackrest.nix for proper service co-location
+      # These rules are automatically enabled when PostgreSQL is enabled
+      # and are aggregated by the alerting module into Prometheus rule files
+      modules.alerting.rules = {
+        # PostgreSQL service down
+        "postgresql-service-down" = {
+            type = "promql";
+            alertname = "PostgreSQLServiceDown";
+            expr = ''node_systemd_unit_state{name="postgresql.service",state="active"} == 0'';
+            for = "2m";
+            severity = "critical";
+            labels = { service = "postgresql"; category = "service"; };
+            annotations = {
+              summary = "PostgreSQL service is down on {{ $labels.instance }}";
+              description = "PostgreSQL service is not active. Check systemctl status postgresql.service.";
+            };
+          };
+
+          # PostgreSQL Performance Monitoring Alerts
+          # These alerts monitor database performance metrics from postgres_exporter
+          # Previously centralized in infrastructure/monitoring.nix, now co-located with service config
+
+          # Database server connectivity
+          "postgres-down" = {
+            type = "promql";
+            alertname = "PostgresDown";
+            expr = "pg_up == 0";
+            for = "2m";
+            severity = "critical";
+            labels = { service = "postgresql"; category = "availability"; };
+            annotations = {
+              summary = "PostgreSQL is down on {{ $labels.instance }}";
+              description = "PostgreSQL database server is not responding. Check service status.";
+            };
+          };
+
+          # Connection pool exhaustion
+          "postgres-too-many-connections" = {
+            type = "promql";
+            alertname = "PostgresTooManyConnections";
+            expr = "sum(pg_stat_database_numbackends) / avg(pg_settings_max_connections) * 100 > 80";
+            for = "5m";
+            severity = "high";
+            labels = { service = "postgresql"; category = "capacity"; };
+            annotations = {
+              summary = "PostgreSQL connection usage high on {{ $labels.instance }}";
+              description = "PostgreSQL is using {{ $value }}% of max connections. Consider increasing max_connections or investigating connection leaks.";
+            };
+          };
+
+          # Query performance degradation
+          "postgres-slow-queries" = {
+            type = "promql";
+            alertname = "PostgresSlowQueries";
+            expr = "increase(pg_stat_database_tup_returned[5m]) / increase(pg_stat_database_tup_fetched[5m]) < 0.1";
+            for = "10m";
+            severity = "medium";
+            labels = { service = "postgresql"; category = "performance"; };
+            annotations = {
+              summary = "PostgreSQL slow queries detected on {{ $labels.instance }}";
+              description = "Database {{ $labels.datname }} has low efficiency ratio. Check for missing indexes or inefficient queries.";
+            };
+          };
+
+          # Transaction deadlocks
+          "postgres-deadlocks" = {
+            type = "promql";
+            alertname = "PostgresDeadlocks";
+            expr = "increase(pg_stat_database_deadlocks[1h]) > 0";
+            for = "0m";
+            severity = "medium";
+            labels = { service = "postgresql"; category = "performance"; };
+            annotations = {
+              summary = "PostgreSQL deadlocks detected on {{ $labels.instance }}";
+              description = "Database {{ $labels.datname }} has {{ $value }} deadlocks in the last hour. Review transaction patterns.";
+            };
+          };
+
+          # WAL archiving health (critical for backup integrity)
+          "postgres-wal-archiving-failures" = {
+            type = "promql";
+            alertname = "PostgresWalArchivingFailures";
+            expr = "increase(pg_stat_archiver_failed_count[15m]) > 0";
+            for = "15m";
+            severity = "high";
+            labels = { service = "postgresql"; category = "archiving"; };
+            annotations = {
+              summary = "PostgreSQL WAL archiving failures on {{ $labels.instance }}";
+              description = "WAL archiving has failed {{ $value }} times in the last 15 minutes. Check archive_command and destination.";
+            };
+          };
+
+          # Database size monitoring
+          "postgres-database-size-large" = {
+            type = "promql";
+            alertname = "PostgresDatabaseSizeLarge";
+            expr = "pg_database_size_bytes > 5 * 1024 * 1024 * 1024"; # 5GB
+            for = "30m";
+            severity = "medium";
+            labels = { service = "postgresql"; category = "capacity"; };
+            annotations = {
+              summary = "PostgreSQL database {{ $labels.datname }} is large on {{ $labels.instance }}";
+              description = "Database {{ $labels.datname }} is {{ $value }} bytes (>5GB). Consider cleanup or archiving.";
+            };
+          };
       };
 
-      # PostgreSQL Performance Monitoring Alerts
-      # These alerts monitor database performance metrics from postgres_exporter
-      # Previously centralized in infrastructure/monitoring.nix, now co-located with service config
-
-      # Database server connectivity
-      "postgres-down" = {
-        type = "promql";
-        alertname = "PostgresDown";
-        expr = "pg_up == 0";
-        for = "2m";
-        severity = "critical";
-        labels = { service = "postgresql"; category = "availability"; };
-        annotations = {
-          summary = "PostgreSQL is down on {{ $labels.instance }}";
-          description = "PostgreSQL database server is not responding. Check service status.";
-        };
+      # Declare backup policy: Don't snapshot PostgreSQL (pgBackRest handles backups)
+      modules.backup.sanoid.datasets."tank/services/postgresql" = {
+        autosnap = false;
+        autoprune = false;
+        recursive = false;
       };
-
-      # Connection pool exhaustion
-      "postgres-too-many-connections" = {
-        type = "promql";
-        alertname = "PostgresTooManyConnections";
-        expr = "sum(pg_stat_database_numbackends) / avg(pg_settings_max_connections) * 100 > 80";
-        for = "5m";
-        severity = "high";
-        labels = { service = "postgresql"; category = "capacity"; };
-        annotations = {
-          summary = "PostgreSQL connection usage high on {{ $labels.instance }}";
-          description = "PostgreSQL is using {{ $value }}% of max connections. Consider increasing max_connections or investigating connection leaks.";
-        };
-      };
-
-      # Query performance degradation
-      "postgres-slow-queries" = {
-        type = "promql";
-        alertname = "PostgresSlowQueries";
-        expr = "increase(pg_stat_database_tup_returned[5m]) / increase(pg_stat_database_tup_fetched[5m]) < 0.1";
-        for = "10m";
-        severity = "medium";
-        labels = { service = "postgresql"; category = "performance"; };
-        annotations = {
-          summary = "PostgreSQL slow queries detected on {{ $labels.instance }}";
-          description = "Database {{ $labels.datname }} has low efficiency ratio. Check for missing indexes or inefficient queries.";
-        };
-      };
-
-      # Transaction deadlocks
-      "postgres-deadlocks" = {
-        type = "promql";
-        alertname = "PostgresDeadlocks";
-        expr = "increase(pg_stat_database_deadlocks[1h]) > 0";
-        for = "0m";
-        severity = "medium";
-        labels = { service = "postgresql"; category = "performance"; };
-        annotations = {
-          summary = "PostgreSQL deadlocks detected on {{ $labels.instance }}";
-          description = "Database {{ $labels.datname }} has {{ $value }} deadlocks in the last hour. Review transaction patterns.";
-        };
-      };
-
-      # WAL archiving health (critical for backup integrity)
-      "postgres-wal-archiving-failures" = {
-        type = "promql";
-        alertname = "PostgresWalArchivingFailures";
-        expr = "increase(pg_stat_archiver_failed_count[15m]) > 0";
-        for = "15m";
-        severity = "high";
-        labels = { service = "postgresql"; category = "archiving"; };
-        annotations = {
-          summary = "PostgreSQL WAL archiving failures on {{ $labels.instance }}";
-          description = "WAL archiving has failed {{ $value }} times in the last 15 minutes. Check archive_command and destination.";
-        };
-      };
-
-      # Database size monitoring
-      "postgres-database-size-large" = {
-        type = "promql";
-        alertname = "PostgresDatabaseSizeLarge";
-        expr = "pg_database_size_bytes > 5 * 1024 * 1024 * 1024"; # 5GB
-        for = "30m";
-        severity = "medium";
-        labels = { service = "postgresql"; category = "capacity"; };
-        annotations = {
-          summary = "PostgreSQL database {{ $labels.datname }} is large on {{ $labels.instance }}";
-          description = "Database {{ $labels.datname }} is {{ $value }} bytes (>5GB). Consider cleanup or archiving.";
-        };
-      };
-    };
-
-    # Declare backup policy: Don't snapshot PostgreSQL (pgBackRest handles backups)
-    modules.backup.sanoid.datasets."tank/services/postgresql" = {
-      autosnap = false;
-      autoprune = false;
-      recursive = false;
-    };
-  };
+    })
+  ];
 }

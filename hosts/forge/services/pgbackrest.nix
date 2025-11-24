@@ -1,6 +1,9 @@
 { config, pkgs, lib, ... }:
 
 let
+  serviceEnabled =
+    (config.modules.services.postgresql.enable or false)
+    || (config.services.postgresql.enable or false);
   hardenedServiceConfig = {
     ProtectSystem = "full";
     ProtectHome = true;
@@ -811,7 +814,7 @@ EOF
   # Co-located alert rules for pgBackRest
   # Monitoring the pgBackRest backup service
   # Moved from postgresql.nix for proper co-location (service monitors itself)
-  modules.alerting.rules = {
+  modules.alerting.rules = lib.mkIf serviceEnabled {
     # Metrics scraping failure
     "pgbackrest-metrics-scrape-failed" = {
       type = "promql";

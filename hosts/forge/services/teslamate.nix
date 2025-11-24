@@ -1,6 +1,7 @@
 { config, lib, ... }:
 let
   inherit (config.networking) domain;
+  serviceEnabled = config.modules.services.teslamate.enable;
   serviceDomain = "teslamate.${domain}";
   dataset = "tank/services/teslamate";
   dataDir = "/var/lib/teslamate";
@@ -76,7 +77,7 @@ in
       };
     }
 
-    {
+    (lib.mkIf serviceEnabled {
       # Dataset replication (sanoid contribution)
       modules.backup.sanoid.datasets.${dataset} = {
         useTemplate = [ "services" ];
@@ -93,7 +94,7 @@ in
           targetLocation = "nas-1";
         };
       };
-    }
+    })
 
   ];
 }

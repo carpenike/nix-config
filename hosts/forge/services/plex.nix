@@ -1,8 +1,12 @@
 { lib, config, mylib, ... }:
+let
+  serviceEnabled = config.modules.services.plex.enable or false;
+in
 {
-  config = {
-    # Enable Plex via modular service
-    modules.services.plex = {
+  config = lib.mkMerge [
+    {
+      # Enable Plex via modular service
+      modules.services.plex = {
       enable = true;
       # Reverse proxy integration via Caddy
       reverseProxy = {
@@ -66,57 +70,60 @@
         # environmentFile not needed for local filesystem repository
         restoreMethods = [ "syncoid" "local" "restic" ];
       };
-    };
-
-  # ZFS snapshot and replication configuration for Plex dataset
-  # Contributes to host-level Sanoid configuration following the contribution pattern
-  modules.backup.sanoid.datasets."tank/services/plex" = {
-    useTemplate = [ "services" ];
-    recursive = false;
-    autosnap = true;
-    autoprune = true;
-    replication = {
-      targetHost = "nas-1.holthome.net";
-      targetDataset = "backup/forge/zfs-recv/plex";
-      sendOptions = "w";  # Raw encrypted send (no property preservation)
-      recvOptions = "u";  # Don't mount on receive
-      hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-      # Consistent naming for Prometheus metrics
-      targetName = "NFS";
-      targetLocation = "nas-1";
-    };
-  };
-
-  # Prometheus alerts for Plex
-    # Using monitoring-helpers library for consistency
-    modules.alerting.rules = lib.mkIf (config.modules.services.plex.enable) {
-      # Service availability alert using standard helper
-      "plex-down" = mylib.monitoring-helpers.mkThresholdAlert {
-        name = "plex";
-        alertname = "PlexDown";
-        expr = "plex_up == 0";
-        threshold = 0;
-        for = "5m";
-        severity = "critical";
-        category = "availability";
-        summary = "Plex is down on {{ $labels.instance }}";
-        description = "Plex healthcheck failing. Check service: systemctl status plex.service";
       };
+    }
 
-      # Healthcheck staleness - custom alert (no helper fits this pattern)
-      "plex-healthcheck-stale" = {
-        type = "promql";
-        alertname = "PlexHealthcheckStale";
-        expr = "time() - plex_last_check_timestamp > 600";
-        # Guard against timer jitter and brief executor delays
-        for = "2m";
-        severity = "high";
-        labels = { service = "plex"; category = "availability"; };
-        annotations = {
-          summary = "Plex healthcheck stale on {{ $labels.instance }}";
-          description = "No healthcheck updates for >10 minutes. Verify timer: systemctl status plex-healthcheck.timer";
+    (lib.mkIf serviceEnabled {
+        # ZFS snapshot and replication configuration for Plex dataset
+        # Contributes to host-level Sanoid configuration following the contribution pattern
+        modules.backup.sanoid.datasets."tank/services/plex" = {
+          useTemplate = [ "services" ];
+          recursive = false;
+          autosnap = true;
+          autoprune = true;
+          replication = {
+            targetHost = "nas-1.holthome.net";
+            targetDataset = "backup/forge/zfs-recv/plex";
+            sendOptions = "w";  # Raw encrypted send (no property preservation)
+            recvOptions = "u";  # Don't mount on receive
+            hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+            # Consistent naming for Prometheus metrics
+            targetName = "NFS";
+            targetLocation = "nas-1";
+          };
         };
-      };
-    };
-  };
+
+        # Prometheus alerts for Plex
+        # Using monitoring-helpers library for consistency
+        modules.alerting.rules = {
+          # Service availability alert using standard helper
+          "plex-down" = mylib.monitoring-helpers.mkThresholdAlert {
+            name = "plex";
+            alertname = "PlexDown";
+            expr = "plex_up == 0";
+            threshold = 0;
+            for = "5m";
+            severity = "critical";
+            category = "availability";
+            summary = "Plex is down on {{ $labels.instance }}";
+            description = "Plex healthcheck failing. Check service: systemctl status plex.service";
+          };
+
+          # Healthcheck staleness - custom alert (no helper fits this pattern)
+          "plex-healthcheck-stale" = {
+            type = "promql";
+            alertname = "PlexHealthcheckStale";
+            expr = "time() - plex_last_check_timestamp > 600";
+            # Guard against timer jitter and brief executor delays
+            for = "2m";
+            severity = "high";
+            labels = { service = "plex"; category = "availability"; };
+            annotations = {
+              summary = "Plex healthcheck stale on {{ $labels.instance }}";
+              description = "No healthcheck updates for >10 minutes. Verify timer: systemctl status plex-healthcheck.timer";
+            };
+          };
+        };
+    })
+  ];
 }
