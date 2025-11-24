@@ -10,6 +10,7 @@ let
   replicationTargetDataset = "backup/forge/zfs-recv/frigate";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   frigateMqttPasswordFile = lib.attrByPath [ "sops" "secrets" "frigate/mqtt_password" "path" ] null config;
+  serviceEnabled = config.modules.services.frigate.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -95,7 +96,7 @@ in
       };
     }
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.backup.sanoid.datasets.${dataset} = {
         useTemplate = [ "services" ];
         recursive = false;
@@ -111,9 +112,9 @@ in
           targetLocation = "nas-1";
         };
       };
-    }
+    })
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.alerting.rules."frigate-service-down" = {
         type = "promql";
         alertname = "FrigateServiceDown";
@@ -145,6 +146,6 @@ in
           description = "Review systemctl status go2rtc.service and associated logs.";
         };
       };
-    }
+    })
   ];
 }

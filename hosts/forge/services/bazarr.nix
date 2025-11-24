@@ -3,10 +3,15 @@
 # Host-specific configuration for the Bazarr service on 'forge'.
 # Bazarr is a subtitle manager for Sonarr and Radarr.
 
-{ config, ... }:
+{ config, lib, ... }:
 
+let
+  serviceEnabled = config.modules.services.bazarr.enable;
+in
 {
-  config.modules.services.bazarr = {
+  config = lib.mkMerge [
+    {
+      modules.services.bazarr = {
     enable = true;
 
     # Pin container image to specific version with digest
@@ -69,20 +74,24 @@
       repositoryUrl = "/mnt/nas-backup";
       passwordFile = config.sops.secrets."restic/password".path;
     };
-  };
+      };
+    }
 
-  # Co-located Service Monitoring
-  config.modules.alerting.rules."bazarr-service-down" = {
-    type = "promql";
-    alertname = "BazarrServiceInactive";
-    expr = "container_service_active{name=\"bazarr\"} == 0";
-    for = "2m";
-    severity = "high";
-    labels = { service = "bazarr"; category = "availability"; };
-    annotations = {
-      summary = "Bazarr service is down on {{ $labels.instance }}";
-      description = "The Bazarr subtitle manager service is not active.";
-      command = "systemctl status podman-bazarr.service";
-    };
-  };
+    (lib.mkIf serviceEnabled {
+      # Co-located Service Monitoring
+      modules.alerting.rules."bazarr-service-down" = {
+        type = "promql";
+        alertname = "BazarrServiceInactive";
+        expr = "container_service_active{name=\"bazarr\"} == 0";
+        for = "2m";
+        severity = "high";
+        labels = { service = "bazarr"; category = "availability"; };
+        annotations = {
+          summary = "Bazarr service is down on {{ $labels.instance }}";
+          description = "The Bazarr subtitle manager service is not active.";
+          command = "systemctl status podman-bazarr.service";
+        };
+      };
+    })
+  ];
 }

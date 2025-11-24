@@ -10,6 +10,7 @@ let
   replicationTargetHost = "nas-1.holthome.net";
   replicationTargetDataset = "backup/forge/zfs-recv/mealie";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+  serviceEnabled = config.modules.services.mealie.enable;
 in
 {
   config = lib.mkMerge [
@@ -111,7 +112,7 @@ in
       };
     }
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.backup.sanoid.datasets.${dataset} = {
         useTemplate = [ "services" ];
         recursive = false;
@@ -127,6 +128,6 @@ in
           targetLocation = "nas-1";
         };
       };
-    }
+    })
   ];
 }

@@ -1,7 +1,12 @@
-{ config, ... }:
+{ config, lib, ... }:
+let
+  serviceEnabled = config.modules.services.tqm.enable;
+in
 {
-  config.modules.services = {
-    # tqm - Comprehensive torrent lifecycle management
+  config = lib.mkMerge [
+    {
+      modules.services.tqm = {
+        # tqm - Comprehensive torrent lifecycle management
     # GEMINI PRO OPTIMIZED CONFIGURATION (Nov 2025)
     # Based on deep analysis of 421 torrent environment:
     # - 77% BTN (landof.tv) torrents requiring careful ratio management
@@ -9,8 +14,7 @@
     # - 422GB stalled downloads - quarantine approach
     # - Phased implementation: tag first, remove later
     # Reference: https://github.com/autobrr/tqm
-    tqm = {
-      enable = true;
+        enable = true;
 
       client = {
         type = "qbittorrent";
@@ -26,9 +30,9 @@
         createTagsUpfront = false;
       };
 
-      bypassIgnoreIfUnregistered = true;
+        bypassIgnoreIfUnregistered = true;
 
-      filters = {
+        filters = {
         default = {
           # Hardlink protection for clean and retag commands
           MapHardlinksFor = [ "clean" "retag" ];
@@ -248,21 +252,24 @@
         orphan = "daily";    # Daily at midnight - cleanup orphans
         pause = "*:0/30";    # Every 30 min - pause torrents (performance optimization)
       };
-    };
-  };
+      };
+    }
 
-  # Co-located Service Monitoring
-  config.modules.alerting.rules."tqm-service-down" = {
-    type = "promql";
-    alertname = "TqmServiceInactive";
-    expr = "container_service_active{name=\"tqm\"} == 0";
-    for = "2m";
-    severity = "high";
-    labels = { service = "tqm"; category = "availability"; };
-    annotations = {
-      summary = "tqm service is down on {{ $labels.instance }}";
-      description = "The tqm torrent lifecycle management service is not active.";
-      command = "systemctl status podman-tqm.service";
-    };
-  };
+    (lib.mkIf serviceEnabled {
+      # Co-located Service Monitoring
+      modules.alerting.rules."tqm-service-down" = {
+        type = "promql";
+        alertname = "TqmServiceInactive";
+        expr = "container_service_active{name=\"tqm\"} == 0";
+        for = "2m";
+        severity = "high";
+        labels = { service = "tqm"; category = "availability"; };
+        annotations = {
+          summary = "tqm service is down on {{ $labels.instance }}";
+          description = "The tqm torrent lifecycle management service is not active.";
+          command = "systemctl status podman-tqm.service";
+        };
+      };
+    })
+  ];
 }

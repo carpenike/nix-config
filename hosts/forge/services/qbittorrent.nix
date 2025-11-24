@@ -3,11 +3,15 @@
 # Host-specific configuration for the qBittorrent service on 'forge'.
 # qBittorrent is the primary BitTorrent download client.
 
-{ config, ... }:
+{ config, lib, ... }:
 
+let
+  serviceEnabled = config.modules.services.qbittorrent.enable;
+in
 {
-  config = {
-    modules.services.qbittorrent = {
+  config = lib.mkMerge [
+    {
+      modules.services.qbittorrent = {
       enable = true;
 
       # Pin container image to specific version with digest
@@ -68,39 +72,45 @@
       # ZFS snapshot and replication configuration for qBittorrent dataset
     # Contributes to host-level Sanoid configuration following the contribution pattern
     # NOTE: Downloads are NOT backed up (transient data on NFS)
-    modules.backup.sanoid.datasets."tank/services/qbittorrent" = {
-      useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
-      recursive = false;
-      autosnap = true;
-      autoprune = true;
-      replication = {
-        targetHost = "nas-1.holthome.net";
-        targetDataset = "backup/forge/zfs-recv/qbittorrent";
-        sendOptions = "wp";  # Raw encrypted send with property preservation
-        recvOptions = "u";   # Don't mount on receive
-        hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-        # Consistent naming for Prometheus metrics
-        targetName = "NFS";
-        targetLocation = "nas-1";
-      };
-    };
+    }
 
-    # Service-specific monitoring alerts
-    # Contributes to host-level alerting configuration following the contribution pattern
-    modules.alerting.rules."qbittorrent-service-down" = {
-      type = "promql";
-      alertname = "QbittorrentServiceDown";
-      expr = ''
-        container_service_active{service="qbittorrent"} == 0
-      '';
-      for = "2m";
-      severity = "high";
-      labels = { service = "qbittorrent"; category = "container"; };
-      annotations = {
-        summary = "qBittorrent service is down on {{ $labels.instance }}";
-        description = "Torrent download client is not running. Check: systemctl status podman-qbittorrent.service";
-        command = "systemctl status podman-qbittorrent.service && journalctl -u podman-qbittorrent.service --since '30m'";
+    (lib.mkIf serviceEnabled {
+      modules.backup.sanoid.datasets."tank/services/qbittorrent" = {
+        useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+        recursive = false;
+        autosnap = true;
+        autoprune = true;
+        replication = {
+          targetHost = "nas-1.holthome.net";
+          targetDataset = "backup/forge/zfs-recv/qbittorrent";
+          sendOptions = "wp";  # Raw encrypted send with property preservation
+          recvOptions = "u";   # Don't mount on receive
+          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+          # Consistent naming for Prometheus metrics
+          targetName = "NFS";
+          targetLocation = "nas-1";
+        };
       };
-    };
-  };
+    })
+
+    (lib.mkIf serviceEnabled {
+      # Service-specific monitoring alerts
+      # Contributes to host-level alerting configuration following the contribution pattern
+      modules.alerting.rules."qbittorrent-service-down" = {
+        type = "promql";
+        alertname = "QbittorrentServiceDown";
+        expr = ''
+          container_service_active{service="qbittorrent"} == 0
+        '';
+        for = "2m";
+        severity = "high";
+        labels = { service = "qbittorrent"; category = "container"; };
+        annotations = {
+          summary = "qBittorrent service is down on {{ $labels.instance }}";
+          description = "Torrent download client is not running. Check: systemctl status podman-qbittorrent.service";
+          command = "systemctl status podman-qbittorrent.service && journalctl -u podman-qbittorrent.service --since '30m'";
+        };
+      };
+    })
+  ];
 }

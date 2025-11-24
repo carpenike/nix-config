@@ -14,6 +14,7 @@ let
   replicationTargetHost = "nas-1.holthome.net";
   replicationTargetDataset = "backup/forge/zfs-recv/scrypted";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+  serviceEnabled = config.modules.services.scrypted.enable;
 in
 {
   config = lib.mkMerge [
@@ -84,7 +85,7 @@ in
       };
     }
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.backup.sanoid.datasets.${dataset} = {
         useTemplate = [ "services" ];
         recursive = false;
@@ -100,9 +101,9 @@ in
           targetLocation = "nas-1";
         };
       };
-    }
+    })
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.alerting.rules."scrypted-service-down" = {
         type = "promql";
         alertname = "ScryptedServiceDown";
@@ -118,6 +119,6 @@ in
           description = "Check systemctl status podman-scrypted.service and podman logs --tail=200 scrypted.";
         };
       };
-    }
+    })
   ];
 }

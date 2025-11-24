@@ -3,10 +3,15 @@
 # Host-specific configuration for the Recyclarr service on 'forge'.
 # Recyclarr automates TRaSH Guides configuration for Sonarr and Radarr.
 
-{ config, ... }:
+{ config, lib, ... }:
 
+let
+  serviceEnabled = config.modules.services.recyclarr.enable;
+in
 {
-  config.modules.services.recyclarr = {
+  config = lib.mkMerge [
+    {
+      modules.services.recyclarr = {
     enable = true;
 
     # Pin container image to specific version
@@ -80,20 +85,24 @@
       repositoryUrl = "/mnt/nas-backup";
       passwordFile = config.sops.secrets."restic/password".path;
     };
-  };
+      };
+    }
 
-  # Co-located Service Monitoring
-  config.modules.alerting.rules."recyclarr-service-down" = {
-    type = "promql";
-    alertname = "RecyclarrServiceInactive";
-    expr = "container_service_active{name=\"recyclarr\"} == 0";
-    for = "2m";
-    severity = "high";
-    labels = { service = "recyclarr"; category = "availability"; };
-    annotations = {
-      summary = "Recyclarr service is down on {{ $labels.instance }}";
-      description = "The Recyclarr TRaSH guide automation service is not active.";
-      command = "systemctl status podman-recyclarr.service";
-    };
-  };
+    (lib.mkIf serviceEnabled {
+      # Co-located Service Monitoring
+      modules.alerting.rules."recyclarr-service-down" = {
+        type = "promql";
+        alertname = "RecyclarrServiceInactive";
+        expr = "container_service_active{name=\"recyclarr\"} == 0";
+        for = "2m";
+        severity = "high";
+        labels = { service = "recyclarr"; category = "availability"; };
+        annotations = {
+          summary = "Recyclarr service is down on {{ $labels.instance }}";
+          description = "The Recyclarr TRaSH guide automation service is not active.";
+          command = "systemctl status podman-recyclarr.service";
+        };
+      };
+    })
+  ];
 }

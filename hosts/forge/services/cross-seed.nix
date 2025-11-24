@@ -3,12 +3,16 @@
 # Host-specific configuration for the cross-seed service on 'forge'.
 # cross-seed automates finding cross-seeds across multiple torrent trackers.
 
-{ config, ... }:
+{ config, lib, ... }:
 
+let
+  serviceEnabled = config.modules.services.cross-seed.enable or false;
+in
 {
-  config = {
-    modules.services.cross-seed = {
-      enable = true;
+  config = lib.mkMerge [
+    {
+      modules.services.cross-seed = {
+        enable = true;
 
       # Pure API mode: inject torrents directly via qBittorrent API
       # No NFS mount needed - all operations via API
@@ -103,41 +107,44 @@
         passwordFile = config.sops.secrets."restic/password".path;
         restoreMethods = [ "syncoid" "local" ];
       };
-    };
-
-    # ZFS snapshot and replication configuration for cross-seed dataset
-    # Contributes to host-level Sanoid configuration following the contribution pattern
-    # Stores cache database and generated torrent files
-    modules.backup.sanoid.datasets."tank/services/cross-seed" = {
-      useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
-      recursive = false;
-      autosnap = true;
-      autoprune = true;
-      replication = {
-        targetHost = "nas-1.holthome.net";
-        targetDataset = "backup/forge/zfs-recv/cross-seed";
-        sendOptions = "wp";  # Raw encrypted send with property preservation
-        recvOptions = "u";   # Don't mount on receive
-        hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-        # Consistent naming for Prometheus metrics
-        targetName = "NFS";
-        targetLocation = "nas-1";
       };
-    };
+    }
 
-    # Co-located Service Monitoring
-    modules.alerting.rules."cross-seed-service-down" = {
-      type = "promql";
-      alertname = "CrossSeedServiceInactive";
-      expr = "container_service_active{name=\"cross-seed\"} == 0";
-      for = "2m";
-      severity = "high";
-      labels = { service = "cross-seed"; category = "availability"; };
-      annotations = {
-        summary = "cross-seed service is down on {{ $labels.instance }}";
-        description = "The cross-seed automation service is not active.";
-        command = "systemctl status podman-cross-seed.service";
+    (lib.mkIf serviceEnabled {
+      # ZFS snapshot and replication configuration for cross-seed dataset
+      # Contributes to host-level Sanoid configuration following the contribution pattern
+      # Stores cache database and generated torrent files
+      modules.backup.sanoid.datasets."tank/services/cross-seed" = {
+        useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+        recursive = false;
+        autosnap = true;
+        autoprune = true;
+        replication = {
+          targetHost = "nas-1.holthome.net";
+          targetDataset = "backup/forge/zfs-recv/cross-seed";
+          sendOptions = "wp";  # Raw encrypted send with property preservation
+          recvOptions = "u";   # Don't mount on receive
+          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+          # Consistent naming for Prometheus metrics
+          targetName = "NFS";
+          targetLocation = "nas-1";
+        };
       };
-    };
-  };
+
+      # Co-located Service Monitoring
+      modules.alerting.rules."cross-seed-service-down" = {
+        type = "promql";
+        alertname = "CrossSeedServiceInactive";
+        expr = "container_service_active{name=\"cross-seed\"} == 0";
+        for = "2m";
+        severity = "high";
+        labels = { service = "cross-seed"; category = "availability"; };
+        annotations = {
+          summary = "cross-seed service is down on {{ $labels.instance }}";
+          description = "The cross-seed automation service is not active.";
+          command = "systemctl status podman-cross-seed.service";
+        };
+      };
+    })
+  ];
 }

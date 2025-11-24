@@ -8,6 +8,7 @@ let
   replicationTargetHost = "nas-1.holthome.net";
   replicationTargetDataset = "backup/forge/zfs-recv/zigbee2mqtt";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+  serviceEnabled = config.modules.services.zigbee2mqtt.enable;
 in
 {
   config = lib.mkMerge [
@@ -111,7 +112,7 @@ Use `journalctl -u zigbee2mqtt -n 200` for details.
       };
     }
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.backup.sanoid.datasets.${dataset} = {
         useTemplate = [ "services" ];
         recursive = false;
@@ -127,9 +128,9 @@ Use `journalctl -u zigbee2mqtt -n 200` for details.
           targetLocation = "nas-1";
         };
       };
-    }
+    })
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.alerting.rules."zigbee2mqtt-service-down" = {
         type = "promql";
         alertname = "Zigbee2MQTTServiceDown";
@@ -146,6 +147,6 @@ Use `journalctl -u zigbee2mqtt -n 200` for details.
           command = "journalctl -u zigbee2mqtt -n 200";
         };
       };
-    }
+    })
   ];
 }

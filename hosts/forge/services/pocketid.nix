@@ -26,6 +26,7 @@ let
   '';
 
   portalExtraConfig = authenticatedTransform;
+  serviceEnabled = config.modules.services.pocketid.enable;
 in
 {
   config = mkMerge [
@@ -109,6 +110,9 @@ in
         };
       };
 
+    }
+
+    (lib.mkIf serviceEnabled {
       modules.alerting.rules."pocketid-service-down" = {
         type = "promql";
         alertname = "PocketIDServiceDown";
@@ -170,9 +174,9 @@ in
           };
         };
       };
-    }
+    })
 
-    {
+    (lib.mkIf serviceEnabled {
       modules.backup.sanoid.datasets.${dataset} = {
         useTemplate = [ "services" ];
         recursive = false;
@@ -188,6 +192,6 @@ in
           targetLocation = "nas-1";
         };
       };
-    }
+    })
   ];
 }

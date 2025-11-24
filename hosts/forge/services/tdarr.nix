@@ -1,8 +1,12 @@
-{ config, ... }:
+{ config, lib, ... }:
+let
+  serviceEnabled = config.modules.services.tdarr.enable;
+in
 {
-  config.modules.services = {
-    # Tdarr - Transcoding automation
-    tdarr = {
+  config = lib.mkMerge [
+    {
+      modules.services.tdarr = {
+        # Tdarr - Transcoding automation
       enable = true;
       image = "ghcr.io/haveagitgat/tdarr:latest";
       nfsMountDependency = "media";
@@ -53,21 +57,24 @@
         passwordFile = config.sops.secrets."restic/password".path;
         restoreMethods = [ "syncoid" "local" ];
       };
-    };
-  };
+      };
+    }
 
-  # Co-located Service Monitoring
-  config.modules.alerting.rules."tdarr-service-down" = {
-    type = "promql";
-    alertname = "TdarrServiceInactive";
-    expr = "container_service_active{name=\"tdarr\"} == 0";
-    for = "2m";
-    severity = "high";
-    labels = { service = "tdarr"; category = "availability"; };
-    annotations = {
-      summary = "Tdarr service is down on {{ $labels.instance }}";
-      description = "The Tdarr transcoding automation service is not active.";
-      command = "systemctl status podman-tdarr.service";
-    };
-  };
+    (lib.mkIf serviceEnabled {
+      # Co-located Service Monitoring
+      modules.alerting.rules."tdarr-service-down" = {
+        type = "promql";
+        alertname = "TdarrServiceInactive";
+        expr = "container_service_active{name=\"tdarr\"} == 0";
+        for = "2m";
+        severity = "high";
+        labels = { service = "tdarr"; category = "availability"; };
+        annotations = {
+          summary = "Tdarr service is down on {{ $labels.instance }}";
+          description = "The Tdarr transcoding automation service is not active.";
+          command = "systemctl status podman-tdarr.service";
+        };
+      };
+    })
+  ];
 }

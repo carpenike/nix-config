@@ -25,17 +25,19 @@
 # 6. Create client proxy API keys in Settings → Client Proxy Keys
 # 7. Update Sonarr/Radarr/autobrr to use qui proxy URLs
 
-{ config, ... }:
+{ config, lib, ... }:
 
 let
   domain = config.networking.domain;
+  serviceEnabled = config.modules.services.qui.enable;
 in
 {
-  config = {
+  config = lib.mkMerge [
     # PocketID client registration handled in the PocketID admin console (client: "qui")
     # Configure qui service
-    modules.services.qui = {
-      enable = true;
+    {
+      modules.services.qui = {
+        enable = true;
 
       # Use latest stable version with digest pinning (managed by Renovate)
       image = "ghcr.io/autobrr/qui:v1.7.0@sha256:af6faa0aea35497c66f9460d5460c421d57c017e04163295f904af952b103d9a";
@@ -140,45 +142,48 @@ in
       };
 
       # Preseed/DR configuration
-      preseed = {
-        enable = true;
-        repositoryUrl = "/mnt/nas-backup";
-        passwordFile = config.sops.secrets."restic/password".path;
-        environmentFile = config.sops.secrets."restic/r2-prod-env".path;
-        restoreMethods = [ "syncoid" "local" "restic" ];
+        preseed = {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          environmentFile = config.sops.secrets."restic/r2-prod-env".path;
+          restoreMethods = [ "syncoid" "local" "restic" ];
+        };
       };
-    };
+    }
 
-    # ZFS dataset for qui (managed by modules.storage)
-    modules.storage.datasets.services.qui = {
-      mountpoint = "/var/lib/qui";
-      recordsize = "16K";  # Optimal for SQLite
-      compression = "zstd";
-      properties = {
-        "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots
+    (lib.mkIf serviceEnabled {
+      # ZFS dataset for qui (managed by modules.storage)
+      modules.storage.datasets.services.qui = {
+        mountpoint = "/var/lib/qui";
+        recordsize = "16K";  # Optimal for SQLite
+        compression = "zstd";
+        properties = {
+          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots
+        };
+        owner = "980";
+        group = "media";
+        mode = "0750";  # Allow group read access for backup systems
       };
-      owner = "980";
-      group = "media";
-      mode = "0750";  # Allow group read access for backup systems
-    };
 
-    # Note: Backup integration now handled by backup-integration module
-    # The backup submodule configuration will be auto-discovered and converted
-    # to a Restic job named "service-qui" with the specified settings
+      # Note: Backup integration now handled by backup-integration module
+      # The backup submodule configuration will be auto-discovered and converted
+      # to a Restic job named "service-qui" with the specified settings
 
-    # Co-located Service Monitoring
-    modules.alerting.rules."qui-service-down" = {
-      type = "promql";
-      alertname = "QuiServiceInactive";
-      expr = "container_service_active{name=\"qui\"} == 0";
-      for = "2m";
-      severity = "high";
-      labels = { service = "qui"; category = "availability"; };
-      annotations = {
-        summary = "qui service is down on {{ $labels.instance }}";
-        description = "The qui qBittorrent web interface service is not active.";
-        command = "systemctl status podman-qui.service";
+      # Co-located Service Monitoring
+      modules.alerting.rules."qui-service-down" = {
+        type = "promql";
+        alertname = "QuiServiceInactive";
+        expr = "container_service_active{name=\"qui\"} == 0";
+        for = "2m";
+        severity = "high";
+        labels = { service = "qui"; category = "availability"; };
+        annotations = {
+          summary = "qui service is down on {{ $labels.instance }}";
+          description = "The qui qBittorrent web interface service is not active.";
+          command = "systemctl status podman-qui.service";
+        };
       };
-    };
-  };
+    })
+  ];
 }
