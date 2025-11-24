@@ -13,7 +13,7 @@
 # - Caddy reverse proxy with automatic DNS registration
 let
   # Centralize enable flag so database provisioning is conditional
-  dispatcharrEnabled = true;  # ENABLED - shared PostgreSQL integration complete
+  dispatcharrEnabled = config.modules.services.dispatcharr.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -41,7 +41,7 @@ in
     # Now using shared PostgreSQL instance with proper integration
     {
       modules.services.dispatcharr = {
-        enable = dispatcharrEnabled;
+        enable = true;
         # DRY: derive VA-API driver from host hardware profile
         vaapiDriver = config.modules.common.intelDri.driver;
         # Pass the entire /dev/dri directory to the container. This is more robust

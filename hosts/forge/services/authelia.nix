@@ -10,10 +10,14 @@
 # 4. Deploy configuration
 # 5. Test authentication flow
 
-{ config, ... }:
+{ config, lib, ... }:
 
+let
+  serviceEnabled = config.modules.services.authelia.enable or false;
+in
 {
-  config = {
+  config = lib.mkMerge [
+    {
     # Configure Authelia SSO service
     modules.services.authelia = {
       enable = true;
@@ -190,27 +194,30 @@
 
     # Users file is managed via SOPS (declared in secrets.nix)
     # The secret is placed at /var/lib/authelia-main/users.yaml automatically
+    }
 
-    # Co-located Service Monitoring
-    modules.alerting.rules."authelia-service-down" = {
-      type = "promql";
-      alertname = "AutheliaServiceInactive";
-      expr = "container_service_active{name=\"authelia\"} == 0";
-      for = "2m";
-      severity = "critical"; # Critical - SSO authentication service
-      labels = { service = "authelia"; category = "availability"; };
-      annotations = {
-        summary = "Authelia SSO service is down on {{ $labels.instance }}";
-        description = "The Authelia authentication container service is not active. All SSO-protected services will fail authentication.";
-        command = "systemctl status podman-authelia.service";
+    (lib.mkIf serviceEnabled {
+      # Co-located Service Monitoring
+      modules.alerting.rules."authelia-service-down" = {
+        type = "promql";
+        alertname = "AutheliaServiceInactive";
+        expr = "container_service_active{name=\"authelia\"} == 0";
+        for = "2m";
+        severity = "critical"; # Critical - SSO authentication service
+        labels = { service = "authelia"; category = "availability"; };
+        annotations = {
+          summary = "Authelia SSO service is down on {{ $labels.instance }}";
+          description = "The Authelia authentication container service is not active. All SSO-protected services will fail authentication.";
+          command = "systemctl status podman-authelia.service";
+        };
       };
-    };
 
-    modules.services.caddy.virtualHosts.authelia.cloudflare = {
-      enable = true;
-      tunnel = "forge";
-    };
-  };
+      modules.services.caddy.virtualHosts.authelia.cloudflare = {
+        enable = true;
+        tunnel = "forge";
+      };
+    })
+  ];
 }
 
 # ============================================================================

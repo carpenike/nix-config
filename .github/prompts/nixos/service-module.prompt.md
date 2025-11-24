@@ -370,23 +370,43 @@ BASIC INTEGRATIONS (auto-registration pattern):
 HOST CONFIGURATION (following forge pattern):
 ---
 # hosts/forge/services/<service>.nix
-services.<service> = {
-  enable = true;
-  reverseProxy.enable = true;
-  metrics.enable = true;
-  backup.enable = true;
+let
+  serviceEnabled = config.modules.services.<service>.enable or false;
+in
+{
+  config = lib.mkMerge [
+    {
+      modules.services.<service> = {
+        enable = true;
+        reverseProxy.enable = true;
+        metrics.enable = true;
+        backup.enable = true;
 
-  # IF COMPLEX: Database config
-  database = mkIf <needs-db> {
-    passwordFile = config.sops.secrets."<service>/database_password".path;
-  };
+        # IF COMPLEX: Database config
+        database = mkIf <needs-db> {
+          passwordFile = config.sops.secrets."<service>/database_password".path;
+        };
 
-  # IF COMPLEX: MQTT config
-  mqtt = mkIf <needs-mqtt> {
-    enable = true;
-    passwordFile = config.sops.secrets."<service>/mqtt_password".path;
-  };
-};
+        # IF COMPLEX: MQTT config
+        mqtt = mkIf <needs-mqtt> {
+          enable = true;
+          passwordFile = config.sops.secrets."<service>/mqtt_password".path;
+        };
+      };
+    }
+
+    (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.<service> = { ... };
+      modules.backup.sanoid.datasets."tank/services/<service>" = { ... };
+      modules.alerting.rules."<service>-service-down" = { ... };
+    })
+  ];
+}
+
+# Guard Requirement:
+# Any host-level contribution outside the module itself (datasets, alerts, backup jobs,
+# Cloudflare tunnels, etc.) MUST be wrapped in `lib.mkIf serviceEnabled`. Disabling the
+# service should automatically drop all downstream infrastructure.
 
 # OPTIONAL: Enable public access via Cloudflare Tunnel
 # Only add if service should be accessible from the internet

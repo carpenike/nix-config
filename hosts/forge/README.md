@@ -98,6 +98,8 @@ When adding a new service (e.g., `myapp`), create `services/myapp.nix` containin
 }
 ```
 
+> **Guard requirement**: wrap every downstream contribution (datasets, backup jobs, alert rules, Cloudflare tunnels, etc.) in `lib.mkIf serviceEnabled` where `serviceEnabled = config.modules.services.myapp.enable or false`. Disabling the service must automatically remove all co-located infrastructure.
+
 ### Alert Organization
 
 Alerts are distributed according to their scope following the **co-location principle**:

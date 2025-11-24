@@ -197,6 +197,30 @@ in
 }
 ```
 
+#### Host-Level Contribution Rule
+
+When a host (for example `hosts/forge/services/<name>.nix`) enables a service module and contributes additional infrastructure resources—ZFS datasets, Sanoid definitions, alert rules, backup jobs, Cloudflare tunnels, etc.—**every one of those contributions must be wrapped in a guard tied to the service's enable flag**. The canonical pattern is:
+
+```nix
+let
+  serviceEnabled = config.modules.services.<service>.enable or false;
+in
+{
+  config = lib.mkMerge [
+    { modules.services.<service> = { enable = true; ... }; }
+
+    (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.<service> = { ... };
+      modules.backup.sanoid.datasets."tank/services/<service>" = { ... };
+      modules.alerting.rules."<service>-service-down" = { ... };
+      modules.services.caddy.virtualHosts.<service>.cloudflare = { ... };
+    })
+  ];
+}
+```
+
+This ensures that disabling a service automatically disables all downstream infrastructure so we never create orphaned datasets, alerts, or backup jobs.
+
 #### Step 3: Native Wrapper Pattern (PREFERRED)
 
 When wrapping a native NixOS module:
