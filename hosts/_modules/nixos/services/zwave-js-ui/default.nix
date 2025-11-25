@@ -93,7 +93,11 @@ let
       "STORE_DIR=${storeRoot}"
       "ZWAVEJS_EXTERNAL_CONFIG=${configDbPath}"
     ]
-    ++ lib.optional (cfg.serial.device != null) "ZWAVEJS_SERIAL_PORT=${cfg.serial.device}";
+    ++ lib.optional (cfg.serial.device != null) "ZWAVEJS_SERIAL_PORT=${cfg.serial.device}"
+    # Express-based UI must trust proxy headers when fronted by Caddy; otherwise
+    # rate limiting misinterprets X-Forwarded-For and errors loudly. See
+    # https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+    ++ lib.optional (cfg.reverseProxy != null && cfg.reverseProxy.enable) "TRUST_PROXY=true";
 
   mqttAclTopics =
     if cfg.mqtt.allowedTopics != [ ] then cfg.mqtt.allowedTopics else [ "${cfg.mqtt.baseTopic}/#" ];
@@ -510,7 +514,7 @@ Inspect logs with <code>journalctl -u ${serviceUnit} -n 200</code>.
             preStart = lib.mkAfter ''
               set -euo pipefail
               ${optionalString (cfg.serial.device != null) ''
-                ${pkgs.udev}/bin/udevadm settle --exit-if-exists=${lib.escapeShellArg cfg.serial.device}
+                ${pkgs.systemd}/bin/udevadm settle --exit-if-exists=${lib.escapeShellArg cfg.serial.device}
               ''}
               install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}
               install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${configDbPath}

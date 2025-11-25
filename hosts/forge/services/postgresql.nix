@@ -120,6 +120,8 @@ in
     # GPT-5 recommendation: Use password-based auth (scram-sha-256) for network connections
     services.postgresql.authentication = ''
       # Local Unix socket connections
+      # Allow Home Assistant recorder to use password auth even on unix sockets
+      local   home_assistant   hass_recorder   scram-sha-256
       local   all   postgres  peer
       local   all   all       peer
 

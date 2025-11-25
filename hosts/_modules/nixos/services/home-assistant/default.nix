@@ -108,6 +108,12 @@ in
       description = "Additional shared libraries exposed to Home Assistant via LD_LIBRARY_PATH.";
     };
 
+    environmentFiles = mkOption {
+      type = types.listOf types.path;
+      default = [ ];
+      description = "Environment files passed to the Home Assistant service (EnvironmentFile=) for !env_var secrets.";
+    };
+
     declarativeConfig = mkOption {
       type = types.nullOr (types.attrsOf types.anything);
       default = null;
@@ -276,11 +282,15 @@ in
         environment = mkIf (cfg.extraLibs != [ ]) {
           LD_LIBRARY_PATH = lib.makeLibraryPath cfg.extraLibs;
         };
-        serviceConfig = {
-          ReadWritePaths = mkForce [ cfg.dataDir ];
-          WorkingDirectory = mkForce cfg.dataDir;
+        serviceConfig =
+          ({
+            ReadWritePaths = mkForce [ cfg.dataDir ];
+            WorkingDirectory = mkForce cfg.dataDir;
+          }
+          // (mkIf (cfg.environmentFiles != [ ]) {
+            EnvironmentFile = cfg.environmentFiles;
+          }));
         };
-      };
 
       # Ensure native Home Assistant account follows repo-wide conventions
       users.users.hass = {

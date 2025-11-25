@@ -13,6 +13,7 @@ let
   sanoidEnabled = config.modules.backup.sanoid.enable or false;
   alertingEnabled = config.modules.alerting.enable or false;
   dispatcharrEnabled = config.modules.services.dispatcharr.enable or false;
+  homeAssistantEnabled = config.modules.services.home-assistant.enable or false;
   caddyEnabled = config.modules.services.caddy.enable or false;
   cloudflaredEnabled = config.modules.services.cloudflared.enable or false;
   cooklangEnabled = config.modules.services.cooklang.enable or false;
@@ -116,6 +117,20 @@ in
             mode = "0440";  # owner+group read
             owner = "root";
             group = "postgres";
+          };
+        }
+        // optionalAttrs homeAssistantEnabled {
+          "postgresql/home-assistant_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          "home-assistant/env" = {
+            mode = "0400";
+            owner = "hass";
+            group = "hass";
+            restartUnits = [ "home-assistant.service" ];
           };
         }
         // optionalAttrs caddyEnabled {
