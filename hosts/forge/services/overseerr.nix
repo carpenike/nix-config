@@ -7,7 +7,7 @@
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.overseerr.enable;
+  serviceEnabled = config.modules.services.overseerr.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -39,7 +39,10 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      # Co-located Service Monitoring
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/overseerr" = forgeDefaults.mkSanoidDataset "overseerr";
+
+      # Service availability alert
       modules.alerting.rules."overseerr-service-down" =
         forgeDefaults.mkServiceDownAlert "overseerr" "Overseerr" "request management";
     })

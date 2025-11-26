@@ -7,7 +7,7 @@
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.bazarr.enable;
+  serviceEnabled = config.modules.services.bazarr.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -61,7 +61,10 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      # Co-located Service Monitoring
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/bazarr" = forgeDefaults.mkSanoidDataset "bazarr";
+
+      # Service availability alert
       modules.alerting.rules."bazarr-service-down" =
         forgeDefaults.mkServiceDownAlert "bazarr" "Bazarr" "subtitle manager";
     })

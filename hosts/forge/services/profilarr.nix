@@ -1,7 +1,7 @@
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.profilarr.enable;
+  serviceEnabled = config.modules.services.profilarr.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -22,6 +22,9 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/profilarr" = forgeDefaults.mkSanoidDataset "profilarr";
+
       # Service availability alert
       modules.alerting.rules."profilarr-service-down" =
         forgeDefaults.mkServiceDownAlert "profilarr" "Profilarr" "profile sync";

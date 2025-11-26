@@ -1,7 +1,7 @@
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.tdarr.enable;
+  serviceEnabled = config.modules.services.tdarr.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -41,6 +41,9 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/tdarr" = forgeDefaults.mkSanoidDataset "tdarr";
+
       # Service availability alert
       modules.alerting.rules."tdarr-service-down" =
         forgeDefaults.mkServiceDownAlert "tdarr" "Tdarr" "transcoding automation";

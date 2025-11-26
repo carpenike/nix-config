@@ -41,6 +41,10 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/prowlarr" = forgeDefaults.mkSanoidDataset "prowlarr";
+
+      # Service availability alert
       modules.alerting.rules."prowlarr-service-down" =
         forgeDefaults.mkServiceDownAlert "prowlarr" "Prowlarr" "indexer manager";
     })

@@ -57,6 +57,10 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/autobrr" = forgeDefaults.mkSanoidDataset "autobrr";
+
+      # Service availability alert
       modules.alerting.rules."autobrr-service-down" =
         forgeDefaults.mkServiceDownAlert "autobrr" "Autobrr" "IRC announce bot";
     })

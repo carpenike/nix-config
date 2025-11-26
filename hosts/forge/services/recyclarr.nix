@@ -7,7 +7,7 @@
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.recyclarr.enable;
+  serviceEnabled = config.modules.services.recyclarr.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -79,6 +79,9 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/recyclarr" = forgeDefaults.mkSanoidDataset "recyclarr";
+
       # Service availability alert
       modules.alerting.rules."recyclarr-service-down" =
         forgeDefaults.mkServiceDownAlert "recyclarr" "Recyclarr" "TRaSH guide automation";

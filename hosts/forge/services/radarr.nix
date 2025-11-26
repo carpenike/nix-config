@@ -44,6 +44,10 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/radarr" = forgeDefaults.mkSanoidDataset "radarr";
+
+      # Service availability alert
       modules.alerting.rules."radarr-service-down" =
         forgeDefaults.mkServiceDownAlert "radarr" "Radarr" "movie management";
     })
