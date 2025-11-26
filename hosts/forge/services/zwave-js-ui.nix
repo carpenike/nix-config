@@ -1,14 +1,11 @@
 { config, lib, pkgs, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
-
   dataset = "tank/services/zwave-js-ui";
   dataDir = "/var/lib/zwave-js-ui";
   controllerAddress = "/dev/serial/by-id/usb-0658_0200-if00";
   frontendDomain = "zwave.${domain}";
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/zwave-js-ui";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   serviceEnabled = config.modules.services."zwave-js-ui".enable;
   unstablePkgs = pkgs.unstable;
 in
@@ -83,40 +80,10 @@ Use `journalctl -u zwave-js-ui -n 200` for details.
     }
 
     (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          sendOptions = "wp";
-          recvOptions = "u";
-          hostKey = replicationHostKey;
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
-    })
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "zwave-js-ui";
 
-    (lib.mkIf serviceEnabled {
-      modules.alerting.rules."zwave-js-ui-service-down" = {
-        type = "promql";
-        alertname = "ZwaveJsUiServiceDown";
-        expr = ''systemd_unit_state{name="zwave-js-ui.service",state="active"} == 0'';
-        for = "2m";
-        severity = "high";
-        labels = {
-          service = "zwave-js-ui";
-          category = "automation";
-        };
-        annotations = {
-          summary = "Z-Wave JS UI is down";
-          description = ''The zwave-js-ui service on {{ $labels.instance }} has been inactive for 2 minutes. Zwave automations are impacted.'';
-          command = "journalctl -u zwave-js-ui -n 200";
-        };
-      };
+      modules.alerting.rules."zwave-js-ui-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "zwave-js-ui" "ZwaveJsUi" "Z-Wave device bridge";
     })
   ];
 }

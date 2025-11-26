@@ -222,22 +222,7 @@ in
         };
     })
 
-    # Metrics integration (if enabled)
-    (mkIf (cfg.metrics != null && cfg.metrics.enable) {
-      # Pgweb doesn't have native metrics endpoint
-      # Add systemd-based monitoring instead
-      modules.alerting.rules."pgweb-down" = {
-        type = "promql";
-        alertname = "PgwebDown";
-        expr = ''systemd_unit_state{name="pgweb.service",state="active"} != 1'';
-        for = "5m";
-        severity = "medium";
-        labels = { service = "pgweb"; category = "availability"; };
-        annotations = {
-          summary = "Pgweb service is not running";
-          description = "Pgweb has been down for more than 5 minutes";
-        };
-      };
-    })
+    # NOTE: Service alerts are defined at host level
+    # to keep modules portable and not assume Prometheus availability
   ]);
 }

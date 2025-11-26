@@ -14,10 +14,8 @@
 # - Automatic backup via Sanoid snapshots
 # - Disaster recovery via Syncoid replication
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.cooklang.enable or false;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -96,12 +94,7 @@ in
     };
 
     # Disaster recovery via preseed
-    preseed = lib.mkIf resticEnabled {
-      enable = true;
-      repositoryUrl = "r2:forge-backups/cooklang";
-      passwordFile = config.sops.secrets."restic/password".path;
-      restoreMethods = [ "syncoid" "restic" ];
-    };
+    preseed = forgeDefaults.mkPreseed [ "syncoid" "restic" ];
       };
     }
 
@@ -153,28 +146,11 @@ in
       };
 
       # Backup configuration - Sanoid snapshots
-      modules.backup.sanoid.datasets."tank/services/cooklang" = {
-        useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = "nas-1.holthome.net";
-          targetDataset = "backup/forge/zfs-recv/cooklang";
-          sendOptions = "wp";  # Raw encrypted send with property preservation
-          recvOptions = "u";   # Don't mount on receive
-          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-          # Consistent naming for Prometheus metrics
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
+      modules.backup.sanoid.datasets."tank/services/cooklang" = forgeDefaults.mkSanoidDataset "cooklang";
 
-      # Monitoring alerts
-      modules.alerting.rules = {
-        # Additional service-specific alerts can be added here
-        # Core alerts (service down, dataset unavailable) are auto-configured
-      };
+      # Service availability alert
+      modules.alerting.rules."cooklang-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "cooklang" "Cooklang" "recipe management";
     })
   ];
 }

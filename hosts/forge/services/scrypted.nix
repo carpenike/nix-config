@@ -1,5 +1,6 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   serviceDomain = "scrypted.${domain}";
   dataDir = "/var/lib/scrypted";
@@ -10,9 +11,6 @@ let
     if mountCfg != null && mountCfg ? localPath then mountCfg.localPath else "/mnt/data";
   nvrPath = "${mediaMount}/scrypted";
   dataset = "tank/services/scrypted";
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/scrypted";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   serviceEnabled = config.modules.services.scrypted.enable;
 in
 {
@@ -73,39 +71,10 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          hostKey = replicationHostKey;
-          sendOptions = "wp";
-          recvOptions = "u";
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
-    })
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "scrypted";
 
-    (lib.mkIf serviceEnabled {
-      modules.alerting.rules."scrypted-service-down" = {
-        type = "promql";
-        alertname = "ScryptedServiceDown";
-        expr = ''container_service_active{name="scrypted"} == 0'';
-        for = "2m";
-        severity = "critical";
-        labels = {
-          service = "scrypted";
-          category = "nvr";
-        };
-        annotations = {
-          summary = "Scrypted container is down on {{ $labels.instance }}";
-          description = "Check systemctl status podman-scrypted.service and podman logs --tail=200 scrypted.";
-        };
-      };
+      modules.alerting.rules."scrypted-service-down" =
+        forgeDefaults.mkServiceDownAlert "scrypted" "Scrypted" "camera NVR platform";
     })
   ];
 }

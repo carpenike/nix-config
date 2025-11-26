@@ -670,19 +670,8 @@ Check logs: <code>journalctl -u ${serviceUnit} -n 200</code>
             ++ (authCfg.bypassResources or []);
         });
 
-        modules.alerting.rules."emqx-service-down" = {
-          type = "promql";
-          alertname = "EmqxServiceInactive";
-          expr = ''container_service_active{service="${serviceName}"} == 0'';
-          for = "2m";
-          severity = "high";
-          labels = { service = serviceName; category = "messaging"; };
-          annotations = {
-            summary = "EMQX is down on {{ $labels.instance }}";
-            description = "EMQX container is not running";
-            command = "systemctl status ${serviceUnit}";
-          };
-        };
+        # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/emqx.nix)
+        # to keep modules portable and not assume Prometheus availability
       }
     ))
 

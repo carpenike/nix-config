@@ -1,16 +1,11 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   serviceEnabled = config.modules.services.teslamate.enable;
   serviceDomain = "teslamate.${domain}";
   dataset = "tank/services/teslamate";
   dataDir = "/var/lib/teslamate";
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/teslamate";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -73,12 +68,7 @@ in
           tags = [ "teslamate" "telemetry" ];
         };
 
-        preseed = lib.mkIf resticEnabled {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-          restoreMethods = [ "syncoid" "local" "restic" ];
-        };
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
 
         notifications.enable = true;
       };
@@ -86,21 +76,11 @@ in
 
     (lib.mkIf serviceEnabled {
       # Dataset replication (sanoid contribution)
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          hostKey = replicationHostKey;
-          sendOptions = "wp";
-          recvOptions = "u";
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "teslamate";
+
+      # Service availability alert
+      modules.alerting.rules."teslamate-service-down" =
+        forgeDefaults.mkServiceDownAlert "teslamate" "TeslaMate" "Tesla vehicle telemetry";
     })
 
   ];

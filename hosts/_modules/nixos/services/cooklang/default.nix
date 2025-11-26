@@ -533,47 +533,8 @@ in
         }
       );
 
-      modules.alerting.rules = mkMerge [
-        {
-          "cooklang-service-down" = {
-            type = "promql";
-            alertname = "CooklangServiceDown";
-            expr = ''
-              systemd_unit_state{name="${serviceUnitFile}",state="active"} == 0
-            '';
-            for = "5m";
-            severity = "high";
-            labels = {
-              service = "cooklang";
-              category = "systemd";
-            };
-            annotations = {
-              title = "Cooklang Service Down";
-              body = "The Cooklang service on {{ $labels.instance }} has been down for 5 minutes.";
-            };
-          };
-        }
-
-        (mkIf (datasetPath != null) {
-          "cooklang-dataset-unavailable" = {
-            type = "promql";
-            alertname = "CooklangDatasetUnavailable";
-            expr = ''
-              zfs_dataset_available{dataset="${datasetPath}"} == 0
-            '';
-            for = "2m";
-            severity = "critical";
-            labels = {
-              service = "cooklang";
-              category = "storage";
-            };
-            annotations = {
-              title = "Cooklang Dataset Unavailable";
-              body = "The ZFS dataset for Cooklang (${datasetPath}) is unavailable.";
-            };
-          };
-        })
-      ];
+      # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/cooklang.nix)
+      # to keep modules portable and not assume Prometheus availability
 
       modules.notifications.templates = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         "cooklang-failure" = {

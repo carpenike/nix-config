@@ -1,13 +1,11 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   dataset = "tank/services/zigbee2mqtt";
   dataDir = "/var/lib/zigbee2mqtt";
   controllerAddress = "tcp://10.30.100.183:6638";
   frontendDomain = "zigbee.${domain}";
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/zigbee2mqtt";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   serviceEnabled = config.modules.services.zigbee2mqtt.enable;
 in
 {
@@ -117,40 +115,10 @@ Use `journalctl -u zigbee2mqtt -n 200` for details.
     }
 
     (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          sendOptions = "wp";
-          recvOptions = "u";
-          hostKey = replicationHostKey;
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
-    })
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "zigbee2mqtt";
 
-    (lib.mkIf serviceEnabled {
-      modules.alerting.rules."zigbee2mqtt-service-down" = {
-        type = "promql";
-        alertname = "Zigbee2MQTTServiceDown";
-        expr = ''systemd_unit_state{name="zigbee2mqtt.service",state="active"} == 0'';
-        for = "2m";
-        severity = "high";
-        labels = {
-          service = "zigbee2mqtt";
-          category = "automation";
-        };
-        annotations = {
-          summary = "Zigbee2MQTT is down";
-          description = ''The zigbee2mqtt service on {{ $labels.instance }} has been inactive for 2 minutes. Automations relying on Zigbee devices are impacted.'';
-          command = "journalctl -u zigbee2mqtt -n 200";
-        };
-      };
+      modules.alerting.rules."zigbee2mqtt-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "zigbee2mqtt" "Zigbee2MQTT" "Zigbee device bridge";
     })
   ];
 }

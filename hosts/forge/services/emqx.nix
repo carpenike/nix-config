@@ -1,13 +1,11 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   serviceEnabled = config.modules.services.emqx.enable;
   dataset = "tank/services/emqx";
   dataDir = "/var/lib/emqx";
   dashboardDomain = "emqx.${domain}";
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/emqx";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
 in
 {
   config = lib.mkMerge [
@@ -41,21 +39,11 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          hostKey = replicationHostKey;
-          sendOptions = "wp";
-          recvOptions = "u";
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "emqx";
+
+      # Service availability alert (emqx is a native systemd service, not container)
+      modules.alerting.rules."emqx-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "emqx" "EMQX" "MQTT broker";
     })
   ];
 }

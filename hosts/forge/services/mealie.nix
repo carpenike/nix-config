@@ -1,5 +1,6 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   serviceDomain = "mealie.${domain}";
   dataset = "tank/services/mealie";
@@ -7,13 +8,7 @@ let
   pocketIdIssuer = "https://id.${domain}";
   listenAddr = "127.0.0.1";
   listenPortNumber = 9925;
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/mealie";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   serviceEnabled = config.modules.services.mealie.enable;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -99,13 +94,7 @@ in
 
         notifications.enable = true;
 
-        preseed = lib.mkIf resticEnabled {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-          environmentFile = config.sops.secrets."restic/r2-prod-env".path;
-          restoreMethods = [ "syncoid" "local" "restic" ];
-        };
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
 
         resources = {
           memory = "1536M";
@@ -116,21 +105,11 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          sendOptions = "wp";
-          recvOptions = "u";
-          hostKey = replicationHostKey;
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "mealie";
+
+      # Service availability alert
+      modules.alerting.rules."mealie-service-down" =
+        forgeDefaults.mkServiceDownAlert "mealie" "Mealie" "recipe management";
     })
   ];
 }

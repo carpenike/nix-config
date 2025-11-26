@@ -677,19 +677,8 @@ Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
             ++ (authCfg.bypassResources or []);
         });
 
-  modules.alerting.rules."teslamate-service-down" = {
-          type = "promql";
-          alertname = "TeslaMateServiceInactive";
-          expr = ''container_service_active{service="teslamate"} == 0'';
-          for = "2m";
-          severity = "high";
-          labels = { service = serviceName; category = "telemetry"; };
-          annotations = {
-            summary = "TeslaMate is down on {{ $labels.instance }}";
-            description = "TeslaMate container is not running";
-            command = "systemctl status ${mainServiceUnit}";
-          };
-        };
+        # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/teslamate.nix)
+        # to keep modules portable and not assume Prometheus availability
 
         modules.services.grafana.integrations.teslamate = mkIf (cfg.grafanaIntegration.enable) {
           datasources.teslamate = {

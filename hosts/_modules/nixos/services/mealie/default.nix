@@ -754,19 +754,8 @@ Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
 '';
       };
 
-      modules.alerting.rules."${serviceName}-service-down" = {
-        type = "promql";
-        alertname = "MealieServiceDown";
-        expr = ''container_service_active{service="${serviceName}"} == 0'';
-        for = "2m";
-        severity = "high";
-        labels = { service = serviceName; category = "application"; };
-        annotations = {
-          summary = "Mealie is down on {{ $labels.instance }}";
-          description = "Mealie container is not running";
-          command = "systemctl status ${mainServiceUnit}";
-        };
-      };
+      # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/mealie.nix)
+      # to keep modules portable and not assume Prometheus availability
     })
 
     (mkIf (cfg.enable && cfg.preseed.enable) (
