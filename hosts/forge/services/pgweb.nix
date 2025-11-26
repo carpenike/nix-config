@@ -1,3 +1,13 @@
+# pgweb - PostgreSQL Web Interface
+#
+# Auxiliary database admin tool for PostgreSQL. Connects to PostgreSQL
+# instance managed by postgresql.nix.
+#
+# Infrastructure Contributions:
+#   - Backup: Not applicable (stateless - all data lives in PostgreSQL)
+#   - Sanoid: Not applicable (no ZFS dataset)
+#   - Monitoring: None (auxiliary tool, not critical infrastructure)
+#                 PostgreSQL itself has comprehensive monitoring.
 { config, lib, ... }:
 
 let

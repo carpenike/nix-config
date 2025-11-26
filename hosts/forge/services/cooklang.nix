@@ -93,6 +93,9 @@ in
       };
     };
 
+    # Backup configuration
+    backup = forgeDefaults.backup;
+
     # Disaster recovery via preseed
     preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };

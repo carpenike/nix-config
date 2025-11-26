@@ -1,3 +1,12 @@
+# UPS Monitoring Configuration
+#
+# Monitors APC Smart-UPS 2200 RM XL via SNMP for graceful shutdown on low battery.
+# Exports metrics to Prometheus via node_exporter textfile collector.
+#
+# Infrastructure Contributions:
+#   - Backup: Not applicable (hardware monitor, no persistent data)
+#   - Sanoid: Not applicable (no ZFS dataset)
+#   - Monitoring: UPS-specific alerts defined below (battery, load, status)
 { config, pkgs, lib, mylib, ... }:
 let
   serviceEnabled = config.power.ups.enable or false;

@@ -12,6 +12,11 @@
 # - Backup integration via pgBackRest (replaces custom Restic approach)
 # - Health monitoring and notifications
 #
+# Infrastructure Contributions:
+#   - Backup: Managed by pgBackRest (see pgbackrest.nix), NOT standard backup module
+#   - Sanoid: Defined in this file (PostgreSQL-specific snapshot policy)
+#   - Monitoring: Database-specific alerts (connections, replication, backup status)
+#
 # Secret paths are passed via postgresSecrets parameter (defined in forge/default.nix)
 # to avoid circular dependencies in module evaluation
 #

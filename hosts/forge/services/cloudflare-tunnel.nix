@@ -1,5 +1,10 @@
 # Cloudflare Tunnel Configuration
 # Provides secure external access to selected services via Cloudflare's network
+#
+# Infrastructure Contributions:
+#   - Backup: Not applicable (credentials are in SOPS, no runtime state)
+#   - Sanoid: Not applicable (no ZFS dataset)
+#   - Monitoring: Service-down alert (native systemd service)
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -50,7 +55,8 @@ in
   # Co-located Service Monitoring
     (lib.mkIf serviceEnabled {
       modules.alerting.rules."cloudflare-tunnel-service-down" =
-        forgeDefaults.mkServiceDownAlert "cloudflared" "CloudflareTunnel" "external access gateway";
+        # cloudflared is a native systemd service, not a container
+        forgeDefaults.mkSystemdServiceDownAlert "cloudflared" "CloudflareTunnel" "external access gateway";
     })
   ];
 }

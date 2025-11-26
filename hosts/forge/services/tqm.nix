@@ -1,9 +1,24 @@
-{ config, lib, ... }:
-let
-  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.tqm.enable or false;
-in
+# hosts/forge/services/tqm.nix
+#
+# Host-specific configuration for tqm (torrent lifecycle management) on 'forge'.
+# tqm automates torrent cleanup, relabeling, and ratio management.
+#
+# ARCHITECTURE NOTE:
+# tqm is a stateless utility that runs as scheduled oneshot systemd timers.
+# All configuration is generated from Nix; there is no persistent state to back up.
+# Therefore, this service intentionally does NOT include:
+#   - Sanoid/Syncoid ZFS snapshots (no data to snapshot)
+#   - Backup configuration (no data to backup)
+#   - Preseed/DR configuration (nothing to restore)
+#   - Service-down alerts (oneshot timers, not long-running daemons)
+#
+# The timers (tqm-clean, tqm-relabel, etc.) can be monitored via systemd timer
+# metrics if desired, but failure is non-critical (just delays torrent cleanup).
+
+{ lib, ... }:
 {
+  # Standard structure maintained for consistency, though tqm has no
+  # infrastructure contributions (it's stateless oneshot timers)
   config = lib.mkMerge [
     {
       modules.services.tqm = {
@@ -253,12 +268,10 @@ in
         orphan = "daily";    # Daily at midnight - cleanup orphans
         pause = "*:0/30";    # Every 30 min - pause torrents (performance optimization)
       };
-      };
+    };
     }
 
-    (lib.mkIf serviceEnabled {
-      # Co-located Service Monitoring
-      modules.alerting.rules."tqm-service-down" = forgeDefaults.mkServiceDownAlert "tqm" "tqm" "torrent lifecycle management";
-    })
+    # Infrastructure contributions intentionally omitted - see header comment
+    # tqm is stateless (oneshot timers), no sanoid/backup/alerts needed
   ];
 }

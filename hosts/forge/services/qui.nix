@@ -142,6 +142,9 @@ in
         };
       };
 
+      # Backup configuration
+      backup = forgeDefaults.backup;
+
       # Preseed/DR configuration
       preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
     };
