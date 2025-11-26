@@ -6,10 +6,8 @@
 { config, lib, ... }:
 
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.qbittorrent.enable;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -26,7 +24,7 @@ in
       # Downloads directory on NFS (category-based structure already exists)
       # /mnt/data/qb/downloads/{sonarr,radarr,lidarr,readarr,prowlarr}
       nfsMountDependency = "media";
-      podmanNetwork = "media-services";
+      podmanNetwork = forgeDefaults.podmanNetwork;
       healthcheck.enable = true;
 
       # Enable VueTorrent modern WebUI
@@ -36,40 +34,17 @@ in
       reverseProxy = {
         enable = true;
         hostName = "qbittorrent.holthome.net";
-
-        # Protect via Pocket ID + caddy-security; grant media role based on claim
-        caddySecurity = {
-          enable = true;
-          portal = "pocketid";
-          policy = "media";
-          claimRoles = [
-            {
-              claim = "groups";
-              value = "media";
-              role = "media";
-            }
-          ];
-        };
+        caddySecurity = forgeDefaults.caddySecurity.media;
       };
 
       # Enable backups (config only - downloads are NOT backed up)
-      backup = {
-        enable = true;
-        repository = "nas-primary";
-        useSnapshots = true;
-        zfsDataset = "tank/services/qbittorrent";
-      };
+      backup = forgeDefaults.mkBackupWithSnapshots "qbittorrent";
 
       # Enable failure notifications
       notifications.enable = true;
 
-      # Enable self-healing restore
-      preseed = lib.mkIf resticEnabled {
-        enable = true;
-        repositoryUrl = "/mnt/nas-backup";
-        passwordFile = config.sops.secrets."restic/password".path;
-        restoreMethods = [ "syncoid" "local" ]; # Restic excluded: preserve ZFS lineage
-      };
+      # Enable self-healing restore (restic excluded: preserve ZFS lineage)
+      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
     };
 
       # ZFS snapshot and replication configuration for qBittorrent dataset
@@ -78,42 +53,12 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets."tank/services/qbittorrent" = {
-        useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = "nas-1.holthome.net";
-          targetDataset = "backup/forge/zfs-recv/qbittorrent";
-          sendOptions = "wp";  # Raw encrypted send with property preservation
-          recvOptions = "u";   # Don't mount on receive
-          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-          # Consistent naming for Prometheus metrics
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
-    })
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/qbittorrent" = forgeDefaults.mkSanoidDataset "qbittorrent";
 
-    (lib.mkIf serviceEnabled {
-      # Service-specific monitoring alerts
-      # Contributes to host-level alerting configuration following the contribution pattern
-      modules.alerting.rules."qbittorrent-service-down" = {
-        type = "promql";
-        alertname = "QbittorrentServiceDown";
-        expr = ''
-          container_service_active{service="qbittorrent"} == 0
-        '';
-        for = "2m";
-        severity = "high";
-        labels = { service = "qbittorrent"; category = "container"; };
-        annotations = {
-          summary = "qBittorrent service is down on {{ $labels.instance }}";
-          description = "Torrent download client is not running. Check: systemctl status podman-qbittorrent.service";
-          command = "systemctl status podman-qbittorrent.service && journalctl -u podman-qbittorrent.service --since '30m'";
-        };
-      };
+      # Service availability alert
+      modules.alerting.rules."qbittorrent-service-down" =
+        forgeDefaults.mkServiceDownAlert "qbittorrent" "Qbittorrent" "torrent download client";
     })
   ];
 }

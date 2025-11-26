@@ -1,9 +1,7 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.profilarr.enable;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -12,42 +10,21 @@ in
         # Profilarr - Profile sync for *arr services
       enable = true;
       image = "ghcr.io/profilarr/profilarr:latest";
-      podmanNetwork = "media-services";  # Enable DNS resolution to *arr services (Sonarr, Radarr)
+      podmanNetwork = forgeDefaults.podmanNetwork;  # Enable DNS resolution to *arr services
 
       # Run daily at 3 AM to sync quality profiles
       schedule = "*-*-* 03:00:00";
 
-      backup = {
-        enable = true;
-        repository = "nas-primary";
-        useSnapshots = true;
-        zfsDataset = "tank/services/profilarr";
-      };
+      backup = forgeDefaults.mkBackupWithSnapshots "profilarr";
       notifications.enable = true;
-      preseed = lib.mkIf resticEnabled {
-        enable = true;
-        repositoryUrl = "/mnt/nas-backup";
-        passwordFile = config.sops.secrets."restic/password".path;
-        restoreMethods = [ "syncoid" "local" ];
-      };
+      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
     (lib.mkIf serviceEnabled {
-      # Co-located Service Monitoring
-      modules.alerting.rules."profilarr-service-down" = {
-        type = "promql";
-        alertname = "ProfilarrServiceInactive";
-        expr = "container_service_active{name=\"profilarr\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "profilarr"; category = "availability"; };
-        annotations = {
-          summary = "Profilarr service is down on {{ $labels.instance }}";
-          description = "The Profilarr profile sync service is not active.";
-          command = "systemctl status podman-profilarr.service";
-        };
-      };
+      # Service availability alert
+      modules.alerting.rules."profilarr-service-down" =
+        forgeDefaults.mkServiceDownAlert "profilarr" "Profilarr" "profile sync";
     })
   ];
 }

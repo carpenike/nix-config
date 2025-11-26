@@ -6,10 +6,8 @@
 { config, lib, ... }:
 
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.recyclarr.enable;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -24,7 +22,7 @@ in
     schedule = "daily";
 
     # Attach to media services network for DNS resolution to Sonarr and Radarr
-    podmanNetwork = "media-services";
+    podmanNetwork = forgeDefaults.podmanNetwork;
 
     # Sonarr configuration - WEB-1080p quality profile
     sonarr.sonarr-main = {
@@ -70,42 +68,20 @@ in
     };
 
     # Enable backups
-    backup = {
-      enable = true;
-      repository = "nas-primary";
-      frequency = "daily";
-      tags = [ "media" "recyclarr" "config" ];
-      useSnapshots = true;
-      zfsDataset = "tank/services/recyclarr";
-    };
+    backup = forgeDefaults.mkBackupWithSnapshots "recyclarr";
 
     # Enable failure notifications
     notifications.enable = true;
 
     # Enable self-healing restore
-    preseed = lib.mkIf resticEnabled {
-      enable = true;
-      repositoryUrl = "/mnt/nas-backup";
-      passwordFile = config.sops.secrets."restic/password".path;
-    };
+    preseed = forgeDefaults.preseed;
       };
     }
 
     (lib.mkIf serviceEnabled {
-      # Co-located Service Monitoring
-      modules.alerting.rules."recyclarr-service-down" = {
-        type = "promql";
-        alertname = "RecyclarrServiceInactive";
-        expr = "container_service_active{name=\"recyclarr\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "recyclarr"; category = "availability"; };
-        annotations = {
-          summary = "Recyclarr service is down on {{ $labels.instance }}";
-          description = "The Recyclarr TRaSH guide automation service is not active.";
-          command = "systemctl status podman-recyclarr.service";
-        };
-      };
+      # Service availability alert
+      modules.alerting.rules."recyclarr-service-down" =
+        forgeDefaults.mkServiceDownAlert "recyclarr" "Recyclarr" "TRaSH guide automation";
     })
   ];
 }

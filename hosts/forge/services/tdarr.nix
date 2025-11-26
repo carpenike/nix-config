@@ -1,11 +1,7 @@
 { config, lib, ... }:
 let
-  inherit (lib) optionalAttrs;
-
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.tdarr.enable;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -15,7 +11,7 @@ in
       enable = true;
       image = "ghcr.io/haveagitgat/tdarr:latest";
       nfsMountDependency = "media";
-      podmanNetwork = "media-services";  # Enable DNS resolution for media library access
+      podmanNetwork = forgeDefaults.podmanNetwork;  # Enable DNS resolution for media library access
       healthcheck.enable = true;
 
       # Intel GPU hardware acceleration
@@ -35,52 +31,19 @@ in
       reverseProxy = {
         enable = true;
         hostName = "tdarr.holthome.net";
-        caddySecurity = {
-          enable = true;
-          portal = "pocketid";
-          policy = "media";
-          claimRoles = [
-            {
-              claim = "groups";
-              value = "media";
-              role = "media";
-            }
-          ];
-        };
+        caddySecurity = forgeDefaults.caddySecurity.media;
       };
-      backup = {
-        enable = true;
-        repository = "nas-primary";
-        # Only backup config/database, not cache
-        useSnapshots = true;
-        zfsDataset = "tank/services/tdarr";
-      };
+      # Only backup config/database, not cache
+      backup = forgeDefaults.mkBackupWithSnapshots "tdarr";
       notifications.enable = true;
-      preseed = {
-        enable = resticEnabled;
-      } // optionalAttrs resticEnabled {
-        repositoryUrl = "/mnt/nas-backup";
-        passwordFile = config.sops.secrets."restic/password".path;
-        restoreMethods = [ "syncoid" "local" ];
-      };
+      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
     (lib.mkIf serviceEnabled {
-      # Co-located Service Monitoring
-      modules.alerting.rules."tdarr-service-down" = {
-        type = "promql";
-        alertname = "TdarrServiceInactive";
-        expr = "container_service_active{name=\"tdarr\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "tdarr"; category = "availability"; };
-        annotations = {
-          summary = "Tdarr service is down on {{ $labels.instance }}";
-          description = "The Tdarr transcoding automation service is not active.";
-          command = "systemctl status podman-tdarr.service";
-        };
-      };
+      # Service availability alert
+      modules.alerting.rules."tdarr-service-down" =
+        forgeDefaults.mkServiceDownAlert "tdarr" "Tdarr" "transcoding automation";
     })
   ];
 }
