@@ -99,7 +99,7 @@ in
         backup = forgeDefaults.mkBackupWithTags "home-assistant" (forgeDefaults.backupTags.home ++ [ "home-assistant" "forge" ]);
 
         # Disaster recovery preseed - restores from syncoid or restic before first start
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         # Upstream nixpkgs is currently missing several runtime dependencies
         # required by Home Assistant's default_config bundle. Provide them here

@@ -73,7 +73,7 @@ in
           tags = [ "teslamate" "telemetry" ];
         };
 
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         notifications.enable = true;
       };

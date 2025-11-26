@@ -70,7 +70,7 @@ in
         };
 
         # Enable preseed for disaster recovery using forgeDefaults
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 

@@ -40,6 +40,10 @@ in
           frequency = "daily";
           tags = [ "emqx" "mqtt" ];
         };
+
+        notifications.enable = true;
+
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 

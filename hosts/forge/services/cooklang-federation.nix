@@ -40,7 +40,7 @@ in
       tags = [ "cooklang" "federation" "recipes" ];
     };
 
-    preseed = forgeDefaults.mkPreseed [ "syncoid" "restic" ];
+    preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         notifications.enable = true;
 

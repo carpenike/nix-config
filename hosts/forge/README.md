@@ -78,7 +78,7 @@ in
         enable = true;
         # ... service config
         backup = forgeDefaults.backup;
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
@@ -124,8 +124,8 @@ in
 | `podmanNetwork` | Standard Podman network name | `"media-services"` |
 | `backup` | Standard NAS backup config | `{ enable = true; repository = "nas-primary"; }` |
 | `mkBackupWithSnapshots serviceName` | Backup with ZFS snapshots | Creates snapshot-based backup for `tank/services/<name>` |
-| `preseed` | Standard preseed config | Auto-gated by `resticEnabled` |
-| `mkPreseed restoreMethods` | Preseed with custom methods | `forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ]` |
+| `preseed` | Standard preseed config | Auto-gated by `resticEnabled`, uses `[ "syncoid" "local" ]` |
+| `mkPreseed restoreMethods` | Preseed with custom methods | `forgeDefaults.mkPreseed [ "syncoid" "local" ]` |
 | `caddySecurity.media` | PocketID auth for media services | Requires "media" group |
 | `caddySecurity.admin` | PocketID auth for admin services | Requires "admin" group |
 | `caddySecurity.home` | PocketID auth for home services | Requires "home" group |
@@ -133,6 +133,8 @@ in
 | `mkServiceDownAlert name display desc` | Container service-down alert | Prometheus alert for Podman services |
 | `mkSystemdServiceDownAlert name display desc` | Systemd service-down alert | Prometheus alert for native services |
 | `backupTags.*` | Standard backup tag sets | `.media`, `.iptv`, `.home`, `.infrastructure`, `.database` |
+
+**Preseed Policy**: Preseed restore methods should only include `syncoid` and `local`. Restic is intentionally excluded from automatic preseed - offsite restic restore is a manual DR decision when syncoid/local sources are unavailable.
 
 **When to Use forgeDefaults**:
 - ✅ Standard service-down alerts → use `mkServiceDownAlert` or `mkSystemdServiceDownAlert`

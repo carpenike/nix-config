@@ -181,7 +181,7 @@ in
       };
 
       # Preseed/DR configuration
-      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
       # Notifications
       notifications = {

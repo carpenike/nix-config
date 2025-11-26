@@ -82,6 +82,8 @@ Use `journalctl -u zigbee2mqtt -n 200` for details.
 '';
         };
 
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+
         advanced = {
           logLevel = "info";
           networkKeyFile = config.sops.secrets."zigbee2mqtt/network_key".path;

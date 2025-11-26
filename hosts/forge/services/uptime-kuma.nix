@@ -47,7 +47,7 @@ in
         backup = forgeDefaults.mkBackupWithTags "uptime-kuma" (forgeDefaults.backupTags.monitoring ++ [ "uptime-kuma" "forge" ]);
 
         # Enable self-healing restore from backups using forgeDefaults
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 

@@ -68,14 +68,20 @@ in
   # =============================================================================
 
   # Standard preseed configuration for self-healing restore
-  # Only enabled when restic backup is configured
+  # Uses syncoid and local restore methods by default.
+  # POLICY: Restic is intentionally excluded - offsite restic restore should be
+  # a manual decision during DR scenarios, not automatic.
+  # Only enabled when restic backup is configured (for repository access)
   preseed = lib.mkIf resticEnabled {
     enable = true;
     repositoryUrl = "/mnt/nas-backup";
     passwordFile = config.sops.secrets."restic/password".path;
+    restoreMethods = [ "syncoid" "local" ];
   };
 
   # Helper function to create preseed config with custom restore methods
+  # Standard usage: forgeDefaults.mkPreseed [ "syncoid" "local" ]
+  # POLICY: Do not include "restic" - offsite restore is manual DR only
   mkPreseed = restoreMethods: lib.mkIf resticEnabled {
     enable = true;
     repositoryUrl = "/mnt/nas-backup";

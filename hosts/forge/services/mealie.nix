@@ -99,7 +99,7 @@ in
 
         notifications.enable = true;
 
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         resources = {
           memory = "1536M";
