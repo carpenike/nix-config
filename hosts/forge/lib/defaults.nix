@@ -52,6 +52,17 @@ in
     zfsDataset = "tank/services/${serviceName}";
   };
 
+  # Helper function to create backup config with ZFS snapshots and custom tags
+  # Usage: forgeDefaults.mkBackupWithTags "sonarr" [ "media" "arr-services" "forge" ]
+  mkBackupWithTags = serviceName: tags: {
+    enable = true;
+    repository = "nas-primary";
+    useSnapshots = true;
+    zfsDataset = "tank/services/${serviceName}";
+    frequency = "daily";
+    tags = tags;
+  };
+
   # =============================================================================
   # Preseed / Self-Healing Configuration
   # =============================================================================
@@ -164,6 +175,22 @@ in
     };
   };
 
+  # Generate a healthcheck staleness alert for services with timer-based healthchecks
+  # Fires when the last healthcheck timestamp is older than the specified threshold
+  # Usage: modules.alerting.rules."plex-healthcheck-stale" = forgeDefaults.mkHealthcheckStaleAlert "plex" "Plex" 600;
+  mkHealthcheckStaleAlert = serviceName: displayName: thresholdSeconds: {
+    type = "promql";
+    alertname = "${displayName}HealthcheckStale";
+    expr = "time() - ${serviceName}_last_check_timestamp > ${toString thresholdSeconds}";
+    for = "2m";  # Guard against timer jitter and brief executor delays
+    severity = "high";
+    labels = { service = serviceName; category = "availability"; };
+    annotations = {
+      summary = "${displayName} healthcheck stale on {{ $labels.instance }}";
+      description = "No healthcheck updates for >${toString (thresholdSeconds / 60)} minutes. Verify timer: systemctl status ${serviceName}-healthcheck.timer";
+    };
+  };
+
   # Generate alert for native systemd services (non-container)
   mkSystemdServiceDownAlert = serviceName: displayName: description: {
     type = "promql";
@@ -183,12 +210,15 @@ in
   # Common Tags
   # =============================================================================
 
-  # Standard backup tags
+  # Standard backup tags for different service categories
+  # Usage: forgeDefaults.mkBackupWithTags "sonarr" (forgeDefaults.backupTags.media ++ [ "forge" ])
   backupTags = {
     media = [ "media" "arr-services" ];
     iptv = [ "iptv" "streaming" ];
-    home = [ "home-automation" ];
+    home = [ "home-automation" "home-assistant" ];
     infrastructure = [ "infrastructure" "critical" ];
     database = [ "database" "postgresql" ];
+    monitoring = [ "monitoring" "observability" ];
+    downloads = [ "downloads" "usenet" "torrents" ];
   };
 }

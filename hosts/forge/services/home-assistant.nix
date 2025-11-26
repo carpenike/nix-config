@@ -95,14 +95,11 @@ in
           };
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          useSnapshots = true;
-          zfsDataset = "tank/services/home-assistant";
-          frequency = "daily";
-          tags = [ "home-automation" "home-assistant" "forge" ];
-        };
+        # Backup using forgeDefaults helper with home automation tags
+        backup = forgeDefaults.mkBackupWithTags "home-assistant" (forgeDefaults.backupTags.home ++ [ "home-assistant" "forge" ]);
+
+        # Disaster recovery preseed - restores from syncoid or restic before first start
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
 
         # Upstream nixpkgs is currently missing several runtime dependencies
         # required by Home Assistant's default_config bundle. Provide them here

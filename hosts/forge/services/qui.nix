@@ -30,7 +30,7 @@
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   domain = config.networking.domain;
-  serviceEnabled = config.modules.services.qui.enable;
+  serviceEnabled = config.modules.services.qui.enable or false;
 in
 {
   config = lib.mkMerge [
@@ -161,9 +161,9 @@ in
         mode = "0750";  # Allow group read access for backup systems
       };
 
-      # Note: Backup integration now handled by backup-integration module
-      # The backup submodule configuration will be auto-discovered and converted
-      # to a Restic job named "service-qui" with the specified settings
+      # Co-located ZFS snapshot & replication (Sanoid/Syncoid)
+      modules.backup.sanoid.datasets."tank/services/qui" =
+        forgeDefaults.mkSanoidDataset "qui";
 
       # Co-located Service Monitoring
       modules.alerting.rules."qui-service-down" =

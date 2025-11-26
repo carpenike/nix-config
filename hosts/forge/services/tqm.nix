@@ -1,7 +1,7 @@
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.tqm.enable;
+  serviceEnabled = config.modules.services.tqm.enable or false;
 in
 {
   config = lib.mkMerge [

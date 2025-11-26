@@ -23,7 +23,7 @@ let
   '';
 
   portalExtraConfig = authenticatedTransform;
-  serviceEnabled = config.modules.services.pocketid.enable;
+  serviceEnabled = config.modules.services.pocketid.enable or false;
 in
 {
   config = mkMerge [

@@ -2,7 +2,7 @@
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
-  serviceEnabled = config.modules.services.teslamate.enable;
+  serviceEnabled = config.modules.services.teslamate.enable or false;
   serviceDomain = "teslamate.${domain}";
   dataset = "tank/services/teslamate";
   dataDir = "/var/lib/teslamate";

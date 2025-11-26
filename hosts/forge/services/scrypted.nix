@@ -11,7 +11,7 @@ let
     if mountCfg != null && mountCfg ? localPath then mountCfg.localPath else "/mnt/data";
   nvrPath = "${mediaMount}/scrypted";
   dataset = "tank/services/scrypted";
-  serviceEnabled = config.modules.services.scrypted.enable;
+  serviceEnabled = config.modules.services.scrypted.enable or false;
 in
 {
   config = lib.mkMerge [

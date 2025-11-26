@@ -8,7 +8,7 @@ let
   pocketIdIssuer = "https://id.${domain}";
   listenAddr = "127.0.0.1";
   listenPortNumber = 9925;
-  serviceEnabled = config.modules.services.mealie.enable;
+  serviceEnabled = config.modules.services.mealie.enable or false;
 in
 {
   config = lib.mkMerge [

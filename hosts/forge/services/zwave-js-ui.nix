@@ -6,7 +6,7 @@ let
   dataDir = "/var/lib/zwave-js-ui";
   controllerAddress = "/dev/serial/by-id/usb-0658_0200-if00";
   frontendDomain = "zwave.${domain}";
-  serviceEnabled = config.modules.services."zwave-js-ui".enable;
+  serviceEnabled = config.modules.services."zwave-js-ui".enable or false;
   unstablePkgs = pkgs.unstable;
 in
 {

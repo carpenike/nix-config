@@ -6,7 +6,7 @@ let
   dataDir = "/var/lib/zigbee2mqtt";
   controllerAddress = "tcp://10.30.100.183:6638";
   frontendDomain = "zigbee.${domain}";
-  serviceEnabled = config.modules.services.zigbee2mqtt.enable;
+  serviceEnabled = config.modules.services.zigbee2mqtt.enable or false;
 in
 {
   config = lib.mkMerge [

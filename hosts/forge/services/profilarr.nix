@@ -8,16 +8,16 @@ in
     {
       modules.services.profilarr = {
         # Profilarr - Profile sync for *arr services
-      enable = true;
-      image = "ghcr.io/profilarr/profilarr:latest";
-      podmanNetwork = forgeDefaults.podmanNetwork;  # Enable DNS resolution to *arr services
+        enable = true;
+        image = "ghcr.io/profilarr/profilarr:latest";
+        podmanNetwork = forgeDefaults.podmanNetwork;  # Enable DNS resolution to *arr services
 
-      # Run daily at 3 AM to sync quality profiles
-      schedule = "*-*-* 03:00:00";
+        # Run daily at 3 AM to sync quality profiles
+        schedule = "*-*-* 03:00:00";
 
-      backup = forgeDefaults.mkBackupWithSnapshots "profilarr";
-      notifications.enable = true;
-      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+        backup = forgeDefaults.mkBackupWithSnapshots "profilarr";
+        notifications.enable = true;
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
