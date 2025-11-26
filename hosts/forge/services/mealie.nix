@@ -90,12 +90,7 @@ in
           };
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          tags = [ "recipes" "mealie" ];
-          zfsDataset = dataset;
-        };
+        backup = forgeDefaults.mkBackupWithTags "mealie" [ "recipes" "mealie" "forge" ];
 
         notifications.enable = true;
 

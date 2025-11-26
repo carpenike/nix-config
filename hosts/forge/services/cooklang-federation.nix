@@ -34,11 +34,7 @@ in
       path = "/health";
     };
 
-    backup = {
-      enable = true;
-      repository = "nas-primary";
-      tags = [ "cooklang" "federation" "recipes" ];
-    };
+    backup = forgeDefaults.mkBackupWithTags "cooklang-federation" [ "cooklang" "federation" "recipes" "forge" ];
 
     preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 

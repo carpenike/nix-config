@@ -66,12 +66,7 @@ in
           };
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          zfsDataset = dataset;
-          tags = [ "teslamate" "telemetry" ];
-        };
+        backup = forgeDefaults.mkBackupWithTags "teslamate" [ "teslamate" "telemetry" "forge" ];
 
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 

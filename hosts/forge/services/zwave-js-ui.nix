@@ -65,13 +65,7 @@ in
           s2LongRangeAccessControlKeyFile = config.sops.secrets."zwave-js-ui/s2_long_range_access_control_key".path;
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          zfsDataset = dataset;
-          tags = [ "zwave" "automation" "forge" ];
-          excludePatterns = [ "**/log/**" "**/tmp/**" ];
-        };
+        backup = forgeDefaults.mkBackupWithTags "zwave-js-ui" [ "zwave" "automation" "forge" ];
 
         notifications = {
           enable = true;

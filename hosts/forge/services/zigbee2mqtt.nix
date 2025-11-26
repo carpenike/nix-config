@@ -63,12 +63,7 @@ in
           includeDeviceInformation = true;
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          zfsDataset = dataset;
-          tags = [ "zigbee" "automation" "forge" ];
-        };
+        backup = forgeDefaults.mkBackupWithTags "zigbee2mqtt" [ "zigbee" "automation" "forge" ];
 
         devicesFile = "devices.yaml";
         groupsFile = "groups.yaml";

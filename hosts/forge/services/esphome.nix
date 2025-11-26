@@ -49,13 +49,7 @@ in {
           };
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          useSnapshots = true;
-          zfsDataset = dataset;
-          tags = [ "esphome" "config" "firmware" ];
-        };
+        backup = forgeDefaults.mkBackupWithTags "esphome" [ "esphome" "config" "firmware" "forge" ];
 
         notifications = {
           enable = true;

@@ -7,7 +7,7 @@
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
-  serviceEnabled = config.modules.services.emqx.enable;
+  serviceEnabled = config.modules.services.emqx.enable or false;
   dataset = "tank/services/emqx";
   dataDir = "/var/lib/emqx";
   dashboardDomain = "emqx.${domain}";

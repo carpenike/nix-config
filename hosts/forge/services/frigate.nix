@@ -80,11 +80,7 @@ in
           };
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          tags = [ "frigate" "nvr" ];
-        };
+        backup = forgeDefaults.mkBackupWithTags "frigate" [ "frigate" "nvr" "security" ];
 
         notifications.enable = true;
 
