@@ -1,3 +1,8 @@
+# hosts/forge/services/zigbee2mqtt.nix
+#
+# Host-specific configuration for Zigbee2MQTT on 'forge'.
+# Zigbee2MQTT bridges Zigbee devices to MQTT for Home Assistant integration.
+
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

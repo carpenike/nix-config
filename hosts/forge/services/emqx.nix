@@ -1,3 +1,8 @@
+# hosts/forge/services/emqx.nix
+#
+# Host-specific configuration for the EMQX MQTT broker on 'forge'.
+# EMQX provides MQTT messaging for IoT and home automation services.
+
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

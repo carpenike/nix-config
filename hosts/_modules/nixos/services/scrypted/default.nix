@@ -1,11 +1,14 @@
-{ lib, config, podmanLib, ... }:
+{ lib, pkgs, config, podmanLib, ... }:
 
 let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   cfg = config.modules.services.scrypted;
+  storageCfg = config.modules.storage;
   serviceName = "scrypted";
   backend = config.virtualisation.oci-containers.backend;
   mainServiceUnit = "${backend}-${serviceName}.service";
+  datasetPath = "${storageCfg.datasets.parentDataset}/scrypted";
   domain = config.networking.domain or null;
   defaultHostname = if domain == null || domain == "" then "scrypted.local" else "scrypted.${domain}";
   hasCentralizedNotifications = config.modules.notifications.enable or false;
@@ -308,6 +311,33 @@ in
       description = "Restic backup policy for Scrypted configuration data (recordings should be excluded).";
     };
 
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds.
+        '';
+      };
+    };
+
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = null;
@@ -323,7 +353,13 @@ in
             assertion = !(cfg.mdns.enable && !cfg.hostNetwork);
             message = "Scrypted mDNS support requires hostNetwork = true.";
           }
-        ];
+        ] ++ (lib.optional cfg.preseed.enable {
+          assertion = cfg.preseed.repositoryUrl != "";
+          message = "Scrypted preseed.enable requires preseed.repositoryUrl to be set.";
+        }) ++ (lib.optional cfg.preseed.enable {
+          assertion = cfg.preseed.passwordFile != null;
+          message = "Scrypted preseed.enable requires preseed.passwordFile to be set.";
+        });
 
         systemd.tmpfiles.rules =
           [
@@ -346,6 +382,10 @@ in
         systemd.services.${mainServiceUnit} = lib.mkMerge [
           (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
             unitConfig.OnFailure = [ "notify@scrypted-failure:%n.service" ];
+          })
+          (lib.mkIf cfg.preseed.enable {
+            wants = [ "preseed-scrypted.service" ];
+            after = [ "preseed-scrypted.service" ];
           })
         ];
 
@@ -421,6 +461,30 @@ in
           postBackupScript = cfg.backup.postBackupScript;
         };
       }
+
+      # Add the preseed service itself
+      (lib.mkIf cfg.preseed.enable (
+        storageHelpers.mkPreseedService {
+          serviceName = "scrypted";
+          dataset = datasetPath;
+          mountpoint = cfg.dataDir;
+          mainServiceUnit = mainServiceUnit;
+          replicationCfg = null;  # Replication config handled at host level
+          datasetProperties = {
+            recordsize = "16K";
+            compression = "zstd";
+            "com.sun:auto-snapshot" = "true";
+          };
+          resticRepoUrl = cfg.preseed.repositoryUrl;
+          resticPasswordFile = cfg.preseed.passwordFile;
+          resticEnvironmentFile = cfg.preseed.environmentFile;
+          resticPaths = [ cfg.dataDir ];
+          restoreMethods = cfg.preseed.restoreMethods;
+          hasCentralizedNotifications = hasCentralizedNotifications;
+          owner = cfg.dataOwner;
+          group = cfg.dataGroup;
+        }
+      ))
     ]
   );
 }

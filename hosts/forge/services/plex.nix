@@ -1,3 +1,8 @@
+# hosts/forge/services/plex.nix
+#
+# Host-specific configuration for the Plex Media Server on 'forge'.
+# Plex provides media streaming and library management.
+
 { lib, config, mylib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -72,22 +77,8 @@ in
     (lib.mkIf serviceEnabled {
       # ZFS snapshot and replication configuration for Plex dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
-      modules.backup.sanoid.datasets."tank/services/plex" = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = "nas-1.holthome.net";
-          targetDataset = "backup/forge/zfs-recv/plex";
-          sendOptions = "w";  # Raw encrypted send (no property preservation)
-          recvOptions = "u";  # Don't mount on receive
-          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-          # Consistent naming for Prometheus metrics
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
+      modules.backup.sanoid.datasets."tank/services/plex" =
+        forgeDefaults.mkSanoidDataset "plex";
 
       # Prometheus alerts for Plex
       # Using monitoring-helpers library for consistency

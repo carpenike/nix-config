@@ -5,6 +5,15 @@ let
   cfg = config.modules.services.attic;
   # Import shared type definitions
   sharedTypes = import ../../lib/types.nix { inherit lib; };
+  # Import storage helpers for preseed functionality
+  storageHelpers = import ../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage configuration for dataset path
+  storageCfg = config.modules.storage.datasets or { enable = false; };
+  datasetPath = if storageCfg.enable or false
+    then "${storageCfg.parentDataset or "rpool/safe/persist"}/attic"
+    else null;
+  mainServiceUnit = "atticd.service";
+  hasCentralizedNotifications = config.modules.notifications.enable or false;
 in
 {
   options.modules.services.attic = {
@@ -98,6 +107,35 @@ in
       description = "Notification configuration for Attic service events";
     };
 
+    # Preseed configuration for disaster recovery
+    preseed = {
+      enable = lib.mkEnableOption "automatic restore before service start";
+
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "URL to Restic repository for preseed restore";
+      };
+
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to file containing the Restic repository password";
+      };
+
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to environment file for remote repository credentials";
+      };
+
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = "Ordered list of restore methods to try";
+      };
+    };
+
     autoPush = {
       enable = lib.mkEnableOption "Automatically push system builds to cache";
 
@@ -109,7 +147,15 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      assertions = (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.repositoryUrl != "";
+        message = "Attic preseed.enable requires preseed.repositoryUrl to be set.";
+      }) ++ (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.passwordFile != null;
+        message = "Attic preseed.enable requires preseed.passwordFile to be set.";
+      });
     # Create attic user and group
     users.users.attic = {
       description = "Attic binary cache server";
@@ -169,7 +215,8 @@ in
     systemd.services.atticd = {
       description = "Attic Binary Cache Server";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" ];
+      after = [ "network.target" ] ++ lib.optionals cfg.preseed.enable [ "preseed-attic.service" ];
+      wants = lib.optionals cfg.preseed.enable [ "preseed-attic.service" ];
 
       serviceConfig = {
         Type = "simple";
@@ -288,5 +335,30 @@ in
       attic-client
       attic-server
     ];
-  };
+    })
+
+    # Preseed service for disaster recovery
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
+        serviceName = "attic";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        replicationCfg = null;  # Replication config handled at host level
+        datasetProperties = {
+          recordsize = "128K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = "attic";
+        group = "attic";
+      }
+    ))
+  ];
 }

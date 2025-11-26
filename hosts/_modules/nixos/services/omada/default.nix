@@ -7,10 +7,15 @@
 }:
 let
   cfg = config.modules.services.omada;
+  storageCfg = config.modules.storage;
+  datasetPath = "${storageCfg.datasets.parentDataset}/omada";
+  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-omada.service";
+  hasCentralizedNotifications = config.modules.notifications.enable or false;
   omadaTcpPorts = [ 8043 8843 29814 ];
   omadaUdpPorts = [ 29810  ];
   # Import shared type definitions
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 in
 {
   options.modules.services.omada = {
@@ -137,6 +142,33 @@ in
       description = "Backup configuration for Omada Controller";
     };
 
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds.
+        '';
+      };
+    };
+
     # Standardized notifications
     notifications = lib.mkOption {
       type = lib.types.nullOr sharedTypes.notificationSubmodule;
@@ -153,8 +185,17 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    modules.services.podman.enable = true;
+  config = lib.mkIf cfg.enable (lib.mkMerge [
+    {
+      assertions = (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.repositoryUrl != "";
+        message = "Omada preseed.enable requires preseed.repositoryUrl to be set.";
+      }) ++ (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.passwordFile != null;
+        message = "Omada preseed.enable requires preseed.passwordFile to be set.";
+      });
+
+      modules.services.podman.enable = true;
 
     # Automatically register with Caddy reverse proxy if enabled
     modules.services.caddy.virtualHosts.omada = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
@@ -258,39 +299,48 @@ in
     };
 
     # Override systemd service to handle Omada's initialization behavior
-    systemd.services."${config.virtualisation.oci-containers.backend}-omada" = {
-      after = lib.mkForce [ "network-online.target" ];
-      wants = lib.mkForce [ "network-online.target" ];
+    systemd.services."${config.virtualisation.oci-containers.backend}-omada" = lib.mkMerge [
+      {
+        after = lib.mkForce [ "network-online.target" ];
+        wants = lib.mkForce [ "network-online.target" ];
 
-      # Allow more restart attempts during activation
-      unitConfig = {
-        StartLimitIntervalSec = "10m";
-        StartLimitBurst = 5;
-      };
+        # Allow more restart attempts during activation
+        unitConfig = {
+          StartLimitIntervalSec = "10m";
+          StartLimitBurst = 5;
+        };
 
-      # Increase timeouts for slow initialization
-      serviceConfig = {
-        # Give Omada more time to start (default is 0 = infinity)
-        TimeoutStartSec = lib.mkForce "5m";
+        # Increase timeouts for slow initialization
+        serviceConfig = {
+          # Give Omada more time to start (default is 0 = infinity)
+          TimeoutStartSec = lib.mkForce "5m";
 
-        # Give Omada more time to gracefully shut down (default is 120s)
-        TimeoutStopSec = lib.mkForce "3m";
+          # Give Omada more time to gracefully shut down (default is 120s)
+          TimeoutStopSec = lib.mkForce "3m";
 
-        # If it fails, wait before restarting to avoid rapid restart loops
-        RestartSec = cfg.restartDelay;
+          # If it fails, wait before restarting to avoid rapid restart loops
+          RestartSec = cfg.restartDelay;
 
-        # Override the default "always" restart behavior to prevent rapid restart loops
-        Restart = lib.mkForce "on-failure";
-      };
+          # Override the default "always" restart behavior to prevent rapid restart loops
+          Restart = lib.mkForce "on-failure";
+        };
 
-      # Add a post-start script to verify Omada is responding
-      postStart = podmanLib.mkHealthCheck {
-        port = 8043;
-        protocol = "https";
-        retries = 60;
-        delay = 5;
-      };
-    };
+        # Add a post-start script to verify Omada is responding
+        postStart = podmanLib.mkHealthCheck {
+          port = 8043;
+          protocol = "https";
+          retries = 60;
+          delay = 5;
+        };
+      }
+      (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        unitConfig.OnFailure = [ "notify@omada-failure:%n.service" ];
+      })
+      (lib.mkIf cfg.preseed.enable {
+        wants = [ "preseed-omada.service" ];
+        after = [ "preseed-omada.service" ];
+      })
+    ];
 
     # If not blocking on activation, start Omada after the main system is up
     # This prevents deployment failures due to Omada's slow initialization
@@ -302,5 +352,30 @@ in
 
     networking.firewall.allowedTCPPorts = omadaTcpPorts;
     networking.firewall.allowedUDPPorts = omadaUdpPorts;
-  };
+    }
+
+    # Add the preseed service itself
+    (lib.mkIf cfg.preseed.enable (
+      storageHelpers.mkPreseedService {
+        serviceName = "omada";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        replicationCfg = null;  # Replication config handled at host level
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
+  ]);
 }

@@ -1,3 +1,8 @@
+# hosts/forge/services/frigate.nix
+#
+# Host-specific configuration for Frigate NVR on 'forge'.
+# Frigate is a real-time AI-powered security camera system.
+
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

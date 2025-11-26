@@ -1,3 +1,8 @@
+# hosts/forge/services/teslamate.nix
+#
+# Host-specific configuration for TeslaMate on 'forge'.
+# TeslaMate is a Tesla vehicle data logger and visualization tool.
+
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

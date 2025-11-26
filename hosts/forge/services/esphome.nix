@@ -1,3 +1,8 @@
+# hosts/forge/services/esphome.nix
+#
+# Host-specific configuration for ESPHome on 'forge'.
+# ESPHome provides firmware development for ESP8266/ESP32 IoT devices.
+
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

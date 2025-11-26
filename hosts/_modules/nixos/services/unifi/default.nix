@@ -7,10 +7,15 @@
 }:
 let
   cfg = config.modules.services.unifi;
+  storageCfg = config.modules.storage;
+  datasetPath = "${storageCfg.datasets.parentDataset}/unifi";
+  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-unifi.service";
+  hasCentralizedNotifications = config.modules.notifications.enable or false;
   unifiTcpPorts = [ 8080 8443 ];
   unifiUdpPorts = [ 3478 ];
   # Import shared type definitions
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 in
 {
   options.modules.services.unifi = {
@@ -103,6 +108,33 @@ in
       description = "Backup configuration for UniFi Controller";
     };
 
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds.
+        '';
+      };
+    };
+
     # Standardized notifications
     notifications = lib.mkOption {
       type = lib.types.nullOr sharedTypes.notificationSubmodule;
@@ -119,8 +151,17 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    modules.services.podman.enable = true;
+  config = lib.mkIf cfg.enable (lib.mkMerge [
+    {
+      assertions = (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.repositoryUrl != "";
+        message = "UniFi preseed.enable requires preseed.repositoryUrl to be set.";
+      }) ++ (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.passwordFile != null;
+        message = "UniFi preseed.enable requires preseed.passwordFile to be set.";
+      });
+
+      modules.services.podman.enable = true;
 
     # Automatically register with Caddy reverse proxy if enabled
     modules.services.caddy.virtualHosts.unifi = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
@@ -221,7 +262,43 @@ in
       ];
       resources = cfg.resources;
     };
+
+    systemd.services.${mainServiceUnit} = lib.mkMerge [
+      (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        unitConfig.OnFailure = [ "notify@unifi-failure:%n.service" ];
+      })
+      (lib.mkIf cfg.preseed.enable {
+        wants = [ "preseed-unifi.service" ];
+        after = [ "preseed-unifi.service" ];
+      })
+    ];
+
     networking.firewall.allowedTCPPorts = unifiTcpPorts;
     networking.firewall.allowedUDPPorts = unifiUdpPorts;
-  };
+    }
+
+    # Add the preseed service itself
+    (lib.mkIf cfg.preseed.enable (
+      storageHelpers.mkPreseedService {
+        serviceName = "unifi";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        replicationCfg = null;  # Replication config handled at host level
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
+  ]);
 }

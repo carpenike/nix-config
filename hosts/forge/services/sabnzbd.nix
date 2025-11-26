@@ -81,9 +81,7 @@ in
       # NOTE: Downloads are NOT backed up (transient data on NFS)
       modules.backup.sanoid.datasets."tank/services/sabnzbd" =
         forgeDefaults.mkSanoidDataset "sabnzbd";
-    })
 
-    (lib.mkIf serviceEnabled {
       # Service-specific monitoring alerts
       # Contributes to host-level alerting configuration following the contribution pattern
       modules.alerting.rules."sabnzbd-service-down" =

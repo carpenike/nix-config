@@ -1,3 +1,8 @@
+# hosts/forge/services/mealie.nix
+#
+# Host-specific configuration for Mealie on 'forge'.
+# Mealie is a self-hosted recipe management application.
+
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

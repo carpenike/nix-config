@@ -9,6 +9,7 @@ let
     types;
 
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   format = pkgs.formats.keyValue { };
 
   cfg = config.modules.services.pocketid;
@@ -303,6 +304,33 @@ in
       };
       description = "Backup configuration for Pocket ID data.";
     };
+
+    preseed = {
+      enable = mkEnableOption "automatic data restore before service start";
+      repositoryUrl = mkOption {
+        type = types.str;
+        default = "";
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Path to Restic password file";
+      };
+      environmentFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = mkOption {
+        type = types.listOf (types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds.
+        '';
+      };
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -320,7 +348,13 @@ in
           assertion = !cfg.smtp.enable || (cfg.smtp.host != "" && cfg.smtp.fromAddress != "");
           message = "Pocket ID SMTP host and fromAddress must be set when SMTP is enabled.";
         }
-      ];
+      ] ++ (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.repositoryUrl != "";
+        message = "Pocket ID preseed.enable requires preseed.repositoryUrl to be set.";
+      }) ++ (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.passwordFile != null;
+        message = "Pocket ID preseed.enable requires preseed.passwordFile to be set.";
+      });
 
       # Reverse proxy registration (Caddy)
       modules.services.caddy.virtualHosts.pocketid = mkIf reverseProxyEnabled {
@@ -358,8 +392,8 @@ in
       systemd.services.${serviceName} = {
         description = "Pocket ID";
         wantedBy = [ "multi-user.target" ];
-        after = [ "network.target" ];
-        wants = [ "network.target" ];
+        after = [ "network.target" ] ++ lib.optionals cfg.preseed.enable [ "preseed-pocketid.service" ];
+        wants = [ "network.target" ] ++ lib.optionals cfg.preseed.enable [ "preseed-pocketid.service" ];
         unitConfig = {
           RequiresMountsFor = [ cfg.dataDir ];
         };
@@ -401,5 +435,29 @@ in
         body = mkDefault ''Pocket ID on ${config.networking.hostName} failed. Check journalctl -u ${serviceUnit}'';
       };
     })
+
+    # Add the preseed service itself
+    (mkIf cfg.preseed.enable (
+      storageHelpers.mkPreseedService {
+        serviceName = "pocketid";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = serviceUnit;
+        replicationCfg = null;  # Replication config handled at host level
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasNotifications;
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
   ]);
 }

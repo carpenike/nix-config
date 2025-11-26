@@ -1,3 +1,8 @@
+# hosts/forge/services/zwave-js-ui.nix
+#
+# Host-specific configuration for Z-Wave JS UI on 'forge'.
+# Z-Wave JS UI bridges Z-Wave devices to Home Assistant via WebSocket.
+
 { config, lib, pkgs, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

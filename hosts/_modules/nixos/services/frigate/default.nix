@@ -2,10 +2,14 @@
 
 let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   cfg = config.modules.services.frigate;
   storageCfg = config.modules.storage or {};
   datasetsCfg = storageCfg.datasets or {};
   parentDataset = datasetsCfg.parentDataset or null;
+  datasetPath = if parentDataset == null then null else "${parentDataset}/frigate";
+  mainServiceUnit = "frigate.service";
+  hasCentralizedNotifications = config.modules.notifications.enable or false;
   defaultHostname =
     let
       domain = config.networking.domain or null;
@@ -153,6 +157,33 @@ in
       description = "Optional Restic backup policy for Frigate state.";
     };
 
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds.
+        '';
+      };
+    };
+
     mqtt = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -276,7 +307,13 @@ in
             assertion = !(cfg.mqtt.enable && cfg.mqtt.passwordFile == null);
             message = "modules.services.frigate.mqtt.passwordFile must be set when MQTT is enabled.";
           }
-        ];
+        ] ++ (lib.optional cfg.preseed.enable {
+          assertion = cfg.preseed.repositoryUrl != "";
+          message = "Frigate preseed.enable requires preseed.repositoryUrl to be set.";
+        }) ++ (lib.optional cfg.preseed.enable {
+          assertion = cfg.preseed.passwordFile != null;
+          message = "Frigate preseed.enable requires preseed.passwordFile to be set.";
+        });
 
         services.frigate = {
           enable = true;
@@ -290,20 +327,28 @@ in
           settings = cfg.go2rtc.settings;
         };
 
-        systemd.services.frigate = lib.mkIf cfg.mqtt.enable {
-          serviceConfig.ExecStartPre = lib.mkAfter [
-            (pkgs.writeShellScript "frigate-render-mqtt-env" ''
-              set -euo pipefail
-              umask 077
-              ${pkgs.coreutils}/bin/install -d -m 0700 ${envDir}
-              secret="$(${pkgs.coreutils}/bin/tr -d '\n' < ${cfg.mqtt.passwordFile})"
-              cat > ${mqttEnvFile} <<EOF
+        systemd.services.frigate = lib.mkMerge [
+          # Preseed dependency
+          (lib.mkIf cfg.preseed.enable {
+            wants = [ "preseed-frigate.service" ];
+            after = [ "preseed-frigate.service" ];
+          })
+          # MQTT environment setup
+          (lib.mkIf cfg.mqtt.enable {
+            serviceConfig.ExecStartPre = lib.mkAfter [
+              (pkgs.writeShellScript "frigate-render-mqtt-env" ''
+                set -euo pipefail
+                umask 077
+                ${pkgs.coreutils}/bin/install -d -m 0700 ${envDir}
+                secret="$(${pkgs.coreutils}/bin/tr -d '\n' < ${cfg.mqtt.passwordFile})"
+                cat > ${mqttEnvFile} <<EOF
 FRIGATE_MQTT_PASSWORD=$secret
 EOF
-            '')
-          ];
-          serviceConfig.EnvironmentFile = lib.mkAfter [ mqttEnvFile ];
-        };
+              '')
+            ];
+            serviceConfig.EnvironmentFile = lib.mkAfter [ mqttEnvFile ];
+          })
+        ];
 
         modules.services.caddy.virtualHosts.frigate = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
           enable = true;
@@ -402,5 +447,29 @@ EOF
           zfsDataset = cfg.backup.zfsDataset or (if parentDataset == null then null else "${parentDataset}/frigate");
         };
       })
+
+      # Preseed service for disaster recovery
+      (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+        storageHelpers.mkPreseedService {
+          serviceName = "frigate";
+          dataset = datasetPath;
+          mountpoint = cfg.dataDir;
+          mainServiceUnit = mainServiceUnit;
+          replicationCfg = null;  # Replication config handled at host level
+          datasetProperties = {
+            recordsize = "128K";
+            compression = "zstd";
+            "com.sun:auto-snapshot" = "true";
+          };
+          resticRepoUrl = cfg.preseed.repositoryUrl;
+          resticPasswordFile = cfg.preseed.passwordFile;
+          resticEnvironmentFile = cfg.preseed.environmentFile;
+          resticPaths = [ cfg.dataDir ];
+          restoreMethods = cfg.preseed.restoreMethods;
+          hasCentralizedNotifications = hasCentralizedNotifications;
+          owner = frigateUser;
+          group = frigateGroup;
+        }
+      ))
     ];
 }

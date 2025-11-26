@@ -1,3 +1,8 @@
+# hosts/forge/services/scrypted.nix
+#
+# Host-specific configuration for Scrypted on 'forge'.
+# Scrypted is a camera NVR platform with HomeKit/Google Home integration.
+
 { config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
