@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 let
   inherit (config.networking) domain;
 
@@ -10,6 +10,7 @@ let
   replicationTargetDataset = "backup/forge/zfs-recv/zwave-js-ui";
   replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   serviceEnabled = config.modules.services."zwave-js-ui".enable;
+  unstablePkgs = pkgs.unstable;
 in
 {
   config = lib.mkMerge [
@@ -17,6 +18,7 @@ in
       modules.services."zwave-js-ui" = {
         enable = true;
         dataDir = dataDir;
+        package = unstablePkgs.zwave-js-ui;
 
         reverseProxy = {
           enable = true;
@@ -41,6 +43,8 @@ in
         };
 
         serial.device = controllerAddress;
+
+        zwave.serverPort = 3002;
 
         mqtt = {
           enable = true;

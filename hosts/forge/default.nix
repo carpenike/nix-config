@@ -80,6 +80,7 @@ in
     ./services/home-assistant.nix # Home Assistant automation platform
     ./services/zigbee2mqtt.nix    # Zigbee2MQTT coordinator service
     ./services/zwave-js-ui.nix     # Z-Wave JS UI coordinator service
+    ./services/esphome.nix        # ESPHome dashboard and firmware builder
   ];
 
   config = {

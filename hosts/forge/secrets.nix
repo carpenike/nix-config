@@ -20,6 +20,7 @@ let
   cooklangFederationEnabled = config.modules.services.cooklangFederation.enable or false;
   grafanaEnabled = config.modules.services.grafana.enable or false;
   pocketIdEnabled = config.modules.services.pocketid.enable or false;
+  esphomeEnabled = config.modules.services.esphome.enable or false;
   sonarrEnabled = config.modules.services.sonarr.enable or false;
   radarrEnabled = config.modules.services.radarr.enable or false;
   prowlarrEnabled = config.modules.services.prowlarr.enable or false;
@@ -61,6 +62,14 @@ in
             group = "restic-backup";
           };
 
+        }
+        // optionalAttrs esphomeEnabled {
+          "esphome/secrets.yaml" = {
+            mode = "0400";
+            owner = "esphome";
+            group = "esphome";
+            restartUnits = [ "esphome-sync-secrets.service" "podman-esphome.service" ];
+          };
         }
         // optionalAttrs r2CredentialsEnabled {
           # Cloudflare R2 API credentials for offsite backups

@@ -45,9 +45,12 @@ in
         declarativeConfig = {
           default_config = {};
           homeassistant = {
-            name = "Holthome";
+            name = "Home";
             internal_url = "https://${haHostname}";
             external_url = "https://${haHostname}";
+            latitude = "!env_var SECRET_ZONE_HOME_LATITUDE";
+            longitude = "!env_var SECRET_ZONE_HOME_LONGITUDE";
+            elevation = "!env_var SECRET_ZONE_HOME_ELEVATION";
             time_zone = config.time.timeZone;
             unit_system = "us_customary";
             country = "US";
@@ -56,6 +59,8 @@ in
             media_dirs = {
               media = mediaShare;
             };
+            packages = "!include_dir_named packages";
+            customize = "!include_dir_named customizations";
           };
           http = {
             use_x_forwarded_for = true;
@@ -70,6 +75,8 @@ in
           history = {};
           logbook = {};
           frontend = {};
+          conversation = {};
+          automation = "!include automations.yaml";
           logger = {
             default = "info";
             logs = {

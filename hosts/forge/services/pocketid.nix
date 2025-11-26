@@ -172,6 +172,11 @@ in
             authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "media" ];
           };
+
+          lan-only = {
+            authUrl = "/caddy-security/oauth2/forge-pocketid";
+            allowRoles = [ "automation" ];
+          };
         };
       };
     })

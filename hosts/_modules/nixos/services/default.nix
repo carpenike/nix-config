@@ -22,6 +22,7 @@
   ./cooklang-federation                     # Cooklang Federation discovery service
     ./cross-seed                              # cross-seed automatic cross-seeding daemon
     ./dispatcharr
+    ./esphome                                # ESPHome dashboard and firmware builder
   ./emqx                                    # EMQX MQTT broker service
     ./frigate                                # Frigate NVR wrapper
     ./dnsdist
