@@ -6,10 +6,8 @@
 { config, lib, ... }:
 
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.prowlarr.enable or false;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -21,59 +19,30 @@ in
         image = "ghcr.io/home-operations/prowlarr:2.1.5.5216@sha256:affb671fa367f4b7029d58f4b7d04e194e887ed6af1cf5a678f3c7aca5caf6ca";
 
         # Attach to media services network for DNS resolution
-        podmanNetwork = "media-services";
+        podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
         # Reverse proxy configuration for external access
         reverseProxy = {
           enable = true;
           hostName = "prowlarr.holthome.net";
-          caddySecurity = {
-            enable = true;
-            portal = "pocketid";
-            policy = "media";
-            claimRoles = [
-              {
-                claim = "groups";
-                value = "media";
-                role = "media";
-              }
-            ];
-          };
+          caddySecurity = forgeDefaults.caddySecurity.media;
         };
 
         # Enable backups
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-        };
+        backup = forgeDefaults.backup;
 
         # Enable failure notifications
         notifications.enable = true;
 
         # Enable self-healing restore
-        preseed = lib.mkIf resticEnabled {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-        };
+        preseed = forgeDefaults.preseed;
       };
     }
 
     (lib.mkIf serviceEnabled {
-      modules.alerting.rules."prowlarr-service-down" = {
-        type = "promql";
-        alertname = "ProwlarrServiceInactive";
-        expr = "container_service_active{name=\"prowlarr\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "prowlarr"; category = "availability"; };
-        annotations = {
-          summary = "Prowlarr service is down on {{ $labels.instance }}";
-          description = "The Prowlarr indexer manager service is not active.";
-          command = "systemctl status podman-prowlarr.service";
-        };
-      };
+      modules.alerting.rules."prowlarr-service-down" =
+        forgeDefaults.mkServiceDownAlert "prowlarr" "Prowlarr" "indexer manager";
     })
   ];
 }

@@ -1,10 +1,13 @@
+# hosts/forge/services/autobrr.nix
+#
+# Host-specific configuration for Autobrr on 'forge'.
+# Autobrr is an IRC announce bot for torrent automation.
+
 { config, lib, ... }:
 
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.autobrr.enable or false;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -12,7 +15,7 @@ in
       modules.services.autobrr = {
         enable = true;
         image = "ghcr.io/autobrr/autobrr:latest";
-        podmanNetwork = "media-services";  # Enable DNS resolution to download clients (qBittorrent, SABnzbd)
+        podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
         settings = {
@@ -44,36 +47,18 @@ in
           enable = true;
           hostName = "autobrr.holthome.net";
         };
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          useSnapshots = true;
-          zfsDataset = "tank/services/autobrr";
-        };
+
+        backup = forgeDefaults.mkBackupWithSnapshots "autobrr";
+
         notifications.enable = true;
-        preseed = lib.mkIf resticEnabled {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-          restoreMethods = [ "syncoid" "local" ];
-        };
+
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
     (lib.mkIf serviceEnabled {
-      modules.alerting.rules."autobrr-service-down" = {
-        type = "promql";
-        alertname = "AutobrrServiceInactive";
-        expr = "container_service_active{name=\"autobrr\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "autobrr"; category = "availability"; };
-        annotations = {
-          summary = "Autobrr service is down on {{ $labels.instance }}";
-          description = "The Autobrr IRC announce bot service is not active.";
-          command = "systemctl status podman-autobrr.service";
-        };
-      };
+      modules.alerting.rules."autobrr-service-down" =
+        forgeDefaults.mkServiceDownAlert "autobrr" "Autobrr" "IRC announce bot";
     })
   ];
 }

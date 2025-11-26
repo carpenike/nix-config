@@ -46,7 +46,11 @@ in
         '';
       in {
         bash.profileExtra = fixGpg;
-        fish.loginShellInit = fixGpg;
+        fish.loginShellInit = ''
+          if status --is-interactive
+            ${fixGpg}
+          end
+        '';
         zsh.loginExtra = fixGpg;
       };
     })

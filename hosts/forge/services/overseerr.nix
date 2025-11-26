@@ -1,59 +1,47 @@
+# hosts/forge/services/overseerr.nix
+#
+# Host-specific configuration for Overseerr on 'forge'.
+# Overseerr is a request management service for Plex.
+
 { config, lib, ... }:
+
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.overseerr.enable;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
     {
       modules.services.overseerr = {
         # Overseerr - Request management for Plex
-      enable = true;
-      image = "lscr.io/linuxserver/overseerr:latest";
-      podmanNetwork = "media-services";  # Enable DNS resolution to Sonarr, Radarr, and Plex
-      healthcheck.enable = true;
+        enable = true;
+        image = "lscr.io/linuxserver/overseerr:latest";
+        podmanNetwork = forgeDefaults.podmanNetwork;
+        healthcheck.enable = true;
 
-      # Ensure Overseerr starts after its dependencies to prevent connection errors during startup
-      dependsOn = [ "sonarr" "radarr" ];
+        # Ensure Overseerr starts after its dependencies to prevent connection errors during startup
+        dependsOn = [ "sonarr" "radarr" ];
 
-      reverseProxy = {
-        enable = true;
-        hostName = "requests.holthome.net";
-        # No Authelia - Overseerr has native authentication with Plex OAuth
-      };
-      backup = {
-        enable = true;
-        repository = "nas-primary";
-        useSnapshots = true;
-        zfsDataset = "tank/services/overseerr";
-      };
-      notifications.enable = true;
-      preseed = lib.mkIf resticEnabled {
-        enable = true;
-        repositoryUrl = "/mnt/nas-backup";
-        passwordFile = config.sops.secrets."restic/password".path;
-        restoreMethods = [ "syncoid" "local" ];
-      };
+        reverseProxy = {
+          enable = true;
+          hostName = "requests.holthome.net";
+          # No Authelia - Overseerr has native authentication with Plex OAuth
+        };
+
+        # Use backup with snapshots helper
+        backup = forgeDefaults.mkBackupWithSnapshots "overseerr";
+
+        notifications.enable = true;
+
+        # Custom preseed with restricted restore methods
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
     (lib.mkIf serviceEnabled {
       # Co-located Service Monitoring
-      modules.alerting.rules."overseerr-service-down" = {
-        type = "promql";
-        alertname = "OverseerrServiceInactive";
-        expr = "container_service_active{name=\"overseerr\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "overseerr"; category = "availability"; };
-        annotations = {
-          summary = "Overseerr service is down on {{ $labels.instance }}";
-          description = "The Overseerr request management service is not active.";
-          command = "systemctl status podman-overseerr.service";
-        };
-      };
+      modules.alerting.rules."overseerr-service-down" =
+        forgeDefaults.mkServiceDownAlert "overseerr" "Overseerr" "request management";
     })
   ];
 }

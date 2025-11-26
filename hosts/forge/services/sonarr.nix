@@ -7,12 +7,8 @@
 { config, lib, ... }:
 
 let
-  inherit (lib) optionalAttrs;
-
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.sonarr.enable or false;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -26,7 +22,7 @@ in
 
         # Use shared NFS mount and attach to the media services network.
         nfsMountDependency = "media";
-        podmanNetwork = "media-services";
+        podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
         # Reverse proxy configuration for external access via Caddy.
@@ -36,80 +32,30 @@ in
 
           # Protect via Pocket ID + caddy-security; grant "media" role when the
           # upstream claim exposes the media group membership.
-          caddySecurity = {
-            enable = true;
-            portal = "pocketid";
-            policy = "media";
-            claimRoles = [
-              {
-                claim = "groups";
-                value = "media";
-                role = "media";
-              }
-            ];
-          };
+          caddySecurity = forgeDefaults.caddySecurity.media;
         };
 
         # Enable backups via the custom backup module integration.
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          # NOTE: useSnapshots and zfsDataset are intentionally omitted.
-          # The custom Sonarr module at _modules/nixos/services/sonarr/default.nix
-          # already defaults these to 'true' and 'tank/services/sonarr' respectively,
-          # which is the correct configuration for this host.
-        };
+        backup = forgeDefaults.backup;
 
         # Enable failure notifications via the custom notifications module.
         notifications.enable = true;
 
         # Enable self-healing restore from backups before service start.
-        preseed = {
-          enable = resticEnabled;
-        } // optionalAttrs resticEnabled {
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-        };
+        preseed = forgeDefaults.preseed;
       };
     }
 
     (lib.mkIf serviceEnabled {
       # ZFS snapshot and replication configuration for Sonarr dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
-      modules.backup.sanoid.datasets."tank/services/sonarr" = {
-        useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = "nas-1.holthome.net";
-          targetDataset = "backup/forge/zfs-recv/sonarr";
-          sendOptions = "wp";  # Raw encrypted send with property preservation
-          recvOptions = "u";   # Don't mount on receive
-          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-          # Consistent naming for Prometheus metrics
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
+      modules.backup.sanoid.datasets."tank/services/sonarr" =
+        forgeDefaults.mkSanoidDataset "sonarr";
 
       # Service-specific monitoring alerts
       # Contributes to host-level alerting configuration following the contribution pattern
-      modules.alerting.rules."sonarr-service-down" = {
-        type = "promql";
-        alertname = "SonarrServiceDown";
-        expr = ''
-          container_service_active{service="sonarr"} == 0
-        '';
-        for = "2m";
-        severity = "high";
-        labels = { service = "sonarr"; category = "container"; };
-        annotations = {
-          summary = "Sonarr service is down on {{ $labels.instance }}";
-          description = "TV series management service is not running. Check: systemctl status podman-sonarr.service";
-          command = "systemctl status podman-sonarr.service && journalctl -u podman-sonarr.service --since '30m'";
-        };
-      };
+      modules.alerting.rules."sonarr-service-down" =
+        forgeDefaults.mkServiceDownAlert "sonarr" "Sonarr" "TV series management";
     })
   ];
 }
