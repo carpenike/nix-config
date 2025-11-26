@@ -2,6 +2,7 @@
 # Provides secure external access to selected services via Cloudflare's network
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.cloudflared.enable;
 in
 {
@@ -48,19 +49,8 @@ in
 
   # Co-located Service Monitoring
     (lib.mkIf serviceEnabled {
-      modules.alerting.rules."cloudflare-tunnel-service-down" = {
-        type = "promql";
-        alertname = "CloudflareTunnelServiceInactive";
-        expr = "container_service_active{name=\"cloudflared\"} == 0";
-        for = "2m";
-        severity = "critical"; # Critical - external access gateway
-        labels = { service = "cloudflare-tunnel"; category = "availability"; };
-        annotations = {
-          summary = "Cloudflare Tunnel service is down on {{ $labels.instance }}";
-          description = "The Cloudflare Tunnel service is not active. External access to homelab services is unavailable.";
-          command = "systemctl status cloudflared-tunnel-forge.service";
-        };
-      };
+      modules.alerting.rules."cloudflare-tunnel-service-down" =
+        forgeDefaults.mkServiceDownAlert "cloudflared" "CloudflareTunnel" "external access gateway";
     })
   ];
 }

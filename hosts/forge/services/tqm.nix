@@ -1,5 +1,6 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.tqm.enable;
 in
 {
@@ -257,19 +258,7 @@ in
 
     (lib.mkIf serviceEnabled {
       # Co-located Service Monitoring
-      modules.alerting.rules."tqm-service-down" = {
-        type = "promql";
-        alertname = "TqmServiceInactive";
-        expr = "container_service_active{name=\"tqm\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "tqm"; category = "availability"; };
-        annotations = {
-          summary = "tqm service is down on {{ $labels.instance }}";
-          description = "The tqm torrent lifecycle management service is not active.";
-          command = "systemctl status podman-tqm.service";
-        };
-      };
+      modules.alerting.rules."tqm-service-down" = forgeDefaults.mkServiceDownAlert "tqm" "tqm" "torrent lifecycle management";
     })
   ];
 }

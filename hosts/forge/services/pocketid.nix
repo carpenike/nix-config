@@ -1,5 +1,6 @@
 { config, lib, pkgs, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (lib) mkMerge mkDefault;
   inherit (config.networking) domain;
 
@@ -9,10 +10,6 @@ let
   dataDir = "/var/lib/pocket-id";
   pocketIdPort = 1411;
   metricsPort = 9464;
-
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/pocketid";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
 
   caddyClientSecretEnvVar = "CADDY_SECURITY_POCKETID_CLIENT_SECRET";
   metadataUrl = "https://${serviceDomain}/.well-known/openid-configuration";
@@ -113,22 +110,9 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      modules.alerting.rules."pocketid-service-down" = {
-        type = "promql";
-        alertname = "PocketIDServiceDown";
-        expr = ''systemd_unit_state{name="pocket-id.service",state="active"} == 0'';
-        for = "2m";
-        severity = "critical";
-        labels = {
-          service = "pocket-id";
-          category = "availability";
-        };
-        annotations = {
-          summary = "Pocket ID service is unavailable on {{ $labels.instance }}";
-          description = "pocket-id.service is not active. Users cannot authenticate with passkeys or OIDC.";
-          command = "journalctl -u pocket-id -n 200";
-        };
-      };
+      # Service availability alert
+      modules.alerting.rules."pocketid-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "pocket-id" "PocketID" "identity provider";
 
       modules.services.caddy.virtualHosts.pocketid.cloudflare = {
         enable = true;
@@ -179,24 +163,9 @@ in
           };
         };
       };
-    })
 
-    (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          hostKey = replicationHostKey;
-          sendOptions = "wp";
-          recvOptions = "u";
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
+      # Dataset replication
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "pocketid";
     })
   ];
 }

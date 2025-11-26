@@ -1,5 +1,6 @@
 { config, lib, pkgs, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   domain = config.networking.domain;
   haHostname = "ha.${domain}";
   haEnabled = config.modules.services.home-assistant.enable or false;
@@ -9,6 +10,7 @@ let
   mediaShare = "/mnt/media";
   allowlistedDirs = [ haDataDir mediaShare ];
   unstablePkgs = pkgs.unstable;
+  dataset = "tank/services/home-assistant";
 in
 {
   config = lib.mkMerge [
@@ -205,5 +207,15 @@ in
         unstablePkgs.home-assistant-custom-components.hass_web_proxy
       ];
     }
+
+    # Infrastructure contributions (guarded by service enable)
+    (lib.mkIf haEnabled {
+      # Dataset replication via Sanoid
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "home-assistant";
+
+      # Service availability alert (native systemd service)
+      modules.alerting.rules."home-assistant-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "home-assistant" "HomeAssistant" "home automation";
+    })
   ];
 }

@@ -1,13 +1,11 @@
 { config, lib, ... }:
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   serviceDomain = "frigate.${domain}";
   dataset = "tank/services/frigate";
   dataDir = "/var/lib/frigate";
   cacheDir = "/var/cache/frigate";
-  replicationTargetHost = "nas-1.holthome.net";
-  replicationTargetDataset = "backup/forge/zfs-recv/frigate";
-  replicationHostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
   frigateMqttPasswordFile = lib.attrByPath [ "sops" "secrets" "frigate/mqtt_password" "path" ] null config;
   serviceEnabled = config.modules.services.frigate.enable or false;
 in
@@ -97,39 +95,11 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      modules.backup.sanoid.datasets.${dataset} = {
-        useTemplate = [ "services" ];
-        recursive = false;
-        autosnap = true;
-        autoprune = true;
-        replication = {
-          targetHost = replicationTargetHost;
-          targetDataset = replicationTargetDataset;
-          hostKey = replicationHostKey;
-          sendOptions = "wp";
-          recvOptions = "u";
-          targetName = "NFS";
-          targetLocation = "nas-1";
-        };
-      };
-    })
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "frigate";
 
-    (lib.mkIf serviceEnabled {
-      modules.alerting.rules."frigate-service-down" = {
-        type = "promql";
-        alertname = "FrigateServiceDown";
-        expr = ''node_systemd_unit_state{name="frigate.service",state="active"} == 0'';
-        for = "2m";
-        severity = "critical";
-        labels = {
-          service = "frigate";
-          category = "nvr";
-        };
-        annotations = {
-          summary = "Frigate service is down on {{ $labels.instance }}";
-          description = "Security camera processing stopped. Inspect systemctl status frigate.service.";
-        };
-      };
+      # Service availability alerts
+      modules.alerting.rules."frigate-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "frigate" "Frigate" "NVR security camera";
 
       modules.alerting.rules."go2rtc-service-down" = {
         type = "promql";

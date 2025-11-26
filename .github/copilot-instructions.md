@@ -131,6 +131,26 @@ If a tool suggests breaking conventions → override the tool and explain why.
 
 **Need a concrete example?** Study `hosts/forge/services/cooklang-federation.nix`, which co-locates storage (`modules.storage.datasets`), ZFS replication (`modules.backup.sanoid.datasets`), backups (`modules.services.cooklangFederation.backup`), and alerts (`modules.alerting.rules`).
 
+### The `forgeDefaults` Helper Library
+
+For forge host services, use the centralized defaults library to reduce duplication:
+
+```nix
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+in
+```
+
+**Key Helpers**:
+- `forgeDefaults.mkSanoidDataset "servicename"` - ZFS snapshot/replication config
+- `forgeDefaults.mkServiceDownAlert "name" "Display" "description"` - Container alerts
+- `forgeDefaults.mkSystemdServiceDownAlert "name" "Display" "description"` - Systemd alerts
+- `forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ]` - DR preseed config
+- `forgeDefaults.backup` - Standard NAS backup config
+- `forgeDefaults.caddySecurity.media/admin/home` - PocketID authentication
+
+**See**: [`hosts/forge/README.md`](../hosts/forge/README.md#the-forgedefaults-helper-library) for full documentation.
+
 ### Discovery Commands
 ```bash
 # Find storage patterns

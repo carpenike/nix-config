@@ -13,10 +13,8 @@
 { config, lib, ... }:
 
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = false; # flip to true if we ever need to re-enable Authelia
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -183,13 +181,7 @@ in
       };
 
       # Preseed/DR configuration
-      preseed = lib.mkIf resticEnabled {
-        enable = true;
-        repositoryUrl = "b2:carpenike-nas-backup/forge";
-        passwordFile = config.sops.secrets."restic/password".path;
-        environmentFile = config.sops.secrets."restic/r2-prod-env".path;
-        restoreMethods = [ "syncoid" "local" "restic" ];
-      };
+      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
 
       # Notifications
       notifications = {
@@ -202,19 +194,8 @@ in
       # Users file is managed via SOPS (declared in secrets.nix)
       # The secret is placed at /var/lib/authelia-main/users.yaml automatically
 
-      modules.alerting.rules."authelia-service-down" = {
-        type = "promql";
-        alertname = "AutheliaServiceInactive";
-        expr = "container_service_active{name=\"authelia\"} == 0";
-        for = "2m";
-        severity = "critical"; # Critical - SSO authentication service
-        labels = { service = "authelia"; category = "availability"; };
-        annotations = {
-          summary = "Authelia SSO service is down on {{ $labels.instance }}";
-          description = "The Authelia authentication container service is not active. All SSO-protected services will fail authentication.";
-          command = "systemctl status podman-authelia.service";
-        };
-      };
+      modules.alerting.rules."authelia-service-down" =
+        forgeDefaults.mkServiceDownAlert "authelia" "Authelia" "SSO authentication";
 
       modules.services.caddy.virtualHosts.authelia.cloudflare = {
         enable = true;

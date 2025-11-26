@@ -1,8 +1,8 @@
 agent: ask
 description: Scaffold a new NixOS service module with storage, backup, and monitoring integrations
-version: 2.3
-last_updated: 2024-11-20
-changelog: "v2.3: Added Cloudflare Tunnel (public access) optional integration pattern. v2.2: Added teslamate as complex service reference, service complexity assessment, advanced integration patterns (DB/MQTT/Grafana), LoadCredential pattern, preseed capability, and custom types guidance"
+version: 2.4
+last_updated: 2025-11-26
+changelog: "v2.4: Added forgeDefaults helper library documentation for alerts, sanoid, preseed, and authentication. v2.3: Added Cloudflare Tunnel (public access) optional integration pattern. v2.2: Added teslamate as complex service reference, service complexity assessment, advanced integration patterns (DB/MQTT/Grafana), LoadCredential pattern, preseed capability, and custom types guidance"
 ---
 # NixOS Service Module Scaffold
 
@@ -96,6 +96,10 @@ rg "types.submodule" --type nix -A 15 hosts/_modules/nixos/services/teslamate/
 rg "cloudflare.enable" --type nix -A 3
 rg "cloudflare.tunnel" --type nix -A 2
 cat hosts/forge/services/authelia.nix  # Example with cloudflare
+
+# FORGE DEFAULTS LIBRARY (reduces host-level boilerplate):
+cat hosts/forge/lib/defaults.nix
+rg "forgeDefaults" --type nix -A 2
 ```
 
 ### Step 2: Extract and Document Patterns
@@ -152,6 +156,12 @@ From your study, you MUST document these patterns:
 - How do services opt into Cloudflare Tunnel for public access?
 - Where is this configured (module vs host)?
 - When should services be publicly accessible?
+
+**forgeDefaults helper library:**
+- What helpers are available for alerts, sanoid, preseed, caddySecurity?
+- When should you use `mkServiceDownAlert` vs `mkSystemdServiceDownAlert`?
+- How does `mkSanoidDataset` configure ZFS replication?
+- How does `mkPreseed` configure disaster recovery?
 
 ### Step 3: Assess Service Complexity
 
@@ -547,8 +557,10 @@ Create files in order:
    - backup auto-registration
 
 5. **Host integration**: `hosts/forge/services/<service>.nix`
-   - Enable service
-   - Enable standard integrations
+   - Import forgeDefaults library
+   - Enable service with standard backup/preseed
+   - Use `forgeDefaults.mkSanoidDataset` for ZFS replication
+   - Use `forgeDefaults.mkServiceDownAlert` or `mkSystemdServiceDownAlert` for monitoring
    - Any host-specific overrides
 
 ### 4. Validation
@@ -621,6 +633,58 @@ services.<service> = {
   backup.enable = true;         # Auto-registers with Restic
 };
 ```
+
+### forgeDefaults Library (Host-Level Pattern)
+
+The `hosts/forge/lib/defaults.nix` library reduces duplication in host service files:
+
+```nix
+{ config, lib, ... }:
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  serviceEnabled = config.modules.services.<service>.enable or false;
+in
+{
+  config = lib.mkMerge [
+    {
+      modules.services.<service> = {
+        enable = true;
+        backup = forgeDefaults.backup;  # Standard NAS backup
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+      };
+    }
+
+    (lib.mkIf serviceEnabled {
+      # ZFS replication to NAS
+      modules.backup.sanoid.datasets."tank/services/<service>" =
+        forgeDefaults.mkSanoidDataset "<service>";
+
+      # Service availability alert (container services)
+      modules.alerting.rules."<service>-service-down" =
+        forgeDefaults.mkServiceDownAlert "<service>" "DisplayName" "description";
+
+      # OR for native systemd services:
+      modules.alerting.rules."<service>-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "<service>" "DisplayName" "description";
+    })
+  ];
+}
+```
+
+**Available helpers:**
+- `forgeDefaults.backup` - Standard NAS backup config
+- `forgeDefaults.mkPreseed restoreMethods` - DR preseed (auto-gated by restic)
+- `forgeDefaults.mkSanoidDataset serviceName` - ZFS snapshot/replication config
+- `forgeDefaults.mkServiceDownAlert name display desc` - Container alert
+- `forgeDefaults.mkSystemdServiceDownAlert name display desc` - Systemd alert
+- `forgeDefaults.caddySecurity.media/admin/home` - PocketID authentication
+- `forgeDefaults.podmanNetwork` - Standard Podman network name
+
+**When to use helpers vs inline:**
+- ✅ Standard service-down alerts → use helpers
+- ✅ Standard ZFS replication → use `mkSanoidDataset`
+- ❌ Complex alerts with custom expressions → inline
+- ❌ Non-standard thresholds or labels → inline
 
 ---
 
@@ -1212,8 +1276,9 @@ You've succeeded when:
   - Preseed capability
 
 *Host integrations:*
-- `hosts/forge/services/sonarr.nix` - Standard declaration
+- `hosts/forge/services/sonarr.nix` - Standard declaration with forgeDefaults
 - `hosts/forge/services/teslamate.nix` - Complex multi-integration example
+- `hosts/forge/lib/defaults.nix` - **Centralized helpers for alerts, sanoid, preseed**
 
 *Infrastructure patterns:*
 - `modules/services/postgresql/` - Database provisioning
@@ -1223,11 +1288,11 @@ You've succeeded when:
 - `hosts/forge/networking/cloudflared.nix` - Tunnel configuration example
 
 **Reference these docs:**
-- `docs/modular-design-patterns.md` - Architecture principles
+- `docs/modular-design-patterns.md` - Architecture principles, forgeDefaults patterns
 - `docs/persistence-quick-reference.md` - Storage details
 - `docs/backup-system-onboarding.md` - Backup integration
 - `docs/monitoring-strategy.md` - Monitoring details
-- `hosts/forge/README.md` - Host architecture
+- `hosts/forge/README.md` - Host architecture, forgeDefaults documentation
 
 ---
 

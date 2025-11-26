@@ -221,6 +221,131 @@ in
 
 This ensures that disabling a service automatically disables all downstream infrastructure so we never create orphaned datasets, alerts, or backup jobs.
 
+#### Host-Level Defaults Libraries
+
+For hosts with many services following similar patterns, create a centralized defaults library to reduce duplication. This is particularly useful for:
+
+- Standard Sanoid/Syncoid replication configurations
+- Common alert patterns (service-down, systemd-down)
+- Backup repository configurations
+- Authentication/security policies
+
+**Reference Implementation**: `hosts/forge/lib/defaults.nix`
+
+```nix
+# hosts/<hostname>/lib/defaults.nix
+{ config, lib }:
+
+let
+  resticEnabled = (config.modules.backup.enable or false)
+    && (config.modules.backup.restic.enable or false);
+in
+{
+  # Standard backup configuration
+  backup = {
+    enable = true;
+    repository = "nas-primary";
+  };
+
+  # ZFS replication helper
+  mkSanoidDataset = serviceName: {
+    useTemplate = [ "services" ];
+    recursive = false;
+    autosnap = true;
+    autoprune = true;
+    replication = {
+      targetHost = "nas-1.example.com";
+      targetDataset = "backup/${config.networking.hostName}/zfs-recv/${serviceName}";
+      # ... replication options
+    };
+  };
+
+  # Container service-down alert helper
+  mkServiceDownAlert = serviceName: displayName: description: {
+    type = "promql";
+    alertname = "${displayName}ServiceDown";
+    expr = ''container_service_active{name="${serviceName}"} == 0'';
+    for = "2m";
+    severity = "high";
+    labels = { service = serviceName; category = "availability"; };
+    annotations = {
+      summary = "${displayName} service is down on {{ $labels.instance }}";
+      description = "The ${displayName} ${description} service is not active.";
+      command = "systemctl status podman-${serviceName}.service";
+    };
+  };
+
+  # Systemd service-down alert helper (for native services)
+  mkSystemdServiceDownAlert = serviceName: displayName: description: {
+    type = "promql";
+    alertname = "${displayName}ServiceDown";
+    expr = ''node_systemd_unit_state{name="${serviceName}.service",state="active"} == 0'';
+    for = "2m";
+    severity = "high";
+    labels = { service = serviceName; category = "availability"; };
+    annotations = {
+      summary = "${displayName} service is down on {{ $labels.instance }}";
+      description = "The ${displayName} ${description} service is not active.";
+      command = "systemctl status ${serviceName}.service";
+    };
+  };
+
+  # Preseed/DR configuration (auto-gated by restic)
+  mkPreseed = restoreMethods: lib.mkIf resticEnabled {
+    enable = true;
+    repositoryUrl = "/mnt/nas-backup";
+    passwordFile = config.sops.secrets."restic/password".path;
+    restoreMethods = restoreMethods;
+  };
+}
+```
+
+**Usage in Service Files**:
+
+```nix
+{ config, lib, ... }:
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  serviceEnabled = config.modules.services.myapp.enable or false;
+in
+{
+  config = lib.mkMerge [
+    {
+      modules.services.myapp = {
+        enable = true;
+        backup = forgeDefaults.backup;
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+      };
+    }
+
+    (lib.mkIf serviceEnabled {
+      modules.backup.sanoid.datasets."tank/services/myapp" =
+        forgeDefaults.mkSanoidDataset "myapp";
+
+      modules.alerting.rules."myapp-service-down" =
+        forgeDefaults.mkServiceDownAlert "myapp" "MyApp" "application";
+    })
+  ];
+}
+```
+
+**Key Benefits**:
+- Reduces boilerplate from ~15-20 lines to 1-2 lines per concern
+- Ensures consistency across all services on a host
+- Single point of change for host-specific infrastructure patterns
+- Separates "what the module does" from "how this host deploys it"
+
+**When to Create a Defaults Library**:
+- Host has 5+ services with similar patterns
+- Multiple services share the same backup/replication target
+- Alert patterns are standardized across services
+- Authentication policies are consistent
+
+**When NOT to Use Helpers**:
+- Service has unique, complex alert expressions
+- Backup requires custom retention or exclusion patterns
+- Replication needs special handling (encrypted sends, different targets)
+
 #### Step 3: Native Wrapper Pattern (PREFERRED)
 
 When wrapping a native NixOS module:

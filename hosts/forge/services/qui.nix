@@ -28,11 +28,9 @@
 { config, lib, ... }:
 
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   domain = config.networking.domain;
   serviceEnabled = config.modules.services.qui.enable;
-  resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -145,14 +143,8 @@ in
       };
 
       # Preseed/DR configuration
-        preseed = lib.mkIf resticEnabled {
-          enable = true;
-          repositoryUrl = "/mnt/nas-backup";
-          passwordFile = config.sops.secrets."restic/password".path;
-          environmentFile = config.sops.secrets."restic/r2-prod-env".path;
-          restoreMethods = [ "syncoid" "local" "restic" ];
-        };
-      };
+      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+    };
     }
 
     (lib.mkIf serviceEnabled {
@@ -174,19 +166,8 @@ in
       # to a Restic job named "service-qui" with the specified settings
 
       # Co-located Service Monitoring
-      modules.alerting.rules."qui-service-down" = {
-        type = "promql";
-        alertname = "QuiServiceInactive";
-        expr = "container_service_active{name=\"qui\"} == 0";
-        for = "2m";
-        severity = "high";
-        labels = { service = "qui"; category = "availability"; };
-        annotations = {
-          summary = "qui service is down on {{ $labels.instance }}";
-          description = "The qui qBittorrent web interface service is not active.";
-          command = "systemctl status podman-qui.service";
-        };
-      };
+      modules.alerting.rules."qui-service-down" =
+        forgeDefaults.mkServiceDownAlert "qui" "Qui" "qBittorrent web interface";
     })
   ];
 }

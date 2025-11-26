@@ -10,6 +10,7 @@ This directory contains the NixOS configuration for the `forge` host, organized 
 hosts/forge/
 ├── core/              # OS-level concerns (boot, networking, users, monitoring)
 ├── infrastructure/    # Cross-cutting operational concerns (storage, backup, observability)
+├── lib/               # Host-specific helper libraries (forgeDefaults)
 └── services/          # Application-specific configurations
 ```
 
@@ -64,41 +65,86 @@ This configuration follows a **contribution pattern** where concerns are co-loca
 When adding a new service (e.g., `myapp`), create `services/myapp.nix` containing:
 
 ```nix
-{ ... }:
-
+{ config, lib, ... }:
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  serviceEnabled = config.modules.services.myapp.enable or false;
+in
 {
-  # Service configuration
-  modules.services.myapp = {
-    enable = true;
-    # ... service config
-  };
+  config = lib.mkMerge [
+    {
+      # Service configuration
+      modules.services.myapp = {
+        enable = true;
+        # ... service config
+        backup = forgeDefaults.backup;
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
+      };
+    }
 
-  # Co-located storage dataset
-  modules.storage.datasets."myapp" = {
-    dataset = "tank/services/myapp";
-    recordsize = "128K";
-    compression = "lz4";
-  };
+    (lib.mkIf serviceEnabled {
+      # Co-located storage dataset
+      modules.storage.datasets.services.myapp = {
+        mountpoint = "/var/lib/myapp";
+        recordsize = "128K";
+        compression = "lz4";
+      };
 
-  # Co-located Sanoid backup policy
-  modules.backup.sanoid.datasets."tank/services/myapp" = {
-    useTemplate = [ "services" ];
-    recursive = true;
-  };
+      # Co-located Sanoid backup policy (using forgeDefaults helper)
+      modules.backup.sanoid.datasets."tank/services/myapp" =
+        forgeDefaults.mkSanoidDataset "myapp";
 
-  # Co-located monitoring alerts
-  modules.alerting.rules."myapp-service-down" = {
-    type = "promql";
-    alertname = "MyAppServiceDown";
-    expr = "container_service_active{name=\"myapp\"} == 0";
-    for = "2m";
-    severity = "high";
-    # ... alert config
-  };
+      # Co-located monitoring alert (using forgeDefaults helper)
+      modules.alerting.rules."myapp-service-down" =
+        forgeDefaults.mkServiceDownAlert "myapp" "MyApp" "application";
+    })
+  ];
 }
 ```
 
 > **Guard requirement**: wrap every downstream contribution (datasets, backup jobs, alert rules, Cloudflare tunnels, etc.) in `lib.mkIf serviceEnabled` where `serviceEnabled = config.modules.services.myapp.enable or false`. Disabling the service must automatically remove all co-located infrastructure.
+
+### The `forgeDefaults` Helper Library
+
+The `lib/defaults.nix` file provides centralized, forge-specific defaults and helper functions that reduce duplication across service configurations.
+
+**Location**: `hosts/forge/lib/defaults.nix`
+
+**Import Pattern**:
+```nix
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+in
+```
+
+**Available Helpers**:
+
+| Helper | Purpose | Example |
+|--------|---------|--------|
+| `podmanNetwork` | Standard Podman network name | `"media-services"` |
+| `backup` | Standard NAS backup config | `{ enable = true; repository = "nas-primary"; }` |
+| `mkBackupWithSnapshots serviceName` | Backup with ZFS snapshots | Creates snapshot-based backup for `tank/services/<name>` |
+| `preseed` | Standard preseed config | Auto-gated by `resticEnabled` |
+| `mkPreseed restoreMethods` | Preseed with custom methods | `forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ]` |
+| `caddySecurity.media` | PocketID auth for media services | Requires "media" group |
+| `caddySecurity.admin` | PocketID auth for admin services | Requires "admin" group |
+| `caddySecurity.home` | PocketID auth for home services | Requires "home" group |
+| `mkSanoidDataset serviceName` | Standard ZFS snapshot/replication | Replicates to `nas-1.holthome.net` |
+| `mkServiceDownAlert name display desc` | Container service-down alert | Prometheus alert for Podman services |
+| `mkSystemdServiceDownAlert name display desc` | Systemd service-down alert | Prometheus alert for native services |
+| `backupTags.*` | Standard backup tag sets | `.media`, `.iptv`, `.home`, `.infrastructure`, `.database` |
+
+**When to Use forgeDefaults**:
+- ✅ Standard service-down alerts → use `mkServiceDownAlert` or `mkSystemdServiceDownAlert`
+- ✅ ZFS replication to NAS → use `mkSanoidDataset`
+- ✅ Standard backup config → use `backup` or `mkBackupWithSnapshots`
+- ✅ Preseed/DR configuration → use `preseed` or `mkPreseed`
+- ✅ PocketID authentication → use `caddySecurity.*`
+
+**When NOT to Use forgeDefaults**:
+- ❌ Complex service-specific alerts (custom expressions, thresholds)
+- ❌ Non-standard Prometheus queries
+- ❌ Services with unique backup requirements
 
 ### Alert Organization
 
