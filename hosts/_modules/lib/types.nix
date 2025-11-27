@@ -76,6 +76,12 @@ in
     options = {
       enable = mkEnableOption "log shipping to Loki";
 
+      driver = mkOption {
+        type = types.enum [ "journald" "json-file" "none" ];
+        default = "journald";
+        description = "Logging driver for container services";
+      };
+
       logFiles = mkOption {
         type = types.listOf types.path;
         default = [];
@@ -128,6 +134,111 @@ in
         });
         default = null;
         description = "Multiline log configuration (when parseFormat = 'multiline')";
+      };
+    };
+  };
+
+  # Standardized ZFS dataset configuration submodule
+  # Services with persistent data should use this type for consistent ZFS dataset management
+  datasetSubmodule = types.submodule {
+    options = {
+      recordsize = mkOption {
+        type = types.str;
+        default = "128K";
+        description = ''
+          ZFS recordsize property. Must be a power of 2 between 512 and 1M.
+          Recommended values:
+          - 8K: PostgreSQL data
+          - 16K: Small files, SQLite databases (Sonarr, Radarr)
+          - 128K: Default, general purpose
+          - 1M: Large files, media caches (Plex)
+        '';
+        example = "16K";
+      };
+
+      compression = mkOption {
+        type = types.enum [ "on" "off" "lz4" "zstd" "gzip" "zle" ];
+        default = "lz4";
+        description = "ZFS compression algorithm";
+      };
+
+      properties = mkOption {
+        type = types.attrsOf types.str;
+        default = {};
+        description = "Additional ZFS properties to set on the dataset";
+        example = {
+          "com.sun:auto-snapshot" = "true";
+          logbias = "latency";
+        };
+      };
+
+      mountpoint = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Override the mountpoint for this dataset.
+          If null, uses the service's dataDir.
+        '';
+      };
+
+      owner = mkOption {
+        type = types.str;
+        default = "root";
+        description = "User to own the mountpoint directory";
+      };
+
+      group = mkOption {
+        type = types.str;
+        default = "root";
+        description = "Group to own the mountpoint directory";
+      };
+
+      mode = mkOption {
+        type = types.str;
+        default = "0755";
+        description = "Permissions mode for the mountpoint directory";
+      };
+    };
+  };
+
+  # Standardized container healthcheck submodule
+  # Container services should use this type for consistent health monitoring
+  healthcheckSubmodule = types.submodule {
+    options = {
+      enable = mkEnableOption "container health check";
+
+      interval = mkOption {
+        type = types.str;
+        default = "30s";
+        description = "Frequency of health checks";
+      };
+
+      timeout = mkOption {
+        type = types.str;
+        default = "10s";
+        description = "Timeout for each health check";
+      };
+
+      retries = mkOption {
+        type = types.int;
+        default = 3;
+        description = "Number of retries before marking as unhealthy";
+      };
+
+      startPeriod = mkOption {
+        type = types.str;
+        default = "300s";
+        description = ''
+          Grace period for the container to initialize before failures are counted.
+          Allows time for DB migrations, preseed operations, and first-run initialization.
+        '';
+      };
+
+      command = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Custom healthcheck command. If null, uses service-specific default.";
+        example = "curl -f http://localhost:8080/health || exit 1";
       };
     };
   };

@@ -536,10 +536,12 @@ sharedTypes = import ../../../lib/types.nix { inherit lib; };
 ### Available Shared Types
 - `sharedTypes.reverseProxySubmodule` - Reverse proxy integration with TLS backend support
 - `sharedTypes.metricsSubmodule` - Prometheus metrics collection with advanced labeling
-- `sharedTypes.loggingSubmodule` - Log shipping with multiline parsing and regex support
+- `sharedTypes.loggingSubmodule` - Log shipping with multiline parsing, regex support, and container driver config
 - `sharedTypes.backupSubmodule` - Backup integration with retention policies
 - `sharedTypes.notificationSubmodule` - Notification channels with escalation
 - `sharedTypes.containerResourcesSubmodule` - Container resource management
+- `sharedTypes.datasetSubmodule` - ZFS dataset configuration (recordsize, compression, properties)
+- `sharedTypes.healthcheckSubmodule` - Container healthcheck configuration (interval, timeout, retries)
 
 ## Standardized Submodule Patterns
 
