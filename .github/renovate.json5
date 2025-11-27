@@ -10,7 +10,7 @@
     enabled: true,
   },
   lockFileMaintenance: {
-    enabled: true,
+    enabled: false,  // Handled by update-flake-lock.yml workflow
   },
   prConcurrentLimit: 5,
   branchConcurrentLimit: 10,

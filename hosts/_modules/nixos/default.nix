@@ -2,6 +2,7 @@
 , ...
 }: {
   imports = [
+    ./auto-upgrade.nix
     ./doas.nix
     ./impermanence.nix
     ./nix.nix

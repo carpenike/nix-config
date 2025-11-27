@@ -92,6 +92,17 @@ in
     my.r2 = r2Config;
 
     modules = {
+      # Automatic system upgrades from GitHub
+      autoUpgrade = {
+        enable = true;
+        # Safe reboot window: 4-5 AM when services are least used
+        allowReboot = true;
+        rebootWindow = {
+          lower = "04:00";
+          upper = "05:00";
+        };
+      };
+
       # Explicitly enable ZFS filesystem module
       filesystems.zfs = {
         enable = true;
