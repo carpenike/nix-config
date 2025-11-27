@@ -16,230 +16,231 @@ let
 
   # Build the pgbackrest restore command
   restoreCommand = pkgs.writeShellScript "postgresql-preseed-restore" ''
-    #!/usr/bin/env bash
-    set -euo pipefail
+        #!/usr/bin/env bash
+        set -euo pipefail
 
-    # --- Structured Logging & Error Handling ---
-    LOG_SERVICE_NAME="postgresql-preseed"
-    METRICS_FILE="/var/lib/node_exporter/textfile_collector/postgresql_preseed.prom"
+        # --- Structured Logging & Error Handling ---
+        LOG_SERVICE_NAME="postgresql-preseed"
+        METRICS_FILE="/var/lib/node_exporter/textfile_collector/postgresql_preseed.prom"
 
-    # Logs a structured JSON message to stdout.
-    # Usage: log_json <LEVEL> <EVENT_NAME> <MESSAGE> [JSON_DETAILS]
-    log_json() {
-      local level="$1"
-      local event="$2"
-      local message="$3"
-      local details_json="''${4:-{}}"
+        # Logs a structured JSON message to stdout.
+        # Usage: log_json <LEVEL> <EVENT_NAME> <MESSAGE> [JSON_DETAILS]
+        log_json() {
+          local level="$1"
+          local event="$2"
+          local message="$3"
+          local details_json="''${4:-{}}"
 
-      # Using printf for safer string handling.
-      printf '{"timestamp":"%s","service":"%s","level":"%s","event":"%s","message":"%s","details":%s}\n' \
-        "$(date -u --iso-8601=seconds)" \
-        "''${LOG_SERVICE_NAME}" \
-        "$level" \
-        "$event" \
-        "$message" \
-        "$details_json"
-    }
+          # Using printf for safer string handling.
+          printf '{"timestamp":"%s","service":"%s","level":"%s","event":"%s","message":"%s","details":%s}\n' \
+            "$(date -u --iso-8601=seconds)" \
+            "''${LOG_SERVICE_NAME}" \
+            "$level" \
+            "$event" \
+            "$message" \
+            "$details_json"
+        }
 
-    # Atomically writes metrics for Prometheus.
-    # Usage: write_metrics <status: "success"|"failure"> <duration_seconds> <repository>
-    write_metrics() {
-      local status="$1"
-      local duration="$2"
-      local repo="''${3:-none}"
-      local status_code=$([ "$status" = "success" ] && echo 1 || echo 0)
+        # Atomically writes metrics for Prometheus.
+        # Usage: write_metrics <status: "success"|"failure"> <duration_seconds> <repository>
+        write_metrics() {
+          local status="$1"
+          local duration="$2"
+          local repo="''${3:-none}"
+          local status_code=$([ "$status" = "success" ] && echo 1 || echo 0)
 
-      # Write directly to avoid directory write permission requirement
-      cat > "$METRICS_FILE" <<EOF
-# HELP postgresql_preseed_status Indicates the status of the last pre-seed attempt (1 for success, 0 for failure).
-# TYPE postgresql_preseed_status gauge
-postgresql_preseed_status{stanza="${cfg.source.stanza}",repository="''${repo}"} ''${status_code}
-# HELP postgresql_preseed_last_duration_seconds Duration of the last pre-seed restore in seconds.
-# TYPE postgresql_preseed_last_duration_seconds gauge
-postgresql_preseed_last_duration_seconds{stanza="${cfg.source.stanza}",repository="''${repo}"} ''${duration}
-# HELP postgresql_preseed_last_completion_timestamp_seconds Timestamp of the last pre-seed restore completion.
-# TYPE postgresql_preseed_last_completion_timestamp_seconds gauge
-postgresql_preseed_last_completion_timestamp_seconds{stanza="${cfg.source.stanza}",repository="''${repo}"} $(date +%s)
-EOF
-    }
+          # Write directly to avoid directory write permission requirement
+          cat > "$METRICS_FILE" <<EOF
+    # HELP postgresql_preseed_status Indicates the status of the last pre-seed attempt (1 for success, 0 for failure).
+    # TYPE postgresql_preseed_status gauge
+    postgresql_preseed_status{stanza="${cfg.source.stanza}",repository="''${repo}"} ''${status_code}
+    # HELP postgresql_preseed_last_duration_seconds Duration of the last pre-seed restore in seconds.
+    # TYPE postgresql_preseed_last_duration_seconds gauge
+    postgresql_preseed_last_duration_seconds{stanza="${cfg.source.stanza}",repository="''${repo}"} ''${duration}
+    # HELP postgresql_preseed_last_completion_timestamp_seconds Timestamp of the last pre-seed restore completion.
+    # TYPE postgresql_preseed_last_completion_timestamp_seconds gauge
+    postgresql_preseed_last_completion_timestamp_seconds{stanza="${cfg.source.stanza}",repository="''${repo}"} $(date +%s)
+    EOF
+        }
 
-    # Trap for logging errors before exiting.
-    trap_error() {
-      local exit_code=$?
-      local line_no=$1
-      local command="$2"
-      log_json "ERROR" "script_error" "Script failed with exit code $exit_code at line $line_no: $command" \
-        "{\"exit_code\": ''${exit_code}, \"line_number\": ''${line_no}, \"command\": \"$command\"}"
-      # Write failure metrics before exiting (resilient to write failure)
-      write_metrics "failure" 0 "none" || true
-      exit $exit_code
-    }
-    trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
-    # --- End Helpers ---
+        # Trap for logging errors before exiting.
+        trap_error() {
+          local exit_code=$?
+          local line_no=$1
+          local command="$2"
+          log_json "ERROR" "script_error" "Script failed with exit code $exit_code at line $line_no: $command" \
+            "{\"exit_code\": ''${exit_code}, \"line_number\": ''${line_no}, \"command\": \"$command\"}"
+          # Write failure metrics before exiting (resilient to write failure)
+          write_metrics "failure" 0 "none" || true
+          exit $exit_code
+        }
+        trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
+        # --- End Helpers ---
 
-    log_json "INFO" "preseed_start" "PostgreSQL pre-seed restore starting." \
-      "{\"target\":\"${pgDataPath}\",\"stanza\":\"${cfg.source.stanza}\",\"backup_set\":\"${cfg.source.backupSet}\",\"repository\":${toString cfg.source.repository}}"
+        log_json "INFO" "preseed_start" "PostgreSQL pre-seed restore starting." \
+          "{\"target\":\"${pgDataPath}\",\"stanza\":\"${cfg.source.stanza}\",\"backup_set\":\"${cfg.source.backupSet}\",\"repository\":${toString cfg.source.repository}}"
 
-    # Create in-progress marker for debuggability
-    # Allows detection of crashed/incomplete restores on subsequent boots
-    PROGRESS_MARKER="/var/lib/postgresql/.preseed-in-progress"
-    cat > "$PROGRESS_MARKER" <<EOF
-started_at=$(date -Iseconds)
-pid=$$
-stanza=${cfg.source.stanza}
-repository=${toString cfg.source.repository}
-EOF
-    log_json "INFO" "preseed_progress_marker" "Created in-progress marker at $PROGRESS_MARKER"
+        # Create in-progress marker for debuggability
+        # Allows detection of crashed/incomplete restores on subsequent boots
+        PROGRESS_MARKER="/var/lib/postgresql/.preseed-in-progress"
+        cat > "$PROGRESS_MARKER" <<EOF
+    started_at=$(date -Iseconds)
+    pid=$$
+    stanza=${cfg.source.stanza}
+    repository=${toString cfg.source.repository}
+    EOF
+        log_json "INFO" "preseed_progress_marker" "Created in-progress marker at $PROGRESS_MARKER"
 
-    # Ensure PGDATA directory exists (pgbackrest restore can create it, but explicit is better)
-    log_json "INFO" "pgdata_ensure" "Ensuring PGDATA directory exists." "{\"path\":\"${pgDataPath}\"}"
-    mkdir -p "${pgDataPath}"
+        # Ensure PGDATA directory exists (pgbackrest restore can create it, but explicit is better)
+        log_json "INFO" "pgdata_ensure" "Ensuring PGDATA directory exists." "{\"path\":\"${pgDataPath}\"}"
+        mkdir -p "${pgDataPath}"
 
-    # Safety check: Decide what to do if PGDATA is not empty
-    if [ -d "${pgDataPath}" ] && [ "$(ls -A "${pgDataPath}" 2>/dev/null)" ]; then
-      # Validate PGDATA integrity by checking for essential files and directories
-      # More robust than just postgresql.conf + PG_VERSION to catch corrupted restores
-      if [ -f "${pgDataPath}/postgresql.conf" ] && \
-         [ -f "${pgDataPath}/PG_VERSION" ] && \
-         [ -d "${pgDataPath}/global" ] && \
-         [ -d "${pgDataPath}/pg_wal" ]; then
-        log_json "INFO" "preseed_skipped" "PGDATA is already initialized. Skipping pre-seed restore." '{"reason":"existing_pgdata"}'
-        # Create the completion marker to ensure this check is skipped on future boots.
+        # Safety check: Decide what to do if PGDATA is not empty
+        if [ -d "${pgDataPath}" ] && [ "$(ls -A "${pgDataPath}" 2>/dev/null)" ]; then
+          # Validate PGDATA integrity by checking for essential files and directories
+          # More robust than just postgresql.conf + PG_VERSION to catch corrupted restores
+          if [ -f "${pgDataPath}/postgresql.conf" ] && \
+             [ -f "${pgDataPath}/PG_VERSION" ] && \
+             [ -d "${pgDataPath}/global" ] && \
+             [ -d "${pgDataPath}/pg_wal" ]; then
+            log_json "INFO" "preseed_skipped" "PGDATA is already initialized. Skipping pre-seed restore." '{"reason":"existing_pgdata"}'
+            # Create the completion marker to ensure this check is skipped on future boots.
+            cat > "${markerFile}" <<EOF
+    postgresql_version=${toString pgCfg.package.version}
+    restored_at=$(date -Iseconds)
+    restored_from=existing_pgdata
+    EOF
+            log_json "INFO" "marker_created" "Completion marker created at ${markerFile}"
+            exit 0
+          else
+            log_json "ERROR" "preseed_failed" "PGDATA directory is not empty but appears incomplete or corrupted." '{"reason":"incomplete_pgdata"}'
+            log_json "ERROR" "preseed_failed" "Missing one or more essential components: postgresql.conf, PG_VERSION, global/, or pg_wal/"
+            log_json "ERROR" "preseed_failed" "To force a re-seed, stop postgresql, clear PGDATA, remove ${markerFile}, and reboot."
+            exit 1
+          fi
+        fi
+
+        # Wait up to 30 seconds for the PGDATA directory to be owned by the 'postgres' user.
+        # This mitigates a common race condition on boot where a ZFS dataset is mounted
+        # as root:root before a separate systemd service or tmpfiles rule has a chance
+        # to chown it to postgres:postgres.
+        log_json "INFO" "ownership_wait" "Waiting for PGDATA directory to be owned by postgres user..." "{\"path\":\"${pgDataPath}\"}"
+        WAIT_TIMEOUT=30
+        while [ "$(stat -c '%U' "${pgDataPath}")" != "postgres" ]; do
+          if [ $WAIT_TIMEOUT -le 0 ]; then
+            CURRENT_OWNER="$(stat -c '%U' "${pgDataPath}")"
+            log_json "ERROR" "ownership_timeout" "Timed out waiting for correct ownership on PGDATA." \
+              "{\"path\":\"${pgDataPath}\", \"expected_owner\":\"postgres\", \"current_owner\":\"''${CURRENT_OWNER}\"}"
+            exit 1
+          fi
+          WAIT_TIMEOUT=$((WAIT_TIMEOUT - 1))
+          sleep 1
+        done
+        log_json "INFO" "ownership_ok" "PGDATA directory ownership is correct."
+
+        ${optionalString (cfg.source.fallbackRepository == 2 && cfg.environmentFile != null) ''
+          # Transform AWS credentials to pgBackRest format for repo2 fallback
+          if [ -n "''${AWS_ACCESS_KEY_ID:-}" ] && [ -n "''${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
+            export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
+            log_json "INFO" "repo2_credentials_configured" "R2/S3 credentials configured for fallback repository."
+          fi
+        ''}
+
+        # Execute the restore with fallback support
+        log_json "INFO" "restore_start" "Running pgBackRest restore from primary repository ${toString cfg.source.repository}..."
+        start_time=$(date +%s)
+
+        restore_success=false
+        restore_repo=""
+
+        # Attempt primary repository restore
+        if ${pkgs.pgbackrest}/bin/pgbackrest \
+          --stanza=${cfg.source.stanza} \
+          --repo=${toString cfg.source.repository} \
+          ${optionalString (cfg.source.backupSet != "latest") "--set=${cfg.source.backupSet}"} \
+          --type=immediate \
+          --target-action=${cfg.targetAction} \
+          --delta \
+          --log-level-console=info \
+          restore 2>&1; then
+          restore_success=true
+          restore_repo="${toString cfg.source.repository}"
+          log_json "INFO" "restore_primary_success" "Primary repository restore succeeded." "{\"repository\":${toString cfg.source.repository}}"
+        else
+          log_json "WARN" "restore_primary_failed" "Primary repository restore failed" "{\"primary_repo\":${toString cfg.source.repository}}"
+    ${optionalString (cfg.source.fallbackRepository != null) ''
+          log_json "INFO" "restore_fallback_attempt" "Attempting fallback to repository ${toString cfg.source.fallbackRepository}" "{\"fallback_repo\":${toString cfg.source.fallbackRepository}}"
+
+          # Pre-flight check: Validate fallback repository is accessible before attempting restore
+          log_json "INFO" "restore_fallback_preflight" "Validating fallback repository accessibility..."
+          if ! ${pkgs.pgbackrest}/bin/pgbackrest \
+            --stanza=${cfg.source.stanza} \
+            --repo=${toString cfg.source.fallbackRepository} \
+            info >/dev/null 2>&1; then
+            log_json "ERROR" "restore_fallback_unreachable" "Fallback repository is unreachable or misconfigured. Check credentials and connectivity." "{\"fallback_repo\":${toString cfg.source.fallbackRepository}}"
+            exit 1
+          fi
+          log_json "INFO" "restore_fallback_preflight_ok" "Fallback repository is accessible, proceeding with restore..."
+
+          if ${pkgs.pgbackrest}/bin/pgbackrest \
+            --stanza=${cfg.source.stanza} \
+            --repo=${toString cfg.source.fallbackRepository} \
+            ${optionalString (cfg.source.backupSet != "latest") "--set=${cfg.source.backupSet}"} \
+            --type=immediate \
+            --target-action=${cfg.targetAction} \
+            --delta \
+            --log-level-console=info \
+            restore 2>&1; then
+            restore_success=true
+            restore_repo="${toString cfg.source.fallbackRepository}"
+            log_json "INFO" "restore_fallback_success" "Fallback repository restore succeeded" "{\"repository\":${toString cfg.source.fallbackRepository}}"
+          else
+            log_json "ERROR" "restore_all_failed" "Both primary and fallback repository restores failed" "{\"primary_repo\":${toString cfg.source.repository},\"fallback_repo\":${toString cfg.source.fallbackRepository}}"
+            exit 1
+          fi
+    ''}${optionalString (cfg.source.fallbackRepository == null) ''
+          log_json "ERROR" "restore_failed_no_fallback" "Primary repository restore failed and no fallback configured" "{\"repository\":${toString cfg.source.repository}}"
+          exit 1
+    ''}
+        fi
+
+        end_time=$(date +%s)
+        duration=$((end_time - start_time))
+        log_json "INFO" "restore_complete" "pgBackRest restore completed successfully from repository ''${restore_repo}." "{\"duration_seconds\":''${duration},\"repository\":\"''${restore_repo}\"}"
+
+        # Run post-restore hook if configured
+        ${optionalString (cfg.postRestoreScript != null) ''
+          log_json "INFO" "post_restore_script_start" "Running post-restore sanitization script."
+          script_start_time=$(date +%s)
+          ${cfg.postRestoreScript}
+          script_end_time=$(date +%s)
+          script_duration=$((script_end_time - script_start_time))
+          log_json "INFO" "post_restore_script_complete" "Post-restore sanitization completed." "{\"duration_seconds\":''${script_duration}}"
+        ''}
+
+        # Create completion marker to prevent re-runs
         cat > "${markerFile}" <<EOF
-postgresql_version=${toString pgCfg.package.version}
-restored_at=$(date -Iseconds)
-restored_from=existing_pgdata
-EOF
-        log_json "INFO" "marker_created" "Completion marker created at ${markerFile}"
-        exit 0
-      else
-        log_json "ERROR" "preseed_failed" "PGDATA directory is not empty but appears incomplete or corrupted." '{"reason":"incomplete_pgdata"}'
-        log_json "ERROR" "preseed_failed" "Missing one or more essential components: postgresql.conf, PG_VERSION, global/, or pg_wal/"
-        log_json "ERROR" "preseed_failed" "To force a re-seed, stop postgresql, clear PGDATA, remove ${markerFile}, and reboot."
-        exit 1
-      fi
-    fi
+    postgresql_version=${toString pgCfg.package.version}
+    restored_at=$(date -Iseconds)
+    restored_from=${cfg.source.stanza}@repo''${restore_repo}
+    restore_type=$([ "''${restore_repo}" = "${toString cfg.source.repository}" ] && echo "primary" || echo "fallback")
+    duration_seconds=''${duration}
+    EOF
+        log_json "INFO" "marker_created" "Completion marker created at ${markerFile}" "{\"restored_from_repo\":\"''${restore_repo}\"}"
 
-    # Wait up to 30 seconds for the PGDATA directory to be owned by the 'postgres' user.
-    # This mitigates a common race condition on boot where a ZFS dataset is mounted
-    # as root:root before a separate systemd service or tmpfiles rule has a chance
-    # to chown it to postgres:postgres.
-    log_json "INFO" "ownership_wait" "Waiting for PGDATA directory to be owned by postgres user..." "{\"path\":\"${pgDataPath}\"}"
-    WAIT_TIMEOUT=30
-    while [ "$(stat -c '%U' "${pgDataPath}")" != "postgres" ]; do
-      if [ $WAIT_TIMEOUT -le 0 ]; then
-        CURRENT_OWNER="$(stat -c '%U' "${pgDataPath}")"
-        log_json "ERROR" "ownership_timeout" "Timed out waiting for correct ownership on PGDATA." \
-          "{\"path\":\"${pgDataPath}\", \"expected_owner\":\"postgres\", \"current_owner\":\"''${CURRENT_OWNER}\"}"
-        exit 1
-      fi
-      WAIT_TIMEOUT=$((WAIT_TIMEOUT - 1))
-      sleep 1
-    done
-    log_json "INFO" "ownership_ok" "PGDATA directory ownership is correct."
+        # Remove in-progress marker on successful completion
+        rm -f "$PROGRESS_MARKER"
+        log_json "INFO" "preseed_progress_cleanup" "Removed in-progress marker"
 
-    ${optionalString (cfg.source.fallbackRepository == 2 && cfg.environmentFile != null) ''
-      # Transform AWS credentials to pgBackRest format for repo2 fallback
-      if [ -n "''${AWS_ACCESS_KEY_ID:-}" ] && [ -n "''${AWS_SECRET_ACCESS_KEY:-}" ]; then
-        export PGBACKREST_REPO2_S3_KEY="$AWS_ACCESS_KEY_ID"
-        export PGBACKREST_REPO2_S3_KEY_SECRET="$AWS_SECRET_ACCESS_KEY"
-        log_json "INFO" "repo2_credentials_configured" "R2/S3 credentials configured for fallback repository."
-      fi
-    ''}
+        # Write success metrics with repository label (resilient to write failure)
+        write_metrics "success" "''${duration}" "''${restore_repo}" || true
 
-    # Execute the restore with fallback support
-    log_json "INFO" "restore_start" "Running pgBackRest restore from primary repository ${toString cfg.source.repository}..."
-    start_time=$(date +%s)
-
-    restore_success=false
-    restore_repo=""
-
-    # Attempt primary repository restore
-    if ${pkgs.pgbackrest}/bin/pgbackrest \
-      --stanza=${cfg.source.stanza} \
-      --repo=${toString cfg.source.repository} \
-      ${optionalString (cfg.source.backupSet != "latest") "--set=${cfg.source.backupSet}"} \
-      --type=immediate \
-      --target-action=${cfg.targetAction} \
-      --delta \
-      --log-level-console=info \
-      restore 2>&1; then
-      restore_success=true
-      restore_repo="${toString cfg.source.repository}"
-      log_json "INFO" "restore_primary_success" "Primary repository restore succeeded." "{\"repository\":${toString cfg.source.repository}}"
-    else
-      log_json "WARN" "restore_primary_failed" "Primary repository restore failed" "{\"primary_repo\":${toString cfg.source.repository}}"
-${optionalString (cfg.source.fallbackRepository != null) ''
-      log_json "INFO" "restore_fallback_attempt" "Attempting fallback to repository ${toString cfg.source.fallbackRepository}" "{\"fallback_repo\":${toString cfg.source.fallbackRepository}}"
-
-      # Pre-flight check: Validate fallback repository is accessible before attempting restore
-      log_json "INFO" "restore_fallback_preflight" "Validating fallback repository accessibility..."
-      if ! ${pkgs.pgbackrest}/bin/pgbackrest \
-        --stanza=${cfg.source.stanza} \
-        --repo=${toString cfg.source.fallbackRepository} \
-        info >/dev/null 2>&1; then
-        log_json "ERROR" "restore_fallback_unreachable" "Fallback repository is unreachable or misconfigured. Check credentials and connectivity." "{\"fallback_repo\":${toString cfg.source.fallbackRepository}}"
-        exit 1
-      fi
-      log_json "INFO" "restore_fallback_preflight_ok" "Fallback repository is accessible, proceeding with restore..."
-
-      if ${pkgs.pgbackrest}/bin/pgbackrest \
-        --stanza=${cfg.source.stanza} \
-        --repo=${toString cfg.source.fallbackRepository} \
-        ${optionalString (cfg.source.backupSet != "latest") "--set=${cfg.source.backupSet}"} \
-        --type=immediate \
-        --target-action=${cfg.targetAction} \
-        --delta \
-        --log-level-console=info \
-        restore 2>&1; then
-        restore_success=true
-        restore_repo="${toString cfg.source.fallbackRepository}"
-        log_json "INFO" "restore_fallback_success" "Fallback repository restore succeeded" "{\"repository\":${toString cfg.source.fallbackRepository}}"
-      else
-        log_json "ERROR" "restore_all_failed" "Both primary and fallback repository restores failed" "{\"primary_repo\":${toString cfg.source.repository},\"fallback_repo\":${toString cfg.source.fallbackRepository}}"
-        exit 1
-      fi
-''}${optionalString (cfg.source.fallbackRepository == null) ''
-      log_json "ERROR" "restore_failed_no_fallback" "Primary repository restore failed and no fallback configured" "{\"repository\":${toString cfg.source.repository}}"
-      exit 1
-''}
-    fi
-
-    end_time=$(date +%s)
-    duration=$((end_time - start_time))
-    log_json "INFO" "restore_complete" "pgBackRest restore completed successfully from repository ''${restore_repo}." "{\"duration_seconds\":''${duration},\"repository\":\"''${restore_repo}\"}"
-
-    # Run post-restore hook if configured
-    ${optionalString (cfg.postRestoreScript != null) ''
-      log_json "INFO" "post_restore_script_start" "Running post-restore sanitization script."
-      script_start_time=$(date +%s)
-      ${cfg.postRestoreScript}
-      script_end_time=$(date +%s)
-      script_duration=$((script_end_time - script_start_time))
-      log_json "INFO" "post_restore_script_complete" "Post-restore sanitization completed." "{\"duration_seconds\":''${script_duration}}"
-    ''}
-
-    # Create completion marker to prevent re-runs
-    cat > "${markerFile}" <<EOF
-postgresql_version=${toString pgCfg.package.version}
-restored_at=$(date -Iseconds)
-restored_from=${cfg.source.stanza}@repo''${restore_repo}
-restore_type=$([ "''${restore_repo}" = "${toString cfg.source.repository}" ] && echo "primary" || echo "fallback")
-duration_seconds=''${duration}
-EOF
-    log_json "INFO" "marker_created" "Completion marker created at ${markerFile}" "{\"restored_from_repo\":\"''${restore_repo}\"}"
-
-    # Remove in-progress marker on successful completion
-    rm -f "$PROGRESS_MARKER"
-    log_json "INFO" "preseed_progress_cleanup" "Removed in-progress marker"
-
-    # Write success metrics with repository label (resilient to write failure)
-    write_metrics "success" "''${duration}" "''${restore_repo}" || true
-
-    log_json "INFO" "preseed_complete" "Pre-seed restore process finished successfully."
+        log_json "INFO" "preseed_complete" "Pre-seed restore process finished successfully."
   '';
 
-in {
+in
+{
   options.services.postgresql.preSeed = {
     enable = mkEnableOption "automatic restore of PostgreSQL from backup on empty PGDATA";
 

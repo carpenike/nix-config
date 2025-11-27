@@ -63,7 +63,7 @@ let
 
         knownHosts = mkOption {
           type = types.listOf types.str;
-          default = [];
+          default = [ ];
           description = "Explicit host:port entries for private mesh links.";
           example = [ "100.64.1.20:4444" "nas-1.holthome.net:4444" ];
         };
@@ -112,23 +112,27 @@ let
 
   foldersWithNames = lib.mapAttrsToList (name: folder: folder // { __name = name; }) cfg.folders;
 
-  sharedFolders = map (folder: {
-    directory = folder.path;
-    secretFile = folder.secretFile;
-    useRelayServer = folder.useRelayServer;
-    useTracker = folder.useTracker;
-    useDHT = folder.useDHT;
-    searchLAN = folder.searchLAN;
-    useSyncTrash = folder.useSyncTrash;
-    knownHosts = folder.knownHosts;
-  }) foldersWithNames;
+  sharedFolders = map
+    (folder: {
+      directory = folder.path;
+      secretFile = folder.secretFile;
+      useRelayServer = folder.useRelayServer;
+      useTracker = folder.useTracker;
+      useDHT = folder.useDHT;
+      searchLAN = folder.searchLAN;
+      useSyncTrash = folder.useSyncTrash;
+      knownHosts = folder.knownHosts;
+    })
+    foldersWithNames;
 
   managedFolderGroups = lib.unique (builtins.filter (group: group != null && group != "")
     (map (folder: folder.group) foldersWithNames));
 
-  tmpfilesRules = lib.concatMap (folder: optional folder.ensurePermissions
-    ''d ${folder.path} ${folder.mode} ${folder.owner} ${folder.group} - -''
-  ) foldersWithNames;
+  tmpfilesRules = lib.concatMap
+    (folder: optional folder.ensurePermissions
+      ''d ${folder.path} ${folder.mode} ${folder.owner} ${folder.group} - -''
+    )
+    foldersWithNames;
 
   hasGroupWrite = folder:
     let
@@ -139,28 +143,30 @@ let
     in
     lib.elem digit [ "2" "3" "6" "7" ];
 
-  folderAssertions = lib.concatMap (folder: [
-    {
-      assertion = lib.hasPrefix "/" folder.path;
-      message = "Resilio folder '${folder.__name}' must use an absolute path.";
-    }
-    {
-      assertion = lib.hasPrefix "/" folder.secretFile;
-      message = "Resilio folder '${folder.__name}' secretFile must be an absolute path.";
-    }
-    {
-      assertion = !(folder.ensurePermissions && folder.owner == null);
-      message = "Resilio folder '${folder.__name}' enabled ensurePermissions but did not set owner.";
-    }
-    {
-      assertion = !(folder.ensurePermissions && folder.group == null);
-      message = "Resilio folder '${folder.__name}' enabled ensurePermissions but did not set group.";
-    }
-    {
-      assertion = !(folder.readOnly && folder.ensurePermissions && hasGroupWrite folder);
-      message = "Resilio folder '${folder.__name}' marked readOnly but tmpfiles mode still grants group write access.";
-    }
-  ]) foldersWithNames;
+  folderAssertions = lib.concatMap
+    (folder: [
+      {
+        assertion = lib.hasPrefix "/" folder.path;
+        message = "Resilio folder '${folder.__name}' must use an absolute path.";
+      }
+      {
+        assertion = lib.hasPrefix "/" folder.secretFile;
+        message = "Resilio folder '${folder.__name}' secretFile must be an absolute path.";
+      }
+      {
+        assertion = !(folder.ensurePermissions && folder.owner == null);
+        message = "Resilio folder '${folder.__name}' enabled ensurePermissions but did not set owner.";
+      }
+      {
+        assertion = !(folder.ensurePermissions && folder.group == null);
+        message = "Resilio folder '${folder.__name}' enabled ensurePermissions but did not set group.";
+      }
+      {
+        assertion = !(folder.readOnly && folder.ensurePermissions && hasGroupWrite folder);
+        message = "Resilio folder '${folder.__name}' marked readOnly but tmpfiles mode still grants group write access.";
+      }
+    ])
+    foldersWithNames;
 
 in
 {
@@ -266,13 +272,13 @@ in
 
     folders = mkOption {
       type = types.attrsOf (folderSubmodule "folder");
-      default = {};
+      default = { };
       description = "Declarative shared folder definitions keyed by service name.";
     };
 
     extraGroups = mkOption {
       type = types.listOf types.str;
-      default = [];
+      default = [ ];
       description = "Additional POSIX groups the rslsync user should join.";
     };
 
@@ -293,7 +299,7 @@ in
     {
       assertions = [
         {
-          assertion = cfg.folders != {} || cfg.webUI.enable;
+          assertion = cfg.folders != { } || cfg.webUI.enable;
           message = "modules.services.resilioSync requires at least one folder or Web UI enabled.";
         }
       ] ++ folderAssertions;

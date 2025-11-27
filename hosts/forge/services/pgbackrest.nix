@@ -57,47 +57,47 @@ in
   # Weekly pgBackRest check jobs and async spool metrics provide early warnings
   # when repositories degrade or the archive queue begins to grow.
   environment.etc."pgbackrest.conf.template".text = ''
-    [global]
-    # Repo1 (NFS) - Primary for WAL archiving and local backups
-    repo1-path=/mnt/nas-postgresql/pgbackrest
-    repo1-retention-full=7
-  repo1-retention-archive=7
+      [global]
+      # Repo1 (NFS) - Primary for WAL archiving and local backups
+      repo1-path=/mnt/nas-postgresql/pgbackrest
+      repo1-retention-full=7
+    repo1-retention-archive=7
 
-    # Repo2 (Cloudflare R2) - Offsite DR with PITR capability
-    # Now includes WAL archiving for complete offsite PITR
-    repo2-type=s3
-    repo2-path=/forge-pgbackrest
-    repo2-s3-bucket=${config.my.r2.bucket}
-    repo2-s3-endpoint=${config.my.r2.endpoint}
-    repo2-s3-region=auto
-    repo2-s3-uri-style=path
-    repo2-retention-full=30
-  repo2-retention-archive=30
-    # Credentials will be substituted by pgbackrest-config-generator service
-    repo2-s3-key=__R2_ACCESS_KEY_ID__
-    repo2-s3-key-secret=__R2_SECRET_ACCESS_KEY__
+      # Repo2 (Cloudflare R2) - Offsite DR with PITR capability
+      # Now includes WAL archiving for complete offsite PITR
+      repo2-type=s3
+      repo2-path=/forge-pgbackrest
+      repo2-s3-bucket=${config.my.r2.bucket}
+      repo2-s3-endpoint=${config.my.r2.endpoint}
+      repo2-s3-region=auto
+      repo2-s3-uri-style=path
+      repo2-retention-full=30
+    repo2-retention-archive=30
+      # Credentials will be substituted by pgbackrest-config-generator service
+      repo2-s3-key=__R2_ACCESS_KEY_ID__
+      repo2-s3-key-secret=__R2_SECRET_ACCESS_KEY__
 
-    # Global archive settings (apply to all repositories with archiving enabled)
-    # Archive async with local spool to decouple DB availability from repos
-    # If repos are down, archive_command succeeds by writing to local spool
-    # Background process flushes to repos when they are available
-    archive-async=y
-    spool-path=/var/lib/pgbackrest/spool
-    archive-push-queue-max=1073741824
+      # Global archive settings (apply to all repositories with archiving enabled)
+      # Archive async with local spool to decouple DB availability from repos
+      # If repos are down, archive_command succeeds by writing to local spool
+      # Background process flushes to repos when they are available
+      archive-async=y
+      spool-path=/var/lib/pgbackrest/spool
+      archive-push-queue-max=1073741824
 
-    # Other global settings
-    process-max=2
-    log-level-console=info
-    log-level-file=detail
-    start-fast=y
-    delta=y
-    compress-type=lz4
-    compress-level=3
+      # Other global settings
+      process-max=2
+      log-level-console=info
+      log-level-file=detail
+      start-fast=y
+      delta=y
+      compress-type=lz4
+      compress-level=3
 
-    [main]
-    pg1-path=/var/lib/postgresql/16
-    pg1-port=5432
-    pg1-user=postgres
+      [main]
+      pg1-path=/var/lib/postgresql/16
+      pg1-port=5432
+      pg1-user=postgres
   '';
 
   # Service to generate pgbackrest.conf with actual credentials from SOPS
@@ -156,7 +156,7 @@ in
   # Note: repo2 configuration defined in top-level let block as repo2Flags and repo2EnvVars
   systemd.services = {
     # Stanza creation (runs once at setup)
-  pgbackrest-stanza-create = {
+    pgbackrest-stanza-create = {
       description = "pgBackRest stanza initialization";
       after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       wants = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
@@ -256,7 +256,7 @@ in
       after = [ "postgresql.service" "pgbackrest-stanza-create.service" "network-online.target" "postgresql-preseed.service" ];
       wants = [ "postgresql.service" "network-online.target" ];
       requires = [ "postgresql.service" ];
-      bindsTo = [ "postgresql.service" ];  # Stop if PostgreSQL goes down mid-run
+      bindsTo = [ "postgresql.service" ]; # Stop if PostgreSQL goes down mid-run
       # Triggered by OnSuccess from postgresql-preseed instead of boot-time activation
       # This eliminates condition evaluation race and "skipped at boot" noise
       path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.jq pkgs.systemd ];
@@ -289,239 +289,239 @@ in
       };
 
       script = ''
-        #!/usr/bin/env bash
-        set -euo pipefail
+                #!/usr/bin/env bash
+                set -euo pipefail
 
-        # --- Structured Logging & Error Handling ---
-        LOG_SERVICE_NAME="pgbackrest-post-preseed"
-        METRICS_FILE="/var/lib/node_exporter/textfile_collector/postgresql_postpreseed.prom"
+                # --- Structured Logging & Error Handling ---
+                LOG_SERVICE_NAME="pgbackrest-post-preseed"
+                METRICS_FILE="/var/lib/node_exporter/textfile_collector/postgresql_postpreseed.prom"
 
-        log_json() {
-          local level="$1"
-          local event="$2"
-          local message="$3"
-          local details_json="''${4:-{}}"
-          printf '{"timestamp":"%s","service":"%s","level":"%s","event":"%s","message":"%s","details":%s}\n' \
-            "$(date -u --iso-8601=seconds)" \
-            "''${LOG_SERVICE_NAME}" \
-            "$level" \
-            "$event" \
-            "$message" \
-            "$details_json"
-        }
+                log_json() {
+                  local level="$1"
+                  local event="$2"
+                  local message="$3"
+                  local details_json="''${4:-{}}"
+                  printf '{"timestamp":"%s","service":"%s","level":"%s","event":"%s","message":"%s","details":%s}\n' \
+                    "$(date -u --iso-8601=seconds)" \
+                    "''${LOG_SERVICE_NAME}" \
+                    "$level" \
+                    "$event" \
+                    "$message" \
+                    "$details_json"
+                }
 
-        write_metrics() {
-          local status="$1"
-          local duration="$2"
-          local status_code=$([ "$status" = "success" ] && echo 1 || echo 0)
-          cat > "''${METRICS_FILE}.tmp" <<EOF
-# HELP postgresql_postpreseed_status Indicates the status of the last post-preseed backup (1 for success, 0 for failure).
-# TYPE postgresql_postpreseed_status gauge
-postgresql_postpreseed_status{stanza="main"} ''${status_code}
-# HELP postgresql_postpreseed_last_duration_seconds Duration of the last post-preseed backup in seconds.
-# TYPE postgresql_postpreseed_last_duration_seconds gauge
-postgresql_postpreseed_last_duration_seconds{stanza="main"} ''${duration}
-# HELP postgresql_postpreseed_last_completion_timestamp_seconds Timestamp of the last post-preseed backup completion.
-# TYPE postgresql_postpreseed_last_completion_timestamp_seconds gauge
-postgresql_postpreseed_last_completion_timestamp_seconds{stanza="main"} $(date +%s)
-EOF
-          mv "''${METRICS_FILE}.tmp" "$METRICS_FILE"
-        }
+                write_metrics() {
+                  local status="$1"
+                  local duration="$2"
+                  local status_code=$([ "$status" = "success" ] && echo 1 || echo 0)
+                  cat > "''${METRICS_FILE}.tmp" <<EOF
+        # HELP postgresql_postpreseed_status Indicates the status of the last post-preseed backup (1 for success, 0 for failure).
+        # TYPE postgresql_postpreseed_status gauge
+        postgresql_postpreseed_status{stanza="main"} ''${status_code}
+        # HELP postgresql_postpreseed_last_duration_seconds Duration of the last post-preseed backup in seconds.
+        # TYPE postgresql_postpreseed_last_duration_seconds gauge
+        postgresql_postpreseed_last_duration_seconds{stanza="main"} ''${duration}
+        # HELP postgresql_postpreseed_last_completion_timestamp_seconds Timestamp of the last post-preseed backup completion.
+        # TYPE postgresql_postpreseed_last_completion_timestamp_seconds gauge
+        postgresql_postpreseed_last_completion_timestamp_seconds{stanza="main"} $(date +%s)
+        EOF
+                  mv "''${METRICS_FILE}.tmp" "$METRICS_FILE"
+                }
 
-        trap_error() {
-          local exit_code=$?
-          local line_no=$1
-          local command="$2"
-          log_json "ERROR" "script_error" "Script failed with exit code $exit_code at line $line_no: $command" \
-            "{\"exit_code\": ''${exit_code}, \"line_number\": ''${line_no}, \"command\": \"$command\"}"
-          write_metrics "failure" 0
-          exit $exit_code
-        }
-        trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
-        # --- End Helpers ---
+                trap_error() {
+                  local exit_code=$?
+                  local line_no=$1
+                  local command="$2"
+                  log_json "ERROR" "script_error" "Script failed with exit code $exit_code at line $line_no: $command" \
+                    "{\"exit_code\": ''${exit_code}, \"line_number\": ''${line_no}, \"command\": \"$command\"}"
+                  write_metrics "failure" 0
+                  exit $exit_code
+                }
+                trap 'trap_error $LINENO "$BASH_COMMAND"' ERR
+                # --- End Helpers ---
 
-        log_json "INFO" "postpreseed_start" "Post-preseed backup process starting."
+                log_json "INFO" "postpreseed_start" "Post-preseed backup process starting."
 
-        # Verify that pre-seed actually restored data
-        if [ ! -f /var/lib/postgresql/.preseed-completed ]; then
-          log_json "ERROR" "preseed_marker_missing" "Pre-seed completion marker not found. This service should not have been triggered."
-          exit 1
-        fi
+                # Verify that pre-seed actually restored data
+                if [ ! -f /var/lib/postgresql/.preseed-completed ]; then
+                  log_json "ERROR" "preseed_marker_missing" "Pre-seed completion marker not found. This service should not have been triggered."
+                  exit 1
+                fi
 
-        restored_from=$(grep "restored_from=" /var/lib/postgresql/.preseed-completed | cut -d= -f2)
-        if [ "$restored_from" = "existing_pgdata" ]; then
-          log_json "INFO" "postpreseed_skipped" "Pre-seed marker indicates existing PGDATA was found. Skipping post-preseed backup." \
-            '{"reason":"no_restoration_occurred"}'
-          exit 0
-        fi
-        log_json "INFO" "preseed_marker_found" "Pre-seed marker indicates restoration from: $restored_from"
+                restored_from=$(grep "restored_from=" /var/lib/postgresql/.preseed-completed | cut -d= -f2)
+                if [ "$restored_from" = "existing_pgdata" ]; then
+                  log_json "INFO" "postpreseed_skipped" "Pre-seed marker indicates existing PGDATA was found. Skipping post-preseed backup." \
+                    '{"reason":"no_restoration_occurred"}'
+                  exit 0
+                fi
+                log_json "INFO" "preseed_marker_found" "Pre-seed marker indicates restoration from: $restored_from"
 
-        # Wait for PostgreSQL to complete recovery and be ready for backup
-        log_json "INFO" "wait_for_postgres" "Waiting for PostgreSQL to become ready..."
-        if ! timeout 300 bash -c 'until pg_isready -q; do sleep 2; done'; then
-          log_json "ERROR" "postgres_timeout" "PostgreSQL did not become ready within 300 seconds."
-          exit 1
-        fi
-        log_json "INFO" "postgres_ready" "PostgreSQL is ready."
+                # Wait for PostgreSQL to complete recovery and be ready for backup
+                log_json "INFO" "wait_for_postgres" "Waiting for PostgreSQL to become ready..."
+                if ! timeout 300 bash -c 'until pg_isready -q; do sleep 2; done'; then
+                  log_json "ERROR" "postgres_timeout" "PostgreSQL did not become ready within 300 seconds."
+                  exit 1
+                fi
+                log_json "INFO" "postgres_ready" "PostgreSQL is ready."
 
-        # Wait for recovery completion (critical for post-restore backups)
-        log_json "INFO" "wait_for_promotion" "Waiting for PostgreSQL recovery to complete..."
-        TIMEOUT_SECONDS=1800  # 30 minutes - tune for worst-case WAL backlog
-        INTERVAL_SECONDS=2
-        deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
+                # Wait for recovery completion (critical for post-restore backups)
+                log_json "INFO" "wait_for_promotion" "Waiting for PostgreSQL recovery to complete..."
+                TIMEOUT_SECONDS=1800  # 30 minutes - tune for worst-case WAL backlog
+                INTERVAL_SECONDS=2
+                deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
 
-        while true; do
-          # Check if this is a standby that will never promote
-          if [ -f "/var/lib/postgresql/16/standby.signal" ]; then
-            log_json "ERROR" "promotion_failed" "standby.signal present - node will not promote" "{\"reason\":\"standby_configuration\"}"
-            exit 2
-          fi
+                while true; do
+                  # Check if this is a standby that will never promote
+                  if [ -f "/var/lib/postgresql/16/standby.signal" ]; then
+                    log_json "ERROR" "promotion_failed" "standby.signal present - node will not promote" "{\"reason\":\"standby_configuration\"}"
+                    exit 2
+                  fi
 
-          # Separate connection check from recovery status check for clearer diagnostics
-          if ! psql -Atqc "SELECT 1;" >/dev/null 2>&1; then
-            log_json "ERROR" "connection_failed" "Cannot connect to PostgreSQL - service may not be running" "{\"reason\":\"connection_failed\"}"
-            exit 3
-          fi
+                  # Separate connection check from recovery status check for clearer diagnostics
+                  if ! psql -Atqc "SELECT 1;" >/dev/null 2>&1; then
+                    log_json "ERROR" "connection_failed" "Cannot connect to PostgreSQL - service may not be running" "{\"reason\":\"connection_failed\"}"
+                    exit 3
+                  fi
 
-          # Check if PostgreSQL is still in recovery mode
-          in_recovery=$(psql -Atqc "SELECT pg_is_in_recovery();" 2>/dev/null)
-          if [ $? -ne 0 ]; then
-            log_json "ERROR" "query_failed" "Failed to query recovery status" "{\"reason\":\"query_failed\"}"
-            exit 3
-          fi
+                  # Check if PostgreSQL is still in recovery mode
+                  in_recovery=$(psql -Atqc "SELECT pg_is_in_recovery();" 2>/dev/null)
+                  if [ $? -ne 0 ]; then
+                    log_json "ERROR" "query_failed" "Failed to query recovery status" "{\"reason\":\"query_failed\"}"
+                    exit 3
+                  fi
 
-          if [ "$in_recovery" = "f" ]; then
-            # Verify the database is writable (not read-only)
-            read_only=$(psql -Atqc "SHOW default_transaction_read_only;" 2>/dev/null)
-            if [ $? -ne 0 ]; then
-              log_json "ERROR" "query_failed" "Failed to query transaction mode" "{\"reason\":\"query_failed\"}"
-              exit 3
-            fi
+                  if [ "$in_recovery" = "f" ]; then
+                    # Verify the database is writable (not read-only)
+                    read_only=$(psql -Atqc "SHOW default_transaction_read_only;" 2>/dev/null)
+                    if [ $? -ne 0 ]; then
+                      log_json "ERROR" "query_failed" "Failed to query transaction mode" "{\"reason\":\"query_failed\"}"
+                      exit 3
+                    fi
 
-            if [ "$read_only" = "off" ]; then
-              log_json "INFO" "promotion_complete" "PostgreSQL recovery completed successfully" "{\"in_recovery\":false,\"read_only\":false}"
-              break
-            else
-              log_json "WARN" "promotion_partial" "Recovery complete but database is read-only" "{\"in_recovery\":false,\"read_only\":true}"
-            fi
-          else
-            log_json "INFO" "promotion_waiting" "PostgreSQL still in recovery mode" "{\"in_recovery\":true}"
-          fi
+                    if [ "$read_only" = "off" ]; then
+                      log_json "INFO" "promotion_complete" "PostgreSQL recovery completed successfully" "{\"in_recovery\":false,\"read_only\":false}"
+                      break
+                    else
+                      log_json "WARN" "promotion_partial" "Recovery complete but database is read-only" "{\"in_recovery\":false,\"read_only\":true}"
+                    fi
+                  else
+                    log_json "INFO" "promotion_waiting" "PostgreSQL still in recovery mode" "{\"in_recovery\":true}"
+                  fi
 
-          # Check timeout
-          if [ "$(date +%s)" -ge "$deadline" ]; then
-            # Get last WAL replay position and timeline for diagnostics
-            last_lsn=$(psql -Atqc "SELECT pg_last_wal_replay_lsn();" 2>/dev/null || echo "unknown")
-            timeline_id=$(psql -Atqc "SELECT timeline_id FROM pg_control_checkpoint();" 2>/dev/null || echo "unknown")
-            log_json "ERROR" "promotion_timeout" "Timed out waiting for PostgreSQL recovery completion" "{\"timeout_seconds\":$TIMEOUT_SECONDS,\"last_wal_replay_lsn\":\"''${last_lsn}\",\"timeline_id\":\"''${timeline_id}\",\"hint\":\"check for missing WAL files or recovery configuration issues\"}"
-            exit 1
-          fi
+                  # Check timeout
+                  if [ "$(date +%s)" -ge "$deadline" ]; then
+                    # Get last WAL replay position and timeline for diagnostics
+                    last_lsn=$(psql -Atqc "SELECT pg_last_wal_replay_lsn();" 2>/dev/null || echo "unknown")
+                    timeline_id=$(psql -Atqc "SELECT timeline_id FROM pg_control_checkpoint();" 2>/dev/null || echo "unknown")
+                    log_json "ERROR" "promotion_timeout" "Timed out waiting for PostgreSQL recovery completion" "{\"timeout_seconds\":$TIMEOUT_SECONDS,\"last_wal_replay_lsn\":\"''${last_lsn}\",\"timeline_id\":\"''${timeline_id}\",\"hint\":\"check for missing WAL files or recovery configuration issues\"}"
+                    exit 1
+                  fi
 
-          sleep "$INTERVAL_SECONDS"
-        done
+                  sleep "$INTERVAL_SECONDS"
+                done
 
-        # Determine current system-id
-        cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
-        log_json "INFO" "system_id_check" "Checking for existing backups for current system-id." "{\"system_id\":\"$cur_sysid\"}"
+                # Determine current system-id
+                cur_sysid="$(psql -Atqc "select system_identifier from pg_control_system()")"
+                log_json "INFO" "system_id_check" "Checking for existing backups for current system-id." "{\"system_id\":\"$cur_sysid\"}"
 
-        # Check each repository independently to ensure both have fresh backups
-        # This prevents skipping repo2 if repo1 succeeds but repo2 failed previously
-        INFO_JSON="$(pgbackrest --stanza=main --output=json info 2>/dev/null || echo '[]')"
+                # Check each repository independently to ensure both have fresh backups
+                # This prevents skipping repo2 if repo1 succeeds but repo2 failed previously
+                INFO_JSON="$(pgbackrest --stanza=main --output=json info 2>/dev/null || echo '[]')"
 
-        # Use single jq query to extract both repo counts efficiently
-        COUNTS=$(echo "$INFO_JSON" | jq -r --arg sid "$cur_sysid" '
-          .[] | .backup | map(select(.type == "full" and .database["system-id"] == ($sid|tonumber) and (.error // null) == null)) |
-          {
-            repo1: map(select(.repo == 1)) | length,
-            repo2: map(select(.repo == 2)) | length
-          } | "\(.repo1) \(.repo2)"
-        ' 2>/dev/null || echo "0 0")
+                # Use single jq query to extract both repo counts efficiently
+                COUNTS=$(echo "$INFO_JSON" | jq -r --arg sid "$cur_sysid" '
+                  .[] | .backup | map(select(.type == "full" and .database["system-id"] == ($sid|tonumber) and (.error // null) == null)) |
+                  {
+                    repo1: map(select(.repo == 1)) | length,
+                    repo2: map(select(.repo == 2)) | length
+                  } | "\(.repo1) \(.repo2)"
+                ' 2>/dev/null || echo "0 0")
 
-        read -r has_full_repo1 has_full_repo2 <<< "$COUNTS"
+                read -r has_full_repo1 has_full_repo2 <<< "$COUNTS"
 
-        start_time=$(date +%s)
-        repo1_ok=false
-        repo2_ok=false
+                start_time=$(date +%s)
+                repo1_ok=false
+                repo2_ok=false
 
-        # Backup to repo1 if needed
-        if [ "''${has_full_repo1:-0}" -gt 0 ]; then
-          log_json "INFO" "backup_repo1_skipped" "Found existing full backup for repo1 (NFS)."
-          repo1_ok=true
-        else
-          log_json "INFO" "backup_repo1_start" "No full backup found for repo1; starting backup to NFS..."
-          if pgbackrest --stanza=main --type=full --repo=1 backup; then
-            log_json "INFO" "backup_repo1_complete" "Repo1 backup completed"
-            repo1_ok=true
-          else
-            log_json "ERROR" "backup_repo1_failed" "Repo1 backup failed"
-          fi
-        fi
+                # Backup to repo1 if needed
+                if [ "''${has_full_repo1:-0}" -gt 0 ]; then
+                  log_json "INFO" "backup_repo1_skipped" "Found existing full backup for repo1 (NFS)."
+                  repo1_ok=true
+                else
+                  log_json "INFO" "backup_repo1_start" "No full backup found for repo1; starting backup to NFS..."
+                  if pgbackrest --stanza=main --type=full --repo=1 backup; then
+                    log_json "INFO" "backup_repo1_complete" "Repo1 backup completed"
+                    repo1_ok=true
+                  else
+                    log_json "ERROR" "backup_repo1_failed" "Repo1 backup failed"
+                  fi
+                fi
 
-        # Backup to repo2 if needed
-        if [ "''${has_full_repo2:-0}" -gt 0 ]; then
-          log_json "INFO" "backup_repo2_skipped" "Found existing full backup for repo2 (R2)."
-          repo2_ok=true
-        else
-          log_json "INFO" "backup_repo2_start" "No full backup found for repo2; starting backup to R2..."
-          # Repo2 configuration (including credentials) lives in /etc/pgbackrest.conf
-          if pgbackrest --stanza=main --type=full --repo=2 backup; then
-            log_json "INFO" "backup_repo2_complete" "Repo2 backup completed"
-            repo2_ok=true
-          else
-            log_json "ERROR" "backup_repo2_failed" "Repo2 backup failed"
-          fi
-        fi
+                # Backup to repo2 if needed
+                if [ "''${has_full_repo2:-0}" -gt 0 ]; then
+                  log_json "INFO" "backup_repo2_skipped" "Found existing full backup for repo2 (R2)."
+                  repo2_ok=true
+                else
+                  log_json "INFO" "backup_repo2_start" "No full backup found for repo2; starting backup to R2..."
+                  # Repo2 configuration (including credentials) lives in /etc/pgbackrest.conf
+                  if pgbackrest --stanza=main --type=full --repo=2 backup; then
+                    log_json "INFO" "backup_repo2_complete" "Repo2 backup completed"
+                    repo2_ok=true
+                  else
+                    log_json "ERROR" "backup_repo2_failed" "Repo2 backup failed"
+                  fi
+                fi
 
-        end_time=$(date +%s)
-        duration=$((end_time - start_time))
+                end_time=$(date +%s)
+                duration=$((end_time - start_time))
 
-        # Retry limit to prevent infinite restart loops
-        MAX_RETRIES=5
-        RETRY_FILE="/var/lib/postgresql/.postpreseed-retry-count"
-        RETRY_LOCK="/var/lib/postgresql/.postpreseed-retry.lock"
+                # Retry limit to prevent infinite restart loops
+                MAX_RETRIES=5
+                RETRY_FILE="/var/lib/postgresql/.postpreseed-retry-count"
+                RETRY_LOCK="/var/lib/postgresql/.postpreseed-retry.lock"
 
-        # Use flock for atomic retry counter operations to prevent race conditions
-        (
-          flock 200  # Acquire exclusive lock on file descriptor 200
+                # Use flock for atomic retry counter operations to prevent race conditions
+                (
+                  flock 200  # Acquire exclusive lock on file descriptor 200
 
-          retries=$(cat "$RETRY_FILE" 2>/dev/null || echo 0)
+                  retries=$(cat "$RETRY_FILE" 2>/dev/null || echo 0)
 
-          # Only mark complete if BOTH repositories succeeded
-          if [ "$repo1_ok" = true ] && [ "$repo2_ok" = true ]; then
-            log_json "INFO" "backup_complete" "Post-preseed backup process completed successfully for both repositories." "{\"duration_seconds\":''${duration}}"
-            write_metrics "success" "''${duration}"
+                  # Only mark complete if BOTH repositories succeeded
+                  if [ "$repo1_ok" = true ] && [ "$repo2_ok" = true ]; then
+                    log_json "INFO" "backup_complete" "Post-preseed backup process completed successfully for both repositories." "{\"duration_seconds\":''${duration}}"
+                    write_metrics "success" "''${duration}"
 
-            # Clean up retry counter on success
-            rm -f "$RETRY_FILE"
+                    # Clean up retry counter on success
+                    rm -f "$RETRY_FILE"
 
-            # Mark completion to prevent re-runs ONLY on full success
-            touch /var/lib/postgresql/.postpreseed-backup-done
-            log_json "INFO" "marker_created" "Completion marker created at /var/lib/postgresql/.postpreseed-backup-done"
-            log_json "INFO" "postpreseed_complete" "Post-preseed backup process finished."
-          else
-            # Check if we've exceeded retry limit
-            if [ "$retries" -ge "$MAX_RETRIES" ]; then
-              log_json "CRITICAL" "postpreseed_gave_up" "Exceeded maximum retry attempts ($MAX_RETRIES). Stopping service to prevent infinite loop." "{\"failed_repo1\":$([ "$repo1_ok" = false ] && echo true || echo false),\"failed_repo2\":$([ "$repo2_ok" = false ] && echo true || echo false)}"
-              write_metrics "failure" "''${duration}"
+                    # Mark completion to prevent re-runs ONLY on full success
+                    touch /var/lib/postgresql/.postpreseed-backup-done
+                    log_json "INFO" "marker_created" "Completion marker created at /var/lib/postgresql/.postpreseed-backup-done"
+                    log_json "INFO" "postpreseed_complete" "Post-preseed backup process finished."
+                  else
+                    # Check if we've exceeded retry limit
+                    if [ "$retries" -ge "$MAX_RETRIES" ]; then
+                      log_json "CRITICAL" "postpreseed_gave_up" "Exceeded maximum retry attempts ($MAX_RETRIES). Stopping service to prevent infinite loop." "{\"failed_repo1\":$([ "$repo1_ok" = false ] && echo true || echo false),\"failed_repo2\":$([ "$repo2_ok" = false ] && echo true || echo false)}"
+                      write_metrics "failure" "''${duration}"
 
-              # Create marker indicating permanent failure
-              touch "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
-              echo "repo1_ok=$repo1_ok" > "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
-              echo "repo2_ok=$repo2_ok" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
-              echo "retries=$retries" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
-              echo "timestamp=$(date -Iseconds)" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                      # Create marker indicating permanent failure
+                      touch "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                      echo "repo1_ok=$repo1_ok" > "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                      echo "repo2_ok=$repo2_ok" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                      echo "retries=$retries" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
+                      echo "timestamp=$(date -Iseconds)" >> "/var/lib/postgresql/.postpreseed-backup-GAVE-UP"
 
-              rm -f "$RETRY_FILE"
-              exit 0  # Exit successfully to stop the restart loop
-            else
-              # Increment retry counter atomically
-              echo $((retries + 1)) > "$RETRY_FILE"
-              log_json "ERROR" "postpreseed_failed" "Post-preseed backup failed for one or more repositories. Retry attempt $((retries + 1))/$MAX_RETRIES." "{\"failed_repo1\":$([ "$repo1_ok" = false ] && echo true || echo false),\"failed_repo2\":$([ "$repo2_ok" = false ] && echo true || echo false)}"
-              write_metrics "failure" "''${duration}"
-              exit 1  # Exit with failure to trigger systemd restart logic
-            fi
-          fi
-        ) 200>"$RETRY_LOCK"  # Redirect file descriptor 200 to lock file
+                      rm -f "$RETRY_FILE"
+                      exit 0  # Exit successfully to stop the restart loop
+                    else
+                      # Increment retry counter atomically
+                      echo $((retries + 1)) > "$RETRY_FILE"
+                      log_json "ERROR" "postpreseed_failed" "Post-preseed backup failed for one or more repositories. Retry attempt $((retries + 1))/$MAX_RETRIES." "{\"failed_repo1\":$([ "$repo1_ok" = false ] && echo true || echo false),\"failed_repo2\":$([ "$repo2_ok" = false ] && echo true || echo false)}"
+                      write_metrics "failure" "''${duration}"
+                      exit 1  # Exit with failure to trigger systemd restart logic
+                    fi
+                  fi
+                ) 200>"$RETRY_LOCK"  # Redirect file descriptor 200 to lock file
       '';
     };
 
@@ -625,7 +625,7 @@ EOF
       description = "pgBackRest full backup timer";
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnCalendar = "02:00";  # Daily at 2 AM
+        OnCalendar = "02:00"; # Daily at 2 AM
         Persistent = true;
         RandomizedDelaySec = "15m";
       };
@@ -635,7 +635,7 @@ EOF
       description = "pgBackRest incremental backup timer";
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnCalendar = "hourly";  # Every hour
+        OnCalendar = "hourly"; # Every hour
         Persistent = true;
         RandomizedDelaySec = "5m";
       };
@@ -668,7 +668,7 @@ EOF
 
   systemd.services.pgbackrest-metrics = {
     description = "Collect pgBackRest backup metrics for Prometheus";
-  path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest pkgs.findutils pkgs.gawk ];
+    path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest pkgs.findutils pkgs.gawk ];
     serviceConfig = hardenedServiceConfig // {
       Type = "oneshot";
       User = "postgres";
@@ -685,117 +685,117 @@ EOF
       METRICS_REPO2_LOCATION = "offsite";
     };
     script = ''
-      set -euo pipefail
+            set -euo pipefail
 
-      METRICS_FILE="/var/lib/node_exporter/textfile_collector/pgbackrest.prom"
-      METRICS_TEMP="''${METRICS_FILE}.tmp"
+            METRICS_FILE="/var/lib/node_exporter/textfile_collector/pgbackrest.prom"
+            METRICS_TEMP="''${METRICS_FILE}.tmp"
 
-      # Run pgbackrest info, capturing JSON. Timeout prevents hangs on network issues.
-      # All configuration (including repo2 S3 credentials) is read from /etc/pgbackrest.conf
-      # which is generated by pgbackrest-config-generator.service
-      INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json info 2>&1)
+            # Run pgbackrest info, capturing JSON. Timeout prevents hangs on network issues.
+            # All configuration (including repo2 S3 credentials) is read from /etc/pgbackrest.conf
+            # which is generated by pgbackrest-config-generator.service
+            INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json info 2>&1)
 
-      # Exit gracefully if command fails or returns empty/invalid JSON
-      if ! echo "$INFO_JSON" | jq -e '.[0].name == "main"' > /dev/null; then
-        echo "Failed to get valid pgBackRest info. Writing failure metric." >&2
-        echo "Raw output from pgbackrest:" >&2
-        echo "$INFO_JSON" >&2
-        cat > "$METRICS_TEMP" <<EOF
-# HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
-# TYPE pgbackrest_scrape_success gauge
-pgbackrest_scrape_success{stanza="main"} 0
-EOF
-        mv "$METRICS_TEMP" "$METRICS_FILE"
-        exit 0 # Exit successfully so systemd timer doesn't mark as failed
-      fi
+            # Exit gracefully if command fails or returns empty/invalid JSON
+            if ! echo "$INFO_JSON" | jq -e '.[0].name == "main"' > /dev/null; then
+              echo "Failed to get valid pgBackRest info. Writing failure metric." >&2
+              echo "Raw output from pgbackrest:" >&2
+              echo "$INFO_JSON" >&2
+              cat > "$METRICS_TEMP" <<EOF
+      # HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
+      # TYPE pgbackrest_scrape_success gauge
+      pgbackrest_scrape_success{stanza="main"} 0
+      EOF
+              mv "$METRICS_TEMP" "$METRICS_FILE"
+              exit 0 # Exit successfully so systemd timer doesn't mark as failed
+            fi
 
-      # Prepare metrics file
-      cat > "$METRICS_TEMP" <<'EOF'
-# HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
-# TYPE pgbackrest_scrape_success gauge
-# HELP pgbackrest_repo_info Static information about pgBackRest repositories.
-# TYPE pgbackrest_repo_info gauge
-# HELP pgbackrest_stanza_status Stanza status code (0: ok, 1: warning, 2: error).
-# TYPE pgbackrest_stanza_status gauge
-# HELP pgbackrest_repo_status Repository status code (0: ok, 1: missing, 2: error).
-# TYPE pgbackrest_repo_status gauge
-# HELP pgbackrest_repo_size_bytes Size of the repository in bytes.
-# TYPE pgbackrest_repo_size_bytes gauge
-# HELP pgbackrest_backup_last_good_completion_seconds Timestamp of the last successful backup.
-# TYPE pgbackrest_backup_last_good_completion_seconds gauge
-# HELP pgbackrest_backup_last_duration_seconds Duration of the last successful backup in seconds.
-# TYPE pgbackrest_backup_last_duration_seconds gauge
-# HELP pgbackrest_backup_last_size_bytes Total size of the database for the last successful backup.
-# TYPE pgbackrest_backup_last_size_bytes gauge
-# HELP pgbackrest_backup_last_delta_bytes Amount of data backed up for the last successful backup.
-# TYPE pgbackrest_backup_last_delta_bytes gauge
-# HELP pgbackrest_wal_max_lsn The last WAL segment archived, converted to decimal for graphing.
-# TYPE pgbackrest_wal_max_lsn gauge
-# HELP pgbackrest_spool_queue_bytes Size of the archive async spool queue pending upload.
-# TYPE pgbackrest_spool_queue_bytes gauge
-# HELP pgbackrest_spool_queue_files Number of WAL files waiting in the archive async spool queue.
-# TYPE pgbackrest_spool_queue_files gauge
-EOF
+            # Prepare metrics file
+            cat > "$METRICS_TEMP" <<'EOF'
+      # HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
+      # TYPE pgbackrest_scrape_success gauge
+      # HELP pgbackrest_repo_info Static information about pgBackRest repositories.
+      # TYPE pgbackrest_repo_info gauge
+      # HELP pgbackrest_stanza_status Stanza status code (0: ok, 1: warning, 2: error).
+      # TYPE pgbackrest_stanza_status gauge
+      # HELP pgbackrest_repo_status Repository status code (0: ok, 1: missing, 2: error).
+      # TYPE pgbackrest_repo_status gauge
+      # HELP pgbackrest_repo_size_bytes Size of the repository in bytes.
+      # TYPE pgbackrest_repo_size_bytes gauge
+      # HELP pgbackrest_backup_last_good_completion_seconds Timestamp of the last successful backup.
+      # TYPE pgbackrest_backup_last_good_completion_seconds gauge
+      # HELP pgbackrest_backup_last_duration_seconds Duration of the last successful backup in seconds.
+      # TYPE pgbackrest_backup_last_duration_seconds gauge
+      # HELP pgbackrest_backup_last_size_bytes Total size of the database for the last successful backup.
+      # TYPE pgbackrest_backup_last_size_bytes gauge
+      # HELP pgbackrest_backup_last_delta_bytes Amount of data backed up for the last successful backup.
+      # TYPE pgbackrest_backup_last_delta_bytes gauge
+      # HELP pgbackrest_wal_max_lsn The last WAL segment archived, converted to decimal for graphing.
+      # TYPE pgbackrest_wal_max_lsn gauge
+      # HELP pgbackrest_spool_queue_bytes Size of the archive async spool queue pending upload.
+      # TYPE pgbackrest_spool_queue_bytes gauge
+      # HELP pgbackrest_spool_queue_files Number of WAL files waiting in the archive async spool queue.
+      # TYPE pgbackrest_spool_queue_files gauge
+      EOF
 
-      echo 'pgbackrest_scrape_success{stanza="main"} 1' >> "$METRICS_TEMP"
+            echo 'pgbackrest_scrape_success{stanza="main"} 1' >> "$METRICS_TEMP"
 
-      # Repository info metrics with descriptive labels from environment
-      echo "pgbackrest_repo_info{stanza=\"main\",repo_key=\"1\",repo_name=\"''${METRICS_REPO1_NAME:-repo1}\",repo_location=\"''${METRICS_REPO1_LOCATION:-unknown}\"} 1" >> "$METRICS_TEMP"
-      echo "pgbackrest_repo_info{stanza=\"main\",repo_key=\"2\",repo_name=\"''${METRICS_REPO2_NAME:-repo2}\",repo_location=\"''${METRICS_REPO2_LOCATION:-unknown}\"} 1" >> "$METRICS_TEMP"
+            # Repository info metrics with descriptive labels from environment
+            echo "pgbackrest_repo_info{stanza=\"main\",repo_key=\"1\",repo_name=\"''${METRICS_REPO1_NAME:-repo1}\",repo_location=\"''${METRICS_REPO1_LOCATION:-unknown}\"} 1" >> "$METRICS_TEMP"
+            echo "pgbackrest_repo_info{stanza=\"main\",repo_key=\"2\",repo_name=\"''${METRICS_REPO2_NAME:-repo2}\",repo_location=\"''${METRICS_REPO2_LOCATION:-unknown}\"} 1" >> "$METRICS_TEMP"
 
-      STANZA_JSON=$(echo "$INFO_JSON" | jq '.[0]')
+            STANZA_JSON=$(echo "$INFO_JSON" | jq '.[0]')
 
-      # Stanza-level metrics
-      STANZA_STATUS=$(echo "$STANZA_JSON" | jq '.status.code')
-      echo "pgbackrest_stanza_status{stanza=\"main\"} $STANZA_STATUS" >> "$METRICS_TEMP"
+            # Stanza-level metrics
+            STANZA_STATUS=$(echo "$STANZA_JSON" | jq '.status.code')
+            echo "pgbackrest_stanza_status{stanza=\"main\"} $STANZA_STATUS" >> "$METRICS_TEMP"
 
-      # WAL archive metrics
-      MAX_WAL=$(echo "$STANZA_JSON" | jq -r '.archive[0].max // "0"')
-      if [ "$MAX_WAL" != "0" ]; then
-          # Convert WAL hex (e.g., 00000001000000000000000A) to decimal for basic progress monitoring
-          MAX_WAL_DEC=$((16#''${MAX_WAL:8}))
-          echo "pgbackrest_wal_max_lsn{stanza=\"main\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
-      fi
+            # WAL archive metrics
+            MAX_WAL=$(echo "$STANZA_JSON" | jq -r '.archive[0].max // "0"')
+            if [ "$MAX_WAL" != "0" ]; then
+                # Convert WAL hex (e.g., 00000001000000000000000A) to decimal for basic progress monitoring
+                MAX_WAL_DEC=$((16#''${MAX_WAL:8}))
+                echo "pgbackrest_wal_max_lsn{stanza=\"main\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
+            fi
 
-      SPOOL_DIR="/var/lib/pgbackrest/spool/archive/push"
-      if [ -d "$SPOOL_DIR" ]; then
-        SPOOL_BYTES=$(du -sb "$SPOOL_DIR" | cut -f1)
-        SPOOL_FILES=$(find "$SPOOL_DIR" -type f | wc -l | awk '{print $1}')
-      else
-        SPOOL_BYTES=0
-        SPOOL_FILES=0
-      fi
-      echo "pgbackrest_spool_queue_bytes{stanza=\"main\"} $SPOOL_BYTES" >> "$METRICS_TEMP"
-      echo "pgbackrest_spool_queue_files{stanza=\"main\"} $SPOOL_FILES" >> "$METRICS_TEMP"
+            SPOOL_DIR="/var/lib/pgbackrest/spool/archive/push"
+            if [ -d "$SPOOL_DIR" ]; then
+              SPOOL_BYTES=$(du -sb "$SPOOL_DIR" | cut -f1)
+              SPOOL_FILES=$(find "$SPOOL_DIR" -type f | wc -l | awk '{print $1}')
+            else
+              SPOOL_BYTES=0
+              SPOOL_FILES=0
+            fi
+            echo "pgbackrest_spool_queue_bytes{stanza=\"main\"} $SPOOL_BYTES" >> "$METRICS_TEMP"
+            echo "pgbackrest_spool_queue_files{stanza=\"main\"} $SPOOL_FILES" >> "$METRICS_TEMP"
 
-      # Per-repo and per-backup-type metrics using a single, efficient jq command
-      echo "$STANZA_JSON" | jq -r '
-        # First emit repo status metrics for all repos
-        (.repo[] |
-          "pgbackrest_repo_status{stanza=\"main\",repo_key=\"\(.key)\"} \(.status.code)"
-        ),
-        # Then process backups - group by repo and type to find latest of each
-        ([.backup[] | select((.type | test("full|incr")) and (.error // null) == null)] |
-          group_by(.database["repo-key"], .type)[] |
-          sort_by(.timestamp.start) | .[-1] |
-          (
-            "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.timestamp.stop)",
-            "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.timestamp.stop - .timestamp.start)",
-            "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.info.size)",
-            "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.info.delta)",
-            "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.info.repository.size)"
-          )
-        )
-      ' >> "$METRICS_TEMP"
+            # Per-repo and per-backup-type metrics using a single, efficient jq command
+            echo "$STANZA_JSON" | jq -r '
+              # First emit repo status metrics for all repos
+              (.repo[] |
+                "pgbackrest_repo_status{stanza=\"main\",repo_key=\"\(.key)\"} \(.status.code)"
+              ),
+              # Then process backups - group by repo and type to find latest of each
+              ([.backup[] | select((.type | test("full|incr")) and (.error // null) == null)] |
+                group_by(.database["repo-key"], .type)[] |
+                sort_by(.timestamp.start) | .[-1] |
+                (
+                  "pgbackrest_backup_last_good_completion_seconds{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.timestamp.stop)",
+                  "pgbackrest_backup_last_duration_seconds{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.timestamp.stop - .timestamp.start)",
+                  "pgbackrest_backup_last_size_bytes{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.info.size)",
+                  "pgbackrest_backup_last_delta_bytes{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.info.delta)",
+                  "pgbackrest_repo_size_bytes{stanza=\"main\",repo_key=\"\(.database["repo-key"])\",type=\"\(.type)\"} \(.info.repository.size)"
+                )
+              )
+            ' >> "$METRICS_TEMP"
 
-      # Count failed backups
-      # HELP pgbackrest_backup_failed_total Total number of failed backups found in the last info scrape.
-      # TYPE pgbackrest_backup_failed_total counter
-      FAILED_COUNT=$(echo "$STANZA_JSON" | jq '[.backup[] | select(.error == true)] | length')
-      echo "pgbackrest_backup_failed_total{stanza=\"main\"} $FAILED_COUNT" >> "$METRICS_TEMP"
+            # Count failed backups
+            # HELP pgbackrest_backup_failed_total Total number of failed backups found in the last info scrape.
+            # TYPE pgbackrest_backup_failed_total counter
+            FAILED_COUNT=$(echo "$STANZA_JSON" | jq '[.backup[] | select(.error == true)] | length')
+            echo "pgbackrest_backup_failed_total{stanza=\"main\"} $FAILED_COUNT" >> "$METRICS_TEMP"
 
-      # Atomically replace the old metrics file
-      mv "$METRICS_TEMP" "$METRICS_FILE"
+            # Atomically replace the old metrics file
+            mv "$METRICS_TEMP" "$METRICS_FILE"
     '';
     after = [ "postgresql.service" "pgbackrest-stanza-create.service" "mnt-nas\\x2dpostgresql.mount" ];
     wants = [ "postgresql.service" "mnt-nas\\x2dpostgresql.mount" ];
@@ -805,7 +805,7 @@ EOF
     description = "Collect pgBackRest metrics every 15 minutes";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnCalendar = "*:0/15";  # Every 15 minutes
+      OnCalendar = "*:0/15"; # Every 15 minutes
       Persistent = true;
       RandomizedDelaySec = "2m";
     };

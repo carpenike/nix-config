@@ -487,60 +487,60 @@ in
 
   # Alerts for GPU usage (host-level) and instance availability
   modules.alerting.rules."gpu-exporter-stale" = {
-      type = "promql";
-      alertname = "GpuExporterStale";
-      expr = "time() - gpu_metrics_last_run_timestamp > 240";
-      for = "1m";
-      severity = "high";
-      labels = { service = "gpu"; category = "monitoring"; };
-      annotations = {
-        summary = "GPU exporter stale on {{ $labels.instance }}";
-        description = "No GPU metrics collected for >4 minutes. Check timer: systemctl status gpu-metrics-exporter.timer";
-      };
+    type = "promql";
+    alertname = "GpuExporterStale";
+    expr = "time() - gpu_metrics_last_run_timestamp > 240";
+    for = "1m";
+    severity = "high";
+    labels = { service = "gpu"; category = "monitoring"; };
+    annotations = {
+      summary = "GPU exporter stale on {{ $labels.instance }}";
+      description = "No GPU metrics collected for >4 minutes. Check timer: systemctl status gpu-metrics-exporter.timer";
     };
+  };
 
   modules.alerting.rules."gpu-exporter-error" = {
-      type = "promql";
-      alertname = "GpuExporterError";
-      expr = "gpu_metrics_error == 1";
-      for = "2m";
-      severity = "high";
-      labels = { service = "gpu"; category = "monitoring"; };
-      annotations = {
-        summary = "GPU metrics collection failing on {{ $labels.instance }}";
-        description = "The gpu-metrics-exporter service is failing to collect metrics. Check service logs: journalctl -u gpu-metrics-exporter.service";
-      };
+    type = "promql";
+    alertname = "GpuExporterError";
+    expr = "gpu_metrics_error == 1";
+    for = "2m";
+    severity = "high";
+    labels = { service = "gpu"; category = "monitoring"; };
+    annotations = {
+      summary = "GPU metrics collection failing on {{ $labels.instance }}";
+      description = "The gpu-metrics-exporter service is failing to collect metrics. Check service logs: journalctl -u gpu-metrics-exporter.service";
     };
+  };
 
   modules.alerting.rules."gpu-util-high" = {
-      type = "promql";
-      alertname = "GpuUtilHigh";
-      expr = "gpu_utilization_percent > 80";
-      for = "10m";
-      severity = "medium";
-      labels = { service = "gpu"; category = "capacity"; };
-      annotations = {
-        summary = "High GPU utilization on {{ $labels.instance }}";
-        description = "GPU utilization above 80% for 10m. Investigate Plex/Dispatcharr transcoding load.";
-      };
+    type = "promql";
+    alertname = "GpuUtilHigh";
+    expr = "gpu_utilization_percent > 80";
+    for = "10m";
+    severity = "medium";
+    labels = { service = "gpu"; category = "capacity"; };
+    annotations = {
+      summary = "High GPU utilization on {{ $labels.instance }}";
+      description = "GPU utilization above 80% for 10m. Investigate Plex/Dispatcharr transcoding load.";
     };
+  };
 
   modules.alerting.rules."gpu-engine-stalled" = {
-      type = "promql";
-      alertname = "GpuEngineStalled";
-      expr = ''
-        gpu_engine_busy_percent{engine=~"Video.*"} == 0
-        and
-        max by (hostname)(gpu_engine_busy_percent{engine!~"Video.*"}) > 5
-      '';
-      for = "5m";
-      severity = "medium";
-      labels = { service = "gpu"; category = "hardware"; };
-      annotations = {
-        summary = "GPU engine {{ $labels.engine }} may be stalled on {{ $labels.instance }}";
-        description = "The {{ $labels.engine }} has reported 0% utilization for 5 minutes while other GPU engines are active. This could indicate a driver or hardware issue affecting video transcoding.";
-      };
+    type = "promql";
+    alertname = "GpuEngineStalled";
+    expr = ''
+      gpu_engine_busy_percent{engine=~"Video.*"} == 0
+      and
+      max by (hostname)(gpu_engine_busy_percent{engine!~"Video.*"}) > 5
+    '';
+    for = "5m";
+    severity = "medium";
+    labels = { service = "gpu"; category = "hardware"; };
+    annotations = {
+      summary = "GPU engine {{ $labels.engine }} may be stalled on {{ $labels.instance }}";
+      description = "The {{ $labels.engine }} has reported 0% utilization for 5 minutes while other GPU engines are active. This could indicate a driver or hardware issue affecting video transcoding.";
     };
+  };
 
   modules.alerting.rules."instance-down" = {
     type = "promql";
@@ -606,8 +606,8 @@ in
     description = "Run TLS metrics exporter every 5 minutes";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "5m";    # Wait for Caddy to start AND permissions to be fixed (fix-caddy runs at 2m + processing time)
-      OnUnitActiveSec = "5m";  # Check every 5 minutes
+      OnBootSec = "5m"; # Wait for Caddy to start AND permissions to be fixed (fix-caddy runs at 2m + processing time)
+      OnUnitActiveSec = "5m"; # Check every 5 minutes
       Unit = "tls-metrics-exporter.service";
     };
   };
@@ -617,7 +617,7 @@ in
     description = "Container Resource Metrics Exporter for Prometheus";
     serviceConfig = {
       Type = "oneshot";
-      User = "root";  # Run as root to access systemd-managed containers
+      User = "root"; # Run as root to access systemd-managed containers
       ExecStart = "${containerMetricsScript}/bin/export-container-metrics";
 
       # Grant write access to the textfile collector directory
@@ -635,8 +635,8 @@ in
     description = "Run container metrics exporter every minute";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "1m";     # Wait for containers to start
-      OnUnitActiveSec = "60s";  # Check every minute (balanced resolution vs overhead)
+      OnBootSec = "1m"; # Wait for containers to start
+      OnUnitActiveSec = "60s"; # Check every minute (balanced resolution vs overhead)
       Unit = "container-metrics-exporter.service";
     };
   };

@@ -22,7 +22,7 @@ in
           host = "0.0.0.0";
           port = 7474;
           logLevel = "INFO";
-          checkForUpdates = false;  # Managed via Nix/Renovate
+          checkForUpdates = false; # Managed via Nix/Renovate
           sessionSecretFile = config.sops.secrets."autobrr/session-secret".path;
         };
 
@@ -40,7 +40,7 @@ in
         metrics = {
           enable = true;
           host = "0.0.0.0";
-          port = 9084;  # qui uses 9074, so use 9084 for autobrr
+          port = 9084; # qui uses 9074, so use 9084 for autobrr
         };
 
         reverseProxy = {

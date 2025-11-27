@@ -16,7 +16,7 @@
       fqdnLength = lib.stringLength fqdn;
       suffixLength = lib.stringLength domainSuffix;
     in
-      if lib.hasSuffix domainSuffix fqdn
-      then lib.substring 0 (fqdnLength - suffixLength) fqdn
-      else fqdn; # Return as-is if doesn't match domain
+    if lib.hasSuffix domainSuffix fqdn
+    then lib.substring 0 (fqdnLength - suffixLength) fqdn
+    else fqdn; # Return as-is if doesn't match domain
 }

@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -152,7 +151,7 @@ fi
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
         # Check if replication is defined for the current path (datasets are flat keys, not nested)
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         # Determine the parent path for recursion
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
@@ -249,7 +248,7 @@ in
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
         memory = "1g";
-  memoryReservation = "512M";
+        memoryReservation = "512M";
         cpus = "2.0";
       };
       description = "Resource limits for the container";
@@ -484,317 +483,320 @@ in
           }
         ];
 
-    # SOPS secret for database password is managed at the host level
-    # NOTE: Host must define the secret with mode 0440, owner root, group postgres
-    # Example in hosts/forge/secrets.nix:
-    #   "postgresql/dispatcharr_password" = {
-    #     mode = "0440";
-    #     owner = "root";
-    #     group = "postgres";
-    #   };
-    # The passwordFile path is provided via cfg.database.passwordFile
-    # The password is injected into POSTGRES_PASSWORD environment variable at container runtime
+      # SOPS secret for database password is managed at the host level
+      # NOTE: Host must define the secret with mode 0440, owner root, group postgres
+      # Example in hosts/forge/secrets.nix:
+      #   "postgresql/dispatcharr_password" = {
+      #     mode = "0440";
+      #     owner = "root";
+      #     group = "postgres";
+      #   };
+      # The passwordFile path is provided via cfg.database.passwordFile
+      # The password is injected into POSTGRES_PASSWORD environment variable at container runtime
 
-    # Declare dataset requirements for per-service ZFS isolation
-    # This integrates with the storage.datasets module to automatically
-    # create tank/services/dispatcharr with appropriate ZFS properties
-    # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
-    # via tmpfiles by keeping owner/group/mode here
-    modules.storage.datasets.services.dispatcharr = {
-      mountpoint = cfg.dataDir;
-      recordsize = "8K";  # Tuned for PostgreSQL workloads hosted on the shared cluster
-      compression = "lz4";  # Fast compression suitable for database workloads
-      properties = {
-        "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
-        # snapdir managed by sanoid module - no longer needed with clone-based backups
-      };
-      # Ownership matches the container user/group
-      owner = cfg.user;
-      group = cfg.group;
-      mode = "0750";  # Allow group read access for backup systems
-    };
-
-    # Configure ZFS snapshots and replication for dispatcharr dataset
-    # This is managed per-service to avoid centralized config coupling
-    # NOTE: ZFS snapshots and replication for dispatcharr dataset should be configured
-    # in the host-level config (e.g., hosts/forge/default.nix), not here.
-    # Reason: Replication targets are host-specific (forge → nas-1, luna → nas-2, etc.)
-    # Defining them in a shared module would hardcode "forge" in the target path,
-    # breaking reusability across different hosts.
-
-    # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.dispatcharr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-
-      # Use structured backend configuration from shared types
-      backend = {
-        scheme = "http";  # Dispatcharr uses HTTP locally
-        host = "127.0.0.1";
-        port = dispatcharrPort;
+      # Declare dataset requirements for per-service ZFS isolation
+      # This integrates with the storage.datasets module to automatically
+      # create tank/services/dispatcharr with appropriate ZFS properties
+      # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
+      # via tmpfiles by keeping owner/group/mode here
+      modules.storage.datasets.services.dispatcharr = {
+        mountpoint = cfg.dataDir;
+        recordsize = "8K"; # Tuned for PostgreSQL workloads hosted on the shared cluster
+        compression = "lz4"; # Fast compression suitable for database workloads
+        properties = {
+          "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
+          # snapdir managed by sanoid module - no longer needed with clone-based backups
+        };
+        # Ownership matches the container user/group
+        owner = cfg.user;
+        group = cfg.group;
+        mode = "0750"; # Allow group read access for backup systems
       };
 
-      # Authentication configuration from shared types
-      auth = cfg.reverseProxy.auth;
+      # Configure ZFS snapshots and replication for dispatcharr dataset
+      # This is managed per-service to avoid centralized config coupling
+      # NOTE: ZFS snapshots and replication for dispatcharr dataset should be configured
+      # in the host-level config (e.g., hosts/forge/default.nix), not here.
+      # Reason: Replication targets are host-specific (forge → nas-1, luna → nas-2, etc.)
+      # Defining them in a shared module would hardcode "forge" in the target path,
+      # breaking reusability across different hosts.
 
-      # Authelia SSO configuration from shared types
-      authelia = cfg.reverseProxy.authelia;
+      # Automatically register with Caddy reverse proxy if enabled
+      modules.services.caddy.virtualHosts.dispatcharr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+        enable = true;
+        hostName = cfg.reverseProxy.hostName;
 
-      # Security configuration from shared types
-      security = cfg.reverseProxy.security;
+        # Use structured backend configuration from shared types
+        backend = {
+          scheme = "http"; # Dispatcharr uses HTTP locally
+          host = "127.0.0.1";
+          port = dispatcharrPort;
+        };
 
-      extraConfig = cfg.reverseProxy.extraConfig;
-    };
+        # Authentication configuration from shared types
+        auth = cfg.reverseProxy.auth;
 
-    # Register with Authelia if SSO protection is enabled
-    modules.services.authelia.accessControl.declarativelyProtectedServices.dispatcharr = lib.mkIf (
-      config.modules.services.authelia.enable &&
-      cfg.reverseProxy != null &&
-      cfg.reverseProxy.enable &&
-      cfg.reverseProxy.authelia != null &&
-      cfg.reverseProxy.authelia.enable
-    ) (
-      let
-        authCfg = cfg.reverseProxy.authelia;
-      in {
-        domain = cfg.reverseProxy.hostName;
-        policy = authCfg.policy;
-        subject = map (g: "group:${g}") authCfg.allowedGroups;
-        bypassResources =
-          (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
-          ++ (authCfg.bypassResources or []);
-      }
-    );
+        # Authelia SSO configuration from shared types
+        authelia = cfg.reverseProxy.authelia;
 
-    # Create local users to match container UIDs
-    # This ensures proper file ownership on the host
-    users.users.dispatcharr = {
-      uid = lib.mkDefault (lib.toInt cfg.user);
-      group = "dispatcharr";
-      isSystemUser = true;
-      description = "Dispatcharr service user";
-      # Add to render group for GPU access
-      # Note: Dispatcharr doesn't need NFS media access (IPTV streams only)
-      # If you add media library integration later, add: extraGroups = [ "media" ];
-      extraGroups = lib.optionals (cfg.accelerationDevices != []) [ "render" ];
-    };
+        # Security configuration from shared types
+        security = cfg.reverseProxy.security;
 
-    users.groups.dispatcharr = {
-      gid = lib.mkDefault (lib.toInt cfg.group);
-    };
+        extraConfig = cfg.reverseProxy.extraConfig;
+      };
 
-    # Dispatcharr container configuration
-    # NOTE: Dispatcharr uses individual PostgreSQL environment variables (POSTGRES_HOST, POSTGRES_DB, etc.)
-    # The password must be injected at runtime via environmentFiles to avoid leaking it in process list
-    # CRITICAL: Uses custom entrypoint wrapper to disable embedded PostgreSQL when using external database
-    virtualisation.oci-containers.containers.dispatcharr = podmanLib.mkContainer "dispatcharr" {
-      image = cfg.image;
-      environmentFiles = [
-        # This file is generated by systemd service's preStart with POSTGRES_PASSWORD
-        "/run/dispatcharr/env"
+      # Register with Authelia if SSO protection is enabled
+      modules.services.authelia.accessControl.declarativelyProtectedServices.dispatcharr = lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
+              ++ (authCfg.bypassResources or [ ]);
+          }
+        );
+
+      # Create local users to match container UIDs
+      # This ensures proper file ownership on the host
+      users.users.dispatcharr = {
+        uid = lib.mkDefault (lib.toInt cfg.user);
+        group = "dispatcharr";
+        isSystemUser = true;
+        description = "Dispatcharr service user";
+        # Add to render group for GPU access
+        # Note: Dispatcharr doesn't need NFS media access (IPTV streams only)
+        # If you add media library integration later, add: extraGroups = [ "media" ];
+        extraGroups = lib.optionals (cfg.accelerationDevices != [ ]) [ "render" ];
+      };
+
+      users.groups.dispatcharr = {
+        gid = lib.mkDefault (lib.toInt cfg.group);
+      };
+
+      # Dispatcharr container configuration
+      # NOTE: Dispatcharr uses individual PostgreSQL environment variables (POSTGRES_HOST, POSTGRES_DB, etc.)
+      # The password must be injected at runtime via environmentFiles to avoid leaking it in process list
+      # CRITICAL: Uses custom entrypoint wrapper to disable embedded PostgreSQL when using external database
+      virtualisation.oci-containers.containers.dispatcharr = podmanLib.mkContainer "dispatcharr" {
+        image = cfg.image;
+        environmentFiles = [
+          # This file is generated by systemd service's preStart with POSTGRES_PASSWORD
+          "/run/dispatcharr/env"
+        ];
+        environment = {
+          PUID = cfg.user;
+          PGID = cfg.group;
+          TZ = cfg.timezone;
+          # Enable VA-API inside the container when /dev/dri is mapped
+          VAAPI_DEVICE = "/dev/dri/renderD128"; # Preferred render node for acceleration
+          # PostgreSQL connection configuration
+          # Use TCP host connection to avoid Unix socket peer authentication issues
+          # The container user "dispatcharr" (UID 569) doesn't exist on the host, causing peer auth to fail
+          # 127.0.0.1 inside container is container loopback, not host - use host.containers.internal instead
+          POSTGRES_HOST = cfg.database.host;
+          POSTGRES_PORT = toString cfg.database.port;
+          POSTGRES_DB = cfg.database.name;
+          POSTGRES_USER = cfg.database.user;
+          # POSTGRES_PASSWORD is provided via environmentFiles (generated in preStart)
+          # Redis configuration (embedded Redis via s6-overlay)
+          REDIS_HOST = "localhost";
+          CELERY_BROKER_URL = "redis://localhost:6379/0";
+          CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
+          # Logging
+          DISPATCHARR_LOG_LEVEL = "info";
+        } // (lib.optionalAttrs (cfg.vaapiDriver != null) {
+          LIBVA_DRIVER_NAME = cfg.vaapiDriver;
+        }) // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+          # Reverse proxy configuration for Django
+          # Tells Django to trust X-Forwarded-Host from the proxy
+          USE_X_FORWARDED_HOST = "true";
+          # Adds the public hostname to Django's allowed hosts list
+          ALLOWED_HOSTS = "localhost,127.0.0.1,${cfg.reverseProxy.hostName}";
+          # Trusts the public origin for secure (HTTPS) CSRF validation
+          CSRF_TRUSTED_ORIGINS = "https://${cfg.reverseProxy.hostName}";
+        });
+        volumes = [
+          # Use ':Z' for SELinux systems to ensure the container can write to the volume
+          "${cfg.dataDir}:/data:rw,Z"
+          # Mount custom entrypoint wrapper to disable embedded PostgreSQL
+          # Use :Z for SELinux compatibility to allow container to execute the script
+          "${customEntrypoint}:/entrypoint-wrapper.sh:ro,Z"
+        ];
+        ports = [
+          "${toString dispatcharrPort}:9191"
+        ];
+        resources = cfg.resources;
+        extraOptions = [
+          # Podman-level umask ensures container process creates files with group-readable permissions
+          # This allows restic-backup user (member of dispatcharr group) to read data
+          "--umask=0027" # Creates directories with 750 and files with 640
+          "--pull=newer" # Automatically pull newer images
+          # Override the container's entrypoint to use our custom wrapper
+          # CRITICAL: Must use two separate list items for proper option ordering
+          # The wrapper script is bind-mounted as executable at /entrypoint-wrapper.sh
+          "--entrypoint"
+          "/entrypoint-wrapper.sh"
+          # NOTE: Don't use --user flag here! The dispatcharr container's entrypoint
+          # script needs to run as root initially to set up /etc/profile.d and other
+          # system files, then it drops privileges to PUID/PGID. Using --user prevents
+          # the entrypoint from completing its setup tasks.
+          # The container will honor PUID/PGID environment variables for privilege dropping.
+        ]
+        ++ lib.optionals (cfg.accelerationDevices != [ ]) (
+          map (dev: "--device=${dev}:${dev}:rwm") cfg.accelerationDevices
+        )
+        ++ lib.optionals cfg.healthcheck.enable [
+          # Define the health check on the container itself.
+          # This allows `podman healthcheck run` to work and updates status in `podman ps`.
+          # NOTE: Dispatcharr container doesn't include curl/wget by default, so we use a TCP connection test
+          # to verify nginx (port 9191) is responding. This is less precise than HTTP checks but more reliable.
+          ''--health-cmd=sh -c 'timeout 3 bash -c "</dev/tcp/127.0.0.1/9191" 2>/dev/null' ''
+          # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
+          # Use "0s" instead of "disable" for better Podman version compatibility
+          "--health-interval=0s"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ];
+      };
+
+      # Add systemd dependencies and notifications
+      systemd.services."${config.virtualisation.oci-containers.backend}-dispatcharr" = lib.mkMerge [
+        # Add failure notifications via systemd
+        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+          unitConfig.OnFailure = [ "notify@dispatcharr-failure:%n.service" ];
+        })
+        # Add dependency on the preseed service
+        (lib.mkIf cfg.preseed.enable {
+          wants = [ "preseed-dispatcharr.service" ];
+          after = [ "preseed-dispatcharr.service" ];
+        })
+        # Add dependency on PostgreSQL and database provisioning
+        {
+          # Use 'requires' for robustness. If provisioning fails, this service won't start.
+          requires = [ "postgresql-provision-databases.service" ];
+          after = [ "postgresql.service" "postgresql-provision-databases.service" ];
+
+          # Hardware access is managed at the host level (profiles/hardware/intel-gpu.nix services list)
+
+          # Securely load the database password using systemd's native credential handling.
+          # The password will be available at $CREDENTIALS_DIRECTORY/db_password
+          serviceConfig.LoadCredential = [ "db_password:${cfg.database.passwordFile}" ];
+
+          # Generate environment file with POSTGRES_PASSWORD at runtime
+          # SECURITY: This implementation prevents password leaks via process list and journal
+          preStart = ''
+            # Fail fast on any error
+            set -euo pipefail
+
+            # Create runtime directory for the environment file
+            mkdir -p /run/dispatcharr
+            chmod 700 /run/dispatcharr
+
+            # Read the password from the systemd-managed credential file
+            # Use printf to avoid leaking the password to the journal if 'set -x' is ever enabled
+            printf "POSTGRES_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/db_password")" > /run/dispatcharr/env
+
+            # Secure permissions (only root can read)
+            chmod 600 /run/dispatcharr/env
+
+            # Verify the environment file was created successfully
+            if [ ! -f /run/dispatcharr/env ]; then
+              echo "ERROR: Failed to create /run/dispatcharr/env"
+              exit 1
+            fi
+
+            echo "Successfully created POSTGRES_PASSWORD environment file"
+          '';
+        }
       ];
-      environment = {
-        PUID = cfg.user;
-        PGID = cfg.group;
-        TZ = cfg.timezone;
-        # Enable VA-API inside the container when /dev/dri is mapped
-        VAAPI_DEVICE = "/dev/dri/renderD128"; # Preferred render node for acceleration
-        # PostgreSQL connection configuration
-        # Use TCP host connection to avoid Unix socket peer authentication issues
-        # The container user "dispatcharr" (UID 569) doesn't exist on the host, causing peer auth to fail
-        # 127.0.0.1 inside container is container loopback, not host - use host.containers.internal instead
-  POSTGRES_HOST = cfg.database.host;
-  POSTGRES_PORT = toString cfg.database.port;
-        POSTGRES_DB = cfg.database.name;
-        POSTGRES_USER = cfg.database.user;
-        # POSTGRES_PASSWORD is provided via environmentFiles (generated in preStart)
-        # Redis configuration (embedded Redis via s6-overlay)
-        REDIS_HOST = "localhost";
-        CELERY_BROKER_URL = "redis://localhost:6379/0";
-        CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
-        # Logging
-        DISPATCHARR_LOG_LEVEL = "info";
-      } // (lib.optionalAttrs (cfg.vaapiDriver != null) {
-        LIBVA_DRIVER_NAME = cfg.vaapiDriver;
-      }) // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        # Reverse proxy configuration for Django
-        # Tells Django to trust X-Forwarded-Host from the proxy
-        USE_X_FORWARDED_HOST = "true";
-        # Adds the public hostname to Django's allowed hosts list
-        ALLOWED_HOSTS = "localhost,127.0.0.1,${cfg.reverseProxy.hostName}";
-        # Trusts the public origin for secure (HTTPS) CSRF validation
-        CSRF_TRUSTED_ORIGINS = "https://${cfg.reverseProxy.hostName}";
-      });
-      volumes = [
-        # Use ':Z' for SELinux systems to ensure the container can write to the volume
-        "${cfg.dataDir}:/data:rw,Z"
-        # Mount custom entrypoint wrapper to disable embedded PostgreSQL
-        # Use :Z for SELinux compatibility to allow container to execute the script
-        "${customEntrypoint}:/entrypoint-wrapper.sh:ro,Z"
-      ];
-      ports = [
-        "${toString dispatcharrPort}:9191"
-      ];
-      resources = cfg.resources;
-      extraOptions = [
-        # Podman-level umask ensures container process creates files with group-readable permissions
-        # This allows restic-backup user (member of dispatcharr group) to read data
-        "--umask=0027"  # Creates directories with 750 and files with 640
-        "--pull=newer"  # Automatically pull newer images
-        # Override the container's entrypoint to use our custom wrapper
-        # CRITICAL: Must use two separate list items for proper option ordering
-        # The wrapper script is bind-mounted as executable at /entrypoint-wrapper.sh
-        "--entrypoint"
-        "/entrypoint-wrapper.sh"
-        # NOTE: Don't use --user flag here! The dispatcharr container's entrypoint
-        # script needs to run as root initially to set up /etc/profile.d and other
-        # system files, then it drops privileges to PUID/PGID. Using --user prevents
-        # the entrypoint from completing its setup tasks.
-        # The container will honor PUID/PGID environment variables for privilege dropping.
-      ]
-      ++ lib.optionals (cfg.accelerationDevices != []) (
-        map (dev: "--device=${dev}:${dev}:rwm") cfg.accelerationDevices
-      )
-      ++ lib.optionals cfg.healthcheck.enable [
-        # Define the health check on the container itself.
-        # This allows `podman healthcheck run` to work and updates status in `podman ps`.
-        # NOTE: Dispatcharr container doesn't include curl/wget by default, so we use a TCP connection test
-        # to verify nginx (port 9191) is responding. This is less precise than HTTP checks but more reliable.
-        ''--health-cmd=sh -c 'timeout 3 bash -c "</dev/tcp/127.0.0.1/9191" 2>/dev/null' ''
-        # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
-        # Use "0s" instead of "disable" for better Podman version compatibility
-        "--health-interval=0s"
-        "--health-timeout=${cfg.healthcheck.timeout}"
-        "--health-retries=${toString cfg.healthcheck.retries}"
-        "--health-start-period=${cfg.healthcheck.startPeriod}"
-      ];
-    };
 
-    # Add systemd dependencies and notifications
-    systemd.services."${config.virtualisation.oci-containers.backend}-dispatcharr" = lib.mkMerge [
-      # Add failure notifications via systemd
-      (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        unitConfig.OnFailure = [ "notify@dispatcharr-failure:%n.service" ];
-      })
-      # Add dependency on the preseed service
-      (lib.mkIf cfg.preseed.enable {
-        wants = [ "preseed-dispatcharr.service" ];
-        after = [ "preseed-dispatcharr.service" ];
-      })
-      # Add dependency on PostgreSQL and database provisioning
-      {
-        # Use 'requires' for robustness. If provisioning fails, this service won't start.
-        requires = [ "postgresql-provision-databases.service" ];
-        after = [ "postgresql.service" "postgresql-provision-databases.service" ];
-
-  # Hardware access is managed at the host level (profiles/hardware/intel-gpu.nix services list)
-
-        # Securely load the database password using systemd's native credential handling.
-        # The password will be available at $CREDENTIALS_DIRECTORY/db_password
-        serviceConfig.LoadCredential = [ "db_password:${cfg.database.passwordFile}" ];
-
-        # Generate environment file with POSTGRES_PASSWORD at runtime
-        # SECURITY: This implementation prevents password leaks via process list and journal
-        preStart = ''
-          # Fail fast on any error
-          set -euo pipefail
-
-          # Create runtime directory for the environment file
-          mkdir -p /run/dispatcharr
-          chmod 700 /run/dispatcharr
-
-          # Read the password from the systemd-managed credential file
-          # Use printf to avoid leaking the password to the journal if 'set -x' is ever enabled
-          printf "POSTGRES_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/db_password")" > /run/dispatcharr/env
-
-          # Secure permissions (only root can read)
-          chmod 600 /run/dispatcharr/env
-
-          # Verify the environment file was created successfully
-          if [ ! -f /run/dispatcharr/env ]; then
-            echo "ERROR: Failed to create /run/dispatcharr/env"
-            exit 1
-          fi
-
-          echo "Successfully created POSTGRES_PASSWORD environment file"
-        '';
-      }
-    ];
-
-    # Create explicit health check timer/service that we control
-    # We don't use Podman's native --health-* flags because they create transient units
-    # that bypass systemd overrides and cause activation failures
-    systemd.timers.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-      description = "Dispatcharr Container Health Check Timer";
-      wantedBy = [ "timers.target" ];
-      partOf = [ mainServiceUnit ];  # Bind timer lifecycle to container service
-      after = [ mainServiceUnit ];
-      timerConfig = {
-        # Delay first check to allow container initialization
-        OnActiveSec = cfg.healthcheck.startPeriod;  # e.g., "300s"
-        # Regular interval for subsequent checks
-        OnUnitActiveSec = cfg.healthcheck.interval;  # e.g., "30s"
-        # Continue timer even if check fails
-        Persistent = false;
+      # Create explicit health check timer/service that we control
+      # We don't use Podman's native --health-* flags because they create transient units
+      # that bypass systemd overrides and cause activation failures
+      systemd.timers.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
+        description = "Dispatcharr Container Health Check Timer";
+        wantedBy = [ "timers.target" ];
+        partOf = [ mainServiceUnit ]; # Bind timer lifecycle to container service
+        after = [ mainServiceUnit ];
+        timerConfig = {
+          # Delay first check to allow container initialization
+          OnActiveSec = cfg.healthcheck.startPeriod; # e.g., "300s"
+          # Regular interval for subsequent checks
+          OnUnitActiveSec = cfg.healthcheck.interval; # e.g., "30s"
+          # Continue timer even if check fails
+          Persistent = false;
+        };
       };
-    };
 
-    systemd.services.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-      description = "Dispatcharr Container Health Check";
-      after = [ mainServiceUnit ];
-      requires = [ mainServiceUnit ];
-      serviceConfig = {
-        Type = "oneshot";
-        # We allow the unit to fail for better observability. The timer's OnActiveSec
-        # provides the startup grace period, and after that we want genuine failures
-        # to be visible in systemctl --failed for monitoring.
-        ExecStart = pkgs.writeShellScript "dispatcharr-healthcheck" ''
-          set -euo pipefail
+      systemd.services.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
+        description = "Dispatcharr Container Health Check";
+        after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
+        serviceConfig = {
+          Type = "oneshot";
+          # We allow the unit to fail for better observability. The timer's OnActiveSec
+          # provides the startup grace period, and after that we want genuine failures
+          # to be visible in systemctl --failed for monitoring.
+          ExecStart = pkgs.writeShellScript "dispatcharr-healthcheck" ''
+            set -euo pipefail
 
-          # 1. Check if container is running to avoid unnecessary errors
-          if ! ${pkgs.podman}/bin/podman inspect dispatcharr --format '{{.State.Running}}' | grep -q true; then
-            echo "Container dispatcharr is not running, skipping health check."
-            exit 1
-          fi
+            # 1. Check if container is running to avoid unnecessary errors
+            if ! ${pkgs.podman}/bin/podman inspect dispatcharr --format '{{.State.Running}}' | grep -q true; then
+              echo "Container dispatcharr is not running, skipping health check."
+              exit 1
+            fi
 
-          # 2. Run the health check defined in the container.
-          # This updates the container's status for `podman ps` and exits with
-          # a proper status code for systemd.
-          if ${pkgs.podman}/bin/podman healthcheck run dispatcharr; then
-            echo "Health check passed."
-            exit 0
-          else
-            echo "Health check failed."
-            exit 1
-          fi
-        '';
+            # 2. Run the health check defined in the container.
+            # This updates the container's status for `podman ps` and exits with
+            # a proper status code for systemd.
+            if ${pkgs.podman}/bin/podman healthcheck run dispatcharr; then
+              echo "Health check passed."
+              exit 0
+            else
+              echo "Health check failed."
+              exit 1
+            fi
+          '';
+        };
       };
-    };
 
-    # Register notification template
-    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-      "dispatcharr-failure" = {
-        enable = lib.mkDefault true;
-        priority = lib.mkDefault "high";
-        title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Dispatcharr</font></b>'';
-        body = lib.mkDefault ''
-          <b>Host:</b> ''${hostname}
-          <b>Service:</b> <code>''${serviceName}</code>
+      # Register notification template
+      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        "dispatcharr-failure" = {
+          enable = lib.mkDefault true;
+          priority = lib.mkDefault "high";
+          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Dispatcharr</font></b>'';
+          body = lib.mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
 
-          The Dispatcharr IPTV management service has entered a failed state.
+            The Dispatcharr IPTV management service has entered a failed state.
 
-          <b>Quick Actions:</b>
-          1. Check logs:
-             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-          2. Restart service:
-             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-        '';
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+          '';
+        };
       };
-    };
 
-    # Note: Backup integration now handled by backup-integration module
-    # The backup submodule configuration will be auto-discovered and converted
-    # to a Restic job named "service-dispatcharr" with the specified settings
+      # Note: Backup integration now handled by backup-integration module
+      # The backup submodule configuration will be auto-discovered and converted
+      # to a Restic job named "service-dispatcharr" with the specified settings
 
       # Optional: Open firewall for Dispatcharr web UI
       # Disabled by default since forge has firewall.enable = false
@@ -808,11 +810,11 @@ in
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;  # Pass the auto-discovered replication config
+        replicationCfg = replicationConfig; # Pass the auto-discovered replication config
         datasetProperties = {
-          recordsize = "8K";     # Optimal for PostgreSQL databases
-          compression = "lz4";   # Fast compression suitable for database workloads
-          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots for this dataset
+          recordsize = "8K"; # Optimal for PostgreSQL databases
+          compression = "lz4"; # Fast compression suitable for database workloads
+          "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots for this dataset
         };
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;

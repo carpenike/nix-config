@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -89,7 +88,7 @@ in
 
     dependsOn = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = ''
         List of service names that Overseerr depends on (e.g., "sonarr", "radarr").
 
@@ -215,12 +214,13 @@ in
     };
   };
 
-  config = let
-    # Move config-dependent variables here to avoid infinite recursion
-    storageCfg = config.modules.storage;
-    overseerrPort = 5055;
-    mainServiceUnit = "${config.virtualisation.oci-containers.backend}-overseerr.service";
-    datasetPath = "${storageCfg.datasets.parentDataset}/overseerr";
+  config =
+    let
+      # Move config-dependent variables here to avoid infinite recursion
+      storageCfg = config.modules.storage;
+      overseerrPort = 5055;
+      mainServiceUnit = "${config.virtualisation.oci-containers.backend}-overseerr.service";
+      datasetPath = "${storageCfg.datasets.parentDataset}/overseerr";
 
       # Recursively find the replication config from the most specific dataset path upwards.
       findReplication = dsPath:
@@ -228,7 +228,7 @@ in
         else
           let
             sanoidDatasets = config.modules.backup.sanoid.datasets;
-            replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+            replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
             parentPath =
               if lib.elem "/" (lib.stringToCharacters dsPath) then
                 lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -266,204 +266,210 @@ in
             recvOptions = foundReplication.replication.recvOptions or "u";
           };
 
-    hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
-  in lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      assertions = [
-        {
-          assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
-          message = "Overseerr reverse proxy must be explicitly enabled when configured";
-        }
-        {
-          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
-          message = "Overseerr preseed.enable requires preseed.repositoryUrl to be set.";
-        }
-        {
-          assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-          message = "Overseerr preseed.enable requires preseed.passwordFile to be set.";
-        }
-        {
-          assertion = cfg.backup != null -> cfg.backup.enable;
-          message = "Overseerr backup must be explicitly enabled when configured";
-        }
-      ];
+      hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
+    in
+    lib.mkMerge [
+      (lib.mkIf cfg.enable {
+        assertions = [
+          {
+            assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
+            message = "Overseerr reverse proxy must be explicitly enabled when configured";
+          }
+          {
+            assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+            message = "Overseerr preseed.enable requires preseed.repositoryUrl to be set.";
+          }
+          {
+            assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
+            message = "Overseerr preseed.enable requires preseed.passwordFile to be set.";
+          }
+          {
+            assertion = cfg.backup != null -> cfg.backup.enable;
+            message = "Overseerr backup must be explicitly enabled when configured";
+          }
+        ];
 
-    # Warnings for missing critical configuration
-    warnings =
-      (lib.optional (cfg.reverseProxy == null) "Overseerr has no reverse proxy configured. Service will only be accessible locally.")
-      ++ (lib.optional (cfg.backup == null) "Overseerr has no backup configured. User data and settings will not be protected.");
+        # Warnings for missing critical configuration
+        warnings =
+          (lib.optional (cfg.reverseProxy == null) "Overseerr has no reverse proxy configured. Service will only be accessible locally.")
+          ++ (lib.optional (cfg.backup == null) "Overseerr has no backup configured. User data and settings will not be protected.");
 
-    # Create ZFS dataset for Overseerr data
-    modules.storage.datasets.services.overseerr = {
-      mountpoint = cfg.dataDir;
-      # 16K recordsize is optimal for SQLite databases (Overseerr uses SQLite for all data storage)
-      # Rationale: SQLite's default page size is 4KB, but modern SSDs benefit from larger block sizes.
-      # 16K provides a balance between:
-      # - Reduced write amplification (fewer ZFS metadata updates per SQLite transaction)
-      # - Efficient SSD alignment (matches common NAND page sizes)
-      # - Minimal read overhead (SQLite rarely needs sub-16K reads)
-      # This is a well-established best practice for SQLite on ZFS.
-      recordsize = "16K";
-      compression = "zstd";
-      properties = {
-        "com.sun:auto-snapshot" = "true";
-      };
-      owner = cfg.user;
-      group = cfg.group;
-      mode = "0750";
-    };
-
-    # Create system user for Overseerr
-    users.users.overseerr = {
-      uid = lib.mkDefault (lib.toInt cfg.user);
-      group = cfg.group;
-      isSystemUser = true;
-      description = "Overseerr service user";
-    };
-
-    # Create system group for Overseerr
-    users.groups.overseerr = {
-      gid = lib.mkDefault (lib.toInt cfg.user);
-    };
-
-    # Overseerr container configuration
-    # Uses official sctx/overseerr image which expects:
-    # - Config at /app/config (not /config like LinuxServer)
-    # - User mapping via --user flag (not PUID/PGID)
-    # - TZ and LOG_LEVEL environment variables
-    virtualisation.oci-containers.containers.overseerr = podmanLib.mkContainer "overseerr" {
-      image = cfg.image;
-      environment = {
-        TZ = cfg.timezone;
-        LOG_LEVEL = "info";
-      };
-      volumes = [
-        "${cfg.dataDir}:/app/config:rw"
-      ];
-      ports = [ "${toString overseerrPort}:5055" ];
-      log-driver = "journald";
-      extraOptions =
-        # Run as specified user:group for proper file permissions
-        [ "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}" ]
-        ++ (lib.optionals (cfg.resources != null) [
-          "--memory=${cfg.resources.memory}"
-          "--memory-reservation=${cfg.resources.memoryReservation}"
-          "--cpus=${cfg.resources.cpus}"
-        ])
-        ++ (lib.optionals (cfg.healthcheck.enable) [
-          "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1"
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-        ] ++ lib.optionals (cfg.podmanNetwork != null) [
-          "--network=${cfg.podmanNetwork}"
-        ]);
-    };
-
-    # Systemd service dependencies and security
-    systemd.services."${mainServiceUnit}" = lib.mkMerge [
-      {
-        requires = [ "network-online.target" ]
-          ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
-          ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
-        after = [ "network-online.target" ]
-          ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
-          ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
-        serviceConfig = {
-          Restart = lib.mkForce "always";
-          RestartSec = "10s";
-        };
-      }
-    ];
-
-    # Integrate with centralized Caddy reverse proxy if configured
-    modules.services.caddy.virtualHosts.overseerr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-      backend = {
-        scheme = "http";
-        host = "127.0.0.1";
-        port = overseerrPort;
-      };
-      auth = cfg.reverseProxy.auth;
-      authelia = cfg.reverseProxy.authelia;
-      security = cfg.reverseProxy.security;
-      extraConfig = cfg.reverseProxy.extraConfig;
-    };
-
-    # Register with Authelia for SSO protection
-    modules.services.authelia.accessControl.declarativelyProtectedServices.overseerr = lib.mkIf (
-      cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
-    ) {
-      domain = cfg.reverseProxy.hostName;
-      policy = cfg.reverseProxy.authelia.policy;
-      subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
-      bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
-    };
-
-    # Backup integration using standardized restic pattern
-    modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      overseerr = {
-        enable = true;
-        paths = [ cfg.dataDir ];
-        repository = cfg.backup.repository;
-        frequency = cfg.backup.frequency;
-        tags = cfg.backup.tags;
-        excludePatterns = cfg.backup.excludePatterns;
-        useSnapshots = cfg.backup.useSnapshots;
-        zfsDataset = cfg.backup.zfsDataset;
-      };
-    };
-  })
-
-    # Preseed service
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        serviceName = "overseerr";
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
+        # Create ZFS dataset for Overseerr data
+        modules.storage.datasets.services.overseerr = {
+          mountpoint = cfg.dataDir;
+          # 16K recordsize is optimal for SQLite databases (Overseerr uses SQLite for all data storage)
+          # Rationale: SQLite's default page size is 4KB, but modern SSDs benefit from larger block sizes.
+          # 16K provides a balance between:
+          # - Reduced write amplification (fewer ZFS metadata updates per SQLite transaction)
+          # - Efficient SSD alignment (matches common NAND page sizes)
+          # - Minimal read overhead (SQLite rarely needs sub-16K reads)
+          # This is a well-established best practice for SQLite on ZFS.
           recordsize = "16K";
           compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
+          properties = {
+            "com.sun:auto-snapshot" = "true";
+          };
+          owner = cfg.user;
+          group = cfg.group;
+          mode = "0750";
         };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        hasCentralizedNotifications = hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
-      }
-    ))
 
-    # Register with Authelia if SSO protection is enabled
-    # This declares INTENT - Caddy module handles IMPLEMENTATION
-    (lib.mkIf (
-      config.modules.services.authelia.enable &&
-      cfg.enable &&
-      cfg.reverseProxy != null &&
-      cfg.reverseProxy.enable &&
-      cfg.reverseProxy.authelia != null &&
-      cfg.reverseProxy.authelia.enable
-    ) {
-      modules.services.authelia.accessControl.declarativelyProtectedServices.overseerr =
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          # Convert groups to Authelia subject format
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          # Authelia will handle ALL bypass logic - no Caddy-level bypass
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-            ++ authCfg.bypassResources;
+        # Create system user for Overseerr
+        users.users.overseerr = {
+          uid = lib.mkDefault (lib.toInt cfg.user);
+          group = cfg.group;
+          isSystemUser = true;
+          description = "Overseerr service user";
         };
-    })
-  ];
+
+        # Create system group for Overseerr
+        users.groups.overseerr = {
+          gid = lib.mkDefault (lib.toInt cfg.user);
+        };
+
+        # Overseerr container configuration
+        # Uses official sctx/overseerr image which expects:
+        # - Config at /app/config (not /config like LinuxServer)
+        # - User mapping via --user flag (not PUID/PGID)
+        # - TZ and LOG_LEVEL environment variables
+        virtualisation.oci-containers.containers.overseerr = podmanLib.mkContainer "overseerr" {
+          image = cfg.image;
+          environment = {
+            TZ = cfg.timezone;
+            LOG_LEVEL = "info";
+          };
+          volumes = [
+            "${cfg.dataDir}:/app/config:rw"
+          ];
+          ports = [ "${toString overseerrPort}:5055" ];
+          log-driver = "journald";
+          extraOptions =
+            # Run as specified user:group for proper file permissions
+            [ "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}" ]
+            ++ (lib.optionals (cfg.resources != null) [
+              "--memory=${cfg.resources.memory}"
+              "--memory-reservation=${cfg.resources.memoryReservation}"
+              "--cpus=${cfg.resources.cpus}"
+            ])
+            ++ (lib.optionals (cfg.healthcheck.enable) [
+              "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1"
+              "--health-interval=${cfg.healthcheck.interval}"
+              "--health-timeout=${cfg.healthcheck.timeout}"
+              "--health-retries=${toString cfg.healthcheck.retries}"
+              "--health-start-period=${cfg.healthcheck.startPeriod}"
+            ] ++ lib.optionals (cfg.podmanNetwork != null) [
+              "--network=${cfg.podmanNetwork}"
+            ]);
+        };
+
+        # Systemd service dependencies and security
+        systemd.services."${mainServiceUnit}" = lib.mkMerge [
+          {
+            requires = [ "network-online.target" ]
+              ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
+              ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
+            after = [ "network-online.target" ]
+              ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
+              ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
+            serviceConfig = {
+              Restart = lib.mkForce "always";
+              RestartSec = "10s";
+            };
+          }
+        ];
+
+        # Integrate with centralized Caddy reverse proxy if configured
+        modules.services.caddy.virtualHosts.overseerr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+          enable = true;
+          hostName = cfg.reverseProxy.hostName;
+          backend = {
+            scheme = "http";
+            host = "127.0.0.1";
+            port = overseerrPort;
+          };
+          auth = cfg.reverseProxy.auth;
+          authelia = cfg.reverseProxy.authelia;
+          security = cfg.reverseProxy.security;
+          extraConfig = cfg.reverseProxy.extraConfig;
+        };
+
+        # Register with Authelia for SSO protection
+        modules.services.authelia.accessControl.declarativelyProtectedServices.overseerr = lib.mkIf
+          (
+            cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
+          )
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = cfg.reverseProxy.authelia.policy;
+            subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
+            bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
+          };
+
+        # Backup integration using standardized restic pattern
+        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+          overseerr = {
+            enable = true;
+            paths = [ cfg.dataDir ];
+            repository = cfg.backup.repository;
+            frequency = cfg.backup.frequency;
+            tags = cfg.backup.tags;
+            excludePatterns = cfg.backup.excludePatterns;
+            useSnapshots = cfg.backup.useSnapshots;
+            zfsDataset = cfg.backup.zfsDataset;
+          };
+        };
+      })
+
+      # Preseed service
+      (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+        storageHelpers.mkPreseedService {
+          serviceName = "overseerr";
+          dataset = datasetPath;
+          mountpoint = cfg.dataDir;
+          mainServiceUnit = mainServiceUnit;
+          replicationCfg = replicationConfig;
+          datasetProperties = {
+            recordsize = "16K";
+            compression = "zstd";
+            "com.sun:auto-snapshot" = "true";
+          };
+          resticRepoUrl = cfg.preseed.repositoryUrl;
+          resticPasswordFile = cfg.preseed.passwordFile;
+          resticEnvironmentFile = cfg.preseed.environmentFile;
+          resticPaths = [ cfg.dataDir ];
+          restoreMethods = cfg.preseed.restoreMethods;
+          hasCentralizedNotifications = hasCentralizedNotifications;
+          owner = cfg.user;
+          group = cfg.group;
+        }
+      ))
+
+      # Register with Authelia if SSO protection is enabled
+      # This declares INTENT - Caddy module handles IMPLEMENTATION
+      (lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        {
+          modules.services.authelia.accessControl.declarativelyProtectedServices.overseerr =
+            let
+              authCfg = cfg.reverseProxy.authelia;
+            in
+            {
+              domain = cfg.reverseProxy.hostName;
+              policy = authCfg.policy;
+              # Convert groups to Authelia subject format
+              subject = map (g: "group:${g}") authCfg.allowedGroups;
+              # Authelia will handle ALL bypass logic - no Caddy-level bypass
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+                ++ authCfg.bypassResources;
+            };
+        })
+    ];
 }

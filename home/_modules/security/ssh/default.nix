@@ -1,7 +1,6 @@
-{
-  config,
-  lib,
-  ...
+{ config
+, lib
+, ...
 }:
 let
   cfg = config.modules.security.ssh;
@@ -11,7 +10,7 @@ in
     enable = lib.mkEnableOption "ssh";
     matchBlocks = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
     };
   };
 

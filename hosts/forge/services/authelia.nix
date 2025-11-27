@@ -30,160 +30,160 @@ in
         domain = config.networking.domain;
         port = 9091;
 
-      # Use SQLite for simplicity (perfect for homelab)
-      storage = {
-        type = "sqlite";
-        sqlitePath = "/var/lib/authelia-main/db.sqlite3";
-      };
+        # Use SQLite for simplicity (perfect for homelab)
+        storage = {
+          type = "sqlite";
+          sqlitePath = "/var/lib/authelia-main/db.sqlite3";
+        };
 
-      # Memory-based sessions (no Redis needed)
-      session = {
-        useRedis = false;
-        expiration = "12h";  # Long session for convenience
-        inactivity = "1h";   # Auto-logout after inactivity
-      };
+        # Memory-based sessions (no Redis needed)
+        session = {
+          useRedis = false;
+          expiration = "12h"; # Long session for convenience
+          inactivity = "1h"; # Auto-logout after inactivity
+        };
 
-      # Access control policies
-      # Default deny, explicit allow per service
-      accessControl = {
-        defaultPolicy = "deny";
+        # Access control policies
+        # Default deny, explicit allow per service
+        accessControl = {
+          defaultPolicy = "deny";
 
-        # Rules are defined per-service using mkAutheliaProtectedService helper
-        # See example below for how to protect services
-        rules = [
-          # Authelia portal itself is public (login page)
-          {
-            domain = "auth.${config.networking.domain}";
-            policy = "bypass";
-          }
-        ];
-      };
+          # Rules are defined per-service using mkAutheliaProtectedService helper
+          # See example below for how to protect services
+          rules = [
+            # Authelia portal itself is public (login page)
+            {
+              domain = "auth.${config.networking.domain}";
+              policy = "bypass";
+            }
+          ];
+        };
 
-      # OIDC provider for services that support it
-      oidc = {
-        enable = true;
-        issuerUrl = "https://auth.${config.networking.domain}";
+        # OIDC provider for services that support it
+        oidc = {
+          enable = true;
+          issuerUrl = "https://auth.${config.networking.domain}";
 
-        # OIDC clients (attribute set keyed by client ID)
-        # Client secrets must be Argon2id hashes (safe to store in configuration)
-        clients = {
-          grafana = {
-            description = "Grafana Dashboards";
-            # Argon2id hash of the client secret - generated with:
-            # authelia crypto hash generate argon2 --password "vI7RglAFqsV7Ip6ahUtiHu0xHIyibsB+3p4tvZVKDtM="
-            secret = "$argon2id$v=19$m=65536,t=3,p=4$Z4gXKb56uE/bJwhBtW3BPw$ILLszq7PH8dX/J6f6hYHXG/xyl2a3TGUpzlQgjkqRPw";
-            redirectUris = [
-              "https://grafana.${config.networking.domain}/login/generic_oauth"
-            ];
-            scopes = [ "openid" "profile" "email" "groups" ];
-          };
+          # OIDC clients (attribute set keyed by client ID)
+          # Client secrets must be Argon2id hashes (safe to store in configuration)
+          clients = {
+            grafana = {
+              description = "Grafana Dashboards";
+              # Argon2id hash of the client secret - generated with:
+              # authelia crypto hash generate argon2 --password "vI7RglAFqsV7Ip6ahUtiHu0xHIyibsB+3p4tvZVKDtM="
+              secret = "$argon2id$v=19$m=65536,t=3,p=4$Z4gXKb56uE/bJwhBtW3BPw$ILLszq7PH8dX/J6f6hYHXG/xyl2a3TGUpzlQgjkqRPw";
+              redirectUris = [
+                "https://grafana.${config.networking.domain}/login/generic_oauth"
+              ];
+              scopes = [ "openid" "profile" "email" "groups" ];
+            };
 
-          autobrr = {
-            description = "autobrr - IRC Announce Bot";
-            # Argon2id hash of the client secret - generated with:
-            # nix-shell -p authelia --run 'authelia crypto hash generate argon2 --password "nOnnJrvIGEHWT+2PDcbUNW8DUZqQ120FC6oMvtwcPpw="'
-            # Plaintext secret stored in secrets.sops.yaml as autobrr/oidc-client-secret
-            secret = "$argon2id$v=19$m=65536,t=3,p=4$ZCs4ZmH0mATD1c1P6hT8Cg$dkbk2/EzRcDiSYET+VT4gN130O1eRKMc3nZ3YeXM9+c";
-            redirectUris = [
-              "https://autobrr.${config.networking.domain}/api/auth/oidc/callback"
-            ];
-            scopes = [ "openid" "profile" "email" "groups" ];
-          };
+            autobrr = {
+              description = "autobrr - IRC Announce Bot";
+              # Argon2id hash of the client secret - generated with:
+              # nix-shell -p authelia --run 'authelia crypto hash generate argon2 --password "nOnnJrvIGEHWT+2PDcbUNW8DUZqQ120FC6oMvtwcPpw="'
+              # Plaintext secret stored in secrets.sops.yaml as autobrr/oidc-client-secret
+              secret = "$argon2id$v=19$m=65536,t=3,p=4$ZCs4ZmH0mATD1c1P6hT8Cg$dkbk2/EzRcDiSYET+VT4gN130O1eRKMc3nZ3YeXM9+c";
+              redirectUris = [
+                "https://autobrr.${config.networking.domain}/api/auth/oidc/callback"
+              ];
+              scopes = [ "openid" "profile" "email" "groups" ];
+            };
 
-          mealie = {
-            description = "Mealie Recipe Manager";
-            # Argon2id hash generated via:
-            # nix shell nixpkgs#authelia -c authelia crypto hash generate argon2 --no-confirm --password "$(sops -d --extract '[\"mealie\"][\"oidc_client_secret\"]' hosts/forge/secrets.sops.yaml)"
-            # Plaintext secret stored in secrets.sops.yaml as mealie/oidc_client_secret
-            secret = "$argon2id$v=19$m=65536,t=3,p=4$exvzS7nAAT0RZufSF5ktqw$bgyOvm9M6sC0aSiKMz8GTQ8H/XkLlv0tC6775SEVtJ4";
-            redirectUris = [
-              # Official docs specify /login (optionally with ?direct=1 for RP-initiated logout)
-              "https://mealie.${config.networking.domain}/login"
-              "https://mealie.${config.networking.domain}/login?direct=1"
-            ];
-            scopes = [ "openid" "profile" "email" "groups" ];
+            mealie = {
+              description = "Mealie Recipe Manager";
+              # Argon2id hash generated via:
+              # nix shell nixpkgs#authelia -c authelia crypto hash generate argon2 --no-confirm --password "$(sops -d --extract '[\"mealie\"][\"oidc_client_secret\"]' hosts/forge/secrets.sops.yaml)"
+              # Plaintext secret stored in secrets.sops.yaml as mealie/oidc_client_secret
+              secret = "$argon2id$v=19$m=65536,t=3,p=4$exvzS7nAAT0RZufSF5ktqw$bgyOvm9M6sC0aSiKMz8GTQ8H/XkLlv0tC6775SEVtJ4";
+              redirectUris = [
+                # Official docs specify /login (optionally with ?direct=1 for RP-initiated logout)
+                "https://mealie.${config.networking.domain}/login"
+                "https://mealie.${config.networking.domain}/login?direct=1"
+              ];
+              scopes = [ "openid" "profile" "email" "groups" ];
+            };
           };
         };
-      };
 
-      # Email notifier for 2FA registration and password resets
-      notifier = {
-        type = "smtp";
-        smtp = {
-          host = "smtp.mailgun.org";
-          port = 587;
-          username = "authelia@holthome.net";
-          passwordFile = config.sops.secrets."authelia/smtp_password".path;
-          sender = "Authelia <authelia@holthome.net>";
-          subject = "[Authelia] {title}";
+        # Email notifier for 2FA registration and password resets
+        notifier = {
+          type = "smtp";
+          smtp = {
+            host = "smtp.mailgun.org";
+            port = 587;
+            username = "authelia@holthome.net";
+            passwordFile = config.sops.secrets."authelia/smtp_password".path;
+            sender = "Authelia <authelia@holthome.net>";
+            subject = "[Authelia] {title}";
+          };
         };
-      };
 
-      # SOPS-managed secrets
-      secrets = {
-        jwtSecretFile = config.sops.secrets."authelia/jwt_secret".path;
-        sessionSecretFile = config.sops.secrets."authelia/session_secret".path;
-        storageEncryptionKeyFile = config.sops.secrets."authelia/storage_encryption_key".path;
-        oidcHmacSecretFile = config.sops.secrets."authelia/oidc/hmac_secret".path;
-        oidcIssuerPrivateKeyFile = config.sops.secrets."authelia/oidc/issuer_private_key".path;
-      };
+        # SOPS-managed secrets
+        secrets = {
+          jwtSecretFile = config.sops.secrets."authelia/jwt_secret".path;
+          sessionSecretFile = config.sops.secrets."authelia/session_secret".path;
+          storageEncryptionKeyFile = config.sops.secrets."authelia/storage_encryption_key".path;
+          oidcHmacSecretFile = config.sops.secrets."authelia/oidc/hmac_secret".path;
+          oidcIssuerPrivateKeyFile = config.sops.secrets."authelia/oidc/issuer_private_key".path;
+        };
 
-      # Reverse proxy configuration
-      reverseProxy = {
-        enable = true;
-        hostName = "auth.${config.networking.domain}";
-        backend = {
-          scheme = "http";
-          host = "127.0.0.1";
+        # Reverse proxy configuration
+        reverseProxy = {
+          enable = true;
+          hostName = "auth.${config.networking.domain}";
+          backend = {
+            scheme = "http";
+            host = "127.0.0.1";
+            port = 9091;
+          };
+          security = {
+            hsts = {
+              enable = true;
+              maxAge = 15552000;
+              includeSubDomains = true;
+            };
+            customHeaders = {
+              "X-Frame-Options" = "DENY";
+              "X-Content-Type-Options" = "nosniff";
+            };
+          };
+        };
+
+        # Prometheus metrics
+        metrics = {
+          enable = true;
           port = 9091;
-        };
-        security = {
-          hsts = {
-            enable = true;
-            maxAge = 15552000;
-            includeSubDomains = true;
-          };
-          customHeaders = {
-            "X-Frame-Options" = "DENY";
-            "X-Content-Type-Options" = "nosniff";
+          path = "/metrics";
+          labels = {
+            service_type = "authentication";
+            exporter = "authelia";
           };
         };
-      };
 
-      # Prometheus metrics
-      metrics = {
-        enable = true;
-        port = 9091;
-        path = "/metrics";
-        labels = {
-          service_type = "authentication";
-          exporter = "authelia";
+        # Logging integration
+        logging = {
+          enable = true;
+          journalUnit = "authelia-main.service";
+          labels = {
+            service = "authelia";
+            service_type = "authentication";
+          };
+        };
+
+        # Backup configuration
+        backup = forgeDefaults.mkBackupWithTags "authelia" [ "authentication" "sso" "authelia" ];
+
+        # Preseed/DR configuration
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+
+        # Notifications
+        notifications = {
+          enable = true;
+          channels.onFailure = [ "system-alerts" ];
+          customMessages.failure = "Authelia SSO service failed on ${config.networking.hostName}";
         };
       };
-
-      # Logging integration
-      logging = {
-        enable = true;
-        journalUnit = "authelia-main.service";
-        labels = {
-          service = "authelia";
-          service_type = "authentication";
-        };
-      };
-
-      # Backup configuration
-      backup = forgeDefaults.mkBackupWithTags "authelia" [ "authentication" "sso" "authelia" ];
-
-      # Preseed/DR configuration
-      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
-
-      # Notifications
-      notifications = {
-        enable = true;
-        channels.onFailure = [ "system-alerts" ];
-        customMessages.failure = "Authelia SSO service failed on ${config.networking.hostName}";
-      };
-    };
 
       # Users file is managed via SOPS (declared in secrets.nix)
       # The secret is placed at /var/lib/authelia-main/users.yaml automatically

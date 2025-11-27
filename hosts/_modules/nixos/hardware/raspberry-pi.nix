@@ -31,7 +31,7 @@ in
         "cma=256M"
         "console=ttyS0,115200n8"
         "console=tty0"
-        "console=ttyGS0,115200"  # USB gadget serial console
+        "console=ttyGS0,115200" # USB gadget serial console
       ];
     };
 
@@ -60,8 +60,8 @@ in
 
     # Create groups for hardware access
     users.groups = {
-      gpio = {};
-      i2c = {};
+      gpio = { };
+      i2c = { };
     };
   };
 }

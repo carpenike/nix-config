@@ -21,15 +21,17 @@ with lib;
 {
   # Register a basic public service (no authentication)
   # Use for public-facing services or those with their own auth
-  mkPublicService = {
-    name,
-    subdomain,
-    port,
-    domain ? null,
-    scheme ? "http",
-    securityLevel ? "standard",  # "minimal" | "standard" | "high"
-    condition ? true,
-  }:
+  mkPublicService =
+    { name
+    , subdomain
+    , port
+    , domain ? null
+    , scheme ? "http"
+    , securityLevel ? "standard"
+    , # "minimal" | "standard" | "high"
+      condition ? true
+    ,
+    }:
     mkIf condition {
       modules.reverseProxy.virtualHosts.${name} = {
         enable = true;
@@ -64,11 +66,11 @@ with lib;
             Referrer-Policy = "strict-origin-when-cross-origin";
             Permissions-Policy = "geolocation=(), microphone=(), camera=()";
           }
-          else {};
+          else { };
 
         security.hsts = {
           enable = securityLevel == "high" || securityLevel == "standard";
-          maxAge = if securityLevel == "high" then 31536000 else 15552000;  # 1yr vs 6mo
+          maxAge = if securityLevel == "high" then 31536000 else 15552000; # 1yr vs 6mo
           includeSubDomains = true;
           preload = securityLevel == "high";
         };
@@ -77,16 +79,17 @@ with lib;
 
   # Register an authenticated service with basic auth
   # Use for internal admin interfaces
-  mkAuthenticatedService = {
-    name,
-    subdomain,
-    port,
-    domain ? null,
-    scheme ? "http",
-    authUser,
-    authPasswordHashEnvVar,
-    condition ? true,
-  }:
+  mkAuthenticatedService =
+    { name
+    , subdomain
+    , port
+    , domain ? null
+    , scheme ? "http"
+    , authUser
+    , authPasswordHashEnvVar
+    , condition ? true
+    ,
+    }:
     mkIf condition {
       modules.reverseProxy.virtualHosts.${name} = {
         enable = true;
@@ -120,7 +123,7 @@ with lib;
 
         security.hsts = {
           enable = true;
-          maxAge = 31536000;  # 1 year
+          maxAge = 31536000; # 1 year
           includeSubDomains = true;
           preload = false;
         };
@@ -129,18 +132,20 @@ with lib;
 
   # Register a secure web application with opinionated security defaults
   # Use for SPAs, web UIs, and interactive applications
-  mkSecureWebApp = {
-    name,
-    subdomain,
-    port,
-    domain ? null,
-    scheme ? "http",
-    requireAuth ? false,
-    authUser ? "admin",
-    authPasswordHashEnvVar ? null,
-    allowFraming ? false,  # Set true for embedding in iframes
-    condition ? true,
-  }:
+  mkSecureWebApp =
+    { name
+    , subdomain
+    , port
+    , domain ? null
+    , scheme ? "http"
+    , requireAuth ? false
+    , authUser ? "admin"
+    , authPasswordHashEnvVar ? null
+    , allowFraming ? false
+    , # Set true for embedding in iframes
+      condition ? true
+    ,
+    }:
     mkIf condition {
       modules.reverseProxy.virtualHosts.${name} = {
         enable = true;
@@ -184,18 +189,21 @@ with lib;
 
   # Register a service with an HTTPS backend (e.g., Omada, Unifi)
   # Handles TLS backend configuration safely
-  mkHttpsBackendService = {
-    name,
-    subdomain,
-    port,
-    domain ? null,
-    verifyTls ? true,  # Require explicit opt-out
-    acknowledgeInsecure ? false,  # Required when verifyTls = false
-    sni ? null,
-    caFile ? null,
-    securityLevel ? "standard",
-    condition ? true,
-  }:
+  mkHttpsBackendService =
+    { name
+    , subdomain
+    , port
+    , domain ? null
+    , verifyTls ? true
+    , # Require explicit opt-out
+      acknowledgeInsecure ? false
+    , # Required when verifyTls = false
+      sni ? null
+    , caFile ? null
+    , securityLevel ? "standard"
+    , condition ? true
+    ,
+    }:
     mkIf condition {
       modules.reverseProxy.virtualHosts.${name} = {
         enable = true;
@@ -226,7 +234,7 @@ with lib;
             X-XSS-Protection = "1; mode=block";
             Referrer-Policy = "strict-origin-when-cross-origin";
           }
-          else {};
+          else { };
 
         security.hsts = {
           enable = securityLevel != "minimal";
@@ -238,17 +246,18 @@ with lib;
 
   # Legacy helper for backward compatibility with register-vhost.nix
   # Prefer the specialized helpers above for new services
-  registerVirtualHost = {
-    name,
-    subdomain,
-    port,
-    domain ? null,
-    httpsBackend ? false,
-    auth ? null,
-    headers ? "",
-    extraConfig ? "",
-    condition ? true,
-  }:
+  registerVirtualHost =
+    { name
+    , subdomain
+    , port
+    , domain ? null
+    , httpsBackend ? false
+    , auth ? null
+    , headers ? ""
+    , extraConfig ? ""
+    , condition ? true
+    ,
+    }:
     mkIf condition {
       modules.reverseProxy.virtualHosts.${name} = {
         enable = true;
@@ -262,8 +271,8 @@ with lib;
           inherit port;
           host = "localhost";
           tls = mkIf httpsBackend {
-            verify = false;  # Legacy behavior
-            acknowledgeInsecure = true;  # Auto-acknowledge for backward compat
+            verify = false; # Legacy behavior
+            acknowledgeInsecure = true; # Auto-acknowledge for backward compat
           };
         };
 
@@ -279,17 +288,18 @@ with lib;
 
   # Register a service protected by Authelia forward auth
   # Use for services that should use SSO authentication
-  mkAutheliaProtectedService = {
-    name,
-    subdomain,
-    port,
-    domain ? null,
-    scheme ? "http",
-    require2FA ? false,
-    allowedGroups ? [ "users" ],
-    autheliaUrl ? "http://localhost:9091",
-    condition ? true,
-  }:
+  mkAutheliaProtectedService =
+    { name
+    , subdomain
+    , port
+    , domain ? null
+    , scheme ? "http"
+    , require2FA ? false
+    , allowedGroups ? [ "users" ]
+    , autheliaUrl ? "http://localhost:9091"
+    , condition ? true
+    ,
+    }:
     mkIf condition {
       modules.reverseProxy.virtualHosts.${name} = {
         enable = true;

@@ -1,9 +1,8 @@
 # NFS Mount Management Module
 # Provides DRY-based centralized NFS mount configuration across multiple hosts
-{
-  config,
-  lib,
-  ...
+{ config
+, lib
+, ...
 }:
 with lib;
 let
@@ -24,7 +23,7 @@ let
   shouldMountShare = shareName: shareConfig:
     shareConfig.enable &&
     (shareConfig.localPath != null) &&
-    (shareConfig.hostFilter == [] || elem config.networking.hostName shareConfig.hostFilter);
+    (shareConfig.hostFilter == [ ] || elem config.networking.hostName shareConfig.hostFilter);
 in
 {
   options.modules.filesystems.nfs = {
@@ -47,12 +46,12 @@ in
 
           defaultOptions = mkOption {
             type = types.listOf types.str;
-            default = [];
+            default = [ ];
             description = "Default mount options for this server";
           };
         };
       });
-      default = {};
+      default = { };
       description = "NFS server definitions";
       example = literalExpression ''
         {
@@ -95,7 +94,7 @@ in
 
           options = mkOption {
             type = types.listOf types.str;
-            default = [];
+            default = [ ];
             description = "Additional NFS mount options (merged with server defaults and profile options)";
             example = [ "ro" "noexec" ];
           };
@@ -138,7 +137,7 @@ in
 
           hostFilter = mkOption {
             type = types.listOf types.str;
-            default = [];
+            default = [ ];
             description = "Only mount on these hostnames (empty list = mount on all hosts)";
             example = [ "workstation" "mediaserver" ];
           };
@@ -150,7 +149,7 @@ in
           };
         };
       }));
-      default = {};
+      default = { };
       description = "NFS share definitions";
       example = literalExpression ''
         {
@@ -202,7 +201,7 @@ in
 
     globalOptions = mkOption {
       type = types.listOf types.str;
-      default = [];
+      default = [ ];
       description = "Global mount options applied to all NFS mounts";
       example = [ "tcp" "intr" ];
     };
@@ -261,62 +260,74 @@ in
     ];
 
     # Generate filesystem configurations for enabled shares
-    fileSystems = mapAttrs' (shareName: shareConfig:
-      let
-        serverConfig = cfg.servers.${shareConfig.server};
+    fileSystems = mapAttrs'
+      (shareName: shareConfig:
+        let
+          serverConfig = cfg.servers.${shareConfig.server};
 
-        # Build complete options list
-        allOptions =
-          [ "nfsvers=${serverConfig.version}" ] ++
-          serverConfig.defaultOptions ++
-          cfg.globalOptions ++
-          (buildMountOptions shareName shareConfig);
-      in
-      nameValuePair shareConfig.localPath (mkIf (shouldMountShare shareName shareConfig) {
-        device = "${serverConfig.address}:${shareConfig.remotePath}";
-        fsType = if (hasPrefix "4" serverConfig.version) then "nfs4" else "nfs";
-        options = allOptions;
-        neededForBoot = shareConfig.neededForBoot;
-      })
-    ) (filterAttrs (name: share: share.localPath != null) cfg.shares);
+          # Build complete options list
+          allOptions =
+            [ "nfsvers=${serverConfig.version}" ] ++
+            serverConfig.defaultOptions ++
+            cfg.globalOptions ++
+            (buildMountOptions shareName shareConfig);
+        in
+        nameValuePair shareConfig.localPath (mkIf (shouldMountShare shareName shareConfig) {
+          device = "${serverConfig.address}:${shareConfig.remotePath}";
+          fsType = if (hasPrefix "4" serverConfig.version) then "nfs4" else "nfs";
+          options = allOptions;
+          neededForBoot = shareConfig.neededForBoot;
+        })
+      )
+      (filterAttrs (name: share: share.localPath != null) cfg.shares);
 
     # Create systemd automount units for lazy mounts
-    systemd.automounts = mapAttrsToList (shareName: shareConfig:
-      mkIf (shouldMountShare shareName shareConfig && shareConfig.lazy) {
-        where = shareConfig.localPath;
-        wantedBy = [ "multi-user.target" ];
-        automountConfig = {
-          TimeoutIdleSec = "600";
-        };
-      }
-    ) cfg.shares;
+    systemd.automounts = mapAttrsToList
+      (shareName: shareConfig:
+        mkIf (shouldMountShare shareName shareConfig && shareConfig.lazy) {
+          where = shareConfig.localPath;
+          wantedBy = [ "multi-user.target" ];
+          automountConfig = {
+            TimeoutIdleSec = "600";
+          };
+        }
+      )
+      cfg.shares;
 
     # Create mount point directories
     systemd.tmpfiles.rules = mkIf cfg.createMountPoints (
-      mapAttrsToList (shareName: shareConfig:
-        mkIf (shouldMountShare shareName shareConfig)
-          "d ${shareConfig.localPath} 0755 root root -"
-      ) cfg.shares
+      mapAttrsToList
+        (shareName: shareConfig:
+          mkIf (shouldMountShare shareName shareConfig)
+            "d ${shareConfig.localPath} 0755 root root -"
+        )
+        cfg.shares
     );
 
     # Assertions to catch configuration errors
     assertions = [
       {
-        assertion = all (share:
-          hasAttr share.server cfg.servers
-        ) (attrValues cfg.shares);
+        assertion = all
+          (share:
+            hasAttr share.server cfg.servers
+          )
+          (attrValues cfg.shares);
         message = "All NFS shares must reference a defined server in modules.filesystems.nfs.servers";
       }
       {
-        assertion = all (share:
-          share.localPath == null || hasPrefix "/" share.localPath
-        ) (attrValues cfg.shares);
+        assertion = all
+          (share:
+            share.localPath == null || hasPrefix "/" share.localPath
+          )
+          (attrValues cfg.shares);
         message = "NFS share localPath must be an absolute path or null";
       }
       {
-        assertion = all (share:
-          hasPrefix "/" share.remotePath
-        ) (attrValues cfg.shares);
+        assertion = all
+          (share:
+            hasPrefix "/" share.remotePath
+          )
+          (attrValues cfg.shares);
         message = "NFS share remotePath must be an absolute path";
       }
       {

@@ -1,7 +1,6 @@
-{
-  lib,
-  config,
-  ...
+{ lib
+, config
+, ...
 }:
 let
   cfg = config.modules.services.nginx;
@@ -12,11 +11,11 @@ in
     enableAcme = lib.mkEnableOption "nginx";
     upstreams = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
     };
     virtualHosts = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
     };
 
     acmeCloudflareAuthFile = lib.mkOption {
@@ -38,7 +37,7 @@ in
       };
     };
 
-    security.acme = lib.mkIf cfg.enableAcme  {
+    security.acme = lib.mkIf cfg.enableAcme {
       acceptTerms = true;
       defaults = {
         email = "ryan@ryanholt.net";

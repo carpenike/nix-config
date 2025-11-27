@@ -1,8 +1,7 @@
-{
-  pkgs,
-  config,
-  lib,
-  ...
+{ pkgs
+, config
+, lib
+, ...
 }:
 let
   inherit (lib) optionalAttrs;
@@ -53,7 +52,7 @@ in
         "/etc/ssh/ssh_host_ed25519_key"
       ];
       secrets =
-        {}
+        { }
         // optionalAttrs resticEnabled {
           # Restic backup password (used for local NFS and R2 encryption)
           "restic/password" = {
@@ -123,7 +122,7 @@ in
           # can hash the file for change detection. PostgreSQL server reads via pg_read_file()
           # which has superuser privileges and doesn't need filesystem permissions.
           "postgresql/dispatcharr_password" = {
-            mode = "0440";  # owner+group read
+            mode = "0440"; # owner+group read
             owner = "root";
             group = "postgres";
           };
@@ -487,7 +486,7 @@ in
       # This is the correct pattern for injecting secrets into the environment
       # of OCI containers, as it defers secret injection until system activation time.
       templates =
-        {}
+        { }
         // optionalAttrs sonarrEnabled {
           "sonarr-env" = {
             content = ''

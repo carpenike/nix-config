@@ -41,25 +41,25 @@ let
 
   replicationConfig =
     if foundReplication == null then null else
-      let
-        datasetSuffix =
-          if foundReplication.sourcePath == datasetPath then
-            ""
-          else
-            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-      in
-      {
-        targetHost = foundReplication.replication.targetHost;
-        targetDataset =
-          if datasetSuffix == "" then
-            foundReplication.replication.targetDataset
-          else
-            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-        sendOptions = foundReplication.replication.sendOptions or "w";
-        recvOptions = foundReplication.replication.recvOptions or "u";
-      };
+    let
+      datasetSuffix =
+        if foundReplication.sourcePath == datasetPath then
+          ""
+        else
+          lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+    in
+    {
+      targetHost = foundReplication.replication.targetHost;
+      targetDataset =
+        if datasetSuffix == "" then
+          foundReplication.replication.targetDataset
+        else
+          "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+      sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
+      sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+      sendOptions = foundReplication.replication.sendOptions or "w";
+      recvOptions = foundReplication.replication.recvOptions or "u";
+    };
 in
 {
   options.modules.services.home-assistant = {
@@ -240,24 +240,27 @@ in
         '';
       };
 
-      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ])) ++
-            (authCfg.bypassResources or [ ]);
-        }
-      );
+      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ])) ++
+              (authCfg.bypassResources or [ ]);
+          }
+        );
 
       # ZFS dataset management for Home Assistant state
       modules.storage.datasets.services.${serviceName} = {
@@ -290,7 +293,7 @@ in
           // (mkIf (cfg.environmentFiles != [ ]) {
             EnvironmentFile = cfg.environmentFiles;
           }));
-        };
+      };
 
       # Ensure native Home Assistant account follows repo-wide conventions
       users.users.hass = {

@@ -27,7 +27,7 @@ in
       extraGroups = [ "dialout" ]; # For CAN bus access
     };
 
-    users.groups.${cfg.group} = {};
+    users.groups.${cfg.group} = { };
 
     # Note: The actual coachiq service configuration will be handled
     # by importing the coachiq NixOS module at the host level

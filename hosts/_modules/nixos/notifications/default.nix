@@ -1,8 +1,7 @@
-{
-  lib,
-  config,
-  pkgs,
-  ...
+{ lib
+, config
+, pkgs
+, ...
 }:
 let
   cfg = config.modules.notifications;
@@ -68,12 +67,12 @@ in
           # Template-specific options
           extraOptions = lib.mkOption {
             type = lib.types.attrs;
-            default = {};
+            default = { };
             description = "Additional template-specific options (e.g., disk threshold, retry count)";
           };
         };
       });
-      default = {};
+      default = { };
       description = ''
         Notification templates registered by service modules.
         Services define their own templates here using mkDefault for easy override.
@@ -137,7 +136,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "Pushover notification backend configuration";
     };
 
@@ -177,7 +176,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "ntfy notification backend configuration";
     };
 
@@ -211,7 +210,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "Healthchecks.io monitoring configuration";
     };
   };
@@ -219,7 +218,7 @@ in
   config = lib.mkIf cfg.enable {
     # Create a dedicated group for notification services to share files securely
     # Using 'notify-ipc' to avoid conflicts with DynamicUser creating groups named 'notify'
-    users.groups.notify-ipc = {};
+    users.groups.notify-ipc = { };
 
     # Create payload directory for IPC between notification services
     # Using 1770 (rwxrwx--T with sticky bit) for secure shared drop-box pattern:
@@ -244,10 +243,12 @@ in
     # Generate a JSON file containing all registered template definitions
     # This is used by the generic dispatcher to look up template details
     environment.etc."notification-templates.json".text = builtins.toJSON (
-      lib.mapAttrs (name: template: {
-        inherit (template) enable priority backend title body;
-        extraOptions = template.extraOptions or {};
-      }) cfg.templates
+      lib.mapAttrs
+        (name: template: {
+          inherit (template) enable priority backend title body;
+          extraOptions = template.extraOptions or { };
+        })
+        cfg.templates
     );
 
     # Generic notification dispatcher service

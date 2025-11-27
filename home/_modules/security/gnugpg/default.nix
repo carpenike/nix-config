@@ -1,8 +1,7 @@
-{
-  pkgs,
-  config,
-  lib,
-  ...
+{ pkgs
+, config
+, lib
+, ...
 }:
 let
   inherit (pkgs.stdenv.hostPlatform) isDarwin isLinux;
@@ -40,19 +39,21 @@ in
         pinentryFlavor = "curses";
       };
 
-      programs = let
-        fixGpg = ''
-          gpgconf --launch gpg-agent
-        '';
-      in {
-        bash.profileExtra = fixGpg;
-        fish.loginShellInit = ''
-          if status --is-interactive
-            ${fixGpg}
-          end
-        '';
-        zsh.loginExtra = fixGpg;
-      };
+      programs =
+        let
+          fixGpg = ''
+            gpgconf --launch gpg-agent
+          '';
+        in
+        {
+          bash.profileExtra = fixGpg;
+          fish.loginShellInit = ''
+            if status --is-interactive
+              ${fixGpg}
+            end
+          '';
+          zsh.loginExtra = fixGpg;
+        };
     })
   ];
 }

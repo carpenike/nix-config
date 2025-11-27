@@ -1,9 +1,8 @@
-{
-  pkgs,
-  lib,
-  config,
-  hostname,
-  ...
+{ pkgs
+, lib
+, config
+, hostname
+, ...
 }:
 let
   ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
@@ -11,7 +10,7 @@ in
 {
   imports = [
     ./hardware-configuration.nix
-    (import ./disko-config.nix {disks = [ "/dev/sda"]; })
+    (import ./disko-config.nix { disks = [ "/dev/sda" ]; })
     ./secrets.nix
   ];
 

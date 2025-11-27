@@ -1,8 +1,7 @@
-{
-  pkgs,
-  lib,
-  hostname,
-  ...
+{ pkgs
+, lib
+, hostname
+, ...
 }:
 {
   config = {
@@ -28,7 +27,7 @@
       taps = [
       ];
       brews = [
-        "cidr"  # Not available in nixpkgs yet
+        "cidr" # Not available in nixpkgs yet
       ];
       casks = [
         "anylist"
@@ -42,8 +41,7 @@
         "microsoft-edge"
         "gpg-suite-pinentry"
       ];
-      masApps = {
-      };
+      masApps = { };
     };
   };
 }

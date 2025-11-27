@@ -169,7 +169,7 @@ in
     description = "Container Resource Metrics Exporter for Prometheus";
     serviceConfig = {
       Type = "oneshot";
-      User = "root";  # Run as root to access systemd-managed containers
+      User = "root"; # Run as root to access systemd-managed containers
       ExecStart = "${containerMetricsScript}/bin/export-container-metrics";
 
       # Grant write access to the textfile collector directory
@@ -184,8 +184,8 @@ in
     description = "Run container metrics exporter every minute";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "1m";     # Wait for containers to start
-      OnUnitActiveSec = "60s";  # Check every minute (balanced resolution vs overhead)
+      OnBootSec = "1m"; # Wait for containers to start
+      OnUnitActiveSec = "60s"; # Check every minute (balanced resolution vs overhead)
       Unit = "container-metrics-exporter.service";
     };
   };

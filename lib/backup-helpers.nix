@@ -12,71 +12,73 @@
 #
 # Return a function that takes pkgs and lib to avoid early evaluation
 { pkgs, lib }: {
-    # Create a Restic backup job with proper systemd integration and security
-    mkResticBackup = {
-      name,
-      paths,
-      repository,
-      preBackupScript ? "",
-      postBackupScript ? "",
-      excludePatterns ? [],
-      tags ? [name],
-      resources ? {
-  memory = "256M";
-  memoryReservation = "128M";
+  # Create a Restic backup job with proper systemd integration and security
+  mkResticBackup =
+    { name
+    , paths
+    , repository
+    , preBackupScript ? ""
+    , postBackupScript ? ""
+    , excludePatterns ? [ ]
+    , tags ? [ name ]
+    , resources ? {
+        memory = "256M";
+        memoryReservation = "128M";
         cpus = "0.5";
-      },
-      user ? "restic-backup",
-      group ? "restic-backup",
-      environmentFile ? "/run/secrets/restic-${name}.env",
-      readConcurrency ? 2,
-      compression ? "auto",
-      ...
+      }
+    , user ? "restic-backup"
+    , group ? "restic-backup"
+    , environmentFile ? "/run/secrets/restic-${name}.env"
+    , readConcurrency ? 2
+    , compression ? "auto"
+    , ...
     }: {
       # Only create systemd service - users/groups are created statically in backup.nix
       systemd.services."backup-${name}" = {
-          description = "Restic backup for ${name}";
-          wants = [ "backup.target" ];
-          wantedBy = [ "backup.target" ];  # Fix: Actually start when backup.target is started
-          after = [ "network-online.target" ];
+        description = "Restic backup for ${name}";
+        wants = [ "backup.target" ];
+        wantedBy = [ "backup.target" ]; # Fix: Actually start when backup.target is started
+        after = [ "network-online.target" ];
 
-          serviceConfig = {
-            Type = "oneshot";
-            User = user;
-            Group = group;
+        serviceConfig = {
+          Type = "oneshot";
+          User = user;
+          Group = group;
 
-            # Security hardening (O3 recommendations)
-            DynamicUser = lib.mkDefault (user != "root");
-            PrivateTmp = true;
-            ProtectSystem = "strict";
-            ProtectHome = true;
-            NoNewPrivileges = true;
-            MemoryDenyWriteExecute = true;
+          # Security hardening (O3 recommendations)
+          DynamicUser = lib.mkDefault (user != "root");
+          PrivateTmp = true;
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          NoNewPrivileges = true;
+          MemoryDenyWriteExecute = true;
 
-            # Resource limits (prevent backup impact on services)
-            Slice = "backup.slice";
-            IOSchedulingClass = "idle";
-            CPUSchedulingPolicy = "idle";
+          # Resource limits (prevent backup impact on services)
+          Slice = "backup.slice";
+          IOSchedulingClass = "idle";
+          CPUSchedulingPolicy = "idle";
 
-            # Apply per-job resource limits from options
-            MemoryMax = resources.memory;
-            MemoryLow = resources.memoryReservation;  # Protection from reclamation
-            CPUQuota = lib.strings.removeSuffix ".0" (toString (lib.strings.toFloat resources.cpus * 100)) + "%";
+          # Apply per-job resource limits from options
+          MemoryMax = resources.memory;
+          MemoryLow = resources.memoryReservation; # Protection from reclamation
+          CPUQuota = lib.strings.removeSuffix ".0" (toString (lib.strings.toFloat resources.cpus * 100)) + "%";
 
-            # Environment and secrets
-            EnvironmentFile = environmentFile;
+          # Environment and secrets
+          EnvironmentFile = environmentFile;
 
-            # Failure handling
-            Restart = "on-failure";
-            RestartSec = "300";
-            SuccessExitStatus = "1"; # Allow partial backups (Restic exit code 1)
-          };
+          # Failure handling
+          Restart = "on-failure";
+          RestartSec = "300";
+          SuccessExitStatus = "1"; # Allow partial backups (Restic exit code 1)
+        };
 
-          script = let
+        script =
+          let
             excludeArgs = lib.concatMapStringsSep " " (pattern: "--exclude '${pattern}'") excludePatterns;
             tagArgs = lib.concatMapStringsSep " " (tag: "--tag '${tag}'") tags;
             pathArgs = lib.concatStringsSep " " (path: "'${path}'") paths;
-          in ''
+          in
+          ''
             set -euo pipefail
 
             # Pre-backup tasks
@@ -101,17 +103,17 @@
             echo "Backup completed successfully for ${name}"
           '';
 
-          # Success/failure notifications
-          onSuccess = [ "backup-notify-success@${name}.service" ];
-          onFailure = [ "backup-notify-failure@${name}.service" ];
-        };
+        # Success/failure notifications
+        onSuccess = [ "backup-notify-success@${name}.service" ];
+        onFailure = [ "backup-notify-failure@${name}.service" ];
       };
+    };
 
-    # Create monitoring notifications
-    mkBackupMonitoring = {
-      healthchecksUrl ? "",
-      ntfyTopic ? "",
-      ...
+  # Create monitoring notifications
+  mkBackupMonitoring =
+    { healthchecksUrl ? ""
+    , ntfyTopic ? ""
+    , ...
     }: {
       # Success notification service template
       systemd.services."backup-notify-success@" = {

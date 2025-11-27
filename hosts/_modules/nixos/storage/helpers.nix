@@ -10,11 +10,10 @@
 # Last Updated: 2025-10-09
 # Deprecated By: helpers-lib.nix (pure function implementation)
 # Status: Safe to delete - no longer imported in default.nix
-{
-  pkgs,
-  lib,
-  config,
-  ...
+{ pkgs
+, lib
+, config
+, ...
 }:
 let
   storageHelpers = {
@@ -41,116 +40,116 @@ let
         - owner: (string) User to own the restored files (default: "root").
         - group: (string) Group to own the restored files (default: "root").
     */
-    mkPreseedService = {
-      serviceName,
-      dataset,
-      mountpoint,
-      mainServiceUnit,
-      resticRepoUrl,
-      resticPasswordFile,
-      resticEnvironmentFile ? null,
-      resticPaths,
-      hasCentralizedNotifications ? false,
-      timeoutSec ? 1800,
-      owner ? "root",
-      group ? "root"
-    }:
-    let
+    mkPreseedService =
+      { serviceName
+      , dataset
+      , mountpoint
+      , mainServiceUnit
+      , resticRepoUrl
+      , resticPasswordFile
+      , resticEnvironmentFile ? null
+      , resticPaths
+      , hasCentralizedNotifications ? false
+      , timeoutSec ? 1800
+      , owner ? "root"
+      , group ? "root"
+      }:
+      let
 
-      # Helper to trigger a notification
-      notify = template: message: ''
-        ${lib.optionalString hasCentralizedNotifications ''
-          echo "${message}"
-          export NOTIFY_MESSAGE="${lib.escapeShellArg message}"
-          # The dispatcher service uses the instance info as the serviceName
-          ${pkgs.systemd}/bin/systemctl start "notify@${template}:${serviceName}.service"
-        ''}
-      '';
-    in
-    {
-      systemd.services."preseed-${serviceName}" = {
-        description = "Pre-seed data for ${serviceName} service";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "network-online.target" "zfs-import.target" ];
-        before = [ mainServiceUnit ];
+        # Helper to trigger a notification
+        notify = template: message: ''
+          ${lib.optionalString hasCentralizedNotifications ''
+            echo "${message}"
+            export NOTIFY_MESSAGE="${lib.escapeShellArg message}"
+            # The dispatcher service uses the instance info as the serviceName
+            ${pkgs.systemd}/bin/systemctl start "notify@${template}:${serviceName}.service"
+          ''}
+        '';
+      in
+      {
+        systemd.services."preseed-${serviceName}" = {
+          description = "Pre-seed data for ${serviceName} service";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" "zfs-import.target" ];
+          before = [ mainServiceUnit ];
 
-        path = with pkgs; [ zfs coreutils gnugrep gawk restic systemd ];
+          path = with pkgs; [ zfs coreutils gnugrep gawk restic systemd ];
 
-        serviceConfig = {
-          Type = "oneshot";
-          User = "root"; # Root is required for zfs rollback and chown
-          TimeoutStartSec = timeoutSec;
-        };
+          serviceConfig = {
+            Type = "oneshot";
+            User = "root"; # Root is required for zfs rollback and chown
+            TimeoutStartSec = timeoutSec;
+          };
 
-        script = ''
-          set -euo pipefail
+          script = ''
+            set -euo pipefail
 
-          echo "Starting preseed check for ${serviceName} at ${mountpoint}..."
+            echo "Starting preseed check for ${serviceName} at ${mountpoint}..."
 
-          # Step 1: Check if data directory is empty.
-          # Using `ls -A` to account for hidden files.
-          if [ -n "$(ls -A "${mountpoint}" 2>/dev/null)" ]; then
-            ${notify "preseed-skipped" "Data for ${serviceName} already exists. Skipping restore."}
-            exit 0
-          fi
+            # Step 1: Check if data directory is empty.
+            # Using `ls -A` to account for hidden files.
+            if [ -n "$(ls -A "${mountpoint}" 2>/dev/null)" ]; then
+              ${notify "preseed-skipped" "Data for ${serviceName} already exists. Skipping restore."}
+              exit 0
+            fi
 
-          echo "Data directory is empty. Attempting restore..."
+            echo "Data directory is empty. Attempting restore..."
 
-          # Step 2: Attempt ZFS snapshot rollback (fastest)
-          # Find the latest sanoid-created snapshot for this dataset.
-          LATEST_SNAPSHOT=$(${pkgs.zfs}/bin/zfs list -t snapshot -o name -s creation -r "${dataset}" | ${pkgs.gnugrep}/bin/grep '@sanoid_' | ${pkgs.gawk}/bin/tail -n 1)
+            # Step 2: Attempt ZFS snapshot rollback (fastest)
+            # Find the latest sanoid-created snapshot for this dataset.
+            LATEST_SNAPSHOT=$(${pkgs.zfs}/bin/zfs list -t snapshot -o name -s creation -r "${dataset}" | ${pkgs.gnugrep}/bin/grep '@sanoid_' | ${pkgs.gawk}/bin/tail -n 1)
 
-          if [ -n "$LATEST_SNAPSHOT" ]; then
-            echo "Found latest ZFS snapshot: $LATEST_SNAPSHOT"
-            echo "Attempting to roll back..."
-            if zfs rollback -r "$LATEST_SNAPSHOT"; then
-              echo "ZFS rollback successful."
-              # Ensure correct ownership after rollback
+            if [ -n "$LATEST_SNAPSHOT" ]; then
+              echo "Found latest ZFS snapshot: $LATEST_SNAPSHOT"
+              echo "Attempting to roll back..."
+              if zfs rollback -r "$LATEST_SNAPSHOT"; then
+                echo "ZFS rollback successful."
+                # Ensure correct ownership after rollback
+                chown -R ${owner}:${group} "${mountpoint}"
+                ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS snapshot $LATEST_SNAPSHOT."}
+                exit 0
+              else
+                echo "ZFS rollback failed. Proceeding to next restore method."
+              fi
+            else
+              echo "No suitable ZFS snapshots found for ${dataset}."
+            fi
+
+            # Step 3: Attempt Restic restore (slower, from remote)
+            echo "Attempting Restic restore from repository '${resticRepoUrl}'..."
+
+            ${lib.optionalString (resticEnvironmentFile != null) ''
+              # Source environment file for restic credentials
+              set -a
+              . "${resticEnvironmentFile}"
+              set +a
+            ''}
+
+            RESTIC_ARGS=(
+              -r "${resticRepoUrl}"
+              --password-file "${resticPasswordFile}"
+              restore latest
+              --target "${mountpoint}"
+              ${lib.concatMapStringsSep " " (path: "--path \"${path}\"") resticPaths}
+            )
+
+            if restic "''${RESTIC_ARGS[@]}"; then
+              echo "Restic restore successful."
+              # Ensure correct ownership after restore
               chown -R ${owner}:${group} "${mountpoint}"
-              ${notify "preseed-success" "Successfully restored ${serviceName} data from ZFS snapshot $LATEST_SNAPSHOT."}
+              ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
               exit 0
             else
-              echo "ZFS rollback failed. Proceeding to next restore method."
+              echo "Restic restore failed."
             fi
-          else
-            echo "No suitable ZFS snapshots found for ${dataset}."
-          fi
 
-          # Step 3: Attempt Restic restore (slower, from remote)
-          echo "Attempting Restic restore from repository '${resticRepoUrl}'..."
-
-          ${lib.optionalString (resticEnvironmentFile != null) ''
-            # Source environment file for restic credentials
-            set -a
-            . "${resticEnvironmentFile}"
-            set +a
-          ''}
-
-          RESTIC_ARGS=(
-            -r "${resticRepoUrl}"
-            --password-file "${resticPasswordFile}"
-            restore latest
-            --target "${mountpoint}"
-            ${lib.concatMapStringsSep " " (path: "--path \"${path}\"") resticPaths}
-          )
-
-          if restic "''${RESTIC_ARGS[@]}"; then
-            echo "Restic restore successful."
-            # Ensure correct ownership after restore
-            chown -R ${owner}:${group} "${mountpoint}"
-            ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
-            exit 0
-          else
-            echo "Restic restore failed."
-          fi
-
-          # Step 4: All restore methods failed
-          ${notify "preseed-failure" "All restore attempts for ${serviceName} failed. Service will start with an empty data directory."}
-          echo "Allowing ${serviceName} to start with an empty data directory."
-          exit 0 # Exit successfully to not block service start
-        '';
+            # Step 4: All restore methods failed
+            ${notify "preseed-failure" "All restore attempts for ${serviceName} failed. Service will start with an empty data directory."}
+            echo "Allowing ${serviceName} to start with an empty data directory."
+            exit 0 # Exit successfully to not block service start
+          '';
+        };
       };
-    };
   };
 in
 {

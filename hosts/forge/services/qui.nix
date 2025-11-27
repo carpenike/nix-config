@@ -40,128 +40,128 @@ in
       modules.services.qui = {
         enable = true;
 
-      # Use latest stable version with digest pinning (managed by Renovate)
-      image = "ghcr.io/autobrr/qui:v1.7.0@sha256:af6faa0aea35497c66f9460d5460c421d57c017e04163295f904af952b103d9a";
+        # Use latest stable version with digest pinning (managed by Renovate)
+        image = "ghcr.io/autobrr/qui:v1.7.0@sha256:af6faa0aea35497c66f9460d5460c421d57c017e04163295f904af952b103d9a";
 
-      # Basic configuration
-      port = 7476;
-      hostAddress = "0.0.0.0";  # Bind to all interfaces for port mapping to work
-      baseUrl = "/";
-      timezone = "America/New_York";
-      logLevel = "INFO";
+        # Basic configuration
+        port = 7476;
+        hostAddress = "0.0.0.0"; # Bind to all interfaces for port mapping to work
+        baseUrl = "/";
+        timezone = "America/New_York";
+        logLevel = "INFO";
 
-      # Native OIDC authentication via PocketID
-      oidc = {
-        enabled = true;
-        issuer = "https://id.${domain}";
-        clientId = "qui";
-        clientSecretFile = config.sops.secrets."qui/oidc-client-secret".path;
-        redirectUrl = "https://qui.${domain}/api/auth/oidc/callback";
-        disableBuiltInLogin = false;  # Allow built-in login for initial setup and admin tasks
-      };
+        # Native OIDC authentication via PocketID
+        oidc = {
+          enabled = true;
+          issuer = "https://id.${domain}";
+          clientId = "qui";
+          clientSecretFile = config.sops.secrets."qui/oidc-client-secret".path;
+          redirectUrl = "https://qui.${domain}/api/auth/oidc/callback";
+          disableBuiltInLogin = false; # Allow built-in login for initial setup and admin tasks
+        };
 
-      # External programs security
-      # Allow specific scripts for integration (adjust as needed)
-      externalProgramAllowList = [
-        # Add paths to allowed executables if using external program feature
-        # Example: "/usr/local/bin/custom-script"
-      ];
+        # External programs security
+        # Allow specific scripts for integration (adjust as needed)
+        externalProgramAllowList = [
+          # Add paths to allowed executables if using external program feature
+          # Example: "/usr/local/bin/custom-script"
+        ];
 
-      # Check for updates
-      checkForUpdates = true;
+        # Check for updates
+        checkForUpdates = true;
 
-      # Podman network for media services communication
-      podmanNetwork = "media-services";  # Enable DNS resolution to qBittorrent and other media services
+        # Podman network for media services communication
+        podmanNetwork = "media-services"; # Enable DNS resolution to qBittorrent and other media services
 
-      # Resource limits
-      resources = {
-        memory = "512M";
-        memoryReservation = "256M";
-        cpus = "1.0";
-      };
+        # Resource limits
+        resources = {
+          memory = "512M";
+          memoryReservation = "256M";
+          cpus = "1.0";
+        };
 
-      # Health check
-      healthcheck = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "30s";
-      };
+        # Health check
+        healthcheck = {
+          enable = true;
+          interval = "30s";
+          timeout = "10s";
+          retries = 3;
+          startPeriod = "30s";
+        };
 
-      # Caddy reverse proxy
-      reverseProxy = {
-        enable = true;
-        hostName = "qui.${domain}";
-        # No Authelia forward_auth or basic auth needed - qui handles auth via native OIDC
-        auth = null;  # Disabled because qui has native OIDC
-        security = {
-          hsts = {
-            enable = true;
-            maxAge = 15552000;
-            includeSubDomains = true;
+        # Caddy reverse proxy
+        reverseProxy = {
+          enable = true;
+          hostName = "qui.${domain}";
+          # No Authelia forward_auth or basic auth needed - qui handles auth via native OIDC
+          auth = null; # Disabled because qui has native OIDC
+          security = {
+            hsts = {
+              enable = true;
+              maxAge = 15552000;
+              includeSubDomains = true;
+            };
+            customHeaders = {
+              "X-Frame-Options" = "SAMEORIGIN"; # Allow iframes from same origin
+              "X-Content-Type-Options" = "nosniff";
+              "Referrer-Policy" = "strict-origin-when-cross-origin";
+            };
           };
-          customHeaders = {
-            "X-Frame-Options" = "SAMEORIGIN";  # Allow iframes from same origin
-            "X-Content-Type-Options" = "nosniff";
-            "Referrer-Policy" = "strict-origin-when-cross-origin";
+        };
+
+        # Prometheus metrics
+        metricsEnabled = true;
+        metricsPort = 9074;
+        metricsHost = "127.0.0.1";
+
+        metrics = {
+          enable = true;
+          port = 9074;
+          path = "/metrics";
+          labels = {
+            service = "qui";
+            service_type = "torrent-management";
+            exporter = "qui";
           };
         };
-      };
 
-      # Prometheus metrics
-      metricsEnabled = true;
-      metricsPort = 9074;
-      metricsHost = "127.0.0.1";
-
-      metrics = {
-        enable = true;
-        port = 9074;
-        path = "/metrics";
-        labels = {
-          service = "qui";
-          service_type = "torrent-management";
-          exporter = "qui";
+        # Logging
+        logging = {
+          enable = true;
+          driver = "journald";
         };
-      };
 
-      # Logging
-      logging = {
-        enable = true;
-        driver = "journald";
-      };
-
-      # Notifications
-      notifications = {
-        enable = true;
-        channels = {
-          onFailure = [ "media-alerts" ];
+        # Notifications
+        notifications = {
+          enable = true;
+          channels = {
+            onFailure = [ "media-alerts" ];
+          };
+          customMessages = {
+            failure = "qui qBittorrent web interface failed on ${config.networking.hostName}";
+          };
         };
-        customMessages = {
-          failure = "qui qBittorrent web interface failed on ${config.networking.hostName}";
-        };
+
+        # Backup configuration
+        backup = forgeDefaults.backup;
+
+        # Preseed/DR configuration
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
-
-      # Backup configuration
-      backup = forgeDefaults.backup;
-
-      # Preseed/DR configuration
-      preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
-    };
     }
 
     (lib.mkIf serviceEnabled {
       # ZFS dataset for qui (managed by modules.storage)
       modules.storage.datasets.services.qui = {
         mountpoint = "/var/lib/qui";
-        recordsize = "16K";  # Optimal for SQLite
+        recordsize = "16K"; # Optimal for SQLite
         compression = "zstd";
         properties = {
-          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots
+          "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots
         };
         owner = "980";
         group = "media";
-        mode = "0750";  # Allow group read access for backup systems
+        mode = "0750"; # Allow group read access for backup systems
       };
 
       # Co-located ZFS snapshot & replication (Sanoid/Syncoid)

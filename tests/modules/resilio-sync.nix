@@ -57,8 +57,9 @@ let
 in
 assert (lib.assertMsg (lib.length sharedFolders == 3)
   "Resilio helper regression: expected three shared folders");
-assert (lib.assertMsg (builtins.elem "/run/secrets/resilio/cooklang"
-  (map (folder: folder.secretFile) sharedFolders))
+assert (lib.assertMsg
+  (builtins.elem "/run/secrets/resilio/cooklang"
+    (map (folder: folder.secretFile) sharedFolders))
   "Cooklang secret file path not propagated");
 assert (lib.assertMsg (lib.length extraGroups == 3)
   "rslsync extraGroups should contain exactly three entries");
@@ -70,10 +71,12 @@ assert (lib.assertMsg (hasTmpfile "/data/docs")
   "tmpfiles rule missing for docs folder");
 assert (lib.assertMsg (!hasTmpfile "/data/media/config")
   "tmpfiles rule unexpectedly generated for media folder");
-assert (lib.assertMsg (lib.all (unit: lib.elem unit resilioAfter)
+assert (lib.assertMsg
+  (lib.all (unit: lib.elem unit resilioAfter)
     [ "zfs-mount.service" "local-fs.target" "data.mount" ])
   "systemd after dependencies regressed");
-assert (lib.assertMsg (lib.all (unit: lib.elem unit resilioWants)
+assert (lib.assertMsg
+  (lib.all (unit: lib.elem unit resilioWants)
     [ "zfs-mount.service" "data.mount" ])
   "systemd wants dependencies regressed");
 {

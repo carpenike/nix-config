@@ -1,12 +1,11 @@
-{
-  pkgs,
-  inputs,
-  ...
+{ pkgs
+, inputs
+, ...
 }:
 
 inputs.nixvim.legacyPackages.${pkgs.system}.makeNixvimWithModule {
   inherit pkgs;
-  extraSpecialArgs = {};
+  extraSpecialArgs = { };
   module = {
     imports = [ ../homes/bjw-s/config/editor/nvim ];
   };

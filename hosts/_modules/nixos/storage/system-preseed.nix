@@ -28,7 +28,8 @@ in
         resticPaths = [ "/persist" ];
         restoreMethods = [ "syncoid" "local" "restic" ];
         hasCentralizedNotifications = false;
-        owner = "root"; group = "root";
+        owner = "root";
+        group = "root";
       }) // (mkUnitExt "system-persist" "/persist")
     )
 
@@ -46,7 +47,8 @@ in
         resticPaths = [ "/home" ];
         restoreMethods = [ "syncoid" "local" "restic" ];
         hasCentralizedNotifications = false;
-        owner = "root"; group = "root";
+        owner = "root";
+        group = "root";
       }) // (mkUnitExt "system-home" "/home")
     )
   ];

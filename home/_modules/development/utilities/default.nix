@@ -1,9 +1,8 @@
-{
-  pkgs,
-  inputs,
-  lib,
-  config,
-  ...
+{ pkgs
+, inputs
+, lib
+, config
+, ...
 }:
 let
   cfg = config.modules.development;

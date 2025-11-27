@@ -3,7 +3,7 @@
 {
   networking = {
     hostName = hostname;
-    hostId = "1b3031e7";  # Preserved from nixos-bootstrap
+    hostId = "1b3031e7"; # Preserved from nixos-bootstrap
     useDHCP = true;
     # Firewall disabled; per-service modules will declare their own rules
     firewall.enable = false;

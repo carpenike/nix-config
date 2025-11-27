@@ -16,14 +16,15 @@ let
     "172.16.0.0/12"
     "192.168.0.0/16"
   ];
-in {
+in
+{
   config = lib.mkMerge [
     {
       modules.services.esphome = {
         enable = true;
 
         image = "ghcr.io/esphome/esphome:2025.11.1@sha256:02ca34d33789b1c7f4389c644d28e7f6892c26f931a67972e74221a8932d1457";
-        hostNetwork = true;  # needed for ICMP dashboard checks + mDNS discovery
+        hostNetwork = true; # needed for ICMP dashboard checks + mDNS discovery
         dataDir = "/var/lib/esphome";
         secretsFile = config.sops.secrets."esphome/secrets.yaml".path;
 

@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -26,7 +25,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -69,9 +68,9 @@ let
   # See: https://www.cross-seed.org/docs/v6-migration
   baseConfig = {
     # Required fields for daemon mode
-    delay = 30;  # Seconds between searches (can be overridden in extraSettings)
+    delay = 30; # Seconds between searches (can be overridden in extraSettings)
     port = crossSeedPort;
-    action = "inject";  # Inject torrents directly into qBittorrent
+    action = "inject"; # Inject torrents directly into qBittorrent
 
     # API authentication for webhook endpoint
     # Placeholder will be replaced with actual key from apiKeyFile at runtime
@@ -81,39 +80,39 @@ let
     # - strict: Exact file name and size matches only
     # - safe: Allows renames and slight inconsistencies (recommended default)
     # - risky: Most comprehensive, handles different file trees (formerly "partial")
-    matchMode = "safe";  # Recommended default - prevents false positives
+    matchMode = "safe"; # Recommended default - prevents false positives
 
     # Torrent client configuration (populated by extraSettings)
-    torrentClients = [];  # Format: ["type:http://user:pass@host:port"]
-    useClientTorrents = true;  # Use torrents from client for matching (recommended over torrentDir)
+    torrentClients = [ ]; # Format: ["type:http://user:pass@host:port"]
+    useClientTorrents = true; # Use torrents from client for matching (recommended over torrentDir)
 
     # Directory configuration
     # CRITICAL: linkDirs CANNOT be inside outputDir, dataDirs, or torrentDir
     # Note: When dataDirs is set, dataDir is redundant and should be omitted
     # Note: When linkDirs is set, linkDir is redundant and should be omitted
     # Note: When useClientTorrents=true, torrentDir is not needed
-    outputDir = null;  # Set to null for action=inject (recommended by cross-seed - prevents unnecessary fallback saves)
-    linkDirs = [];  # Will be populated by extraSettings - MUST be on same filesystem as dataDirs for hardlinks
-    dataDirs = [];  # Will be populated by extraSettings (searches these directories)
+    outputDir = null; # Set to null for action=inject (recommended by cross-seed - prevents unnecessary fallback saves)
+    linkDirs = [ ]; # Will be populated by extraSettings - MUST be on same filesystem as dataDirs for hardlinks
+    dataDirs = [ ]; # Will be populated by extraSettings (searches these directories)
     maxDataDepth = 1;
 
     # Indexer configuration (v6 format)
     # cross-seed v6 requires 'torznab' as an array of URLs (simplified from 'indexers')
-    torznab = [];  # Will be populated by extraSettings with Prowlarr Torznab URLs
+    torznab = [ ]; # Will be populated by extraSettings with Prowlarr Torznab URLs
 
     # Content filtering (v6 format)
     # Note: includeEpisodes was REMOVED in v6 - use includeSingleEpisodes instead
-    includeSingleEpisodes = true;  # Include single episodes (not from season packs)
-    includeNonVideos = true;  # Include non-video content (music, books, etc.)
+    includeSingleEpisodes = true; # Include single episodes (not from season packs)
+    includeNonVideos = true; # Include non-video content (music, books, etc.)
 
     # Linking configuration
-    linkCategory = "cross-seed";  # Category for cross-seeded torrents
-    linkType = "hardlink";  # Use hardlinks (recommended for same filesystem)
-    duplicateCategories = true;  # Allow multiple categories
-    skipRecheck = true;  # Skip recheck on injection (faster)
+    linkCategory = "cross-seed"; # Category for cross-seeded torrents
+    linkType = "hardlink"; # Use hardlinks (recommended for same filesystem)
+    duplicateCategories = true; # Allow multiple categories
+    skipRecheck = true; # Skip recheck on injection (faster)
 
     # Season pack configuration
-    seasonFromEpisodes = null;  # Disable season packs from episodes (null = disabled)
+    seasonFromEpisodes = null; # Disable season packs from episodes (null = disabled)
   };
 
   mergedConfig = baseConfig // cfg.extraSettings;
@@ -200,7 +199,7 @@ in
 
     extraSettings = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
       description = ''
         Additional settings to merge into config.js.
 
@@ -392,11 +391,11 @@ in
           message = "cross-seed preseed.enable requires preseed.passwordFile to be set.";
         });
 
-    # Automatically set mediaDir from the NFS mount configuration
-    modules.services.cross-seed.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
+      # Automatically set mediaDir from the NFS mount configuration
+      modules.services.cross-seed.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
 
       users.groups.${cfg.group} = lib.mkIf (cfg.group == "media") {
-        gid = 65537;  # Shared media group (993 was taken by alertmanager)
+        gid = 65537; # Shared media group (993 was taken by alertmanager)
       };
 
       users.users.cross-seed = {
@@ -413,15 +412,15 @@ in
       # via tmpfiles by keeping owner/group/mode here
       modules.storage.datasets.services.cross-seed = {
         mountpoint = cfg.dataDir;
-        recordsize = "16K";  # Optimal for configuration and small files
-        compression = "zstd";  # Better compression for text/config files
+        recordsize = "16K"; # Optimal for configuration and small files
+        compression = "zstd"; # Better compression for text/config files
         properties = {
-          "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
+          "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
         };
         # Ownership matches the container user/group
         owner = "cross-seed";
         group = cfg.group;
-        mode = "0750";  # Allow group read access for backup systems
+        mode = "0750"; # Allow group read access for backup systems
       };
 
       # Automatically register with Caddy reverse proxy if enabled
@@ -442,24 +441,27 @@ in
       };
 
       # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices.cross-seed = lib.mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-            ++ authCfg.bypassResources;
-        }
-      );
+      modules.services.authelia.accessControl.declarativelyProtectedServices.cross-seed = lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+              ++ authCfg.bypassResources;
+          }
+        );
 
       # Ensure subdirectories exist with proper permissions
       systemd.tmpfiles.rules = [
@@ -568,7 +570,7 @@ in
           # Mount NFS share only when nfsMountDependency is configured (hybrid filesystem+API mode)
           # In pure API mode (nfsMountDependency = null), no media mount needed
         ] ++ lib.optionals (cfg.nfsMountDependency != null) [
-          "${cfg.mediaDir}:/data"  # Unified mount point for hardlinks (TRaSH Guides best practice)
+          "${cfg.mediaDir}:/data" # Unified mount point for hardlinks (TRaSH Guides best practice)
           # NOTE: outputDir is set to null in config.js for action=inject mode
           # No /output volume mount needed - torrents go directly to qBittorrent via API
           # NOTE: qBittorrent's BT_backup directory is NOT mounted here.
@@ -584,15 +586,15 @@ in
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           # Attach to Podman network for DNS-based service discovery
           "--network=${cfg.podmanNetwork}"
-      ] ++ lib.optionals cfg.healthcheck.enable [
-        # Health check using /api/ping endpoint (returns 200 when healthy)
-        # This is the proper health check endpoint used in Kubernetes deployments
-        ''--health-cmd=curl -f http://localhost:${toString crossSeedPort}/api/ping''
-        "--health-interval=${cfg.healthcheck.interval}"
-        "--health-timeout=${cfg.healthcheck.timeout}"
-        "--health-retries=${toString cfg.healthcheck.retries}"
-        "--health-start-period=${cfg.healthcheck.startPeriod}"
-      ];
+        ] ++ lib.optionals cfg.healthcheck.enable [
+          # Health check using /api/ping endpoint (returns 200 when healthy)
+          # This is the proper health check endpoint used in Kubernetes deployments
+          ''--health-cmd=curl -f http://localhost:${toString crossSeedPort}/api/ping''
+          "--health-interval=${cfg.healthcheck.interval}"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ];
       };
 
       systemd.services.${mainServiceUnit} = {

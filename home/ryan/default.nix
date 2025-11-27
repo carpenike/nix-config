@@ -1,9 +1,8 @@
-{
-  pkgs,
-  lib,
-  inputs,
-  hostname,
-  ...
+{ pkgs
+, lib
+, inputs
+, hostname
+, ...
 }:
 {
   imports = [

@@ -30,7 +30,7 @@ let
   findReplication = dsPath:
     let
       sanoidDatasets = config.modules.backup.sanoid.datasets;
-      replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+      replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
     in
     if replicationInfo != null then
       {
@@ -42,7 +42,7 @@ let
         parts = lib.splitString "/" dsPath;
         parentPath = lib.concatStringsSep "/" (lib.init parts);
       in
-      if parentPath == "" || parts == [] then
+      if parentPath == "" || parts == [ ] then
         null
       else
         findReplication parentPath;
@@ -257,10 +257,10 @@ in
         # ZFS snapshots provide consistency - backup the live database
         # SQLite is resilient to point-in-time copies via ZFS snapshots
         excludePatterns = [
-          "**/sessions/*"    # Exclude session data
-          "**/png/*"         # Exclude rendered images
-          "**/csv/*"         # Exclude CSV exports
-          "**/pdf/*"         # Exclude PDF exports
+          "**/sessions/*" # Exclude session data
+          "**/png/*" # Exclude rendered images
+          "**/csv/*" # Exclude CSV exports
+          "**/pdf/*" # Exclude PDF exports
         ];
       };
       description = "Backup configuration for Grafana";
@@ -348,14 +348,14 @@ in
     provisioning = {
       plugins = mkOption {
         type = with types; listOf package;
-        default = [];
+        default = [ ];
         example = lib.literalExpression "with pkgs.grafanaPlugins; [ grafana-worldmap-panel ]";
         description = "List of Grafana plugins to install";
       };
 
       datasources = mkOption {
         type = types.attrs;
-        default = {};
+        default = { };
         description = ''
           Attribute set of data sources to provision.
           User-defined sources will override auto-configured ones with the same name.
@@ -364,7 +364,7 @@ in
 
       dashboards = mkOption {
         type = types.attrsOf dashboardProviderType;
-        default = {};
+        default = { };
         description = "Attribute set of dashboard providers to provision";
       };
     };
@@ -380,19 +380,19 @@ in
         options = {
           datasources = mkOption {
             type = types.attrs;
-            default = {};
+            default = { };
             description = "Additional datasources contributed by downstream services";
           };
 
           dashboards = mkOption {
             type = types.attrsOf dashboardProviderType;
-            default = {};
+            default = { };
             description = "Dashboard providers contributed by downstream services";
           };
 
           loadCredentials = mkOption {
             type = types.listOf types.str;
-            default = [];
+            default = [ ];
             description = ''
               Additional systemd LoadCredential entries (format "name:path") required by this integration.
               Use this when a datasource needs to read a secret file provisioned outside Grafana's service.
@@ -400,7 +400,7 @@ in
           };
         };
       });
-      default = {};
+      default = { };
       description = "Declarative integration points that downstream modules can extend.";
     };
   };
@@ -409,238 +409,247 @@ in
 
   config = lib.mkMerge [
     (mkIf cfg.enable (
-    let
-      integrationValues = lib.attrValues cfg.integrations;
-      integrationDatasources = lib.foldl' (acc: integration: acc // integration.datasources) {} integrationValues;
-      integrationDashboards = lib.foldl' (acc: integration: acc // integration.dashboards) {} integrationValues;
-      integrationLoadCredentials = lib.concatMap (integration: integration.loadCredentials) integrationValues;
+      let
+        integrationValues = lib.attrValues cfg.integrations;
+        integrationDatasources = lib.foldl' (acc: integration: acc // integration.datasources) { } integrationValues;
+        integrationDashboards = lib.foldl' (acc: integration: acc // integration.dashboards) { } integrationValues;
+        integrationLoadCredentials = lib.concatMap (integration: integration.loadCredentials) integrationValues;
 
-      # Auto-generate Loki data source if enabled and the Loki module is active
-      lokiDataSource = if (cfg.autoConfigure.loki && (config.modules.services.loki.enable or false)) then {
-        "loki-auto" = {
-          name = "Loki";
-          type = "loki";
-          access = "proxy";
-          url = "http://${config.modules.services.loki.listenAddress or "127.0.0.1"}:${toString (config.modules.services.loki.port or 3100)}";
-          isDefault = false;
-        };
-      } else {};
+        # Auto-generate Loki data source if enabled and the Loki module is active
+        lokiDataSource =
+          if (cfg.autoConfigure.loki && (config.modules.services.loki.enable or false)) then {
+            "loki-auto" = {
+              name = "Loki";
+              type = "loki";
+              access = "proxy";
+              url = "http://${config.modules.services.loki.listenAddress or "127.0.0.1"}:${toString (config.modules.services.loki.port or 3100)}";
+              isDefault = false;
+            };
+          } else { };
 
-      # Auto-generate Prometheus data source if enabled and the Prometheus service is available
-      prometheusDataSource = if (cfg.autoConfigure.prometheus && (config.services.prometheus.enable or false)) then {
-        "prometheus-auto" = {
-          name = "Prometheus";
-          type = "prometheus";
-          access = "proxy";
-          url = "http://${config.services.prometheus.listenAddress or "127.0.0.1"}:${toString (config.services.prometheus.port or 9090)}";
-          isDefault = true;
-        };
-      } else {};
+        # Auto-generate Prometheus data source if enabled and the Prometheus service is available
+        prometheusDataSource =
+          if (cfg.autoConfigure.prometheus && (config.services.prometheus.enable or false)) then {
+            "prometheus-auto" = {
+              name = "Prometheus";
+              type = "prometheus";
+              access = "proxy";
+              url = "http://${config.services.prometheus.listenAddress or "127.0.0.1"}:${toString (config.services.prometheus.port or 9090)}";
+              isDefault = true;
+            };
+          } else { };
 
-      # Merge all data sources: user-defined take precedence
-      allDataSources = lokiDataSource // prometheusDataSource // integrationDatasources // cfg.provisioning.datasources;
+        # Merge all data sources: user-defined take precedence
+        allDataSources = lokiDataSource // prometheusDataSource // integrationDatasources // cfg.provisioning.datasources;
 
-      # Generate YAML files for Grafana provisioning
-      datasourcesConfig = {
-        apiVersion = 1;
-        datasources = mapAttrsToList (name: ds: ds // {
-          uid = ds.uid or "auto-${name}";
-          orgId = ds.orgId or 1;
-        }) allDataSources;
-      };
-
-      allDashboards = integrationDashboards // cfg.provisioning.dashboards;
-
-      dashboardsConfig = {
-        apiVersion = 1;
-        providers = mapAttrsToList (name: dashboard: {
-          inherit (dashboard) name folder;
-          orgId = 1;
-          type = "file";
-          disableDeletion = false;
-          editable = true;
-          updateIntervalSeconds = 60;
-          options = {
-            path = toString dashboard.path;
-          };
-        }) allDashboards;
-      };
-    in
-    {
-      # Note: grafana user and group are automatically created by services.grafana
-
-      # Override Grafana user's home directory to prevent activation script from
-      # enforcing 0700 permissions on /var/lib/grafana (which would revert our 0750 tmpfiles rules)
-      users.users.grafana.home = lib.mkForce "/var/empty";
-
-      # ZFS dataset configuration
-      # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
-      modules.storage.datasets.services.grafana = mkIf (cfg.zfs.dataset != null) {
-        mountpoint = cfg.dataDir;
-        recordsize = "128K"; # Default recordsize for general purpose use
-        compression = "zstd"; # Better compression for Grafana database files
-        properties = cfg.zfs.properties;
-      };
-
-      # Automatically register with Caddy reverse proxy using standardized pattern
-      modules.services.caddy.virtualHosts.grafana = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
-
-        # Use structured backend configuration from shared types
-        backend = cfg.reverseProxy.backend;
-
-        # Authentication configuration from shared types
-        auth = cfg.reverseProxy.auth;
-
-        # Authelia SSO configuration from shared types
-        authelia = cfg.reverseProxy.authelia;
-
-        # Security configuration from shared types with additional headers
-        security = cfg.reverseProxy.security // {
-          customHeaders = cfg.reverseProxy.security.customHeaders // {
-            "X-Frame-Options" = "SAMEORIGIN";
-            "X-Content-Type-Options" = "nosniff";
-            "X-XSS-Protection" = "1; mode=block";
-            "Referrer-Policy" = "strict-origin-when-cross-origin";
-          };
+        # Generate YAML files for Grafana provisioning
+        datasourcesConfig = {
+          apiVersion = 1;
+          datasources = mapAttrsToList
+            (name: ds: ds // {
+              uid = ds.uid or "auto-${name}";
+              orgId = ds.orgId or 1;
+            })
+            allDataSources;
         };
 
-        # Cloudflare Tunnel - expose Grafana externally
-        cloudflare = {
+        allDashboards = integrationDashboards // cfg.provisioning.dashboards;
+
+        dashboardsConfig = {
+          apiVersion = 1;
+          providers = mapAttrsToList
+            (name: dashboard: {
+              inherit (dashboard) name folder;
+              orgId = 1;
+              type = "file";
+              disableDeletion = false;
+              editable = true;
+              updateIntervalSeconds = 60;
+              options = {
+                path = toString dashboard.path;
+              };
+            })
+            allDashboards;
+        };
+      in
+      {
+        # Note: grafana user and group are automatically created by services.grafana
+
+        # Override Grafana user's home directory to prevent activation script from
+        # enforcing 0700 permissions on /var/lib/grafana (which would revert our 0750 tmpfiles rules)
+        users.users.grafana.home = lib.mkForce "/var/empty";
+
+        # ZFS dataset configuration
+        # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
+        modules.storage.datasets.services.grafana = mkIf (cfg.zfs.dataset != null) {
+          mountpoint = cfg.dataDir;
+          recordsize = "128K"; # Default recordsize for general purpose use
+          compression = "zstd"; # Better compression for Grafana database files
+          properties = cfg.zfs.properties;
+        };
+
+        # Automatically register with Caddy reverse proxy using standardized pattern
+        modules.services.caddy.virtualHosts.grafana = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
           enable = true;
-          tunnel = "forge";
-        };
+          hostName = cfg.reverseProxy.hostName;
 
-        # Additional Caddy configuration
-        extraConfig = cfg.reverseProxy.extraConfig;
-      };
+          # Use structured backend configuration from shared types
+          backend = cfg.reverseProxy.backend;
 
-      # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices.grafana = mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
-            ++ (authCfg.bypassResources or []);
-        }
-      );
+          # Authentication configuration from shared types
+          auth = cfg.reverseProxy.auth;
 
-      # Configure the core Grafana service
-      services.grafana = {
-        enable = true;
-        package = cfg.package;
-        dataDir = cfg.dataDir;
+          # Authelia SSO configuration from shared types
+          authelia = cfg.reverseProxy.authelia;
 
-        settings = {
-          server = {
-            http_addr = cfg.listenAddress;
-            http_port = cfg.port;
-          } // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-            root_url = "https://${cfg.reverseProxy.hostName}";
-          });
-          security = {
-            admin_user = cfg.secrets.adminUser;
-          } // (lib.optionalAttrs (cfg.secrets.adminPasswordFile != null) {
-            admin_password = "$__file{${cfg.secrets.adminPasswordFile}}";
-          });
-          # Disable login form when OIDC is enabled to force SSO
-          auth = lib.optionalAttrs cfg.oidc.enable {
-            disable_login_form = true;
+          # Security configuration from shared types with additional headers
+          security = cfg.reverseProxy.security // {
+            customHeaders = cfg.reverseProxy.security.customHeaders // {
+              "X-Frame-Options" = "SAMEORIGIN";
+              "X-Content-Type-Options" = "nosniff";
+              "X-XSS-Protection" = "1; mode=block";
+              "Referrer-Policy" = "strict-origin-when-cross-origin";
+            };
           };
-        } // (lib.optionalAttrs cfg.oidc.enable {
-          "auth.generic_oauth" = {
-            enabled = true;
-            name = oidcProviderName;
-            client_id = cfg.oidc.clientId;
-            client_secret = "$__file{${cfg.oidc.clientSecretFile}}";
-            scopes = lib.concatStringsSep " " cfg.oidc.scopes;
-            auth_url = cfg.oidc.authUrl;
-            token_url = cfg.oidc.tokenUrl;
-            api_url = cfg.oidc.apiUrl;
-            role_attribute_path = cfg.oidc.roleAttributePath;
-            allow_sign_up = cfg.oidc.allowSignUp;
-          } // (lib.optionalAttrs (cfg.oidc.signoutRedirectUrl != "") {
-            signout_redirect_url = cfg.oidc.signoutRedirectUrl;
-          });
-        });
 
-        provision = {
-          enable = true;
-          datasources.settings = datasourcesConfig;
-          dashboards.settings = dashboardsConfig;
+          # Cloudflare Tunnel - expose Grafana externally
+          cloudflare = {
+            enable = true;
+            tunnel = "forge";
+          };
+
+          # Additional Caddy configuration
+          extraConfig = cfg.reverseProxy.extraConfig;
         };
-      } // lib.optionalAttrs (cfg.provisioning.plugins != []) {
-        # Only enable declarative plugins when list is non-empty. If empty, allow UI-managed plugins.
-        declarativePlugins = cfg.provisioning.plugins;
-      };
 
-      # Apply systemd hardening and resource limits
+        # Register with Authelia if SSO protection is enabled
+        modules.services.authelia.accessControl.declarativelyProtectedServices.grafana = mkIf
+          (
+            config.modules.services.authelia.enable &&
+            cfg.reverseProxy != null &&
+            cfg.reverseProxy.enable &&
+            cfg.reverseProxy.authelia != null &&
+            cfg.reverseProxy.authelia.enable
+          )
+          (
+            let
+              authCfg = cfg.reverseProxy.authelia;
+            in
+            {
+              domain = cfg.reverseProxy.hostName;
+              policy = authCfg.policy;
+              subject = map (g: "group:${g}") authCfg.allowedGroups;
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
+                ++ (authCfg.bypassResources or [ ]);
+            }
+          );
+
+        # Configure the core Grafana service
+        services.grafana = {
+          enable = true;
+          package = cfg.package;
+          dataDir = cfg.dataDir;
+
+          settings = {
+            server = {
+              http_addr = cfg.listenAddress;
+              http_port = cfg.port;
+            } // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+              root_url = "https://${cfg.reverseProxy.hostName}";
+            });
+            security = {
+              admin_user = cfg.secrets.adminUser;
+            } // (lib.optionalAttrs (cfg.secrets.adminPasswordFile != null) {
+              admin_password = "$__file{${cfg.secrets.adminPasswordFile}}";
+            });
+            # Disable login form when OIDC is enabled to force SSO
+            auth = lib.optionalAttrs cfg.oidc.enable {
+              disable_login_form = true;
+            };
+          } // (lib.optionalAttrs cfg.oidc.enable {
+            "auth.generic_oauth" = {
+              enabled = true;
+              name = oidcProviderName;
+              client_id = cfg.oidc.clientId;
+              client_secret = "$__file{${cfg.oidc.clientSecretFile}}";
+              scopes = lib.concatStringsSep " " cfg.oidc.scopes;
+              auth_url = cfg.oidc.authUrl;
+              token_url = cfg.oidc.tokenUrl;
+              api_url = cfg.oidc.apiUrl;
+              role_attribute_path = cfg.oidc.roleAttributePath;
+              allow_sign_up = cfg.oidc.allowSignUp;
+            } // (lib.optionalAttrs (cfg.oidc.signoutRedirectUrl != "") {
+              signout_redirect_url = cfg.oidc.signoutRedirectUrl;
+            });
+          });
+
+          provision = {
+            enable = true;
+            datasources.settings = datasourcesConfig;
+            dashboards.settings = dashboardsConfig;
+          };
+        } // lib.optionalAttrs (cfg.provisioning.plugins != [ ]) {
+          # Only enable declarative plugins when list is non-empty. If empty, allow UI-managed plugins.
+          declarativePlugins = cfg.provisioning.plugins;
+        };
+
+        # Apply systemd hardening and resource limits
         systemd.services.grafana = {
-        serviceConfig = {
-          # Permissions: Managed by systemd StateDirectory (native approach)
-          # StateDirectory tells systemd to create /var/lib/grafana with correct ownership
-          # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
-          # UMask 0027 ensures files created by service are 640 (rw-r-----)
-          # This allows restic-backup user (member of grafana group) to read data
-          StateDirectory = "grafana";
-          StateDirectoryMode = "0750";
-          UMask = "0027";
+          serviceConfig = {
+            # Permissions: Managed by systemd StateDirectory (native approach)
+            # StateDirectory tells systemd to create /var/lib/grafana with correct ownership
+            # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
+            # UMask 0027 ensures files created by service are 640 (rw-r-----)
+            # This allows restic-backup user (member of grafana group) to read data
+            StateDirectory = "grafana";
+            StateDirectoryMode = "0750";
+            UMask = "0027";
 
-          # Resource limits
-          MemoryMax = cfg.resources.MemoryMax;
-          MemoryReservation = cfg.resources.MemoryReservation;
-          CPUQuota = cfg.resources.CPUQuota;
+            # Resource limits
+            MemoryMax = cfg.resources.MemoryMax;
+            MemoryReservation = cfg.resources.MemoryReservation;
+            CPUQuota = cfg.resources.CPUQuota;
 
-          # Security hardening
-          # Align with upstream defaults to avoid blocking writes under /var/lib/grafana
-          ProtectSystem = lib.mkForce "full";
-          ProtectHome = lib.mkForce "read-only";
-          PrivateTmp = true;
-          PrivateDevices = true;
-          ProtectKernelTunables = true;
-          ProtectKernelModules = true;
-          ProtectControlGroups = true;
-          NoNewPrivileges = true;
-          RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
-          SystemCallFilter = [ "@system-service" "~@privileged" ];
-          # Ensure Grafana retains write access to its dataDir even with hardening
-          ReadWritePaths = [ cfg.dataDir ];
+            # Security hardening
+            # Align with upstream defaults to avoid blocking writes under /var/lib/grafana
+            ProtectSystem = lib.mkForce "full";
+            ProtectHome = lib.mkForce "read-only";
+            PrivateTmp = true;
+            PrivateDevices = true;
+            ProtectKernelTunables = true;
+            ProtectKernelModules = true;
+            ProtectControlGroups = true;
+            NoNewPrivileges = true;
+            RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+            SystemCallFilter = [ "@system-service" "~@privileged" ];
+            # Ensure Grafana retains write access to its dataDir even with hardening
+            ReadWritePaths = [ cfg.dataDir ];
+          };
+
+          # Service dependencies for ZFS dataset mounting and preseed
+          after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
+            ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
+          wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
+            ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
         };
 
-        # Service dependencies for ZFS dataset mounting and preseed
-        after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-          ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
-        wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ]
-          ++ lib.optionals cfg.preseed.enable [ "preseed-grafana.service" ];
-        };
-
-        systemd.services.grafana.serviceConfig.LoadCredential = mkIf (integrationLoadCredentials != []) (
+        systemd.services.grafana.serviceConfig.LoadCredential = mkIf (integrationLoadCredentials != [ ]) (
           lib.mkBefore integrationLoadCredentials
         );
 
-      # Validations
-      assertions = [
-        {
-          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
-          message = "Grafana preseed.enable requires preseed.repositoryUrl to be set.";
-        }
-        {
-          assertion = cfg.preseed.enable -> (cfg.preseed.passwordFile != null);
-          message = "Grafana preseed.enable requires preseed.passwordFile to be set.";
-        }
-      ];
-    }
+        # Validations
+        assertions = [
+          {
+            assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+            message = "Grafana preseed.enable requires preseed.repositoryUrl to be set.";
+          }
+          {
+            assertion = cfg.preseed.enable -> (cfg.preseed.passwordFile != null);
+            message = "Grafana preseed.enable requires preseed.passwordFile to be set.";
+          }
+        ];
+      }
     ))
 
     # Add the preseed service itself

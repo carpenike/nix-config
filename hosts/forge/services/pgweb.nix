@@ -84,7 +84,7 @@ in
         ownerPasswordFile = config.sops.secrets."postgresql/pgweb_password".path;
         # Use custom permissions to grant readonly role membership
         permissionsPolicy = "custom";
-        databasePermissions.readonly = [ "CONNECT" ];  # Inherit from readonly role
+        databasePermissions.readonly = [ "CONNECT" ]; # Inherit from readonly role
       };
 
       # Configure readonly role permissions using PostgreSQL-native template1 pattern

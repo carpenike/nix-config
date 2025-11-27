@@ -45,7 +45,7 @@ in
         environmentFiles = lib.optional haEnabled config.sops.secrets."home-assistant/env".path;
 
         declarativeConfig = {
-          default_config = {};
+          default_config = { };
           homeassistant = {
             name = "Home";
             internal_url = "https://${haHostname}";
@@ -74,10 +74,10 @@ in
             ip_ban_enabled = true;
             login_attempts_threshold = 5;
           };
-          history = {};
-          logbook = {};
-          frontend = {};
-          conversation = {};
+          history = { };
+          logbook = { };
+          frontend = { };
+          conversation = { };
           automation = "!include automations.yaml";
           logger = {
             default = "info";
@@ -124,7 +124,7 @@ in
                 { };
             esphomeDashboardApi =
               python3Packages.esphome-dashboard-api or
-              unstablePkgs.python3Packages.esphome-dashboard-api;
+                unstablePkgs.python3Packages.esphome-dashboard-api;
 
           in
           with python3Packages;

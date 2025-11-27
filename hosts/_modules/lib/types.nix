@@ -46,7 +46,7 @@ in
 
       labels = mkOption {
         type = types.attrsOf types.str;
-        default = {};
+        default = { };
         description = "Additional static labels to apply to all metrics from this target";
         example = {
           environment = "production";
@@ -57,7 +57,7 @@ in
 
       relabelConfigs = mkOption {
         type = types.listOf types.attrs;
-        default = [];
+        default = [ ];
         description = "Prometheus relabel configs for advanced metric processing";
         example = [
           {
@@ -84,7 +84,7 @@ in
 
       logFiles = mkOption {
         type = types.listOf types.path;
-        default = [];
+        default = [ ];
         description = "Log files to ship to Loki";
         example = [ "/var/log/service.log" "/var/log/service-error.log" ];
       };
@@ -98,7 +98,7 @@ in
 
       labels = mkOption {
         type = types.attrsOf types.str;
-        default = {};
+        default = { };
         description = "Static labels to apply to log streams";
         example = {
           service = "myservice";
@@ -164,7 +164,7 @@ in
 
       properties = mkOption {
         type = types.attrsOf types.str;
-        default = {};
+        default = { };
         description = "Additional ZFS properties to set on the dataset";
         example = {
           "com.sun:auto-snapshot" = "true";
@@ -297,7 +297,7 @@ in
                   };
                 };
               };
-              default = {};
+              default = { };
               description = "TLS settings for HTTPS backends";
             };
           };
@@ -354,13 +354,13 @@ in
                   };
                 };
               };
-              default = {};
+              default = { };
               description = "HTTP Strict Transport Security settings";
             };
 
             customHeaders = mkOption {
               type = types.attrsOf types.str;
-              default = {};
+              default = { };
               description = "Custom security headers";
               example = {
                 "X-Frame-Options" = "SAMEORIGIN";
@@ -369,7 +369,7 @@ in
             };
           };
         };
-        default = {};
+        default = { };
         description = "Security configuration";
       };
 
@@ -416,27 +416,27 @@ in
                   };
                 };
               });
-              default = [];
+              default = [ ];
               description = "Claim-based role grants contributed by this service.";
             };
 
             bypassPaths = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Exact path prefixes that should skip authentication (e.g., API endpoints using their own keys).";
               example = [ "/api" "/feed" ];
             };
 
             bypassResources = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Regex resources that should bypass caddy-security authorization checks.";
               example = [ "^/api/system/status$" "^/rss/.*$" ];
             };
 
             allowedNetworks = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "List of CIDR ranges permitted to use bypassed paths; leave empty to allow any source (not recommended).";
               example = [ "10.0.0.0/8" "192.168.0.0/16" ];
             };
@@ -505,21 +505,21 @@ in
 
             bypassPaths = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "URL path prefixes to bypass authentication (e.g., for API endpoints)";
               example = [ "/api" "/feed" "/rss" ];
             };
 
             bypassResources = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "URL path regex patterns to bypass authentication (more flexible than bypassPaths)";
               example = [ "^/api/.*$" "^/feed/.*\\.xml$" ];
             };
 
             allowedNetworks = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = ''
                 IP address ranges (CIDR notation) allowed to access bypassPaths without authentication.
                 If empty, bypassPaths are accessible from any IP (relies solely on API keys).
@@ -530,7 +530,7 @@ in
 
             customRules = mkOption {
               type = types.listOf types.attrs;
-              default = [];
+              default = [ ];
               description = "Additional custom Authelia access control rules for this service";
               example = [
                 {
@@ -573,7 +573,7 @@ in
 
       paths = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = "Paths to backup (defaults to service dataDir if empty)";
         example = [ "/var/lib/service" "/etc/service" ];
       };
@@ -606,7 +606,7 @@ in
             };
           };
         };
-        default = {};
+        default = { };
         description = "Backup retention policy";
       };
 
@@ -635,7 +635,7 @@ in
 
       tags = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = "Tags to apply to backup snapshots";
         example = [ "database" "production" "daily" ];
       };
@@ -666,37 +666,37 @@ in
           options = {
             onFailure = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Notification channels for service failures";
               example = [ "gotify-critical" "slack-alerts" ];
             };
 
             onSuccess = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Notification channels for successful operations";
             };
 
             onBackup = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Notification channels for backup events";
             };
 
             onHealthCheck = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Notification channels for health check failures";
             };
           };
         };
-        default = {};
+        default = { };
         description = "Notification channel assignments";
       };
 
       customMessages = mkOption {
         type = types.attrsOf types.str;
-        default = {};
+        default = { };
         description = "Custom message templates";
         example = {
           failure = "Service \${serviceName} failed on \${hostname}";
@@ -715,7 +715,7 @@ in
 
             channels = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Additional channels for escalated alerts";
             };
           };

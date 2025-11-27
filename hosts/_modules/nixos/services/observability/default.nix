@@ -9,37 +9,41 @@ let
   discoverMetricsTargets = config:
     let
       # Extract all modules.services.* configurations (excluding observability to prevent recursion)
-      allServices = lib.filterAttrs (name: service: name != "observability") (config.modules.services or {});
+      allServices = lib.filterAttrs (name: service: name != "observability") (config.modules.services or { });
 
       # Filter services that have metrics enabled
-      servicesWithMetrics = lib.filterAttrs (name: service:
-        (service.metrics or null) != null &&
-        (service.metrics.enable or false)
-      ) allServices;
+      servicesWithMetrics = lib.filterAttrs
+        (name: service:
+          (service.metrics or null) != null &&
+          (service.metrics.enable or false)
+        )
+        allServices;
 
       # Convert to Prometheus scrape_config format
-      scrapeConfigs = mapAttrsToList (serviceName: service: {
-        job_name = "service-${serviceName}";
-        static_configs = [{
-          targets = [ "${service.metrics.interface or "127.0.0.1"}:${toString service.metrics.port}" ];
-          labels = (service.metrics.labels or {}) // {
-            service = serviceName;
-            instance = config.networking.hostName;
-          };
-        }];
-        metrics_path = service.metrics.path or "/metrics";
-        scrape_interval = service.metrics.scrapeInterval or "60s";
-        scrape_timeout = service.metrics.scrapeTimeout or "10s";
-        relabel_configs = service.metrics.relabelConfigs or [];
-      }) servicesWithMetrics;
+      scrapeConfigs = mapAttrsToList
+        (serviceName: service: {
+          job_name = "service-${serviceName}";
+          static_configs = [{
+            targets = [ "${service.metrics.interface or "127.0.0.1"}:${toString service.metrics.port}" ];
+            labels = (service.metrics.labels or { }) // {
+              service = serviceName;
+              instance = config.networking.hostName;
+            };
+          }];
+          metrics_path = service.metrics.path or "/metrics";
+          scrape_interval = service.metrics.scrapeInterval or "60s";
+          scrape_timeout = service.metrics.scrapeTimeout or "10s";
+          relabel_configs = service.metrics.relabelConfigs or [ ];
+        })
+        servicesWithMetrics;
     in
-      scrapeConfigs;
+    scrapeConfigs;
 
   # Generate discovered scrape configurations (safe from recursion)
   discoveredScrapeConfigs =
     if cfg.prometheus.autoDiscovery.enable
     then discoverMetricsTargets config
-    else [];
+    else [ ];
 in
 {
   options.modules.services.observability = {
@@ -86,7 +90,7 @@ in
 
         staticTargets = mkOption {
           type = types.listOf types.attrs;
-          default = [];
+          default = [ ];
           description = "Additional static scrape targets";
           example = [{
             job_name = "node-exporter";
@@ -211,7 +215,7 @@ in
 
       extraScrapeConfigs = mkOption {
         type = types.listOf types.attrs;
-        default = [];
+        default = [ ];
         description = "Additional Promtail scrape configurations for custom log sources";
       };
 
@@ -363,7 +367,7 @@ in
 
       plugins = mkOption {
         type = with types; listOf package;
-        default = [];
+        default = [ ];
         example = lib.literalExpression "with pkgs.grafanaPlugins; [ grafana-worldmap-panel ]";
         description = "List of Grafana plugins to install";
       };
@@ -626,7 +630,7 @@ in
         # Enable ZFS snapshots for consistent backups (Gemini Pro recommendation)
         useSnapshots = cfg.loki.zfsDataset != null;
         zfsDataset = cfg.loki.zfsDataset;
-        excludePatterns = if cfg.loki.backup.includeChunks then [] else [
+        excludePatterns = if cfg.loki.backup.includeChunks then [ ] else [
           "**/chunks/**"
           "**/wal/**"
           "**/boltdb-shipper-cache/**"
@@ -799,10 +803,10 @@ in
         useSnapshots = cfg.grafana.zfsDataset != null;
         zfsDataset = cfg.grafana.zfsDataset;
         excludePatterns = [
-          "**/sessions/*"    # Exclude session data
-          "**/png/*"         # Exclude rendered images
-          "**/csv/*"         # Exclude CSV exports
-          "**/pdf/*"         # Exclude PDF exports
+          "**/sessions/*" # Exclude session data
+          "**/png/*" # Exclude rendered images
+          "**/csv/*" # Exclude CSV exports
+          "**/pdf/*" # Exclude PDF exports
         ];
       };
 

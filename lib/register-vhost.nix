@@ -41,17 +41,18 @@
   #   headers: (optional) Additional header directives
   #   extraConfig: (optional) Extra Caddyfile directives
   #   condition: (optional, default: true) Condition to enable registration
-  registerVirtualHost = {
-    name,
-    subdomain,
-    port,
-    domain ? null,
-    httpsBackend ? false,
-    auth ? null,
-    headers ? "",
-    extraConfig ? "",
-    condition ? true,
-  }:
+  registerVirtualHost =
+    { name
+    , subdomain
+    , port
+    , domain ? null
+    , httpsBackend ? false
+    , auth ? null
+    , headers ? ""
+    , extraConfig ? ""
+    , condition ? true
+    ,
+    }:
     lib.mkIf condition {
       modules.reverseProxy.virtualHosts.${name} = {
         enable = true;

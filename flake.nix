@@ -102,72 +102,73 @@
     #################### Personal Repositories ####################
   };
 
-  outputs = {
-    flake-parts,
-    ...
-  } @inputs:
-  let
-    overlays = import ./overlays {inherit inputs;};
-    mkSystemLib = import ./lib/mkSystem.nix {inherit inputs; inherit overlays;};
+  outputs =
+    { flake-parts
+    , ...
+    } @inputs:
+    let
+      overlays = import ./overlays { inherit inputs; };
+      mkSystemLib = import ./lib/mkSystem.nix { inherit inputs; inherit overlays; };
 
-    # Aggregate DNS records from all hosts for centralized zone management
-    aggregateDnsRecords = import ./lib/dns-aggregate.nix {
-      lib = inputs.nixpkgs.lib;
-    };
-in
-  flake-parts.lib.mkFlake {inherit inputs;} {
-    systems = [
-      "aarch64-darwin"
-      "x86_64-linux"
-      "aarch64-linux"
-    ];
-    imports = [];
-    flake = {
-      # Shell configured with packages that are typically only needed when working on or with nix-config. -- NEEDS TO BE FIXED MAYBE
-      # devShells = forAllSystems
-      #   (system:
-      #     let pkgs = nixpkgs.legacyPackages.${system};
-      #     in import ./shell.nix { inherit pkgs; }
-      #   );
-      #################### NixOS Configurations ####################
-      #
-      # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
-      nixosConfigurations = {
-        # Bootstrap deployment - uses minimal builder to avoid compatibility issues
-        nixos-bootstrap = mkSystemLib.mkNixosBootstrapSystem "x86_64-linux" "nixos-bootstrap";
-        # Parallels devlab
-        rydev =  mkSystemLib.mkNixosSystem "aarch64-linux" "rydev";# overlays flake-packages;
-        # Luna
-        luna =  mkSystemLib.mkNixosSystem "x86_64-linux" "luna";# overlays flake-packages;
-        # Forge - new server system
-        forge = mkSystemLib.mkNixosSystem "x86_64-linux" "forge";# overlays flake-packages;
-        # Raspberry Pi RV system
-        nixpi = mkSystemLib.mkNixosSystem "aarch64-linux" "nixpi";# overlays flake-packages;
+      # Aggregate DNS records from all hosts for centralized zone management
+      aggregateDnsRecords = import ./lib/dns-aggregate.nix {
+        lib = inputs.nixpkgs.lib;
       };
+    in
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "aarch64-darwin"
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      imports = [ ];
+      flake = {
+        # Shell configured with packages that are typically only needed when working on or with nix-config. -- NEEDS TO BE FIXED MAYBE
+        # devShells = forAllSystems
+        #   (system:
+        #     let pkgs = nixpkgs.legacyPackages.${system};
+        #     in import ./shell.nix { inherit pkgs; }
+        #   );
+        #################### NixOS Configurations ####################
+        #
+        # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
+        nixosConfigurations = {
+          # Bootstrap deployment - uses minimal builder to avoid compatibility issues
+          nixos-bootstrap = mkSystemLib.mkNixosBootstrapSystem "x86_64-linux" "nixos-bootstrap";
+          # Parallels devlab
+          rydev = mkSystemLib.mkNixosSystem "aarch64-linux" "rydev"; # overlays flake-packages;
+          # Luna
+          luna = mkSystemLib.mkNixosSystem "x86_64-linux" "luna"; # overlays flake-packages;
+          # Forge - new server system
+          forge = mkSystemLib.mkNixosSystem "x86_64-linux" "forge"; # overlays flake-packages;
+          # Raspberry Pi RV system
+          nixpi = mkSystemLib.mkNixosSystem "aarch64-linux" "nixpi"; # overlays flake-packages;
+        };
 
-      darwinConfigurations = {
-        rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac";# overlays flake-packages;
-      };
+        darwinConfigurations = {
+          rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac"; # overlays flake-packages;
+        };
 
-      # Aggregated DNS records from all hosts' Caddy virtual hosts
-      # View with: nix eval .#allCaddyDnsRecords --raw
-      allCaddyDnsRecords = aggregateDnsRecords (
-        inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
-      );
+        # Aggregated DNS records from all hosts' Caddy virtual hosts
+        # View with: nix eval .#allCaddyDnsRecords --raw
+        allCaddyDnsRecords = aggregateDnsRecords (
+          inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
+        );
 
         # Convenience output that aggregates the outputs for home, nixos.
         # Also used in ci to build targets generally.
-        ciSystems = let
-          nixos =
-            inputs.nixpkgs.lib.genAttrs
-            (builtins.attrNames inputs.self.nixosConfigurations)
-            (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
-          darwin =
-            inputs.nixpkgs.lib.genAttrs
-            (builtins.attrNames inputs.self.darwinConfigurations)
-            (attr: inputs.self.darwinConfigurations.${attr}.system);
-        in
+        ciSystems =
+          let
+            nixos =
+              inputs.nixpkgs.lib.genAttrs
+                (builtins.attrNames inputs.self.nixosConfigurations)
+                (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
+            darwin =
+              inputs.nixpkgs.lib.genAttrs
+                (builtins.attrNames inputs.self.darwinConfigurations)
+                (attr: inputs.self.darwinConfigurations.${attr}.system);
+          in
           nixos // darwin;
+      };
     };
-  };
 }

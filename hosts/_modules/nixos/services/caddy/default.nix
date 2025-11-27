@@ -13,7 +13,7 @@ let
     if vhost.backend != null then
       "${vhost.backend.scheme}://${vhost.backend.host}:${toString vhost.backend.port}"
     else if vhost.proxyTo != null then
-      # Legacy support: add http:// if no scheme present
+    # Legacy support: add http:// if no scheme present
       if hasPrefix "http" vhost.proxyTo then vhost.proxyTo else "http://${vhost.proxyTo}"
     else
       throw "Virtual host '${vhost.hostName}' must specify either 'backend' or 'proxyTo'";
@@ -27,13 +27,13 @@ let
         sniOverride = tls.sni != null;
         customCa = tls.caFile != null;
       in
-        if verifyDisabled || sniOverride || customCa then ''
-            transport http {
-              tls${optionalString sniOverride " ${tls.sni}"}
-              ${optionalString verifyDisabled "tls_insecure_skip_verify"}
-              ${optionalString customCa "tls_trusted_ca_certs ${tls.caFile}"}
-            }''
-        else ""
+      if verifyDisabled || sniOverride || customCa then ''
+        transport http {
+          tls${optionalString sniOverride " ${tls.sni}"}
+          ${optionalString verifyDisabled "tls_insecure_skip_verify"}
+          ${optionalString customCa "tls_trusted_ca_certs ${tls.caFile}"}
+        }''
+      else ""
     else "";
 
   # Helper: Generate security headers from structured config
@@ -46,10 +46,11 @@ let
             maxAge = "max-age=${toString vhost.security.hsts.maxAge}";
             subdomains = optionalString vhost.security.hsts.includeSubDomains "; includeSubDomains";
             preload = optionalString vhost.security.hsts.preload "; preload";
-          in {
+          in
+          {
             "Strict-Transport-Security" = "${maxAge}${subdomains}${preload}";
           }
-        else {};
+        else { };
 
       # Merge HSTS with custom security headers
       allHeaders = hstsHeader // vhost.security.customHeaders;
@@ -57,11 +58,11 @@ let
       # Convert to Caddy header block format
       headerLines = mapAttrsToList (name: value: "    ${name} \"${value}\"") allHeaders;
     in
-      if allHeaders != {} then ''
-          header {
-${concatStringsSep "\n" headerLines}
-          }
-'' else "";
+    if allHeaders != { } then ''
+                header {
+      ${concatStringsSep "\n" headerLines}
+                }
+    '' else "";
 
   sanitizeForMatcher = name:
     replaceStrings [ "." ":" "/" "*" "@" "-" ] [ "_" "_" "_" "_" "_" "_" ] name;
@@ -82,7 +83,7 @@ ${concatStringsSep "\n" headerLines}
     let
       portalCfg = getPortalConfig portalName;
       firstProvider =
-        if portalCfg != null && portalCfg.identityProviders != [] then
+        if portalCfg != null && portalCfg.identityProviders != [ ] then
           builtins.head portalCfg.identityProviders
         else
           null;
@@ -106,87 +107,99 @@ ${concatStringsSep "\n" headerLines}
         let
           secCfg = vhost.caddySecurity;
         in
-        if vhost.enable && secCfg != null && secCfg.enable && secCfg.claimRoles != [] then
+        if vhost.enable && secCfg != null && secCfg.enable && secCfg.claimRoles != [ ] then
           let
             portalName = secCfg.portal;
             defaultRealm = portalRealm portalName;
-            transforms = map (claimRole:
-              let
-                realm = if claimRole.realm != null then claimRole.realm else defaultRealm;
-                claim = claimRole.claim;
-                value = claimRole.value;
-                role = claimRole.role;
-              in
-              formatClaimRoleTransform { inherit realm claim value role; }
-            ) secCfg.claimRoles;
-            existing = attrByPath [ portalName ] [] acc;
+            transforms = map
+              (claimRole:
+                let
+                  realm = if claimRole.realm != null then claimRole.realm else defaultRealm;
+                  claim = claimRole.claim;
+                  value = claimRole.value;
+                  role = claimRole.role;
+                in
+                formatClaimRoleTransform { inherit realm claim value role; }
+              )
+              secCfg.claimRoles;
+            existing = attrByPath [ portalName ] [ ] acc;
           in
           acc // { "${portalName}" = existing ++ transforms; }
         else
           acc;
     in
-    mapAttrs (_: transforms: concatStrings (unique transforms)) (foldl' accumulate {} (attrValues cfg.virtualHosts));
+    mapAttrs (_: transforms: concatStrings (unique transforms)) (foldl' accumulate { } (attrValues cfg.virtualHosts));
 
   securityBlock =
     let
       sec = cfg.security;
 
-      providerBlocks = mapAttrsToList (name: provider:
-        let
-          secretPlaceholder = "{$" + provider.clientSecretEnvVar + "}";
-          scopesLine = concatStringsSep " " provider.scopes;
-          extra = provider.extraConfig;
-        in ''
-  oauth identity provider ${name} {
-  realm ${provider.realm}
-  driver ${provider.driver}
-  client_id ${provider.clientId}
-  client_secret ${secretPlaceholder}
-  scopes ${scopesLine}
-  base_auth_url ${provider.baseAuthUrl}
-  metadata_url ${provider.metadataUrl}
-  delay_start ${toString provider.delayStart}
-${optionalString (extra != "") extra}
-}''
-      ) sec.identityProviders;
-
-      portalBlocks = mapAttrsToList (name: portal:
-        let
-          providerLines = map (providerName: "  enable identity provider ${providerName}") portal.identityProviders;
-          cookieLines = let
-            cookie = portal.cookie;
+      providerBlocks = mapAttrsToList
+        (name: provider:
+          let
+            secretPlaceholder = "{$" + provider.clientSecretEnvVar + "}";
+            scopesLine = concatStringsSep " " provider.scopes;
+            extra = provider.extraConfig;
           in
-            [ "  cookie insecure ${if cookie.insecure then "on" else "off"}" ]
-            ++ (lib.optional (cookie.domain != null) "  cookie domain ${cookie.domain}")
-            ++ (lib.optional (cookie.path != "") "  cookie path ${cookie.path}");
-          contributionText =
-            if builtins.hasAttr name portalClaimRoleTransforms then
-              builtins.getAttr name portalClaimRoleTransforms
-            else
-              "";
-          extraSnippets = filter (s: s != "") [ portal.extraConfig contributionText ];
-          extra = concatStringsSep "\n" extraSnippets;
-        in ''
-  authentication portal ${name} {
-  crypto default token lifetime ${toString portal.tokenLifetime}
-${concatStringsSep "\n" providerLines}
-${concatStringsSep "\n" cookieLines}
-${optionalString (extra != "") extra}
-}''
-      ) sec.authenticationPortals;
+          ''
+              oauth identity provider ${name} {
+              realm ${provider.realm}
+              driver ${provider.driver}
+              client_id ${provider.clientId}
+              client_secret ${secretPlaceholder}
+              scopes ${scopesLine}
+              base_auth_url ${provider.baseAuthUrl}
+              metadata_url ${provider.metadataUrl}
+              delay_start ${toString provider.delayStart}
+            ${optionalString (extra != "") extra}
+            }''
+        )
+        sec.identityProviders;
 
-      policyBlocks = mapAttrsToList (name: policy:
-        let
-          rolesLine = concatStringsSep " " policy.allowRoles;
-          extra = policy.extraConfig;
-        in ''
-authorization policy ${name} {
-  set auth url ${policy.authUrl}
-  allow roles ${rolesLine}
-${optionalString policy.injectHeaders "  inject headers with claims"}
-${optionalString (extra != "") extra}
-}''
-      ) sec.authorizationPolicies;
+      portalBlocks = mapAttrsToList
+        (name: portal:
+          let
+            providerLines = map (providerName: "  enable identity provider ${providerName}") portal.identityProviders;
+            cookieLines =
+              let
+                cookie = portal.cookie;
+              in
+              [ "  cookie insecure ${if cookie.insecure then "on" else "off"}" ]
+              ++ (lib.optional (cookie.domain != null) "  cookie domain ${cookie.domain}")
+              ++ (lib.optional (cookie.path != "") "  cookie path ${cookie.path}");
+            contributionText =
+              if builtins.hasAttr name portalClaimRoleTransforms then
+                builtins.getAttr name portalClaimRoleTransforms
+              else
+                "";
+            extraSnippets = filter (s: s != "") [ portal.extraConfig contributionText ];
+            extra = concatStringsSep "\n" extraSnippets;
+          in
+          ''
+              authentication portal ${name} {
+              crypto default token lifetime ${toString portal.tokenLifetime}
+            ${concatStringsSep "\n" providerLines}
+            ${concatStringsSep "\n" cookieLines}
+            ${optionalString (extra != "") extra}
+            }''
+        )
+        sec.authenticationPortals;
+
+      policyBlocks = mapAttrsToList
+        (name: policy:
+          let
+            rolesLine = concatStringsSep " " policy.allowRoles;
+            extra = policy.extraConfig;
+          in
+          ''
+            authorization policy ${name} {
+              set auth url ${policy.authUrl}
+              allow roles ${rolesLine}
+            ${optionalString policy.injectHeaders "  inject headers with claims"}
+            ${optionalString (extra != "") extra}
+            }''
+        )
+        sec.authorizationPolicies;
 
       innerSections = filter (s: s != "") (providerBlocks ++ portalBlocks ++ policyBlocks ++ [ sec.extraConfig ]);
       innerBlock = concatStringsSep "\n\n" innerSections;
@@ -194,11 +207,11 @@ ${optionalString (extra != "") extra}
       orderLine = optionalString sec.orderAuthenticateBeforeRespond "  order authenticate before respond\n\n";
     in
     if sec.enable then ''
-{
-${orderLine}  security {
-${securityBody}
-  }
-}'' else "";
+      {
+      ${orderLine}  security {
+      ${securityBody}
+        }
+      }'' else "";
 in
 {
   imports = [
@@ -285,7 +298,7 @@ in
                 };
               };
             });
-            default = {};
+            default = { };
             description = "Map of caddy-security identity providers keyed by provider name.";
           };
 
@@ -294,7 +307,7 @@ in
               options = {
                 identityProviders = mkOption {
                   type = types.listOf types.str;
-                  default = [];
+                  default = [ ];
                   description = "Identity providers to enable for this portal (must reference keys defined in identityProviders).";
                 };
 
@@ -326,7 +339,7 @@ in
                       };
                     };
                   };
-                  default = {};
+                  default = { };
                   description = "Cookie attributes for the authentication portal.";
                 };
 
@@ -337,7 +350,7 @@ in
                 };
               };
             });
-            default = {};
+            default = { };
             description = "Map of authentication portals keyed by portal name.";
           };
 
@@ -369,7 +382,7 @@ in
                 };
               };
             });
-            default = {};
+            default = { };
             description = "Map of authorization policies keyed by policy name.";
           };
 
@@ -382,9 +395,9 @@ in
       };
       default = {
         enable = false;
-        identityProviders = {};
-        authenticationPortals = {};
-        authorizationPolicies = {};
+        identityProviders = { };
+        authenticationPortals = { };
+        authorizationPolicies = { };
         extraConfig = "";
       };
       description = "Settings for the caddy-security authentication portal/authorization plugin.";
@@ -416,7 +429,7 @@ in
                 };
               };
             };
-            default = {};
+            default = { };
             description = "Credentials configuration for DNS provider";
           };
 
@@ -428,7 +441,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "ACME certificate configuration";
     };
 
@@ -482,7 +495,7 @@ in
                       };
                     };
                   };
-                  default = {};
+                  default = { };
                   description = "TLS settings for HTTPS backends";
                 };
               };
@@ -537,7 +550,7 @@ in
                       };
                       maxAge = mkOption {
                         type = types.int;
-                        default = 15552000;  # 6 months
+                        default = 15552000; # 6 months
                         description = "HSTS max-age in seconds";
                       };
                       includeSubDomains = mkOption {
@@ -552,12 +565,12 @@ in
                       };
                     };
                   };
-                  default = {};
+                  default = { };
                   description = "HTTP Strict Transport Security settings";
                 };
                 customHeaders = mkOption {
                   type = types.attrsOf types.str;
-                  default = {};
+                  default = { };
                   description = "Custom security headers at site level";
                   example = {
                     "X-Frame-Options" = "SAMEORIGIN";
@@ -566,7 +579,7 @@ in
                 };
               };
             };
-            default = {};
+            default = { };
             description = "Security configuration";
           };
 
@@ -613,27 +626,27 @@ in
                       };
                     };
                   });
-                  default = [];
+                  default = [ ];
                   description = "Claim-based role grants contributed by this host.";
                 };
 
                 bypassPaths = mkOption {
                   type = types.listOf types.str;
-                  default = [];
+                  default = [ ];
                   description = "Exact path prefixes that should bypass authentication (append wildcard automatically).";
                   example = [ "/api" "/feed" ];
                 };
 
                 bypassResources = mkOption {
                   type = types.listOf types.str;
-                  default = [];
+                  default = [ ];
                   description = "Regex path matchers that should bypass authentication (converted to expression matchers).";
                   example = [ "^/api/system/status$" "^/rss/.*$" ];
                 };
 
                 allowedNetworks = mkOption {
                   type = types.listOf types.str;
-                  default = [];
+                  default = [ ];
                   description = "CIDR ranges allowed to use bypass paths (empty = allow all, not recommended).";
                   example = [ "10.0.0.0/8" "192.168.0.0/16" ];
                 };
@@ -733,7 +746,7 @@ in
                       };
                     };
                   };
-                  default = {};
+                  default = { };
                   description = "Per-host DNS registration overrides.";
                 };
               };
@@ -743,7 +756,7 @@ in
           };
         };
       });
-      default = {};
+      default = { };
       description = "Caddy virtual host configurations with structured backend and security options";
     };
 
@@ -755,7 +768,8 @@ in
       let
         provider = cfg.acme.provider;
         resolversStr = concatStringsSep " " cfg.acme.resolvers;
-      in ''
+      in
+      ''
         # Use external DNS resolvers for ACME DNS-01 challenge verification
         tls {
           ${optionalString (provider != "http") "dns ${provider} {env.${cfg.acme.credentials.envVar}}"}
@@ -765,31 +779,39 @@ in
     # Validation for virtual hosts
     assertions =
       # Virtual host validation
-      (mapAttrsToList (name: vhost: {
-        assertion = !vhost.enable || (vhost.backend != null || vhost.proxyTo != null);
-        message = "Virtual host '${name}' must specify either 'backend' or 'proxyTo' when enabled.";
-      }) cfg.virtualHosts) ++
-      (mapAttrsToList (name: vhost: {
-        assertion = !vhost.enable || vhost.auth == null || (vhost.auth.user != "" && vhost.auth.passwordHashEnvVar != "");
-        message = "Virtual host '${name}' has incomplete authentication configuration.";
-      }) cfg.virtualHosts) ++
-      (mapAttrsToList (name: vhost: {
-        assertion = !vhost.enable || vhost.caddySecurity == null || cfg.security.enable;
-        message = "Virtual host '${name}' references caddy-security but modules.services.caddy.security.enable is false.";
-      }) cfg.virtualHosts) ++
-      (mapAttrsToList (name: vhost: {
-        assertion = !vhost.enable || vhost.caddySecurity == null || vhost.authelia == null;
-        message = "Virtual host '${name}' cannot enable both Authelia and caddy-security simultaneously.";
-      }) cfg.virtualHosts) ++
-      (optional (cfg.security.enable && cfg.security.identityProviders == {}) {
+      (mapAttrsToList
+        (name: vhost: {
+          assertion = !vhost.enable || (vhost.backend != null || vhost.proxyTo != null);
+          message = "Virtual host '${name}' must specify either 'backend' or 'proxyTo' when enabled.";
+        })
+        cfg.virtualHosts) ++
+      (mapAttrsToList
+        (name: vhost: {
+          assertion = !vhost.enable || vhost.auth == null || (vhost.auth.user != "" && vhost.auth.passwordHashEnvVar != "");
+          message = "Virtual host '${name}' has incomplete authentication configuration.";
+        })
+        cfg.virtualHosts) ++
+      (mapAttrsToList
+        (name: vhost: {
+          assertion = !vhost.enable || vhost.caddySecurity == null || cfg.security.enable;
+          message = "Virtual host '${name}' references caddy-security but modules.services.caddy.security.enable is false.";
+        })
+        cfg.virtualHosts) ++
+      (mapAttrsToList
+        (name: vhost: {
+          assertion = !vhost.enable || vhost.caddySecurity == null || vhost.authelia == null;
+          message = "Virtual host '${name}' cannot enable both Authelia and caddy-security simultaneously.";
+        })
+        cfg.virtualHosts) ++
+      (optional (cfg.security.enable && cfg.security.identityProviders == { }) {
         assertion = false;
         message = "Caddy security is enabled but no identity providers are defined.";
       }) ++
-      (optional (cfg.security.enable && cfg.security.authenticationPortals == {}) {
+      (optional (cfg.security.enable && cfg.security.authenticationPortals == { }) {
         assertion = false;
         message = "Caddy security is enabled but no authentication portals are defined.";
       }) ++
-      (optional (cfg.security.enable && cfg.security.authorizationPolicies == {}) {
+      (optional (cfg.security.enable && cfg.security.authorizationPolicies == { }) {
         assertion = false;
         message = "Caddy security is enabled but no authorization policies are defined.";
       }) ++
@@ -801,152 +823,156 @@ in
 
     # Add systemd dependencies on Authelia if any vhost uses it
     # Dynamically builds dependencies for all Authelia instances in use
-    systemd.services.caddy = mkIf (autheliaEnabledVhosts != []) {
+    systemd.services.caddy = mkIf (autheliaEnabledVhosts != [ ]) {
       wants = map (instance: "authelia-${instance}.service") autheliaInstances;
       after = map (instance: "authelia-${instance}.service") autheliaInstances;
     };
 
     # Render the Caddyfile once and supply it via configFile so we fully control ordering
-    services.caddy = let
-      caddyfileText =
-        let
-          # Helper: Build Authelia verification URL
-          buildAutheliaUrl = authCfg:
-            "${authCfg.autheliaScheme}://${authCfg.autheliaHost}:${toString authCfg.autheliaPort}";
+    services.caddy =
+      let
+        caddyfileText =
+          let
+            # Helper: Build Authelia verification URL
+            buildAutheliaUrl = authCfg:
+              "${authCfg.autheliaScheme}://${authCfg.autheliaHost}:${toString authCfg.autheliaPort}";
 
-          # Helper: Generate forward_auth block for Authelia-protected hosts
-          generateAutheliaForwardAuth = authCfg: ''
-            # Authelia SSO forward authentication
-            # NOTE: ALL traffic goes through forward_auth - Authelia handles bypass logic
-            forward_auth ${buildAutheliaUrl authCfg} {
-              uri /api/verify?rd=https://${authCfg.authDomain}
-              copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-            }'';
+            # Helper: Generate forward_auth block for Authelia-protected hosts
+            generateAutheliaForwardAuth = authCfg: ''
+              # Authelia SSO forward authentication
+              # NOTE: ALL traffic goes through forward_auth - Authelia handles bypass logic
+              forward_auth ${buildAutheliaUrl authCfg} {
+                uri /api/verify?rd=https://${authCfg.authDomain}
+                copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+              }'';
 
-          # Generate configuration for each virtual host
-          vhostConfigs = filter (s: s != "") (mapAttrsToList (name: vhost:
-            let
-              hasAuthelia = vhost.authelia != null && vhost.authelia.enable;
-              # Disable basic auth if Authelia is enabled
-              useBasicAuth = vhost.auth != null && !hasAuthelia;
-              useCaddySecurity = vhost.caddySecurity != null && vhost.caddySecurity.enable;
-              requireCredentials =
-                if useCaddySecurity then
-                  vhost.caddySecurity.requireCredentials or false
-                else
-                  false;
-              caddySecurityBypassPaths =
-                if useCaddySecurity then vhost.caddySecurity.bypassPaths else [];
-              caddySecurityBypassResources =
-                if useCaddySecurity then vhost.caddySecurity.bypassResources else [];
-              caddySecurityAllowedNetworks =
-                if useCaddySecurity then vhost.caddySecurity.allowedNetworks else [];
-              hasCaddySecurityBypassPaths = caddySecurityBypassPaths != [];
-              hasCaddySecurityBypassResources = caddySecurityBypassResources != [];
-              hasCaddySecurityBypass = hasCaddySecurityBypassPaths || hasCaddySecurityBypassResources;
+            # Generate configuration for each virtual host
+            vhostConfigs = filter (s: s != "") (mapAttrsToList
+              (name: vhost:
+                let
+                  hasAuthelia = vhost.authelia != null && vhost.authelia.enable;
+                  # Disable basic auth if Authelia is enabled
+                  useBasicAuth = vhost.auth != null && !hasAuthelia;
+                  useCaddySecurity = vhost.caddySecurity != null && vhost.caddySecurity.enable;
+                  requireCredentials =
+                    if useCaddySecurity then
+                      vhost.caddySecurity.requireCredentials or false
+                    else
+                      false;
+                  caddySecurityBypassPaths =
+                    if useCaddySecurity then vhost.caddySecurity.bypassPaths else [ ];
+                  caddySecurityBypassResources =
+                    if useCaddySecurity then vhost.caddySecurity.bypassResources else [ ];
+                  caddySecurityAllowedNetworks =
+                    if useCaddySecurity then vhost.caddySecurity.allowedNetworks else [ ];
+                  hasCaddySecurityBypassPaths = caddySecurityBypassPaths != [ ];
+                  hasCaddySecurityBypassResources = caddySecurityBypassResources != [ ];
+                  hasCaddySecurityBypass = hasCaddySecurityBypassPaths || hasCaddySecurityBypassResources;
 
-              # IP-restricted bypass configuration
-              hasBypassPaths = hasAuthelia && (vhost.authelia.bypassPaths or []) != [];
-              hasNetworkRestrictions = hasAuthelia && (vhost.authelia.allowedNetworks or []) != [];
-              useIpRestrictedBypass = hasBypassPaths && hasNetworkRestrictions;
-              bypassPathPatterns = map (path: "${path}*") (vhost.authelia.bypassPaths or []);
+                  # IP-restricted bypass configuration
+                  hasBypassPaths = hasAuthelia && (vhost.authelia.bypassPaths or [ ]) != [ ];
+                  hasNetworkRestrictions = hasAuthelia && (vhost.authelia.allowedNetworks or [ ]) != [ ];
+                  useIpRestrictedBypass = hasBypassPaths && hasNetworkRestrictions;
+                  bypassPathPatterns = map (path: "${path}*") (vhost.authelia.bypassPaths or [ ]);
 
-              backendUrl = buildBackendUrl vhost;
-              tlsTransport = generateTlsTransport vhost;
-              authMatcherName =
-                if useCaddySecurity then
-                  "@caddy_security_${sanitizeForMatcher vhost.hostName}"
-                else
-                  "";
+                  backendUrl = buildBackendUrl vhost;
+                  tlsTransport = generateTlsTransport vhost;
+                  authMatcherName =
+                    if useCaddySecurity then
+                      "@caddy_security_${sanitizeForMatcher vhost.hostName}"
+                    else
+                      "";
 
-              reverseProxyBlockBase = ''
-reverse_proxy ${backendUrl} {
-  ${tlsTransport}
-  ${vhost.reverseProxyBlock}
-}
-'';
-              reverseProxyBlockIndented = indentLines reverseProxyBlockBase;
-              reverseProxyBlockDoubleIndented = indentLines reverseProxyBlockIndented;
+                  reverseProxyBlockBase = ''
+                    reverse_proxy ${backendUrl} {
+                      ${tlsTransport}
+                      ${vhost.reverseProxyBlock}
+                    }
+                  '';
+                  reverseProxyBlockIndented = indentLines reverseProxyBlockBase;
+                  reverseProxyBlockDoubleIndented = indentLines reverseProxyBlockIndented;
 
-              # Generate IP-restricted routes for bypass paths
-              ipRestrictedBypassConfig = optionalString useIpRestrictedBypass ''
-                # Matcher: API/bypass paths from internal networks only
-                @internalApi {
-                  path ${concatStringsSep " " bypassPathPatterns}
-                  remote_ip ${concatStringsSep " " vhost.authelia.allowedNetworks}
-                }
+                  # Generate IP-restricted routes for bypass paths
+                  ipRestrictedBypassConfig = optionalString useIpRestrictedBypass ''
+                    # Matcher: API/bypass paths from internal networks only
+                    @internalApi {
+                      path ${concatStringsSep " " bypassPathPatterns}
+                      remote_ip ${concatStringsSep " " vhost.authelia.allowedNetworks}
+                    }
 
-                # Route: Direct access for trusted internal IPs (skip Authelia)
-                route @internalApi {
-                  reverse_proxy ${backendUrl} {
-                    ${tlsTransport}
-                    ${vhost.reverseProxyBlock}
+                    # Route: Direct access for trusted internal IPs (skip Authelia)
+                    route @internalApi {
+                      reverse_proxy ${backendUrl} {
+                        ${tlsTransport}
+                        ${vhost.reverseProxyBlock}
+                      }
+                    }
+
+                  '';
+                  escapeForExpression = str: lib.replaceStrings [ "\"" ] [ "\\\"" ] str;
+                  caddySecurityBypassMatcher = "@caddy_security_bypass_${sanitizeForMatcher vhost.hostName}";
+                  caddySecurityBypassConfig = optionalString (useCaddySecurity && hasCaddySecurityBypass) ''
+                    # Matcher: Allowlisted paths that bypass caddy-security
+                    ${caddySecurityBypassMatcher} {
+                      ${optionalString hasCaddySecurityBypassPaths "path ${concatStringsSep " " (map (path: "${path}*") caddySecurityBypassPaths)}"}
+                      ${concatStringsSep "\n                  " (map (pattern: "expression {regexp(path, \"${escapeForExpression pattern}\")}") caddySecurityBypassResources)}
+                      ${optionalString (caddySecurityAllowedNetworks != []) "remote_ip ${concatStringsSep " " caddySecurityAllowedNetworks}"}
+                    }
+
+                    route ${caddySecurityBypassMatcher} {
+                      reverse_proxy ${backendUrl} {
+                        ${tlsTransport}
+                        ${vhost.reverseProxyBlock}
+                      }
+                    }
+
+                  '';
+
+                  reverseProxyDirective =
+                    if useCaddySecurity then ''
+                                      ${authMatcherName} {
+                                        path /caddy-security/* /oauth2/*
+                                      }
+
+                                      route ${authMatcherName} {
+                                        authenticate with ${vhost.caddySecurity.portal}${optionalString requireCredentials " { credentials }"}
+                                      }
+
+                                      route /* {
+                                        authorize with ${vhost.caddySecurity.policy}
+                      ${reverseProxyBlockDoubleIndented}
+                                      }
+                    '' else reverseProxyBlockIndented;
+                in
+                if vhost.enable then ''
+                  ${vhost.hostName} {
+                    # ACME TLS configuration
+                    ${cfg.acme.generateTlsBlock}
+
+                    # Security headers (includes HSTS by default)
+                    ${generateSecurityHeaders vhost}
+                    ${optionalString useBasicAuth ''
+                    # Basic authentication
+                    basic_auth {
+                      ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
+                    }
+                    ''}
+                      ${ipRestrictedBypassConfig}${caddySecurityBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
+                    # Reverse proxy to backend
+                    ${reverseProxyDirective}
+                    ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}
                   }
-                }
-
-              '';
-              escapeForExpression = str: lib.replaceStrings ["\""] ["\\\""] str;
-              caddySecurityBypassMatcher = "@caddy_security_bypass_${sanitizeForMatcher vhost.hostName}";
-              caddySecurityBypassConfig = optionalString (useCaddySecurity && hasCaddySecurityBypass) ''
-                # Matcher: Allowlisted paths that bypass caddy-security
-                ${caddySecurityBypassMatcher} {
-                  ${optionalString hasCaddySecurityBypassPaths "path ${concatStringsSep " " (map (path: "${path}*") caddySecurityBypassPaths)}"}
-                  ${concatStringsSep "\n                  " (map (pattern: "expression {regexp(path, \"${escapeForExpression pattern}\")}") caddySecurityBypassResources)}
-                  ${optionalString (caddySecurityAllowedNetworks != []) "remote_ip ${concatStringsSep " " caddySecurityAllowedNetworks}"}
-                }
-
-                route ${caddySecurityBypassMatcher} {
-                  reverse_proxy ${backendUrl} {
-                    ${tlsTransport}
-                    ${vhost.reverseProxyBlock}
-                  }
-                }
-
-              '';
-
-              reverseProxyDirective =
-                if useCaddySecurity then ''
-                ${authMatcherName} {
-                  path /caddy-security/* /oauth2/*
-                }
-
-                route ${authMatcherName} {
-                  authenticate with ${vhost.caddySecurity.portal}${optionalString requireCredentials " { credentials }"}
-                }
-
-                route /* {
-                  authorize with ${vhost.caddySecurity.policy}
-${reverseProxyBlockDoubleIndented}
-                }
-                '' else reverseProxyBlockIndented;
-            in
-              if vhost.enable then ''
-                ${vhost.hostName} {
-                  # ACME TLS configuration
-                  ${cfg.acme.generateTlsBlock}
-
-                  # Security headers (includes HSTS by default)
-                  ${generateSecurityHeaders vhost}
-                  ${optionalString useBasicAuth ''
-                  # Basic authentication
-                  basic_auth {
-                    ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
-                  }
-                  ''}
-                    ${ipRestrictedBypassConfig}${caddySecurityBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
-                  # Reverse proxy to backend
-                  ${reverseProxyDirective}
-                  ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}
-                }
-              '' else ""
-          ) cfg.virtualHosts);
-        in
+                '' else ""
+              )
+              cfg.virtualHosts);
+          in
           concatStringsSep "\n\n" (filter (s: s != "") ([ securityBlock ] ++ vhostConfigs));
-    in {
-      enable = true;
-      package = cfg.package;
-      configFile = pkgs.writeText "caddy_config" caddyfileText;
-    };
+      in
+      {
+        enable = true;
+        package = cfg.package;
+        configFile = pkgs.writeText "caddy_config" caddyfileText;
+      };
 
     # Open firewall for HTTP/HTTPS
     networking.firewall.allowedTCPPorts = [ 80 443 ];

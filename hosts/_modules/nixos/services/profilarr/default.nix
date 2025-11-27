@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   # Import pure storage helpers library
@@ -149,10 +148,11 @@ in
     };
   };
 
-  config = let
-    # Move config-dependent variables here to avoid infinite recursion
-    storageCfg = config.modules.storage;
-    datasetPath = "${storageCfg.datasets.parentDataset}/profilarr";
+  config =
+    let
+      # Move config-dependent variables here to avoid infinite recursion
+      storageCfg = config.modules.storage;
+      datasetPath = "${storageCfg.datasets.parentDataset}/profilarr";
 
       # Recursively find the replication config
       findReplication = dsPath:
@@ -160,7 +160,7 @@ in
         else
           let
             sanoidDatasets = config.modules.backup.sanoid.datasets;
-            replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+            replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
             parentPath =
               if lib.elem "/" (lib.stringToCharacters dsPath) then
                 lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -198,139 +198,140 @@ in
             recvOptions = foundReplication.replication.recvOptions or "u";
           };
 
-    mainServiceUnit = "profilarr.service";
-    hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
-  in lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      assertions = [
-        {
-          assertion = cfg.backup != null -> cfg.backup.enable;
-          message = "Profilarr backup must be explicitly enabled when configured";
-        }
-        {
-          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
-          message = "Profilarr preseed.enable requires preseed.repositoryUrl to be set.";
-        }
-        {
-          assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-          message = "Profilarr preseed.enable requires preseed.passwordFile to be set.";
-        }
-      ];
+      mainServiceUnit = "profilarr.service";
+      hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
+    in
+    lib.mkMerge [
+      (lib.mkIf cfg.enable {
+        assertions = [
+          {
+            assertion = cfg.backup != null -> cfg.backup.enable;
+            message = "Profilarr backup must be explicitly enabled when configured";
+          }
+          {
+            assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+            message = "Profilarr preseed.enable requires preseed.repositoryUrl to be set.";
+          }
+          {
+            assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
+            message = "Profilarr preseed.enable requires preseed.passwordFile to be set.";
+          }
+        ];
 
-    warnings =
-      (lib.optional (cfg.backup == null) "Profilarr has no backup configured. Profile configurations will not be protected.");
+        warnings =
+          (lib.optional (cfg.backup == null) "Profilarr has no backup configured. Profile configurations will not be protected.");
 
-    # Create ZFS dataset for Profilarr data
-    modules.storage.datasets.services.profilarr = {
-      mountpoint = cfg.dataDir;
-      recordsize = "16K";  # Optimal for configuration files
-      compression = "zstd";
-      properties = {
-        "com.sun:auto-snapshot" = "true";
-      };
-      owner = cfg.user;
-      group = cfg.group;
-      mode = "0750";
-    };
-
-    # Create system user for Profilarr
-    users.users.profilarr = {
-      uid = lib.mkDefault (lib.toInt cfg.user);
-      group = cfg.group;
-      isSystemUser = true;
-      description = "Profilarr service user";
-    };
-
-    # Create system group for Profilarr
-    users.groups.profilarr = {
-      gid = lib.mkDefault (lib.toInt cfg.user);
-    };
-
-    # Profilarr sync service (oneshot)
-    # This is NOT a long-running container - it's executed on a schedule
-    systemd.services."profilarr-sync" = lib.mkMerge [
-      (lib.mkIf (cfg.podmanNetwork != null) {
-        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-      })
-      {
-        description = "Profilarr Profile Sync";
-        wants = [ "network-online.target" ];
-        after = [ "network-online.target" ];
-
-      serviceConfig = {
-        Type = "oneshot";
-        User = cfg.user;
-        Group = cfg.group;
-
-        # Run Profilarr container in one-shot mode
-        ExecStart = ''
-          ${pkgs.podman}/bin/podman run --rm \
-            --name profilarr-sync \
-            --user ${cfg.user}:${toString config.users.groups.${cfg.group}.gid} \
-            --log-driver=journald \
-            ${lib.optionalString (cfg.podmanNetwork != null) "--network=${cfg.podmanNetwork}"} \
-            -v ${cfg.dataDir}:/config:rw \
-            -e TZ=${cfg.timezone} \
-            ${cfg.image}
-        '';
-
-        # Cleanup on failure
-        ExecStopPost = ''
-          -${pkgs.podman}/bin/podman rm -f profilarr-sync
-        '';
-      };
-    }
-    ];
-
-    # Systemd timer to trigger the sync service
-    systemd.timers."profilarr-sync" = {
-      description = "Profilarr Profile Sync Timer";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnCalendar = cfg.schedule;
-        Persistent = true;
-        RandomizedDelaySec = "5m";
-      };
-    };
-
-    # Backup integration using standardized restic pattern
-    modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      profilarr = {
-        enable = true;
-        paths = [ cfg.dataDir ];
-        repository = cfg.backup.repository;
-        frequency = cfg.backup.frequency;
-        tags = cfg.backup.tags;
-        excludePatterns = cfg.backup.excludePatterns;
-        useSnapshots = cfg.backup.useSnapshots;
-        zfsDataset = cfg.backup.zfsDataset;
-      };
-    };
-  })
-
-    # Preseed service
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        serviceName = "profilarr";
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
-          recordsize = "16K";
+        # Create ZFS dataset for Profilarr data
+        modules.storage.datasets.services.profilarr = {
+          mountpoint = cfg.dataDir;
+          recordsize = "16K"; # Optimal for configuration files
           compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
+          properties = {
+            "com.sun:auto-snapshot" = "true";
+          };
+          owner = cfg.user;
+          group = cfg.group;
+          mode = "0750";
         };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        hasCentralizedNotifications = hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
-      }
-    ))
-  ];
+
+        # Create system user for Profilarr
+        users.users.profilarr = {
+          uid = lib.mkDefault (lib.toInt cfg.user);
+          group = cfg.group;
+          isSystemUser = true;
+          description = "Profilarr service user";
+        };
+
+        # Create system group for Profilarr
+        users.groups.profilarr = {
+          gid = lib.mkDefault (lib.toInt cfg.user);
+        };
+
+        # Profilarr sync service (oneshot)
+        # This is NOT a long-running container - it's executed on a schedule
+        systemd.services."profilarr-sync" = lib.mkMerge [
+          (lib.mkIf (cfg.podmanNetwork != null) {
+            requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+            after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          })
+          {
+            description = "Profilarr Profile Sync";
+            wants = [ "network-online.target" ];
+            after = [ "network-online.target" ];
+
+            serviceConfig = {
+              Type = "oneshot";
+              User = cfg.user;
+              Group = cfg.group;
+
+              # Run Profilarr container in one-shot mode
+              ExecStart = ''
+                ${pkgs.podman}/bin/podman run --rm \
+                  --name profilarr-sync \
+                  --user ${cfg.user}:${toString config.users.groups.${cfg.group}.gid} \
+                  --log-driver=journald \
+                  ${lib.optionalString (cfg.podmanNetwork != null) "--network=${cfg.podmanNetwork}"} \
+                  -v ${cfg.dataDir}:/config:rw \
+                  -e TZ=${cfg.timezone} \
+                  ${cfg.image}
+              '';
+
+              # Cleanup on failure
+              ExecStopPost = ''
+                -${pkgs.podman}/bin/podman rm -f profilarr-sync
+              '';
+            };
+          }
+        ];
+
+        # Systemd timer to trigger the sync service
+        systemd.timers."profilarr-sync" = {
+          description = "Profilarr Profile Sync Timer";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnCalendar = cfg.schedule;
+            Persistent = true;
+            RandomizedDelaySec = "5m";
+          };
+        };
+
+        # Backup integration using standardized restic pattern
+        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+          profilarr = {
+            enable = true;
+            paths = [ cfg.dataDir ];
+            repository = cfg.backup.repository;
+            frequency = cfg.backup.frequency;
+            tags = cfg.backup.tags;
+            excludePatterns = cfg.backup.excludePatterns;
+            useSnapshots = cfg.backup.useSnapshots;
+            zfsDataset = cfg.backup.zfsDataset;
+          };
+        };
+      })
+
+      # Preseed service
+      (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+        storageHelpers.mkPreseedService {
+          serviceName = "profilarr";
+          dataset = datasetPath;
+          mountpoint = cfg.dataDir;
+          mainServiceUnit = mainServiceUnit;
+          replicationCfg = replicationConfig;
+          datasetProperties = {
+            recordsize = "16K";
+            compression = "zstd";
+            "com.sun:auto-snapshot" = "true";
+          };
+          resticRepoUrl = cfg.preseed.repositoryUrl;
+          resticPasswordFile = cfg.preseed.passwordFile;
+          resticEnvironmentFile = cfg.preseed.environmentFile;
+          resticPaths = [ cfg.dataDir ];
+          restoreMethods = cfg.preseed.restoreMethods;
+          hasCentralizedNotifications = hasCentralizedNotifications;
+          owner = cfg.user;
+          group = cfg.group;
+        }
+      ))
+    ];
 }

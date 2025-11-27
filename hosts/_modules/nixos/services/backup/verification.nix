@@ -10,16 +10,17 @@
 
 let
   cfg = config.modules.services.backup;
-  verificationCfg = cfg.verification or {};
+  verificationCfg = cfg.verification or { };
 
   # Get all configured repositories
-  repositories = cfg.repositories or {};
+  repositories = cfg.repositories or { };
 
   # Create verification service for a repository
   mkVerificationService = repoName: repoConfig:
     let
       serviceName = "backup-verify-${repoName}";
-    in {
+    in
+    {
       ${serviceName} = {
         description = "Verify backup repository ${repoName}";
         serviceConfig = {
@@ -125,7 +126,8 @@ let
   mkRestoreTestService = repoName: repoConfig:
     let
       serviceName = "backup-restore-test-${repoName}";
-    in {
+    in
+    {
       ${serviceName} = {
         description = "Restore test for backup repository ${repoName}";
         serviceConfig = {
@@ -237,7 +239,8 @@ let
       };
     };
 
-in {
+in
+{
   options.modules.services.backup.verification = {
     enable = lib.mkOption {
       type = lib.types.bool;
@@ -285,7 +288,7 @@ in {
           };
         };
       };
-      default = {};
+      default = { };
       description = "Restore testing configuration";
     };
 
@@ -311,7 +314,7 @@ in {
           };
         };
       };
-      default = {};
+      default = { };
       description = "Verification reporting configuration";
     };
   };
@@ -325,64 +328,64 @@ in {
       {
         # Verification reporting service
         backup-verification-report = lib.mkIf verificationCfg.reporting.enable {
-      description = "Generate backup verification report";
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = pkgs.writeShellScript "generate-verification-report" ''
-          set -euo pipefail
+          description = "Generate backup verification report";
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = pkgs.writeShellScript "generate-verification-report" ''
+              set -euo pipefail
 
-          REPORT_DIR="${verificationCfg.reporting.outputDir}"
-          mkdir -p "$REPORT_DIR"
+              REPORT_DIR="${verificationCfg.reporting.outputDir}"
+              mkdir -p "$REPORT_DIR"
 
-          REPORT_FILE="$REPORT_DIR/verification-report-$(date +%Y%m%d).md"
+              REPORT_FILE="$REPORT_DIR/verification-report-$(date +%Y%m%d).md"
 
-          cat > "$REPORT_FILE" << EOF
-          # Backup Verification Report
+              cat > "$REPORT_FILE" << EOF
+              # Backup Verification Report
 
-          **Generated**: $(date)
-          **Host**: ${config.networking.hostName}
+              **Generated**: $(date)
+              **Host**: ${config.networking.hostName}
 
-          ## Repository Status
+              ## Repository Status
 
-          EOF
+              EOF
 
-          # Add status for each repository
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (repoName: repoConfig: ''
-            echo "### Repository: ${repoName}" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
+              # Add status for each repository
+              ${lib.concatStringsSep "\n" (lib.mapAttrsToList (repoName: repoConfig: ''
+                echo "### Repository: ${repoName}" >> "$REPORT_FILE"
+                echo "" >> "$REPORT_FILE"
 
-            # Check verification status
-            VERIFY_METRICS="/var/lib/node_exporter/textfile_collector/restic_verification_${repoName}.prom"
-            if [[ -f "$VERIFY_METRICS" ]]; then
-              VERIFY_STATUS=$(grep "restic_verification_status" "$VERIFY_METRICS" | awk '{print $2}' || echo "unknown")
-              if [[ "$VERIFY_STATUS" == "1" ]]; then
-                echo "- ✅ Verification: PASSED" >> "$REPORT_FILE"
-              else
-                echo "- ❌ Verification: FAILED" >> "$REPORT_FILE"
-              fi
-            else
-              echo "- ⚠️ Verification: NO DATA" >> "$REPORT_FILE"
-            fi
+                # Check verification status
+                VERIFY_METRICS="/var/lib/node_exporter/textfile_collector/restic_verification_${repoName}.prom"
+                if [[ -f "$VERIFY_METRICS" ]]; then
+                  VERIFY_STATUS=$(grep "restic_verification_status" "$VERIFY_METRICS" | awk '{print $2}' || echo "unknown")
+                  if [[ "$VERIFY_STATUS" == "1" ]]; then
+                    echo "- ✅ Verification: PASSED" >> "$REPORT_FILE"
+                  else
+                    echo "- ❌ Verification: FAILED" >> "$REPORT_FILE"
+                  fi
+                else
+                  echo "- ⚠️ Verification: NO DATA" >> "$REPORT_FILE"
+                fi
 
-            # Check restore test status
-            RESTORE_METRICS="/var/lib/node_exporter/textfile_collector/restic_restore_test_${repoName}.prom"
-            if [[ -f "$RESTORE_METRICS" ]]; then
-              RESTORE_STATUS=$(grep "restic_restore_test_status" "$RESTORE_METRICS" | awk '{print $2}' || echo "unknown")
-              if [[ "$RESTORE_STATUS" == "1" ]]; then
-                echo "- ✅ Restore Test: PASSED" >> "$REPORT_FILE"
-              else
-                echo "- ❌ Restore Test: FAILED" >> "$REPORT_FILE"
-              fi
-            else
-              echo "- ⚠️ Restore Test: NO DATA" >> "$REPORT_FILE"
-            fi
+                # Check restore test status
+                RESTORE_METRICS="/var/lib/node_exporter/textfile_collector/restic_restore_test_${repoName}.prom"
+                if [[ -f "$RESTORE_METRICS" ]]; then
+                  RESTORE_STATUS=$(grep "restic_restore_test_status" "$RESTORE_METRICS" | awk '{print $2}' || echo "unknown")
+                  if [[ "$RESTORE_STATUS" == "1" ]]; then
+                    echo "- ✅ Restore Test: PASSED" >> "$REPORT_FILE"
+                  else
+                    echo "- ❌ Restore Test: FAILED" >> "$REPORT_FILE"
+                  fi
+                else
+                  echo "- ⚠️ Restore Test: NO DATA" >> "$REPORT_FILE"
+                fi
 
-            echo "" >> "$REPORT_FILE"
-          '') repositories)}
+                echo "" >> "$REPORT_FILE"
+              '') repositories)}
 
-          echo "Generated verification report: $REPORT_FILE"
-        '';
-      };
+              echo "Generated verification report: $REPORT_FILE"
+            '';
+          };
         };
       }
     ];

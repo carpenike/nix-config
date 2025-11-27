@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -15,7 +14,7 @@ let
   notificationsCfg = config.modules.notifications;
   storageCfg = config.modules.storage;
   hasCentralizedNotifications = notificationsCfg.enable or false;
-  qbittorrentPort = 8080;  # WebUI port (internal to container)
+  qbittorrentPort = 8080; # WebUI port (internal to container)
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-qbittorrent.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/qbittorrent";
   configFile = "${cfg.dataDir}/qBittorrent/qBittorrent.conf";
@@ -36,7 +35,7 @@ let
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
         # Check if replication is defined for the current path (datasets are flat keys, not nested)
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         # Determine the parent path for recursion
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
@@ -476,237 +475,237 @@ in
       # Auto-configure downloadsDir from NFS mount configuration
       modules.services.qbittorrent.downloadsDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
 
-    # Integrate with centralized Caddy reverse proxy if configured
-    modules.services.caddy.virtualHosts.qbittorrent = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-
-      # Use structured backend configuration from shared types
-      backend = {
-        scheme = "http";  # qBittorrent uses HTTP locally
-        host = "127.0.0.1";
-        port = qbittorrentPort;
-      };
-
-      # Authentication configuration from shared types
-      auth = cfg.reverseProxy.auth;
-
-      # Authelia SSO configuration from shared types
-      authelia = cfg.reverseProxy.authelia;
-
-      # PocketID / caddy-security configuration
-      caddySecurity = cfg.reverseProxy.caddySecurity;
-
-      # Security configuration from shared types
-      security = cfg.reverseProxy.security;
-
-      extraConfig = cfg.reverseProxy.extraConfig;
-    };
-
-    # Declare dataset requirements for per-service ZFS isolation
-    # This integrates with the storage.datasets module to automatically
-    # create tank/services/qbittorrent with appropriate ZFS properties
-    modules.storage.datasets.services.qbittorrent = {
-      mountpoint = cfg.dataDir;
-      recordsize = "16K";  # Optimal for SQLite databases
-      compression = "zstd";  # Better compression for text/config files
-      properties = {
-        "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
-      };
-      # Ownership matches the container user/group
-      owner = "qbittorrent";
-      group = "qbittorrent";
-      mode = "0750";  # Allow group read access for backup systems
-    };
-
-    # Create local users to match container UIDs
-    # This ensures proper file ownership on the host
-    users.users.qbittorrent = {
-      uid = lib.mkDefault (lib.toInt cfg.user);
-      group = cfg.group; # Use configured group (defaults to "media")
-      isSystemUser = true;
-      description = "qBittorrent service user";
-      # Add to media group for NFS access if dependency is set
-      extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
-    };
-
-    # qBittorrent container configuration
-    virtualisation.oci-containers.containers.qbittorrent = podmanLib.mkContainer "qbittorrent" {
-      image = cfg.image;
-      environment = {
-        PUID = cfg.user;
-        PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-        TZ = cfg.timezone;
-        UMASK = "002";  # Ensure group-writable files for *arr services to read
-        WEBUI_PORT = toString qbittorrentPort;
-      };
-      volumes = [
-        "${cfg.dataDir}:/config:rw"
-        "${cfg.downloadsDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
-      ] ++ lib.optionals cfg.vuetorrent.enable [
-        "${cfg.vuetorrent.package}/vuetorrent:/vuetorrent:ro"
-      ];
-      ports = [
-        "${toString qbittorrentPort}:${toString qbittorrentPort}"
-        "${toString cfg.torrentPort}:${toString cfg.torrentPort}/tcp"  # BitTorrent port
-        "${toString cfg.torrentPort}:${toString cfg.torrentPort}/udp"  # BitTorrent DHT port
-      ];
-      resources = cfg.resources;
-      extraOptions = [
-        # Podman-level umask ensures container process creates files with group-readable permissions
-        # This allows restic-backup user (member of qbittorrent group) to read data
-        "--umask=0027"  # Creates directories with 750 and files with 640
-        "--pull=newer"  # Automatically pull newer images
-        # Force container to run as the specified user:group
-        "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-      ] ++ lib.optionals (cfg.podmanNetwork != null) [
-        # Attach to Podman network for DNS-based service discovery
-        "--network=${cfg.podmanNetwork}"
-      ] ++ lib.optionals (nfsMountConfig != null) [
-        # Add media group to container so process can write to group-owned NFS mount
-        "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
-      ] ++ lib.optionals cfg.healthcheck.enable [
-        # Define the health check on the container itself
-        ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString qbittorrentPort}/api/v2/app/version)" = 200 ]' ''
-        # CRITICAL: Disable Podman's internal timer to prevent transient systemd units
-        "--health-interval=0s"
-        "--health-timeout=${cfg.healthcheck.timeout}"
-        "--health-retries=${toString cfg.healthcheck.retries}"
-        "--health-start-period=${cfg.healthcheck.startPeriod}"
-      ];
-    };
-
-    # Standardized systemd integration for container restart behavior
-    systemd.services."${mainServiceUnit}" = lib.mkMerge [
-      (lib.mkIf (nfsMountConfig != null) {
-        requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
-        after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
-      })
-      (lib.mkIf (cfg.podmanNetwork != null) {
-        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-      })
-      {
-        # Service should remain stopped if explicitly stopped by admin
-        unitConfig = {
-          # If the service fails, automatically restart it
-          # But if it's stopped manually (systemctl stop), keep it stopped
-          StartLimitBurst = 5;
-          StartLimitIntervalSec = 300;
-        };
-        serviceConfig = {
-          Restart = "on-failure";
-          RestartSec = "30s";
-          # Add NFS mount dependency if configured
-          RequiresMountsFor = lib.optional (nfsMountConfig != null) nfsMountConfig.localPath;
-        };
-        # Generator runs before main service, checks if config missing
-        # For manual config regeneration: rm /var/lib/qbittorrent/qBittorrent/qBittorrent.conf && systemctl restart qbittorrent-config-generator.service podman-qbittorrent.service
-        wants = [ "qbittorrent-config-generator.service" ]
-          ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
-        after = [ "qbittorrent-config-generator.service" ]
-          ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
-      }
-    ];
-
-    # Declarative Initial Seeding: Generate config on-demand before service starts
-    # Generator service is triggered by main service's wants/after dependencies
-
-    # Config generator service - creates config only if missing
-    # This preserves WebUI changes while ensuring correct initial configuration
-    # To reset to Nix defaults: delete config file and restart this service
-    systemd.services.qbittorrent-config-generator = {
-      description = "Generate qBittorrent configuration if missing";
-      before = [ mainServiceUnit ];
-      serviceConfig = {
-        Type = "oneshot";
-        User = cfg.user;
-        Group = cfg.group;
-        ExecStart = pkgs.writeShellScript "generate-qb-config" ''
-          set -eu
-          CONFIG_FILE="${configFile}"
-          CONFIG_DIR=$(dirname "$CONFIG_FILE")
-
-          # Only generate if config doesn't exist
-          if [ ! -f "$CONFIG_FILE" ]; then
-            echo "Config missing, generating from Nix settings..."
-            mkdir -p "$CONFIG_DIR"
-
-            # Generate config using toINI
-            cat > "$CONFIG_FILE" << 'EOF'
-${lib.generators.toINI {} cfg.settings}
-EOF
-
-            chmod 640 "$CONFIG_FILE"
-            echo "Configuration generated at $CONFIG_FILE"
-          else
-            echo "Config exists at $CONFIG_FILE, preserving existing file"
-          fi
-        '';
-      };
-    };
-
-    # Standardized health monitoring service
-    systemd.services."qbittorrent-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-      description = "qBittorrent Health Check";
-      after = [ mainServiceUnit ];
-      requires = [ mainServiceUnit ];
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.podman}/bin/podman healthcheck run qbittorrent";
-        # Health checks should not restart the service
-        Restart = "no";
-      };
-    };
-
-    systemd.timers."qbittorrent-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-      description = "Timer for qBittorrent Health Check";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnUnitActiveSec = cfg.healthcheck.interval;
-        OnBootSec = cfg.healthcheck.startPeriod;
-        Unit = "qbittorrent-healthcheck.service";
-      };
-    };
-
-    # Notifications for service failures (centralized pattern)
-    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-      "qbittorrent-failure" = {
-        enable = lib.mkDefault true;
-        priority = lib.mkDefault "high";
-        title = lib.mkDefault ''<b><font color="red">✗ Service Failed: qBittorrent</font></b>'';
-        body = lib.mkDefault ''
-          <b>Host:</b> ''${hostname}
-          <b>Service:</b> <code>''${serviceName}</code>
-
-          The qBittorrent torrent download client has entered a failed state.
-
-          <b>Quick Actions:</b>
-          1. Check logs:
-             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-          2. Restart service:
-             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-        '';
-      };
-    };
-
-    # Backup integration using standardized restic pattern
-    modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      qbittorrent = {
+      # Integrate with centralized Caddy reverse proxy if configured
+      modules.services.caddy.virtualHosts.qbittorrent = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         enable = true;
-        # Configuration directory only - downloads are transient and not backed up
-        paths = [ cfg.dataDir ];
-        repository = cfg.backup.repository;
-        frequency = cfg.backup.frequency;
-        tags = cfg.backup.tags;
-        excludePatterns = cfg.backup.excludePatterns;
-        # Use ZFS snapshots for consistent backups of SQLite databases
-        useSnapshots = cfg.backup.useSnapshots;
-        zfsDataset = cfg.backup.zfsDataset;
-        # Ensure service stops before backup for data consistency
-        preBackupServices = [ mainServiceUnit ];
+        hostName = cfg.reverseProxy.hostName;
+
+        # Use structured backend configuration from shared types
+        backend = {
+          scheme = "http"; # qBittorrent uses HTTP locally
+          host = "127.0.0.1";
+          port = qbittorrentPort;
+        };
+
+        # Authentication configuration from shared types
+        auth = cfg.reverseProxy.auth;
+
+        # Authelia SSO configuration from shared types
+        authelia = cfg.reverseProxy.authelia;
+
+        # PocketID / caddy-security configuration
+        caddySecurity = cfg.reverseProxy.caddySecurity;
+
+        # Security configuration from shared types
+        security = cfg.reverseProxy.security;
+
+        extraConfig = cfg.reverseProxy.extraConfig;
       };
-    };
+
+      # Declare dataset requirements for per-service ZFS isolation
+      # This integrates with the storage.datasets module to automatically
+      # create tank/services/qbittorrent with appropriate ZFS properties
+      modules.storage.datasets.services.qbittorrent = {
+        mountpoint = cfg.dataDir;
+        recordsize = "16K"; # Optimal for SQLite databases
+        compression = "zstd"; # Better compression for text/config files
+        properties = {
+          "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
+        };
+        # Ownership matches the container user/group
+        owner = "qbittorrent";
+        group = "qbittorrent";
+        mode = "0750"; # Allow group read access for backup systems
+      };
+
+      # Create local users to match container UIDs
+      # This ensures proper file ownership on the host
+      users.users.qbittorrent = {
+        uid = lib.mkDefault (lib.toInt cfg.user);
+        group = cfg.group; # Use configured group (defaults to "media")
+        isSystemUser = true;
+        description = "qBittorrent service user";
+        # Add to media group for NFS access if dependency is set
+        extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
+      };
+
+      # qBittorrent container configuration
+      virtualisation.oci-containers.containers.qbittorrent = podmanLib.mkContainer "qbittorrent" {
+        image = cfg.image;
+        environment = {
+          PUID = cfg.user;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          TZ = cfg.timezone;
+          UMASK = "002"; # Ensure group-writable files for *arr services to read
+          WEBUI_PORT = toString qbittorrentPort;
+        };
+        volumes = [
+          "${cfg.dataDir}:/config:rw"
+          "${cfg.downloadsDir}:/data:rw" # Unified mount point for hardlinks (TRaSH Guides best practice)
+        ] ++ lib.optionals cfg.vuetorrent.enable [
+          "${cfg.vuetorrent.package}/vuetorrent:/vuetorrent:ro"
+        ];
+        ports = [
+          "${toString qbittorrentPort}:${toString qbittorrentPort}"
+          "${toString cfg.torrentPort}:${toString cfg.torrentPort}/tcp" # BitTorrent port
+          "${toString cfg.torrentPort}:${toString cfg.torrentPort}/udp" # BitTorrent DHT port
+        ];
+        resources = cfg.resources;
+        extraOptions = [
+          # Podman-level umask ensures container process creates files with group-readable permissions
+          # This allows restic-backup user (member of qbittorrent group) to read data
+          "--umask=0027" # Creates directories with 750 and files with 640
+          "--pull=newer" # Automatically pull newer images
+          # Force container to run as the specified user:group
+          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          # Attach to Podman network for DNS-based service discovery
+          "--network=${cfg.podmanNetwork}"
+        ] ++ lib.optionals (nfsMountConfig != null) [
+          # Add media group to container so process can write to group-owned NFS mount
+          "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
+        ] ++ lib.optionals cfg.healthcheck.enable [
+          # Define the health check on the container itself
+          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString qbittorrentPort}/api/v2/app/version)" = 200 ]' ''
+          # CRITICAL: Disable Podman's internal timer to prevent transient systemd units
+          "--health-interval=0s"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ];
+      };
+
+      # Standardized systemd integration for container restart behavior
+      systemd.services."${mainServiceUnit}" = lib.mkMerge [
+        (lib.mkIf (nfsMountConfig != null) {
+          requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
+          after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
+        })
+        (lib.mkIf (cfg.podmanNetwork != null) {
+          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        })
+        {
+          # Service should remain stopped if explicitly stopped by admin
+          unitConfig = {
+            # If the service fails, automatically restart it
+            # But if it's stopped manually (systemctl stop), keep it stopped
+            StartLimitBurst = 5;
+            StartLimitIntervalSec = 300;
+          };
+          serviceConfig = {
+            Restart = "on-failure";
+            RestartSec = "30s";
+            # Add NFS mount dependency if configured
+            RequiresMountsFor = lib.optional (nfsMountConfig != null) nfsMountConfig.localPath;
+          };
+          # Generator runs before main service, checks if config missing
+          # For manual config regeneration: rm /var/lib/qbittorrent/qBittorrent/qBittorrent.conf && systemctl restart qbittorrent-config-generator.service podman-qbittorrent.service
+          wants = [ "qbittorrent-config-generator.service" ]
+            ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
+          after = [ "qbittorrent-config-generator.service" ]
+            ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
+        }
+      ];
+
+      # Declarative Initial Seeding: Generate config on-demand before service starts
+      # Generator service is triggered by main service's wants/after dependencies
+
+      # Config generator service - creates config only if missing
+      # This preserves WebUI changes while ensuring correct initial configuration
+      # To reset to Nix defaults: delete config file and restart this service
+      systemd.services.qbittorrent-config-generator = {
+        description = "Generate qBittorrent configuration if missing";
+        before = [ mainServiceUnit ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = cfg.user;
+          Group = cfg.group;
+          ExecStart = pkgs.writeShellScript "generate-qb-config" ''
+                      set -eu
+                      CONFIG_FILE="${configFile}"
+                      CONFIG_DIR=$(dirname "$CONFIG_FILE")
+
+                      # Only generate if config doesn't exist
+                      if [ ! -f "$CONFIG_FILE" ]; then
+                        echo "Config missing, generating from Nix settings..."
+                        mkdir -p "$CONFIG_DIR"
+
+                        # Generate config using toINI
+                        cat > "$CONFIG_FILE" << 'EOF'
+            ${lib.generators.toINI {} cfg.settings}
+            EOF
+
+                        chmod 640 "$CONFIG_FILE"
+                        echo "Configuration generated at $CONFIG_FILE"
+                      else
+                        echo "Config exists at $CONFIG_FILE, preserving existing file"
+                      fi
+          '';
+        };
+      };
+
+      # Standardized health monitoring service
+      systemd.services."qbittorrent-healthcheck" = lib.mkIf cfg.healthcheck.enable {
+        description = "qBittorrent Health Check";
+        after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.podman}/bin/podman healthcheck run qbittorrent";
+          # Health checks should not restart the service
+          Restart = "no";
+        };
+      };
+
+      systemd.timers."qbittorrent-healthcheck" = lib.mkIf cfg.healthcheck.enable {
+        description = "Timer for qBittorrent Health Check";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnUnitActiveSec = cfg.healthcheck.interval;
+          OnBootSec = cfg.healthcheck.startPeriod;
+          Unit = "qbittorrent-healthcheck.service";
+        };
+      };
+
+      # Notifications for service failures (centralized pattern)
+      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        "qbittorrent-failure" = {
+          enable = lib.mkDefault true;
+          priority = lib.mkDefault "high";
+          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: qBittorrent</font></b>'';
+          body = lib.mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
+
+            The qBittorrent torrent download client has entered a failed state.
+
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+          '';
+        };
+      };
+
+      # Backup integration using standardized restic pattern
+      modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+        qbittorrent = {
+          enable = true;
+          # Configuration directory only - downloads are transient and not backed up
+          paths = [ cfg.dataDir ];
+          repository = cfg.backup.repository;
+          frequency = cfg.backup.frequency;
+          tags = cfg.backup.tags;
+          excludePatterns = cfg.backup.excludePatterns;
+          # Use ZFS snapshots for consistent backups of SQLite databases
+          useSnapshots = cfg.backup.useSnapshots;
+          zfsDataset = cfg.backup.zfsDataset;
+          # Ensure service stops before backup for data consistency
+          preBackupServices = [ mainServiceUnit ];
+        };
+      };
 
     })
 
@@ -727,11 +726,11 @@ EOF
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;  # Pass the auto-discovered replication config
+        replicationCfg = replicationConfig; # Pass the auto-discovered replication config
         datasetProperties = {
-          recordsize = "16K";    # Optimal for application data
-          compression = "zstd";  # Better compression for config files
-          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots for this dataset
+          recordsize = "16K"; # Optimal for application data
+          compression = "zstd"; # Better compression for config files
+          "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots for this dataset
         };
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;

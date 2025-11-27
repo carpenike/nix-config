@@ -15,7 +15,7 @@
         enable = true;
         tokenFile = config.sops.secrets."pushover/token".path;
         userKeyFile = config.sops.secrets."pushover/user-key".path;
-        defaultPriority = 0;  # Normal priority
+        defaultPriority = 0; # Normal priority
         enableHtml = true;
       };
     };

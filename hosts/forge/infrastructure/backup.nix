@@ -57,22 +57,22 @@ in
       #   - pgbackrest-stanza-create (boot-time initialization)
       #   - WAL archiving (continuous, can't tolerate mount delays)
       fileSystems."/mnt/nas-postgresql" = {
-      device = "nas-1.holthome.net:/mnt/backup/forge/postgresql";
-      fsType = "nfs";
-      options = [
-        "nfsvers=4.2"
-        "hard"              # Retry indefinitely on timeout (don't fail)
-        "timeo=600"         # 60-second timeout (10× default of 6s)
-        "retrans=3"         # Retry 3 times before reporting error
-        "_netdev"           # Wait for network before mounting
-        "rw"
-        "noatime"
-        # REMOVED: x-systemd.automount - causes namespace issues with early services
-        # REMOVED: x-systemd.idle-timeout - pgBackRest needs stable mount
-        # REMOVED: "intr" - Deprecated and ignored in NFSv4
-        "x-systemd.mount-timeout=30s"
-      ];
-    };
+        device = "nas-1.holthome.net:/mnt/backup/forge/postgresql";
+        fsType = "nfs";
+        options = [
+          "nfsvers=4.2"
+          "hard" # Retry indefinitely on timeout (don't fail)
+          "timeo=600" # 60-second timeout (10× default of 6s)
+          "retrans=3" # Retry 3 times before reporting error
+          "_netdev" # Wait for network before mounting
+          "rw"
+          "noatime"
+          # REMOVED: x-systemd.automount - causes namespace issues with early services
+          # REMOVED: x-systemd.idle-timeout - pgBackRest needs stable mount
+          # REMOVED: "intr" - Deprecated and ignored in NFSv4
+          "x-systemd.mount-timeout=30s"
+        ];
+      };
 
       # MIGRATED: Legacy backup-integration system disabled in favor of unified backup system
       # modules.services.backup-integration = {
@@ -92,7 +92,7 @@ in
         # Both repo1 (NFS) and repo2 (R2) now support full Point-in-Time Recovery
         postgres = {
           enable = true;
-          pgbackrest.enableOffsite = false;  # Disabled - repo2 now handles offsite PITR
+          pgbackrest.enableOffsite = false; # Disabled - repo2 now handles offsite PITR
           # pgbackrest.offsiteRepository = "r2-offsite";  # No longer needed
         };
       };
@@ -108,12 +108,12 @@ in
           "nfsvers=4.2"
           "rw"
           "noatime"
-          "noauto"                          # don’t mount at boot; automount will trigger on access
-          "_netdev"                         # mark as network device
-          "x-systemd.automount"             # create/enable automount unit
-          "x-systemd.idle-timeout=600"      # unmount after 10 minutes idle
-          "x-systemd.mount-timeout=30s"     # fail fast if NAS is down
-          "x-systemd.force-unmount=true"    # force unmount on shutdown to avoid hangs
+          "noauto" # don’t mount at boot; automount will trigger on access
+          "_netdev" # mark as network device
+          "x-systemd.automount" # create/enable automount unit
+          "x-systemd.idle-timeout=600" # unmount after 10 minutes idle
+          "x-systemd.mount-timeout=30s" # fail fast if NAS is down
+          "x-systemd.force-unmount=true" # force unmount on shutdown to avoid hangs
           "x-systemd.after=network-online.target"
           "x-systemd.requires=network-online.target"
         ];
@@ -127,7 +127,7 @@ in
           "rw"
           "noatime"
           "x-systemd.automount"
-          "x-systemd.idle-timeout=600"  # Unmount after 10 minutes idle
+          "x-systemd.idle-timeout=600" # Unmount after 10 minutes idle
           "x-systemd.mount-timeout=30s"
         ];
       };

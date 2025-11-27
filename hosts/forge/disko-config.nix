@@ -1,6 +1,7 @@
 { lib
 , disks ? [ "/dev/nvme0n1" ]
-, ... }:
+, ...
+}:
 
 let
   haveTwo = (builtins.length disks) >= 2;
@@ -18,7 +19,7 @@ in
               ESP = {
                 type = "EF00";
                 start = "1MiB";
-                end   = "500MiB";
+                end = "500MiB";
                 content = {
                   type = "filesystem";
                   format = "vfat";
@@ -58,11 +59,11 @@ in
         rootFsOptions = {
           mountpoint = "none";
           compression = "lz4";
-          relatime    = "on";
-          xattr       = "sa";
-          acltype     = "posixacl";
-          dnodesize   = "auto";
-          canmount    = "off";
+          relatime = "on";
+          xattr = "sa";
+          acltype = "posixacl";
+          dnodesize = "auto";
+          canmount = "off";
           normalization = "formD";
           redundant_metadata = "most";
           "com.sun:auto-snapshot" = "false";
@@ -89,8 +90,8 @@ in
               mountpoint = "/nix";
               options = {
                 mountpoint = "legacy";
-                atime      = "off";
-                canmount   = "on";
+                atime = "off";
+                canmount = "on";
                 "com.sun:auto-snapshot" = "true";
               };
             };
@@ -133,8 +134,8 @@ in
                 mountpoint = "legacy";
                 recordsize = "64K";
                 "com.sun:auto-snapshot" = "true";
+              };
             };
-          };
 
             # REMOVED: rpool/apps/media - now using NFS mount at /mnt/data instead
             # "apps/media" = {
@@ -161,8 +162,8 @@ in
             "apps/dutyfree" = {
               type = "zfs_fs";
               options = {
-                mountpoint  = "none";
-                reservation = "50G";  # ~10% of 500GB
+                mountpoint = "none";
+                reservation = "50G"; # ~10% of 500GB
               };
             };
           };
@@ -175,9 +176,9 @@ in
         rootFsOptions = {
           mountpoint = "none";
           compression = "lz4";
-          atime      = "off";
-          xattr      = "sa";
-          canmount   = "off";
+          atime = "off";
+          xattr = "sa";
+          canmount = "off";
           redundant_metadata = "most";
         };
 
@@ -209,8 +210,8 @@ in
               mountpoint = "legacy";
               recordsize = "64K";
               "com.sun:auto-snapshot" = "true";
+            };
           };
-        };
 
           # REMOVED: tank/media - now using NFS mount at /mnt/data instead
           # "media" = {
@@ -236,8 +237,8 @@ in
           "dutyfree" = {
             type = "zfs_fs";
             options = {
-              mountpoint  = "none";
-              reservation = "100G";  # ~10% of 1TB
+              mountpoint = "none";
+              reservation = "100G"; # ~10% of 1TB
             };
           };
         };

@@ -73,9 +73,9 @@ in
           enable = true;
           channels.onFailure = [ "critical-alerts" ];
           customMessages.failure = ''
-Z-Wave JS UI failed on ${config.networking.hostName}.
-Use `journalctl -u zwave-js-ui -n 200` for details.
-'';
+            Z-Wave JS UI failed on ${config.networking.hostName}.
+            Use `journalctl -u zwave-js-ui -n 200` for details.
+          '';
         };
       };
     }

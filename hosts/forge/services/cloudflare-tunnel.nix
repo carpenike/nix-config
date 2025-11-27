@@ -28,10 +28,10 @@ in
           credentialsFile = config.sops.secrets."networking/cloudflare/forge-credentials".path;
           originCertFile = config.sops.secrets."networking/cloudflare/origin-cert".path;
 
-  # Default backend: route all tunnel traffic through Caddy over HTTPS
-  # Connecting with TLS avoids Caddy's automatic HTTP->HTTPS redirects when
-  # requests arrive from Cloudflare, preventing redirect loops at the edge.
-  defaultService = "https://127.0.0.1:443";
+          # Default backend: route all tunnel traffic through Caddy over HTTPS
+          # Connecting with TLS avoids Caddy's automatic HTTP->HTTPS redirects when
+          # requests arrive from Cloudflare, preventing redirect loops at the edge.
+          defaultService = "https://127.0.0.1:443";
 
           # Optional: Enable debug logging
           # extraConfig = {
@@ -41,18 +41,18 @@ in
       };
     }
 
-  # Example: Enable external access for a service
-  # Uncomment and modify as needed:
-  #
-  # modules.services.caddy.virtualHosts.grafana = {
-  #   # ... existing configuration ...
-  #   cloudflare = {
-  #     enable = true;
-  #     tunnel = "forge";
-  #   };
-  # };
+    # Example: Enable external access for a service
+    # Uncomment and modify as needed:
+    #
+    # modules.services.caddy.virtualHosts.grafana = {
+    #   # ... existing configuration ...
+    #   cloudflare = {
+    #     enable = true;
+    #     tunnel = "forge";
+    #   };
+    # };
 
-  # Co-located Service Monitoring
+    # Co-located Service Monitoring
     (lib.mkIf serviceEnabled {
       modules.alerting.rules."cloudflare-tunnel-service-down" =
         # cloudflared is a native systemd service, not a container

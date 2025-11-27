@@ -1,7 +1,6 @@
-{
-  inputs,
-  overlays ? {},
-  ...
+{ inputs
+, overlays ? { }
+, ...
 }:
 {
   # Minimal bootstrap system for initial installation

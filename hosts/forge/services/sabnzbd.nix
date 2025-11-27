@@ -19,7 +19,7 @@ in
         # Use unified /data mount (same as Sonarr/Radarr/qBittorrent for hardlinks)
         # Structure: /mnt/data/sab/{incomplete,complete/{sonarr,radarr,readarr,lidarr}}
         # This allows all services to see the same paths for atomic moves/hardlinks
-        nfsMountDependency = "media";  # Use shared NFS mount (auto-configures downloadsDir to /mnt/data)
+        nfsMountDependency = "media"; # Use shared NFS mount (auto-configures downloadsDir to /mnt/data)
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
@@ -53,12 +53,12 @@ in
         };
 
         # Critical operational settings (Gemini Pro recommendations)
-        fixedPorts = true;              # CRITICAL: Prevent silent port changes on boot
+        fixedPorts = true; # CRITICAL: Prevent silent port changes on boot
         enableHttpsVerification = true; # SECURITY: MITM protection for updates/RSS
-        cacheLimit = "2G";              # forge has 32GB RAM, can afford 2G cache
-        bandwidthPercent = 90;          # 90% to leave headroom for Plex/SSH
-        queueLimit = 50;                # Higher limit for bulk *arr operations
-        logLevel = 1;                   # Info level for operational visibility
+        cacheLimit = "2G"; # forge has 32GB RAM, can afford 2G cache
+        bandwidthPercent = 90; # 90% to leave headroom for Plex/SSH
+        queueLimit = 50; # Higher limit for bulk *arr operations
+        logLevel = 1; # Info level for operational visibility
 
         reverseProxy = {
           enable = true;

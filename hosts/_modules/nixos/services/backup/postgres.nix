@@ -9,12 +9,13 @@
 
 let
   cfg = config.modules.services.backup;
-  postgresCfg = cfg.postgres or {};
+  postgresCfg = cfg.postgres or { };
 
   # Check if PostgreSQL is enabled
   postgresqlEnabled = config.modules.services.postgresql.enable or false;
 
-in {
+in
+{
   options.modules.services.backup.postgres = {
     enable = lib.mkOption {
       type = lib.types.bool;
@@ -54,7 +55,7 @@ in {
           };
         };
       };
-      default = {};
+      default = { };
       description = "pgBackRest integration configuration";
     };
 
@@ -80,7 +81,7 @@ in {
           };
         };
       };
-      default = {};
+      default = { };
       description = "PostgreSQL backup verification";
     };
   };

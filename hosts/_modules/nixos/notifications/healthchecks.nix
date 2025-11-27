@@ -1,82 +1,83 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   cfg = config.modules.notifications;
   hcCfg = cfg.healthchecks;
 
   # Script to ping Healthchecks.io
-  mkHealthchecksPing = {
-    status ? "success", # success, fail, start
-    message ? null,
-  }: ''
-    set -euo pipefail
+  mkHealthchecksPing =
+    { status ? "success"
+    , # success, fail, start
+      message ? null
+    ,
+    }: ''
+      set -euo pipefail
 
-    # Read UUID from file
-    if [ -f "${toString hcCfg.uuidFile}" ]; then
-      HC_UUID=$(cat "${toString hcCfg.uuidFile}")
-    else
-      echo "ERROR: Healthchecks.io UUID file not found: ${toString hcCfg.uuidFile}" >&2
-      exit 1
-    fi
-
-    # Determine endpoint
-    case "${status}" in
-      success)
-        ENDPOINT="${hcCfg.baseUrl}/$HC_UUID"
-        ;;
-      fail)
-        ENDPOINT="${hcCfg.baseUrl}/$HC_UUID/fail"
-        ;;
-      start)
-        ENDPOINT="${hcCfg.baseUrl}/$HC_UUID/start"
-        ;;
-      *)
-        echo "ERROR: Invalid status: ${status}" >&2
+      # Read UUID from file
+      if [ -f "${toString hcCfg.uuidFile}" ]; then
+        HC_UUID=$(cat "${toString hcCfg.uuidFile}")
+      else
+        echo "ERROR: Healthchecks.io UUID file not found: ${toString hcCfg.uuidFile}" >&2
         exit 1
-        ;;
-    esac
-
-    # Send ping with retries
-    MAX_RETRIES=${toString hcCfg.retryAttempts}
-    TIMEOUT=${toString hcCfg.timeout}
-    RETRY_COUNT=0
-    SUCCESS=false
-
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-      if [ -n "${lib.optionalString (message != null) "yes"}" ]; then
-        HTTP_CODE=$(${pkgs.curl}/bin/curl -fsS -w "%{http_code}" -o /dev/null \
-          --max-time "$TIMEOUT" \
-          --data-raw "${if message != null then message else ""}" \
-          "$ENDPOINT" || echo "000")
-      else
-        HTTP_CODE=$(${pkgs.curl}/bin/curl -fsS -w "%{http_code}" -o /dev/null \
-          --max-time "$TIMEOUT" \
-          "$ENDPOINT" || echo "000")
       fi
 
-      if [ "$HTTP_CODE" = "200" ]; then
-        echo "Healthchecks.io ping sent successfully (HTTP $HTTP_CODE)"
-        SUCCESS=true
-        break
-      else
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-          echo "Healthchecks.io ping failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
-          sleep 2
+      # Determine endpoint
+      case "${status}" in
+        success)
+          ENDPOINT="${hcCfg.baseUrl}/$HC_UUID"
+          ;;
+        fail)
+          ENDPOINT="${hcCfg.baseUrl}/$HC_UUID/fail"
+          ;;
+        start)
+          ENDPOINT="${hcCfg.baseUrl}/$HC_UUID/start"
+          ;;
+        *)
+          echo "ERROR: Invalid status: ${status}" >&2
+          exit 1
+          ;;
+      esac
+
+      # Send ping with retries
+      MAX_RETRIES=${toString hcCfg.retryAttempts}
+      TIMEOUT=${toString hcCfg.timeout}
+      RETRY_COUNT=0
+      SUCCESS=false
+
+      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if [ -n "${lib.optionalString (message != null) "yes"}" ]; then
+          HTTP_CODE=$(${pkgs.curl}/bin/curl -fsS -w "%{http_code}" -o /dev/null \
+            --max-time "$TIMEOUT" \
+            --data-raw "${if message != null then message else ""}" \
+            "$ENDPOINT" || echo "000")
         else
-          echo "Healthchecks.io ping failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
+          HTTP_CODE=$(${pkgs.curl}/bin/curl -fsS -w "%{http_code}" -o /dev/null \
+            --max-time "$TIMEOUT" \
+            "$ENDPOINT" || echo "000")
         fi
-      fi
-    done
 
-    if [ "$SUCCESS" = "false" ]; then
-      exit 1
-    fi
-  '';
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "Healthchecks.io ping sent successfully (HTTP $HTTP_CODE)"
+          SUCCESS=true
+          break
+        else
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "Healthchecks.io ping failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
+            sleep 2
+          else
+            echo "Healthchecks.io ping failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
+          fi
+        fi
+      done
+
+      if [ "$SUCCESS" = "false" ]; then
+        exit 1
+      fi
+    '';
 in
 {
   config = lib.mkIf (cfg.enable && hcCfg.enable) {

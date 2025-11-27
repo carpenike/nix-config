@@ -60,8 +60,9 @@ let
   quoteSqlIdentifier = identifier:
     let
       # Escape double quotes by doubling them: my"table -> my""table
-      escaped = builtins.replaceStrings [''"''] [''""''] identifier;
-    in ''"${escaped}"'';
+      escaped = builtins.replaceStrings [ ''"'' ] [ ''""'' ] identifier;
+    in
+    ''"${escaped}"'';
 
   # Quote SQL string literal (for values, not identifiers)
   # Uses single quotes with proper escaping for PostgreSQL
@@ -70,14 +71,15 @@ let
   quoteSqlString = str:
     let
       # Escape single quotes by doubling them: O'Reilly -> O''Reilly
-      escaped = builtins.replaceStrings ["'"] ["''"] str;
-    in "'${escaped}'";
+      escaped = builtins.replaceStrings [ "'" ] [ "''" ] str;
+    in
+    "'${escaped}'";
 
-    mkQualifiedIdentifier = schema: name:
-      if schema == null then
-        quoteSqlIdentifier name
-      else
-        "${quoteSqlIdentifier schema}.${quoteSqlIdentifier name}";
+  mkQualifiedIdentifier = schema: name:
+    if schema == null then
+      quoteSqlIdentifier name
+    else
+      "${quoteSqlIdentifier schema}.${quoteSqlIdentifier name}";
   # Parse schema.table pattern, handling quoted identifiers with dots
   # Returns { schema = "..."; table = "..."; }
   # Handles complex patterns:
@@ -88,7 +90,7 @@ let
   parseTablePattern = pattern:
     let
       # Helper to unescape doubled quotes
-      unescape = s: builtins.replaceStrings [''""''] [''"''] s;
+      unescape = s: builtins.replaceStrings [ ''""'' ] [ ''"'' ] s;
 
       # Try to match different patterns using regex
       # Pattern 1: "sch"."tab" - Both quoted
@@ -108,15 +110,15 @@ let
       # Pattern 8: sch."tab" - Unquoted schema, quoted table
       m8 = builtins.match ''^([^.]+)\."(([^"]|"")+)"$'' pattern;
     in
-      if m1 != null then { schema = unescape (builtins.elemAt m1 0); table = unescape (builtins.elemAt m1 2); }
-      else if m2 != null then { schema = unescape (builtins.elemAt m2 0); table = "*"; }
-      else if m3 != null then { schema = unescape (builtins.elemAt m3 0); table = builtins.elemAt m3 2; }
-      else if m4 != null then { schema = builtins.elemAt m4 0; table = "*"; }
-      else if m5 != null then { schema = builtins.elemAt m5 0; table = builtins.elemAt m5 1; }
-      else if m6 != null then { schema = "public"; table = unescape (builtins.elemAt m6 0); }
-      else if m7 != null then { schema = "public"; table = builtins.elemAt m7 0; }
-      else if m8 != null then { schema = builtins.elemAt m8 0; table = unescape (builtins.elemAt m8 1); }
-      else { schema = "public"; table = pattern; }; # Fallback
+    if m1 != null then { schema = unescape (builtins.elemAt m1 0); table = unescape (builtins.elemAt m1 2); }
+    else if m2 != null then { schema = unescape (builtins.elemAt m2 0); table = "*"; }
+    else if m3 != null then { schema = unescape (builtins.elemAt m3 0); table = builtins.elemAt m3 2; }
+    else if m4 != null then { schema = builtins.elemAt m4 0; table = "*"; }
+    else if m5 != null then { schema = builtins.elemAt m5 0; table = builtins.elemAt m5 1; }
+    else if m6 != null then { schema = "public"; table = unescape (builtins.elemAt m6 0); }
+    else if m7 != null then { schema = "public"; table = builtins.elemAt m7 0; }
+    else if m8 != null then { schema = builtins.elemAt m8 0; table = unescape (builtins.elemAt m8 1); }
+    else { schema = "public"; table = pattern; }; # Fallback
 
   # Expand permission presets into actual permission configurations
   # This allows users to use opinionated presets (owner-only, owner-readwrite+readonly-select)
@@ -178,20 +180,20 @@ let
     dbCfg // {
       # Merge preset permissions with manual permissions (manual overrides preset)
       databasePermissions =
-        (presetPerms.databasePermissions or {}) //
-        (dbCfg.databasePermissions or {});
+        (presetPerms.databasePermissions or { }) //
+        (dbCfg.databasePermissions or { });
 
       schemaPermissions =
-        (presetPerms.schemaPermissions or {}) //
-        (dbCfg.schemaPermissions or {});
+        (presetPerms.schemaPermissions or { }) //
+        (dbCfg.schemaPermissions or { });
 
       tablePermissions =
-        (presetPerms.tablePermissions or {}) //
-        (dbCfg.tablePermissions or {});
+        (presetPerms.tablePermissions or { }) //
+        (dbCfg.tablePermissions or { });
 
       defaultPrivileges =
-        (presetPerms.defaultPrivileges or {}) //
-        (dbCfg.defaultPrivileges or {});
+        (presetPerms.defaultPrivileges or { }) //
+        (dbCfg.defaultPrivileges or { });
     };
 
   # SQL generation helpers (module-generated idempotent SQL)
@@ -238,20 +240,21 @@ let
         (lib.optionalString (dbCfg.template != null) "TEMPLATE ${quoteSqlIdentifier dbCfg.template}")
         (lib.optionalString (dbCfg.tablespace != null) "TABLESPACE ${quoteSqlIdentifier dbCfg.tablespace}")
       ]);
-    in ''
-    -- Idempotently create database: ${dbName}
-    -- Uses \gexec to conditionally execute CREATE DATABASE based on existence check
-    -- This avoids transaction blocks which are incompatible with CREATE DATABASE
-    \echo "--> Checking/Creating database: ${dbName}"
-    SELECT 'CREATE DATABASE ${quoteSqlIdentifier dbName} ${createParams};'
-    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = ${quoteSqlString dbName})
-    \gexec
+    in
+    ''
+      -- Idempotently create database: ${dbName}
+      -- Uses \gexec to conditionally execute CREATE DATABASE based on existence check
+      -- This avoids transaction blocks which are incompatible with CREATE DATABASE
+      \echo "--> Checking/Creating database: ${dbName}"
+      SELECT 'CREATE DATABASE ${quoteSqlIdentifier dbName} ${createParams};'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = ${quoteSqlString dbName})
+      \gexec
 
-    -- Ensure owner is correct, even if database already existed
-    -- This handles cases where the database exists but with the wrong owner from a previous run
-    ALTER DATABASE ${quoteSqlIdentifier dbName} OWNER TO ${quoteSqlIdentifier owner};
-    \echo "--> Ensured owner of ${dbName} is ${owner}"
-  '';
+      -- Ensure owner is correct, even if database already existed
+      -- This handles cases where the database exists but with the wrong owner from a previous run
+      ALTER DATABASE ${quoteSqlIdentifier dbName} OWNER TO ${quoteSqlIdentifier owner};
+      \echo "--> Ensured owner of ${dbName} is ${owner}"
+    '';
 
   # Ensure the extension object itself is owned by the target database role so applications can drop/recreate it.
   mkExtensionOwnershipSQL = ext: owner: ''
@@ -331,12 +334,13 @@ let
       schemaClause = if extSpec.schema != null then "SCHEMA ${quoteSqlIdentifier extSpec.schema}" else "";
       versionClause = if extSpec.version != null then "VERSION ${quoteSqlString extSpec.version}" else "";
       withParts = lib.filter (part: part != "") [ schemaClause versionClause ];
-      withClause = if withParts == [] then "" else " WITH " + (lib.concatStringsSep " " withParts);
+      withClause = if withParts == [ ] then "" else " WITH " + (lib.concatStringsSep " " withParts);
       updateClause = lib.optionalString (extSpec.updateToLatest or false) ''
         ALTER EXTENSION ${quoteSqlIdentifier extName} UPDATE;
         \echo "Updated extension ${extName} to latest available version"
       '';
-    in ''
+    in
+    ''
       ${dropStatement}
       CREATE EXTENSION IF NOT EXISTS ${quoteSqlIdentifier extName}${withClause};
       ${mkExtensionOwnershipSQL extName owner}
@@ -345,10 +349,12 @@ let
     '';
 
   mkCustomSqlHook = dbName: hookName: sqlList:
-    lib.concatMapStringsSep "\n" (sql: ''
-      -- Custom SQL (${hookName}) for ${dbName}
-      ${sql}
-    '') sqlList;
+    lib.concatMapStringsSep "\n"
+      (sql: ''
+        -- Custom SQL (${hookName}) for ${dbName}
+        ${sql}
+      '')
+      sqlList;
 
   mkSchemaMigrationsSQL = dbName: owner: seedCfg:
     let
@@ -371,11 +377,11 @@ let
       insertedAtDefinition =
         if insertedAtCfg == null then ""
         else "${insertedAtIdentifier} ${insertedAtType}${insertedAtDefaultClause}${insertedAtNotNullClause}";
-      entries = seedCfg.entries or [];
+      entries = seedCfg.entries or [ ];
       columnType = seedCfg.columnType or "text";
       ensureTable = seedCfg.ensureTable or false;
       pruneUnknown = seedCfg.pruneUnknown or false;
-      haveEntries = entries != [];
+      haveEntries = entries != [ ];
       valuesSql =
         let
           mkTypedLiteral = entry: "(CAST(${quoteSqlString (toString entry)} AS ${columnType}))";
@@ -387,7 +393,8 @@ let
           ${valuesSql}
         )
       '';
-    in ''
+    in
+    ''
       ${lib.optionalString ensureTable ''
       CREATE TABLE IF NOT EXISTS ${tableIdentifier} (
         ${columnIdentifier} ${columnType} PRIMARY KEY${lib.optionalString (insertedAtCfg != null) ''
@@ -460,35 +467,41 @@ let
   # NOTE: GRANT ON DATABASE must be executed from a different database context (e.g., postgres)
   # The calling code handles database context switching, so we don't include \c here
   mkPermissionsSQL = dbName: permissions:
-    lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms:
-      if perms == [] then ''
-        -- REVOKE: Empty permissions list for role ${role}
-        REVOKE ALL ON DATABASE ${quoteSqlIdentifier dbName} FROM ${quoteSqlIdentifier role};
-        \echo Revoked all permissions from ${role} on ${dbName}
-      '' else ''
-        -- Grant permissions on database ${dbName} to role ${role}
-        GRANT ${lib.concatStringsSep ", " perms} ON DATABASE ${quoteSqlIdentifier dbName} TO ${quoteSqlIdentifier role};
-        \echo Granted permissions to ${role} on ${dbName}
-      ''
-    ) permissions);
+    lib.concatStringsSep "\n" (lib.mapAttrsToList
+      (role: perms:
+        if perms == [ ] then ''
+          -- REVOKE: Empty permissions list for role ${role}
+          REVOKE ALL ON DATABASE ${quoteSqlIdentifier dbName} FROM ${quoteSqlIdentifier role};
+          \echo Revoked all permissions from ${role} on ${dbName}
+        '' else ''
+          -- Grant permissions on database ${dbName} to role ${role}
+          GRANT ${lib.concatStringsSep ", " perms} ON DATABASE ${quoteSqlIdentifier dbName} TO ${quoteSqlIdentifier role};
+          \echo Granted permissions to ${role} on ${dbName}
+        ''
+      )
+      permissions);
 
   # Generate schema-level permission grants (Phase 2)
   # Includes REVOKE logic for empty permission lists
   # NOTE: Caller must ensure correct database context (\c) before calling this helper
   mkSchemaPermissionsSQL = dbName: schemaPerms:
-    lib.concatStringsSep "\n" (lib.mapAttrsToList (schemaName: rolePerms:
-      lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms:
-        if perms == [] then ''
-          -- REVOKE: Empty permissions list for role ${role} on schema ${schemaName}
-          REVOKE ALL ON SCHEMA ${quoteSqlIdentifier schemaName} FROM ${quoteSqlIdentifier role};
-          \echo Revoked all schema permissions from ${role} on ${schemaName}
-        '' else ''
-          -- Grant schema ${schemaName} permissions to role ${role}
-          GRANT ${lib.concatStringsSep ", " perms} ON SCHEMA ${quoteSqlIdentifier schemaName} TO ${quoteSqlIdentifier role};
-          \echo Granted schema permissions to ${role} on ${schemaName}
-        ''
-      ) rolePerms)
-    ) schemaPerms);
+    lib.concatStringsSep "\n" (lib.mapAttrsToList
+      (schemaName: rolePerms:
+        lib.concatStringsSep "\n" (lib.mapAttrsToList
+          (role: perms:
+            if perms == [ ] then ''
+              -- REVOKE: Empty permissions list for role ${role} on schema ${schemaName}
+              REVOKE ALL ON SCHEMA ${quoteSqlIdentifier schemaName} FROM ${quoteSqlIdentifier role};
+              \echo Revoked all schema permissions from ${role} on ${schemaName}
+            '' else ''
+              -- Grant schema ${schemaName} permissions to role ${role}
+              GRANT ${lib.concatStringsSep ", " perms} ON SCHEMA ${quoteSqlIdentifier schemaName} TO ${quoteSqlIdentifier role};
+              \echo Granted schema permissions to ${role} on ${schemaName}
+            ''
+          )
+          rolePerms)
+      )
+      schemaPerms);
 
   # Generate table-level permission grants (Phase 2)
   # Includes REVOKE logic and proper precedence (specific overrides wildcard)
@@ -497,137 +510,156 @@ let
   mkTablePermissionsSQL = dbName: tablePerms:
     let
       # Parse all patterns and group by schema
-      parsedPatterns = lib.mapAttrsToList (pattern: rolePerms:
-        let
-          parsed = parseTablePattern pattern;
-        in {
-          inherit pattern rolePerms parsed;
-          # Use parsed result to determine wildcard (table == "*")
-          isWildcard = (parsed.table == "*");
-        }) tablePerms;
+      parsedPatterns = lib.mapAttrsToList
+        (pattern: rolePerms:
+          let
+            parsed = parseTablePattern pattern;
+          in
+          {
+            inherit pattern rolePerms parsed;
+            # Use parsed result to determine wildcard (table == "*")
+            isWildcard = (parsed.table == "*");
+          })
+        tablePerms;
 
       # Process wildcards first, then specific tables (precedence)
       wildcardPatterns = lib.filter (p: p.isWildcard) parsedPatterns;
       specificPatterns = lib.filter (p: !p.isWildcard) parsedPatterns;
       orderedPatterns = wildcardPatterns ++ specificPatterns;
     in
-    lib.concatMapStringsSep "\n" (patternInfo:
-      let
-        schema = patternInfo.parsed.schema;
-        table = patternInfo.parsed.table;
-        isWildcard = patternInfo.isWildcard;
+    lib.concatMapStringsSep "\n"
+      (patternInfo:
+        let
+          schema = patternInfo.parsed.schema;
+          table = patternInfo.parsed.table;
+          isWildcard = patternInfo.isWildcard;
 
-        # For wildcards, grant on ALL TABLES and ALL SEQUENCES (functions handled separately)
-        tableClause = if isWildcard then "ALL TABLES IN SCHEMA ${quoteSqlIdentifier schema}" else "TABLE ${quoteSqlIdentifier schema}.${quoteSqlIdentifier table}";
-        sequenceClause = if isWildcard then "ALL SEQUENCES IN SCHEMA ${quoteSqlIdentifier schema}" else "SEQUENCE ${quoteSqlIdentifier schema}.${quoteSqlIdentifier table}";
-      in
-      lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms:
-        if perms == [] then ''
-          -- REVOKE: Empty permissions list for role ${role} on ${patternInfo.pattern}
-          \c ${quoteSqlIdentifier dbName}
-          REVOKE ALL ON ${tableClause} FROM ${quoteSqlIdentifier role};
-          ${lib.optionalString isWildcard "REVOKE ALL ON ${sequenceClause} FROM ${quoteSqlIdentifier role};"}
-          \echo Revoked all permissions from ${role} on ${patternInfo.pattern}
-        '' else
-          let
-            # Filter sequence-relevant permissions (SELECT, USAGE, UPDATE for sequences)
-            seqPerms = lib.filter (p: p == "SELECT" || p == "USAGE" || p == "UPDATE") perms;
-            # Filter out EXECUTE (now handled by functionPermissions)
-            tableOnlyPerms = lib.filter (p: p != "EXECUTE") perms;
-          in ''
-          -- Grant table permissions on ${patternInfo.pattern} to role ${role}
-          -- NOTE: EXECUTE permissions should now be in functionPermissions
-          ${lib.optionalString (tableOnlyPerms != []) "GRANT ${lib.concatStringsSep ", " tableOnlyPerms} ON ${tableClause} TO ${quoteSqlIdentifier role};"}
-          ${lib.optionalString (isWildcard && seqPerms != []) "GRANT ${lib.concatStringsSep ", " seqPerms} ON ${sequenceClause} TO ${quoteSqlIdentifier role};"}
-          \echo Granted permissions to ${role} on ${patternInfo.pattern}
-        ''
-      ) patternInfo.rolePerms)
-    ) orderedPatterns;
+          # For wildcards, grant on ALL TABLES and ALL SEQUENCES (functions handled separately)
+          tableClause = if isWildcard then "ALL TABLES IN SCHEMA ${quoteSqlIdentifier schema}" else "TABLE ${quoteSqlIdentifier schema}.${quoteSqlIdentifier table}";
+          sequenceClause = if isWildcard then "ALL SEQUENCES IN SCHEMA ${quoteSqlIdentifier schema}" else "SEQUENCE ${quoteSqlIdentifier schema}.${quoteSqlIdentifier table}";
+        in
+        lib.concatStringsSep "\n" (lib.mapAttrsToList
+          (role: perms:
+            if perms == [ ] then ''
+              -- REVOKE: Empty permissions list for role ${role} on ${patternInfo.pattern}
+              \c ${quoteSqlIdentifier dbName}
+              REVOKE ALL ON ${tableClause} FROM ${quoteSqlIdentifier role};
+              ${lib.optionalString isWildcard "REVOKE ALL ON ${sequenceClause} FROM ${quoteSqlIdentifier role};"}
+              \echo Revoked all permissions from ${role} on ${patternInfo.pattern}
+            '' else
+              let
+                # Filter sequence-relevant permissions (SELECT, USAGE, UPDATE for sequences)
+                seqPerms = lib.filter (p: p == "SELECT" || p == "USAGE" || p == "UPDATE") perms;
+                # Filter out EXECUTE (now handled by functionPermissions)
+                tableOnlyPerms = lib.filter (p: p != "EXECUTE") perms;
+              in
+              ''
+                -- Grant table permissions on ${patternInfo.pattern} to role ${role}
+                -- NOTE: EXECUTE permissions should now be in functionPermissions
+                ${lib.optionalString (tableOnlyPerms != []) "GRANT ${lib.concatStringsSep ", " tableOnlyPerms} ON ${tableClause} TO ${quoteSqlIdentifier role};"}
+                ${lib.optionalString (isWildcard && seqPerms != []) "GRANT ${lib.concatStringsSep ", " seqPerms} ON ${sequenceClause} TO ${quoteSqlIdentifier role};"}
+                \echo Granted permissions to ${role} on ${patternInfo.pattern}
+              ''
+          )
+          patternInfo.rolePerms)
+      )
+      orderedPatterns;
 
   # Generate function-level permission grants (Phase 2 - separate from tablePermissions)
   # NOTE: Caller must ensure correct database context (\c) before calling this helper
   mkFunctionPermissionsSQL = dbName: functionPerms:
     let
       # Parse all patterns and group by schema
-      parsedPatterns = lib.mapAttrsToList (pattern: rolePerms:
-        let
-          parsed = parseTablePattern pattern;  # Reuse table pattern parser
-        in {
-          inherit pattern rolePerms parsed;
-          isWildcard = (parsed.table == "*");
-        }) functionPerms;
+      parsedPatterns = lib.mapAttrsToList
+        (pattern: rolePerms:
+          let
+            parsed = parseTablePattern pattern; # Reuse table pattern parser
+          in
+          {
+            inherit pattern rolePerms parsed;
+            isWildcard = (parsed.table == "*");
+          })
+        functionPerms;
 
       # Process wildcards first, then specific functions (precedence)
       wildcardPatterns = lib.filter (p: p.isWildcard) parsedPatterns;
       specificPatterns = lib.filter (p: !p.isWildcard) parsedPatterns;
       orderedPatterns = wildcardPatterns ++ specificPatterns;
     in
-    lib.concatMapStringsSep "\n" (patternInfo:
-      let
-        schema = patternInfo.parsed.schema;
-        func = patternInfo.parsed.table;  # Reuse 'table' field for function name
-        isWildcard = patternInfo.isWildcard;
+    lib.concatMapStringsSep "\n"
+      (patternInfo:
+        let
+          schema = patternInfo.parsed.schema;
+          func = patternInfo.parsed.table; # Reuse 'table' field for function name
+          isWildcard = patternInfo.isWildcard;
 
-        functionClause = if isWildcard
-          then "ALL FUNCTIONS IN SCHEMA ${quoteSqlIdentifier schema}"
-          else "FUNCTION ${quoteSqlIdentifier schema}.${quoteSqlIdentifier func}";
-        procedureClause = if isWildcard
-          then "ALL PROCEDURES IN SCHEMA ${quoteSqlIdentifier schema}"
-          else null;  # Specific procedures need different syntax
-      in
-      lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms:
-        if perms == [] then ''
-          -- REVOKE: Empty permissions list for role ${role} on functions ${patternInfo.pattern}
-          REVOKE ALL ON ${functionClause} FROM ${quoteSqlIdentifier role};
-          ${lib.optionalString (isWildcard && procedureClause != null) "REVOKE ALL ON ${procedureClause} FROM ${quoteSqlIdentifier role};"}
-          \echo Revoked all function permissions from ${role} on ${patternInfo.pattern}
-        '' else ''
-          -- Grant function permissions on ${patternInfo.pattern} to role ${role}
-          GRANT ${lib.concatStringsSep ", " perms} ON ${functionClause} TO ${quoteSqlIdentifier role};
-          ${lib.optionalString (isWildcard && procedureClause != null) "GRANT ${lib.concatStringsSep ", " perms} ON ${procedureClause} TO ${quoteSqlIdentifier role};"}
-          \echo Granted function permissions to ${role} on ${patternInfo.pattern}
-        ''
-      ) patternInfo.rolePerms)
-    ) orderedPatterns;
+          functionClause =
+            if isWildcard
+            then "ALL FUNCTIONS IN SCHEMA ${quoteSqlIdentifier schema}"
+            else "FUNCTION ${quoteSqlIdentifier schema}.${quoteSqlIdentifier func}";
+          procedureClause =
+            if isWildcard
+            then "ALL PROCEDURES IN SCHEMA ${quoteSqlIdentifier schema}"
+            else null; # Specific procedures need different syntax
+        in
+        lib.concatStringsSep "\n" (lib.mapAttrsToList
+          (role: perms:
+            if perms == [ ] then ''
+              -- REVOKE: Empty permissions list for role ${role} on functions ${patternInfo.pattern}
+              REVOKE ALL ON ${functionClause} FROM ${quoteSqlIdentifier role};
+              ${lib.optionalString (isWildcard && procedureClause != null) "REVOKE ALL ON ${procedureClause} FROM ${quoteSqlIdentifier role};"}
+              \echo Revoked all function permissions from ${role} on ${patternInfo.pattern}
+            '' else ''
+              -- Grant function permissions on ${patternInfo.pattern} to role ${role}
+              GRANT ${lib.concatStringsSep ", " perms} ON ${functionClause} TO ${quoteSqlIdentifier role};
+              ${lib.optionalString (isWildcard && procedureClause != null) "GRANT ${lib.concatStringsSep ", " perms} ON ${procedureClause} TO ${quoteSqlIdentifier role};"}
+              \echo Granted function permissions to ${role} on ${patternInfo.pattern}
+            ''
+          )
+          patternInfo.rolePerms)
+      )
+      orderedPatterns;
 
   # Generate default privileges (Phase 2)
   # Note: Default privileges only apply to FUTURE objects created by the specified owner role
   # To grant on existing objects, use tablePermissions with wildcards (e.g., "public.*")
   mkDefaultPrivilegesSQL = dbName: defaultPrivs:
-    lib.concatStringsSep "\n" (lib.mapAttrsToList (policyName: policy: ''
-      -- Default privileges policy: ${policyName}
-      \c ${quoteSqlIdentifier dbName}
+    lib.concatStringsSep "\n" (lib.mapAttrsToList
+      (policyName: policy: ''
+        -- Default privileges policy: ${policyName}
+        \c ${quoteSqlIdentifier dbName}
 
-      ${lib.optionalString (policy.tables != {}) (lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms: ''
-        ALTER DEFAULT PRIVILEGES FOR ROLE ${quoteSqlIdentifier policy.owner} IN SCHEMA ${quoteSqlIdentifier policy.schema}
-        GRANT ${lib.concatStringsSep ", " perms} ON TABLES TO ${quoteSqlIdentifier role};
-        \echo Set default table privileges for ${role} (owner: ${policy.owner}, schema: ${policy.schema})
+        ${lib.optionalString (policy.tables != {}) (lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms: ''
+          ALTER DEFAULT PRIVILEGES FOR ROLE ${quoteSqlIdentifier policy.owner} IN SCHEMA ${quoteSqlIdentifier policy.schema}
+          GRANT ${lib.concatStringsSep ", " perms} ON TABLES TO ${quoteSqlIdentifier role};
+          \echo Set default table privileges for ${role} (owner: ${policy.owner}, schema: ${policy.schema})
 
-        -- Backfill: Also grant on existing tables
-        GRANT ${lib.concatStringsSep ", " perms} ON ALL TABLES IN SCHEMA ${quoteSqlIdentifier policy.schema} TO ${quoteSqlIdentifier role};
-        \echo Backfilled table privileges for ${role} on existing tables in ${policy.schema}
-      '') policy.tables))}
+          -- Backfill: Also grant on existing tables
+          GRANT ${lib.concatStringsSep ", " perms} ON ALL TABLES IN SCHEMA ${quoteSqlIdentifier policy.schema} TO ${quoteSqlIdentifier role};
+          \echo Backfilled table privileges for ${role} on existing tables in ${policy.schema}
+        '') policy.tables))}
 
-      ${lib.optionalString (policy.sequences != {}) (lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms: ''
-        ALTER DEFAULT PRIVILEGES FOR ROLE ${quoteSqlIdentifier policy.owner} IN SCHEMA ${quoteSqlIdentifier policy.schema}
-        GRANT ${lib.concatStringsSep ", " perms} ON SEQUENCES TO ${quoteSqlIdentifier role};
-        \echo Set default sequence privileges for ${role} (owner: ${policy.owner}, schema: ${policy.schema})
+        ${lib.optionalString (policy.sequences != {}) (lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms: ''
+          ALTER DEFAULT PRIVILEGES FOR ROLE ${quoteSqlIdentifier policy.owner} IN SCHEMA ${quoteSqlIdentifier policy.schema}
+          GRANT ${lib.concatStringsSep ", " perms} ON SEQUENCES TO ${quoteSqlIdentifier role};
+          \echo Set default sequence privileges for ${role} (owner: ${policy.owner}, schema: ${policy.schema})
 
-        -- Backfill: Also grant on existing sequences
-        GRANT ${lib.concatStringsSep ", " perms} ON ALL SEQUENCES IN SCHEMA ${quoteSqlIdentifier policy.schema} TO ${quoteSqlIdentifier role};
-        \echo Backfilled sequence privileges for ${role} on existing sequences in ${policy.schema}
-      '') policy.sequences))}
+          -- Backfill: Also grant on existing sequences
+          GRANT ${lib.concatStringsSep ", " perms} ON ALL SEQUENCES IN SCHEMA ${quoteSqlIdentifier policy.schema} TO ${quoteSqlIdentifier role};
+          \echo Backfilled sequence privileges for ${role} on existing sequences in ${policy.schema}
+        '') policy.sequences))}
 
-      ${lib.optionalString (policy.functions != {}) (lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms: ''
-        ALTER DEFAULT PRIVILEGES FOR ROLE ${quoteSqlIdentifier policy.owner} IN SCHEMA ${quoteSqlIdentifier policy.schema}
-        GRANT ${lib.concatStringsSep ", " perms} ON FUNCTIONS TO ${quoteSqlIdentifier role};
-        \echo Set default function privileges for ${role} (owner: ${policy.owner}, schema: ${policy.schema})
+        ${lib.optionalString (policy.functions != {}) (lib.concatStringsSep "\n" (lib.mapAttrsToList (role: perms: ''
+          ALTER DEFAULT PRIVILEGES FOR ROLE ${quoteSqlIdentifier policy.owner} IN SCHEMA ${quoteSqlIdentifier policy.schema}
+          GRANT ${lib.concatStringsSep ", " perms} ON FUNCTIONS TO ${quoteSqlIdentifier role};
+          \echo Set default function privileges for ${role} (owner: ${policy.owner}, schema: ${policy.schema})
 
-        -- Backfill: Also grant on existing functions
-        GRANT ${lib.concatStringsSep ", " perms} ON ALL FUNCTIONS IN SCHEMA ${quoteSqlIdentifier policy.schema} TO ${quoteSqlIdentifier role};
-        \echo Backfilled function privileges for ${role} on existing functions in ${policy.schema}
-      '') policy.functions))}
-    '') defaultPrivs);
+          -- Backfill: Also grant on existing functions
+          GRANT ${lib.concatStringsSep ", " perms} ON ALL FUNCTIONS IN SCHEMA ${quoteSqlIdentifier policy.schema} TO ${quoteSqlIdentifier role};
+          \echo Backfilled function privileges for ${role} on existing functions in ${policy.schema}
+        '') policy.functions))}
+      '')
+      defaultPrivs);
   # NOTE: mkProvisionScript has been moved into config block's let binding
   # to leverage lazy evaluation and avoid circular dependencies
 
@@ -650,7 +682,7 @@ in
       cfg = config.modules.services.postgresql;
 
       # Get databases from the simplified structure
-      databases = cfg.databases or {};
+      databases = cfg.databases or { };
 
       # PostgreSQL package
       pgPackage = if cfg.enable then pkgs."postgresql_${builtins.replaceStrings ["."] [""] cfg.version}" else null;
@@ -658,95 +690,293 @@ in
       # Metrics directory - use consistent path from monitoring module
       metricsDir = config.modules.monitoring.nodeExporter.textfileCollector.directory or "/var/lib/node_exporter/textfile_collector";
 
-    in lib.mkIf (cfg.enable && databases != {}) {
-    # Assertions
-    assertions = [
-      {
-        assertion = databases != {};
-        message = "Database provisioning enabled but no databases declared";
-      }
-      {
-        assertion = config.services.postgresql.enable or false;
-        message = ''
-          Database provisioning requires services.postgresql to be enabled.
-          The PostgreSQL service must be running before database provisioning can occur.
-        '';
-      }
-    ];
+    in
+    lib.mkIf (cfg.enable && databases != { }) {
+      # Assertions
+      assertions = [
+        {
+          assertion = databases != { };
+          message = "Database provisioning enabled but no databases declared";
+        }
+        {
+          assertion = config.services.postgresql.enable or false;
+          message = ''
+            Database provisioning requires services.postgresql to be enabled.
+            The PostgreSQL service must be running before database provisioning can occur.
+          '';
+        }
+      ];
 
-    # Generate systemd service for database provisioning
-    # Single service for the single PostgreSQL instance
-    systemd.services.postgresql-provision-databases = let
-        # Process databases: expand permission presets and filter to managed databases only
-        mergedDatabases =
-          let
-            # Expand permission presets for all declarative databases
-            expanded = lib.mapAttrs expandPermissionsPolicy databases;
-          in
-          # Filter to only managed databases (managed = true)
-          lib.filterAttrs (_: dbCfg: dbCfg.managed or true) expanded;
+      # Generate systemd service for database provisioning
+      # Single service for the single PostgreSQL instance
+      systemd.services.postgresql-provision-databases =
+        let
+          # Process databases: expand permission presets and filter to managed databases only
+          mergedDatabases =
+            let
+              # Expand permission presets for all declarative databases
+              expanded = lib.mapAttrs expandPermissionsPolicy databases;
+            in
+            # Filter to only managed databases (managed = true)
+            lib.filterAttrs (_: dbCfg: dbCfg.managed or true) expanded;
 
-        configHashPayload = {
-          version = provisioningSchemaVersion;
-          databases = mergedDatabases;
-        };
+          configHashPayload = {
+            version = provisioningSchemaVersion;
+            databases = mergedDatabases;
+          };
 
-        # Generate complete provisioning script
-        mkProvisionScript = pkgs.writeShellScript "postgresql-provision-databases" ''
-          set -euo pipefail
+          # Generate complete provisioning script
+          mkProvisionScript = pkgs.writeShellScript "postgresql-provision-databases" ''
+            set -euo pipefail
 
-          # Provisioning state tracking
-          STATE_DIR="/var/lib/postgresql/provisioning/main"
-          STAMP_FILE="$STATE_DIR/provisioned.sha256"
-          METRICS_FILE="${metricsDir}/postgresql_database_provisioning.prom"
+            # Provisioning state tracking
+            STATE_DIR="/var/lib/postgresql/provisioning/main"
+            STAMP_FILE="$STATE_DIR/provisioned.sha256"
+            METRICS_FILE="${metricsDir}/postgresql_database_provisioning.prom"
 
-          mkdir -p "$STATE_DIR"
-          chmod 0700 "$STATE_DIR"
+            mkdir -p "$STATE_DIR"
+            chmod 0700 "$STATE_DIR"
 
-          echo "=== PostgreSQL Database Provisioning ==="
-          echo "Instance: main"
-          echo "Databases: ${toString (lib.length (lib.attrNames mergedDatabases))}"
+            echo "=== PostgreSQL Database Provisioning ==="
+            echo "Instance: main"
+            echo "Databases: ${toString (lib.length (lib.attrNames mergedDatabases))}"
 
-          # Compute hash of current configuration AND secret file contents
-          # This includes all database declarations to detect any changes
-          CONFIG_HASH="${builtins.hashString "sha256" (builtins.toJSON configHashPayload)}"
+            # Compute hash of current configuration AND secret file contents
+            # This includes all database declarations to detect any changes
+            CONFIG_HASH="${builtins.hashString "sha256" (builtins.toJSON configHashPayload)}"
 
-          # Compute hash of all password files to detect secret rotation
-          # This ensures password changes trigger re-provisioning
-          SECRETS_HASH=""
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-            lib.optionalString (dbCfg.ownerPasswordFile or null != null) ''
-              if [ -f "${dbCfg.ownerPasswordFile}" ]; then
-                SECRETS_HASH="$SECRETS_HASH$(sha256sum "${dbCfg.ownerPasswordFile}" | cut -d' ' -f1)"
+            # Compute hash of all password files to detect secret rotation
+            # This ensures password changes trigger re-provisioning
+            SECRETS_HASH=""
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+              lib.optionalString (dbCfg.ownerPasswordFile or null != null) ''
+                if [ -f "${dbCfg.ownerPasswordFile}" ]; then
+                  SECRETS_HASH="$SECRETS_HASH$(sha256sum "${dbCfg.ownerPasswordFile}" | cut -d' ' -f1)"
+                fi
+              ''
+            ) mergedDatabases)}
+            COMBINED_HASH=$(echo "$CONFIG_HASH$SECRETS_HASH" | sha256sum | cut -d' ' -f1)
+
+            # Check if provisioning is needed
+            if [ -f "$STAMP_FILE" ] && [ "$(cat "$STAMP_FILE")" = "$COMBINED_HASH" ]; then
+              echo "✓ Database configuration and secrets unchanged - skipping provisioning"
+              ${lib.optionalString (config.modules.monitoring.enable or false) ''
+                # Update metrics
+                cat > "$METRICS_FILE" <<METRICS
+                # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
+                # TYPE postgresql_database_provisioning_last_run_timestamp gauge
+                postgresql_database_provisioning_last_run_timestamp{status="skipped"} $(date +%s)
+                METRICS
+              ''}
+              exit 0
+            fi
+
+            echo "→ Configuration changed - running provisioning"
+
+            # Wait for PostgreSQL to be ready
+            echo "Waiting for PostgreSQL to be ready..."
+            MAX_RETRIES=30
+            RETRY_COUNT=0
+            until ${pgPackage}/bin/pg_isready -h localhost -U postgres -d postgres; do
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                echo "✗ PostgreSQL failed to become ready after $MAX_RETRIES attempts"
+                ${lib.optionalString (config.modules.monitoring.enable or false) ''
+                  cat > "$METRICS_FILE" <<METRICS
+                  # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
+                  # TYPE postgresql_database_provisioning_last_run_timestamp gauge
+                  postgresql_database_provisioning_last_run_timestamp{status="failed"} $(date +%s)
+                  METRICS
+                ''}
+                exit 1
               fi
-            ''
-          ) mergedDatabases)}
-          COMBINED_HASH=$(echo "$CONFIG_HASH$SECRETS_HASH" | sha256sum | cut -d' ' -f1)
+              echo "  Retry $RETRY_COUNT/$MAX_RETRIES..."
+              sleep 2
+            done
+            echo "✓ PostgreSQL is ready"
 
-          # Check if provisioning is needed
-          if [ -f "$STAMP_FILE" ] && [ "$(cat "$STAMP_FILE")" = "$COMBINED_HASH" ]; then
-            echo "✓ Database configuration and secrets unchanged - skipping provisioning"
-            ${lib.optionalString (config.modules.monitoring.enable or false) ''
-              # Update metrics
-              cat > "$METRICS_FILE" <<METRICS
-              # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
-              # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-              postgresql_database_provisioning_last_run_timestamp{status="skipped"} $(date +%s)
-              METRICS
+            # Create temporary SQL file with restrictive permissions
+            SQL_FILE="$(mktemp -p "$STATE_DIR" provision.XXXXXX.sql)"
+            chmod 0600 "$SQL_FILE"
+            trap "rm -f $SQL_FILE" EXIT
+
+            # Generate provisioning SQL with improved execution grouping
+            cat > "$SQL_FILE" <<'PROVISION_SQL'
+            -- PostgreSQL Database Provisioning Script
+            -- Generated by NixOS modules.services.postgresql
+            -- This script is idempotent and safe to run multiple times
+            --
+            -- SECURITY: All identifiers properly quoted to prevent SQL injection
+            -- EXECUTION: Grouped by database to minimize connection changes
+
+            \set ON_ERROR_STOP on
+            \set VERBOSITY verbose
+
+            -- Provisioning timestamp
+            SELECT NOW() AS provisioning_started;
+
+            -- ========================================
+            -- SESSION CONFIGURATION (Security hardening)
+            -- ========================================
+            SET statement_timeout = 60000;  -- 60 seconds
+            SET lock_timeout = 10000;       -- 10 seconds
+            SET search_path = pg_catalog, public;  -- Prevent function shadowing attacks
+
+            -- ========================================
+            -- PHASE 1: Create all roles first (connect to postgres database)
+            -- ========================================
+            \c postgres
+
+            -- Reset session config after connection change
+            SET statement_timeout = 60000;
+            SET lock_timeout = 10000;
+            SET search_path = pg_catalog, public;
+
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+              mkRoleSQL dbCfg.owner dbCfg.ownerPasswordFile
+            ) mergedDatabases)}
+
+            -- ========================================
+            -- Create readonly role (if any database uses owner-readwrite+readonly-select preset)
+            -- ========================================
+            ${lib.optionalString (lib.any (dbCfg: (dbCfg.permissionsPolicy or "custom") == "owner-readwrite+readonly-select") (lib.attrValues mergedDatabases)) ''
+            -- Create readonly role if it doesn't exist (NOLOGIN - grant to actual login roles)
+            -- SECURITY: NOLOGIN prevents direct authentication; grant this role to service accounts
+            DO $role$
+            BEGIN
+              IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'readonly') THEN
+                CREATE ROLE readonly WITH NOLOGIN;
+                RAISE NOTICE 'Created readonly role (NOLOGIN - grant to actual login roles for read-only access)';
+              ELSE
+                RAISE NOTICE 'Readonly role already exists';
+              END IF;
+            END
+            $role$;
             ''}
-            exit 0
-          fi
 
-          echo "→ Configuration changed - running provisioning"
+            -- ========================================
+            -- PHASE 2: Create all databases (still in postgres database)
+            -- ========================================
 
-          # Wait for PostgreSQL to be ready
-          echo "Waiting for PostgreSQL to be ready..."
-          MAX_RETRIES=30
-          RETRY_COUNT=0
-          until ${pgPackage}/bin/pg_isready -h localhost -U postgres -d postgres; do
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-              echo "✗ PostgreSQL failed to become ready after $MAX_RETRIES attempts"
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+              let hooks = dbCfg.customSql or {};
+              in ''
+              ${lib.optionalString ((hooks.preCreate or []) != []) (mkCustomSqlHook dbName "preCreate" hooks.preCreate)}
+              ${mkDatabaseSQL dbName dbCfg}
+              ${lib.optionalString ((hooks.postCreate or []) != []) (mkCustomSqlHook dbName "postCreate" hooks.postCreate)}
+              ''
+            ) mergedDatabases)}
+
+            -- ========================================
+            -- PHASE 3: Configure each database (one \c per database)
+            -- ========================================
+
+            ${lib.concatStringsSep "\n\n" (lib.mapAttrsToList (dbName: dbCfg:
+              let
+                hasExtensions = dbCfg.extensions != [];
+                hasDbPerms = (dbCfg.databasePermissions or {}) != {};
+                hasSchemaPerms = (dbCfg.schemaPermissions or {}) != {};
+                hasTablePerms = (dbCfg.tablePermissions or {}) != {};
+                hasFunctionPerms = (dbCfg.functionPermissions or {}) != {};
+                hasDefaultPrivs = (dbCfg.defaultPrivileges or {}) != {};
+                schemaMigrationsCfg = dbCfg.schemaMigrations or null;
+                hasSchemaMigrations = schemaMigrationsCfg != null;
+
+                hooks = dbCfg.customSql or {};
+                preConfigHooks = hooks.preConfig or [];
+                postConfigHooks = hooks.postConfig or [];
+                hasCustomSqlConfig = (preConfigHooks != []) || (postConfigHooks != []);
+
+                needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasFunctionPerms || hasDefaultPrivs || hasSchemaMigrations || hasCustomSqlConfig;
+              in
+              lib.optionalString needsConfig ''
+              -- ----------------------------------------
+              -- Database: ${dbName}
+              -- Owner: ${dbCfg.owner}
+              -- ----------------------------------------
+              \c ${quoteSqlIdentifier dbName}
+
+              -- Reset session config after connection change
+              SET statement_timeout = 60000;
+              SET lock_timeout = 10000;
+              SET search_path = pg_catalog, public;
+
+              -- Security hardening: Revoke PUBLIC permissions
+              \c postgres
+              REVOKE ALL ON DATABASE ${quoteSqlIdentifier dbName} FROM PUBLIC;
+              \c ${quoteSqlIdentifier dbName}
+              REVOKE ALL ON SCHEMA public FROM PUBLIC;
+              REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+              REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
+              REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
+              \echo Revoked default PUBLIC permissions for security hardening
+
+              ${lib.optionalString (preConfigHooks != []) (mkCustomSqlHook dbName "preConfig" preConfigHooks)}
+
+              ${lib.optionalString hasExtensions ''
+              -- Extensions for ${dbName}
+              ${lib.concatMapStringsSep "\n" (extSpec: mkExtensionSQL dbCfg.owner extSpec) dbCfg.extensions}
+              ''}
+
+              ${lib.optionalString hasDbPerms ''
+              -- Database-level permissions for ${dbName}
+              \c postgres
+              ${mkPermissionsSQL dbName dbCfg.databasePermissions}
+              \c ${quoteSqlIdentifier dbName}
+              ''}
+
+              ${lib.optionalString hasSchemaPerms (mkSchemaPermissionsSQL dbName dbCfg.schemaPermissions)}
+
+              ${lib.optionalString hasTablePerms (mkTablePermissionsSQL dbName dbCfg.tablePermissions)}
+
+              ${lib.optionalString hasFunctionPerms (mkFunctionPermissionsSQL dbName dbCfg.functionPermissions)}
+
+              ${lib.optionalString hasDefaultPrivs (mkDefaultPrivilegesSQL dbName dbCfg.defaultPrivileges)}
+
+              ${lib.optionalString hasSchemaMigrations (mkSchemaMigrationsSQL dbName dbCfg.owner schemaMigrationsCfg)}
+
+              ${lib.optionalString (postConfigHooks != []) (mkCustomSqlHook dbName "postConfig" postConfigHooks)}
+              ''
+            ) mergedDatabases)}
+
+            -- ========================================
+            -- SUMMARY
+            -- ========================================
+            \c postgres
+
+            SELECT
+              COUNT(*) FILTER (WHERE datname != 'postgres' AND datname != 'template0' AND datname != 'template1') as user_databases,
+              NOW() as provisioning_completed
+            FROM pg_database;
+            PROVISION_SQL
+
+            # Execute provisioning with no secrets on the command-line
+            echo "→ Executing provisioning SQL..."
+
+            # Run psql (passwords are read inside the SQL script via \set)
+            if ${pgPackage}/bin/psql -U postgres -d postgres -f "$SQL_FILE"; then
+
+              echo "✓ Provisioning completed successfully"
+
+              # Record successful provisioning (includes config + secrets hash)
+              echo "$COMBINED_HASH" > "$STAMP_FILE"
+
+              ${lib.optionalString (config.modules.monitoring.enable or false) ''
+                # Update metrics
+                cat > "$METRICS_FILE" <<METRICS
+                # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
+                # TYPE postgresql_database_provisioning_last_run_timestamp gauge
+                postgresql_database_provisioning_last_run_timestamp{status="success"} $(date +%s)
+
+                # HELP postgresql_database_count Number of user databases
+                # TYPE postgresql_database_count gauge
+                postgresql_database_count ${toString (lib.length (lib.attrNames mergedDatabases))}
+                METRICS
+              ''}
+
+            else
+              echo "✗ Provisioning failed for PostgreSQL"
+              echo "   Databases affected: ${lib.concatStringsSep ", " (lib.attrNames mergedDatabases)}"
               ${lib.optionalString (config.modules.monitoring.enable or false) ''
                 cat > "$METRICS_FILE" <<METRICS
                 # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
@@ -756,277 +986,84 @@ in
               ''}
               exit 1
             fi
-            echo "  Retry $RETRY_COUNT/$MAX_RETRIES..."
-            sleep 2
-          done
-          echo "✓ PostgreSQL is ready"
+          '';
+        in
+        {
+          description = "Provision PostgreSQL databases";
+          after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
+          requires = [ "postgresql-readiness-wait.service" ];
+          wantedBy = [ "multi-user.target" ];
 
-          # Create temporary SQL file with restrictive permissions
-          SQL_FILE="$(mktemp -p "$STATE_DIR" provision.XXXXXX.sql)"
-          chmod 0600 "$SQL_FILE"
-          trap "rm -f $SQL_FILE" EXIT
+          # Run once per boot, but only if config changed
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            User = "postgres";
+            Group = "postgres";
 
-          # Generate provisioning SQL with improved execution grouping
-          cat > "$SQL_FILE" <<'PROVISION_SQL'
-          -- PostgreSQL Database Provisioning Script
-          -- Generated by NixOS modules.services.postgresql
-          -- This script is idempotent and safe to run multiple times
-          --
-          -- SECURITY: All identifiers properly quoted to prevent SQL injection
-          -- EXECUTION: Grouped by database to minimize connection changes
+            # Security hardening
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            PrivateTmp = true;
+            NoNewPrivileges = true;
 
-          \set ON_ERROR_STOP on
-          \set VERBOSITY verbose
+            # Create state directory for provisioning
+            StateDirectory = "postgresql/provisioning";
+            StateDirectoryMode = "0755";
 
-          -- Provisioning timestamp
-          SELECT NOW() AS provisioning_started;
+            # Allow writing to state dir and metrics
+            ReadWritePaths = [
+              "/var/lib/postgresql/provisioning"
+            ] ++ lib.optional (config.modules.monitoring.enable or false) metricsDir;
 
-          -- ========================================
-          -- SESSION CONFIGURATION (Security hardening)
-          -- ========================================
-          SET statement_timeout = 60000;  -- 60 seconds
-          SET lock_timeout = 10000;       -- 10 seconds
-          SET search_path = pg_catalog, public;  -- Prevent function shadowing attacks
+            # Secrets access - need access to read password files that may have different group ownership
+            # Collect all unique groups from the password files to add as supplementary groups
+            SupplementaryGroups = lib.unique (
+              (lib.optional (config.modules.monitoring.enable or false) "node-exporter")
+              ++ (lib.mapAttrsToList
+                (dbName: dbCfg:
+                  # Extract group from password file secret config
+                  let
+                    secretName = lib.removePrefix "/run/secrets/" (dbCfg.ownerPasswordFile or "");
+                    secretCfg = config.sops.secrets.${secretName} or null;
+                  in
+                  if secretCfg != null && secretCfg ? group
+                  then secretCfg.group
+                  else null
+                )
+                mergedDatabases)
+            );
 
-          -- ========================================
-          -- PHASE 1: Create all roles first (connect to postgres database)
-          -- ========================================
-          \c postgres
+            ExecStart = "${mkProvisionScript}";
+          };
 
-          -- Reset session config after connection change
-          SET statement_timeout = 60000;
-          SET lock_timeout = 10000;
-          SET search_path = pg_catalog, public;
-
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-            mkRoleSQL dbCfg.owner dbCfg.ownerPasswordFile
-          ) mergedDatabases)}
-
-          -- ========================================
-          -- Create readonly role (if any database uses owner-readwrite+readonly-select preset)
-          -- ========================================
-          ${lib.optionalString (lib.any (dbCfg: (dbCfg.permissionsPolicy or "custom") == "owner-readwrite+readonly-select") (lib.attrValues mergedDatabases)) ''
-          -- Create readonly role if it doesn't exist (NOLOGIN - grant to actual login roles)
-          -- SECURITY: NOLOGIN prevents direct authentication; grant this role to service accounts
-          DO $role$
-          BEGIN
-            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'readonly') THEN
-              CREATE ROLE readonly WITH NOLOGIN;
-              RAISE NOTICE 'Created readonly role (NOLOGIN - grant to actual login roles for read-only access)';
-            ELSE
-              RAISE NOTICE 'Readonly role already exists';
-            END IF;
-          END
-          $role$;
-          ''}
-
-          -- ========================================
-          -- PHASE 2: Create all databases (still in postgres database)
-          -- ========================================
-
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
-            let hooks = dbCfg.customSql or {};
-            in ''
-            ${lib.optionalString ((hooks.preCreate or []) != []) (mkCustomSqlHook dbName "preCreate" hooks.preCreate)}
-            ${mkDatabaseSQL dbName dbCfg}
-            ${lib.optionalString ((hooks.postCreate or []) != []) (mkCustomSqlHook dbName "postCreate" hooks.postCreate)}
-            ''
-          ) mergedDatabases)}
-
-          -- ========================================
-          -- PHASE 3: Configure each database (one \c per database)
-          -- ========================================
-
-          ${lib.concatStringsSep "\n\n" (lib.mapAttrsToList (dbName: dbCfg:
-            let
-              hasExtensions = dbCfg.extensions != [];
-              hasDbPerms = (dbCfg.databasePermissions or {}) != {};
-              hasSchemaPerms = (dbCfg.schemaPermissions or {}) != {};
-              hasTablePerms = (dbCfg.tablePermissions or {}) != {};
-              hasFunctionPerms = (dbCfg.functionPermissions or {}) != {};
-              hasDefaultPrivs = (dbCfg.defaultPrivileges or {}) != {};
-              schemaMigrationsCfg = dbCfg.schemaMigrations or null;
-              hasSchemaMigrations = schemaMigrationsCfg != null;
-
-              hooks = dbCfg.customSql or {};
-              preConfigHooks = hooks.preConfig or [];
-              postConfigHooks = hooks.postConfig or [];
-              hasCustomSqlConfig = (preConfigHooks != []) || (postConfigHooks != []);
-
-              needsConfig = hasExtensions || hasDbPerms || hasSchemaPerms || hasTablePerms || hasFunctionPerms || hasDefaultPrivs || hasSchemaMigrations || hasCustomSqlConfig;
-            in
-            lib.optionalString needsConfig ''
-            -- ----------------------------------------
-            -- Database: ${dbName}
-            -- Owner: ${dbCfg.owner}
-            -- ----------------------------------------
-            \c ${quoteSqlIdentifier dbName}
-
-            -- Reset session config after connection change
-            SET statement_timeout = 60000;
-            SET lock_timeout = 10000;
-            SET search_path = pg_catalog, public;
-
-            -- Security hardening: Revoke PUBLIC permissions
-            \c postgres
-            REVOKE ALL ON DATABASE ${quoteSqlIdentifier dbName} FROM PUBLIC;
-            \c ${quoteSqlIdentifier dbName}
-            REVOKE ALL ON SCHEMA public FROM PUBLIC;
-            REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
-            REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
-            REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
-            \echo Revoked default PUBLIC permissions for security hardening
-
-            ${lib.optionalString (preConfigHooks != []) (mkCustomSqlHook dbName "preConfig" preConfigHooks)}
-
-            ${lib.optionalString hasExtensions ''
-            -- Extensions for ${dbName}
-            ${lib.concatMapStringsSep "\n" (extSpec: mkExtensionSQL dbCfg.owner extSpec) dbCfg.extensions}
-            ''}
-
-            ${lib.optionalString hasDbPerms ''
-            -- Database-level permissions for ${dbName}
-            \c postgres
-            ${mkPermissionsSQL dbName dbCfg.databasePermissions}
-            \c ${quoteSqlIdentifier dbName}
-            ''}
-
-            ${lib.optionalString hasSchemaPerms (mkSchemaPermissionsSQL dbName dbCfg.schemaPermissions)}
-
-            ${lib.optionalString hasTablePerms (mkTablePermissionsSQL dbName dbCfg.tablePermissions)}
-
-            ${lib.optionalString hasFunctionPerms (mkFunctionPermissionsSQL dbName dbCfg.functionPermissions)}
-
-            ${lib.optionalString hasDefaultPrivs (mkDefaultPrivilegesSQL dbName dbCfg.defaultPrivileges)}
-
-            ${lib.optionalString hasSchemaMigrations (mkSchemaMigrationsSQL dbName dbCfg.owner schemaMigrationsCfg)}
-
-            ${lib.optionalString (postConfigHooks != []) (mkCustomSqlHook dbName "postConfig" postConfigHooks)}
-            ''
-          ) mergedDatabases)}
-
-          -- ========================================
-          -- SUMMARY
-          -- ========================================
-          \c postgres
-
-          SELECT
-            COUNT(*) FILTER (WHERE datname != 'postgres' AND datname != 'template0' AND datname != 'template1') as user_databases,
-            NOW() as provisioning_completed
-          FROM pg_database;
-          PROVISION_SQL
-
-          # Execute provisioning with no secrets on the command-line
-          echo "→ Executing provisioning SQL..."
-
-          # Run psql (passwords are read inside the SQL script via \set)
-          if ${pgPackage}/bin/psql -U postgres -d postgres -f "$SQL_FILE"; then
-
-            echo "✓ Provisioning completed successfully"
-
-            # Record successful provisioning (includes config + secrets hash)
-            echo "$COMBINED_HASH" > "$STAMP_FILE"
-
-            ${lib.optionalString (config.modules.monitoring.enable or false) ''
-              # Update metrics
-              cat > "$METRICS_FILE" <<METRICS
-              # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
-              # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-              postgresql_database_provisioning_last_run_timestamp{status="success"} $(date +%s)
-
-              # HELP postgresql_database_count Number of user databases
-              # TYPE postgresql_database_count gauge
-              postgresql_database_count ${toString (lib.length (lib.attrNames mergedDatabases))}
-              METRICS
-            ''}
-
-          else
-            echo "✗ Provisioning failed for PostgreSQL"
-            echo "   Databases affected: ${lib.concatStringsSep ", " (lib.attrNames mergedDatabases)}"
-            ${lib.optionalString (config.modules.monitoring.enable or false) ''
-              cat > "$METRICS_FILE" <<METRICS
-              # HELP postgresql_database_provisioning_last_run_timestamp Last time provisioning ran
-              # TYPE postgresql_database_provisioning_last_run_timestamp gauge
-              postgresql_database_provisioning_last_run_timestamp{status="failed"} $(date +%s)
-              METRICS
-            ''}
-            exit 1
-          fi
-        '';
-      in {
-        description = "Provision PostgreSQL databases";
-        after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
-        requires = [ "postgresql-readiness-wait.service" ];
-        wantedBy = [ "multi-user.target" ];
-
-        # Run once per boot, but only if config changed
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          User = "postgres";
-          Group = "postgres";
-
-          # Security hardening
-          ProtectSystem = "strict";
-          ProtectHome = true;
-          PrivateTmp = true;
-          NoNewPrivileges = true;
-
-          # Create state directory for provisioning
-          StateDirectory = "postgresql/provisioning";
-          StateDirectoryMode = "0755";
-
-          # Allow writing to state dir and metrics
-          ReadWritePaths = [
-            "/var/lib/postgresql/provisioning"
-          ] ++ lib.optional (config.modules.monitoring.enable or false) metricsDir;
-
-          # Secrets access - need access to read password files that may have different group ownership
-          # Collect all unique groups from the password files to add as supplementary groups
-          SupplementaryGroups = lib.unique (
-            (lib.optional (config.modules.monitoring.enable or false) "node-exporter")
-            ++ (lib.mapAttrsToList (dbName: dbCfg:
-              # Extract group from password file secret config
-              let
-                secretName = lib.removePrefix "/run/secrets/" (dbCfg.ownerPasswordFile or "");
-                secretCfg = config.sops.secrets.${secretName} or null;
-              in
-                if secretCfg != null && secretCfg ? group
-                then secretCfg.group
-                else null
-            ) mergedDatabases)
-          );
-
-          ExecStart = "${mkProvisionScript}";
+          # Notification on failure
+          unitConfig = lib.mkIf (config.modules.notifications.enable or false) {
+            OnFailure = [ "notify@postgresql-provision-failure.service" ];
+          };
         };
 
-        # Notification on failure
-        unitConfig = lib.mkIf (config.modules.notifications.enable or false) {
-          OnFailure = [ "notify@postgresql-provision-failure.service" ];
+      # Notification templates
+      modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) {
+        postgresql-provision-success = {
+          enable = true;
+          priority = "normal";
+          title = "✅ PostgreSQL Provisioning Complete";
+          body = ''
+            <b>Status:</b> All databases provisioned successfully
+            <b>Service:</b> postgresql-provision-databases
+          '';
         };
-      };
 
-    # Notification templates
-    modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) {
-      postgresql-provision-success = {
-        enable = true;
-        priority = "normal";
-        title = "✅ PostgreSQL Provisioning Complete";
-        body = ''
-          <b>Status:</b> All databases provisioned successfully
-          <b>Service:</b> postgresql-provision-databases
-        '';
-      };
-
-      postgresql-provision-failure = {
-        enable = true;
-        priority = "high";
-        title = "✗ PostgreSQL Provisioning Failed";
-        body = ''
-          <b>Error:</b> Database provisioning encountered an error
-          <b>Action Required:</b> Check systemd logs: journalctl -u postgresql-provision-databases
-        '';
+        postgresql-provision-failure = {
+          enable = true;
+          priority = "high";
+          title = "✗ PostgreSQL Provisioning Failed";
+          body = ''
+            <b>Error:</b> Database provisioning encountered an error
+            <b>Action Required:</b> Check systemd logs: journalctl -u postgresql-provision-databases
+          '';
+        };
       };
     };
-  };
 }

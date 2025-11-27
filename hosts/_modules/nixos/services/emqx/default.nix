@@ -15,7 +15,7 @@ let
       };
       tags = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = "Optional tags applied to this MQTT user.";
       };
     };
@@ -67,19 +67,19 @@ let
     options = {
       users = mkOption {
         type = types.listOf mqttUserType;
-        default = [];
+        default = [ ];
         description = "MQTT users contributed by this integration.";
       };
       acls = mkOption {
         type = types.listOf aclRuleType;
-        default = [];
+        default = [ ];
         description = "Topic ACL rules contributed by this integration.";
       };
     };
   };
 
   cfg = config.modules.services.emqx;
-  notificationsCfg = config.modules.notifications or {};
+  notificationsCfg = config.modules.notifications or { };
   hasCentralizedNotifications = notificationsCfg.enable or false;
 
   serviceName = "emqx";
@@ -89,8 +89,8 @@ let
   envfileServiceAttrName = "${backend}-${serviceName}-envfile";
   envfileServiceUnit = "${envfileServiceAttrName}.service";
 
-  storageCfg = config.modules.storage or {};
-  datasetsCfg = storageCfg.datasets or {};
+  storageCfg = config.modules.storage or { };
+  datasetsCfg = storageCfg.datasets or { };
   defaultDatasetPath =
     if datasetsCfg ? parentDataset then
       "${datasetsCfg.parentDataset}/${serviceName}"
@@ -110,7 +110,7 @@ let
 
   aclRules = cfg.aclRules ++ lib.concatMap (integration: integration.acls) integrationValues;
 
-  authorizationEnabled = (cfg.authorization.enable or false) || (aclRules != []);
+  authorizationEnabled = (cfg.authorization.enable or false) || (aclRules != [ ]);
   aclFile = "${cfg.dataDir}/authz.conf";
 
   renderAclRule = rule:
@@ -124,7 +124,7 @@ let
         else
           "{${rule.subject.kind}, \"${subjectValue}\"}";
       topicsExpr =
-        if rule.topics == [] then
+        if rule.topics == [ ] then
           throw "modules.services.emqx: ACL rule for ${subjectExpr} must specify at least one topic"
         else
           "[" + (lib.concatStringsSep ", " (map (topic: "\"${topic}\"") rule.topics)) + "]";
@@ -142,13 +142,15 @@ let
 
   aclFileContents = lib.concatMapStrings renderAclRule aclRules;
 
-  userEntries = lib.imap1 (idx: user: {
-    index = idx;
-    username = user.username;
-    credentialName = "emqx_user_${sanitize user.username}_${toString idx}";
-    passwordFile = user.passwordFile;
-    tags = user.tags or [];
-  }) allUsers;
+  userEntries = lib.imap1
+    (idx: user: {
+      index = idx;
+      username = user.username;
+      credentialName = "emqx_user_${sanitize user.username}_${toString idx}";
+      passwordFile = user.passwordFile;
+      tags = user.tags or [ ];
+    })
+    allUsers;
 
   boolString = value: if value then "true" else "false";
 
@@ -158,7 +160,8 @@ let
     else
       cfg.dashboard.listenAddress;
 
-in {
+in
+{
   options.modules.services.emqx = {
     enable = mkEnableOption "EMQX MQTT broker";
 
@@ -288,13 +291,13 @@ in {
 
     users = mkOption {
       type = types.listOf mqttUserType;
-      default = [];
+      default = [ ];
       description = "Static MQTT users provisioned via built-in authentication.";
     };
 
     aclRules = mkOption {
       type = types.listOf aclRuleType;
-      default = [];
+      default = [ ];
       description = "Static topic ACL rules enforced by the built-in authorization database.";
     };
 
@@ -309,7 +312,7 @@ in {
 
     integrations = mkOption {
       type = types.attrsOf integrationSubmoduleType;
-      default = {};
+      default = { };
       description = "Downstream services can contribute MQTT users and ACL rules via this attribute set.";
     };
 
@@ -369,14 +372,16 @@ in {
       let
         loadCredentials = (map (entry: entry.credentialName + ":" + toString entry.passwordFile) userEntries)
           ++ lib.optional (cfg.dashboard.enable && cfg.dashboard.passwordFile != null) (
-            "dashboard_password:" + toString cfg.dashboard.passwordFile
-          );
+          "dashboard_password:" + toString cfg.dashboard.passwordFile
+        );
         credentialDir = "/run/credentials/${serviceUnit}";
-        usersSpecFile = pkgs.writeText "emqx-users.json" (builtins.toJSON (map (entry: {
-          user_id = entry.username;
-          credential = entry.credentialName;
-          tags = entry.tags;
-        }) userEntries));
+        usersSpecFile = pkgs.writeText "emqx-users.json" (builtins.toJSON (map
+          (entry: {
+            user_id = entry.username;
+            credential = entry.credentialName;
+            tags = entry.tags;
+          })
+          userEntries));
         userSyncScript = pkgs.writeShellScript "emqx-sync-users" ''
           set -euo pipefail
 
@@ -484,10 +489,11 @@ in {
           done
         '';
 
-      in {
+      in
+      {
         assertions = [
           {
-            assertion = cfg.allowAnonymous || allUsers != [];
+            assertion = cfg.allowAnonymous || allUsers != [ ];
             message = "modules.services.emqx.users must contain at least one user when allowAnonymous = false.";
           }
           {
@@ -501,7 +507,7 @@ in {
           group = cfg.group;
           description = "EMQX broker account";
         };
-        users.groups.${cfg.group} = {};
+        users.groups.${cfg.group} = { };
 
         systemd.tmpfiles.rules =
           [
@@ -546,7 +552,7 @@ in {
             {
               LoadCredential = loadCredentials;
             }
-            // lib.optionalAttrs (cfg.dashboard.enable && allUsers != []) {
+            // lib.optionalAttrs (cfg.dashboard.enable && allUsers != [ ]) {
               ExecStartPost = lib.mkAfter [ "${userSyncScript}" ];
             };
           unitConfig = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
@@ -563,47 +569,47 @@ in {
             RemainAfterExit = false;
           };
           script = ''
-            set -euo pipefail
-            install -d -m 700 ${envDir}
-            tmp="${envFile}.tmp"
-            trap 'rm -f "$tmp"' EXIT
-            {
-              printf "TZ=%s\n" ${lib.escapeShellArg cfg.timezone}
-              printf "EMQX_NODE__NAME=%s\n" ${lib.escapeShellArg cfg.nodeName}
-              printf "EMQX_NODE__COOKIE=%s\n" ${lib.escapeShellArg cfg.nodeCookie}
-              printf "EMQX_LISTENERS__TCP__DEFAULT__ENABLE=%s\n" false
-              printf "EMQX_LISTENERS__TCP__EXTERNAL__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.mqtt.host} ${lib.escapeShellArg (toString cfg.listeners.mqtt.port)}
-              printf "EMQX_LISTENERS__TCP__EXTERNAL__MAX_CONNECTIONS=%s\n" ${lib.escapeShellArg (toString cfg.listeners.mqtt.maxConnections)}
-              printf "EMQX_ALLOW_ANONYMOUS=%s\n" ${lib.escapeShellArg (boolString cfg.allowAnonymous)}
-              printf "EMQX_AUTHENTICATION__1__ENABLE=%s\n" true
-              printf "EMQX_AUTHENTICATION__1__MECHANISM=%s\n" password_based
-              printf "EMQX_AUTHENTICATION__1__BACKEND=%s\n" built_in_database
-              ${lib.optionalString cfg.listeners.websocket.enable ''
-                printf "EMQX_LISTENERS__WS__EXTERNAL__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.websocket.host} ${lib.escapeShellArg (toString cfg.listeners.websocket.port)}
-                printf "EMQX_LISTENERS__WS__EXTERNAL__ENABLE=%s\n" true
-              ''}
-              ${lib.optionalString cfg.dashboard.enable ''
-                printf "EMQX_DASHBOARD__LISTENERS__HTTP__BIND=%s:%s\n" ${lib.escapeShellArg dashboardContainerBindAddress} ${lib.escapeShellArg (toString cfg.dashboard.port)}
-                printf "EMQX_DASHBOARD__DEFAULT_USERNAME=%s\n" ${lib.escapeShellArg cfg.dashboard.username}
-                printf "EMQX_DASHBOARD__DEFAULT_PASSWORD=%s\n" "$(cat ${lib.escapeShellArg (toString cfg.dashboard.passwordFile)})"
-              ''}
-              ${lib.optionalString authorizationEnabled ''
-                printf "EMQX_AUTHORIZATION__ENABLE=%s\n" true
-                printf "EMQX_AUTHORIZATION__NO_MATCH=%s\n" ${lib.escapeShellArg cfg.authorization.noMatch}
-                printf "EMQX_AUTHORIZATION__SOURCES__1__TYPE=%s\n" file
-                printf "EMQX_AUTHORIZATION__SOURCES__1__ENABLE=%s\n" true
-                printf "EMQX_AUTHORIZATION__SOURCES__1__PATH=%s\n" /opt/emqx/data/authz.conf
-              ''}
-            } > "$tmp"
-            install -m 600 "$tmp" ${envFile}
-            ${lib.optionalString authorizationEnabled ''
-              cat <<'ACL' > ${aclFile}
-%% Autogenerated by nix-config (modules.services.emqx)
-${aclFileContents}
-ACL
-              chown ${cfg.user}:${cfg.group} ${aclFile}
-              chmod 640 ${aclFile}
-            ''}
+                        set -euo pipefail
+                        install -d -m 700 ${envDir}
+                        tmp="${envFile}.tmp"
+                        trap 'rm -f "$tmp"' EXIT
+                        {
+                          printf "TZ=%s\n" ${lib.escapeShellArg cfg.timezone}
+                          printf "EMQX_NODE__NAME=%s\n" ${lib.escapeShellArg cfg.nodeName}
+                          printf "EMQX_NODE__COOKIE=%s\n" ${lib.escapeShellArg cfg.nodeCookie}
+                          printf "EMQX_LISTENERS__TCP__DEFAULT__ENABLE=%s\n" false
+                          printf "EMQX_LISTENERS__TCP__EXTERNAL__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.mqtt.host} ${lib.escapeShellArg (toString cfg.listeners.mqtt.port)}
+                          printf "EMQX_LISTENERS__TCP__EXTERNAL__MAX_CONNECTIONS=%s\n" ${lib.escapeShellArg (toString cfg.listeners.mqtt.maxConnections)}
+                          printf "EMQX_ALLOW_ANONYMOUS=%s\n" ${lib.escapeShellArg (boolString cfg.allowAnonymous)}
+                          printf "EMQX_AUTHENTICATION__1__ENABLE=%s\n" true
+                          printf "EMQX_AUTHENTICATION__1__MECHANISM=%s\n" password_based
+                          printf "EMQX_AUTHENTICATION__1__BACKEND=%s\n" built_in_database
+                          ${lib.optionalString cfg.listeners.websocket.enable ''
+                            printf "EMQX_LISTENERS__WS__EXTERNAL__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.websocket.host} ${lib.escapeShellArg (toString cfg.listeners.websocket.port)}
+                            printf "EMQX_LISTENERS__WS__EXTERNAL__ENABLE=%s\n" true
+                          ''}
+                          ${lib.optionalString cfg.dashboard.enable ''
+                            printf "EMQX_DASHBOARD__LISTENERS__HTTP__BIND=%s:%s\n" ${lib.escapeShellArg dashboardContainerBindAddress} ${lib.escapeShellArg (toString cfg.dashboard.port)}
+                            printf "EMQX_DASHBOARD__DEFAULT_USERNAME=%s\n" ${lib.escapeShellArg cfg.dashboard.username}
+                            printf "EMQX_DASHBOARD__DEFAULT_PASSWORD=%s\n" "$(cat ${lib.escapeShellArg (toString cfg.dashboard.passwordFile)})"
+                          ''}
+                          ${lib.optionalString authorizationEnabled ''
+                            printf "EMQX_AUTHORIZATION__ENABLE=%s\n" true
+                            printf "EMQX_AUTHORIZATION__NO_MATCH=%s\n" ${lib.escapeShellArg cfg.authorization.noMatch}
+                            printf "EMQX_AUTHORIZATION__SOURCES__1__TYPE=%s\n" file
+                            printf "EMQX_AUTHORIZATION__SOURCES__1__ENABLE=%s\n" true
+                            printf "EMQX_AUTHORIZATION__SOURCES__1__PATH=%s\n" /opt/emqx/data/authz.conf
+                          ''}
+                        } > "$tmp"
+                        install -m 600 "$tmp" ${envFile}
+                        ${lib.optionalString authorizationEnabled ''
+                          cat <<'ACL' > ${aclFile}
+            %% Autogenerated by nix-config (modules.services.emqx)
+            ${aclFileContents}
+            ACL
+                          chown ${cfg.user}:${cfg.group} ${aclFile}
+                          chmod 640 ${aclFile}
+                        ''}
           '';
         };
 
@@ -613,11 +619,11 @@ ACL
             priority = "high";
             title = "❌ EMQX broker failed";
             body = ''
-<b>Host:</b> ${config.networking.hostName}
-<b>Service:</b> ${serviceUnit}
+              <b>Host:</b> ${config.networking.hostName}
+              <b>Service:</b> ${serviceUnit}
 
-Check logs: <code>journalctl -u ${serviceUnit} -n 200</code>
-'';
+              Check logs: <code>journalctl -u ${serviceUnit} -n 200</code>
+            '';
           };
         };
 
@@ -627,7 +633,7 @@ Check logs: <code>journalctl -u ${serviceUnit} -n 200</code>
             repository = cfg.backup.repository;
             frequency = cfg.backup.frequency;
             retention = cfg.backup.retention;
-            paths = if cfg.backup.paths != [] then cfg.backup.paths else [ cfg.dataDir ];
+            paths = if cfg.backup.paths != [ ] then cfg.backup.paths else [ cfg.dataDir ];
             excludePatterns = cfg.backup.excludePatterns;
             useSnapshots = cfg.backup.useSnapshots or true;
             zfsDataset = cfg.backup.zfsDataset or datasetPath;
@@ -642,8 +648,9 @@ Check logs: <code>journalctl -u ${serviceUnit} -n 200</code>
               host = cfg.dashboard.listenAddress;
               port = cfg.dashboard.port;
             };
-            configuredBackend = cfg.dashboard.reverseProxy.backend or {};
-          in {
+            configuredBackend = cfg.dashboard.reverseProxy.backend or { };
+          in
+          {
             enable = true;
             hostName = cfg.dashboard.reverseProxy.hostName;
             backend = lib.recursiveUpdate defaultBackend configuredBackend;
@@ -654,21 +661,26 @@ Check logs: <code>journalctl -u ${serviceUnit} -n 200</code>
           }
         );
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices."${serviceName}-dashboard" = mkIf (
-          (config.modules.services.authelia.enable or false)
-          && cfg.dashboard.enable
-          && cfg.dashboard.reverseProxy != null && cfg.dashboard.reverseProxy.enable
-          && cfg.dashboard.reverseProxy.authelia != null && cfg.dashboard.reverseProxy.authelia.enable
-        ) (let
-          authCfg = cfg.dashboard.reverseProxy.authelia;
-        in {
-          domain = cfg.dashboard.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (group: "group:${group}") (authCfg.allowedGroups or []);
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or []))
-            ++ (authCfg.bypassResources or []);
-        });
+        modules.services.authelia.accessControl.declarativelyProtectedServices."${serviceName}-dashboard" = mkIf
+          (
+            (config.modules.services.authelia.enable or false)
+            && cfg.dashboard.enable
+            && cfg.dashboard.reverseProxy != null && cfg.dashboard.reverseProxy.enable
+            && cfg.dashboard.reverseProxy.authelia != null && cfg.dashboard.reverseProxy.authelia.enable
+          )
+          (
+            let
+              authCfg = cfg.dashboard.reverseProxy.authelia;
+            in
+            {
+              domain = cfg.dashboard.reverseProxy.hostName;
+              policy = authCfg.policy;
+              subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or [ ]))
+                ++ (authCfg.bypassResources or [ ]);
+            }
+          );
 
         # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/emqx.nix)
         # to keep modules portable and not assume Prometheus availability

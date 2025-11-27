@@ -11,7 +11,7 @@ in
         enable = true;
         image = "ghcr.io/haveagitgat/tdarr:latest";
         nfsMountDependency = "media";
-        podmanNetwork = forgeDefaults.podmanNetwork;  # Enable DNS resolution for media library access
+        podmanNetwork = forgeDefaults.podmanNetwork; # Enable DNS resolution for media library access
         healthcheck.enable = true;
 
         # Intel GPU hardware acceleration

@@ -23,7 +23,7 @@ in
 
     extraZones = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
-      default = {};
+      default = { };
       description = "Additional zones specific to this host as zone-name = zone-config pairs.";
       example = lib.literalExpression ''
         {
@@ -41,10 +41,10 @@ in
       trusted = lib.mkOption {
         type = lib.types.listOf (lib.types.strMatching cidrRegex);
         default = [
-          "10.10.0.0/16"   # LAN
-          "10.20.0.0/16"   # Servers
-          "10.30.0.0/16"   # WIRELESS
-          "10.40.0.0/16"   # IoT
+          "10.10.0.0/16" # LAN
+          "10.20.0.0/16" # Servers
+          "10.30.0.0/16" # WIRELESS
+          "10.40.0.0/16" # IoT
         ];
         description = "List of trusted network CIDR blocks.";
         example = [ "192.168.1.0/24" ];
@@ -52,7 +52,7 @@ in
 
       blacklisted = lib.mkOption {
         type = lib.types.listOf (lib.types.strMatching cidrRegex);
-        default = [];
+        default = [ ];
         description = "List of blacklisted network CIDR blocks.";
         example = [ "192.168.100.0/24" ];
       };

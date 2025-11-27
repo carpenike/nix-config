@@ -1,9 +1,8 @@
-{
-  pkgs,
-  lib,
-  config,
-  podmanLib,
-  ...
+{ pkgs
+, lib
+, config
+, podmanLib
+, ...
 }:
 let
   cfg = config.modules.services.onepassword-connect;
@@ -50,8 +49,8 @@ in
         };
       });
       default = {
-  memory = "128M";
-  memoryReservation = "64M";
+        memory = "128M";
+        memoryReservation = "64M";
         cpus = "0.25";
       };
       description = "Resource limits for the 1Password Connect containers (lightweight API services)";
@@ -100,7 +99,7 @@ in
 
       # Use structured backend configuration
       backend = {
-        scheme = "http";  # 1Password Connect uses HTTP locally
+        scheme = "http"; # 1Password Connect uses HTTP locally
         host = "localhost";
         port = apiPort;
       };

@@ -11,25 +11,31 @@ let
     let
       # For radarr and sonarr: wire to all enabled prowlarr instances
       prowlarrDeps = lib.optionalAttrs
-        (lib.elem serviceType ["radarr" "sonarr"] && anyEnabled cfg.prowlarr)
+        (lib.elem serviceType [ "radarr" "sonarr" ] && anyEnabled cfg.prowlarr)
         {
-          prowlarr = lib.mapAttrs (_: inst: {
-            inherit (inst) host port;
-            apiKeyFile = inst.apiKeyFile;
-          }) (lib.filterAttrs (_: inst: inst.enable) cfg.prowlarr);
+          prowlarr = lib.mapAttrs
+            (_: inst: {
+              inherit (inst) host port;
+              apiKeyFile = inst.apiKeyFile;
+            })
+            (lib.filterAttrs (_: inst: inst.enable) cfg.prowlarr);
         };
 
       # For bazarr: wire to all enabled sonarr and radarr instances
       arrDeps = lib.optionalAttrs (serviceType == "bazarr") {
-        sonarr = lib.mapAttrs (_: inst: {
-          inherit (inst) host port;
-          apiKeyFile = inst.apiKeyFile;
-        }) (lib.filterAttrs (_: inst: inst.enable) cfg.sonarr);
+        sonarr = lib.mapAttrs
+          (_: inst: {
+            inherit (inst) host port;
+            apiKeyFile = inst.apiKeyFile;
+          })
+          (lib.filterAttrs (_: inst: inst.enable) cfg.sonarr);
 
-        radarr = lib.mapAttrs (_: inst: {
-          inherit (inst) host port;
-          apiKeyFile = inst.apiKeyFile;
-        }) (lib.filterAttrs (_: inst: inst.enable) cfg.radarr);
+        radarr = lib.mapAttrs
+          (_: inst: {
+            inherit (inst) host port;
+            apiKeyFile = inst.apiKeyFile;
+          })
+          (lib.filterAttrs (_: inst: inst.enable) cfg.radarr);
       };
     in
     prowlarrDeps // arrDeps;
@@ -140,13 +146,13 @@ let
 
       environmentFiles = lib.mkOption {
         type = lib.types.listOf lib.types.path;
-        default = [];
+        default = [ ];
         description = "Environment files for container (e.g., SOPS secrets)";
       };
 
       extraOptions = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [];
+        default = [ ];
         description = "Additional container runtime options";
       };
     };
@@ -212,7 +218,7 @@ let
 
       promtail = lib.mkOption {
         type = lib.types.attrs;
-        default = {};
+        default = { };
         description = "Promtail configuration for log collection";
       };
     };
@@ -228,7 +234,7 @@ let
 
       excludePatterns = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [];
+        default = [ ];
         description = "Patterns to exclude from backup";
       };
 
@@ -319,7 +325,7 @@ in
       type = lib.types.attrsOf (lib.types.submodule {
         options = instanceOptions "prowlarr";
       });
-      default = {};
+      default = { };
       description = "Prowlarr indexer manager instances";
     };
 
@@ -327,7 +333,7 @@ in
       type = lib.types.attrsOf (lib.types.submodule {
         options = instanceOptions "radarr";
       });
-      default = {};
+      default = { };
       description = "Radarr movie manager instances";
     };
 
@@ -335,7 +341,7 @@ in
       type = lib.types.attrsOf (lib.types.submodule {
         options = instanceOptions "sonarr";
       });
-      default = {};
+      default = { };
       description = "Sonarr TV show manager instances";
     };
 
@@ -343,7 +349,7 @@ in
       type = lib.types.attrsOf (lib.types.submodule {
         options = instanceOptions "bazarr";
       });
-      default = {};
+      default = { };
       description = "Bazarr subtitle manager instances";
     };
 
@@ -351,7 +357,7 @@ in
       type = lib.types.attrsOf (lib.types.submodule {
         options = instanceOptions "lidarr";
       });
-      default = {};
+      default = { };
       description = "Lidarr music manager instances";
     };
 
@@ -359,7 +365,7 @@ in
       type = lib.types.attrsOf (lib.types.submodule {
         options = instanceOptions "readarr";
       });
-      default = {};
+      default = { };
       description = "Readarr book/audiobook manager instances";
     };
   };
@@ -368,20 +374,24 @@ in
     # Generate service configurations for all enabled instances
     (lib.mkMerge (
       lib.flatten (
-        lib.mapAttrsToList (serviceType: instances:
-          lib.mapAttrsToList (instanceName: instanceCfg:
-            lib.mkIf instanceCfg.enable (mkInstanceConfig serviceType instanceName instanceCfg)
-          ) instances
-        ) {
-          inherit (cfg) prowlarr radarr sonarr bazarr lidarr readarr;
-        }
+        lib.mapAttrsToList
+          (serviceType: instances:
+            lib.mapAttrsToList
+              (instanceName: instanceCfg:
+                lib.mkIf instanceCfg.enable (mkInstanceConfig serviceType instanceName instanceCfg)
+              )
+              instances
+          )
+          {
+            inherit (cfg) prowlarr radarr sonarr bazarr lidarr readarr;
+          }
       )
     ))
 
     # Ensure shared group exists
     {
       users.groups.${cfg.sharedGroup} = lib.mkIf (cfg.sharedGroup != "root") {
-        gid = lib.mkDefault 65537;  # Shared media group (993 was taken by alertmanager)
+        gid = lib.mkDefault 65537; # Shared media group (993 was taken by alertmanager)
       };
     }
   ]);

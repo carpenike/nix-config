@@ -73,11 +73,11 @@ in
         image = "ghcr.io/dispatcharr/dispatcharr:0.10.4-20251014192218@sha256:10312911e005ae39a3e814fc03cc8e36f4a92112a96dd5d898ef3cbf13791bf3";
 
         # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
-        healthcheck.enable = true;  # Enable container health monitoring
+        healthcheck.enable = true; # Enable container health monitoring
 
         backup = forgeDefaults.mkBackupWithSnapshots "dispatcharr";
 
-        notifications.enable = true;  # Enable failure notifications
+        notifications.enable = true; # Enable failure notifications
 
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
@@ -96,9 +96,9 @@ in
     })
   ];
 }
-  # If the dispatcharr container/service runs locally as a podman/docker unit,
-  # allow it to access the Intel render node for VA-API without adding broad
-  # privileges. This grants only the render node device; prefer DeviceAllow
-  # instead of making the service user a member of the host "video" group.
-  # Hardware access (DeviceAllow) is centralized via profiles/hardware/intel-gpu.nix
-  # using common.intelDri.services = [ "podman-dispatcharr.service" ] on this host.
+# If the dispatcharr container/service runs locally as a podman/docker unit,
+# allow it to access the Intel render node for VA-API without adding broad
+# privileges. This grants only the render node device; prefer DeviceAllow
+# instead of making the service user a member of the host "video" group.
+# Hardware access (DeviceAllow) is centralized via profiles/hardware/intel-gpu.nix
+# using common.intelDri.services = [ "podman-dispatcharr.service" ] on this host.

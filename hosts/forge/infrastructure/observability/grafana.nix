@@ -36,10 +36,10 @@ in
         };
 
         autoConfigure = {
-          loki = true;  # Auto-configure Loki data source
-          prometheus = true;  # Auto-configure Prometheus if available
+          loki = true; # Auto-configure Loki data source
+          prometheus = true; # Auto-configure Prometheus if available
         };
-        plugins = [];
+        plugins = [ ];
         preseed = lib.mkIf resticEnabled {
           enable = true;
           repositoryUrl = "/mnt/nas-backup";
@@ -53,15 +53,15 @@ in
       # ZFS snapshot and replication configuration for Grafana dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
       modules.backup.sanoid.datasets."tank/services/grafana" = {
-        useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+        useTemplate = [ "services" ]; # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
         recursive = false;
         autosnap = true;
         autoprune = true;
         replication = {
           targetHost = "nas-1.holthome.net";
           targetDataset = "backup/forge/zfs-recv/grafana";
-          sendOptions = "w";  # Raw encrypted send (no property preservation)
-          recvOptions = "u";  # Don't mount on receive
+          sendOptions = "w"; # Raw encrypted send (no property preservation)
+          recvOptions = "u"; # Don't mount on receive
           hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
           # Consistent naming for Prometheus metrics
           targetName = "NFS";

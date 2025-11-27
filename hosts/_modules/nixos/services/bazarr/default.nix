@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -25,7 +24,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -275,18 +274,18 @@ in
           message = "Bazarr requires both tvDir and moviesDir to be set.";
         }
       ]
-        ++ (lib.optional (cfg.backup != null && cfg.backup.enable) {
-          assertion = cfg.backup.repository != null;
-          message = "Bazarr backup.enable requires backup.repository to be set.";
-        })
-        ++ (lib.optional cfg.preseed.enable {
-          assertion = cfg.preseed.repositoryUrl != "";
-          message = "Bazarr preseed.enable requires preseed.repositoryUrl to be set.";
-        })
-        ++ (lib.optional cfg.preseed.enable {
-          assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
-          message = "Bazarr preseed.enable requires preseed.passwordFile to be set.";
-        });
+      ++ (lib.optional (cfg.backup != null && cfg.backup.enable) {
+        assertion = cfg.backup.repository != null;
+        message = "Bazarr backup.enable requires backup.repository to be set.";
+      })
+      ++ (lib.optional cfg.preseed.enable {
+        assertion = cfg.preseed.repositoryUrl != "";
+        message = "Bazarr preseed.enable requires preseed.repositoryUrl to be set.";
+      })
+      ++ (lib.optional cfg.preseed.enable {
+        assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
+        message = "Bazarr preseed.enable requires preseed.passwordFile to be set.";
+      });
 
       modules.services.caddy.virtualHosts.bazarr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         enable = true;
@@ -303,25 +302,27 @@ in
         extraConfig = cfg.reverseProxy.extraConfig;
       };
 
-      modules.services.authelia.accessControl.declarativelyProtectedServices.bazarr = lib.mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in
-        {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-            ++ authCfg.bypassResources;
-        }
-      );
+      modules.services.authelia.accessControl.declarativelyProtectedServices.bazarr = lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+              ++ authCfg.bypassResources;
+          }
+        );
 
       modules.storage.datasets.services.bazarr = {
         mountpoint = cfg.dataDir;
@@ -330,7 +331,7 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = cfg.user;  # Use configured user
+        owner = cfg.user; # Use configured user
         group = cfg.group; # Use configured group
         mode = "0750";
       };

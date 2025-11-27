@@ -9,11 +9,10 @@
 # - Integrates with shared PostgreSQL instance via readonly role
 # - Follows modular design patterns: reverse proxy, backup, monitoring
 # - Minimal resource footprint (<50MB RAM)
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault;
@@ -173,7 +172,7 @@ in
         description = "Pgweb service user";
       };
 
-      users.groups.pgweb = {};
+      users.groups.pgweb = { };
 
       # Allow pgweb user to read password file if specified
       systemd.services.pgweb.serviceConfig.LoadCredential =
@@ -210,15 +209,16 @@ in
       modules.services.authelia.accessControl.declarativelyProtectedServices.pgweb =
         let
           authCfg = cfg.reverseProxy.authelia;
-        in {
+        in
+        {
           domain = cfg.reverseProxy.hostName;
           policy = authCfg.policy;
           # Convert groups to Authelia subject format
           subject = map (g: "group:${g}") authCfg.allowedGroups;
           # Authelia will handle ALL bypass logic
           bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
-            ++ (authCfg.bypassResources or []);
+            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
+            ++ (authCfg.bypassResources or [ ]);
         };
     })
 

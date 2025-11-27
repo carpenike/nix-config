@@ -21,10 +21,10 @@
     yq-go
 
     # Add commonly needed tools that were removed from Homebrew
-    ripgrep      # Fast grep alternative
-    sops         # Secret operations
-    go-task      # Task runner
+    ripgrep # Fast grep alternative
+    sops # Secret operations
+    go-task # Task runner
   ] ++ lib.optionals pkgs.stdenv.isDarwin [
-    mas          # Mac App Store CLI (Darwin only)
+    mas # Mac App Store CLI (Darwin only)
   ];
 }

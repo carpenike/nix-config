@@ -1,6 +1,5 @@
-{
-  inputs,
-  ...
+{ inputs
+, ...
 }:
 {
   rust-overlay = inputs.rust-overlay.overlays.default;
@@ -21,7 +20,7 @@
         # overlays of unstable packages are declared here
         (final: prev: {
           kubectl-node-shell = prev.kubectl-node-shell.overrideAttrs (_: prev: {
-            meta = builtins.removeAttrs prev.meta ["platforms"];
+            meta = builtins.removeAttrs prev.meta [ "platforms" ];
           });
           kubectl-view-secret = prev.kubectl-view-secret.overrideAttrs (_: prev: {
             postInstall = ''

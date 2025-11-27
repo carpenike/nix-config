@@ -5,7 +5,7 @@ let
     enable = false;
     usb.enable = true;
     pcie.enable = false;
-    systemUsers = [];
+    systemUsers = [ ];
   };
   coralGroup = "coral";
 in
@@ -27,7 +27,7 @@ in
 
     systemUsers = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "System users that require read/write access to Coral devices (e.g., frigate).";
     };
   };
@@ -36,10 +36,12 @@ in
     hardware.coral.usb.enable = cfg.usb.enable;
     hardware.coral.pcie.enable = cfg.pcie.enable;
 
-    users.users = lib.mkMerge (map (user: {
-      ${user} = {
-        extraGroups = lib.mkAfter [ coralGroup ];
-      };
-    }) cfg.systemUsers);
+    users.users = lib.mkMerge (map
+      (user: {
+        ${user} = {
+          extraGroups = lib.mkAfter [ coralGroup ];
+        };
+      })
+      cfg.systemUsers);
   };
 }

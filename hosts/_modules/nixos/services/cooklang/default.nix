@@ -10,11 +10,10 @@
 # - Recipes stored on ZFS for durability and snapshot capabilities
 # - Follows modular design patterns: reverse proxy, backup, monitoring, preseed
 # - Minimal resource footprint (<100MB RAM typical)
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault types;
@@ -25,14 +24,14 @@ let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
 
   cfg = config.modules.services.cooklang;
-  notificationsCfg = config.modules.notifications or {};
+  notificationsCfg = config.modules.notifications or { };
   storageCfg = config.modules.storage;
-  datasetsCfg = storageCfg.datasets or {};
+  datasetsCfg = storageCfg.datasets or { };
   hasCentralizedNotifications = notificationsCfg.enable or false;
   preseedCfg = cfg.preseed;
   preseedEnabled = preseedCfg.enable or false;
   cooklangDataset =
-    if storageCfg.datasets or {} ? services && (storageCfg.datasets.services or {}) ? cooklang then
+    if storageCfg.datasets or { } ? services && (storageCfg.datasets.services or { }) ? cooklang then
       storageCfg.datasets.services.cooklang
     else
       null;
@@ -58,7 +57,7 @@ let
   # Generate pantry.conf content from settings (TOML format)
   pantryConf =
     if cfg.settings.pantry != null then
-      (pkgs.formats.toml {}).generate "pantry.conf" cfg.settings.pantry
+      (pkgs.formats.toml { }).generate "pantry.conf" cfg.settings.pantry
     else
       null;
 
@@ -68,7 +67,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -388,10 +387,10 @@ in
 
       users.groups =
         {
-          ${cfg.group} = {};
+          ${cfg.group} = { };
         }
         // lib.optionalAttrs (cfg.healthcheck.enable) {
-          ${cfg.healthcheck.group} = {};
+          ${cfg.healthcheck.group} = { };
         };
 
       systemd.tmpfiles.rules = [
@@ -426,7 +425,7 @@ in
             ++ lib.optional (datasetPath != null) "zfs-mount.service"
             ++ lib.optional preseedEnabled "preseed-${serviceName}.service";
           requires =
-            []
+            [ ]
             ++ lib.optional (datasetPath != null) "zfs-mount.service"
             ++ lib.optional preseedEnabled "preseed-${serviceName}.service";
 
@@ -498,8 +497,9 @@ in
 
       modules.services.caddy.virtualHosts.cooklang = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) (
         let
-          backendCfg = lib.attrByPath [ "backend" ] {} cfg.reverseProxy;
-        in {
+          backendCfg = lib.attrByPath [ "backend" ] { } cfg.reverseProxy;
+        in
+        {
           enable = true;
           hostName = cfg.reverseProxy.hostName;
           backend = {
@@ -514,24 +514,27 @@ in
         }
       );
 
-      modules.services.authelia.accessControl.declarativelyProtectedServices.cooklang = mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-            ++ authCfg.bypassResources;
-        }
-      );
+      modules.services.authelia.accessControl.declarativelyProtectedServices.cooklang = mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+              ++ authCfg.bypassResources;
+          }
+        );
 
       # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/cooklang.nix)
       # to keep modules portable and not assume Prometheus availability
@@ -567,38 +570,38 @@ in
           ReadWritePaths = lib.optional cfg.healthcheck.metrics.enable cfg.healthcheck.metrics.textfileDir;
         };
         script = ''
-          set -euo pipefail
-          URL="http://${cfg.listenAddress}:${toString cfg.port}${cfg.healthcheck.path}"
-          STATUS=0
-          if ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time ${cfg.healthcheck.timeout} "$URL" >/dev/null; then
-            STATUS=1
-          fi
+                    set -euo pipefail
+                    URL="http://${cfg.listenAddress}:${toString cfg.port}${cfg.healthcheck.path}"
+                    STATUS=0
+                    if ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time ${cfg.healthcheck.timeout} "$URL" >/dev/null; then
+                      STATUS=1
+                    fi
 
-          ${lib.optionalString cfg.healthcheck.metrics.enable ''
-            METRICS_DIR="${cfg.healthcheck.metrics.textfileDir}"
-            METRICS_FILE="$METRICS_DIR/cooklang.prom"
-            if [ ! -d "$METRICS_DIR" ]; then
-              echo "Cooklang healthcheck metrics directory $METRICS_DIR is missing" >&2
-              exit 1
-            fi
-            TS=$(date +%s)
-            cat > "$METRICS_FILE.tmp" <<EOF
-# HELP cooklang_up Cooklang HTTP health status (1=up, 0=down)
-# TYPE cooklang_up gauge
-cooklang_up{host="${config.networking.hostName}"} $STATUS
+                    ${lib.optionalString cfg.healthcheck.metrics.enable ''
+                      METRICS_DIR="${cfg.healthcheck.metrics.textfileDir}"
+                      METRICS_FILE="$METRICS_DIR/cooklang.prom"
+                      if [ ! -d "$METRICS_DIR" ]; then
+                        echo "Cooklang healthcheck metrics directory $METRICS_DIR is missing" >&2
+                        exit 1
+                      fi
+                      TS=$(date +%s)
+                      cat > "$METRICS_FILE.tmp" <<EOF
+          # HELP cooklang_up Cooklang HTTP health status (1=up, 0=down)
+          # TYPE cooklang_up gauge
+          cooklang_up{host="${config.networking.hostName}"} $STATUS
 
-# HELP cooklang_last_check_timestamp Timestamp of last Cooklang health check
-# TYPE cooklang_last_check_timestamp gauge
-cooklang_last_check_timestamp{host="${config.networking.hostName}"} $TS
-EOF
-            mv "$METRICS_FILE.tmp" "$METRICS_FILE"
-          ''}
+          # HELP cooklang_last_check_timestamp Timestamp of last Cooklang health check
+          # TYPE cooklang_last_check_timestamp gauge
+          cooklang_last_check_timestamp{host="${config.networking.hostName}"} $TS
+          EOF
+                      mv "$METRICS_FILE.tmp" "$METRICS_FILE"
+                    ''}
 
-          if [ "$STATUS" -eq 1 ]; then
-            exit 0
-          else
-            exit 1
-          fi
+                    if [ "$STATUS" -eq 1 ]; then
+                      exit 0
+                    else
+                      exit 1
+                    fi
         '';
       };
 
@@ -640,8 +643,8 @@ EOF
         }
         {
           assertion = ! lib.hasPrefix "/nix/store" cfg.recipeDir
-                     && ! lib.hasPrefix "/etc" cfg.recipeDir
-                     && ! lib.hasPrefix "/boot" cfg.recipeDir;
+            && ! lib.hasPrefix "/etc" cfg.recipeDir
+            && ! lib.hasPrefix "/boot" cfg.recipeDir;
           message = "Cooklang recipeDir cannot be located in a critical system path (/nix/store, /etc, /boot).";
         }
         {
@@ -698,7 +701,7 @@ EOF
             };
           in
           if cooklangDataset != null then
-            baseProperties // (cooklangDataset.properties or {})
+            baseProperties // (cooklangDataset.properties or { })
           else
             baseProperties;
         resticRepoUrl = preseedCfg.repositoryUrl;

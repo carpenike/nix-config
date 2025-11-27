@@ -1,7 +1,7 @@
 { pkgs, ... }:
 {
   # System packages are empty - update-nix script is provided by common module
-  environment.systemPackages = [];
+  environment.systemPackages = [ ];
 
   # Note: Package organization follows repository patterns:
   # - User packages: Moved to home/ryan/hosts/nixpi.nix

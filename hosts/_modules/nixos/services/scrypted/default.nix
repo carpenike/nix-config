@@ -13,10 +13,12 @@ let
   defaultHostname = if domain == null || domain == "" then "scrypted.local" else "scrypted.${domain}";
   hasCentralizedNotifications = config.modules.notifications.enable or false;
 
-  dnsEnv = lib.listToAttrs (lib.imap0 (idx: server: {
-    name = "SCRYPTED_DNS_SERVER_${toString idx}";
-    value = server;
-  }) cfg.dnsServers);
+  dnsEnv = lib.listToAttrs (lib.imap0
+    (idx: server: {
+      name = "SCRYPTED_DNS_SERVER_${toString idx}";
+      value = server;
+    })
+    cfg.dnsServers);
 
   baseEnv = {
     TZ = cfg.timezone;
@@ -224,31 +226,31 @@ in
 
     devices = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = ''Device passthrough entries formatted like "/dev/bus/usb:/dev/bus/usb" or "/dev/dri:/dev/dri".'';
     };
 
     extraVolumes = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = ''Additional Podman volume bindings ("/host/path:/container/path[:options]").'';
     };
 
     extraOptions = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "Extra Podman CLI options appended to the container definition.";
     };
 
     extraEnv = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
-      default = {};
+      default = { };
       description = "Additional environment variables passed to the container.";
     };
 
     environmentFiles = lib.mkOption {
       type = lib.types.listOf lib.types.path;
-      default = [];
+      default = [ ];
       description = "Environment files loaded into the container (for secrets or tuning knobs).";
     };
 
@@ -401,28 +403,30 @@ in
 
         modules.services.scrypted.reverseProxy.backend = lib.mkIf (cfg.reverseProxy != null) (lib.mkDefault defaultBackend);
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = lib.mkIf (
-          (config.modules.services.authelia.enable or false)
-          && cfg.reverseProxy != null
-          && cfg.reverseProxy.enable
-          && cfg.reverseProxy.authelia != null
-          && cfg.reverseProxy.authelia.enable
-        ) (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-            bypassPaths = authCfg.bypassPaths or [];
-            extraBypass = authCfg.bypassResources or [];
-            allowedGroups = authCfg.allowedGroups or [];
-          in
-          {
-            domain = reverseProxyHost;
-            policy = authCfg.policy;
-            subject = map (group: "group:${group}") allowedGroups;
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
-              ++ extraBypass;
-          }
-        );
+        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = lib.mkIf
+          (
+            (config.modules.services.authelia.enable or false)
+            && cfg.reverseProxy != null
+            && cfg.reverseProxy.enable
+            && cfg.reverseProxy.authelia != null
+            && cfg.reverseProxy.authelia.enable
+          )
+          (
+            let
+              authCfg = cfg.reverseProxy.authelia;
+              bypassPaths = authCfg.bypassPaths or [ ];
+              extraBypass = authCfg.bypassResources or [ ];
+              allowedGroups = authCfg.allowedGroups or [ ];
+            in
+            {
+              domain = reverseProxyHost;
+              policy = authCfg.policy;
+              subject = map (group: "group:${group}") allowedGroups;
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
+                ++ extraBypass;
+            }
+          );
 
         modules.storage.datasets.services.${cfg.datasetName} = lib.mkIf cfg.manageStorage {
           mountpoint = cfg.dataDir;
@@ -450,11 +454,11 @@ in
         modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
           enable = true;
           repository = cfg.backup.repository;
-          paths = if (cfg.backup.paths != []) then cfg.backup.paths else [ cfg.dataDir ];
-          excludePatterns = (cfg.backup.excludePatterns or []) ++ lib.optionals cfg.nvr.enable [ "${cfg.nvr.path}/**" ];
+          paths = if (cfg.backup.paths != [ ]) then cfg.backup.paths else [ cfg.dataDir ];
+          excludePatterns = (cfg.backup.excludePatterns or [ ]) ++ lib.optionals cfg.nvr.enable [ "${cfg.nvr.path}/**" ];
           frequency = cfg.backup.frequency;
           retention = cfg.backup.retention;
-          tags = if (cfg.backup.tags != []) then cfg.backup.tags else [ "scrypted" "nvr" "config" ];
+          tags = if (cfg.backup.tags != [ ]) then cfg.backup.tags else [ "scrypted" "nvr" "config" ];
           useSnapshots = cfg.backup.useSnapshots;
           zfsDataset = cfg.backup.zfsDataset;
           preBackupScript = cfg.backup.preBackupScript;
@@ -469,7 +473,7 @@ in
           dataset = datasetPath;
           mountpoint = cfg.dataDir;
           mainServiceUnit = mainServiceUnit;
-          replicationCfg = null;  # Replication config handled at host level
+          replicationCfg = null; # Replication config handled at host level
           datasetProperties = {
             recordsize = "16K";
             compression = "zstd";

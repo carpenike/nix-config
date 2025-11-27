@@ -27,27 +27,27 @@ in
   };
 
   config = {
-    home.packages = with pkgs; []
+    home.packages = with pkgs; [ ]
       ++ lib.optionals cfg.python.enable [
-        python311
-        python311Packages.pip
-        python311Packages.black
-        python311Packages.flake8
-        python311Packages.ipython
-        uv  # Fast Python package manager (includes uvx)
-      ]
+      python311
+      python311Packages.pip
+      python311Packages.black
+      python311Packages.flake8
+      python311Packages.ipython
+      uv # Fast Python package manager (includes uvx)
+    ]
       ++ lib.optionals cfg.nodejs.enable [
-        nodejs
-        nodePackages.npm
-        nodePackages.yarn
-      ]
+      nodejs
+      nodePackages.npm
+      nodePackages.yarn
+    ]
       ++ lib.optionals cfg.go.enable [
-        go
-        gopls
-        gotools
-      ]
+      go
+      gopls
+      gotools
+    ]
       ++ lib.optionals cfg.rust.enable [
-        rustup
-      ];
+      rustup
+    ];
   };
 }

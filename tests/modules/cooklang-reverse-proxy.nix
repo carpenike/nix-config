@@ -10,49 +10,49 @@ let
       ({ lib, ... }: {
         options.modules.storage = lib.mkOption {
           type = lib.types.attrs;
-          default = {};
+          default = { };
         };
         options.modules.backup = lib.mkOption {
           type = lib.types.attrs;
-          default = {};
+          default = { };
         };
         options.modules.notifications = lib.mkOption {
           type = lib.types.attrs;
-          default = {};
+          default = { };
         };
         options.modules.alerting = lib.mkOption {
           type = lib.types.attrs;
-          default = {};
+          default = { };
         };
         options.modules.services.authelia = lib.mkOption {
           type = lib.types.attrs;
-          default = {};
+          default = { };
         };
         options.modules.services.caddy = lib.mkOption {
           type = lib.types.attrs;
-          default = {};
+          default = { };
         };
 
         config.networking.hostName = "cooklang-test";
         config.modules = {
           storage.datasets = {
             parentDataset = "tank/services";
-            services = {};
+            services = { };
           };
           backup.sanoid = {
             enable = false;
-            datasets = {};
+            datasets = { };
             replicationUser = "root";
             sshKeyPath = "/var/lib/zfs-replication/.ssh/id_ed25519";
           };
           notifications.enable = false;
           alerting = {
             enable = false;
-            rules = {};
+            rules = { };
           };
           services = {
             authelia.enable = false;
-            caddy.virtualHosts = {};
+            caddy.virtualHosts = { };
           };
         };
         config.modules.services.cooklang = {

@@ -72,9 +72,9 @@ in
           enable = true;
           channels.onFailure = [ "critical-alerts" ];
           customMessages.failure = ''
-Zigbee2MQTT failed on ${config.networking.hostName}.
-Use `journalctl -u zigbee2mqtt -n 200` for details.
-'';
+            Zigbee2MQTT failed on ${config.networking.hostName}.
+            Use `journalctl -u zigbee2mqtt -n 200` for details.
+          '';
         };
 
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];

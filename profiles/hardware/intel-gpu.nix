@@ -13,7 +13,7 @@ let
     else if config ? common && config.common ? intelDri then
       config.common.intelDri
     else
-      { enable = false; driver = "iHD"; services = []; };
+      { enable = false; driver = "iHD"; services = [ ]; };
 
 in
 {
@@ -27,11 +27,11 @@ in
       description = "Which VA-API userspace driver to install (intel-media-driver = iHD, legacy = i965).";
     };
 
-  # Optional list of systemd unit names to automatically grant DeviceAllow to.
-  # Example: [ "podman-dispatcharr.service" ]
+    # Optional list of systemd unit names to automatically grant DeviceAllow to.
+    # Example: [ "podman-dispatcharr.service" ]
     services = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "List of systemd unit names to which the module will add a DeviceAllow for /dev/dri/renderD128 (opt-in).";
     };
   };
@@ -48,35 +48,35 @@ in
 
     # Short usage examples available to local admins via /etc
     environment.etc."intel-dri.README".text = ''
-This host was provisioned with the Intel DRI support module.
+      This host was provisioned with the Intel DRI support module.
 
-What this module does (when enabled):
-- Loads the i915 kernel module so DRM devices appear under /dev/dri
-- Installs libva + the selected driver (iHD or i965) and libva-utils (vainfo)
+      What this module does (when enabled):
+      - Loads the i915 kernel module so DRM devices appear under /dev/dri
+      - Installs libva + the selected driver (iHD or i965) and libva-utils (vainfo)
 
-How to grant a service access (recommended):
- - For native systemd services, add a DeviceAllow line and prefer the render node only:
-   systemd.services.<name>.serviceConfig.DeviceAllow = [ "/dev/dri/renderD128 rwm" ];
-  # Prefer DeviceAllow. Adding `Group = "video"` is usually unnecessary when
-  # DeviceAllow is used because DeviceAllow grants the service cgroup direct
-  # access to the device node. Only add `Group = "video"` if the service
-  # (or a container's internal user mapping) explicitly requires group membership.
+      How to grant a service access (recommended):
+       - For native systemd services, add a DeviceAllow line and prefer the render node only:
+         systemd.services.<name>.serviceConfig.DeviceAllow = [ "/dev/dri/renderD128 rwm" ];
+        # Prefer DeviceAllow. Adding `Group = "video"` is usually unnecessary when
+        # DeviceAllow is used because DeviceAllow grants the service cgroup direct
+        # access to the device node. Only add `Group = "video"` if the service
+        # (or a container's internal user mapping) explicitly requires group membership.
 
- - For containers (podman/docker), bind the render node into the container and avoid --privileged:
-     podman run --device /dev/dri:/dev/dri:rw ...
+       - For containers (podman/docker), bind the render node into the container and avoid --privileged:
+           podman run --device /dev/dri:/dev/dri:rw ...
 
-Validation commands:
- - ls -l /dev/dri
- - vainfo
- - sudo intel_gpu_top
- - ffmpeg -hwaccel vaapi -i input.mp4 -f null -
-  Notes: `vainfo` is provided by `libva-utils`. `intel_gpu_top` is provided by `intel-gpu-tools`.
-'';
+      Validation commands:
+       - ls -l /dev/dri
+       - vainfo
+       - sudo intel_gpu_top
+       - ffmpeg -hwaccel vaapi -i input.mp4 -f null -
+        Notes: `vainfo` is provided by `libva-utils`. `intel_gpu_top` is provided by `intel-gpu-tools`.
+    '';
 
     # If the user supplied services to auto-allow, construct systemd.services entries
     # that add a DeviceAllow for the render node. This is intentionally opt-in.
     # We build an attrset mapping unit name -> { serviceConfig = { DeviceAllow = [...] } }
-    systemd.services = (if cfg.services == [] then {}
-      else builtins.listToAttrs (builtins.map (s: { name = s; value = { serviceConfig = { DeviceAllow = [ "/dev/dri/renderD128 rwm" ]; }; }; }) cfg.services));
+    systemd.services = (if cfg.services == [ ] then { }
+    else builtins.listToAttrs (builtins.map (s: { name = s; value = { serviceConfig = { DeviceAllow = [ "/dev/dri/renderD128 rwm" ]; }; }; }) cfg.services));
   };
 }

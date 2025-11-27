@@ -25,33 +25,34 @@ in
     modules.notifications.templates = {
       system-boot = {
         enable = mkDefault cfg.boot.enable;
-        priority = mkDefault "low";  # Low priority to reduce noise
+        priority = mkDefault "low"; # Low priority to reduce noise
         backend = mkDefault "pushover";
         title = mkDefault ''🚀 System Boot'';
         body = mkDefault ''
-<b>Host:</b> ''${hostname}
-<b>Time:</b> ''${boottime}
+          <b>Host:</b> ''${hostname}
+          <b>Time:</b> ''${boottime}
 
-<b>Boot Status:</b> ''${bootstatus}
+          <b>Boot Status:</b> ''${bootstatus}
 
-<b>System Info:</b>
-• Kernel: ''${kernel}
-• NixOS Generation: ''${generation}
+          <b>System Info:</b>
+          • Kernel: ''${kernel}
+          • NixOS Generation: ''${generation}
 
-System is online and ready.
+          System is online and ready.
         '';
-      };      system-shutdown = {
+      };
+      system-shutdown = {
         enable = mkDefault cfg.shutdown.enable;
         priority = mkDefault "low";
         backend = mkDefault "pushover";
         title = mkDefault ''⏸️ System Shutdown'';
         body = mkDefault ''
-<b>Host:</b> ''${hostname}
-<b>Time:</b> ''${shutdowntime}
+          <b>Host:</b> ''${hostname}
+          <b>Time:</b> ''${shutdowntime}
 
-<b>Uptime:</b> ''${uptime}
+          <b>Uptime:</b> ''${uptime}
 
-System is shutting down gracefully.
+          System is shutting down gracefully.
         '';
       };
     };
@@ -170,45 +171,47 @@ System is shutting down gracefully.
 
         # At shutdown: send notification directly while network is still up
         # Cannot use systemctl start during shutdown, must be self-contained
-        ExecStop = let
-          pushoverCfg = config.modules.notifications.pushover;
-        in pkgs.writeShellScript "notify-shutdown" ''
-          set -euo pipefail
+        ExecStop =
+          let
+            pushoverCfg = config.modules.notifications.pushover;
+          in
+          pkgs.writeShellScript "notify-shutdown" ''
+                      set -euo pipefail
 
-          # Gather system information
-          HOSTNAME="${config.networking.hostName}"
-          SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
-          UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
+                      # Gather system information
+                      HOSTNAME="${config.networking.hostName}"
+                      SHUTDOWNTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
+                      UPTIME="$(${pkgs.procps}/bin/uptime | ${pkgs.gnused}/bin/sed -E 's/.*up (.*), *[0-9]+ users?.*/\1/')"
 
-          # Build notification message (hardcoded for reliability during shutdown)
-          # Note: Bypasses template system since we can't load JSON during shutdown
-          TITLE="⏸️ System Shutdown"
-          MESSAGE="<b>Host:</b> $HOSTNAME
-<b>Time:</b> $SHUTDOWNTIME
+                      # Build notification message (hardcoded for reliability during shutdown)
+                      # Note: Bypasses template system since we can't load JSON during shutdown
+                      TITLE="⏸️ System Shutdown"
+                      MESSAGE="<b>Host:</b> $HOSTNAME
+            <b>Time:</b> $SHUTDOWNTIME
 
-<b>Uptime:</b> $UPTIME
+            <b>Uptime:</b> $UPTIME
 
-System is shutting down gracefully."
+            System is shutting down gracefully."
 
-          # Read Pushover credentials directly from sops secret files
-          # LoadCredential doesn't work during shutdown due to permission issues
-          PUSHOVER_TOKEN=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.tokenFile})
-          PUSHOVER_USER=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.userKeyFile})
+                      # Read Pushover credentials directly from sops secret files
+                      # LoadCredential doesn't work during shutdown due to permission issues
+                      PUSHOVER_TOKEN=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.tokenFile})
+                      PUSHOVER_USER=$(${pkgs.coreutils}/bin/cat ${pushoverCfg.userKeyFile})
 
-          # Send notification directly (cannot start services during shutdown)
-          HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /dev/null \
-            --max-time 10 \
-            --data-urlencode "token=$PUSHOVER_TOKEN" \
-            --data-urlencode "user=$PUSHOVER_USER" \
-            --data-urlencode "title=$TITLE" \
-            --data-urlencode "message=$MESSAGE" \
-            --data-urlencode "priority=-1" \
-            --data-urlencode "html=1" \
-            "https://api.pushover.net/1/messages.json" || echo "000")
+                      # Send notification directly (cannot start services during shutdown)
+                      HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /dev/null \
+                        --max-time 10 \
+                        --data-urlencode "token=$PUSHOVER_TOKEN" \
+                        --data-urlencode "user=$PUSHOVER_USER" \
+                        --data-urlencode "title=$TITLE" \
+                        --data-urlencode "message=$MESSAGE" \
+                        --data-urlencode "priority=-1" \
+                        --data-urlencode "html=1" \
+                        "https://api.pushover.net/1/messages.json" || echo "000")
 
-          # Return success even if notification fails (don't block shutdown)
-          exit 0
-        '';
+                      # Return success even if notification fails (don't block shutdown)
+                      exit 0
+          '';
       };
     };
   };

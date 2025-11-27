@@ -1,9 +1,8 @@
-{
-  pkgs,
-  lib,
-  config,
-  hostname,
-  ...
+{ pkgs
+, lib
+, config
+, hostname
+, ...
 }:
 let
   ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
@@ -13,7 +12,7 @@ in
     ./hardware-configuration.nix
     (import ./disko-config.nix {
       disks = [ "/dev/sda" ];
-      inherit lib;  # Pass lib here
+      inherit lib; # Pass lib here
     })
     ./secrets.nix
     ./systemPackages.nix
@@ -206,15 +205,15 @@ in
             };
           };
           resources = {
-            memory = "4g";            # Recommended by Perplexity for Omada 5.14 with embedded MongoDB
+            memory = "4g"; # Recommended by Perplexity for Omada 5.14 with embedded MongoDB
             memoryReservation = "2g"; # Reserve half for stable operation
-            cpus = "2.0";             # 2 cores recommended for Omada + MongoDB
+            cpus = "2.0"; # 2 cores recommended for Omada + MongoDB
           };
         };
 
         attic = {
           enable = true;
-          listenAddress = "127.0.0.1:8081";  # Use different port to avoid UniFi conflict
+          listenAddress = "127.0.0.1:8081"; # Use different port to avoid UniFi conflict
           jwtSecretFile = config.sops.secrets."attic/jwt-secret".path;
           reverseProxy = {
             enable = true;
@@ -270,7 +269,7 @@ in
 
         attic = {
           enable = config.modules.services.attic.enable or false;
-          useZfsSend = false;  # Temporarily disable ZFS send to avoid conflicts
+          useZfsSend = false; # Temporarily disable ZFS send to avoid conflicts
           nasDestination = "backup@nas.holthome.net";
         };
 

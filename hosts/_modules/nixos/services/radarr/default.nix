@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -42,7 +41,7 @@ let
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
         # Check if replication is defined for the current path (datasets are flat keys, not nested)
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         # Determine the parent path for recursion
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
@@ -340,25 +339,27 @@ in
       };
 
       # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices.radarr = lib.mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in
-        {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-            ++ authCfg.bypassResources;
-        }
-      );
+      modules.services.authelia.accessControl.declarativelyProtectedServices.radarr = lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+              ++ authCfg.bypassResources;
+          }
+        );
 
       # Declare dataset requirements for per-service ZFS isolation
       modules.storage.datasets.services.radarr = {
@@ -368,7 +369,7 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = cfg.user;  # Use configured user
+        owner = cfg.user; # Use configured user
         group = cfg.group; # Use configured group
         mode = "0750";
       };
@@ -386,29 +387,29 @@ in
       # Group is expected to be pre-defined (e.g., media group with GID 65537)
       # users.groups.radarr removed - use shared media group instead
 
-    # Radarr container configuration
-    virtualisation.oci-containers.containers.radarr = podmanLib.mkContainer "radarr" {
-      image = cfg.image;
-      environment = {
-        PUID = cfg.user;
-        PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-        TZ = cfg.timezone;
-        UMASK = "002";  # Ensure group-writable files on shared media
-        RADARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
-      };
-      environmentFiles = [
-        # Pre-generated API key for declarative configuration
-        # Allows Bazarr and other services to integrate from first startup
-        # See: https://wiki.servarr.com/radarr/environment-variables
-        config.sops.templates."radarr-env".path
-      ];
-      volumes = [
-        "${cfg.dataDir}:/config:rw"
-        "${cfg.mediaDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
-      ];
-      ports = [
-        "${toString radarrPort}:7878"
-      ];
+      # Radarr container configuration
+      virtualisation.oci-containers.containers.radarr = podmanLib.mkContainer "radarr" {
+        image = cfg.image;
+        environment = {
+          PUID = cfg.user;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          TZ = cfg.timezone;
+          UMASK = "002"; # Ensure group-writable files on shared media
+          RADARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
+        };
+        environmentFiles = [
+          # Pre-generated API key for declarative configuration
+          # Allows Bazarr and other services to integrate from first startup
+          # See: https://wiki.servarr.com/radarr/environment-variables
+          config.sops.templates."radarr-env".path
+        ];
+        volumes = [
+          "${cfg.dataDir}:/config:rw"
+          "${cfg.mediaDir}:/data:rw" # Unified mount point for hardlinks (TRaSH Guides best practice)
+        ];
+        ports = [
+          "${toString radarrPort}:7878"
+        ];
         resources = cfg.resources;
         extraOptions = [
           "--umask=0027"

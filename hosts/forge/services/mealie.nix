@@ -41,7 +41,7 @@ in
           passwordFile = config.sops.secrets."mealie/database_password".path;
           manageDatabase = true;
           localInstance = true;
-          extensions = [ { name = "pg_trgm"; } ];
+          extensions = [{ name = "pg_trgm"; }];
         };
 
         smtp = {

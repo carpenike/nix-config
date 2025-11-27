@@ -1,10 +1,9 @@
-{
-  pkgs,
-  lib,
-  config,
-  hostname,
-  inputs,
-  ...
+{ pkgs
+, lib
+, config
+, hostname
+, inputs
+, ...
 }:
 let
   ifGroupsExist = groups: builtins.filter (group: builtins.hasAttr group config.users.groups) groups;
@@ -62,7 +61,7 @@ in
 
         # Allow replies to go out different interface than requests came in
         # This fixes accessibility when both ethernet and WiFi are connected
-        "net.ipv4.conf.all.rp_filter" = 2;  # Loose mode
+        "net.ipv4.conf.all.rp_filter" = 2; # Loose mode
         "net.ipv4.conf.default.rp_filter" = 2;
       };
     };
@@ -81,9 +80,9 @@ in
       extraGroups = [
         "wheel"
         "users"
-        "dialout"  # For serial/CAN access
-        "gpio"     # For GPIO access
-        "i2c"      # For I2C devices
+        "dialout" # For serial/CAN access
+        "gpio" # For GPIO access
+        "i2c" # For I2C devices
       ] ++ ifGroupsExist [
         "network"
       ];
@@ -113,7 +112,7 @@ in
       # Services
       services = {
         openssh.enable = true;
-        node-exporter.enable = true;  # System monitoring
+        node-exporter.enable = true; # System monitoring
 
         glances = {
           enable = true;
@@ -144,13 +143,13 @@ in
         "10-wired" = {
           matchConfig.Name = "end0";
           networkConfig.DHCP = "ipv4";
-          dhcpV4Config.RouteMetric = 100;  # Lower metric = higher priority
+          dhcpV4Config.RouteMetric = 100; # Lower metric = higher priority
         };
 
         "20-wireless" = {
           matchConfig.Name = "wlan0";
           networkConfig.DHCP = "ipv4";
-          dhcpV4Config.RouteMetric = 200;  # Higher metric = lower priority
+          dhcpV4Config.RouteMetric = 200; # Higher metric = lower priority
         };
       };
     };
@@ -176,8 +175,8 @@ in
           bustype = "socketcan";
           bitrate = 500000;
           interfaceMappings = {
-            house = "can1";    # House systems -> can1
-            chassis = "can0";  # Chassis systems -> can0
+            house = "can1"; # House systems -> can1
+            chassis = "can0"; # Chassis systems -> can0
           };
         };
 

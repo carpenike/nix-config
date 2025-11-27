@@ -1,9 +1,8 @@
 # Service-specific backup configurations for critical homelab services
-{
-  config,
-  lib,
-  pkgs,
-  ...
+{ config
+, lib
+, pkgs
+, ...
 }:
 with lib;
 let
@@ -266,7 +265,7 @@ in
             paths = [
               "/mnt/backup-snapshot${cfg.attic.dataPath}"
             ];
-            repository = "nas-primary";  # Use primary repository
+            repository = "nas-primary"; # Use primary repository
             tags = [ "attic" "binary-cache" "nix" ];
 
             preBackupScript = ''
@@ -289,7 +288,7 @@ in
             resources = {
               memory = "1G";
               memoryReservation = "512M";
-              cpus = "2.0";  # Higher resources for large dataset
+              cpus = "2.0"; # Higher resources for large dataset
             };
           };
         })
@@ -298,7 +297,7 @@ in
         (mkIf cfg.attic.useZfsSend {
           attic-zfs-send = {
             enable = cfg.attic.nasDestination != "";
-            paths = [];  # No paths needed for ZFS send
+            paths = [ ]; # No paths needed for ZFS send
             repository = "nas-primary";
             tags = [ "attic" "zfs-send" "local-replication" ];
 

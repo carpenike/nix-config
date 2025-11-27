@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -42,7 +41,7 @@ let
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
         # Check if replication is defined for the current path (datasets are flat keys, not nested)
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         # Determine the parent path for recursion
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
@@ -170,8 +169,8 @@ in
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
-  memory = "512M";
-  memoryReservation = "256M";
+        memory = "512M";
+        memoryReservation = "256M";
         cpus = "2.0";
       };
       description = "Resource limits for the container";
@@ -250,9 +249,9 @@ in
         useSnapshots = lib.mkDefault true;
         zfsDataset = lib.mkDefault "tank/services/sonarr";
         excludePatterns = lib.mkDefault [
-          "**/*.log"         # Exclude log files
-          "**/cache/**"      # Exclude cache directories
-          "**/logs/**"       # Exclude additional log directories
+          "**/*.log" # Exclude log files
+          "**/cache/**" # Exclude cache directories
+          "**/logs/**" # Exclude additional log directories
         ];
       };
       description = "Backup configuration for Sonarr";
@@ -324,249 +323,252 @@ in
           message = "Sonarr preseed.enable requires preseed.passwordFile to be set.";
         });
 
-    # Automatically set mediaDir from the NFS mount configuration
-    modules.services.sonarr.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
+      # Automatically set mediaDir from the NFS mount configuration
+      modules.services.sonarr.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
 
-    # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.sonarr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
+      # Automatically register with Caddy reverse proxy if enabled
+      modules.services.caddy.virtualHosts.sonarr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+        enable = true;
+        hostName = cfg.reverseProxy.hostName;
 
-      # Use structured backend configuration from shared types
-      backend = {
-        scheme = "http";  # Sonarr uses HTTP locally
-        host = "127.0.0.1";
-        port = sonarrPort;
-      };
+        # Use structured backend configuration from shared types
+        backend = {
+          scheme = "http"; # Sonarr uses HTTP locally
+          host = "127.0.0.1";
+          port = sonarrPort;
+        };
 
-      # Authentication configuration from shared types
-      auth = cfg.reverseProxy.auth;
+        # Authentication configuration from shared types
+        auth = cfg.reverseProxy.auth;
 
-      # Authelia SSO configuration from shared types
-      authelia = cfg.reverseProxy.authelia;
+        # Authelia SSO configuration from shared types
+        authelia = cfg.reverseProxy.authelia;
 
         # PocketID / caddy-security configuration
         caddySecurity = cfg.reverseProxy.caddySecurity;
 
-      # Security configuration from shared types
-      security = cfg.reverseProxy.security;
+        # Security configuration from shared types
+        security = cfg.reverseProxy.security;
 
-      extraConfig = cfg.reverseProxy.extraConfig;
-    };
-
-    # Register with Authelia if SSO protection is enabled
-    # This declares INTENT - Caddy module handles IMPLEMENTATION
-    modules.services.authelia.accessControl.declarativelyProtectedServices.sonarr = lib.mkIf (
-      config.modules.services.authelia.enable &&  # Check global Authelia is enabled
-      cfg.reverseProxy != null &&
-      cfg.reverseProxy.enable &&
-      cfg.reverseProxy.authelia != null &&
-      cfg.reverseProxy.authelia.enable
-    ) (
-      let
-        authCfg = cfg.reverseProxy.authelia;
-      in {
-        domain = cfg.reverseProxy.hostName;
-        policy = authCfg.policy;
-        # Convert groups to Authelia subject format
-        subject = map (g: "group:${g}") authCfg.allowedGroups;
-        # Authelia will handle ALL bypass logic - no Caddy-level bypass
-        bypassResources =
-          (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-          ++ authCfg.bypassResources;
-      }
-    );
-
-    # Declare dataset requirements for per-service ZFS isolation
-    # This integrates with the storage.datasets module to automatically
-    # create tank/services/sonarr with appropriate ZFS properties
-    # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
-    # via tmpfiles by keeping owner/group/mode here
-    modules.storage.datasets.services.sonarr = {
-      mountpoint = cfg.dataDir;
-      recordsize = "16K";  # Optimal for SQLite databases
-      compression = "zstd";  # Better compression for text/config files
-      properties = {
-        "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
-        # snapdir managed by sanoid module - no longer needed with clone-based backups
+        extraConfig = cfg.reverseProxy.extraConfig;
       };
-      # Ownership matches the container user/group
-      owner = cfg.user;
-      group = cfg.group;  # Use configured group (defaults to "media")
-      mode = "0750";  # Allow group read access for backup systems
-    };
 
-    # NOTE: ZFS snapshots and replication for sonarr dataset should be configured
-    # in the host-level config (e.g., hosts/forge/default.nix), not here.
-    # Reason: Replication targets are host-specific (forge → nas-1, luna → nas-2, etc.)
-    # Defining them in a shared module would hardcode "forge" in the target path,
-    # breaking reusability across different hosts.
+      # Register with Authelia if SSO protection is enabled
+      # This declares INTENT - Caddy module handles IMPLEMENTATION
+      modules.services.authelia.accessControl.declarativelyProtectedServices.sonarr = lib.mkIf
+        (
+          config.modules.services.authelia.enable && # Check global Authelia is enabled
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            # Convert groups to Authelia subject format
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            # Authelia will handle ALL bypass logic - no Caddy-level bypass
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+              ++ authCfg.bypassResources;
+          }
+        );
 
-    # Create local users to match container UIDs
-    # This ensures proper file ownership on the host
-    users.users.sonarr = {
-      uid = lib.mkDefault (lib.toInt cfg.user);
-      group = cfg.group; # Use configured group (defaults to "media")
-      isSystemUser = true;
-      description = "Sonarr service user";
-      # Add to media group for NFS access if dependency is set
-      extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
-    };
-
-    # Group is expected to be pre-defined (e.g., media group with GID 65537)
-    # users.groups.sonarr removed - use shared media group instead
-
-    # Sonarr container configuration
-    virtualisation.oci-containers.containers.sonarr = podmanLib.mkContainer "sonarr" {
-      image = cfg.image;
-      environment = {
-        PUID = cfg.user;
-        PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-        TZ = cfg.timezone;
-        UMASK = "002";  # Ensure group-writable files on shared media
-
-        # Authentication handled entirely by upstream SSO (Authelia or caddy-security via Pocket ID)
-        # Sonarr is set to "External" mode whenever a reverse proxy authentication layer is enabled
-        # Note: Sonarr does NOT support multiple users - whoever passes upstream auth has admin access
-        SONARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
+      # Declare dataset requirements for per-service ZFS isolation
+      # This integrates with the storage.datasets module to automatically
+      # create tank/services/sonarr with appropriate ZFS properties
+      # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
+      # via tmpfiles by keeping owner/group/mode here
+      modules.storage.datasets.services.sonarr = {
+        mountpoint = cfg.dataDir;
+        recordsize = "16K"; # Optimal for SQLite databases
+        compression = "zstd"; # Better compression for text/config files
+        properties = {
+          "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
+          # snapdir managed by sanoid module - no longer needed with clone-based backups
+        };
+        # Ownership matches the container user/group
+        owner = cfg.user;
+        group = cfg.group; # Use configured group (defaults to "media")
+        mode = "0750"; # Allow group read access for backup systems
       };
-      environmentFiles = [
-        # Pre-generated API key for declarative configuration
-        # Allows Bazarr and other services to integrate from first startup
-        # See: https://wiki.servarr.com/sonarr/environment-variables
-        config.sops.templates."sonarr-env".path
+
+      # NOTE: ZFS snapshots and replication for sonarr dataset should be configured
+      # in the host-level config (e.g., hosts/forge/default.nix), not here.
+      # Reason: Replication targets are host-specific (forge → nas-1, luna → nas-2, etc.)
+      # Defining them in a shared module would hardcode "forge" in the target path,
+      # breaking reusability across different hosts.
+
+      # Create local users to match container UIDs
+      # This ensures proper file ownership on the host
+      users.users.sonarr = {
+        uid = lib.mkDefault (lib.toInt cfg.user);
+        group = cfg.group; # Use configured group (defaults to "media")
+        isSystemUser = true;
+        description = "Sonarr service user";
+        # Add to media group for NFS access if dependency is set
+        extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
+      };
+
+      # Group is expected to be pre-defined (e.g., media group with GID 65537)
+      # users.groups.sonarr removed - use shared media group instead
+
+      # Sonarr container configuration
+      virtualisation.oci-containers.containers.sonarr = podmanLib.mkContainer "sonarr" {
+        image = cfg.image;
+        environment = {
+          PUID = cfg.user;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          TZ = cfg.timezone;
+          UMASK = "002"; # Ensure group-writable files on shared media
+
+          # Authentication handled entirely by upstream SSO (Authelia or caddy-security via Pocket ID)
+          # Sonarr is set to "External" mode whenever a reverse proxy authentication layer is enabled
+          # Note: Sonarr does NOT support multiple users - whoever passes upstream auth has admin access
+          SONARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
+        };
+        environmentFiles = [
+          # Pre-generated API key for declarative configuration
+          # Allows Bazarr and other services to integrate from first startup
+          # See: https://wiki.servarr.com/sonarr/environment-variables
+          config.sops.templates."sonarr-env".path
+        ];
+        volumes = [
+          "${cfg.dataDir}:/config:rw"
+          "${cfg.mediaDir}:/data:rw" # Unified mount point for hardlinks (TRaSH Guides best practice)
+        ];
+        ports = [
+          "${toString sonarrPort}:8989"
+        ];
+        resources = cfg.resources;
+        extraOptions = [
+          # Podman-level umask ensures container process creates files with group-readable permissions
+          # This allows restic-backup user (member of sonarr group) to read data
+          "--umask=0027" # Creates directories with 750 and files with 640
+          "--pull=newer" # Automatically pull newer images
+          # Force container to run as the specified user:group
+          # This is required for containers that don't process PUID/PGID environment variables
+          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+        ] ++ lib.optionals (nfsMountConfig != null) [
+          # Add media group to container so process can write to group-owned NFS mount
+          # Host user's extraGroups doesn't propagate into container namespace
+          "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
+        ] ++ lib.optionals cfg.healthcheck.enable [
+          # Define the health check on the container itself.
+          # This allows `podman healthcheck run` to work and updates status in `podman ps`.
+          # Use explicit HTTP 200 check to avoid false positives from redirects
+          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8989/ping)" = 200 ]' ''
+          # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
+          # Use "0s" instead of "disable" for better Podman version compatibility
+          "--health-interval=0s"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
+        ];
+      };
+
+      # Add systemd dependencies for the NFS mount and Podman network
+      systemd.services."${config.virtualisation.oci-containers.backend}-sonarr" = lib.mkMerge [
+        # Add Podman network dependency if configured
+        (lib.mkIf (cfg.podmanNetwork != null) {
+          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        })
+        (lib.mkIf (nfsMountConfig != null) {
+          requires = [ nfsMountConfig.mountUnitName ];
+          after = [ nfsMountConfig.mountUnitName ];
+        })
+        # Add failure notifications via systemd
+        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+          unitConfig.OnFailure = [ "notify@sonarr-failure:%n.service" ];
+        })
+        # Add dependency on the preseed service
+        (lib.mkIf cfg.preseed.enable {
+          wants = [ "preseed-sonarr.service" ];
+          after = [ "preseed-sonarr.service" ];
+        })
       ];
-      volumes = [
-        "${cfg.dataDir}:/config:rw"
-        "${cfg.mediaDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
-      ];
-      ports = [
-        "${toString sonarrPort}:8989"
-      ];
-      resources = cfg.resources;
-      extraOptions = [
-        # Podman-level umask ensures container process creates files with group-readable permissions
-        # This allows restic-backup user (member of sonarr group) to read data
-        "--umask=0027"  # Creates directories with 750 and files with 640
-        "--pull=newer"  # Automatically pull newer images
-        # Force container to run as the specified user:group
-        # This is required for containers that don't process PUID/PGID environment variables
-        "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-      ] ++ lib.optionals (nfsMountConfig != null) [
-        # Add media group to container so process can write to group-owned NFS mount
-        # Host user's extraGroups doesn't propagate into container namespace
-        "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
-      ] ++ lib.optionals cfg.healthcheck.enable [
-        # Define the health check on the container itself.
-        # This allows `podman healthcheck run` to work and updates status in `podman ps`.
-        # Use explicit HTTP 200 check to avoid false positives from redirects
-        ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8989/ping)" = 200 ]' ''
-        # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
-        # Use "0s" instead of "disable" for better Podman version compatibility
-        "--health-interval=0s"
-        "--health-timeout=${cfg.healthcheck.timeout}"
-        "--health-retries=${toString cfg.healthcheck.retries}"
-        "--health-start-period=${cfg.healthcheck.startPeriod}"
-      ] ++ lib.optionals (cfg.podmanNetwork != null) [
-        "--network=${cfg.podmanNetwork}"
-      ];
-    };
 
-    # Add systemd dependencies for the NFS mount and Podman network
-    systemd.services."${config.virtualisation.oci-containers.backend}-sonarr" = lib.mkMerge [
-      # Add Podman network dependency if configured
-      (lib.mkIf (cfg.podmanNetwork != null) {
-        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-      })
-      (lib.mkIf (nfsMountConfig != null) {
-        requires = [ nfsMountConfig.mountUnitName ];
-        after = [ nfsMountConfig.mountUnitName ];
-      })
-      # Add failure notifications via systemd
-      (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        unitConfig.OnFailure = [ "notify@sonarr-failure:%n.service" ];
-      })
-      # Add dependency on the preseed service
-      (lib.mkIf cfg.preseed.enable {
-        wants = [ "preseed-sonarr.service" ];
-        after = [ "preseed-sonarr.service" ];
-      })
-    ];
-
-    # Create explicit health check timer/service that we control
-    # We don't use Podman's native --health-* flags because they create transient units
-    # that bypass systemd overrides and cause activation failures
-    systemd.timers.sonarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-      description = "Sonarr Container Health Check Timer";
-      wantedBy = [ "timers.target" ];
-      after = [ mainServiceUnit ];
-      timerConfig = {
-        # Delay first check to allow container initialization
-        OnActiveSec = cfg.healthcheck.startPeriod;  # e.g., "300s"
-        # Regular interval for subsequent checks
-        OnUnitActiveSec = cfg.healthcheck.interval;  # e.g., "30s"
-        # Continue timer even if check fails
-        Persistent = false;
+      # Create explicit health check timer/service that we control
+      # We don't use Podman's native --health-* flags because they create transient units
+      # that bypass systemd overrides and cause activation failures
+      systemd.timers.sonarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
+        description = "Sonarr Container Health Check Timer";
+        wantedBy = [ "timers.target" ];
+        after = [ mainServiceUnit ];
+        timerConfig = {
+          # Delay first check to allow container initialization
+          OnActiveSec = cfg.healthcheck.startPeriod; # e.g., "300s"
+          # Regular interval for subsequent checks
+          OnUnitActiveSec = cfg.healthcheck.interval; # e.g., "30s"
+          # Continue timer even if check fails
+          Persistent = false;
+        };
       };
-    };
 
-    systemd.services.sonarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-      description = "Sonarr Health Check";
-      after = [ mainServiceUnit ];
-      requires = [ mainServiceUnit ];
-      serviceConfig = {
-        Type = "oneshot";
-        # We allow the unit to fail for better observability. The timer's OnActiveSec
-        # provides the startup grace period, and after that we want genuine failures
-        # to be visible in systemctl --failed for monitoring.
-        ExecStart = pkgs.writeShellScript "sonarr-healthcheck" ''
-          set -euo pipefail
+      systemd.services.sonarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
+        description = "Sonarr Health Check";
+        after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
+        serviceConfig = {
+          Type = "oneshot";
+          # We allow the unit to fail for better observability. The timer's OnActiveSec
+          # provides the startup grace period, and after that we want genuine failures
+          # to be visible in systemctl --failed for monitoring.
+          ExecStart = pkgs.writeShellScript "sonarr-healthcheck" ''
+            set -euo pipefail
 
-          # 1. Check if container is running to avoid unnecessary errors
-          if ! ${pkgs.podman}/bin/podman inspect sonarr --format '{{.State.Running}}' | grep -q true; then
-            echo "Container sonarr is not running, skipping health check."
-            exit 1
-          fi
+            # 1. Check if container is running to avoid unnecessary errors
+            if ! ${pkgs.podman}/bin/podman inspect sonarr --format '{{.State.Running}}' | grep -q true; then
+              echo "Container sonarr is not running, skipping health check."
+              exit 1
+            fi
 
-          # 2. Run the health check defined in the container.
-          # This updates the container's status for `podman ps` and exits with
-          # a proper status code for systemd.
-          if ${pkgs.podman}/bin/podman healthcheck run sonarr; then
-            echo "Health check passed."
-            exit 0
-          else
-            echo "Health check failed."
-            exit 1
-          fi
-        '';
+            # 2. Run the health check defined in the container.
+            # This updates the container's status for `podman ps` and exits with
+            # a proper status code for systemd.
+            if ${pkgs.podman}/bin/podman healthcheck run sonarr; then
+              echo "Health check passed."
+              exit 0
+            else
+              echo "Health check failed."
+              exit 1
+            fi
+          '';
+        };
       };
-    };
 
-    # Register notification template
-    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-      "sonarr-failure" = {
-        enable = lib.mkDefault true;
-        priority = lib.mkDefault "high";
-        title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Sonarr</font></b>'';
-        body = lib.mkDefault ''
-          <b>Host:</b> ''${hostname}
-          <b>Service:</b> <code>''${serviceName}</code>
+      # Register notification template
+      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        "sonarr-failure" = {
+          enable = lib.mkDefault true;
+          priority = lib.mkDefault "high";
+          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Sonarr</font></b>'';
+          body = lib.mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
 
-          The Sonarr service has entered a failed state.
+            The Sonarr service has entered a failed state.
 
-          <b>Quick Actions:</b>
-          1. Check logs:
-             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-          2. Restart service:
-             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-        '';
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+          '';
+        };
       };
-    };
 
-    # Note: Backup integration now handled by backup-integration module
-    # The backup submodule configuration will be auto-discovered and converted
-    # to a Restic job named "service-sonarr" with the specified settings
+      # Note: Backup integration now handled by backup-integration module
+      # The backup submodule configuration will be auto-discovered and converted
+      # to a Restic job named "service-sonarr" with the specified settings
 
       # Optional: Open firewall for Sonarr web UI
       # Disabled by default since forge has firewall.enable = false
@@ -580,11 +582,11 @@ in
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;  # Pass the auto-discovered replication config
+        replicationCfg = replicationConfig; # Pass the auto-discovered replication config
         datasetProperties = {
-          recordsize = "16K";    # Optimal for SQLite databases
-          compression = "zstd";  # Better compression for text/config files
-          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots for this dataset
+          recordsize = "16K"; # Optimal for SQLite databases
+          compression = "zstd"; # Better compression for text/config files
+          "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots for this dataset
         };
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;

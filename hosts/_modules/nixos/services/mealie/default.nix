@@ -4,12 +4,12 @@ let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 
-  cfg = config.modules.services.mealie or {};
-  notificationsCfg = config.modules.notifications or {};
+  cfg = config.modules.services.mealie or { };
+  notificationsCfg = config.modules.notifications or { };
   hasCentralizedNotifications = notificationsCfg.enable or false;
 
-  storageCfg = config.modules.storage or {};
-  datasetsCfg = storageCfg.datasets or {};
+  storageCfg = config.modules.storage or { };
+  datasetsCfg = storageCfg.datasets or { };
   defaultDatasetPath =
     if datasetsCfg ? parentDataset then
       "${datasetsCfg.parentDataset}/mealie"
@@ -30,21 +30,21 @@ let
 
   findReplication = dsPath:
     if dsPath == null || dsPath == "" then null else
-      let
-        sanoidDatasets = config.modules.backup.sanoid.datasets or {};
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
-        parentPath =
-          if dsPath == null || !lib.elem "/" (lib.stringToCharacters dsPath) then
-            ""
-          else
-            lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath;
-      in
-      if replicationInfo != null then
-        { sourcePath = dsPath; replication = replicationInfo; }
-      else if parentPath == "" then
-        null
-      else
-        findReplication parentPath;
+    let
+      sanoidDatasets = config.modules.backup.sanoid.datasets or { };
+      replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
+      parentPath =
+        if dsPath == null || !lib.elem "/" (lib.stringToCharacters dsPath) then
+          ""
+        else
+          lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath;
+    in
+    if replicationInfo != null then
+      { sourcePath = dsPath; replication = replicationInfo; }
+    else if parentPath == "" then
+      null
+    else
+      findReplication parentPath;
 
   foundReplication = if datasetPath != null then findReplication datasetPath else null;
 
@@ -58,7 +58,8 @@ let
             ""
           else
             lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-      in {
+      in
+      {
         targetHost = foundReplication.replication.targetHost;
         targetDataset =
           if datasetSuffix == "" then
@@ -97,7 +98,7 @@ let
       SMTP_FROM_EMAIL = cfg.smtp.fromEmail;
       SMTP_AUTH_STRATEGY = cfg.smtp.strategy;
       SMTP_USER = cfg.smtp.username;
-    } else {};
+    } else { };
 
   oidcEnv =
     if cfg.oidc.enable then
@@ -115,7 +116,7 @@ let
       }
       // (lib.optionalAttrs (cfg.oidc.userGroup != null) { OIDC_USER_GROUP = cfg.oidc.userGroup; })
       // (lib.optionalAttrs (cfg.oidc.adminGroup != null) { OIDC_ADMIN_GROUP = cfg.oidc.adminGroup; })
-      // (lib.optionalAttrs (cfg.oidc.scopes != []) { OIDC_SCOPES_OVERRIDE = lib.concatStringsSep " " cfg.oidc.scopes; })
+      // (lib.optionalAttrs (cfg.oidc.scopes != [ ]) { OIDC_SCOPES_OVERRIDE = lib.concatStringsSep " " cfg.oidc.scopes; })
     else
       { OIDC_AUTH_ENABLED = "false"; };
 
@@ -132,7 +133,7 @@ let
       // (lib.optionalAttrs (cfg.openai.customHeaders != null) { OPENAI_CUSTOM_HEADERS = cfg.openai.customHeaders; })
       // (lib.optionalAttrs (cfg.openai.customParams != null) { OPENAI_CUSTOM_PARAMS = cfg.openai.customParams; })
     else
-      {};
+      { };
 
   credentials =
     (lib.optional (cfg.database.engine == "postgres") "db_password:${cfg.database.passwordFile}")
@@ -246,7 +247,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "Initial admin metadata passed via environment variables.";
     };
 
@@ -379,7 +380,7 @@ in
                 updateToLatest = mkOption { type = types.bool; default = true; description = "Run ALTER EXTENSION ... UPDATE"; };
               };
             });
-            default = [ { name = "pg_trgm"; } ];
+            default = [{ name = "pg_trgm"; }];
             description = "Extensions enabled for the Mealie database.";
           };
           schemaMigrations = mkOption {
@@ -389,7 +390,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "Database configuration.";
     };
 
@@ -434,7 +435,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "SMTP configuration passed to Mealie.";
     };
 
@@ -509,7 +510,7 @@ in
           };
         };
       };
-      default = {};
+      default = { };
       description = "OIDC configuration surfaced to Mealie.";
     };
 
@@ -597,7 +598,7 @@ in
         description = "Mealie service account";
       };
 
-      users.groups.${cfg.group} = {};
+      users.groups.${cfg.group} = { };
 
       systemd.tmpfiles.rules = [
         "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} -"
@@ -705,8 +706,9 @@ in
             host = cfg.listenAddress;
             port = cfg.listenPort;
           };
-          configuredBackend = cfg.reverseProxy.backend or {};
-        in {
+          configuredBackend = cfg.reverseProxy.backend or { };
+        in
+        {
           enable = true;
           hostName = cfg.reverseProxy.hostName;
           backend = recursiveUpdate defaultBackend configuredBackend;
@@ -717,25 +719,30 @@ in
         }
       );
 
-      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf (
-        config.modules.services.authelia.enable or false && makeAutheliaRule
-      ) (let
-        authCfg = cfg.reverseProxy.authelia;
-      in {
-        domain = cfg.reverseProxy.hostName;
-        policy = authCfg.policy;
-        subject = map (groupName: "group:${groupName}") (authCfg.allowedGroups or []);
-        bypassResources =
-          (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or []))
-          ++ (authCfg.bypassResources or []);
-      });
+      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
+        (
+          config.modules.services.authelia.enable or false && makeAutheliaRule
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (groupName: "group:${groupName}") (authCfg.allowedGroups or [ ]);
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or [ ]))
+              ++ (authCfg.bypassResources or [ ]);
+          }
+        );
 
       modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
         enable = true;
         repository = cfg.backup.repository;
         frequency = cfg.backup.frequency;
         retention = cfg.backup.retention;
-        paths = if cfg.backup.paths != [] then cfg.backup.paths else [ cfg.dataDir ];
+        paths = if cfg.backup.paths != [ ] then cfg.backup.paths else [ cfg.dataDir ];
         excludePatterns = cfg.backup.excludePatterns;
         tags = cfg.backup.tags;
         useSnapshots = cfg.backup.useSnapshots or true;
@@ -747,11 +754,11 @@ in
         priority = "high";
         title = "❌ Mealie service failed";
         body = ''
-<b>Host:</b> ${config.networking.hostName}
-<b>Service:</b> ${mainServiceUnit}
+          <b>Host:</b> ${config.networking.hostName}
+          <b>Service:</b> ${mainServiceUnit}
 
-Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
-'';
+          Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
+        '';
       };
 
       # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/mealie.nix)

@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   cfg = config.modules.services.adguardhome;
@@ -17,7 +16,7 @@ in
     enable = lib.mkEnableOption "adguardhome";
     package = lib.mkPackageOption pkgs "adguardhome" { };
     settings = lib.mkOption {
-      default = {};
+      default = { };
       type = lib.types.attrs;
     };
     mutableSettings = lib.mkOption {
@@ -66,8 +65,8 @@ in
         useSnapshots = lib.mkDefault true;
         zfsDataset = lib.mkDefault "tank/services/adguardhome";
         excludePatterns = lib.mkDefault [
-          "**/cache/**"          # Exclude cache files
-          "**/tmp/**"            # Exclude temporary files
+          "**/cache/**" # Exclude cache files
+          "**/tmp/**" # Exclude temporary files
         ];
       };
       description = "Backup configuration for AdGuardHome";
@@ -92,8 +91,8 @@ in
   config = lib.mkIf cfg.enable {
     services.adguardhome = {
       enable = true;
-      host = "127.0.0.1";  # Restrict web UI to localhost only (force traffic through Caddy)
-      port = 3000;         # Extract from settings
+      host = "127.0.0.1"; # Restrict web UI to localhost only (force traffic through Caddy)
+      port = 3000; # Extract from settings
       inherit (cfg) mutableSettings;
       settings = builtins.removeAttrs cfg.settings [ "bind_host" "bind_port" ];
     };
@@ -105,7 +104,7 @@ in
 
       # Use structured backend configuration from shared types
       backend = {
-        scheme = "http";  # AdGuardHome uses HTTP locally
+        scheme = "http"; # AdGuardHome uses HTTP locally
         host = "127.0.0.1";
         port = config.services.adguardhome.port;
       };
@@ -130,24 +129,27 @@ in
     };
 
     # Register with Authelia if SSO protection is enabled
-    modules.services.authelia.accessControl.declarativelyProtectedServices.adguard = lib.mkIf (
-      config.modules.services.authelia.enable &&
-      cfg.reverseProxy != null &&
-      cfg.reverseProxy.enable &&
-      cfg.reverseProxy.authelia != null &&
-      cfg.reverseProxy.authelia.enable
-    ) (
-      let
-        authCfg = cfg.reverseProxy.authelia;
-      in {
-        domain = cfg.reverseProxy.hostName;
-        policy = authCfg.policy;
-        subject = map (g: "group:${g}") authCfg.allowedGroups;
-        bypassResources =
-          (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
-          ++ (authCfg.bypassResources or []);
-      }
-    );
+    modules.services.authelia.accessControl.declarativelyProtectedServices.adguard = lib.mkIf
+      (
+        config.modules.services.authelia.enable &&
+        cfg.reverseProxy != null &&
+        cfg.reverseProxy.enable &&
+        cfg.reverseProxy.authelia != null &&
+        cfg.reverseProxy.authelia.enable
+      )
+      (
+        let
+          authCfg = cfg.reverseProxy.authelia;
+        in
+        {
+          domain = cfg.reverseProxy.hostName;
+          policy = authCfg.policy;
+          subject = map (g: "group:${g}") authCfg.allowedGroups;
+          bypassResources =
+            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
+            ++ (authCfg.bypassResources or [ ]);
+        }
+      );
 
     # add user, needed to access the secret
     users.users.${adguardUser} = {

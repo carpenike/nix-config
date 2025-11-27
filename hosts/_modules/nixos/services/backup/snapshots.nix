@@ -10,21 +10,24 @@
 
 let
   cfg = config.modules.services.backup;
-  snapshotsCfg = cfg.snapshots or {};
+  snapshotsCfg = cfg.snapshots or { };
 
   # Get services that need snapshot-coordinated backups from centralized job list
-  servicesNeedingSnapshots = lib.filterAttrs (name: job:
-    job.enable && job.useSnapshots && job.zfsDataset != null
-  ) cfg._internal.allJobs;
+  servicesNeedingSnapshots = lib.filterAttrs
+    (name: job:
+      job.enable && job.useSnapshots && job.zfsDataset != null
+    )
+    cfg._internal.allJobs;
 
   # Create snapshot service for a backup job
   mkSnapshotService = jobName: jobConfig:
     let
       dataset = jobConfig.zfsDataset;
       snapshotName = "backup-${jobName}";
-      cloneName = "tank/temp/clone-${jobName}";  # Temporary clone dataset
-      cloneMountpoint = "/var/lib/backup-snapshots/${jobName}";  # Mount location outside of /tmp to avoid PrivateTmp conflicts
-    in {
+      cloneName = "tank/temp/clone-${jobName}"; # Temporary clone dataset
+      cloneMountpoint = "/var/lib/backup-snapshots/${jobName}"; # Mount location outside of /tmp to avoid PrivateTmp conflicts
+    in
+    {
       "zfs-snapshot-${jobName}" = {
         description = "Create ZFS snapshot and clone for ${jobName} backup";
         # Ensure the declarative datasets service has run first (creates tank/temp)
@@ -119,7 +122,7 @@ let
           '';
 
           # Timeout settings
-          TimeoutStartSec = "120s";  # Increased for clone operations
+          TimeoutStartSec = "120s"; # Increased for clone operations
           TimeoutStopSec = "120s";
         };
 
@@ -130,7 +133,8 @@ let
       };
     };
 
-in {
+in
+{
   options.modules.services.backup.snapshots = {
     enable = lib.mkOption {
       type = lib.types.bool;
@@ -154,7 +158,7 @@ in {
           };
         };
       };
-      default = {};
+      default = { };
       description = "Retention policy for backup snapshots";
     };
   };
@@ -169,7 +173,7 @@ in {
           description = "Cleanup old ZFS backup snapshots";
           serviceConfig = {
             Type = "oneshot";
-            User = "root";  # ZFS operations require root
+            User = "root"; # ZFS operations require root
 
             ExecStart = pkgs.writeShellScript "cleanup-backup-snapshots" ''
               set -euo pipefail

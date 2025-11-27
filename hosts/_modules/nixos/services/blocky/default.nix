@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   cfg = config.modules.services.blocky;
@@ -17,7 +16,7 @@ in
     package = lib.mkPackageOption pkgs "blocky" { };
     config = lib.mkOption {
       inherit (yamlFormat) type;
-      default = {};
+      default = { };
     };
 
     # Standardized metrics collection pattern
@@ -95,7 +94,7 @@ in
       backend = {
         scheme = "http";
         host = "127.0.0.1";
-        port = 4000;  # Blocky default port
+        port = 4000; # Blocky default port
       };
 
       # Authentication configuration from shared types
@@ -111,24 +110,27 @@ in
     };
 
     # Register with Authelia if SSO protection is enabled
-    modules.services.authelia.accessControl.declarativelyProtectedServices.blocky = lib.mkIf (
-      config.modules.services.authelia.enable &&
-      cfg.reverseProxy != null &&
-      cfg.reverseProxy.enable &&
-      cfg.reverseProxy.authelia != null &&
-      cfg.reverseProxy.authelia.enable
-    ) (
-      let
-        authCfg = cfg.reverseProxy.authelia;
-      in {
-        domain = cfg.reverseProxy.hostName;
-        policy = authCfg.policy;
-        subject = map (g: "group:${g}") authCfg.allowedGroups;
-        bypassResources =
-          (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
-          ++ (authCfg.bypassResources or []);
-      }
-    );
+    modules.services.authelia.accessControl.declarativelyProtectedServices.blocky = lib.mkIf
+      (
+        config.modules.services.authelia.enable &&
+        cfg.reverseProxy != null &&
+        cfg.reverseProxy.enable &&
+        cfg.reverseProxy.authelia != null &&
+        cfg.reverseProxy.authelia.enable
+      )
+      (
+        let
+          authCfg = cfg.reverseProxy.authelia;
+        in
+        {
+          domain = cfg.reverseProxy.hostName;
+          policy = authCfg.policy;
+          subject = map (g: "group:${g}") authCfg.allowedGroups;
+          bypassResources =
+            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
+            ++ (authCfg.bypassResources or [ ]);
+        }
+      );
 
     systemd.services.blocky = {
       description = "A DNS proxy and ad-blocker for the local network";

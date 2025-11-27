@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -35,7 +34,7 @@ let
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
         # Check if replication is defined for the current path (datasets are flat keys, not nested)
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         # Determine the parent path for recursion
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
@@ -303,25 +302,27 @@ in
       };
 
       # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices.prowlarr = lib.mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in
-        {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-            ++ authCfg.bypassResources;
-        }
-      );
+      modules.services.authelia.accessControl.declarativelyProtectedServices.prowlarr = lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+              ++ authCfg.bypassResources;
+          }
+        );
 
       # Declare dataset requirements for per-service ZFS isolation
       modules.storage.datasets.services.prowlarr = {
@@ -331,7 +332,7 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = cfg.user;  # Use configured user
+        owner = cfg.user; # Use configured user
         group = cfg.group; # Use configured group
         mode = "0750";
       };
@@ -347,49 +348,49 @@ in
       # Group is expected to be pre-defined (e.g., media group with GID 65537)
       # users.groups.prowlarr removed - use shared media group instead
 
-    # Prowlarr container configuration
-    virtualisation.oci-containers.containers.prowlarr = podmanLib.mkContainer "prowlarr" {
-      image = cfg.image;
-      environment = {
-        PUID = cfg.user;
-        PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-        TZ = cfg.timezone;
-        UMASK = "002";  # Ensure group-writable files on shared media
-        PROWLARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
+      # Prowlarr container configuration
+      virtualisation.oci-containers.containers.prowlarr = podmanLib.mkContainer "prowlarr" {
+        image = cfg.image;
+        environment = {
+          PUID = cfg.user;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          TZ = cfg.timezone;
+          UMASK = "002"; # Ensure group-writable files on shared media
+          PROWLARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
+        };
+        environmentFiles = [
+          # Pre-generated API key for declarative configuration
+          # Allows cross-seed and other services to integrate from first startup
+          # See: https://wiki.servarr.com/prowlarr/environment-variables
+          config.sops.templates."prowlarr-env".path
+        ];
+        volumes = [
+          "${cfg.dataDir}:/config:rw"
+        ];
+        ports = [
+          "9696:9696"
+        ];
+        extraOptions = [
+          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+        ] ++ lib.optionals cfg.healthcheck.enable [
+          # Define the health check on the container itself.
+          # This allows `podman healthcheck run` to work and updates status in `podman ps`.
+          # Use explicit HTTP 200 check to avoid false positives from redirects
+          # Prowlarr runs on port 9696 by default
+          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:9696/ping)" = 200 ]' ''
+          # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
+          # Use "0s" instead of "disable" for better Podman version compatibility
+          "--health-interval=0s"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
+        ];
       };
-      environmentFiles = [
-        # Pre-generated API key for declarative configuration
-        # Allows cross-seed and other services to integrate from first startup
-        # See: https://wiki.servarr.com/prowlarr/environment-variables
-        config.sops.templates."prowlarr-env".path
-      ];
-      volumes = [
-        "${cfg.dataDir}:/config:rw"
-      ];
-      ports = [
-        "9696:9696"
-      ];
-      extraOptions = [
-        "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-      ] ++ lib.optionals cfg.healthcheck.enable [
-        # Define the health check on the container itself.
-        # This allows `podman healthcheck run` to work and updates status in `podman ps`.
-        # Use explicit HTTP 200 check to avoid false positives from redirects
-        # Prowlarr runs on port 9696 by default
-        ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:9696/ping)" = 200 ]' ''
-        # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
-        # Use "0s" instead of "disable" for better Podman version compatibility
-        "--health-interval=0s"
-        "--health-timeout=${cfg.healthcheck.timeout}"
-        "--health-retries=${toString cfg.healthcheck.retries}"
-        "--health-start-period=${cfg.healthcheck.startPeriod}"
-      ] ++ lib.optionals (cfg.podmanNetwork != null) [
-        "--network=${cfg.podmanNetwork}"
-      ];
-    };
 
-    # Add systemd dependencies for the service
-    systemd.services."${config.virtualisation.oci-containers.backend}-prowlarr" = lib.mkMerge [
+      # Add systemd dependencies for the service
+      systemd.services."${config.virtualisation.oci-containers.backend}-prowlarr" = lib.mkMerge [
         # Add Podman network dependency if configured
         (lib.mkIf (cfg.podmanNetwork != null) {
           requires = [ "podman-network-${cfg.podmanNetwork}.service" ];

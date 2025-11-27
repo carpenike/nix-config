@@ -20,17 +20,17 @@ in
       # Data dataset with PostgreSQL-optimal settings
       "postgresql" = {
         mountpoint = cfg.dataDir;
-        recordsize = "8K";  # PostgreSQL page size
+        recordsize = "8K"; # PostgreSQL page size
         compression = "lz4";
         properties = {
-          "com.sun:auto-snapshot" = "false";  # PostgreSQL backups via pgBackRest (application-consistent)
+          "com.sun:auto-snapshot" = "false"; # PostgreSQL backups via pgBackRest (application-consistent)
           atime = "off";
           xattr = "sa";
           dnodesize = "auto";
-          logbias = "throughput";  # Optimize for database throughput over latency
-          primarycache = "metadata";  # ARC caches metadata only; PostgreSQL handles data caching
-          redundant_metadata = "most";  # Balance between redundancy and performance
-          sync = "standard";  # Use ZIL for synchronous writes (PostgreSQL WAL)
+          logbias = "throughput"; # Optimize for database throughput over latency
+          primarycache = "metadata"; # ARC caches metadata only; PostgreSQL handles data caching
+          redundant_metadata = "most"; # Balance between redundancy and performance
+          sync = "standard"; # Use ZIL for synchronous writes (PostgreSQL WAL)
         };
         owner = "postgres";
         group = "postgres";

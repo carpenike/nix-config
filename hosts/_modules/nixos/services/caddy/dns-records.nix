@@ -20,18 +20,21 @@ let
   # Returns newline-separated zone file entries
   generateDnsRecords = vhosts: domain:
     concatStringsSep "\n" (
-      mapAttrsToList (name: vhost:
-        if vhost.enable then
-          let
-            subdomain = dnsLib.extractSubdomain vhost.hostName domain;
-            # Use relative name (subdomain only) for cleaner zone files
-            recordName = if subdomain == vhost.hostName
-                        then "${subdomain}."  # Absolute FQDN (fallback)
-                        else subdomain;       # Relative subdomain
-          in
-          "${recordName}    IN    A    ${hostIP}"
-        else ""
-      ) vhosts
+      mapAttrsToList
+        (name: vhost:
+          if vhost.enable then
+            let
+              subdomain = dnsLib.extractSubdomain vhost.hostName domain;
+              # Use relative name (subdomain only) for cleaner zone files
+              recordName =
+                if subdomain == vhost.hostName
+                then "${subdomain}."  # Absolute FQDN (fallback)
+                else subdomain; # Relative subdomain
+            in
+            "${recordName}    IN    A    ${hostIP}"
+          else ""
+        )
+        vhosts
     );
 in
 {

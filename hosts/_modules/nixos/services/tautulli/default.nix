@@ -16,11 +16,10 @@
 # Using PocketID would result in double authentication, so we skip it.
 #
 # Reference: uptime-kuma module for native wrapper pattern
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault;
@@ -45,7 +44,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -211,7 +210,7 @@ in
         package = cfg.package;
         port = tautulliPort;
         dataDir = cfg.dataDir;
-        configFile = "${cfg.dataDir}/config.ini";  # Use same directory as dataDir
+        configFile = "${cfg.dataDir}/config.ini"; # Use same directory as dataDir
         # Use our custom user/group for ZFS dataset ownership consistency
         user = "tautulli";
         group = "tautulli";
@@ -230,14 +229,14 @@ in
         # Using PocketID would require double-auth since Tautulli can't disable its auth
         auth = cfg.reverseProxy.auth or null;
         authelia = cfg.reverseProxy.authelia or null;
-        security = cfg.reverseProxy.security or {};
+        security = cfg.reverseProxy.security or { };
         extraConfig = cfg.reverseProxy.extraConfig or "";
       };
 
       # ZFS dataset management
       modules.storage.datasets.services."tautulli" = {
         mountpoint = cfg.dataDir;
-        recordsize = "16K";  # Optimal for SQLite (Tautulli database)
+        recordsize = "16K"; # Optimal for SQLite (Tautulli database)
         compression = "zstd";
         properties = { "com.sun:auto-snapshot" = "true"; };
         owner = "tautulli";
@@ -264,7 +263,7 @@ in
         description = "Tautulli service user";
       };
 
-      users.groups.tautulli = {};
+      users.groups.tautulli = { };
 
       # Health check timer (uses curl to verify web UI)
       systemd.timers.tautulli-healthcheck = mkIf cfg.healthcheck.enable {

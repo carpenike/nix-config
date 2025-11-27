@@ -55,14 +55,14 @@
   # - Dedicated dataset unnecessary for minimal administrative state
   # Location: /var/lib/alertmanager on tank/services/alertmanager (not snapshotted)
   modules.storage.datasets.services.alertmanager = {
-    recordsize = "16K";     # Small files; minimal overhead
-    compression = "lz4";    # Fast, default
+    recordsize = "16K"; # Small files; minimal overhead
+    compression = "lz4"; # Fast, default
     mountpoint = "/var/lib/alertmanager";
     owner = "alertmanager";
     group = "alertmanager";
     mode = "0750";
     properties = {
-      "com.sun:auto-snapshot" = "false";  # Do not snapshot (non-critical state)
+      "com.sun:auto-snapshot" = "false"; # Do not snapshot (non-critical state)
       logbias = "throughput";
       primarycache = "metadata";
       atime = "off";

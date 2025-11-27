@@ -16,17 +16,17 @@ let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
 
   cfg = config.modules.services.cooklangFederation;
-  notificationsCfg = config.modules.notifications or {};
+  notificationsCfg = config.modules.notifications or { };
   storageCfg = config.modules.storage;
   lokiCfg = config.modules.services.loki or null;
-  datasetsCfg = storageCfg.datasets or {};
+  datasetsCfg = storageCfg.datasets or { };
   hasCentralizedNotifications = notificationsCfg.enable or false;
 
   serviceName = "cooklang-federation";
   serviceUnitFile = "${serviceName}.service";
 
   cooklangDataset =
-    if (datasetsCfg ? services) && ((datasetsCfg.services or {}) ? "cooklang-federation") then
+    if (datasetsCfg ? services) && ((datasetsCfg.services or { }) ? "cooklang-federation") then
       datasetsCfg.services."cooklang-federation"
     else
       null;
@@ -50,7 +50,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -190,7 +190,7 @@ in
 
     extraEnvironment = mkOption {
       type = types.attrsOf types.str;
-      default = {};
+      default = { };
       description = "Additional environment variables passed to the service.";
     };
 
@@ -318,16 +318,16 @@ in
         datasetPath = cfg.datasetPath;
         preseedCfg = cfg.preseed;
         preseedEnabled = preseedCfg.enable or false;
-  localDatabasePath = "${dataDir}/data/federation.db";
-  srcSource = "${cfg.package}/share/cooklang-federation/src";
-  stylesSource = "${cfg.package}/share/cooklang-federation/styles";
-  tailwindConfigSource = "${cfg.package}/share/cooklang-federation/tailwind.config.js";
-  tailwindPackage = pkgs.tailwindcss_3;
-  tailwindBinary = lib.getExe tailwindPackage;
-  bundledFeedConfig = "${cfg.package}/share/cooklang-federation/config/feeds.yaml";
+        localDatabasePath = "${dataDir}/data/federation.db";
+        srcSource = "${cfg.package}/share/cooklang-federation/src";
+        stylesSource = "${cfg.package}/share/cooklang-federation/styles";
+        tailwindConfigSource = "${cfg.package}/share/cooklang-federation/tailwind.config.js";
+        tailwindPackage = pkgs.tailwindcss_3;
+        tailwindBinary = lib.getExe tailwindPackage;
+        bundledFeedConfig = "${cfg.package}/share/cooklang-federation/config/feeds.yaml";
         usesDefaultSqlite = cfg.databaseUrl == null;
-  feedConfigDestination = "${dataDir}/config/feeds.yaml";
-  feedConfigSource = if cfg.feedConfigFile != null then cfg.feedConfigFile else bundledFeedConfig;
+        feedConfigDestination = "${dataDir}/config/feeds.yaml";
+        feedConfigSource = if cfg.feedConfigFile != null then cfg.feedConfigFile else bundledFeedConfig;
         databaseUrl =
           if cfg.databaseUrl != null then cfg.databaseUrl
           else "sqlite://${localDatabasePath}";
@@ -364,7 +364,8 @@ in
 
         envList = mapAttrsToList (k: v: "${k}=${v}") (lib.filterAttrs (_: v: v != null) envVars);
         envFiles = lib.optional (cfg.github.enable && cfg.github.tokenFile != null) cfg.github.tokenFile;
-      in {
+      in
+      {
         assertions = [
           {
             assertion = cfg.user != "root";
@@ -395,7 +396,7 @@ in
           home = lib.mkForce "/var/empty";
         };
 
-        users.groups.${cfg.group} = {};
+        users.groups.${cfg.group} = { };
 
         users.users.${cfg.healthcheck.user} = mkIf cfg.healthcheck.enable {
           isSystemUser = true;
@@ -405,14 +406,14 @@ in
           home = lib.mkForce "/var/empty";
         };
 
-        users.groups.${cfg.healthcheck.group} = mkIf cfg.healthcheck.enable {};
+        users.groups.${cfg.healthcheck.group} = mkIf cfg.healthcheck.enable { };
 
         systemd.tmpfiles.rules = [
           "d ${dataDir} 0750 ${cfg.user} ${cfg.group} - -"
           "d ${indexPath} 0750 ${cfg.user} ${cfg.group} - -"
         ] ++ lib.optional (cfg.healthcheck.metrics.enable) "d ${cfg.healthcheck.metrics.textfileDir} 0775 node-exporter node-exporter - -";
 
-  modules.storage.datasets.services."cooklang-federation" = mkIf (datasetPath != null) {
+        modules.storage.datasets.services."cooklang-federation" = mkIf (datasetPath != null) {
           mountpoint = mkDefault dataDir;
           recordsize = mkDefault "16K";
           compression = mkDefault "zstd";
@@ -503,7 +504,7 @@ in
         ];
 
         modules.services.caddy.virtualHosts.cooklangFederation = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) (
-          let backendCfg = lib.attrByPath [ "backend" ] {} cfg.reverseProxy;
+          let backendCfg = lib.attrByPath [ "backend" ] { } cfg.reverseProxy;
           in {
             enable = true;
             hostName = cfg.reverseProxy.hostName;
@@ -519,23 +520,25 @@ in
           }
         );
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.cooklangFederation = mkIf (
-          config.modules.services.authelia.enable &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        ) (
-          let authCfg = cfg.reverseProxy.authelia;
-          in {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (g: "group:${g}") authCfg.allowedGroups;
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-              ++ authCfg.bypassResources;
-          }
-        );
+        modules.services.authelia.accessControl.declarativelyProtectedServices.cooklangFederation = mkIf
+          (
+            config.modules.services.authelia.enable &&
+            cfg.reverseProxy != null &&
+            cfg.reverseProxy.enable &&
+            cfg.reverseProxy.authelia != null &&
+            cfg.reverseProxy.authelia.enable
+          )
+          (
+            let authCfg = cfg.reverseProxy.authelia;
+            in {
+              domain = cfg.reverseProxy.hostName;
+              policy = authCfg.policy;
+              subject = map (g: "group:${g}") authCfg.allowedGroups;
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+                ++ authCfg.bypassResources;
+            }
+          );
 
         modules.notifications.templates = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           "cooklang-federation-failure" = {
@@ -562,37 +565,37 @@ in
             ReadWritePaths = lib.optional cfg.healthcheck.metrics.enable cfg.healthcheck.metrics.textfileDir;
           };
           script = ''
-            set -euo pipefail
-            URL="http://${cfg.listenAddress}:${toString cfg.port}${cfg.healthcheck.path}"
-            STATUS=0
-            if ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time ${cfg.healthcheck.timeout} "$URL" >/dev/null; then
-              STATUS=1
-            fi
+                        set -euo pipefail
+                        URL="http://${cfg.listenAddress}:${toString cfg.port}${cfg.healthcheck.path}"
+                        STATUS=0
+                        if ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time ${cfg.healthcheck.timeout} "$URL" >/dev/null; then
+                          STATUS=1
+                        fi
 
-            ${lib.optionalString cfg.healthcheck.metrics.enable ''
-              METRICS_DIR="${cfg.healthcheck.metrics.textfileDir}"
-              METRICS_FILE="$METRICS_DIR/cooklang_federation.prom"
-              if [ ! -d "$METRICS_DIR" ]; then
-                echo "Metrics directory $METRICS_DIR missing" >&2
-                exit 1
-              fi
-              TS=$(date +%s)
-              cat > "$METRICS_FILE.tmp" <<EOF
-# HELP cooklang_federation_up Service health (1=up)
-# TYPE cooklang_federation_up gauge
-cooklang_federation_up{host="${config.networking.hostName}"} $STATUS
-# HELP cooklang_federation_healthcheck_timestamp Timestamp of last check
-# TYPE cooklang_federation_healthcheck_timestamp gauge
-cooklang_federation_healthcheck_timestamp{host="${config.networking.hostName}"} $TS
-EOF
-              mv "$METRICS_FILE.tmp" "$METRICS_FILE"
-            ''}
+                        ${lib.optionalString cfg.healthcheck.metrics.enable ''
+                          METRICS_DIR="${cfg.healthcheck.metrics.textfileDir}"
+                          METRICS_FILE="$METRICS_DIR/cooklang_federation.prom"
+                          if [ ! -d "$METRICS_DIR" ]; then
+                            echo "Metrics directory $METRICS_DIR missing" >&2
+                            exit 1
+                          fi
+                          TS=$(date +%s)
+                          cat > "$METRICS_FILE.tmp" <<EOF
+            # HELP cooklang_federation_up Service health (1=up)
+            # TYPE cooklang_federation_up gauge
+            cooklang_federation_up{host="${config.networking.hostName}"} $STATUS
+            # HELP cooklang_federation_healthcheck_timestamp Timestamp of last check
+            # TYPE cooklang_federation_healthcheck_timestamp gauge
+            cooklang_federation_healthcheck_timestamp{host="${config.networking.hostName}"} $TS
+            EOF
+                          mv "$METRICS_FILE.tmp" "$METRICS_FILE"
+                        ''}
 
-            if [ "$STATUS" -eq 1 ]; then
-              exit 0
-            else
-              exit 1
-            fi
+                        if [ "$STATUS" -eq 1 ]; then
+                          exit 0
+                        else
+                          exit 1
+                        fi
           '';
         };
 
@@ -631,24 +634,25 @@ EOF
             foundReplication = if datasetPath != null then findReplication datasetPath else null;
           in
           if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then null else
-            let
-              datasetSuffix =
-                if foundReplication.sourcePath == datasetPath then
-                  ""
-                else
-                  lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-            in {
-              targetHost = foundReplication.replication.targetHost;
-              targetDataset =
-                if datasetSuffix == "" then
-                  foundReplication.replication.targetDataset
-                else
-                  "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-              sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-              sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-              sendOptions = foundReplication.replication.sendOptions or "w";
-              recvOptions = foundReplication.replication.recvOptions or "u";
-            };
+          let
+            datasetSuffix =
+              if foundReplication.sourcePath == datasetPath then
+                ""
+              else
+                lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+          in
+          {
+            targetHost = foundReplication.replication.targetHost;
+            targetDataset =
+              if datasetSuffix == "" then
+                foundReplication.replication.targetDataset
+              else
+                "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+            sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
+            sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+            sendOptions = foundReplication.replication.sendOptions or "w";
+            recvOptions = foundReplication.replication.recvOptions or "u";
+          };
         datasetProperties = {
           recordsize = "16K";
           compression = "zstd";

@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library (not a module argument to avoid circular dependency)
@@ -34,7 +33,7 @@ let
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
         # Check if replication is defined for the current path (datasets are flat keys, not nested)
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         # Determine the parent path for recursion
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
@@ -142,7 +141,7 @@ in
 
     extraHostWhitelist = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = ''
         Additional hostnames to add to SABnzbd's `host_whitelist`.
         This is critical for allowing *arr services (running in other containers)
@@ -317,7 +316,7 @@ in
           };
         };
       });
-      default = {};
+      default = { };
       description = ''
         Declarative Usenet provider configuration.
         Credentials are managed via sops-nix for secure storage and disaster recovery.
@@ -474,9 +473,9 @@ in
         useSnapshots = lib.mkDefault true;
         zfsDataset = lib.mkDefault "tank/services/sabnzbd";
         excludePatterns = lib.mkDefault [
-          "**/*.log"         # Exclude log files
-          "**/cache/**"      # Exclude cache directories
-          "**/logs/**"       # Exclude additional log directories
+          "**/*.log" # Exclude log files
+          "**/cache/**" # Exclude cache directories
+          "**/logs/**" # Exclude additional log directories
           # NOTE: Downloads are NOT backed up - only configuration
         ];
       };
@@ -556,358 +555,358 @@ in
       # Auto-configure downloadsDir from NFS mount configuration
       modules.services.sabnzbd.downloadsDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
 
-    # Integrate with centralized Caddy reverse proxy if configured
-    modules.services.caddy.virtualHosts.sabnzbd = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-
-      # Use structured backend configuration from shared types
-      backend = {
-        scheme = "http";  # SABnzbd uses HTTP locally
-        host = "127.0.0.1";
-        port = cfg.port;
-      };
-
-      # Authentication configuration from shared types
-      auth = cfg.reverseProxy.auth;
-
-      # Authelia SSO configuration from shared types
-      authelia = cfg.reverseProxy.authelia;
-
-      # PocketID / caddy-security configuration
-      caddySecurity = cfg.reverseProxy.caddySecurity;
-
-      # Security configuration from shared types
-      security = cfg.reverseProxy.security;
-
-      extraConfig = cfg.reverseProxy.extraConfig;
-    };
-
-    # Declare dataset requirements for per-service ZFS isolation
-    # This integrates with the storage.datasets module to automatically
-    # create tank/services/sabnzbd with appropriate ZFS properties
-    modules.storage.datasets.services.sabnzbd = {
-      mountpoint = cfg.dataDir;
-      recordsize = "16K";  # Optimal for SQLite databases
-      compression = "zstd";  # Better compression for text/config files
-      properties = {
-        "com.sun:auto-snapshot" = "true";  # Enable automatic snapshots
-      };
-      # Ownership matches the container user/group
-      owner = cfg.user;
-      group = cfg.group;
-      mode = "0750";  # Allow group read access for backup systems
-    };
-
-    # Create local users to match container UIDs
-    # This ensures proper file ownership on the host
-    users.users.sabnzbd = {
-      uid = lib.mkDefault (lib.toInt cfg.user);
-      group = cfg.group; # Use configured group (defaults to "media")
-      isSystemUser = true;
-      description = "SABnzbd service user";
-      # Add to media group for NFS access if dependency is set
-      extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
-    };
-
-    # SABnzbd container configuration
-    virtualisation.oci-containers.containers.sabnzbd = podmanLib.mkContainer "sabnzbd" {
-      image = cfg.image;
-      environment = {
-        PUID = cfg.user;
-        PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-        TZ = cfg.timezone;
-        UMASK = "002";  # Ensure group-writable files for *arr services to read
-      };
-      environmentFiles = lib.optionals (cfg.apiKeyFile != null) [
-        # Inject API key via sops template for declarative secret management
-        # Pattern matches *arr services (Sonarr/Radarr/Prowlarr)
-        config.sops.templates."sabnzbd-env".path
-      ];
-      volumes = [
-        "${cfg.dataDir}:/config:rw"
-        "${cfg.downloadsDir}:/data:rw"  # Unified mount point for hardlinks (TRaSH Guides best practice)
-      ];
-      ports = [
-        "${toString cfg.port}:8080"  # Map configurable host port to container port 8080
-      ];
-      resources = cfg.resources;
-      extraOptions = [
-        # Podman-level umask ensures container process creates files with group-writable permissions
-        # This allows *arr services (in the same group) to move/hardlink files
-        "--umask=0002"  # Creates directories with 775 and files with 664
-        "--pull=newer"  # Automatically pull newer images
-        # Force container to run as the specified user:group
-        "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-      ] ++ lib.optionals (nfsMountConfig != null) [
-        # Add media group to container so process can write to group-owned NFS mount
-        "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
-      ] ++ lib.optionals (cfg.podmanNetwork != null) [
-        # Connect to Podman network for inter-container DNS resolution
-        "--network=${cfg.podmanNetwork}"
-      ] ++ lib.optionals cfg.healthcheck.enable [
-        # Define the health check on the container itself
-        ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8080/api?mode=version)" = 200 ]' ''
-        # CRITICAL: Disable Podman's internal timer to prevent transient systemd units
-        "--health-interval=0s"
-        "--health-timeout=${cfg.healthcheck.timeout}"
-        "--health-retries=${toString cfg.healthcheck.retries}"
-        "--health-start-period=${cfg.healthcheck.startPeriod}"
-      ];
-    };
-
-    # Config generator service - creates sabnzbd.ini with proper categories if missing
-    systemd.services.sabnzbd-config-generator = {
-      description = "Generate SABnzbd configuration if missing";
-      before = [ mainServiceUnit ];
-      serviceConfig = {
-        Type = "oneshot";
-        User = cfg.user;
-        Group = cfg.group;
-        # Load API key from sops template if configured
-        EnvironmentFile = lib.mkIf (cfg.apiKeyFile != null) config.sops.templates."sabnzbd-env".path;
-        ExecStart = pkgs.writeShellScript "generate-sab-config" ''
-          set -eu
-          CONFIG_FILE="${cfg.dataDir}/sabnzbd.ini"
-          CONFIG_DIR="${cfg.dataDir}"
-
-          # Only generate if config doesn't exist
-          if [ ! -f "$CONFIG_FILE" ]; then
-            echo "Config missing, generating from Nix settings..."
-            mkdir -p "$CONFIG_DIR"
-
-            # Read API key from environment if provided via sops
-            API_KEY_SETTING=""
-            if [ -n "''${SABNZBD__API_KEY:-}" ]; then
-              echo "Injecting API key from sops-nix..."
-              API_KEY_SETTING="api_key = $SABNZBD__API_KEY"
-            fi
-
-            # Generate declarative config with TRaSH Guides best practices
-            cat > "$CONFIG_FILE" << 'EOF'
-[misc]
-# === Basic Connection & Path Settings ===
-host = 0.0.0.0
-port = 8080
-download_dir = /data/sab/incomplete
-complete_dir = /data/sab/complete
-permissions = 0775
-# Create files with 664, directories with 775 for *arr service access
-umask = 002
-
-# === MUST HAVE SETTINGS (TRaSH Guides) ===
-# Security: Whitelist API access to specific hostnames
-# Add your *arr container names via extraHostWhitelist option
-host_whitelist = ${lib.concatStringsSep ", " (["sabnzbd" "localhost" "127.0.0.1"] ++ cfg.extraHostWhitelist)}
-
-# Security: Block potentially malicious file extensions
-unwanted_extensions = .ade, .adp, .app, .asp, .bas, .bat, .cer, .chm, .cmd, .com, .cpl, .crt, .csh, .der, .exe, .fxp, .gadget, .hlp, .hta, .inf, .ins, .isp, .its, .js, .jse, .ksh, .lnk, .mad, .maf, .mag, .mam, .maq, .mar, .mas, .mat, .mau, .mav, .maw, .mda, .mdb, .mde, .mdt, .mdw, .mdz, .msc, .msh, .msh1, .msh2, .msh1xml, .msh2xml, .mshxml, .msi, .msp, .mst, .ops, .pcd, .pif, .plg, .prf, .prg, .pst, .reg, .scf, .scr, .sct, .shb, .shs, .ps1, .ps1xml, .ps2, .ps2xml, .psc1, .psc2, .tmp, .url, .vb, .vbe, .vbs, .vsmacros, .vsw, .ws, .wsc, .wsf, .wsh, .xnk
-
-# *arr Integration: Unpack directly to final directory to enable hardlinks
-direct_unpack = 1
-
-# *arr Integration: Disable SABnzbd sorting - let *arrs manage priority
-enable_job_sorting = 0
-
-# Data Integrity: Only post-process verified downloads
-post_process_only_verified = 1
-
-# === RECOMMENDED DEFAULTS (TRaSH Guides) ===
-# Performance & Reliability
-allow_dupes = 0
-pause_on_post_processing = 1
-pre_check = 1
-queue_stalled_time = 300
-top_only = 1
-
-# Convenience
-enable_recursive_unpack = 1
-ignore_samples = 1
-nzb_backup_dir = /config/nzb-backup
-
-# === CRITICAL OPERATIONAL SETTINGS (Gemini Pro Analysis) ===
-# Stability: Force fixed ports to prevent silent port changes on boot
-fixed_ports = ${if cfg.fixedPorts then "1" else "0"}
-
-# Security: Enable HTTPS certificate verification (MITM protection)
-enable_https_verification = ${if cfg.enableHttpsVerification then "1" else "0"}
-
-# Performance: Article cache limit (tune based on system RAM)
-cache_limit = ${cfg.cacheLimit}
-
-# Integration: Bandwidth limit to prevent network saturation
-bandwidth_perc = ${toString cfg.bandwidthPercent}
-
-# Integration: Maximum queue size for *arr service bulk operations
-queue_limit = ${toString cfg.queueLimit}
-
-# Operational: Logging verbosity (0=Error, 1=Info, 2=Debug)
-log_level = ${toString cfg.logLevel}
-
-# Declaratively managed Usenet servers
-[servers]
-${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: server: ''
-[[${server.host}]]
-name = ${server.host}
-displayname = ${server.host}
-host = ${server.host}
-port = ${toString server.port}
-timeout = 60
-username = __USENET_USERNAME__
-password = __USENET_PASSWORD__
-connections = ${toString server.connections}
-ssl = ${if server.ssl then "1" else "0"}
-ssl_verify = 2
-ssl_ciphers = ""
-enable = 1
-required = 0
-optional = 0
-retention = ${toString server.retention}
-expire_date = ""
-quota = ""
-usage_at_start = 0
-priority = ${toString server.priority}
-'') cfg.usenetProviders)}
-
-# Pre-configured categories for *arr services
-# Categories control final output directory via lookup rules
-[categories]
-[[*]]
-name = *
-order = 0
-pp = 3
-script = None
-dir = ""
-priority = 0
-${lib.concatStringsSep "\n" (lib.imap0 (idx: name:
-  let catCfg = cfg.categories.${name}; in ''
-[[${name}]]
-name = ${name}
-order = ${toString (idx + 1)}
-pp = 3
-script = Default
-dir = ${catCfg.dir}
-priority = ${catCfg.priority}
-'') (lib.attrNames cfg.categories))}
-EOF
-
-            # Inject API key if provided via sops environment variable
-            if [ -n "''${SABNZBD__API_KEY:-}" ]; then
-              # Insert api_key under [misc] section (after first line)
-              sed -i '2i api_key = '"$SABNZBD__API_KEY" "$CONFIG_FILE"
-            fi
-
-            # Inject Usenet credentials if provided via sops environment variables
-            if [ -n "''${SABNZBD__USENET__USERNAME:-}" ] && [ -n "''${SABNZBD__USENET__PASSWORD:-}" ]; then
-              echo "Injecting Usenet credentials from sops-nix..."
-              sed -i "s/__USENET_USERNAME__/$SABNZBD__USENET__USERNAME/g" "$CONFIG_FILE"
-              sed -i "s/__USENET_PASSWORD__/$SABNZBD__USENET__PASSWORD/g" "$CONFIG_FILE"
-            fi
-
-            chmod 640 "$CONFIG_FILE"
-            echo "Configuration generated at $CONFIG_FILE"
-          else
-            echo "Config exists at $CONFIG_FILE, preserving existing file"
-          fi
-        '';
-      };
-    };
-
-    # Standardized systemd integration for container restart behavior
-    systemd.services."${mainServiceUnit}" = lib.mkMerge [
-      (lib.mkIf (nfsMountConfig != null) {
-        requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];  # TODO: derive from nfsMountConfig.localPath
-        after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
-      })
-      (lib.mkIf (cfg.podmanNetwork != null) {
-        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-      })
-      {
-      # Service should remain stopped if explicitly stopped by admin
-      unitConfig = {
-        # If the service fails, automatically restart it
-        # But if it's stopped manually (systemctl stop), keep it stopped
-        StartLimitBurst = 5;
-        StartLimitIntervalSec = 300;
-      };
-      serviceConfig = {
-        Restart = "on-failure";
-        RestartSec = "30s";
-        # Add NFS mount dependency if configured
-        RequiresMountsFor = lib.optional (nfsMountConfig != null) nfsMountConfig.localPath;
-      };
-      # Wait for config generator and preseed service before starting container
-      after = [ "sabnzbd-config-generator.service" ] ++ lib.optionals cfg.preseed.enable [
-        "sabnzbd-preseed.service"
-      ];
-      wants = [ "sabnzbd-config-generator.service" ] ++ lib.optionals cfg.preseed.enable [
-        "sabnzbd-preseed.service"
-      ];
-      }
-    ];
-
-    # Standardized health monitoring service
-    systemd.services."sabnzbd-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-      description = "SABnzbd Health Check";
-      after = [ mainServiceUnit ];
-      requires = [ mainServiceUnit ];
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.podman}/bin/podman healthcheck run sabnzbd";
-        # Health checks should not restart the service
-        Restart = "no";
-      };
-    };
-
-    systemd.timers."sabnzbd-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-      description = "Timer for SABnzbd Health Check";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnUnitActiveSec = cfg.healthcheck.interval;
-        OnBootSec = cfg.healthcheck.startPeriod;
-        Unit = "sabnzbd-healthcheck.service";
-      };
-    };
-
-    # Notifications for service failures (centralized pattern)
-    modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-      "sabnzbd-failure" = {
-        enable = lib.mkDefault true;
-        priority = lib.mkDefault "high";
-        title = lib.mkDefault ''<b><font color="red">✗ Service Failed: SABnzbd</font></b>'';
-        body = lib.mkDefault ''
-          <b>Host:</b> ''${hostname}
-          <b>Service:</b> <code>''${serviceName}</code>
-
-          The SABnzbd usenet download client has entered a failed state.
-
-          <b>Quick Actions:</b>
-          1. Check logs:
-             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-          2. Restart service:
-             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-        '';
-      };
-    };
-
-    # Backup integration using standardized restic pattern
-    modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      sabnzbd = {
+      # Integrate with centralized Caddy reverse proxy if configured
+      modules.services.caddy.virtualHosts.sabnzbd = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         enable = true;
-        # Configuration directory only - downloads are transient and not backed up
-        paths = [ cfg.dataDir ];
-        repository = cfg.backup.repository;
-        frequency = cfg.backup.frequency;
-        tags = cfg.backup.tags;
-        excludePatterns = cfg.backup.excludePatterns;
-        # Use ZFS snapshots for consistent backups of SQLite databases
-        useSnapshots = cfg.backup.useSnapshots;
-        zfsDataset = cfg.backup.zfsDataset;
-        # Ensure service stops before backup for data consistency
-        preBackupServices = [ mainServiceUnit ];
+        hostName = cfg.reverseProxy.hostName;
+
+        # Use structured backend configuration from shared types
+        backend = {
+          scheme = "http"; # SABnzbd uses HTTP locally
+          host = "127.0.0.1";
+          port = cfg.port;
+        };
+
+        # Authentication configuration from shared types
+        auth = cfg.reverseProxy.auth;
+
+        # Authelia SSO configuration from shared types
+        authelia = cfg.reverseProxy.authelia;
+
+        # PocketID / caddy-security configuration
+        caddySecurity = cfg.reverseProxy.caddySecurity;
+
+        # Security configuration from shared types
+        security = cfg.reverseProxy.security;
+
+        extraConfig = cfg.reverseProxy.extraConfig;
       };
-    };
+
+      # Declare dataset requirements for per-service ZFS isolation
+      # This integrates with the storage.datasets module to automatically
+      # create tank/services/sabnzbd with appropriate ZFS properties
+      modules.storage.datasets.services.sabnzbd = {
+        mountpoint = cfg.dataDir;
+        recordsize = "16K"; # Optimal for SQLite databases
+        compression = "zstd"; # Better compression for text/config files
+        properties = {
+          "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
+        };
+        # Ownership matches the container user/group
+        owner = cfg.user;
+        group = cfg.group;
+        mode = "0750"; # Allow group read access for backup systems
+      };
+
+      # Create local users to match container UIDs
+      # This ensures proper file ownership on the host
+      users.users.sabnzbd = {
+        uid = lib.mkDefault (lib.toInt cfg.user);
+        group = cfg.group; # Use configured group (defaults to "media")
+        isSystemUser = true;
+        description = "SABnzbd service user";
+        # Add to media group for NFS access if dependency is set
+        extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
+      };
+
+      # SABnzbd container configuration
+      virtualisation.oci-containers.containers.sabnzbd = podmanLib.mkContainer "sabnzbd" {
+        image = cfg.image;
+        environment = {
+          PUID = cfg.user;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          TZ = cfg.timezone;
+          UMASK = "002"; # Ensure group-writable files for *arr services to read
+        };
+        environmentFiles = lib.optionals (cfg.apiKeyFile != null) [
+          # Inject API key via sops template for declarative secret management
+          # Pattern matches *arr services (Sonarr/Radarr/Prowlarr)
+          config.sops.templates."sabnzbd-env".path
+        ];
+        volumes = [
+          "${cfg.dataDir}:/config:rw"
+          "${cfg.downloadsDir}:/data:rw" # Unified mount point for hardlinks (TRaSH Guides best practice)
+        ];
+        ports = [
+          "${toString cfg.port}:8080" # Map configurable host port to container port 8080
+        ];
+        resources = cfg.resources;
+        extraOptions = [
+          # Podman-level umask ensures container process creates files with group-writable permissions
+          # This allows *arr services (in the same group) to move/hardlink files
+          "--umask=0002" # Creates directories with 775 and files with 664
+          "--pull=newer" # Automatically pull newer images
+          # Force container to run as the specified user:group
+          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+        ] ++ lib.optionals (nfsMountConfig != null) [
+          # Add media group to container so process can write to group-owned NFS mount
+          "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          # Connect to Podman network for inter-container DNS resolution
+          "--network=${cfg.podmanNetwork}"
+        ] ++ lib.optionals cfg.healthcheck.enable [
+          # Define the health check on the container itself
+          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8080/api?mode=version)" = 200 ]' ''
+          # CRITICAL: Disable Podman's internal timer to prevent transient systemd units
+          "--health-interval=0s"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+        ];
+      };
+
+      # Config generator service - creates sabnzbd.ini with proper categories if missing
+      systemd.services.sabnzbd-config-generator = {
+        description = "Generate SABnzbd configuration if missing";
+        before = [ mainServiceUnit ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = cfg.user;
+          Group = cfg.group;
+          # Load API key from sops template if configured
+          EnvironmentFile = lib.mkIf (cfg.apiKeyFile != null) config.sops.templates."sabnzbd-env".path;
+          ExecStart = pkgs.writeShellScript "generate-sab-config" ''
+                      set -eu
+                      CONFIG_FILE="${cfg.dataDir}/sabnzbd.ini"
+                      CONFIG_DIR="${cfg.dataDir}"
+
+                      # Only generate if config doesn't exist
+                      if [ ! -f "$CONFIG_FILE" ]; then
+                        echo "Config missing, generating from Nix settings..."
+                        mkdir -p "$CONFIG_DIR"
+
+                        # Read API key from environment if provided via sops
+                        API_KEY_SETTING=""
+                        if [ -n "''${SABNZBD__API_KEY:-}" ]; then
+                          echo "Injecting API key from sops-nix..."
+                          API_KEY_SETTING="api_key = $SABNZBD__API_KEY"
+                        fi
+
+                        # Generate declarative config with TRaSH Guides best practices
+                        cat > "$CONFIG_FILE" << 'EOF'
+            [misc]
+            # === Basic Connection & Path Settings ===
+            host = 0.0.0.0
+            port = 8080
+            download_dir = /data/sab/incomplete
+            complete_dir = /data/sab/complete
+            permissions = 0775
+            # Create files with 664, directories with 775 for *arr service access
+            umask = 002
+
+            # === MUST HAVE SETTINGS (TRaSH Guides) ===
+            # Security: Whitelist API access to specific hostnames
+            # Add your *arr container names via extraHostWhitelist option
+            host_whitelist = ${lib.concatStringsSep ", " (["sabnzbd" "localhost" "127.0.0.1"] ++ cfg.extraHostWhitelist)}
+
+            # Security: Block potentially malicious file extensions
+            unwanted_extensions = .ade, .adp, .app, .asp, .bas, .bat, .cer, .chm, .cmd, .com, .cpl, .crt, .csh, .der, .exe, .fxp, .gadget, .hlp, .hta, .inf, .ins, .isp, .its, .js, .jse, .ksh, .lnk, .mad, .maf, .mag, .mam, .maq, .mar, .mas, .mat, .mau, .mav, .maw, .mda, .mdb, .mde, .mdt, .mdw, .mdz, .msc, .msh, .msh1, .msh2, .msh1xml, .msh2xml, .mshxml, .msi, .msp, .mst, .ops, .pcd, .pif, .plg, .prf, .prg, .pst, .reg, .scf, .scr, .sct, .shb, .shs, .ps1, .ps1xml, .ps2, .ps2xml, .psc1, .psc2, .tmp, .url, .vb, .vbe, .vbs, .vsmacros, .vsw, .ws, .wsc, .wsf, .wsh, .xnk
+
+            # *arr Integration: Unpack directly to final directory to enable hardlinks
+            direct_unpack = 1
+
+            # *arr Integration: Disable SABnzbd sorting - let *arrs manage priority
+            enable_job_sorting = 0
+
+            # Data Integrity: Only post-process verified downloads
+            post_process_only_verified = 1
+
+            # === RECOMMENDED DEFAULTS (TRaSH Guides) ===
+            # Performance & Reliability
+            allow_dupes = 0
+            pause_on_post_processing = 1
+            pre_check = 1
+            queue_stalled_time = 300
+            top_only = 1
+
+            # Convenience
+            enable_recursive_unpack = 1
+            ignore_samples = 1
+            nzb_backup_dir = /config/nzb-backup
+
+            # === CRITICAL OPERATIONAL SETTINGS (Gemini Pro Analysis) ===
+            # Stability: Force fixed ports to prevent silent port changes on boot
+            fixed_ports = ${if cfg.fixedPorts then "1" else "0"}
+
+            # Security: Enable HTTPS certificate verification (MITM protection)
+            enable_https_verification = ${if cfg.enableHttpsVerification then "1" else "0"}
+
+            # Performance: Article cache limit (tune based on system RAM)
+            cache_limit = ${cfg.cacheLimit}
+
+            # Integration: Bandwidth limit to prevent network saturation
+            bandwidth_perc = ${toString cfg.bandwidthPercent}
+
+            # Integration: Maximum queue size for *arr service bulk operations
+            queue_limit = ${toString cfg.queueLimit}
+
+            # Operational: Logging verbosity (0=Error, 1=Info, 2=Debug)
+            log_level = ${toString cfg.logLevel}
+
+            # Declaratively managed Usenet servers
+            [servers]
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: server: ''
+            [[${server.host}]]
+            name = ${server.host}
+            displayname = ${server.host}
+            host = ${server.host}
+            port = ${toString server.port}
+            timeout = 60
+            username = __USENET_USERNAME__
+            password = __USENET_PASSWORD__
+            connections = ${toString server.connections}
+            ssl = ${if server.ssl then "1" else "0"}
+            ssl_verify = 2
+            ssl_ciphers = ""
+            enable = 1
+            required = 0
+            optional = 0
+            retention = ${toString server.retention}
+            expire_date = ""
+            quota = ""
+            usage_at_start = 0
+            priority = ${toString server.priority}
+            '') cfg.usenetProviders)}
+
+            # Pre-configured categories for *arr services
+            # Categories control final output directory via lookup rules
+            [categories]
+            [[*]]
+            name = *
+            order = 0
+            pp = 3
+            script = None
+            dir = ""
+            priority = 0
+            ${lib.concatStringsSep "\n" (lib.imap0 (idx: name:
+              let catCfg = cfg.categories.${name}; in ''
+            [[${name}]]
+            name = ${name}
+            order = ${toString (idx + 1)}
+            pp = 3
+            script = Default
+            dir = ${catCfg.dir}
+            priority = ${catCfg.priority}
+            '') (lib.attrNames cfg.categories))}
+            EOF
+
+                        # Inject API key if provided via sops environment variable
+                        if [ -n "''${SABNZBD__API_KEY:-}" ]; then
+                          # Insert api_key under [misc] section (after first line)
+                          sed -i '2i api_key = '"$SABNZBD__API_KEY" "$CONFIG_FILE"
+                        fi
+
+                        # Inject Usenet credentials if provided via sops environment variables
+                        if [ -n "''${SABNZBD__USENET__USERNAME:-}" ] && [ -n "''${SABNZBD__USENET__PASSWORD:-}" ]; then
+                          echo "Injecting Usenet credentials from sops-nix..."
+                          sed -i "s/__USENET_USERNAME__/$SABNZBD__USENET__USERNAME/g" "$CONFIG_FILE"
+                          sed -i "s/__USENET_PASSWORD__/$SABNZBD__USENET__PASSWORD/g" "$CONFIG_FILE"
+                        fi
+
+                        chmod 640 "$CONFIG_FILE"
+                        echo "Configuration generated at $CONFIG_FILE"
+                      else
+                        echo "Config exists at $CONFIG_FILE, preserving existing file"
+                      fi
+          '';
+        };
+      };
+
+      # Standardized systemd integration for container restart behavior
+      systemd.services."${mainServiceUnit}" = lib.mkMerge [
+        (lib.mkIf (nfsMountConfig != null) {
+          requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ]; # TODO: derive from nfsMountConfig.localPath
+          after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
+        })
+        (lib.mkIf (cfg.podmanNetwork != null) {
+          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        })
+        {
+          # Service should remain stopped if explicitly stopped by admin
+          unitConfig = {
+            # If the service fails, automatically restart it
+            # But if it's stopped manually (systemctl stop), keep it stopped
+            StartLimitBurst = 5;
+            StartLimitIntervalSec = 300;
+          };
+          serviceConfig = {
+            Restart = "on-failure";
+            RestartSec = "30s";
+            # Add NFS mount dependency if configured
+            RequiresMountsFor = lib.optional (nfsMountConfig != null) nfsMountConfig.localPath;
+          };
+          # Wait for config generator and preseed service before starting container
+          after = [ "sabnzbd-config-generator.service" ] ++ lib.optionals cfg.preseed.enable [
+            "sabnzbd-preseed.service"
+          ];
+          wants = [ "sabnzbd-config-generator.service" ] ++ lib.optionals cfg.preseed.enable [
+            "sabnzbd-preseed.service"
+          ];
+        }
+      ];
+
+      # Standardized health monitoring service
+      systemd.services."sabnzbd-healthcheck" = lib.mkIf cfg.healthcheck.enable {
+        description = "SABnzbd Health Check";
+        after = [ mainServiceUnit ];
+        requires = [ mainServiceUnit ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.podman}/bin/podman healthcheck run sabnzbd";
+          # Health checks should not restart the service
+          Restart = "no";
+        };
+      };
+
+      systemd.timers."sabnzbd-healthcheck" = lib.mkIf cfg.healthcheck.enable {
+        description = "Timer for SABnzbd Health Check";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnUnitActiveSec = cfg.healthcheck.interval;
+          OnBootSec = cfg.healthcheck.startPeriod;
+          Unit = "sabnzbd-healthcheck.service";
+        };
+      };
+
+      # Notifications for service failures (centralized pattern)
+      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        "sabnzbd-failure" = {
+          enable = lib.mkDefault true;
+          priority = lib.mkDefault "high";
+          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: SABnzbd</font></b>'';
+          body = lib.mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
+
+            The SABnzbd usenet download client has entered a failed state.
+
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+          '';
+        };
+      };
+
+      # Backup integration using standardized restic pattern
+      modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+        sabnzbd = {
+          enable = true;
+          # Configuration directory only - downloads are transient and not backed up
+          paths = [ cfg.dataDir ];
+          repository = cfg.backup.repository;
+          frequency = cfg.backup.frequency;
+          tags = cfg.backup.tags;
+          excludePatterns = cfg.backup.excludePatterns;
+          # Use ZFS snapshots for consistent backups of SQLite databases
+          useSnapshots = cfg.backup.useSnapshots;
+          zfsDataset = cfg.backup.zfsDataset;
+          # Ensure service stops before backup for data consistency
+          preBackupServices = [ mainServiceUnit ];
+        };
+      };
 
     })
 
@@ -928,11 +927,11 @@ EOF
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;  # Pass the auto-discovered replication config
+        replicationCfg = replicationConfig; # Pass the auto-discovered replication config
         datasetProperties = {
-          recordsize = "16K";    # Optimal for application data
-          compression = "zstd";  # Better compression for config files
-          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots for this dataset
+          recordsize = "16K"; # Optimal for application data
+          compression = "zstd"; # Better compression for config files
+          "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots for this dataset
         };
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;

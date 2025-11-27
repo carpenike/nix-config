@@ -27,15 +27,15 @@ in
         dataDir = dataDir;
 
         devices = [
-          "/dev/dri:/dev/dri"            # Intel iGPU for decoding and TensorRT/OpenCL paths
-          "/dev/bus/usb:/dev/bus/usb"    # Coral USB passthrough for TFLite delegate
+          "/dev/dri:/dev/dri" # Intel iGPU for decoding and TensorRT/OpenCL paths
+          "/dev/bus/usb:/dev/bus/usb" # Coral USB passthrough for TFLite delegate
         ];
 
         extraOptions = [ "--shm-size=1024m" ];
 
         mdns = {
           enable = true;
-          mode = "container";  # Run Avahi inside the container to avoid host-level socket mapping complexity
+          mode = "container"; # Run Avahi inside the container to avoid host-level socket mapping complexity
         };
 
         nvr = {

@@ -9,34 +9,34 @@ in
     {
       modules.services.cooklangFederation = {
         enable = true;
-    dataDir = "/data/cooklang-federation";
-    datasetPath = "tank/services/cooklang-federation";
-    listenAddress = "127.0.0.1";
-    port = 9086;
-    externalUrl = "https://fedcook.holthome.net";
-    feedConfigFile = ../../files/cooklang-federation/feeds.yaml;
-
-    reverseProxy = {
-      enable = true;
-      hostName = "fedcook.holthome.net";
-      backend = {
-        scheme = "http";
-        host = "127.0.0.1";
+        dataDir = "/data/cooklang-federation";
+        datasetPath = "tank/services/cooklang-federation";
+        listenAddress = "127.0.0.1";
         port = 9086;
-      };
-    };
+        externalUrl = "https://fedcook.holthome.net";
+        feedConfigFile = ../../files/cooklang-federation/feeds.yaml;
 
-    healthcheck = {
-      enable = true;
-      metrics.enable = true;
-      interval = "5m";
-      timeout = "10s";
-      path = "/health";
-    };
+        reverseProxy = {
+          enable = true;
+          hostName = "fedcook.holthome.net";
+          backend = {
+            scheme = "http";
+            host = "127.0.0.1";
+            port = 9086;
+          };
+        };
 
-    backup = forgeDefaults.mkBackupWithTags "cooklang-federation" [ "cooklang" "federation" "recipes" "forge" ];
+        healthcheck = {
+          enable = true;
+          metrics.enable = true;
+          interval = "5m";
+          timeout = "10s";
+          path = "/health";
+        };
 
-    preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+        backup = forgeDefaults.mkBackupWithTags "cooklang-federation" [ "cooklang" "federation" "recipes" "forge" ];
+
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         notifications.enable = true;
 

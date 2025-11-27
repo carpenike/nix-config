@@ -52,7 +52,7 @@ let
         EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED = boolToString cfg.smtp.allowUnauthenticatedOneTimeCodes;
       }
     else
-      {};
+      { };
 
   baseSettings = {
     APP_URL = cfg.publicUrl;
@@ -252,7 +252,7 @@ in
 
     extraSettings = mkOption {
       type = types.attrsOf (types.oneOf [ types.bool types.int types.float types.str ]);
-      default = {};
+      default = { };
       description = "Additional environment variables passed to Pocket ID.";
     };
 
@@ -386,7 +386,7 @@ in
         home = lib.mkForce "/var/empty";
       };
 
-      users.groups.${cfg.group} = {};
+      users.groups.${cfg.group} = { };
 
       # Tighten service sandboxing + ensure ZFS mount is ready
       systemd.services.${serviceName} = {
@@ -443,7 +443,7 @@ in
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = serviceUnit;
-        replicationCfg = null;  # Replication config handled at host level
+        replicationCfg = null; # Replication config handled at host level
         datasetProperties = {
           recordsize = "16K";
           compression = "zstd";

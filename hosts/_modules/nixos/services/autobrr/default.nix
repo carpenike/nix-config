@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  config,
-  podmanLib,
-  ...
+{ lib
+, pkgs
+, config
+, podmanLib
+, ...
 }:
 let
   # Import pure storage helpers library
@@ -219,7 +218,7 @@ in
           };
           labels = lib.mkOption {
             type = lib.types.attrsOf lib.types.str;
-            default = {};
+            default = { };
             description = "Additional Prometheus labels";
           };
         };
@@ -311,13 +310,14 @@ in
     };
   };
 
-  config = let
-    # Move config-dependent variables here to avoid infinite recursion
-    storageCfg = config.modules.storage;
-    autobrrPort = 7474;
-    mainServiceUnit = "${config.virtualisation.oci-containers.backend}-autobrr.service";
-    datasetPath = "${storageCfg.datasets.parentDataset}/autobrr";
-    configFile = "${cfg.dataDir}/config.toml";
+  config =
+    let
+      # Move config-dependent variables here to avoid infinite recursion
+      storageCfg = config.modules.storage;
+      autobrrPort = 7474;
+      mainServiceUnit = "${config.virtualisation.oci-containers.backend}-autobrr.service";
+      datasetPath = "${storageCfg.datasets.parentDataset}/autobrr";
+      configFile = "${cfg.dataDir}/config.toml";
 
       # Recursively find the replication config
       findReplication = dsPath:
@@ -325,7 +325,7 @@ in
         else
           let
             sanoidDatasets = config.modules.backup.sanoid.datasets;
-            replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+            replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
             parentPath =
               if lib.elem "/" (lib.stringToCharacters dsPath) then
                 lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -363,277 +363,283 @@ in
             recvOptions = foundReplication.replication.recvOptions or "u";
           };
 
-    hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
-  in lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      assertions = [
-        {
-          assertion = cfg.settings.sessionSecretFile != null;
-          message = "Autobrr requires settings.sessionSecretFile to be set for session security.";
-        }
-        {
-          assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
-          message = "Autobrr reverse proxy must be explicitly enabled when configured";
-        }
-        {
-          assertion = cfg.backup != null -> cfg.backup.enable;
-          message = "Autobrr backup must be explicitly enabled when configured";
-        }
-        {
-          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
-          message = "Autobrr preseed.enable requires preseed.repositoryUrl to be set.";
-        }
-        {
-          assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-          message = "Autobrr preseed.enable requires preseed.passwordFile to be set.";
-        }
-      ];
+      hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
+    in
+    lib.mkMerge [
+      (lib.mkIf cfg.enable {
+        assertions = [
+          {
+            assertion = cfg.settings.sessionSecretFile != null;
+            message = "Autobrr requires settings.sessionSecretFile to be set for session security.";
+          }
+          {
+            assertion = cfg.reverseProxy != null -> cfg.reverseProxy.enable;
+            message = "Autobrr reverse proxy must be explicitly enabled when configured";
+          }
+          {
+            assertion = cfg.backup != null -> cfg.backup.enable;
+            message = "Autobrr backup must be explicitly enabled when configured";
+          }
+          {
+            assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+            message = "Autobrr preseed.enable requires preseed.repositoryUrl to be set.";
+          }
+          {
+            assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
+            message = "Autobrr preseed.enable requires preseed.passwordFile to be set.";
+          }
+        ];
 
-    warnings =
-      (lib.optional (cfg.reverseProxy == null) "Autobrr has no reverse proxy configured. Service will only be accessible locally.")
-      ++ (lib.optional (cfg.backup == null) "Autobrr has no backup configured. IRC filters and configurations will not be protected.");
+        warnings =
+          (lib.optional (cfg.reverseProxy == null) "Autobrr has no reverse proxy configured. Service will only be accessible locally.")
+          ++ (lib.optional (cfg.backup == null) "Autobrr has no backup configured. IRC filters and configurations will not be protected.");
 
-    # Create ZFS dataset for Autobrr data
-    modules.storage.datasets.services.autobrr = {
-      mountpoint = cfg.dataDir;
-      recordsize = "16K";  # Optimal for configuration files
-      compression = "zstd";
-      properties = {
-        "com.sun:auto-snapshot" = "true";
-      };
-      owner = cfg.user;
-      group = cfg.group;
-      mode = "0750";
-    };
-
-    # Create system user for Autobrr
-    users.users.autobrr = {
-      uid = lib.mkDefault (lib.toInt cfg.user);
-      group = cfg.group;
-      isSystemUser = true;
-      description = "Autobrr service user";
-    };
-
-    # Create system group for Autobrr
-    users.groups.autobrr = {
-      gid = lib.mkDefault (lib.toInt cfg.user);
-    };
-
-    # Config generator service - creates config only if missing
-    # This preserves UI changes (indexers, filters, IRC connections) while ensuring correct initial configuration
-    systemd.services.autobrr-config-generator = {
-      description = "Generate Autobrr configuration if missing";
-      before = [ mainServiceUnit ];
-      serviceConfig = {
-        Type = "oneshot";
-        User = cfg.user;
-        Group = cfg.group;
-        EnvironmentFile = config.sops.templates."autobrr-env".path;
-        ExecStart = pkgs.writeShellScript "generate-autobrr-config" ''
-          set -eu
-          CONFIG_FILE="${configFile}"
-          CONFIG_DIR=$(dirname "$CONFIG_FILE")
-
-          # Only generate if config doesn't exist
-          if [ ! -f "$CONFIG_FILE" ]; then
-            echo "Config missing, generating from Nix settings..."
-            mkdir -p "$CONFIG_DIR"
-
-            # Secrets injected via environment variables from sops template
-            # AUTOBRR__SESSION_SECRET and AUTOBRR__OIDC_CLIENT_SECRET available
-
-            # Generate config using heredoc
-            cat > "$CONFIG_FILE" << EOF
-# Autobrr configuration - generated by Nix
-# Changes to indexers, filters, and IRC connections are preserved
-# Base configuration is declaratively managed
-
-# Network configuration
-host = "${cfg.settings.host}"
-port = ${toString cfg.settings.port}
-${lib.optionalString (cfg.settings.baseUrl != "") ''baseUrl = "${cfg.settings.baseUrl}"''}
-
-# Logging
-logLevel = "${cfg.settings.logLevel}"
-
-# Update management (disabled - using Nix/Renovate)
-checkForUpdates = ${if cfg.settings.checkForUpdates then "true" else "false"}
-
-# Session security
-sessionSecret = "$AUTOBRR__SESSION_SECRET"
-
-# OIDC authentication
-${lib.optionalString (cfg.oidc != null && cfg.oidc.enable) ''
-oidcEnabled = true
-oidcIssuer = "${cfg.oidc.issuer}"
-oidcClientId = "${cfg.oidc.clientId}"
-oidcClientSecret = "$AUTOBRR__OIDC_CLIENT_SECRET"
-oidcRedirectUrl = "${cfg.oidc.redirectUrl}"
-oidcDisableBuiltInLogin = ${if cfg.oidc.disableBuiltInLogin then "true" else "false"}
-''}
-${lib.optionalString (cfg.oidc == null || !cfg.oidc.enable) ''
-oidcEnabled = false
-''}
-
-# Metrics configuration
-${lib.optionalString (cfg.metrics != null && cfg.metrics.enable) ''
-metricsEnabled = true
-metricsHost = "${cfg.metrics.host}"
-metricsPort = "${toString cfg.metrics.port}"
-''}
-${lib.optionalString (cfg.metrics == null || !cfg.metrics.enable) ''
-metricsEnabled = false
-''}
-EOF
-
-            chmod 640 "$CONFIG_FILE"
-            echo "Configuration generated at $CONFIG_FILE"
-          else
-            echo "Config exists at $CONFIG_FILE, preserving existing file"
-          fi
-        '';
-      };
-    };
-
-    # Autobrr container configuration
-    # Note: This image does not use PUID/PGID - must use --user flag
-    virtualisation.oci-containers.containers.autobrr = podmanLib.mkContainer "autobrr" {
-      image = cfg.image;
-      environment = {
-        TZ = cfg.timezone;
-      };
-      volumes = [
-        "${cfg.dataDir}:/config:rw"
-      ];
-      ports = [ "${toString autobrrPort}:7474" ]
-        ++ (lib.optional (cfg.metrics != null && cfg.metrics.enable) "${toString cfg.metrics.port}:${toString cfg.metrics.port}");
-      log-driver = "journald";
-      extraOptions =
-        [
-          # Autobrr container doesn't support PUID/PGID - use --user flag
-          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-        ]
-        ++ (lib.optionals (cfg.podmanNetwork != null) [
-          # Connect to Podman network for inter-container DNS resolution
-          "--network=${cfg.podmanNetwork}"
-        ])
-        ++ (lib.optionals (cfg.resources != null) [
-          "--memory=${cfg.resources.memory}"
-          "--memory-reservation=${cfg.resources.memoryReservation}"
-          "--cpus=${cfg.resources.cpus}"
-        ])
-        ++ (lib.optionals (cfg.healthcheck.enable) [
-          "--health-cmd=curl --fail http://localhost:7474/api/healthz/liveness || exit 1"
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-        ]);
-    };
-
-    # Systemd service dependencies and security
-    systemd.services."${mainServiceUnit}" = lib.mkMerge [
-      (lib.mkIf (cfg.podmanNetwork != null) {
-        requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-        after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-      })
-      {
-        requires = [ "network-online.target" ];
-        after = [ "network-online.target" "autobrr-config-generator.service" ];
-        wants = [ "autobrr-config-generator.service" ];
-        serviceConfig = {
-          Restart = lib.mkForce "always";
-          RestartSec = "10s";
-        };
-      }
-    ];
-
-    # Integrate with centralized Caddy reverse proxy if configured
-    modules.services.caddy.virtualHosts.autobrr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-      backend = {
-        scheme = "http";
-        host = "127.0.0.1";
-        port = autobrrPort;
-      };
-      auth = cfg.reverseProxy.auth;
-      authelia = cfg.reverseProxy.authelia;
-      caddySecurity = cfg.reverseProxy.caddySecurity;
-      security = cfg.reverseProxy.security;
-      extraConfig = cfg.reverseProxy.extraConfig;
-    };
-
-    # Register with Authelia for SSO protection
-    modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr = lib.mkIf (
-      cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
-    ) {
-      domain = cfg.reverseProxy.hostName;
-      policy = cfg.reverseProxy.authelia.policy;
-      subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
-      bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
-    };
-
-    # Backup integration using standardized restic pattern
-    modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      autobrr = {
-        enable = true;
-        paths = [ cfg.dataDir ];
-        repository = cfg.backup.repository;
-        frequency = cfg.backup.frequency;
-        tags = cfg.backup.tags;
-        excludePatterns = cfg.backup.excludePatterns;
-        useSnapshots = cfg.backup.useSnapshots;
-        zfsDataset = cfg.backup.zfsDataset;
-      };
-    };
-  })
-
-    # Preseed service
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        serviceName = "autobrr";
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
-          recordsize = "16K";
+        # Create ZFS dataset for Autobrr data
+        modules.storage.datasets.services.autobrr = {
+          mountpoint = cfg.dataDir;
+          recordsize = "16K"; # Optimal for configuration files
           compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
+          properties = {
+            "com.sun:auto-snapshot" = "true";
+          };
+          owner = cfg.user;
+          group = cfg.group;
+          mode = "0750";
         };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        hasCentralizedNotifications = hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
-      }
-    ))
 
-    # Register with Authelia if SSO protection is enabled
-    # This declares INTENT - Caddy module handles IMPLEMENTATION
-    (lib.mkIf (
-      config.modules.services.authelia.enable &&
-      cfg.enable &&
-      cfg.reverseProxy != null &&
-      cfg.reverseProxy.enable &&
-      cfg.reverseProxy.authelia != null &&
-      cfg.reverseProxy.authelia.enable
-    ) {
-      modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr =
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-            ++ authCfg.bypassResources;
+        # Create system user for Autobrr
+        users.users.autobrr = {
+          uid = lib.mkDefault (lib.toInt cfg.user);
+          group = cfg.group;
+          isSystemUser = true;
+          description = "Autobrr service user";
         };
-    })
-  ];
+
+        # Create system group for Autobrr
+        users.groups.autobrr = {
+          gid = lib.mkDefault (lib.toInt cfg.user);
+        };
+
+        # Config generator service - creates config only if missing
+        # This preserves UI changes (indexers, filters, IRC connections) while ensuring correct initial configuration
+        systemd.services.autobrr-config-generator = {
+          description = "Generate Autobrr configuration if missing";
+          before = [ mainServiceUnit ];
+          serviceConfig = {
+            Type = "oneshot";
+            User = cfg.user;
+            Group = cfg.group;
+            EnvironmentFile = config.sops.templates."autobrr-env".path;
+            ExecStart = pkgs.writeShellScript "generate-autobrr-config" ''
+                        set -eu
+                        CONFIG_FILE="${configFile}"
+                        CONFIG_DIR=$(dirname "$CONFIG_FILE")
+
+                        # Only generate if config doesn't exist
+                        if [ ! -f "$CONFIG_FILE" ]; then
+                          echo "Config missing, generating from Nix settings..."
+                          mkdir -p "$CONFIG_DIR"
+
+                          # Secrets injected via environment variables from sops template
+                          # AUTOBRR__SESSION_SECRET and AUTOBRR__OIDC_CLIENT_SECRET available
+
+                          # Generate config using heredoc
+                          cat > "$CONFIG_FILE" << EOF
+              # Autobrr configuration - generated by Nix
+              # Changes to indexers, filters, and IRC connections are preserved
+              # Base configuration is declaratively managed
+
+              # Network configuration
+              host = "${cfg.settings.host}"
+              port = ${toString cfg.settings.port}
+              ${lib.optionalString (cfg.settings.baseUrl != "") ''baseUrl = "${cfg.settings.baseUrl}"''}
+
+              # Logging
+              logLevel = "${cfg.settings.logLevel}"
+
+              # Update management (disabled - using Nix/Renovate)
+              checkForUpdates = ${if cfg.settings.checkForUpdates then "true" else "false"}
+
+              # Session security
+              sessionSecret = "$AUTOBRR__SESSION_SECRET"
+
+              # OIDC authentication
+              ${lib.optionalString (cfg.oidc != null && cfg.oidc.enable) ''
+              oidcEnabled = true
+              oidcIssuer = "${cfg.oidc.issuer}"
+              oidcClientId = "${cfg.oidc.clientId}"
+              oidcClientSecret = "$AUTOBRR__OIDC_CLIENT_SECRET"
+              oidcRedirectUrl = "${cfg.oidc.redirectUrl}"
+              oidcDisableBuiltInLogin = ${if cfg.oidc.disableBuiltInLogin then "true" else "false"}
+              ''}
+              ${lib.optionalString (cfg.oidc == null || !cfg.oidc.enable) ''
+              oidcEnabled = false
+              ''}
+
+              # Metrics configuration
+              ${lib.optionalString (cfg.metrics != null && cfg.metrics.enable) ''
+              metricsEnabled = true
+              metricsHost = "${cfg.metrics.host}"
+              metricsPort = "${toString cfg.metrics.port}"
+              ''}
+              ${lib.optionalString (cfg.metrics == null || !cfg.metrics.enable) ''
+              metricsEnabled = false
+              ''}
+              EOF
+
+                          chmod 640 "$CONFIG_FILE"
+                          echo "Configuration generated at $CONFIG_FILE"
+                        else
+                          echo "Config exists at $CONFIG_FILE, preserving existing file"
+                        fi
+            '';
+          };
+        };
+
+        # Autobrr container configuration
+        # Note: This image does not use PUID/PGID - must use --user flag
+        virtualisation.oci-containers.containers.autobrr = podmanLib.mkContainer "autobrr" {
+          image = cfg.image;
+          environment = {
+            TZ = cfg.timezone;
+          };
+          volumes = [
+            "${cfg.dataDir}:/config:rw"
+          ];
+          ports = [ "${toString autobrrPort}:7474" ]
+            ++ (lib.optional (cfg.metrics != null && cfg.metrics.enable) "${toString cfg.metrics.port}:${toString cfg.metrics.port}");
+          log-driver = "journald";
+          extraOptions =
+            [
+              # Autobrr container doesn't support PUID/PGID - use --user flag
+              "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+            ]
+            ++ (lib.optionals (cfg.podmanNetwork != null) [
+              # Connect to Podman network for inter-container DNS resolution
+              "--network=${cfg.podmanNetwork}"
+            ])
+            ++ (lib.optionals (cfg.resources != null) [
+              "--memory=${cfg.resources.memory}"
+              "--memory-reservation=${cfg.resources.memoryReservation}"
+              "--cpus=${cfg.resources.cpus}"
+            ])
+            ++ (lib.optionals (cfg.healthcheck.enable) [
+              "--health-cmd=curl --fail http://localhost:7474/api/healthz/liveness || exit 1"
+              "--health-interval=${cfg.healthcheck.interval}"
+              "--health-timeout=${cfg.healthcheck.timeout}"
+              "--health-retries=${toString cfg.healthcheck.retries}"
+              "--health-start-period=${cfg.healthcheck.startPeriod}"
+            ]);
+        };
+
+        # Systemd service dependencies and security
+        systemd.services."${mainServiceUnit}" = lib.mkMerge [
+          (lib.mkIf (cfg.podmanNetwork != null) {
+            requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+            after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          })
+          {
+            requires = [ "network-online.target" ];
+            after = [ "network-online.target" "autobrr-config-generator.service" ];
+            wants = [ "autobrr-config-generator.service" ];
+            serviceConfig = {
+              Restart = lib.mkForce "always";
+              RestartSec = "10s";
+            };
+          }
+        ];
+
+        # Integrate with centralized Caddy reverse proxy if configured
+        modules.services.caddy.virtualHosts.autobrr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+          enable = true;
+          hostName = cfg.reverseProxy.hostName;
+          backend = {
+            scheme = "http";
+            host = "127.0.0.1";
+            port = autobrrPort;
+          };
+          auth = cfg.reverseProxy.auth;
+          authelia = cfg.reverseProxy.authelia;
+          caddySecurity = cfg.reverseProxy.caddySecurity;
+          security = cfg.reverseProxy.security;
+          extraConfig = cfg.reverseProxy.extraConfig;
+        };
+
+        # Register with Authelia for SSO protection
+        modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr = lib.mkIf
+          (
+            cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
+          )
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = cfg.reverseProxy.authelia.policy;
+            subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
+            bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
+          };
+
+        # Backup integration using standardized restic pattern
+        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+          autobrr = {
+            enable = true;
+            paths = [ cfg.dataDir ];
+            repository = cfg.backup.repository;
+            frequency = cfg.backup.frequency;
+            tags = cfg.backup.tags;
+            excludePatterns = cfg.backup.excludePatterns;
+            useSnapshots = cfg.backup.useSnapshots;
+            zfsDataset = cfg.backup.zfsDataset;
+          };
+        };
+      })
+
+      # Preseed service
+      (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+        storageHelpers.mkPreseedService {
+          serviceName = "autobrr";
+          dataset = datasetPath;
+          mountpoint = cfg.dataDir;
+          mainServiceUnit = mainServiceUnit;
+          replicationCfg = replicationConfig;
+          datasetProperties = {
+            recordsize = "16K";
+            compression = "zstd";
+            "com.sun:auto-snapshot" = "true";
+          };
+          resticRepoUrl = cfg.preseed.repositoryUrl;
+          resticPasswordFile = cfg.preseed.passwordFile;
+          resticEnvironmentFile = cfg.preseed.environmentFile;
+          resticPaths = [ cfg.dataDir ];
+          restoreMethods = cfg.preseed.restoreMethods;
+          hasCentralizedNotifications = hasCentralizedNotifications;
+          owner = cfg.user;
+          group = cfg.group;
+        }
+      ))
+
+      # Register with Authelia if SSO protection is enabled
+      # This declares INTENT - Caddy module handles IMPLEMENTATION
+      (lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        {
+          modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr =
+            let
+              authCfg = cfg.reverseProxy.authelia;
+            in
+            {
+              domain = cfg.reverseProxy.hostName;
+              policy = authCfg.policy;
+              subject = map (g: "group:${g}") authCfg.allowedGroups;
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
+                ++ authCfg.bypassResources;
+            };
+        })
+    ];
 }

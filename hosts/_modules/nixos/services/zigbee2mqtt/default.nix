@@ -35,7 +35,7 @@ let
     (if cfg.advanced.extPanIdFile != null then { name = "ext_pan_id"; path = cfg.advanced.extPanIdFile; } else null)
   ];
   loadCredentialEntries = map (entry: "${entry.name}:${toString entry.path}") credentialItems;
-  needsSecretFile = credentialItems != [];
+  needsSecretFile = credentialItems != [ ];
   needsRuntimeEnv = cfg.advanced.panIdFile != null || cfg.advanced.extPanIdFile != null;
   runtimeEnvPath = "${cfg.dataDir}/.zigbee2mqtt-env";
 
@@ -67,25 +67,25 @@ let
 
   replicationConfig =
     if foundReplication == null then null else
-      let
-        datasetSuffix =
-          if foundReplication.sourcePath == datasetPath then
-            ""
-          else
-            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-      in
-      {
-        targetHost = foundReplication.replication.targetHost;
-        targetDataset =
-          if datasetSuffix == "" then
-            foundReplication.replication.targetDataset
-          else
-            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-        sendOptions = foundReplication.replication.sendOptions or "w";
-        recvOptions = foundReplication.replication.recvOptions or "u";
-      };
+    let
+      datasetSuffix =
+        if foundReplication.sourcePath == datasetPath then
+          ""
+        else
+          lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+    in
+    {
+      targetHost = foundReplication.replication.targetHost;
+      targetDataset =
+        if datasetSuffix == "" then
+          foundReplication.replication.targetDataset
+        else
+          "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+      sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
+      sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+      sendOptions = foundReplication.replication.sendOptions or "w";
+      recvOptions = foundReplication.replication.recvOptions or "u";
+    };
 in
 {
   options.modules.services.zigbee2mqtt = {
@@ -487,13 +487,14 @@ in
         };
 
         serialSettings =
-          sanitizeAttrs {
-            port = cfg.serial.port;
-            adapter = cfg.serial.adapter;
-            baudrate = cfg.serial.baudrate;
-            rtscts = cfg.serial.rtscts;
-            adapter_delay = cfg.serial.adapterDelay;
-          }
+          sanitizeAttrs
+            {
+              port = cfg.serial.port;
+              adapter = cfg.serial.adapter;
+              baudrate = cfg.serial.baudrate;
+              rtscts = cfg.serial.rtscts;
+              adapter_delay = cfg.serial.adapterDelay;
+            }
           // optionalAttrs (serialAdvancedSettings != { }) { advanced = serialAdvancedSettings; };
 
         mqttAclTopics =
@@ -528,34 +529,34 @@ in
         groupsFilePath = resolveDataFile cfg.groupsFile;
 
         advancedSettings = sanitizeAttrs {
-            log_level = cfg.advanced.logLevel;
-            cache_state = cfg.advanced.cacheState;
-            legacy_api = cfg.advanced.legacyApi;
-            transmit_power = cfg.advanced.transmitPower;
-            network_key =
-              if cfg.advanced.networkKeyFile != null then
-                "!secret network_key"
-              else
-                cfg.advanced.networkKey;
-            pan_id =
-              if cfg.advanced.panIdFile != null then
-                null
-              else
-                cfg.advanced.panId;
-            ext_pan_id =
-              if cfg.advanced.extPanIdFile != null then
-                null
-              else
-                cfg.advanced.extPanId;
-            availability_blocklist = cfg.advanced.availabilityBlocklist;
-            channel = cfg.advanced.channel;
-            homeassistant_legacy_entity_attributes = cfg.advanced.homeassistantLegacyEntityAttributes;
-            homeassistant_legacy_triggers = cfg.advanced.homeassistantLegacyTriggers;
-            homeassistant_status_topic = cfg.advanced.homeassistantStatusTopic;
-            last_seen = cfg.advanced.lastSeen;
-            legacy_availability_payload = cfg.advanced.legacyAvailabilityPayload;
-            log_output = cfg.advanced.logOutput;
-          };
+          log_level = cfg.advanced.logLevel;
+          cache_state = cfg.advanced.cacheState;
+          legacy_api = cfg.advanced.legacyApi;
+          transmit_power = cfg.advanced.transmitPower;
+          network_key =
+            if cfg.advanced.networkKeyFile != null then
+              "!secret network_key"
+            else
+              cfg.advanced.networkKey;
+          pan_id =
+            if cfg.advanced.panIdFile != null then
+              null
+            else
+              cfg.advanced.panId;
+          ext_pan_id =
+            if cfg.advanced.extPanIdFile != null then
+              null
+            else
+              cfg.advanced.extPanId;
+          availability_blocklist = cfg.advanced.availabilityBlocklist;
+          channel = cfg.advanced.channel;
+          homeassistant_legacy_entity_attributes = cfg.advanced.homeassistantLegacyEntityAttributes;
+          homeassistant_legacy_triggers = cfg.advanced.homeassistantLegacyTriggers;
+          homeassistant_status_topic = cfg.advanced.homeassistantStatusTopic;
+          last_seen = cfg.advanced.lastSeen;
+          legacy_availability_payload = cfg.advanced.legacyAvailabilityPayload;
+          log_output = cfg.advanced.logOutput;
+        };
 
         baseSettings =
           homeAssistantSettings
@@ -627,53 +628,57 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf (
-          (config.modules.services.authelia.enable or false) &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        ) (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-            bypassPaths = authCfg.bypassPaths or [ ];
-            bypassResources = authCfg.bypassResources or [ ];
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
-              ++ bypassResources;
-          }
-        );
+        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
+          (
+            (config.modules.services.authelia.enable or false) &&
+            cfg.reverseProxy != null &&
+            cfg.reverseProxy.enable &&
+            cfg.reverseProxy.authelia != null &&
+            cfg.reverseProxy.authelia.enable
+          )
+          (
+            let
+              authCfg = cfg.reverseProxy.authelia;
+              bypassPaths = authCfg.bypassPaths or [ ];
+              bypassResources = authCfg.bypassResources or [ ];
+            in
+            {
+              domain = cfg.reverseProxy.hostName;
+              policy = authCfg.policy;
+              subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
+                ++ bypassResources;
+            }
+          );
 
-        modules.services.emqx.integrations.${serviceName} = mkIf (
-          cfg.mqtt.registerEmqxIntegration &&
-          cfg.mqtt.username != null &&
-          cfg.mqtt.passwordFile != null
-        ) {
-          users = [
-            {
-              username = cfg.mqtt.username;
-              passwordFile = cfg.mqtt.passwordFile;
-              tags = [ serviceName "zigbee" ];
-            }
-          ];
-          acls = [
-            {
-              permission = "allow";
-              action = "pubsub";
-              subject = {
-                kind = "user";
-                value = cfg.mqtt.username;
-              };
-              topics = mqttAclTopics;
-              comment = "${serviceName} publishes device state and consumes actions";
-            }
-          ];
-        };
+        modules.services.emqx.integrations.${serviceName} = mkIf
+          (
+            cfg.mqtt.registerEmqxIntegration &&
+            cfg.mqtt.username != null &&
+            cfg.mqtt.passwordFile != null
+          )
+          {
+            users = [
+              {
+                username = cfg.mqtt.username;
+                passwordFile = cfg.mqtt.passwordFile;
+                tags = [ serviceName "zigbee" ];
+              }
+            ];
+            acls = [
+              {
+                permission = "allow";
+                action = "pubsub";
+                subject = {
+                  kind = "user";
+                  value = cfg.mqtt.username;
+                };
+                topics = mqttAclTopics;
+                comment = "${serviceName} publishes device state and consumes actions";
+              }
+            ];
+          };
 
         modules.storage.datasets.services.${serviceName} = {
           mountpoint = cfg.dataDir;
@@ -711,11 +716,11 @@ in
           priority = cfg.notifications.priority or "high";
           title = cfg.notifications.title or "❌ Zigbee2MQTT service failed";
           body = cfg.notifications.body or ''
-<b>Host:</b> ${config.networking.hostName}
-<b>Service:</b> ${serviceUnit}
+            <b>Host:</b> ${config.networking.hostName}
+            <b>Service:</b> ${serviceUnit}
 
-Run: <code>journalctl -u ${serviceUnit} -n 200</code>
-'';
+            Run: <code>journalctl -u ${serviceUnit} -n 200</code>
+          '';
         };
 
         systemd.services.${serviceName} = mkMerge [

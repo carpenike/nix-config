@@ -1,8 +1,7 @@
-{
-  config,
-  lib,
-  pkgs,
-  ...
+{ config
+, lib
+, pkgs
+, ...
 }:
 let
   cfg = config.modules.kubernetes;
@@ -104,8 +103,8 @@ in
           imageScans = {
             enable = false;
             exclusions = {
-              namespaces = [];
-              labels = {};
+              namespaces = [ ];
+              labels = { };
             };
           };
           logger = {

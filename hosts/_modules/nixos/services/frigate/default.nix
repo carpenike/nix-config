@@ -4,8 +4,8 @@ let
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   cfg = config.modules.services.frigate;
-  storageCfg = config.modules.storage or {};
-  datasetsCfg = storageCfg.datasets or {};
+  storageCfg = config.modules.storage or { };
+  datasetsCfg = storageCfg.datasets or { };
   parentDataset = datasetsCfg.parentDataset or null;
   datasetPath = if parentDataset == null then null else "${parentDataset}/frigate";
   mainServiceUnit = "frigate.service";
@@ -51,7 +51,7 @@ let
     };
   };
 
-  detectorSettings = lib.optionalAttrs (cfg.detectors != {}) {
+  detectorSettings = lib.optionalAttrs (cfg.detectors != { }) {
     detectors = cfg.detectors;
   };
 
@@ -112,13 +112,13 @@ in
 
     detectors = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
       description = "Detector definitions passed through to Frigate (e.g., Coral edgetpu).";
     };
 
     settings = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
       description = "Raw Frigate configuration merged on top of module defaults.";
     };
 
@@ -276,7 +276,7 @@ in
       };
       settings = lib.mkOption {
         type = lib.types.attrs;
-        default = {};
+        default = { };
         description = "go2rtc configuration (passed to services.go2rtc).";
       };
     };
@@ -298,7 +298,7 @@ in
           description = "Frigate service account";
         };
 
-        users.groups.${frigateGroup} = {};
+        users.groups.${frigateGroup} = { };
       })
 
       (lib.mkIf cfg.enable {
@@ -337,13 +337,13 @@ in
           (lib.mkIf cfg.mqtt.enable {
             serviceConfig.ExecStartPre = lib.mkAfter [
               (pkgs.writeShellScript "frigate-render-mqtt-env" ''
-                set -euo pipefail
-                umask 077
-                ${pkgs.coreutils}/bin/install -d -m 0700 ${envDir}
-                secret="$(${pkgs.coreutils}/bin/tr -d '\n' < ${cfg.mqtt.passwordFile})"
-                cat > ${mqttEnvFile} <<EOF
-FRIGATE_MQTT_PASSWORD=$secret
-EOF
+                                set -euo pipefail
+                                umask 077
+                                ${pkgs.coreutils}/bin/install -d -m 0700 ${envDir}
+                                secret="$(${pkgs.coreutils}/bin/tr -d '\n' < ${cfg.mqtt.passwordFile})"
+                                cat > ${mqttEnvFile} <<EOF
+                FRIGATE_MQTT_PASSWORD=$secret
+                EOF
               '')
             ];
             serviceConfig.EnvironmentFile = lib.mkAfter [ mqttEnvFile ];
@@ -364,28 +364,30 @@ EOF
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.frigate = lib.mkIf (
-          (config.modules.services.authelia.enable or false) &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        ) (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-            bypassPaths = authCfg.bypassPaths or [];
-            extraBypass = authCfg.bypassResources or [];
-            allowedGroups = authCfg.allowedGroups or [];
-          in
-          {
-            domain = reverseProxyHost;
-            policy = authCfg.policy;
-            subject = map (group: "group:${group}") allowedGroups;
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
-              ++ extraBypass;
-          }
-        );
+        modules.services.authelia.accessControl.declarativelyProtectedServices.frigate = lib.mkIf
+          (
+            (config.modules.services.authelia.enable or false) &&
+            cfg.reverseProxy != null &&
+            cfg.reverseProxy.enable &&
+            cfg.reverseProxy.authelia != null &&
+            cfg.reverseProxy.authelia.enable
+          )
+          (
+            let
+              authCfg = cfg.reverseProxy.authelia;
+              bypassPaths = authCfg.bypassPaths or [ ];
+              extraBypass = authCfg.bypassResources or [ ];
+              allowedGroups = authCfg.allowedGroups or [ ];
+            in
+            {
+              domain = reverseProxyHost;
+              policy = authCfg.policy;
+              subject = map (group: "group:${group}") allowedGroups;
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
+                ++ extraBypass;
+            }
+          );
 
         modules.services.emqx.integrations.frigate = lib.mkIf (cfg.mqtt.enable && cfg.mqtt.registerEmqxIntegration) {
           users = [
@@ -437,7 +439,7 @@ EOF
           enable = true;
           repository = cfg.backup.repository;
           paths = [ cfg.dataDir ];
-          excludePatterns = (cfg.backup.excludePatterns or []) ++ [
+          excludePatterns = (cfg.backup.excludePatterns or [ ]) ++ [
             "${recordingsPath}/**"
             "${cfg.cacheDir}/**"
           ];
@@ -455,7 +457,7 @@ EOF
           dataset = datasetPath;
           mountpoint = cfg.dataDir;
           mainServiceUnit = mainServiceUnit;
-          replicationCfg = null;  # Replication config handled at host level
+          replicationCfg = null; # Replication config handled at host level
           datasetProperties = {
             recordsize = "128K";
             compression = "zstd";

@@ -145,15 +145,15 @@ in
   # Standard Sanoid dataset template and replication configuration
   # Used for ZFS snapshots and replication to NAS
   mkSanoidDataset = serviceName: {
-    useTemplate = [ "services" ];  # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
+    useTemplate = [ "services" ]; # 2 days hourly, 2 weeks daily, 2 months weekly, 6 months monthly
     recursive = false;
     autosnap = true;
     autoprune = true;
     replication = {
       targetHost = "nas-1.holthome.net";
       targetDataset = "backup/forge/zfs-recv/${serviceName}";
-      sendOptions = "wp";  # Raw encrypted send with property preservation
-      recvOptions = "u";   # Don't mount on receive
+      sendOptions = "wp"; # Raw encrypted send with property preservation
+      recvOptions = "u"; # Don't mount on receive
       hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
       # Consistent naming for Prometheus metrics
       targetName = "NFS";
@@ -188,7 +188,7 @@ in
     type = "promql";
     alertname = "${displayName}HealthcheckStale";
     expr = "time() - ${serviceName}_last_check_timestamp > ${toString thresholdSeconds}";
-    for = "2m";  # Guard against timer jitter and brief executor delays
+    for = "2m"; # Guard against timer jitter and brief executor delays
     severity = "high";
     labels = { service = serviceName; category = "availability"; };
     annotations = {

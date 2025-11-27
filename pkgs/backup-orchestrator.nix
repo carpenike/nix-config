@@ -8,7 +8,7 @@ pkgs.writeShellApplication {
     systemd
     gawk
     gnugrep
-    util-linux  # for bash associative arrays
+    util-linux # for bash associative arrays
   ];
 
   text = builtins.readFile ./backup-orchestrator.sh;

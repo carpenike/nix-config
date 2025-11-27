@@ -73,10 +73,10 @@ in
   # - HTTP basic auth for monitoring UIs (Loki, pgweb)
   sops.templates."caddy-env" = {
     content = ''
-      CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
-      CADDY_LOKI_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/loki-admin-bcrypt"}
-      PGWEB_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/pgweb-admin-bcrypt"}
-${lib.optionalString pocketIdEnabled "      CADDY_SECURITY_POCKETID_CLIENT_SECRET=${lib.strings.removeSuffix "\\n" config.sops.placeholder."caddy/pocket-id-client-secret"}"}
+            CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
+            CADDY_LOKI_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/loki-admin-bcrypt"}
+            PGWEB_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/pgweb-admin-bcrypt"}
+      ${lib.optionalString pocketIdEnabled "      CADDY_SECURITY_POCKETID_CLIENT_SECRET=${lib.strings.removeSuffix "\\n" config.sops.placeholder."caddy/pocket-id-client-secret"}"}
     '';
     owner = config.services.caddy.user;
     group = config.services.caddy.group;

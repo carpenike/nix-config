@@ -1,7 +1,6 @@
-{
-  pkgs,
-  stdenv,
-  ...
+{ pkgs
+, stdenv
+, ...
 }:
 let
   sourceData = pkgs.callPackage ./_sources/generated.nix { };

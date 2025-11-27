@@ -381,8 +381,8 @@ in
     description = "Run TLS metrics exporter every 5 minutes";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "5m";    # Wait for Caddy to start AND permissions to be fixed (fix-caddy runs at 2m + processing time)
-      OnUnitActiveSec = "5m";  # Check every 5 minutes
+      OnBootSec = "5m"; # Wait for Caddy to start AND permissions to be fixed (fix-caddy runs at 2m + processing time)
+      OnUnitActiveSec = "5m"; # Check every 5 minutes
       Unit = "tls-metrics-exporter.service";
     };
   };
@@ -430,8 +430,8 @@ in
   # Multi-model consensus (GPT-5 + Gemini 2.5 Pro + Gemini 2.5 Flash): 8.7/10 confidence
   # Verdict: Prometheus TSDB is correct tool; ZFS snapshots are excessive for disposable metrics
   modules.storage.datasets.services.prometheus = {
-    recordsize = "128K";  # Aligned with Prometheus WAL segments and 2h block files
-    compression = "lz4";  # Minimal overhead; TSDB chunks already compressed
+    recordsize = "128K"; # Aligned with Prometheus WAL segments and 2h block files
+    compression = "lz4"; # Minimal overhead; TSDB chunks already compressed
     mountpoint = "/var/lib/prometheus2";
     owner = "prometheus";
     group = "prometheus";
@@ -440,10 +440,10 @@ in
       # Industry best practice: Do NOT snapshot Prometheus TSDB (metrics are disposable)
       # Reasoning: 15-day retention doesn't justify 6-month snapshots; configs in Git, data replaceable
       # CoW amplification during TSDB compaction significantly impacts performance under snapshots
-      "com.sun:auto-snapshot" = "false";  # Disable snapshots (was: true)
-      logbias = "throughput";  # Optimize for streaming writes, not low-latency sync
-      primarycache = "metadata";  # Avoid ARC pollution; Prometheus has its own caching
-      atime = "off";  # Reduce metadata writes on read-heavy query workloads
+      "com.sun:auto-snapshot" = "false"; # Disable snapshots (was: true)
+      logbias = "throughput"; # Optimize for streaming writes, not low-latency sync
+      primarycache = "metadata"; # Avoid ARC pollution; Prometheus has its own caching
+      atime = "off"; # Reduce metadata writes on read-heavy query workloads
     };
   };
 

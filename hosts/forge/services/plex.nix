@@ -27,7 +27,7 @@ in
           recordsize = "128K";
           compression = "lz4";
           properties = {
-            "com.sun:auto-snapshot" = "true";  # Enable for backup snapshot coordination
+            "com.sun:auto-snapshot" = "true"; # Enable for backup snapshot coordination
             atime = "off";
           };
         };
@@ -41,7 +41,7 @@ in
         backup = {
           enable = true;
           repository = "nas-primary";
-          frequency = "daily";  # Changed from weekly per Gemini Pro recommendation
+          frequency = "daily"; # Changed from weekly per Gemini Pro recommendation
           tags = [ "plex" "media-metadata" "forge" ];
           # CRITICAL: Enable ZFS snapshots for SQLite database consistency
           useSnapshots = true;
@@ -64,7 +64,7 @@ in
         # Enable health monitoring and textfile metrics
         monitoring = {
           enable = true;
-          prometheus.enable = true;  # Node exporter textfile collector is enabled in monitoring.nix
+          prometheus.enable = true; # Node exporter textfile collector is enabled in monitoring.nix
           endpoint = "http://127.0.0.1:32400/web";
           interval = "minutely";
         };

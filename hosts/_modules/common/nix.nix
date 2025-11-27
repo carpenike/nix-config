@@ -1,7 +1,6 @@
-{
-  inputs,
-  lib,
-  ...
+{ inputs
+, lib
+, ...
 }:
 {
   nix = {
@@ -40,7 +39,7 @@
     };
 
     # Add nixpkgs input to NIX_PATH
-    nixPath = ["nixpkgs=${inputs.nixpkgs.outPath}"];
+    nixPath = [ "nixpkgs=${inputs.nixpkgs.outPath}" ];
 
     # garbage collection
     gc = {

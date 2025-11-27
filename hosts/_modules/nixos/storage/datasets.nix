@@ -14,9 +14,10 @@ let
   escape = lib.escapeShellArg;
 
   # Type validation for ZFS properties
-  zfsRecordsizeType = lib.types.addCheck lib.types.str (
-    str: builtins.match "[0-9]+[KMGTP]" str != null
-  ) // {
+  zfsRecordsizeType = lib.types.addCheck lib.types.str
+    (
+      str: builtins.match "[0-9]+[KMGTP]" str != null
+    ) // {
     description = "ZFS recordsize (e.g., 8K, 16K, 128K, 1M)";
   };
 in
@@ -73,7 +74,7 @@ in
 
           properties = lib.mkOption {
             type = lib.types.attrsOf lib.types.str;
-            default = {};
+            default = { };
             description = ''
               Additional ZFS properties to set on the dataset.
               Example: { "com.sun:auto-snapshot" = "true"; logbias = "latency"; }
@@ -120,7 +121,7 @@ in
           };
         };
       });
-      default = {};
+      default = { };
       description = ''
         Service-specific dataset configurations.
         Each service declares its storage requirements here.
@@ -162,7 +163,7 @@ in
 
           properties = lib.mkOption {
             type = lib.types.attrsOf lib.types.str;
-            default = {};
+            default = { };
             description = "Additional ZFS properties";
           };
 
@@ -194,7 +195,7 @@ in
           };
         };
       });
-      default = {};
+      default = { };
       description = ''
         Utility datasets with absolute paths (not under parentDataset).
         Use this for datasets like tank/temp that are siblings to parentDataset.
@@ -373,38 +374,45 @@ in
     # For OCI containers: Permissions are managed via tmpfiles (they don't support StateDirectory)
     systemd.tmpfiles.rules = lib.flatten (
       # Service datasets
-      (lib.mapAttrsToList (serviceName: serviceConfig:
-        let
-          mountpoint = if serviceConfig.mountpoint != null
-                      then serviceConfig.mountpoint
-                      else "${cfg.parentMount}/${serviceName}";
-          hasExplicitPermissions = (serviceConfig.mode or null) != null
-                                 && (serviceConfig.owner or null) != null
-                                 && (serviceConfig.group or null) != null;
-        in
-          if (mountpoint != "none" && mountpoint != "legacy") then (
-            if hasExplicitPermissions then [
-              "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
-              "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
-            ] else []
-          ) else []
-      ) cfg.services)
+      (lib.mapAttrsToList
+        (serviceName: serviceConfig:
+          let
+            mountpoint =
+              if serviceConfig.mountpoint != null
+              then serviceConfig.mountpoint
+              else "${cfg.parentMount}/${serviceName}";
+            hasExplicitPermissions = (serviceConfig.mode or null) != null
+            && (serviceConfig.owner or null) != null
+            && (serviceConfig.group or null) != null;
+          in
+          if (mountpoint != "none" && mountpoint != "legacy") then
+            (
+              if hasExplicitPermissions then [
+                "d \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+                "z \"${mountpoint}\" ${serviceConfig.mode} ${serviceConfig.owner} ${serviceConfig.group} - -"
+              ] else [ ]
+            ) else [ ]
+        )
+        cfg.services)
       ++
       # Utility datasets
-      (lib.mapAttrsToList (datasetPath: datasetConfig:
-        let
-          mountpoint = datasetConfig.mountpoint;
-          hasExplicitPermissions = (datasetConfig.mode or null) != null
-                                 && (datasetConfig.owner or null) != null
-                                 && (datasetConfig.group or null) != null;
-        in
-          if (mountpoint != "none" && mountpoint != "legacy") then (
-            if hasExplicitPermissions then [
-              "d \"${mountpoint}\" ${datasetConfig.mode} ${datasetConfig.owner} ${datasetConfig.group} - -"
-              "z \"${mountpoint}\" ${datasetConfig.mode} ${datasetConfig.owner} ${datasetConfig.group} - -"
-            ] else []
-          ) else []
-      ) cfg.utility)
+      (lib.mapAttrsToList
+        (datasetPath: datasetConfig:
+          let
+            mountpoint = datasetConfig.mountpoint;
+            hasExplicitPermissions = (datasetConfig.mode or null) != null
+            && (datasetConfig.owner or null) != null
+            && (datasetConfig.group or null) != null;
+          in
+          if (mountpoint != "none" && mountpoint != "legacy") then
+            (
+              if hasExplicitPermissions then [
+                "d \"${mountpoint}\" ${datasetConfig.mode} ${datasetConfig.owner} ${datasetConfig.group} - -"
+                "z \"${mountpoint}\" ${datasetConfig.mode} ${datasetConfig.owner} ${datasetConfig.group} - -"
+              ] else [ ]
+            ) else [ ]
+        )
+        cfg.utility)
     );
 
     # Add assertions to validate configuration
@@ -422,12 +430,14 @@ in
         message = "modules.storage.datasets.parentMount must be an absolute path starting with /";
       }
       {
-        assertion = cfg.enable -> (lib.all (s:
-          s.mountpoint == null ||
-          s.mountpoint == "none" ||
-          s.mountpoint == "legacy" ||
-          lib.hasPrefix "/" s.mountpoint
-        ) (lib.attrValues cfg.services));
+        assertion = cfg.enable -> (lib.all
+          (s:
+            s.mountpoint == null ||
+              s.mountpoint == "none" ||
+              s.mountpoint == "legacy" ||
+              lib.hasPrefix "/" s.mountpoint
+          )
+          (lib.attrValues cfg.services));
         message = "All service mountpoints must be absolute paths (starting with /), 'none', 'legacy', or null";
       }
     ];

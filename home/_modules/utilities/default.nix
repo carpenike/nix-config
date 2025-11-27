@@ -1,19 +1,19 @@
 { pkgs, ... }: {
   config = {
     home.packages = with pkgs; [
-        curl
-        du-dust
-        envsubst
-        findutils
-        fish
-        gum
-        jo
-        jq
-        vim
-        wget
+      curl
+      du-dust
+      envsubst
+      findutils
+      fish
+      gum
+      jo
+      jq
+      vim
+      wget
 
-        # Custom packaged tools
-        backup-status
-      ];
+      # Custom packaged tools
+      backup-status
+    ];
   };
 }

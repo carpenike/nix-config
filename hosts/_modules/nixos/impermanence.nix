@@ -34,11 +34,11 @@ with lib;
     environment.persistence."${cfg.persistPath}" = {
       hideMounts = true;
       directories = [
-        "/var/log"          # Persist logs between reboots for debugging
-        "/var/lib/cache"    # Cache files (e.g., restic, nginx, containers)
-        "/var/lib/nixos"    # NixOS state
-        "/var/lib/omada"    # Omada controller data
-        "/var/lib/unifi"    # Unifi controller data
+        "/var/log" # Persist logs between reboots for debugging
+        "/var/lib/cache" # Cache files (e.g., restic, nginx, containers)
+        "/var/lib/nixos" # NixOS state
+        "/var/lib/omada" # Omada controller data
+        "/var/lib/unifi" # Unifi controller data
         # Persist Caddy's ACME certificates to avoid Let's Encrypt rate limiting
         # during frequent rebuilds/DR testing. Caddy still handles automatic renewal.
         # This also ensures TLS metrics are immediately available on boot.
@@ -51,10 +51,10 @@ with lib;
       ];
       files = [
         # Machine-id is handled by tmpfiles.rules as a symlink, not persisted directly
-        "/etc/ssh/ssh_host_ed25519_key"  # SSH private key
-        "/etc/ssh/ssh_host_ed25519_key.pub"  # SSH public key
-        "/etc/ssh/ssh_host_rsa_key"      # RSA private key
-        "/etc/ssh/ssh_host_rsa_key.pub"  # RSA public key
+        "/etc/ssh/ssh_host_ed25519_key" # SSH private key
+        "/etc/ssh/ssh_host_ed25519_key.pub" # SSH public key
+        "/etc/ssh/ssh_host_rsa_key" # RSA private key
+        "/etc/ssh/ssh_host_rsa_key.pub" # RSA public key
       ];
     };
 
@@ -88,7 +88,7 @@ with lib;
 
     # SSH key management is handled by systemd.tmpfiles.rules and impermanence
     # Remove the conflicting service that tries to manage the same files
-    systemd.services.ssh-key-permissions = lib.mkForce {};
+    systemd.services.ssh-key-permissions = lib.mkForce { };
 
     # Ensure SSH uses the persisted keys
     services.openssh = {

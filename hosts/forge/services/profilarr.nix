@@ -10,7 +10,7 @@ in
         # Profilarr - Profile sync for *arr services
         enable = true;
         image = "ghcr.io/profilarr/profilarr:latest";
-        podmanNetwork = forgeDefaults.podmanNetwork;  # Enable DNS resolution to *arr services
+        podmanNetwork = forgeDefaults.podmanNetwork; # Enable DNS resolution to *arr services
 
         # Run daily at 3 AM to sync quality profiles
         schedule = "*-*-* 03:00:00";

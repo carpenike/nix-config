@@ -1,7 +1,6 @@
-{
-  lib,
-  config,
-  ...
+{ lib
+, config
+, ...
 }:
 let
   cfg = config.modules.virtualization;
@@ -41,7 +40,7 @@ in
             };
           };
         });
-        default = {};
+        default = { };
         description = ''
           Podman networks to create and manage.
 
@@ -65,8 +64,8 @@ in
     # Enable Podman
     virtualisation.podman = {
       enable = true;
-      dockerCompat = false;  # Don't create docker alias
-      defaultNetwork.settings.dns_enabled = true;  # Enable DNS resolution on default network
+      dockerCompat = false; # Don't create docker alias
+      defaultNetwork.settings.dns_enabled = true; # Enable DNS resolution on default network
     };
 
     # Enable container backend for oci-containers
@@ -74,31 +73,35 @@ in
 
     # Create networks declaratively using NixOS's built-in option
     # This ensures networks are created before containers that need them
-    systemd.services = lib.mapAttrs' (networkName: networkConfig:
-      lib.nameValuePair "podman-network-${networkName}" {
-        description = "Podman network: ${networkName}";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "podman.service" ];
-        requires = [ "podman.service" ];
-        script = let
-          options = lib.concatStringsSep " " (
-            [ "--driver=${networkConfig.driver}" ]
-            ++ lib.optional (networkConfig.subnet != null) "--subnet=${networkConfig.subnet}"
-            ++ lib.optional (networkConfig.gateway != null) "--gateway=${networkConfig.gateway}"
-            ++ lib.optional networkConfig.internal "--internal"
-            ++ lib.optional networkConfig.ipv6 "--ipv6"
-          );
-        in ''
-          ${config.virtualisation.podman.package}/bin/podman network create ${options} ${networkName} || true
-        '';
-        preStop = ''
-          ${config.virtualisation.podman.package}/bin/podman network rm ${networkName} || true
-        '';
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-        };
-      }
-    ) cfg.podman.networks;
+    systemd.services = lib.mapAttrs'
+      (networkName: networkConfig:
+        lib.nameValuePair "podman-network-${networkName}" {
+          description = "Podman network: ${networkName}";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "podman.service" ];
+          requires = [ "podman.service" ];
+          script =
+            let
+              options = lib.concatStringsSep " " (
+                [ "--driver=${networkConfig.driver}" ]
+                ++ lib.optional (networkConfig.subnet != null) "--subnet=${networkConfig.subnet}"
+                ++ lib.optional (networkConfig.gateway != null) "--gateway=${networkConfig.gateway}"
+                ++ lib.optional networkConfig.internal "--internal"
+                ++ lib.optional networkConfig.ipv6 "--ipv6"
+              );
+            in
+            ''
+              ${config.virtualisation.podman.package}/bin/podman network create ${options} ${networkName} || true
+            '';
+          preStop = ''
+            ${config.virtualisation.podman.package}/bin/podman network rm ${networkName} || true
+          '';
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+        }
+      )
+      cfg.podman.networks;
   };
 }

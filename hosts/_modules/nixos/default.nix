@@ -1,6 +1,5 @@
-{
-  lib,
-  ...
+{ lib
+, ...
 }: {
   imports = [
     ./doas.nix
@@ -10,21 +9,21 @@
     ./systemd.nix
     ./filesystems
     ./hardware
-    ./virtualization  # Podman network and container infrastructure
+    ./virtualization # Podman network and container infrastructure
     ./services
     ./services/attic.nix
     # FIXME: Circular dependency - database-interface.nix defines options.modules.services.postgresql.databases
     # but postgresql/default.nix defines options.modules.services.postgresql as attrsOf submodule
     # These conflict - need to move databases option inside the submodule
     # ./services/postgresql/database-interface.nix  # PostgreSQL database interface (option declaration only)
-    ./postgresql-preseed.nix  # PostgreSQL automatic pre-seeding for new servers
+    ./postgresql-preseed.nix # PostgreSQL automatic pre-seeding for new servers
     ./backup.nix
     ./services/backup-services.nix
     ./monitoring.nix
-    ./alerting  # New Alertmanager-based alerting system
+    ./alerting # New Alertmanager-based alerting system
     ./notifications
     ./system-notifications.nix
-    ./storage  # Import storage module (includes datasets.nix and nfs-mounts.nix)
+    ./storage # Import storage module (includes datasets.nix and nfs-mounts.nix)
   ];
 
   documentation.nixos.enable = false;

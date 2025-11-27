@@ -1,7 +1,6 @@
-{
-  config,
-  lib,
-  ...
+{ config
+, lib
+, ...
 }:
 {
   schema_version = 24;
@@ -12,9 +11,9 @@
     password = "ADGUARDPASS";
   }];
   dns = {
-    bind_hosts = ["0.0.0.0"];  # Listen on all interfaces
+    bind_hosts = [ "0.0.0.0" ]; # Listen on all interfaces
     port = 53;
-    hostsfile_enabled = false;  # Don't use /etc/hosts for DNS resolution
+    hostsfile_enabled = false; # Don't use /etc/hosts for DNS resolution
     bootstrap_dns = [
       # quad9
       "9.9.9.10"
@@ -31,8 +30,8 @@
     upstream_dns = [
       # Local domains to Mikrotik (DHCP-DNS integration)
       "[/holthome.net/]10.20.0.1"
-      "[/in-addr.arpa/]10.20.0.1"   # Reverse DNS for hostname logging
-      "[/ip6.arpa/]10.20.0.1"       # IPv6 reverse DNS
+      "[/in-addr.arpa/]10.20.0.1" # Reverse DNS for hostname logging
+      "[/ip6.arpa/]10.20.0.1" # IPv6 reverse DNS
       # RV domain routing
       "[/holtel.io/]192.168.88.1:53"
       # Global upstreams (DoH)
@@ -40,8 +39,8 @@
       "https://1.0.0.1/dns-query"
     ];
     upstream_mode = "load_balance";
-    fallback_dns = [];  # Not needed with two load-balanced DoH upstreams
-    local_ptr_upstreams = [ "10.20.0.1" ];  # Mikrotik for local hostname resolution
+    fallback_dns = [ ]; # Not needed with two load-balanced DoH upstreams
+    local_ptr_upstreams = [ "10.20.0.1" ]; # Mikrotik for local hostname resolution
     use_private_ptr_resolvers = true;
 
     # security
@@ -54,27 +53,27 @@
   };
   filters =
     let
-    urls = [
-      # --- Core Blocklist ---
-      # Comprehensive, balanced list with low false-positive rate. Excellent for family networks.
-      { name = "OISD Big"; url = "https://big.oisd.nl/"; }
+      urls = [
+        # --- Core Blocklist ---
+        # Comprehensive, balanced list with low false-positive rate. Excellent for family networks.
+        { name = "OISD Big"; url = "https://big.oisd.nl/"; }
 
-      # --- High-Value Security Additions ---
-      # Focused on malware and phishing with minimal overlap on general ad/tracker blocking.
-      { name = "Phishing Army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
-      { name = "URLHaus Malware"; url = "https://urlhaus.abuse.ch/downloads/hostfile/"; }
-    ];
-    buildList = id: url: {
-      enabled = true;
-      inherit id;
-      inherit (url) name;
-      inherit (url) url;
-    };
+        # --- High-Value Security Additions ---
+        # Focused on malware and phishing with minimal overlap on general ad/tracker blocking.
+        { name = "Phishing Army"; url = "https://phishing.army/download/phishing_army_blocklist_extended.txt"; }
+        { name = "URLHaus Malware"; url = "https://urlhaus.abuse.ch/downloads/hostfile/"; }
+      ];
+      buildList = id: url: {
+        enabled = true;
+        inherit id;
+        inherit (url) name;
+        inherit (url) url;
+      };
     in
     lib.imap1 buildList urls;
 
   filtering = {
-    parental_block_host =  "family-block.dns.adguard.com";
+    parental_block_host = "family-block.dns.adguard.com";
     safebrowsing_block_host = "standard-block.dns.adguard.com";
   };
 
@@ -84,17 +83,17 @@
       arp = true;
       rdns = true;
       dhcp = true;
-      hosts = false;  # Don't serve /etc/hosts entries to DNS clients
+      hosts = false; # Don't serve /etc/hosts entries to DNS clients
     };
     persistent = [
       {
         name = "Unfiltered VLANs";
         ids = [
-          "10.35.0.0/16"  # Guest VLAN
-          "10.8.0.0/24"   # Wireguard
-          "10.9.18.0/24"  # Management
-          "10.20.0.0/16"  # Servers VLAN
-          "10.40.0.0/16"  # IoT VLAN
+          "10.35.0.0/16" # Guest VLAN
+          "10.8.0.0/24" # Wireguard
+          "10.9.18.0/24" # Management
+          "10.20.0.0/16" # Servers VLAN
+          "10.40.0.0/16" # IoT VLAN
         ];
         use_global_settings = false;
         filtering_enabled = false;
@@ -109,7 +108,7 @@
       {
         name = "Video VLAN";
         ids = [
-          "10.50.0.0/16"  # Video VLAN - bypass local domains entirely
+          "10.50.0.0/16" # Video VLAN - bypass local domains entirely
         ];
         use_global_settings = false;
         filtering_enabled = false;

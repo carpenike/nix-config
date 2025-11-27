@@ -1,8 +1,7 @@
-{
-  pkgs,
-  lib,
-  buildGoModule,
-  ...
+{ pkgs
+, lib
+, buildGoModule
+, ...
 }:
 let
   sourceData = pkgs.callPackage ./_sources/generated.nix { };

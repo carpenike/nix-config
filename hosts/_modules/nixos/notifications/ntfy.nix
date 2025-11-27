@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   cfg = config.modules.notifications;
@@ -21,61 +20,62 @@ let
   getPriority = priority: priorityMap.${priority} or "default";
 
   # Script to send ntfy notification
-  mkNtfyScript = {
-    title,
-    message,
-    priority ? "default",
-    tags ? [],
-    url ? null,
-  }: ''
-    set -euo pipefail
+  mkNtfyScript =
+    { title
+    , message
+    , priority ? "default"
+    , tags ? [ ]
+    , url ? null
+    ,
+    }: ''
+      set -euo pipefail
 
-    # Determine topic URL
-    TOPIC_URL="${if ntfyCfg.topic != "" then ntfyCfg.topic else "${ntfyCfg.server}"}"
+      # Determine topic URL
+      TOPIC_URL="${if ntfyCfg.topic != "" then ntfyCfg.topic else "${ntfyCfg.server}"}"
 
-    if [ -z "$TOPIC_URL" ]; then
-      echo "ERROR: ntfy topic not configured" >&2
-      exit 1
-    fi
-
-    # Build tags string
-    TAGS="${lib.concatStringsSep "," tags}"
-
-    # Send notification with retries
-    MAX_RETRIES=${toString ntfyCfg.retryAttempts}
-    TIMEOUT=${toString ntfyCfg.timeout}
-    RETRY_COUNT=0
-    SUCCESS=false
-
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-      HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /dev/null \
-        --max-time "$TIMEOUT" \
-        -H "Title: ${title}" \
-        -H "Priority: ${getPriority priority}" \
-        ${lib.optionalString (tags != []) ''-H "Tags: $TAGS"''} \
-        ${lib.optionalString (url != null) ''-H "Click: ${url}"''} \
-        -d "${message}" \
-        "$TOPIC_URL" || echo "000")
-
-      if [ "$HTTP_CODE" = "200" ]; then
-        echo "ntfy notification sent successfully (HTTP $HTTP_CODE)"
-        SUCCESS=true
-        break
-      else
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-          echo "ntfy notification failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
-          sleep 2
-        else
-          echo "ntfy notification failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
-        fi
+      if [ -z "$TOPIC_URL" ]; then
+        echo "ERROR: ntfy topic not configured" >&2
+        exit 1
       fi
-    done
 
-    if [ "$SUCCESS" = "false" ]; then
-      exit 1
-    fi
-  '';
+      # Build tags string
+      TAGS="${lib.concatStringsSep "," tags}"
+
+      # Send notification with retries
+      MAX_RETRIES=${toString ntfyCfg.retryAttempts}
+      TIMEOUT=${toString ntfyCfg.timeout}
+      RETRY_COUNT=0
+      SUCCESS=false
+
+      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /dev/null \
+          --max-time "$TIMEOUT" \
+          -H "Title: ${title}" \
+          -H "Priority: ${getPriority priority}" \
+          ${lib.optionalString (tags != []) ''-H "Tags: $TAGS"''} \
+          ${lib.optionalString (url != null) ''-H "Click: ${url}"''} \
+          -d "${message}" \
+          "$TOPIC_URL" || echo "000")
+
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "ntfy notification sent successfully (HTTP $HTTP_CODE)"
+          SUCCESS=true
+          break
+        else
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "ntfy notification failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
+            sleep 2
+          else
+            echo "ntfy notification failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
+          fi
+        fi
+      done
+
+      if [ "$SUCCESS" = "false" ]; then
+        exit 1
+      fi
+    '';
 in
 {
   config = lib.mkIf (cfg.enable && ntfyCfg.enable) {

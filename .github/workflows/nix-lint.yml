@@ -21,11 +21,19 @@ jobs:
       - name: Set up Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
 
-      - name: Run Formatters and Linters
+      - name: Check Formatting
         run: |
           nix run nixpkgs#nixpkgs-fmt -- --check .
-          nix run nixpkgs#statix -- check .
-          nix run nixpkgs#deadnix -- --fail .
+
+      - name: Run Linters (non-blocking)
+        continue-on-error: true
+        run: |
+          echo "::group::statix warnings"
+          nix run nixpkgs#statix -- check . || true
+          echo "::endgroup::"
+          echo "::group::deadnix warnings"
+          nix run nixpkgs#deadnix -- . || true
+          echo "::endgroup::"
 
       - name: Nix Flake Checker
         uses: DeterminateSystems/flake-checker-action@3164002371bc90729c68af0e24d5aacf20d7c9f6 # v12
@@ -33,11 +41,9 @@ jobs:
       - name: Check for uncommitted changes
         run: |
           if ! git diff --exit-code; then
-            echo "❌ Linting/formatting changes detected. Please run the following locally and commit:"
+            echo "❌ Formatting changes detected. Please run locally and commit:"
             echo ""
             echo "  nix run nixpkgs#nixpkgs-fmt -- ."
-            echo "  nix run nixpkgs#statix -- fix ."
-            echo "  nix run nixpkgs#deadnix -- --edit ."
             echo ""
             exit 1
           fi

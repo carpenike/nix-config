@@ -24,7 +24,8 @@ let
     fi
   '';
 
-in {
+in
+{
   options.modules.services.esphome = {
     enable = lib.mkEnableOption "ESPHome dashboard container";
 
@@ -330,7 +331,8 @@ in {
               ${pkgs.systemd}/bin/systemctl restart --no-block ${mainServiceUnit}
             fi
           '';
-        in {
+        in
+        {
           description = "Sync ESPHome secrets.yaml from sops";
           before = [ mainServiceUnit ];
           requiredBy = [ mainServiceUnit ];

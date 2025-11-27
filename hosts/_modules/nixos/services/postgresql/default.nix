@@ -125,19 +125,19 @@ let
 
       jsonData = lib.mkOption {
         type = types.attrs;
-        default = {};
+        default = { };
         description = "Additional jsonData overrides merged into the datasource definition.";
       };
 
       secureJsonData = lib.mkOption {
         type = types.attrs;
-        default = {};
+        default = { };
         description = "Additional secureJsonData overrides merged into the datasource definition.";
       };
 
       dashboards = lib.mkOption {
         type = types.listOf grafanaDashboardContributionType;
-        default = [];
+        default = [ ];
         description = "Optional dashboards that should be provisioned alongside this datasource.";
       };
     };
@@ -234,74 +234,74 @@ in
   options.modules.services.postgresql = lib.mkOption {
     type = lib.types.submodule {
       options = {
-      enable = lib.mkEnableOption "PostgreSQL service";
+        enable = lib.mkEnableOption "PostgreSQL service";
 
-      version = lib.mkOption {
-        type = lib.types.enum [ "14" "15" "16" ];
-        default = "16";
-        description = "PostgreSQL major version";
-      };
+        version = lib.mkOption {
+          type = lib.types.enum [ "14" "15" "16" ];
+          default = "16";
+          description = "PostgreSQL major version";
+        };
 
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 5432;
-        description = "PostgreSQL port";
-      };
+        port = lib.mkOption {
+          type = lib.types.port;
+          default = 5432;
+          description = "PostgreSQL port";
+        };
 
-      listenAddresses = lib.mkOption {
-        type = lib.types.str;
-        default = "localhost";
-        description = "Addresses to listen on (comma-separated)";
-      };
+        listenAddresses = lib.mkOption {
+          type = lib.types.str;
+          default = "localhost";
+          description = "Addresses to listen on (comma-separated)";
+        };
 
-      maxConnections = lib.mkOption {
-        type = lib.types.int;
-        default = 100;
-        description = "Maximum number of concurrent connections";
-      };
+        maxConnections = lib.mkOption {
+          type = lib.types.int;
+          default = 100;
+          description = "Maximum number of concurrent connections";
+        };
 
-      # Memory tuning
-      sharedBuffers = lib.mkOption {
-        type = lib.types.str;
-        default = "256MB";
-        description = "Amount of memory for shared buffers";
-      };
+        # Memory tuning
+        sharedBuffers = lib.mkOption {
+          type = lib.types.str;
+          default = "256MB";
+          description = "Amount of memory for shared buffers";
+        };
 
-      effectiveCacheSize = lib.mkOption {
-        type = lib.types.str;
-        default = "1GB";
-        description = "Planner's assumption of effective cache size";
-      };
+        effectiveCacheSize = lib.mkOption {
+          type = lib.types.str;
+          default = "1GB";
+          description = "Planner's assumption of effective cache size";
+        };
 
-      workMem = lib.mkOption {
-        type = lib.types.str;
-        default = "4MB";
-        description = "Memory for internal sort operations and hash tables";
-      };
+        workMem = lib.mkOption {
+          type = lib.types.str;
+          default = "4MB";
+          description = "Memory for internal sort operations and hash tables";
+        };
 
-      maintenanceWorkMem = lib.mkOption {
-        type = lib.types.str;
-        default = "64MB";
-        description = "Memory for maintenance operations";
-      };
+        maintenanceWorkMem = lib.mkOption {
+          type = lib.types.str;
+          default = "64MB";
+          description = "Memory for maintenance operations";
+        };
 
-      # Computed paths (read-only, derived from version)
-      dataDir = lib.mkOption {
-        type = lib.types.str;
-        default = "/var/lib/postgresql/${config.modules.services.postgresql.version}";
-        readOnly = true;
-        description = "PostgreSQL data directory";
-      };
+        # Computed paths (read-only, derived from version)
+        dataDir = lib.mkOption {
+          type = lib.types.str;
+          default = "/var/lib/postgresql/${config.modules.services.postgresql.version}";
+          readOnly = true;
+          description = "PostgreSQL data directory";
+        };
 
-      walArchiveDir = lib.mkOption {
-        type = lib.types.str;
-        default = "${config.modules.services.postgresql.dataDir}-wal-archive";
-        readOnly = true;
-        description = "PostgreSQL WAL archive directory";
-      };
+        walArchiveDir = lib.mkOption {
+          type = lib.types.str;
+          default = "${config.modules.services.postgresql.dataDir}-wal-archive";
+          readOnly = true;
+          description = "PostgreSQL WAL archive directory";
+        };
 
-      # Database declarations
-      databases = lib.mkOption {
+        # Database declarations
+        databases = lib.mkOption {
           type = lib.types.attrsOf (lib.types.submodule {
             options = {
               owner = lib.mkOption {
@@ -329,7 +329,7 @@ in
 
               extensions = lib.mkOption {
                 type = types.listOf (types.coercedTo types.str (name: { inherit name; }) extensionSpecType);
-                default = [];
+                default = [ ];
                 description = ''
                   Declarative extension specifications. Plain strings continue to work for
                   simple cases and are coerced to `{ name = "extension"; }`. Use the structured
@@ -349,7 +349,7 @@ in
                   options = {
                     preCreate = lib.mkOption {
                       type = sqlSnippetListType;
-                      default = [];
+                      default = [ ];
                       description = ''
                         SQL snippets executed before database creation/ownership checks while connected to postgres.
                         Useful for cluster-wide setup that must precede CREATE DATABASE.
@@ -358,7 +358,7 @@ in
 
                     postCreate = lib.mkOption {
                       type = sqlSnippetListType;
-                      default = [];
+                      default = [ ];
                       description = ''
                         SQL snippets executed immediately after database creation/ownership enforcement (still connected to postgres).
                         Ideal for cross-database grants or bootstrap tasks prior to per-database configuration.
@@ -367,7 +367,7 @@ in
 
                     preConfig = lib.mkOption {
                       type = sqlSnippetListType;
-                      default = [];
+                      default = [ ];
                       description = ''
                         SQL snippets executed right after connecting to the target database and applying security hardening.
                         Use this to run migrations that must happen before declarative grants/extensions.
@@ -376,7 +376,7 @@ in
 
                     postConfig = lib.mkOption {
                       type = sqlSnippetListType;
-                      default = [];
+                      default = [ ];
                       description = ''
                         SQL snippets executed after declarative configuration (extensions/permissions/default privileges).
                         Useful for custom indexes, seed data, or verification queries tied to provisioning.
@@ -384,7 +384,7 @@ in
                     };
                   };
                 };
-                default = {};
+                default = { };
                 description = "Per-database SQL hook points executed during provisioning.";
               };
 
@@ -438,7 +438,7 @@ in
 
                     entries = lib.mkOption {
                       type = types.listOf types.str;
-                      default = [];
+                      default = [ ];
                       description = "List of migration versions that must exist in the table.";
                       example = [ "20240929084639" "20240930010255" ];
                     };
@@ -530,9 +530,13 @@ in
               # Database-level permissions
               databasePermissions = lib.mkOption {
                 type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-                  "ALL" "CONNECT" "CREATE" "TEMP" "TEMPORARY"
+                  "ALL"
+                  "CONNECT"
+                  "CREATE"
+                  "TEMP"
+                  "TEMPORARY"
                 ]));
-                default = {};
+                default = { };
                 description = ''
                   Database-level permissions to grant to additional roles.
 
@@ -551,9 +555,11 @@ in
               # Schema-level permissions
               schemaPermissions = lib.mkOption {
                 type = lib.types.attrsOf (lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-                  "ALL" "USAGE" "CREATE"
+                  "ALL"
+                  "USAGE"
+                  "CREATE"
                 ])));
-                default = {};
+                default = { };
                 description = ''
                   Schema-level permissions to grant to roles.
                   Structure: { schema_name = { role_name = [ privileges ]; }; }
@@ -574,9 +580,17 @@ in
               # Table-level permissions
               tablePermissions = lib.mkOption {
                 type = lib.types.attrsOf (lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-                  "ALL" "SELECT" "INSERT" "UPDATE" "DELETE" "TRUNCATE" "REFERENCES" "TRIGGER" "EXECUTE"
+                  "ALL"
+                  "SELECT"
+                  "INSERT"
+                  "UPDATE"
+                  "DELETE"
+                  "TRUNCATE"
+                  "REFERENCES"
+                  "TRIGGER"
+                  "EXECUTE"
                 ])));
-                default = {};
+                default = { };
                 description = ''
                   Table-level permissions to grant to roles.
                   Structure: { schema_name.table_pattern = { role_name = [ privileges ]; }; }
@@ -606,9 +620,10 @@ in
               # Function-level permissions
               functionPermissions = lib.mkOption {
                 type = lib.types.attrsOf (lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-                  "ALL" "EXECUTE"
+                  "ALL"
+                  "EXECUTE"
                 ])));
-                default = {};
+                default = { };
                 description = ''
                   Function-level permissions to grant to roles.
                   Structure: { schema_name.function_pattern = { role_name = [ privileges ]; }; }
@@ -643,30 +658,41 @@ in
 
                     tables = lib.mkOption {
                       type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-                        "ALL" "SELECT" "INSERT" "UPDATE" "DELETE" "TRUNCATE" "REFERENCES" "TRIGGER"
+                        "ALL"
+                        "SELECT"
+                        "INSERT"
+                        "UPDATE"
+                        "DELETE"
+                        "TRUNCATE"
+                        "REFERENCES"
+                        "TRIGGER"
                       ]));
-                      default = {};
+                      default = { };
                       description = "Default table privileges for each role";
                     };
 
                     sequences = lib.mkOption {
                       type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-                        "ALL" "SELECT" "UPDATE" "USAGE"
+                        "ALL"
+                        "SELECT"
+                        "UPDATE"
+                        "USAGE"
                       ]));
-                      default = {};
+                      default = { };
                       description = "Default sequence privileges for each role";
                     };
 
                     functions = lib.mkOption {
                       type = lib.types.attrsOf (lib.types.listOf (lib.types.enum [
-                        "ALL" "EXECUTE"
+                        "ALL"
+                        "EXECUTE"
                       ]));
-                      default = {};
+                      default = { };
                       description = "Default function privileges for each role";
                     };
                   };
                 });
-                default = {};
+                default = { };
                 description = ''
                   Default privileges for future objects created by specific roles.
                   This ensures permissions persist when tables/sequences are created/recreated.
@@ -683,7 +709,7 @@ in
 
               grafanaDatasources = lib.mkOption {
                 type = lib.types.listOf grafanaDatasourceContributionType;
-                default = [];
+                default = [ ];
                 description = ''
                   Declarative Grafana datasource contributions derived from this database.
                   When Grafana is enabled, each entry provisions a datasource (and optional dashboards)
@@ -692,7 +718,7 @@ in
               };
             };
           });
-          default = {};
+          default = { };
           description = ''
             Databases to provision for this PostgreSQL instance.
             Each database is declaratively configured with owner, extensions, and permissions.
@@ -748,7 +774,7 @@ in
                 monthly = lib.mkOption { type = lib.types.int; default = 3; };
               };
             };
-            default = {};
+            default = { };
             description = "Backup retention policy";
           };
         };
@@ -902,7 +928,7 @@ in
         # Extra PostgreSQL settings
         extraSettings = lib.mkOption {
           type = lib.types.attrs;
-          default = {};
+          default = { };
           description = "Additional PostgreSQL configuration settings";
         };
 
@@ -932,7 +958,7 @@ in
         };
       };
     };
-    default = {};
+    default = { };
     description = "PostgreSQL service with PITR support";
   };
 
@@ -942,259 +968,267 @@ in
       pgPackage = if cfg.enable then pkgs.${"postgresql_${lib.replaceStrings ["."] [""] cfg.version}"} else null;
 
       dashboardsToAttrs = folder: dashboards:
-        lib.listToAttrs (lib.imap1 (idx: dash:
-          let
-            attrKey = dash.attrName or "${sanitize dash.name}-${toString idx}";
-          in {
-            name = attrKey;
-            value = {
-              name = dash.name;
-              folder = dash.folder or folder;
-              path = dash.path;
-            };
-          }) dashboards);
+        lib.listToAttrs (lib.imap1
+          (idx: dash:
+            let
+              attrKey = dash.attrName or "${sanitize dash.name}-${toString idx}";
+            in
+            {
+              name = attrKey;
+              value = {
+                name = dash.name;
+                folder = dash.folder or folder;
+                path = dash.path;
+              };
+            })
+          dashboards);
 
       postgresGrafanaIntegrations =
-        lib.flatten (lib.mapAttrsToList (dbName: dbCfg:
-          lib.imap1 (idx: ds:
-            let
-              datasourceName = ds.name;
-              integrationKey = ds.integrationName or "postgres-${sanitize dbName}-${sanitize datasourceName}";
-              datasourceKey = ds.datasourceKey or "${sanitize datasourceName}-${toString idx}";
-              credentialName = ds.credentialName or "postgres-${sanitize dbName}-${toString idx}-password";
-              uid = ds.uid or "postgres-${sanitize dbName}-${toString idx}";
-              host = ds.host or "host.containers.internal";
-              port = toString (ds.port or cfg.port);
-              databaseName = ds.database or dbName;
-              user = ds.user or dbCfg.owner;
-              passwordFile = ds.passwordFile or dbCfg.ownerPasswordFile;
-              jsonData = {
-                sslmode = ds.sslMode;
-                timescaledb = ds.timescaleDB;
-              } // ds.jsonData;
-              secureJsonData = { password = "$__file{/run/credentials/grafana.service/${credentialName}}"; } // ds.secureJsonData;
-              dashboards = dashboardsToAttrs ds.folder ds.dashboards;
-            in
-            [ {
-              ${integrationKey} = {
-                datasources.${datasourceKey} = {
-                  name = datasourceName;
-                  uid = uid;
-                  type = "postgres";
-                  access = "proxy";
-                  url = "${host}:${port}";
-                  database = databaseName;
-                  user = user;
-                  isDefault = ds.isDefault;
-                  jsonData = jsonData;
-                  secureJsonData = secureJsonData;
-                };
-                dashboards = dashboards;
-                loadCredentials = lib.optional (passwordFile != null) "${credentialName}:${passwordFile}";
-              };
-            } ]) (dbCfg.grafanaDatasources or [])
-        ) cfg.databases);
+        lib.flatten (lib.mapAttrsToList
+          (dbName: dbCfg:
+            lib.imap1
+              (idx: ds:
+                let
+                  datasourceName = ds.name;
+                  integrationKey = ds.integrationName or "postgres-${sanitize dbName}-${sanitize datasourceName}";
+                  datasourceKey = ds.datasourceKey or "${sanitize datasourceName}-${toString idx}";
+                  credentialName = ds.credentialName or "postgres-${sanitize dbName}-${toString idx}-password";
+                  uid = ds.uid or "postgres-${sanitize dbName}-${toString idx}";
+                  host = ds.host or "host.containers.internal";
+                  port = toString (ds.port or cfg.port);
+                  databaseName = ds.database or dbName;
+                  user = ds.user or dbCfg.owner;
+                  passwordFile = ds.passwordFile or dbCfg.ownerPasswordFile;
+                  jsonData = {
+                    sslmode = ds.sslMode;
+                    timescaledb = ds.timescaleDB;
+                  } // ds.jsonData;
+                  secureJsonData = { password = "$__file{/run/credentials/grafana.service/${credentialName}}"; } // ds.secureJsonData;
+                  dashboards = dashboardsToAttrs ds.folder ds.dashboards;
+                in
+                [{
+                  ${integrationKey} = {
+                    datasources.${datasourceKey} = {
+                      name = datasourceName;
+                      uid = uid;
+                      type = "postgres";
+                      access = "proxy";
+                      url = "${host}:${port}";
+                      database = databaseName;
+                      user = user;
+                      isDefault = ds.isDefault;
+                      jsonData = jsonData;
+                      secureJsonData = secureJsonData;
+                    };
+                    dashboards = dashboards;
+                    loadCredentials = lib.optional (passwordFile != null) "${credentialName}:${passwordFile}";
+                  };
+                }])
+              (dbCfg.grafanaDatasources or [ ])
+          )
+          cfg.databases);
     in
     lib.mkMerge [
-    # PostgreSQL service implementation
-    (lib.mkIf cfg.enable {
-      # Operational safety warnings
-      warnings =
-        (lib.optional (!(cfg.backup.walArchive.enable or false)
-                    && !(cfg.backup.baseBackup.enable or false)
-                    && !(cfg.extraSettings.archive_mode or false == "on"))
-          "modules.services.postgresql: Both WAL archiving and base backups are disabled, and no custom archive_mode is configured - no PITR capability")
-        ++ (lib.optional (cfg.databases == {})
-          "modules.services.postgresql: No databases configured - PostgreSQL is enabled but no databases will be provisioned");
-      # Enable the base PostgreSQL service
-      services.postgresql = {
-        enable = true;
-        package = pgPackage;
-        dataDir = cfg.dataDir;
+      # PostgreSQL service implementation
+      (lib.mkIf cfg.enable {
+        # Operational safety warnings
+        warnings =
+          (lib.optional
+            (!(cfg.backup.walArchive.enable or false)
+            && !(cfg.backup.baseBackup.enable or false)
+            && !(cfg.extraSettings.archive_mode or false == "on"))
+            "modules.services.postgresql: Both WAL archiving and base backups are disabled, and no custom archive_mode is configured - no PITR capability")
+          ++ (lib.optional (cfg.databases == { })
+            "modules.services.postgresql: No databases configured - PostgreSQL is enabled but no databases will be provisioned");
+        # Enable the base PostgreSQL service
+        services.postgresql = {
+          enable = true;
+          package = pgPackage;
+          dataDir = cfg.dataDir;
 
-        # Basic configuration
-        settings = lib.mkMerge [
-          {
-            port = cfg.port;
-            listen_addresses = lib.mkDefault cfg.listenAddresses;
-            max_connections = lib.mkDefault cfg.maxConnections;
+          # Basic configuration
+          settings = lib.mkMerge [
+            {
+              port = cfg.port;
+              listen_addresses = lib.mkDefault cfg.listenAddresses;
+              max_connections = lib.mkDefault cfg.maxConnections;
 
-            # Memory settings
-            shared_buffers = lib.mkDefault cfg.sharedBuffers;
-            effective_cache_size = lib.mkDefault cfg.effectiveCacheSize;
-            work_mem = lib.mkDefault cfg.workMem;
-            maintenance_work_mem = lib.mkDefault cfg.maintenanceWorkMem;
+              # Memory settings
+              shared_buffers = lib.mkDefault cfg.sharedBuffers;
+              effective_cache_size = lib.mkDefault cfg.effectiveCacheSize;
+              work_mem = lib.mkDefault cfg.workMem;
+              maintenance_work_mem = lib.mkDefault cfg.maintenanceWorkMem;
 
-            # Logging
-            log_destination = lib.mkDefault "stderr";
-            logging_collector = lib.mkDefault true;
-            log_directory = lib.mkDefault "log";
-            log_filename = lib.mkDefault "postgresql-%Y-%m-%d_%H%M%S.log";
-            log_rotation_age = lib.mkDefault "1d";
-            log_rotation_size = lib.mkDefault "100MB";
-            log_line_prefix = lib.mkDefault "%m [%p] %u@%d ";
-            log_timezone = lib.mkDefault "UTC";
-          }
+              # Logging
+              log_destination = lib.mkDefault "stderr";
+              logging_collector = lib.mkDefault true;
+              log_directory = lib.mkDefault "log";
+              log_filename = lib.mkDefault "postgresql-%Y-%m-%d_%H%M%S.log";
+              log_rotation_age = lib.mkDefault "1d";
+              log_rotation_size = lib.mkDefault "100MB";
+              log_line_prefix = lib.mkDefault "%m [%p] %u@%d ";
+              log_timezone = lib.mkDefault "UTC";
+            }
 
-          # WAL archiving for Point-in-Time Recovery (PITR)
-          (lib.mkIf (cfg.backup.walArchive.enable or false) {
-            # Enable WAL archiving
-            archive_mode = "on";
+            # WAL archiving for Point-in-Time Recovery (PITR)
+            (lib.mkIf (cfg.backup.walArchive.enable or false) {
+              # Enable WAL archiving
+              archive_mode = "on";
 
-            # Compress WAL files to reduce storage and I/O overhead
-            wal_compression = "on";
+              # Compress WAL files to reduce storage and I/O overhead
+              wal_compression = "on";
 
-            # Archive command uses atomic write pattern (cp to temp, then mv)
-            archive_command = "test ! -f ${cfg.walArchiveDir}/%f && cp %p ${cfg.walArchiveDir}/.tmp.%f && mv ${cfg.walArchiveDir}/.tmp.%f ${cfg.walArchiveDir}/%f";
+              # Archive command uses atomic write pattern (cp to temp, then mv)
+              archive_command = "test ! -f ${cfg.walArchiveDir}/%f && cp %p ${cfg.walArchiveDir}/.tmp.%f && mv ${cfg.walArchiveDir}/.tmp.%f ${cfg.walArchiveDir}/%f";
 
-            # Archive timeout - force WAL segment switch after this interval
-            archive_timeout = toString cfg.backup.walArchive.archiveTimeout;
-          })
+              # Archive timeout - force WAL segment switch after this interval
+              archive_timeout = toString cfg.backup.walArchive.archiveTimeout;
+            })
 
-          # Merge in user's extra settings (can override defaults)
-          cfg.extraSettings
+            # Merge in user's extra settings (can override defaults)
+            cfg.extraSettings
+          ];
+
+          # Enable authentication
+          authentication = lib.mkDefault ''
+            local all postgres peer
+            local all all peer
+            host all all 127.0.0.1/32 scram-sha-256
+            host all all ::1/128 scram-sha-256
+          '';
+        };
+
+        # Ensure WAL archive directory exists with correct permissions
+        systemd.tmpfiles.rules = lib.optionals (cfg.backup.walArchive.enable or false) [
+          "d ${cfg.walArchiveDir} 0750 postgres postgres -"
         ];
 
-        # Enable authentication
-        authentication = lib.mkDefault ''
-          local all postgres peer
-          local all all peer
-          host all all 127.0.0.1/32 scram-sha-256
-          host all all ::1/128 scram-sha-256
-        '';
-      };
+        # Extend systemd service configuration
+        systemd.services.postgresql = {
+          # Ensure PostgreSQL doesn't start until required directories are mounted
+          unitConfig = {
+            RequiresMountsFor = [ cfg.dataDir ] ++ lib.optional (cfg.backup.walArchive.enable or false) cfg.walArchiveDir;
+          };
 
-      # Ensure WAL archive directory exists with correct permissions
-      systemd.tmpfiles.rules = lib.optionals (cfg.backup.walArchive.enable or false) [
-        "d ${cfg.walArchiveDir} 0750 postgres postgres -"
-      ];
+          # Ensure ZFS mounts are complete before starting
+          after = [ "zfs-mount.service" ];
 
-      # Extend systemd service configuration
-      systemd.services.postgresql = {
-        # Ensure PostgreSQL doesn't start until required directories are mounted
-        unitConfig = {
-          RequiresMountsFor = [ cfg.dataDir ] ++ lib.optional (cfg.backup.walArchive.enable or false) cfg.walArchiveDir;
+          # Runtime checks for WAL archive directory
+          serviceConfig = {
+            ExecStartPre = lib.optionals (cfg.backup.walArchive.enable or false) [
+              "${pkgs.coreutils}/bin/test -d '${cfg.walArchiveDir}'"
+              "${pkgs.coreutils}/bin/test -w '${cfg.walArchiveDir}'"
+            ];
+            # Allow write access to WAL archive directory when PITR is enabled
+            ReadWritePaths = lib.optionals (cfg.backup.walArchive.enable or false) [ cfg.walArchiveDir ];
+          };
         };
+      })
 
-        # Ensure ZFS mounts are complete before starting
-        after = [ "zfs-mount.service" ];
+      # PostgreSQL readiness-wait service
+      # Waits for PostgreSQL to exit recovery mode before dependent services start
+      (lib.mkIf cfg.enable {
+        systemd.services.postgresql-readiness-wait = {
+          description = "Wait for PostgreSQL to be ready (out of recovery)";
 
-        # Runtime checks for WAL archive directory
-        serviceConfig = {
-          ExecStartPre = lib.optionals (cfg.backup.walArchive.enable or false) [
-            "${pkgs.coreutils}/bin/test -d '${cfg.walArchiveDir}'"
-            "${pkgs.coreutils}/bin/test -w '${cfg.walArchiveDir}'"
-          ];
-          # Allow write access to WAL archive directory when PITR is enabled
-          ReadWritePaths = lib.optionals (cfg.backup.walArchive.enable or false) [ cfg.walArchiveDir ];
-        };
-      };
-    })
+          # Ensure this runs after the main postgresql process has started.
+          after = [ "postgresql.service" ];
+          requires = [ "postgresql.service" ];
 
-    # PostgreSQL readiness-wait service
-    # Waits for PostgreSQL to exit recovery mode before dependent services start
-    (lib.mkIf cfg.enable {
-      systemd.services.postgresql-readiness-wait = {
-        description = "Wait for PostgreSQL to be ready (out of recovery)";
+          # Add the postgresql package to the service's PATH to make `psql` available.
+          path = [ pkgs.postgresql ];
 
-        # Ensure this runs after the main postgresql process has started.
-        after = [ "postgresql.service" ];
-        requires = [ "postgresql.service" ];
+          serviceConfig = {
+            Type = "oneshot";
+            User = config.services.postgresql.superUser;
+            Group = config.services.postgresql.superUser;
+            # RemainAfterExit ensures that systemd considers this service "active"
+            # after the script succeeds, allowing dependent services to start.
+            RemainAfterExit = true;
+          };
 
-        # Add the postgresql package to the service's PATH to make `psql` available.
-        path = [ pkgs.postgresql ];
+          # The script polls the database until `pg_is_in_recovery()` returns false.
+          # It runs as the `postgres` user, which typically has peer authentication
+          # access, so no explicit credentials are required.
+          script = ''
+            set -euo pipefail
 
-        serviceConfig = {
-          Type = "oneshot";
-          User = config.services.postgresql.superUser;
-          Group = config.services.postgresql.superUser;
-          # RemainAfterExit ensures that systemd considers this service "active"
-          # after the script succeeds, allowing dependent services to start.
-          RemainAfterExit = true;
-        };
+            MAX_TRIES=60 # Total wait time: 60 tries * 10s = 600s (10 minutes)
+            RETRY_DELAY_SECONDS=10
+            PG_USER="postgres"
+            PG_DB="postgres"
 
-        # The script polls the database until `pg_is_in_recovery()` returns false.
-        # It runs as the `postgres` user, which typically has peer authentication
-        # access, so no explicit credentials are required.
-        script = ''
-          set -euo pipefail
+            echo "Waiting for PostgreSQL to exit recovery mode..."
 
-          MAX_TRIES=60 # Total wait time: 60 tries * 10s = 600s (10 minutes)
-          RETRY_DELAY_SECONDS=10
-          PG_USER="postgres"
-          PG_DB="postgres"
+            for i in $(seq 1 $MAX_TRIES); do
+                # Use robust flags for scripting:
+                # -X: ignore .psqlrc
+                # -q: quiet output
+                # -t: tuples only (no headers)
+                # -A: unaligned output (no column dividers)
+                # The grep for '^f$' ensures we match the exact output for 'false'.
+                if psql -X -q -t -A -U "$PG_USER" -d "$PG_DB" -c "SELECT pg_is_in_recovery();" | grep -q '^f$'; then
+                    echo "PostgreSQL is ready and out of recovery."
+                    exit 0
+                fi
 
-          echo "Waiting for PostgreSQL to exit recovery mode..."
+                echo "Attempt $i/$MAX_TRIES: PostgreSQL is still in recovery. Retrying in $RETRY_DELAY_SECONDS seconds..."
+                sleep $RETRY_DELAY_SECONDS
+            done
 
-          for i in $(seq 1 $MAX_TRIES); do
-              # Use robust flags for scripting:
-              # -X: ignore .psqlrc
-              # -q: quiet output
-              # -t: tuples only (no headers)
-              # -A: unaligned output (no column dividers)
-              # The grep for '^f$' ensures we match the exact output for 'false'.
-              if psql -X -q -t -A -U "$PG_USER" -d "$PG_DB" -c "SELECT pg_is_in_recovery();" | grep -q '^f$'; then
-                  echo "PostgreSQL is ready and out of recovery."
-                  exit 0
-              fi
-
-              echo "Attempt $i/$MAX_TRIES: PostgreSQL is still in recovery. Retrying in $RETRY_DELAY_SECONDS seconds..."
-              sleep $RETRY_DELAY_SECONDS
-          done
-
-          echo "Error: PostgreSQL did not exit recovery mode after $MAX_TRIES attempts." >&2
-          exit 1
-        '';
-      };
-    })
-
-    (lib.mkIf (cfg.enable && (config.modules.services.grafana.enable or false) && postgresGrafanaIntegrations != []) {
-      modules.services.grafana.integrations = lib.mkMerge postgresGrafanaIntegrations;
-    })
-
-    # Notification templates
-    (lib.mkIf (config.modules.notifications.enable or false) {
-      modules.notifications.templates = {
-        postgresql-backup-success = {
-          enable = true;
-          priority = "normal";
-          title = "✅ PostgreSQL Backup Complete";
-          body = ''
-            <b>Backup Path:</b> ''${backuppath}
-            <b>Status:</b> Success
+            echo "Error: PostgreSQL did not exit recovery mode after $MAX_TRIES attempts." >&2
+            exit 1
           '';
         };
+      })
 
-        postgresql-backup-failure = {
-          enable = true;
-          priority = "high";
-          title = "✗ PostgreSQL Backup Failed";
-          body = ''
-            <b>Error:</b> ''${errormessage}
-            <b>Action Required:</b> Check backup logs
-          '';
-        };
+      (lib.mkIf (cfg.enable && (config.modules.services.grafana.enable or false) && postgresGrafanaIntegrations != [ ]) {
+        modules.services.grafana.integrations = lib.mkMerge postgresGrafanaIntegrations;
+      })
 
-        postgresql-health-failure = {
-          enable = true;
-          priority = "high";
-          title = "⚠ PostgreSQL Health Check Failed";
-          body = ''
-            <b>Error:</b> ''${errormessage}
-            <b>Action Required:</b> Check PostgreSQL service status
-          '';
-        };
+      # Notification templates
+      (lib.mkIf (config.modules.notifications.enable or false) {
+        modules.notifications.templates = {
+          postgresql-backup-success = {
+            enable = true;
+            priority = "normal";
+            title = "✅ PostgreSQL Backup Complete";
+            body = ''
+              <b>Backup Path:</b> ''${backuppath}
+              <b>Status:</b> Success
+            '';
+          };
 
-        postgresql-replication-lag = {
-          enable = true;
-          priority = "normal";
-          title = "⚠ PostgreSQL Replication Lag";
-          body = ''
-            <b>Lag:</b> ''${lag} seconds
-            <b>Status:</b> Replication is falling behind
-          '';
+          postgresql-backup-failure = {
+            enable = true;
+            priority = "high";
+            title = "✗ PostgreSQL Backup Failed";
+            body = ''
+              <b>Error:</b> ''${errormessage}
+              <b>Action Required:</b> Check backup logs
+            '';
+          };
+
+          postgresql-health-failure = {
+            enable = true;
+            priority = "high";
+            title = "⚠ PostgreSQL Health Check Failed";
+            body = ''
+              <b>Error:</b> ''${errormessage}
+              <b>Action Required:</b> Check PostgreSQL service status
+            '';
+          };
+
+          postgresql-replication-lag = {
+            enable = true;
+            priority = "normal";
+            title = "⚠ PostgreSQL Replication Lag";
+            body = ''
+              <b>Lag:</b> ''${lag} seconds
+              <b>Status:</b> Replication is falling behind
+            '';
+          };
         };
-      };
-    })
-  ];
+      })
+    ];
 }

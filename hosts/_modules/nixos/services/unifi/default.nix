@@ -1,9 +1,8 @@
-{
-  pkgs,
-  lib,
-  config,
-  podmanLib,
-  ...
+{ pkgs
+, lib
+, config
+, podmanLib
+, ...
 }:
 let
   cfg = config.modules.services.unifi;
@@ -45,7 +44,7 @@ in
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
         memory = "1g";
-  memoryReservation = "512M";
+        memoryReservation = "512M";
         cpus = "1.0";
       };
       description = "Resource limits for the Unifi container (recommended for homelab stability)";
@@ -100,9 +99,9 @@ in
         useSnapshots = lib.mkDefault true;
         zfsDataset = lib.mkDefault "tank/services/unifi";
         excludePatterns = lib.mkDefault [
-          "**/logs/**"           # Exclude log files
-          "**/tmp/**"            # Exclude temporary files
-          "**/work/**"           # Exclude work directories
+          "**/logs/**" # Exclude log files
+          "**/tmp/**" # Exclude temporary files
+          "**/work/**" # Exclude work directories
         ];
       };
       description = "Backup configuration for UniFi Controller";
@@ -163,118 +162,122 @@ in
 
       modules.services.podman.enable = true;
 
-    # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.unifi = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
+      # Automatically register with Caddy reverse proxy if enabled
+      modules.services.caddy.virtualHosts.unifi = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+        enable = true;
+        hostName = cfg.reverseProxy.hostName;
 
-      # Use structured backend configuration from shared types
-      backend = {
-        scheme = "https";  # UniFi uses HTTPS
-        host = "127.0.0.1";
-        port = 8443;
-        tls.verify = false;  # UniFi uses self-signed certificate by default
+        # Use structured backend configuration from shared types
+        backend = {
+          scheme = "https"; # UniFi uses HTTPS
+          host = "127.0.0.1";
+          port = 8443;
+          tls.verify = false; # UniFi uses self-signed certificate by default
+        };
+
+        # Authentication configuration from shared types
+        auth = cfg.reverseProxy.auth;
+
+        # Authelia SSO configuration from shared types
+        authelia = cfg.reverseProxy.authelia;
+
+        # Security configuration from shared types
+        security = cfg.reverseProxy.security;
+
+        # UniFi-specific reverse proxy directives
+        reverseProxyBlock = ''
+          # Handle websockets for real-time updates
+          header_up Host {upstream_hostport}
+          header_up X-Real-IP {remote_host}
+          # WebSocket upgrade headers
+          header_up Upgrade {>Upgrade}
+          header_up Connection {>Connection}
+        '';
       };
 
-      # Authentication configuration from shared types
-      auth = cfg.reverseProxy.auth;
+      # Register with Authelia if SSO protection is enabled
+      modules.services.authelia.accessControl.declarativelyProtectedServices.unifi = lib.mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
+              ++ (authCfg.bypassResources or [ ]);
+          }
+        );
 
-      # Authelia SSO configuration from shared types
-      authelia = cfg.reverseProxy.authelia;
+      # Ensure directories exist before services start
+      systemd.tmpfiles.rules =
+        podmanLib.mkLogDirTmpfiles
+          {
+            path = cfg.dataDir;
+            user = cfg.user;
+            group = cfg.group;
+          }
+        ++ podmanLib.mkLogDirTmpfiles {
+          path = cfg.logDir;
+          user = cfg.user;
+          group = cfg.group;
+        };
 
-      # Security configuration from shared types
-      security = cfg.reverseProxy.security;
-
-      # UniFi-specific reverse proxy directives
-      reverseProxyBlock = ''
-        # Handle websockets for real-time updates
-        header_up Host {upstream_hostport}
-        header_up X-Real-IP {remote_host}
-        # WebSocket upgrade headers
-        header_up Upgrade {>Upgrade}
-        header_up Connection {>Connection}
-      '';
-    };
-
-    # Register with Authelia if SSO protection is enabled
-    modules.services.authelia.accessControl.declarativelyProtectedServices.unifi = lib.mkIf (
-      config.modules.services.authelia.enable &&
-      cfg.reverseProxy != null &&
-      cfg.reverseProxy.enable &&
-      cfg.reverseProxy.authelia != null &&
-      cfg.reverseProxy.authelia.enable
-    ) (
-      let
-        authCfg = cfg.reverseProxy.authelia;
-      in {
-        domain = cfg.reverseProxy.hostName;
-        policy = authCfg.policy;
-        subject = map (g: "group:${g}") authCfg.allowedGroups;
-        bypassResources =
-          (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
-          ++ (authCfg.bypassResources or []);
-      }
-    );
-
-    # Ensure directories exist before services start
-    systemd.tmpfiles.rules =
-      podmanLib.mkLogDirTmpfiles {
-        path = cfg.dataDir;
-        user = cfg.user;
-        group = cfg.group;
-      }
-      ++ podmanLib.mkLogDirTmpfiles {
+      system.activationScripts = {
+        makeUnifiDataDir = lib.stringAfter [ "var" ] ''
+          mkdir -p "${cfg.dataDir}"
+          chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
+        '';
+      } // podmanLib.mkLogDirActivation {
+        name = "Unifi";
         path = cfg.logDir;
         user = cfg.user;
         group = cfg.group;
       };
 
-    system.activationScripts = {
-      makeUnifiDataDir = lib.stringAfter [ "var" ] ''
-        mkdir -p "${cfg.dataDir}"
-        chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
-      '';
-    } // podmanLib.mkLogDirActivation {
-      name = "Unifi";
-      path = cfg.logDir;
-      user = cfg.user;
-      group = cfg.group;
-    };
-
-    # Configure logrotate for UniFi application logs
-    services.logrotate.settings = podmanLib.mkLogRotate {
-      containerName = "unifi";
-      logDir = cfg.logDir;
-      user = cfg.user;
-      group = cfg.group;
-    };
-
-    virtualisation.oci-containers.containers.unifi = podmanLib.mkContainer "unifi" {
-      image = "ghcr.io/jacobalberty/unifi-docker:v8.4.62";
-      environment = {
-        "TZ" = "America/New_York";
+      # Configure logrotate for UniFi application logs
+      services.logrotate.settings = podmanLib.mkLogRotate {
+        containerName = "unifi";
+        logDir = cfg.logDir;
+        user = cfg.user;
+        group = cfg.group;
       };
-      autoStart = true;
-      ports = [ "8080:8080" "8443:8443" "3478:3478/udp" ];
-      volumes = [
-        "${cfg.dataDir}:/unifi"
-        "${cfg.logDir}:/logs"
+
+      virtualisation.oci-containers.containers.unifi = podmanLib.mkContainer "unifi" {
+        image = "ghcr.io/jacobalberty/unifi-docker:v8.4.62";
+        environment = {
+          "TZ" = "America/New_York";
+        };
+        autoStart = true;
+        ports = [ "8080:8080" "8443:8443" "3478:3478/udp" ];
+        volumes = [
+          "${cfg.dataDir}:/unifi"
+          "${cfg.logDir}:/logs"
+        ];
+        resources = cfg.resources;
+      };
+
+      systemd.services.${mainServiceUnit} = lib.mkMerge [
+        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+          unitConfig.OnFailure = [ "notify@unifi-failure:%n.service" ];
+        })
+        (lib.mkIf cfg.preseed.enable {
+          wants = [ "preseed-unifi.service" ];
+          after = [ "preseed-unifi.service" ];
+        })
       ];
-      resources = cfg.resources;
-    };
 
-    systemd.services.${mainServiceUnit} = lib.mkMerge [
-      (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        unitConfig.OnFailure = [ "notify@unifi-failure:%n.service" ];
-      })
-      (lib.mkIf cfg.preseed.enable {
-        wants = [ "preseed-unifi.service" ];
-        after = [ "preseed-unifi.service" ];
-      })
-    ];
-
-    networking.firewall.allowedTCPPorts = unifiTcpPorts;
-    networking.firewall.allowedUDPPorts = unifiUdpPorts;
+      networking.firewall.allowedTCPPorts = unifiTcpPorts;
+      networking.firewall.allowedUDPPorts = unifiUdpPorts;
     }
 
     # Add the preseed service itself
@@ -284,7 +287,7 @@ in
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = mainServiceUnit;
-        replicationCfg = null;  # Replication config handled at host level
+        replicationCfg = null; # Replication config handled at host level
         datasetProperties = {
           recordsize = "16K";
           compression = "zstd";

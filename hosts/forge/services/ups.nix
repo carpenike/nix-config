@@ -31,13 +31,13 @@ in
     # Define the UPS - using snmp-ups driver for APC network management card
     ups.apc = {
       driver = "snmp-ups";
-      port = "10.9.18.245";  # IP address of the APC network management card
+      port = "10.9.18.245"; # IP address of the APC network management card
       description = "APC Smart-UPS 2200 RM XL";
 
       # SNMP driver configuration for APC
       # Note: Not specifying mibs directive - let NUT auto-detect the correct MIB
       directives = [
-        "community = public"     # Default SNMP community string (TODO: verify/change)
+        "community = public" # Default SNMP community string (TODO: verify/change)
       ];
     };
 
@@ -47,13 +47,13 @@ in
       powerValue = 1;
       user = "upsmon";
       passwordFile = toString (pkgs.writeText "upsmon-password" "changeme");
-      type = "primary";  # This system initiates shutdown (formerly "master")
+      type = "primary"; # This system initiates shutdown (formerly "master")
     };
 
     # Define the upsmon user for local upsd access
     users.upsmon = {
       passwordFile = toString (pkgs.writeText "upsmon-password" "changeme");
-      upsmon = "primary";  # Primary monitoring role (formerly "master")
+      upsmon = "primary"; # Primary monitoring role (formerly "master")
       # Allow this user to set variables and trigger forced shutdown
       actions = [ "set" "fsd" ];
       instcmds = [ "all" ];
@@ -78,8 +78,8 @@ in
   systemd.timers.ups-metrics = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnBootSec = "1m";           # Start 1 minute after boot
-      OnUnitActiveSec = "15s";    # Run every 15 seconds
+      OnBootSec = "1m"; # Start 1 minute after boot
+      OnUnitActiveSec = "15s"; # Run every 15 seconds
       Unit = "ups-metrics.service";
     };
   };
@@ -229,7 +229,7 @@ in
       type = "promql";
       alertname = "UPSLowBattery";
       expr = "ups_low_battery == 1";
-      for = "0s";  # Immediate alert
+      for = "0s"; # Immediate alert
       severity = "critical";
       labels = { service = "ups"; category = "power"; };
       annotations = {

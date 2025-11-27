@@ -142,7 +142,7 @@ in
     };
 
     # Create an SPI group for permissions.
-    users.groups.spi = {};
+    users.groups.spi = { };
 
     # Keep spidev rule in extraRules
     services.udev.extraRules = ''
@@ -259,7 +259,7 @@ in
       usbutils
       pciutils
       i2c-tools
-      python3Packages.spidev  # For SPI tools
+      python3Packages.spidev # For SPI tools
     ];
 
     # Load CAN kernel modules

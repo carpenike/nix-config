@@ -28,11 +28,10 @@
 # **References**:
 # - TRaSH Guides: https://trash-guides.info/
 # - Recyclarr Documentation: https://recyclarr.dev/
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   # Import pure storage helpers library
@@ -52,7 +51,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -94,57 +93,59 @@ let
   # pkgs.formats.yaml quotes strings starting with !, so we build YAML directly
 
   # Helper to generate instance YAML
-  mkInstanceYaml = service: name: inst: let
-    envVarName = lib.toUpper (builtins.replaceStrings ["-"] ["_"] name) + "_${lib.toUpper service}_API_KEY";
+  mkInstanceYaml = service: name: inst:
+    let
+      envVarName = lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] name) + "_${lib.toUpper service}_API_KEY";
 
-    deleteOldCF = lib.optionalString inst.deleteOldCustomFormats ''
-delete_old_custom_formats: true
-'';
+      deleteOldCF = lib.optionalString inst.deleteOldCustomFormats ''
+        delete_old_custom_formats: true
+      '';
 
-    # Media naming for Sonarr
-    sonarrMediaNaming = lib.optionalString (service == "sonarr" && inst.mediaNaming != null) (
-      let mn = inst.mediaNaming; in ''
-media_naming:
-${lib.optionalString (mn.series != null) "        series: \"${mn.series}\""}
-${lib.optionalString (mn.season != null) "        season: \"${mn.season}\""}
-${lib.optionalString (mn.episodes != null) ''
-        episodes:
-          rename: ${if mn.episodes.rename then "true" else "false"}
-${lib.optionalString (mn.episodes.standard != null) "          standard: \"${mn.episodes.standard}\""}
-${lib.optionalString (mn.episodes.daily != null) "          daily: \"${mn.episodes.daily}\""}
-${lib.optionalString (mn.episodes.anime != null) "          anime: \"${mn.episodes.anime}\""}''}
-''
-    );
+      # Media naming for Sonarr
+      sonarrMediaNaming = lib.optionalString (service == "sonarr" && inst.mediaNaming != null) (
+        let mn = inst.mediaNaming; in ''
+          media_naming:
+          ${lib.optionalString (mn.series != null) "        series: \"${mn.series}\""}
+          ${lib.optionalString (mn.season != null) "        season: \"${mn.season}\""}
+          ${lib.optionalString (mn.episodes != null) ''
+                  episodes:
+                    rename: ${if mn.episodes.rename then "true" else "false"}
+          ${lib.optionalString (mn.episodes.standard != null) "          standard: \"${mn.episodes.standard}\""}
+          ${lib.optionalString (mn.episodes.daily != null) "          daily: \"${mn.episodes.daily}\""}
+          ${lib.optionalString (mn.episodes.anime != null) "          anime: \"${mn.episodes.anime}\""}''}
+        ''
+      );
 
-    # Media naming for Radarr
-    radarrMediaNaming = lib.optionalString (service == "radarr" && inst.mediaNaming != null) (
-      let mn = inst.mediaNaming; in ''
-media_naming:
-${lib.optionalString (mn.folder != null) "        folder: \"${mn.folder}\""}
-        movie:
-          rename: ${if mn.movie.rename then "true" else "false"}
-${lib.optionalString (mn.movie.standard != null) "          standard: \"${mn.movie.standard}\""}
-''
-    );
+      # Media naming for Radarr
+      radarrMediaNaming = lib.optionalString (service == "radarr" && inst.mediaNaming != null) (
+        let mn = inst.mediaNaming; in ''
+          media_naming:
+          ${lib.optionalString (mn.folder != null) "        folder: \"${mn.folder}\""}
+                  movie:
+                    rename: ${if mn.movie.rename then "true" else "false"}
+          ${lib.optionalString (mn.movie.standard != null) "          standard: \"${mn.movie.standard}\""}
+        ''
+      );
 
-    templates = lib.optionalString (inst.templates != []) ''
-      include:
-${lib.concatMapStringsSep "\n" (t: "      - template: ${t}") inst.templates}'';
+      templates = lib.optionalString (inst.templates != [ ]) ''
+              include:
+        ${lib.concatMapStringsSep "\n" (t: "      - template: ${t}") inst.templates}'';
 
-    customFormats = lib.optionalString (inst.customFormats != []) ''
-      custom_formats:
-${lib.concatMapStringsSep "\n" (cf: "      - ${cf}") inst.customFormats}'';
+      customFormats = lib.optionalString (inst.customFormats != [ ]) ''
+              custom_formats:
+        ${lib.concatMapStringsSep "\n" (cf: "      - ${cf}") inst.customFormats}'';
 
-    qualityProfiles = lib.optionalString (inst.qualityProfiles != []) ''
-      quality_profiles:
-${lib.concatMapStringsSep "\n" (qp: "      - ${qp}") inst.qualityProfiles}'';
-  in ''
-    ${name}:
-      base_url: ${inst.baseUrl}
-      api_key: !env_var ${envVarName}
-      ${deleteOldCF}
-      ${if service == "sonarr" then sonarrMediaNaming else radarrMediaNaming}
-${templates}${customFormats}${qualityProfiles}'';
+      qualityProfiles = lib.optionalString (inst.qualityProfiles != [ ]) ''
+              quality_profiles:
+        ${lib.concatMapStringsSep "\n" (qp: "      - ${qp}") inst.qualityProfiles}'';
+    in
+    ''
+          ${name}:
+            base_url: ${inst.baseUrl}
+            api_key: !env_var ${envVarName}
+            ${deleteOldCF}
+            ${if service == "sonarr" then sonarrMediaNaming else radarrMediaNaming}
+      ${templates}${customFormats}${qualityProfiles}'';
 
   configFile = pkgs.writeText "recyclarr.yml" ''
     ${lib.optionalString (cfg.sonarr != {}) ''
@@ -190,7 +191,7 @@ ${templates}${customFormats}${qualityProfiles}'';
 
       templates = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [];
+        default = [ ];
         description = ''
           List of TRaSH guide template names to include.
 
@@ -237,12 +238,12 @@ ${templates}${customFormats}${qualityProfiles}'';
                   };
                 };
               });
-              default = [];
+              default = [ ];
               description = "Quality profiles to assign custom format scores to";
             };
           };
         });
-        default = [];
+        default = [ ];
         description = ''
           Advanced custom format definitions with scoring.
           Allows fine-grained control over TRaSH custom formats and their scores in quality profiles.
@@ -307,7 +308,7 @@ ${templates}${customFormats}${qualityProfiles}'';
             };
           };
         });
-        default = [];
+        default = [ ];
         description = ''
           Advanced quality profile configurations with upgrade rules and scoring thresholds.
           Provides type-safe configuration for quality management.
@@ -502,7 +503,7 @@ in
     # Sonarr instances configuration
     sonarr = lib.mkOption {
       type = lib.types.attrsOf instanceSubmodule;
-      default = {};
+      default = { };
       description = "Sonarr instances to manage with Recyclarr";
       example = lib.literalExpression ''
         {
@@ -521,7 +522,7 @@ in
     # Radarr instances configuration
     radarr = lib.mkOption {
       type = lib.types.attrsOf instanceSubmodule;
-      default = {};
+      default = { };
       description = "Radarr instances to manage with Recyclarr";
       example = lib.literalExpression ''
         {
@@ -604,7 +605,7 @@ in
     (lib.mkIf cfg.enable {
       assertions = [
         {
-          assertion = cfg.sonarr != {} || cfg.radarr != {};
+          assertion = cfg.sonarr != { } || cfg.radarr != { };
           message = "Recyclarr requires at least one Sonarr or Radarr instance to be configured";
         }
         {
@@ -627,12 +628,12 @@ in
       # Create ZFS dataset for Recyclarr data
       modules.storage.datasets.services.recyclarr = {
         mountpoint = cfg.dataDir;
-        recordsize = "16K";  # Optimal for configuration files
+        recordsize = "16K"; # Optimal for configuration files
         compression = "zstd";
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = cfg.user;  # Use configured user (UID 922)
+        owner = cfg.user; # Use configured user (UID 922)
         group = cfg.group; # Use configured group (defaults to "media")
         mode = "0750";
       };
@@ -673,81 +674,86 @@ in
       };
 
       # Systemd service for running Recyclarr sync
-      systemd.services.recyclarr-sync = let
-        # Build command flags
-        previewFlag = lib.optionalString cfg.dryRun "--preview";
-        logLevelFlag = lib.optionalString (cfg.logLevel != null) "--${cfg.logLevel}";
-      in lib.mkMerge [
-        # Base service configuration
-        {
-          description = "Recyclarr TRaSH Guides Sync";
-          after = [ "network-online.target" "recyclarr-config-generator.service" ];
-          wants = [ "network-online.target" "recyclarr-config-generator.service" ];
+      systemd.services.recyclarr-sync =
+        let
+          # Build command flags
+          previewFlag = lib.optionalString cfg.dryRun "--preview";
+          logLevelFlag = lib.optionalString (cfg.logLevel != null) "--${cfg.logLevel}";
+        in
+        lib.mkMerge [
+          # Base service configuration
+          {
+            description = "Recyclarr TRaSH Guides Sync";
+            after = [ "network-online.target" "recyclarr-config-generator.service" ];
+            wants = [ "network-online.target" "recyclarr-config-generator.service" ];
 
-          serviceConfig = {
-            Type = "oneshot";
-            # NOTE: Run as root to access SOPS template, then drop privileges to recyclarr user in container
-            # This matches the pattern used by sonarr, radarr, and other containerized services
-            User = "root";
-            Group = "root";
+            serviceConfig = {
+              Type = "oneshot";
+              # NOTE: Run as root to access SOPS template, then drop privileges to recyclarr user in container
+              # This matches the pattern used by sonarr, radarr, and other containerized services
+              User = "root";
+              Group = "root";
 
-            # Environment file with API keys injected from SOPS
-            # This file is generated by sops-nix at activation time with real secrets
-            # Format: SONARR_MAIN_SONARR_API_KEY=..., RADARR_MAIN_RADARR_API_KEY=...
-            # The placeholder paths are resolved by looking up sops.templates in the host config
-            EnvironmentFile = let
-              # Try to find the recyclarr-env template path
-              # This will be defined in hosts/forge/secrets.nix as config.sops.templates."recyclarr-env".path
-              templatePath = config.sops.templates."recyclarr-env".path or null;
-            in
-              if templatePath != null
-              then templatePath
-              else throw "Recyclarr requires sops.templates.recyclarr-env to be configured in host secrets";
+              # Environment file with API keys injected from SOPS
+              # This file is generated by sops-nix at activation time with real secrets
+              # Format: SONARR_MAIN_SONARR_API_KEY=..., RADARR_MAIN_RADARR_API_KEY=...
+              # The placeholder paths are resolved by looking up sops.templates in the host config
+              EnvironmentFile =
+                let
+                  # Try to find the recyclarr-env template path
+                  # This will be defined in hosts/forge/secrets.nix as config.sops.templates."recyclarr-env".path
+                  templatePath = config.sops.templates."recyclarr-env".path or null;
+                in
+                if templatePath != null
+                then templatePath
+                else throw "Recyclarr requires sops.templates.recyclarr-env to be configured in host secrets";
 
-            # Run Recyclarr container in one-shot mode with environment variables
-            ExecStart = let
-              # Get the path to the SOPS template
-              templatePath = config.sops.templates."recyclarr-env".path or (throw "Recyclarr requires sops.templates.recyclarr-env");
-            in pkgs.writeShellScript "recyclarr-sync.sh" ''
-              set -euo pipefail
+              # Run Recyclarr container in one-shot mode with environment variables
+              ExecStart =
+                let
+                  # Get the path to the SOPS template
+                  templatePath = config.sops.templates."recyclarr-env".path or (throw "Recyclarr requires sops.templates.recyclarr-env");
+                in
+                pkgs.writeShellScript "recyclarr-sync.sh" ''
+                  set -euo pipefail
 
-              # Run recyclarr sync in container
-              # Note: Container runs as recyclarr user, but systemd service runs as root to read secrets
-              # The config directory is mounted from /var/lib/recyclarr which contains recyclarr.yml
-              # Use --env-file to load all environment variables from SOPS template directly into container
-              ${pkgs.podman}/bin/podman run --rm \
-                --name recyclarr-sync \
-                --user ${cfg.user}:${toString config.users.groups.${cfg.group}.gid} \
-                --log-driver=journald \
-                ${lib.optionalString (cfg.podmanNetwork != null) "--network=${cfg.podmanNetwork}"} \
-                -v ${cfg.dataDir}:/config:rw \
-                -e TZ=${cfg.timezone} \
-                --env-file ${templatePath} \
-                ${cfg.image} \
-                sync ${previewFlag} ${logLevelFlag}
-            '';
+                  # Run recyclarr sync in container
+                  # Note: Container runs as recyclarr user, but systemd service runs as root to read secrets
+                  # The config directory is mounted from /var/lib/recyclarr which contains recyclarr.yml
+                  # Use --env-file to load all environment variables from SOPS template directly into container
+                  ${pkgs.podman}/bin/podman run --rm \
+                    --name recyclarr-sync \
+                    --user ${cfg.user}:${toString config.users.groups.${cfg.group}.gid} \
+                    --log-driver=journald \
+                    ${lib.optionalString (cfg.podmanNetwork != null) "--network=${cfg.podmanNetwork}"} \
+                    -v ${cfg.dataDir}:/config:rw \
+                    -e TZ=${cfg.timezone} \
+                    --env-file ${templatePath} \
+                    ${cfg.image} \
+                    sync ${previewFlag} ${logLevelFlag}
+                '';
 
-            # Cleanup on failure
-            ExecStopPost = ''
-              -${pkgs.podman}/bin/podman rm -f recyclarr-sync
-            '';
-          };
-        }
-        # Add Podman network dependency if configured
-        (lib.mkIf (cfg.podmanNetwork != null) {
-          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-        })
-        # Add failure notifications
-        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-          unitConfig.OnFailure = [ "notify@recyclarr-failure:%n.service" ];
-        })
-        # Add preseed dependency
-        (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-recyclarr.service" ];
-          after = [ "preseed-recyclarr.service" ];
-        })
-      ];
+              # Cleanup on failure
+              ExecStopPost = ''
+                -${pkgs.podman}/bin/podman rm -f recyclarr-sync
+              '';
+            };
+          }
+          # Add Podman network dependency if configured
+          (lib.mkIf (cfg.podmanNetwork != null) {
+            requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+            after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          })
+          # Add failure notifications
+          (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+            unitConfig.OnFailure = [ "notify@recyclarr-failure:%n.service" ];
+          })
+          # Add preseed dependency
+          (lib.mkIf cfg.preseed.enable {
+            wants = [ "preseed-recyclarr.service" ];
+            after = [ "preseed-recyclarr.service" ];
+          })
+        ];
 
       # Systemd timer to trigger the sync service
       systemd.timers.recyclarr-sync = {

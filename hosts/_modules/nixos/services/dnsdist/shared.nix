@@ -74,7 +74,7 @@ in
           };
         };
       });
-      default = [];
+      default = [ ];
       description = "Network-based routing rules";
       example = lib.literalExpression ''
         [
@@ -114,14 +114,14 @@ in
           };
         };
       });
-      default = [];
+      default = [ ];
       description = "Additional DNS servers beyond the standard ones";
     };
 
     # Domain-specific routing
     domainRouting = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
-      default = {};
+      default = { };
       description = "Domain to pool routing rules";
       example = { "holtel.io" = "rv"; };
     };

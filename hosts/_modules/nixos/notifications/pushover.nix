@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   cfg = config.modules.notifications;
@@ -22,70 +21,71 @@ let
     else priorityMap.${priority} or 0;
 
   # Script to send Pushover notification
-  mkPushoverScript = {
-    title,
-    message,
-    priority ? "normal",
-    url ? null,
-    urlTitle ? null,
-    device ? null,
-    html ? true,
-  }: ''
-    set -euo pipefail
+  mkPushoverScript =
+    { title
+    , message
+    , priority ? "normal"
+    , url ? null
+    , urlTitle ? null
+    , device ? null
+    , html ? true
+    ,
+    }: ''
+      set -euo pipefail
 
-    # Read tokens from systemd credentials
-    PUSHOVER_TOKEN=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_TOKEN)
-    PUSHOVER_USER=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_USER_KEY)
+      # Read tokens from systemd credentials
+      PUSHOVER_TOKEN=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_TOKEN)
+      PUSHOVER_USER=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_USER_KEY)
 
-    # Build notification payload
-    PRIORITY="${toString (getPriority priority)}"
-    ${lib.optionalString (device != null) ''DEVICE="${device}"''}
-    ${lib.optionalString (device == null && pushoverCfg.defaultDevice != null) ''DEVICE="${pushoverCfg.defaultDevice}"''}
+      # Build notification payload
+      PRIORITY="${toString (getPriority priority)}"
+      ${lib.optionalString (device != null) ''DEVICE="${device}"''}
+      ${lib.optionalString (device == null && pushoverCfg.defaultDevice != null) ''DEVICE="${pushoverCfg.defaultDevice}"''}
 
-    # Send notification with retries
-    MAX_RETRIES=${toString pushoverCfg.retryAttempts}
-    TIMEOUT=${toString pushoverCfg.timeout}
-    RETRY_COUNT=0
-    SUCCESS=false
+      # Send notification with retries
+      MAX_RETRIES=${toString pushoverCfg.retryAttempts}
+      TIMEOUT=${toString pushoverCfg.timeout}
+      RETRY_COUNT=0
+      SUCCESS=false
 
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-      HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /tmp/pushover-response.json \
-        --max-time "$TIMEOUT" \
-        --data-urlencode "token=$PUSHOVER_TOKEN" \
-        --data-urlencode "user=$PUSHOVER_USER" \
-        --data-urlencode "title=${title}" \
-        --data-urlencode "message=${message}" \
-        --data-urlencode "priority=$PRIORITY" \
-        ${lib.optionalString html ''--data-urlencode "html=1"''} \
-        ${lib.optionalString (url != null) ''--data-urlencode "url=${url}"''} \
-        ${lib.optionalString (urlTitle != null) ''--data-urlencode "url_title=${urlTitle}"''} \
-        ${lib.optionalString (device != null || pushoverCfg.defaultDevice != null) ''--data-urlencode "device=''${DEVICE:-}"''} \
-        "https://api.pushover.net/1/messages.json" || echo "000")
+      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /tmp/pushover-response.json \
+          --max-time "$TIMEOUT" \
+          --data-urlencode "token=$PUSHOVER_TOKEN" \
+          --data-urlencode "user=$PUSHOVER_USER" \
+          --data-urlencode "title=${title}" \
+          --data-urlencode "message=${message}" \
+          --data-urlencode "priority=$PRIORITY" \
+          ${lib.optionalString html ''--data-urlencode "html=1"''} \
+          ${lib.optionalString (url != null) ''--data-urlencode "url=${url}"''} \
+          ${lib.optionalString (urlTitle != null) ''--data-urlencode "url_title=${urlTitle}"''} \
+          ${lib.optionalString (device != null || pushoverCfg.defaultDevice != null) ''--data-urlencode "device=''${DEVICE:-}"''} \
+          "https://api.pushover.net/1/messages.json" || echo "000")
 
-      if [ "$HTTP_CODE" = "200" ]; then
-        echo "Pushover notification sent successfully (HTTP $HTTP_CODE)"
-        SUCCESS=true
-        break
-      else
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-          echo "Pushover notification failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
-          sleep 2
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "Pushover notification sent successfully (HTTP $HTTP_CODE)"
+          SUCCESS=true
+          break
         else
-          echo "Pushover notification failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
-          if [ -f /tmp/pushover-response.json ]; then
-            echo "Response: $(cat /tmp/pushover-response.json)" >&2
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+            echo "Pushover notification failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
+            sleep 2
+          else
+            echo "Pushover notification failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
+            if [ -f /tmp/pushover-response.json ]; then
+              echo "Response: $(cat /tmp/pushover-response.json)" >&2
+            fi
           fi
         fi
+      done
+
+      rm -f /tmp/pushover-response.json
+
+      if [ "$SUCCESS" = "false" ]; then
+        exit 1
       fi
-    done
-
-    rm -f /tmp/pushover-response.json
-
-    if [ "$SUCCESS" = "false" ]; then
-      exit 1
-    fi
-  '';
+    '';
 in
 {
   config = lib.mkIf (cfg.enable && pushoverCfg.enable) {

@@ -5,10 +5,10 @@ let
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 
   cfg = config.modules.services.teslamate;
-  notificationsCfg = config.modules.notifications or {};
+  notificationsCfg = config.modules.notifications or { };
   hasCentralizedNotifications = notificationsCfg.enable or false;
-  storageCfg = config.modules.storage or {};
-  datasetsCfg = storageCfg.datasets or {};
+  storageCfg = config.modules.storage or { };
+  datasetsCfg = storageCfg.datasets or { };
 
   serviceName = "teslamate";
   backend = config.virtualisation.oci-containers.backend;
@@ -34,8 +34,8 @@ let
     if dsPath == "" || dsPath == null then null
     else
       let
-        sanoidDatasets = config.modules.backup.sanoid.datasets or {};
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        sanoidDatasets = config.modules.backup.sanoid.datasets or { };
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -57,7 +57,8 @@ let
         datasetSuffix =
           if foundReplication.sourcePath == datasetPath then ""
           else lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-      in {
+      in
+      {
         targetHost = foundReplication.replication.targetHost;
         targetDataset =
           if datasetSuffix == "" then foundReplication.replication.targetDataset
@@ -185,7 +186,7 @@ let
 
       entries = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = "Versions that must exist";
       };
     };
@@ -272,7 +273,7 @@ in
       description = "SOPS-managed file containing the ENCRYPTION_KEY used for Tesla API tokens.";
     };
 
-  database = {
+    database = {
       host = mkOption {
         type = types.str;
         default = "host.containers.internal";
@@ -468,179 +469,182 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
-        assertions = [
-          {
-            assertion = cfg.database.passwordFile != null;
-            message = "modules.services.teslamate.database.passwordFile must be set.";
-          }
-          {
-            assertion = cfg.encryptionKeyFile != null;
-            message = "modules.services.teslamate.encryptionKeyFile must be provided.";
-          }
-          {
-            assertion = (!cfg.mqtt.enable) || cfg.mqtt.passwordFile != null;
-            message = "TeslaMate MQTT passwordFile is required whenever MQTT publishing is enabled.";
-          }
-          {
-            assertion = !(cfg.grafanaIntegration.enable && !(config.modules.services.grafana.enable or false));
-            message = "TeslaMate grafanaIntegration requires modules.services.grafana.enable.";
-          }
+      assertions = [
+        {
+          assertion = cfg.database.passwordFile != null;
+          message = "modules.services.teslamate.database.passwordFile must be set.";
+        }
+        {
+          assertion = cfg.encryptionKeyFile != null;
+          message = "modules.services.teslamate.encryptionKeyFile must be provided.";
+        }
+        {
+          assertion = (!cfg.mqtt.enable) || cfg.mqtt.passwordFile != null;
+          message = "TeslaMate MQTT passwordFile is required whenever MQTT publishing is enabled.";
+        }
+        {
+          assertion = !(cfg.grafanaIntegration.enable && !(config.modules.services.grafana.enable or false));
+          message = "TeslaMate grafanaIntegration requires modules.services.grafana.enable.";
+        }
+      ];
+
+      users.users.${cfg.user} = {
+        isSystemUser = true;
+        group = cfg.group;
+        description = "TeslaMate service account";
+      };
+
+      users.groups.${cfg.group} = { };
+
+      systemd.tmpfiles.rules = [
+        "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} -"
+        "d ${resolvedImportDir} 0750 ${cfg.user} ${cfg.group} -"
+      ];
+
+      modules.storage.datasets.services.${serviceName} = {
+        mountpoint = cfg.dataDir;
+        recordsize = "16K";
+        compression = "zstd";
+        owner = cfg.user;
+        group = cfg.group;
+        mode = "0750";
+      };
+
+      modules.services.postgresql.databases.${cfg.database.name} = mkIf cfg.database.manageDatabase {
+        owner = cfg.database.user;
+        ownerPasswordFile = cfg.database.passwordFile;
+        extensions = cfg.database.extensions;
+        permissionsPolicy = "owner-readwrite+readonly-select";
+        schemaMigrations = cfg.database.schemaMigrations;
+      };
+
+      virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
+        image = cfg.image;
+        environmentFiles = [ envFile ];
+        environment = {
+          TZ = cfg.timezone;
+          DATABASE_USER = cfg.database.user;
+          DATABASE_NAME = cfg.database.name;
+          DATABASE_HOST = cfg.database.host;
+          DATABASE_PORT = toString cfg.database.port;
+          MQTT_HOST = cfg.mqtt.host;
+          MQTT_PORT = toString cfg.mqtt.port;
+          MQTT_USERNAME = cfg.mqtt.username;
+          DISABLE_MQTT = if cfg.mqtt.enable then "false" else "true";
+          IMPORT_DIR = "/opt/app/import";
+        };
+        volumes = [
+          "${resolvedImportDir}:/opt/app/import:rw"
         ];
-
-        users.users.${cfg.user} = {
-          isSystemUser = true;
-          group = cfg.group;
-          description = "TeslaMate service account";
-        };
-
-        users.groups.${cfg.group} = {};
-
-        systemd.tmpfiles.rules = [
-          "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} -"
-          "d ${resolvedImportDir} 0750 ${cfg.user} ${cfg.group} -"
+        ports = [
+          "${cfg.listenAddress}:${toString cfg.listenPort}:4000/tcp"
         ];
-
-        modules.storage.datasets.services.${serviceName} = {
-          mountpoint = cfg.dataDir;
-          recordsize = "16K";
-          compression = "zstd";
-          owner = cfg.user;
-          group = cfg.group;
-          mode = "0750";
-        };
-
-        modules.services.postgresql.databases.${cfg.database.name} = mkIf cfg.database.manageDatabase {
-          owner = cfg.database.user;
-          ownerPasswordFile = cfg.database.passwordFile;
-          extensions = cfg.database.extensions;
-          permissionsPolicy = "owner-readwrite+readonly-select";
-          schemaMigrations = cfg.database.schemaMigrations;
-        };
-
-        virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
-          image = cfg.image;
-          environmentFiles = [ envFile ];
-          environment = {
-            TZ = cfg.timezone;
-            DATABASE_USER = cfg.database.user;
-            DATABASE_NAME = cfg.database.name;
-            DATABASE_HOST = cfg.database.host;
-            DATABASE_PORT = toString cfg.database.port;
-            MQTT_HOST = cfg.mqtt.host;
-            MQTT_PORT = toString cfg.mqtt.port;
-            MQTT_USERNAME = cfg.mqtt.username;
-            DISABLE_MQTT = if cfg.mqtt.enable then "false" else "true";
-            IMPORT_DIR = "/opt/app/import";
-          };
-          volumes = [
-            "${resolvedImportDir}:/opt/app/import:rw"
-          ];
-          ports = [
-            "${cfg.listenAddress}:${toString cfg.listenPort}:4000/tcp"
-          ];
-          resources = cfg.resources;
-          extraOptions = [
-            "--pull=newer"
-          ] ++ lib.optionals (cfg.podmanNetwork != null) [
-            "--network=${cfg.podmanNetwork}"
-          ];
-        };
-
-  systemd.services.${serviceAttrName} = lib.mkMerge [
-          {
-            after = [ "network-online.target" ]
-              ++ lib.optional (cfg.database.localInstance) "postgresql.service"
-              ++ lib.optionals cfg.preseed.enable [ "teslamate-preseed.service" ];
-            wants = [ "network-online.target" ]
-              ++ lib.optionals cfg.preseed.enable [ "teslamate-preseed.service" ];
-            requires = lib.optionals (cfg.database.manageDatabase && cfg.database.localInstance) [ "postgresql-provision-databases.service" ];
-            serviceConfig = {
-              LoadCredential =
-                [
-                  "db_password:${cfg.database.passwordFile}"
-                  "encryption_key:${cfg.encryptionKeyFile}"
-                ]
-                ++ lib.optionals cfg.mqtt.enable [
-                  "mqtt_password:${cfg.mqtt.passwordFile}"
-                ];
-              Restart = lib.mkForce "on-failure";
-              RestartSec = "10s";
-            };
-            preStart = ''
-              set -euo pipefail
-              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}
-              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${resolvedImportDir}
-              install -d -m 700 ${envDir}
-              tmp="${envFile}.tmp"
-              trap 'rm -f "$tmp"' EXIT
-              {
-                printf "DATABASE_PASS=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/db_password")"
-                printf "ENCRYPTION_KEY=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/encryption_key")"
-                ${lib.optionalString cfg.mqtt.enable ''
-                printf "MQTT_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/mqtt_password")"
-                ''}
-              } > "$tmp"
-              install -m 600 "$tmp" ${envFile}
-            '';
-          }
-          (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-            unitConfig.OnFailure = [ "notify@teslamate-failure:%n.service" ];
-          })
+        resources = cfg.resources;
+        extraOptions = [
+          "--pull=newer"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
         ];
+      };
 
-        modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-          "teslamate-failure" = {
-            enable = true;
-            priority = "high";
-            title = "❌ TeslaMate service failed";
-            body = ''
-<b>Host:</b> ${config.networking.hostName}
-<b>Service:</b> podman-teslamate
-
-Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
-'';
+      systemd.services.${serviceAttrName} = lib.mkMerge [
+        {
+          after = [ "network-online.target" ]
+            ++ lib.optional (cfg.database.localInstance) "postgresql.service"
+            ++ lib.optionals cfg.preseed.enable [ "teslamate-preseed.service" ];
+          wants = [ "network-online.target" ]
+            ++ lib.optionals cfg.preseed.enable [ "teslamate-preseed.service" ];
+          requires = lib.optionals (cfg.database.manageDatabase && cfg.database.localInstance) [ "postgresql-provision-databases.service" ];
+          serviceConfig = {
+            LoadCredential =
+              [
+                "db_password:${cfg.database.passwordFile}"
+                "encryption_key:${cfg.encryptionKeyFile}"
+              ]
+              ++ lib.optionals cfg.mqtt.enable [
+                "mqtt_password:${cfg.mqtt.passwordFile}"
+              ];
+            Restart = lib.mkForce "on-failure";
+            RestartSec = "10s";
           };
-        };
+          preStart = ''
+            set -euo pipefail
+            install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}
+            install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${resolvedImportDir}
+            install -d -m 700 ${envDir}
+            tmp="${envFile}.tmp"
+            trap 'rm -f "$tmp"' EXIT
+            {
+              printf "DATABASE_PASS=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/db_password")"
+              printf "ENCRYPTION_KEY=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/encryption_key")"
+              ${lib.optionalString cfg.mqtt.enable ''
+              printf "MQTT_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/mqtt_password")"
+              ''}
+            } > "$tmp"
+            install -m 600 "$tmp" ${envFile}
+          '';
+        }
+        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+          unitConfig.OnFailure = [ "notify@teslamate-failure:%n.service" ];
+        })
+      ];
 
-        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          teslamate = {
-            enable = true;
-            repository = cfg.backup.repository;
-            frequency = cfg.backup.frequency;
-            retention = cfg.backup.retention;
-            paths = if cfg.backup.paths != [] then cfg.backup.paths else [ cfg.dataDir ];
-            excludePatterns = cfg.backup.excludePatterns;
-            useSnapshots = cfg.backup.useSnapshots or true;
-            zfsDataset = cfg.backup.zfsDataset or datasetPath;
-            tags = cfg.backup.tags;
+      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        "teslamate-failure" = {
+          enable = true;
+          priority = "high";
+          title = "❌ TeslaMate service failed";
+          body = ''
+            <b>Host:</b> ${config.networking.hostName}
+            <b>Service:</b> podman-teslamate
+
+            Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
+          '';
+        };
+      };
+
+      modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+        teslamate = {
+          enable = true;
+          repository = cfg.backup.repository;
+          frequency = cfg.backup.frequency;
+          retention = cfg.backup.retention;
+          paths = if cfg.backup.paths != [ ] then cfg.backup.paths else [ cfg.dataDir ];
+          excludePatterns = cfg.backup.excludePatterns;
+          useSnapshots = cfg.backup.useSnapshots or true;
+          zfsDataset = cfg.backup.zfsDataset or datasetPath;
+          tags = cfg.backup.tags;
+        };
+      };
+
+      modules.services.caddy.virtualHosts.${serviceName} = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) (
+        let
+          defaultBackend = {
+            scheme = "http";
+            host = cfg.listenAddress;
+            port = cfg.listenPort;
           };
-        };
+          configuredBackend = cfg.reverseProxy.backend or { };
+        in
+        {
+          enable = true;
+          hostName = cfg.reverseProxy.hostName;
+          backend = lib.recursiveUpdate defaultBackend configuredBackend;
+          auth = cfg.reverseProxy.auth;
+          authelia = cfg.reverseProxy.authelia;
+          security = cfg.reverseProxy.security;
+          extraConfig = cfg.reverseProxy.extraConfig;
+        }
+      );
 
-        modules.services.caddy.virtualHosts.${serviceName} = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) (
-          let
-            defaultBackend = {
-              scheme = "http";
-              host = cfg.listenAddress;
-              port = cfg.listenPort;
-            };
-            configuredBackend = cfg.reverseProxy.backend or {};
-          in {
-            enable = true;
-            hostName = cfg.reverseProxy.hostName;
-            backend = lib.recursiveUpdate defaultBackend configuredBackend;
-            auth = cfg.reverseProxy.auth;
-            authelia = cfg.reverseProxy.authelia;
-            security = cfg.reverseProxy.security;
-            extraConfig = cfg.reverseProxy.extraConfig;
-          }
-        );
-
-        modules.services.emqx.integrations.${serviceName} = mkIf (
+      modules.services.emqx.integrations.${serviceName} = mkIf
+        (
           cfg.mqtt.enable
           && cfg.mqtt.registerEmqxIntegration
           && cfg.mqtt.username != null
           && cfg.mqtt.passwordFile != null
-        ) {
+        )
+        {
           users = [
             {
               username = cfg.mqtt.username;
@@ -662,51 +666,56 @@ Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
           ];
         };
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf (
+      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
+        (
           config.modules.services.authelia.enable or false
           && cfg.reverseProxy != null && cfg.reverseProxy.enable
           && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
-        ) (let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (group: "group:${group}") (authCfg.allowedGroups or []);
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or []))
-            ++ (authCfg.bypassResources or []);
-        });
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or [ ]))
+              ++ (authCfg.bypassResources or [ ]);
+          }
+        );
 
-        # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/teslamate.nix)
-        # to keep modules portable and not assume Prometheus availability
+      # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/teslamate.nix)
+      # to keep modules portable and not assume Prometheus availability
 
-        modules.services.grafana.integrations.teslamate = mkIf (cfg.grafanaIntegration.enable) {
-          datasources.teslamate = {
-            name = cfg.grafanaIntegration.datasourceName;
-            uid = cfg.grafanaIntegration.datasourceUid;
-            type = "postgres";
-            access = "proxy";
-            url = "${cfg.database.host}:${toString cfg.database.port}";
-            user = cfg.database.user;
-            database = cfg.database.name;
-            jsonData = {
-              sslmode = "disable";
-              timescaledb = false;
-            };
-            secureJsonData = {
-              password = "$__file{${grafanaCredentialPath}}";
-            };
+      modules.services.grafana.integrations.teslamate = mkIf (cfg.grafanaIntegration.enable) {
+        datasources.teslamate = {
+          name = cfg.grafanaIntegration.datasourceName;
+          uid = cfg.grafanaIntegration.datasourceUid;
+          type = "postgres";
+          access = "proxy";
+          url = "${cfg.database.host}:${toString cfg.database.port}";
+          user = cfg.database.user;
+          database = cfg.database.name;
+          jsonData = {
+            sslmode = "disable";
+            timescaledb = false;
           };
-          dashboards = {
-            teslamate = {
-              name = "TeslaMate Dashboards";
-              folder = cfg.grafanaIntegration.folder;
-              path = cfg.grafanaIntegration.dashboardsPath;
-            };
+          secureJsonData = {
+            password = "$__file{${grafanaCredentialPath}}";
           };
-          loadCredentials = [ "${grafanaCredentialName}:${cfg.database.passwordFile}" ];
         };
-      }
+        dashboards = {
+          teslamate = {
+            name = "TeslaMate Dashboards";
+            folder = cfg.grafanaIntegration.folder;
+            path = cfg.grafanaIntegration.dashboardsPath;
+          };
+        };
+        loadCredentials = [ "${grafanaCredentialName}:${cfg.database.passwordFile}" ];
+      };
+    }
     )
 
 

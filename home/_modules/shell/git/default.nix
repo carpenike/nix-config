@@ -1,13 +1,13 @@
-{
-  pkgs,
-  config,
-  lib,
-  ...
+{ pkgs
+, config
+, lib
+, ...
 }:
 let
   cfg = config.modules.shell.git;
   inherit (pkgs.stdenv) isDarwin;
-in {
+in
+{
   options.modules.shell.git = {
     enable = lib.mkEnableOption "git";
     username = lib.mkOption {
@@ -21,11 +21,11 @@ in {
     };
     config = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
     };
     includes = lib.mkOption {
       type = lib.types.listOf lib.types.attrs;
-      default = [];
+      default = [ ];
     };
   };
 
@@ -88,7 +88,7 @@ in {
     (lib.mkIf (cfg.enable && isDarwin) {
       programs.git = {
         extraConfig = {
-          credential = {helper = "osxkeychain";};
+          credential = { helper = "osxkeychain"; };
         };
       };
     })

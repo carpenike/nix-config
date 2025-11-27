@@ -13,11 +13,10 @@
 #
 # This is significantly simpler than Authentik (1 service vs 4+) while providing
 # unified identity across all services, centralized 2FA, and granular access control.
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault types;
@@ -43,7 +42,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -160,19 +159,19 @@ in
             };
             subject = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Subjects (users/groups) this rule applies to";
               example = [ "group:admins" "user:ryan" ];
             };
             resources = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Resource patterns (paths) this rule applies to";
               example = [ "^/api.*$" ];
             };
           };
         });
-        default = [];
+        default = [ ];
         description = "Access control rules for protected services";
         example = [
           {
@@ -203,12 +202,12 @@ in
             };
             bypassResources = mkOption {
               type = types.listOf types.str;
-              default = [];
+              default = [ ];
               description = "Regex patterns for paths that bypass authentication";
             };
           };
         });
-        default = {};
+        default = { };
         internal = true;
         description = ''
           INTERNAL: Aggregated access control rules from service reverse proxy configurations.
@@ -258,7 +257,7 @@ in
             };
           };
         });
-        default = {};
+        default = { };
         description = ''
           OIDC client configurations (attribute set keyed by client ID).
           Client secrets are loaded via environment variables at runtime.
@@ -481,194 +480,206 @@ in
       ];
 
       # Enable native Authelia service
-      services.authelia.instances.${instanceName} = let
-        # Convert OIDC clients from attribute set to list for Authelia YAML config
-        # The attribute name becomes the client ID
-        oidcClientsList = lib.mapAttrsToList (id: client: {
-          inherit id;
-          inherit (client) description redirectUris scopes secret;
-        }) cfg.oidc.clients;
-      in {
-        enable = true;
+      services.authelia.instances.${instanceName} =
+        let
+          # Convert OIDC clients from attribute set to list for Authelia YAML config
+          # The attribute name becomes the client ID
+          oidcClientsList = lib.mapAttrsToList
+            (id: client: {
+              inherit id;
+              inherit (client) description redirectUris scopes secret;
+            })
+            cfg.oidc.clients;
+        in
+        {
+          enable = true;
 
-        # Secrets configuration for native service
-        secrets = {
-          jwtSecretFile = cfg.secrets.jwtSecretFile;
-          storageEncryptionKeyFile = cfg.secrets.storageEncryptionKeyFile;
-        };
-
-        # Secrets management via environment variables
-        environmentVariables = {
-          AUTHELIA_SESSION_SECRET_FILE = cfg.secrets.sessionSecretFile;
-        } // lib.optionalAttrs cfg.oidc.enable {
-          AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE = cfg.secrets.oidcHmacSecretFile;
-          AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE = cfg.secrets.oidcIssuerPrivateKeyFile;
-        } // lib.optionalAttrs (cfg.notifier.type == "smtp" && cfg.notifier.smtp.passwordFile != null) {
-          AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE = cfg.notifier.smtp.passwordFile;
-        };
-
-        settings = {
-          theme = "dark";
-
-          server = {
-            address = "tcp://0.0.0.0:${toString cfg.port}";
-            asset_path = "";
+          # Secrets configuration for native service
+          secrets = {
+            jwtSecretFile = cfg.secrets.jwtSecretFile;
+            storageEncryptionKeyFile = cfg.secrets.storageEncryptionKeyFile;
           };
 
-          log = {
-            level = "info";
-            format = "text";
+          # Secrets management via environment variables
+          environmentVariables = {
+            AUTHELIA_SESSION_SECRET_FILE = cfg.secrets.sessionSecretFile;
+          } // lib.optionalAttrs cfg.oidc.enable {
+            AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE = cfg.secrets.oidcHmacSecretFile;
+            AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE = cfg.secrets.oidcIssuerPrivateKeyFile;
+          } // lib.optionalAttrs (cfg.notifier.type == "smtp" && cfg.notifier.smtp.passwordFile != null) {
+            AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE = cfg.notifier.smtp.passwordFile;
           };
 
-          telemetry = {
-            metrics = {
-              enabled = cfg.metrics != null && cfg.metrics.enable;
-              # Metrics are served on the same port as the web server, just on /metrics path
-              # Don't specify address to use the default (same as server)
+          settings = {
+            theme = "dark";
+
+            server = {
+              address = "tcp://0.0.0.0:${toString cfg.port}";
+              asset_path = "";
             };
-          };
 
-          totp = {
-            disable = false;
-            issuer = cfg.domain;
-            period = 30;
-            skew = 1;
-          };
-
-          webauthn = {
-            disable = false;
-            enable_passkey_login = true;  # Enable passwordless login with Passkeys (v4.39.0+)
-            display_name = "Authelia";
-            attestation_conveyance_preference = "indirect";
-            # Enforce biometric/PIN for passwordless security
-            selection_criteria = {
-              user_verification = "required";
-              discoverability = "preferred";  # Prefer discoverable credentials for passwordless
+            log = {
+              level = "info";
+              format = "text";
             };
-            timeout = "60s";
-          };
 
-          # Authentication backend
-          authentication_backend = {
-            password_reset.disable = false;
-            refresh_interval = "5m";
+            telemetry = {
+              metrics = {
+                enabled = cfg.metrics != null && cfg.metrics.enable;
+                # Metrics are served on the same port as the web server, just on /metrics path
+                # Don't specify address to use the default (same as server)
+              };
+            };
 
-            file = {
-              path = "${dataDir}/users.yaml";
-              password = {
-                algorithm = "argon2";
-                argon2 = {
-                  variant = "argon2id";
-                  iterations = 3;
-                  memory = 65536;
-                  parallelism = 4;
-                  key_length = 32;
-                  salt_length = 16;
+            totp = {
+              disable = false;
+              issuer = cfg.domain;
+              period = 30;
+              skew = 1;
+            };
+
+            webauthn = {
+              disable = false;
+              enable_passkey_login = true; # Enable passwordless login with Passkeys (v4.39.0+)
+              display_name = "Authelia";
+              attestation_conveyance_preference = "indirect";
+              # Enforce biometric/PIN for passwordless security
+              selection_criteria = {
+                user_verification = "required";
+                discoverability = "preferred"; # Prefer discoverable credentials for passwordless
+              };
+              timeout = "60s";
+            };
+
+            # Authentication backend
+            authentication_backend = {
+              password_reset.disable = false;
+              refresh_interval = "5m";
+
+              file = {
+                path = "${dataDir}/users.yaml";
+                password = {
+                  algorithm = "argon2";
+                  argon2 = {
+                    variant = "argon2id";
+                    iterations = 3;
+                    memory = 65536;
+                    parallelism = 4;
+                    key_length = 32;
+                    salt_length = 16;
+                  };
                 };
               };
             };
-          };
 
-          # Session configuration
-          session = {
-            name = "authelia_session";
-            domain = cfg.domain;
-            same_site = "lax";
-            expiration = cfg.session.expiration;
-            inactivity = cfg.session.inactivity;
-            remember_me = "1M";
-          } // (if cfg.session.useRedis then {
-            redis = {
-              host = "localhost";
-              port = 6379;
-            };
-          } else {});
-
-          # Storage backend
-          storage = mkIf (cfg.storage.type == "sqlite") {
-            local = {
-              path = cfg.storage.sqlitePath;
-            };
-          };
-
-          # Access control
-          access_control = {
-            default_policy = cfg.accessControl.defaultPolicy;
-            # Merge user-defined rules with auto-generated rules from service configurations
-            rules =
-              # First: User-defined explicit rules
-              (map (rule: {
-                domain = if builtins.isList rule.domain then rule.domain else [ rule.domain ];
-                policy = rule.policy;
-                subject = rule.subject;
-                resources = rule.resources;
-              }) cfg.accessControl.rules)
-              ++
-              # Second: Auto-generated rules from services with reverseProxy.authelia enabled
-              # This creates two rules per service: one for bypass paths, one for main policy
-              (lib.flatten (lib.mapAttrsToList (serviceName: svc:
-                # Generate bypass rule first (higher priority in Authelia)
-                (lib.optionals (svc.bypassResources != []) [{
-                  domain = [ svc.domain ];
-                  policy = "bypass";
-                  resources = svc.bypassResources;
-                }])
-                ++
-                # Then the main policy rule for everything else
-                [{
-                  domain = [ svc.domain ];
-                  policy = svc.policy;
-                  subject = svc.subject;
-                }]
-              ) cfg.accessControl.declarativelyProtectedServices));
-          };
-
-          # Notifier configuration (required)
-          notifier = if cfg.notifier.type == "filesystem" then {
-            disable_startup_check = false;
-            filesystem = {
-              filename = cfg.notifier.filesystemPath;
-            };
-          } else mkIf (cfg.notifier.smtp != null) {
-            disable_startup_check = false;
-            smtp = {
-              address = "submission://${cfg.notifier.smtp.host}:${toString cfg.notifier.smtp.port}";
-              username = cfg.notifier.smtp.username;
-              password = ""; # Loaded from environment variable
-              sender = cfg.notifier.smtp.sender;
-              subject = cfg.notifier.smtp.subject;
-              startup_check_address = "test@authelia.com";
-              disable_require_tls = false;
-              disable_html_emails = false;
-            };
-          };
-
-          # OIDC configuration
-          identity_providers = mkIf cfg.oidc.enable {
-            oidc = {
-              enable_client_debug_messages = false;
-              minimum_parameter_entropy = 8;
-
-              cors = {
-                endpoints = [ "authorization" "token" "revocation" "introspection" "userinfo" ];
-                allowed_origins_from_client_redirect_uris = true;
+            # Session configuration
+            session = {
+              name = "authelia_session";
+              domain = cfg.domain;
+              same_site = "lax";
+              expiration = cfg.session.expiration;
+              inactivity = cfg.session.inactivity;
+              remember_me = "1M";
+            } // (if cfg.session.useRedis then {
+              redis = {
+                host = "localhost";
+                port = 6379;
               };
+            } else { });
 
-              # Clients config with secret loaded from environment variables
-              # Each client's secret is loaded via $env:CLIENT_ID_SECRET syntax
-              clients = map (client: {
-                inherit (client) id description scopes secret;
-                authorization_policy = "two_factor";
-                redirect_uris = client.redirectUris;
-                grant_types = [ "refresh_token" "authorization_code" ];
-                response_types = [ "code" ];
-                response_modes = [ "form_post" "query" "fragment" ];
-                token_endpoint_auth_method = "client_secret_basic";
-              }) oidcClientsList;
+            # Storage backend
+            storage = mkIf (cfg.storage.type == "sqlite") {
+              local = {
+                path = cfg.storage.sqlitePath;
+              };
+            };
+
+            # Access control
+            access_control = {
+              default_policy = cfg.accessControl.defaultPolicy;
+              # Merge user-defined rules with auto-generated rules from service configurations
+              rules =
+                # First: User-defined explicit rules
+                (map
+                  (rule: {
+                    domain = if builtins.isList rule.domain then rule.domain else [ rule.domain ];
+                    policy = rule.policy;
+                    subject = rule.subject;
+                    resources = rule.resources;
+                  })
+                  cfg.accessControl.rules)
+                ++
+                # Second: Auto-generated rules from services with reverseProxy.authelia enabled
+                # This creates two rules per service: one for bypass paths, one for main policy
+                (lib.flatten (lib.mapAttrsToList
+                  (serviceName: svc:
+                    # Generate bypass rule first (higher priority in Authelia)
+                    (lib.optionals (svc.bypassResources != [ ]) [{
+                      domain = [ svc.domain ];
+                      policy = "bypass";
+                      resources = svc.bypassResources;
+                    }])
+                    ++
+                    # Then the main policy rule for everything else
+                    [{
+                      domain = [ svc.domain ];
+                      policy = svc.policy;
+                      subject = svc.subject;
+                    }]
+                  )
+                  cfg.accessControl.declarativelyProtectedServices));
+            };
+
+            # Notifier configuration (required)
+            notifier =
+              if cfg.notifier.type == "filesystem" then {
+                disable_startup_check = false;
+                filesystem = {
+                  filename = cfg.notifier.filesystemPath;
+                };
+              } else
+                mkIf (cfg.notifier.smtp != null) {
+                  disable_startup_check = false;
+                  smtp = {
+                    address = "submission://${cfg.notifier.smtp.host}:${toString cfg.notifier.smtp.port}";
+                    username = cfg.notifier.smtp.username;
+                    password = ""; # Loaded from environment variable
+                    sender = cfg.notifier.smtp.sender;
+                    subject = cfg.notifier.smtp.subject;
+                    startup_check_address = "test@authelia.com";
+                    disable_require_tls = false;
+                    disable_html_emails = false;
+                  };
+                };
+
+            # OIDC configuration
+            identity_providers = mkIf cfg.oidc.enable {
+              oidc = {
+                enable_client_debug_messages = false;
+                minimum_parameter_entropy = 8;
+
+                cors = {
+                  endpoints = [ "authorization" "token" "revocation" "introspection" "userinfo" ];
+                  allowed_origins_from_client_redirect_uris = true;
+                };
+
+                # Clients config with secret loaded from environment variables
+                # Each client's secret is loaded via $env:CLIENT_ID_SECRET syntax
+                clients = map
+                  (client: {
+                    inherit (client) id description scopes secret;
+                    authorization_policy = "two_factor";
+                    redirect_uris = client.redirectUris;
+                    grant_types = [ "refresh_token" "authorization_code" ];
+                    response_types = [ "code" ];
+                    response_modes = [ "form_post" "query" "fragment" ];
+                    token_endpoint_auth_method = "client_secret_basic";
+                  })
+                  oidcClientsList;
+              };
             };
           };
         };
-      };
 
       # Register notification template for authelia failures
       modules.notifications.templates.authelia-failure = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
@@ -676,13 +687,13 @@ in
         priority = mkDefault "high";
         title = mkDefault "🔐 Authelia SSO Failed";
         body = mkDefault ''
-<b>Service:</b> authelia-${instanceName}
-<b>Host:</b> ${config.networking.hostName}
-<b>Status:</b> Service failed
-<b>Time:</b> $(date)
+          <b>Service:</b> authelia-${instanceName}
+          <b>Host:</b> ${config.networking.hostName}
+          <b>Status:</b> Service failed
+          <b>Time:</b> $(date)
 
-${cfg.notifications.customMessages.failure or "Authelia authentication service has failed"}
-'';
+          ${cfg.notifications.customMessages.failure or "Authelia authentication service has failed"}
+        '';
         backend = mkDefault notificationsCfg.defaultBackend;
       };
 
@@ -715,7 +726,7 @@ ${cfg.notifications.customMessages.failure or "Authelia authentication service h
         auth = null;
 
         security = cfg.reverseProxy.security // {
-          customHeaders = (cfg.reverseProxy.security.customHeaders or {}) // {
+          customHeaders = (cfg.reverseProxy.security.customHeaders or { }) // {
             "X-Frame-Options" = "SAMEORIGIN";
             "X-Content-Type-Options" = "nosniff";
           };
@@ -727,7 +738,7 @@ ${cfg.notifications.customMessages.failure or "Authelia authentication service h
       # ZFS dataset management
       modules.storage.datasets.services."authelia-${instanceName}" = {
         mountpoint = "/var/lib/authelia-${instanceName}";
-        recordsize = "16K";  # Optimal for SQLite
+        recordsize = "16K"; # Optimal for SQLite
         compression = "zstd";
         properties = {
           atime = "off";

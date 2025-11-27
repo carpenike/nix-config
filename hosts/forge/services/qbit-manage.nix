@@ -18,11 +18,11 @@ in
         # login and password = null (auth disabled on local network)
       };
 
-      contentDirectory = "/mnt/data/qb/downloads";  # Root where torrents are stored
-      recycleBinEnabled = true;  # Safety net for deleted data
-      dryRun = false;  # Set to true initially to test configuration
+      contentDirectory = "/mnt/data/qb/downloads"; # Root where torrents are stored
+      recycleBinEnabled = true; # Safety net for deleted data
+      dryRun = false; # Set to true initially to test configuration
 
-      schedule = "*/15 * * * *";  # Good, safe default interval
+      schedule = "*/15 * * * *"; # Good, safe default interval
 
       # Production-ready configuration based on TRaSH Guides best practices
       extraConfig = {
@@ -43,9 +43,9 @@ in
           # CATCH-ALL DEFAULT: Extremely safe, seeds forever
           # Applies to any tracker NOT explicitly defined below
           "default" = {
-            max_ratio = -1;              # Never remove based on ratio
-            max_seeding_time = -1;       # Never remove based on time
-            tag = "qbm-default-seed";    # Tag for easy filtering
+            max_ratio = -1; # Never remove based on ratio
+            max_seeding_time = -1; # Never remove based on time
+            tag = "qbm-default-seed"; # Tag for easy filtering
           };
 
           # --- EXAMPLE FOR YOUR PRIVATE TRACKERS ---
@@ -82,10 +82,10 @@ in
           # CRITICAL: Tell qbit_manage to IGNORE cross-seed categories
           # This prevents conflicts with tqm which manages these torrents
           "cross-seed" = {
-            managed = false;  # Don't touch cross-seeded torrents
+            managed = false; # Don't touch cross-seeded torrents
           };
           "xseeds" = {
-            managed = false;  # Alternative cross-seed category name
+            managed = false; # Alternative cross-seed category name
           };
         };
 
@@ -123,12 +123,13 @@ in
         };
       };
 
-      preseed = if resticEnabled then {
-        enable = true;
-        repositoryUrl = "/mnt/nas-backup";
-        passwordFile = config.sops.secrets."restic/password".path;
-        restoreMethods = [ "syncoid" "local" ];
-      } else {};
+      preseed =
+        if resticEnabled then {
+          enable = true;
+          repositoryUrl = "/mnt/nas-backup";
+          passwordFile = config.sops.secrets."restic/password".path;
+          restoreMethods = [ "syncoid" "local" ];
+        } else { };
     };
   };
 }

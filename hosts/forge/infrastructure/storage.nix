@@ -15,34 +15,34 @@
   modules.backup.sanoid = {
     enable = true;
     sshKeyPath = config.sops.secrets."zfs-replication/ssh-key".path;
-    snapshotInterval = "*:0/5";  # Run snapshots every 5 minutes (for high-frequency datasets)
-    replicationInterval = "*:0/15";  # Run replication every 15 minutes for faster DR
+    snapshotInterval = "*:0/5"; # Run snapshots every 5 minutes (for high-frequency datasets)
+    replicationInterval = "*:0/15"; # Run replication every 15 minutes for faster DR
 
     # Retention templates for different data types
     # Services reference these via: useTemplate = [ "services" ];
     templates = {
       production = {
-        hourly = 24;      # 24 hours
-        daily = 7;        # 1 week
-        weekly = 4;       # 1 month
-        monthly = 3;      # 3 months
+        hourly = 24; # 24 hours
+        daily = 7; # 1 week
+        weekly = 4; # 1 month
+        monthly = 3; # 3 months
         autosnap = true;
         autoprune = true;
       };
       services = {
-        hourly = 48;      # 2 days
-        daily = 14;       # 2 weeks
-        weekly = 8;       # 2 months
-        monthly = 6;      # 6 months
+        hourly = 48; # 2 days
+        daily = 14; # 2 weeks
+        weekly = 8; # 2 months
+        monthly = 6; # 6 months
         autosnap = true;
         autoprune = true;
       };
       # High-frequency snapshots for PostgreSQL WAL archives
       # Provides 5-minute RPO for database point-in-time recovery
       wal-frequent = {
-        frequently = 12;  # Keep 12 five-minute snapshots (1 hour of frequent retention)
-        hourly = 48;      # 2 days of hourly rollup
-        daily = 7;        # 1 week of daily rollup
+        frequently = 12; # Keep 12 five-minute snapshots (1 hour of frequent retention)
+        hourly = 48; # 2 days of hourly rollup
+        daily = 7; # 1 week of daily rollup
         autosnap = true;
         autoprune = true;
       };
@@ -57,8 +57,8 @@
         replication = {
           targetHost = "nas-1.holthome.net";
           targetDataset = "backup/forge/zfs-recv/home";
-          sendOptions = "w";  # Raw encrypted send
-          recvOptions = "u";  # Don't mount on receive
+          sendOptions = "w"; # Raw encrypted send
+          recvOptions = "u"; # Don't mount on receive
           hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
           # Consistent naming for Prometheus metrics
           targetName = "NFS";
@@ -87,8 +87,8 @@
       # Individual service modules (dispatcharr, sonarr, etc.) configure their own snapshots
       # Note: No useTemplate needed - this is just a logical container, not an actual snapshot target
       "tank/services" = {
-        recursive = false;  # Don't snapshot children - they manage themselves
-        autosnap = false;   # Don't snapshot the parent directory itself
+        recursive = false; # Don't snapshot children - they manage themselves
+        autosnap = false; # Don't snapshot the parent directory itself
         autoprune = false;
         # No replication - individual services handle their own replication
       };
@@ -107,7 +107,7 @@
     datasets = {
       enable = true;
       parentDataset = "tank/services";
-      parentMount = "/srv";  # Fallback for services without explicit mountpoint
+      parentMount = "/srv"; # Fallback for services without explicit mountpoint
 
       services = {
         # PostgreSQL dataset is now managed by the PostgreSQL module's storage-integration.nix
@@ -129,7 +129,7 @@
           compression = "lz4";
           recordsize = "128K";
           properties = {
-            "com.sun:auto-snapshot" = "false";  # Don't snapshot temporary clones
+            "com.sun:auto-snapshot" = "false"; # Don't snapshot temporary clones
           };
         };
       };
@@ -138,12 +138,12 @@
     # Shared NFS mount for media access from NAS
     nfsMounts.media = {
       enable = true;
-      automount = false;  # Disable automount for always-on media services (prevents idle timeout cascade stops)
+      automount = false; # Disable automount for always-on media services (prevents idle timeout cascade stops)
       server = "nas.holthome.net";
       remotePath = "/mnt/tank/share";
-      localPath = "/mnt/data";  # Mount point for shared NAS data (contains media/, backups/, etc.)
+      localPath = "/mnt/data"; # Mount point for shared NAS data (contains media/, backups/, etc.)
       group = "media";
-      mode = "02775";  # setgid bit ensures new files inherit media group
+      mode = "02775"; # setgid bit ensures new files inherit media group
       mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
     };
   };
@@ -283,7 +283,7 @@
     "zfs-replication-lag-high" = {
       type = "promql";
       alertname = "ZFSReplicationLagHigh";
-      expr = "zfs_replication_lag_seconds > 86400";  # 24 hours
+      expr = "zfs_replication_lag_seconds > 86400"; # 24 hours
       for = "30m";
       severity = "high";
       labels = { service = "syncoid"; category = "replication"; };
@@ -299,7 +299,7 @@
     "zfs-replication-stalled" = {
       type = "promql";
       alertname = "ZFSReplicationStalled";
-      expr = "zfs_replication_lag_seconds > 259200";  # 72 hours
+      expr = "zfs_replication_lag_seconds > 259200"; # 72 hours
       for = "1h";
       severity = "critical";
       labels = { service = "syncoid"; category = "replication"; };
@@ -526,9 +526,11 @@
       # Dynamically generate dataset list from backup.zfs.pools configuration
       # This ensures metrics stay in sync with backup configuration
       allDatasets = lib.flatten (
-        map (pool:
-          map (dataset: "${pool.pool}/${dataset}") pool.datasets
-        ) config.modules.backup.zfs.pools
+        map
+          (pool:
+            map (dataset: "${pool.pool}/${dataset}") pool.datasets
+          )
+          config.modules.backup.zfs.pools
       );
       # Convert to bash array format
       datasetsArray = lib.concatMapStrings (ds: ''"${ds}" '') allDatasets;
@@ -540,56 +542,56 @@
         User = "root";
       };
       script = ''
-        set -euo pipefail
+                set -euo pipefail
 
-        METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs_snapshots.prom"
-        METRICS_TEMP="$METRICS_FILE.tmp"
+                METRICS_FILE="/var/lib/node_exporter/textfile_collector/zfs_snapshots.prom"
+                METRICS_TEMP="$METRICS_FILE.tmp"
 
-        # Start metrics file
-        cat > "$METRICS_TEMP" <<'HEADER'
-# HELP zfs_snapshot_count Number of snapshots per dataset
-# TYPE zfs_snapshot_count gauge
-HEADER
+                # Start metrics file
+                cat > "$METRICS_TEMP" <<'HEADER'
+        # HELP zfs_snapshot_count Number of snapshots per dataset
+        # TYPE zfs_snapshot_count gauge
+        HEADER
 
-        # Datasets to monitor (dynamically generated from backup.nix)
-        DATASETS=(${datasetsArray})
+                # Datasets to monitor (dynamically generated from backup.nix)
+                DATASETS=(${datasetsArray})
 
-        # Count snapshots per dataset
-        for dataset in "''${DATASETS[@]}"; do
-          SNAPSHOT_COUNT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name | ${lib.getExe' pkgs.gnugrep "grep"} -c "^$dataset@" || echo 0)
-          echo "zfs_snapshot_count{dataset=\"$dataset\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
-        done
+                # Count snapshots per dataset
+                for dataset in "''${DATASETS[@]}"; do
+                  SNAPSHOT_COUNT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name | ${lib.getExe' pkgs.gnugrep "grep"} -c "^$dataset@" || echo 0)
+                  echo "zfs_snapshot_count{dataset=\"$dataset\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
+                done
 
-        # Add latest snapshot age metrics (using locale-safe Unix timestamps)
-        cat >> "$METRICS_TEMP" <<'HEADER2'
+                # Add latest snapshot age metrics (using locale-safe Unix timestamps)
+                cat >> "$METRICS_TEMP" <<'HEADER2'
 
-# HELP zfs_snapshot_latest_timestamp Creation time of most recent snapshot per dataset (Unix timestamp)
-# TYPE zfs_snapshot_latest_timestamp gauge
-HEADER2
+        # HELP zfs_snapshot_latest_timestamp Creation time of most recent snapshot per dataset (Unix timestamp)
+        # TYPE zfs_snapshot_latest_timestamp gauge
+        HEADER2
 
-        for dataset in "''${DATASETS[@]}"; do
-          # Get most recent snapshot name
-          LATEST_SNAPSHOT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name -s creation "$dataset" 2>/dev/null | tail -n 1 || echo "")
-          if [ -n "$LATEST_SNAPSHOT" ]; then
-            # Get creation time as Unix timestamp (locale-safe, uses -p for parseable output)
-            LATEST_TIMESTAMP=$(${lib.getExe config.boot.zfs.package} get -H -p -o value creation "$LATEST_SNAPSHOT" 2>/dev/null || echo 0)
-            echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
-          fi
-        done
+                for dataset in "''${DATASETS[@]}"; do
+                  # Get most recent snapshot name
+                  LATEST_SNAPSHOT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name -s creation "$dataset" 2>/dev/null | tail -n 1 || echo "")
+                  if [ -n "$LATEST_SNAPSHOT" ]; then
+                    # Get creation time as Unix timestamp (locale-safe, uses -p for parseable output)
+                    LATEST_TIMESTAMP=$(${lib.getExe config.boot.zfs.package} get -H -p -o value creation "$LATEST_SNAPSHOT" 2>/dev/null || echo 0)
+                    echo "zfs_snapshot_latest_timestamp{dataset=\"$dataset\"} $LATEST_TIMESTAMP" >> "$METRICS_TEMP"
+                  fi
+                done
 
-        # Add total space used by all snapshots per dataset
-        cat >> "$METRICS_TEMP" <<'HEADER3'
+                # Add total space used by all snapshots per dataset
+                cat >> "$METRICS_TEMP" <<'HEADER3'
 
-# HELP zfs_snapshot_total_used_bytes Total space used by all snapshots for a dataset
-# TYPE zfs_snapshot_total_used_bytes gauge
-HEADER3
+        # HELP zfs_snapshot_total_used_bytes Total space used by all snapshots for a dataset
+        # TYPE zfs_snapshot_total_used_bytes gauge
+        HEADER3
 
-        for dataset in "''${DATASETS[@]}"; do
-          TOTAL_USED=$(${lib.getExe config.boot.zfs.package} list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | ${lib.getExe' pkgs.gawk "awk"} '{sum+=$1} END {print sum}' || echo 0)
-          echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\"} $TOTAL_USED" >> "$METRICS_TEMP"
-        done
+                for dataset in "''${DATASETS[@]}"; do
+                  TOTAL_USED=$(${lib.getExe config.boot.zfs.package} list -Hp -t snapshot -o used -r "$dataset" 2>/dev/null | ${lib.getExe' pkgs.gawk "awk"} '{sum+=$1} END {print sum}' || echo 0)
+                  echo "zfs_snapshot_total_used_bytes{dataset=\"$dataset\"} $TOTAL_USED" >> "$METRICS_TEMP"
+                done
 
-        mv "$METRICS_TEMP" "$METRICS_FILE"
+                mv "$METRICS_TEMP" "$METRICS_FILE"
       '';
       after = [ "zfs-mount.service" ];
       wants = [ "zfs-mount.service" ];

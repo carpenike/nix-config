@@ -45,13 +45,13 @@ in
         "ip6.arpa"
       ];
       description = "Domains to forward to local DNS server.";
-      example = ["example.local" "10.in-addr.arpa"];
+      example = [ "example.local" "10.in-addr.arpa" ];
     };
 
     # Minimal extra config hook
     extraMinimalConfig = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
       description = "Additional minimal configuration. Use very sparingly - prefer web UI.";
       example = lib.literalExpression ''
         {
@@ -76,7 +76,7 @@ in
 
           # DNS configuration - minimal baseline
           dns = {
-            bind_hosts = ["0.0.0.0"];
+            bind_hosts = [ "0.0.0.0" ];
             port = cfg.dnsPort;
 
             # Only configure internal domain routing - everything else via web UI

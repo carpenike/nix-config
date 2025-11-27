@@ -14,11 +14,10 @@
 #
 # We retain all homelab integrations (ZFS, backups, preseed, monitoring) but build
 # on the solid foundation of the native service rather than reinventing it.
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault;
@@ -43,7 +42,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -221,7 +220,7 @@ in
         # Note: Native module sets DATA_DIR to StateDirectory automatically
         # We only override HOST and PORT for reverse proxy integration
         settings = {
-          HOST = mkDefault "127.0.0.1";  # Bind to localhost for reverse proxy
+          HOST = mkDefault "127.0.0.1"; # Bind to localhost for reverse proxy
           PORT = mkDefault (toString uptimeKumaPort);
         };
       };
@@ -237,7 +236,7 @@ in
         };
         auth = cfg.reverseProxy.auth or null;
         authelia = cfg.reverseProxy.authelia or null;
-        security = cfg.reverseProxy.security or {};
+        security = cfg.reverseProxy.security or { };
         # WebSocket support for real-time UI
         reverseProxyBlock = ''
           header_up -Connection
@@ -247,29 +246,32 @@ in
       };
 
       # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices."uptime-kuma" = mkIf (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      ) (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or []))
-            ++ (authCfg.bypassResources or []);
-        }
-      );
+      modules.services.authelia.accessControl.declarativelyProtectedServices."uptime-kuma" = mkIf
+        (
+          config.modules.services.authelia.enable &&
+          cfg.reverseProxy != null &&
+          cfg.reverseProxy.enable &&
+          cfg.reverseProxy.authelia != null &&
+          cfg.reverseProxy.authelia.enable
+        )
+        (
+          let
+            authCfg = cfg.reverseProxy.authelia;
+          in
+          {
+            domain = cfg.reverseProxy.hostName;
+            policy = authCfg.policy;
+            subject = map (g: "group:${g}") authCfg.allowedGroups;
+            bypassResources =
+              (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
+              ++ (authCfg.bypassResources or [ ]);
+          }
+        );
 
       # ZFS dataset management
       modules.storage.datasets.services."uptime-kuma" = {
         mountpoint = cfg.dataDir;
-        recordsize = "16K";  # Optimal for SQLite
+        recordsize = "16K"; # Optimal for SQLite
         compression = "zstd";
         properties = { "com.sun:auto-snapshot" = "true"; };
         owner = "uptime-kuma";
@@ -277,7 +279,7 @@ in
         mode = "0750";
       };
 
-            # Systemd service dependencies and notifications
+      # Systemd service dependencies and notifications
       systemd.services."${serviceName}" = {
         unitConfig = {
           # Ensure ZFS mount is available before service starts
@@ -296,7 +298,7 @@ in
         description = "Uptime Kuma service user";
       };
 
-      users.groups.uptime-kuma = {};
+      users.groups.uptime-kuma = { };
 
       # Health check timer (no Podman dependency - uses curl)
       systemd.timers.uptime-kuma-healthcheck = mkIf cfg.healthcheck.enable {
@@ -373,7 +375,7 @@ in
 
     # CRITICAL: Separate config block to override native module's DynamicUser settings
     # This must be in a separate block to ensure it's evaluated AFTER the native module
-        # CRITICAL: This block overrides the native module's DynamicUser settings.
+    # CRITICAL: This block overrides the native module's DynamicUser settings.
     # The key is targeting the correct service name ("uptime-kuma") in the attribute path.
     (mkIf cfg.enable {
       systemd.services."${serviceName}".serviceConfig = {

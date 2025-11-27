@@ -1,8 +1,7 @@
-{
-  lib,
-  pkgs,
-  config,
-  ...
+{ lib
+, pkgs
+, config
+, ...
 }:
 let
   # Import pure storage helpers library
@@ -25,7 +24,7 @@ let
     else
       let
         sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or {}).replication or null;
+        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
         parentPath =
           if lib.elem "/" (lib.stringToCharacters dsPath) then
             lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
@@ -64,7 +63,7 @@ let
       };
 
   # Generate YAML configuration for qbit_manage
-  yamlFormat = pkgs.formats.yaml {};
+  yamlFormat = pkgs.formats.yaml { };
 
   # This is the core config - users should customize via extraConfig for tracker rules
   baseConfig = {
@@ -114,7 +113,7 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.qbit-manage or (pkgs.python3Packages.callPackage ./package.nix {});
+      default = pkgs.qbit-manage or (pkgs.python3Packages.callPackage ./package.nix { });
       description = "The qbit_manage package to use";
     };
 
@@ -192,14 +191,14 @@ in
     # Scheduling
     schedule = lib.mkOption {
       type = lib.types.str;
-      default = "*/15 * * * *";  # Every 15 minutes
+      default = "*/15 * * * *"; # Every 15 minutes
       description = "Systemd timer schedule (OnCalendar format)";
-      example = "*/30 * * * *";  # Every 30 minutes
+      example = "*/30 * * * *"; # Every 30 minutes
     };
 
     extraConfig = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
       description = ''
         Additional qbit_manage configuration (merged with base config).
 
@@ -275,15 +274,16 @@ in
 
     notifications = lib.mkOption {
       type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = if hasCentralizedNotifications then {
-        enable = true;
-        channels = {
-          onFailure = [ "critical-alerts" ];
-        };
-        customMessages = {
-          failure = "qbit_manage failed on ${config.networking.hostName}";
-        };
-      } else null;
+      default =
+        if hasCentralizedNotifications then {
+          enable = true;
+          channels = {
+            onFailure = [ "critical-alerts" ];
+          };
+          customMessages = {
+            failure = "qbit_manage failed on ${config.networking.hostName}";
+          };
+        } else null;
       description = "Notification configuration";
     };
 
@@ -314,157 +314,157 @@ in
   };
 
   config = lib.mkMerge [
-  (lib.mkIf cfg.enable {
-    # Assertions for critical configuration
-    assertions = [
-      {
-        assertion = lib.length (lib.attrNames (cfg.extraConfig.tracker or {})) > 0;
-        message = ''
-          qbit_manage requires at least one tracker-specific seeding rule in extraConfig.tracker.
-          See TRaSH Guides: https://trash-guides.info/qbit_manage/settings/
+    (lib.mkIf cfg.enable {
+      # Assertions for critical configuration
+      assertions = [
+        {
+          assertion = lib.length (lib.attrNames (cfg.extraConfig.tracker or { })) > 0;
+          message = ''
+            qbit_manage requires at least one tracker-specific seeding rule in extraConfig.tracker.
+            See TRaSH Guides: https://trash-guides.info/qbit_manage/settings/
 
-          Example:
-          modules.services.qbit-manage.extraConfig = {
-            tracker = {
-              "tracker.example.com" = {
-                tag = "example";
-                max_ratio = 2.0;
-                max_seeding_time = 20160;
+            Example:
+            modules.services.qbit-manage.extraConfig = {
+              tracker = {
+                "tracker.example.com" = {
+                  tag = "example";
+                  max_ratio = 2.0;
+                  max_seeding_time = 20160;
+                };
               };
             };
-          };
-        '';
-      }
-    ];
+          '';
+        }
+      ];
 
-    # Create ZFS dataset for qbit-manage data
-    modules.storage.datasets.services.qbit-manage = {
-      mountpoint = cfg.dataDir;
-      recordsize = "16K";  # Optimal for configuration files
-      compression = "zstd";
-      properties = {
-        "com.sun:auto-snapshot" = "true";
+      # Create ZFS dataset for qbit-manage data
+      modules.storage.datasets.services.qbit-manage = {
+        mountpoint = cfg.dataDir;
+        recordsize = "16K"; # Optimal for configuration files
+        compression = "zstd";
+        properties = {
+          "com.sun:auto-snapshot" = "true";
+        };
+        owner = cfg.user;
+        group = cfg.group;
+        mode = "0750";
       };
-      owner = cfg.user;
-      group = cfg.group;
-      mode = "0750";
-    };
 
-    # User and group creation
-    users.users.${cfg.user} = {
-      isSystemUser = true;
-      group = cfg.group;
-      home = cfg.dataDir;
-      description = "qbit_manage service user";
-    };
+      # User and group creation
+      users.users.${cfg.user} = {
+        isSystemUser = true;
+        group = cfg.group;
+        home = cfg.dataDir;
+        description = "qbit_manage service user";
+      };
 
-    users.groups.${cfg.group} = {};
+      users.groups.${cfg.group} = { };
 
-    # Systemd service (oneshot, triggered by timer)
-    systemd.services.qbit-manage = {
-      description = "qbit_manage - qBittorrent lifecycle management";
-      after = [ "network-online.target" ]
-        ++ lib.optional (config.modules.services.qbittorrent.enable or false) qbittorrentServiceUnit;
-      wants = [ "network-online.target" ];
+      # Systemd service (oneshot, triggered by timer)
+      systemd.services.qbit-manage = {
+        description = "qbit_manage - qBittorrent lifecycle management";
+        after = [ "network-online.target" ]
+          ++ lib.optional (config.modules.services.qbittorrent.enable or false) qbittorrentServiceUnit;
+        wants = [ "network-online.target" ];
 
-      # Restart tqm on failure (ensures tqm never left stopped)
-      # Combined with notification failure handling below
-      onFailure = lib.optionals (config.modules.services.tqm.enable or false) [ "tqm.service" ]
-        ++ lib.optional (cfg.notifications != null && cfg.notifications.enable) "notify-failure@%n.service";
+        # Restart tqm on failure (ensures tqm never left stopped)
+        # Combined with notification failure handling below
+        onFailure = lib.optionals (config.modules.services.tqm.enable or false) [ "tqm.service" ]
+          ++ lib.optional (cfg.notifications != null && cfg.notifications.enable) "notify-failure@%n.service";
 
-      # Wait for qBittorrent to be available and validate content directory
-      preStart = ''
-          # Validate content directory exists and is writable (actual I/O test)
-          if ! touch "${cfg.contentDirectory}/.qbit-manage-healthcheck" 2>/dev/null; then
-            echo "ERROR: contentDirectory '${cfg.contentDirectory}' is not writable or not responsive (stale NFS mount?)" >&2
-            exit 1
-          fi        ${lib.optionalString (config.modules.services.qbittorrent.enable or false) ''
-          # Wait for qBittorrent to become available
-          for i in {1..30}; do
-            if ${pkgs.curl}/bin/curl -sf http://${cfg.qbittorrent.host}:${toString cfg.qbittorrent.port}/api/v2/app/version > /dev/null 2>&1; then
-              echo "qBittorrent is ready"
-              break
-            fi
-            echo "Waiting for qBittorrent... ($i/30)"
-            sleep 2
-            if [ "$i" -eq 30 ]; then
-              echo "ERROR: qBittorrent did not become available after 60 seconds" >&2
+        # Wait for qBittorrent to be available and validate content directory
+        preStart = ''
+            # Validate content directory exists and is writable (actual I/O test)
+            if ! touch "${cfg.contentDirectory}/.qbit-manage-healthcheck" 2>/dev/null; then
+              echo "ERROR: contentDirectory '${cfg.contentDirectory}' is not writable or not responsive (stale NFS mount?)" >&2
               exit 1
-            fi
-          done
-        ''}
-      '';
+            fi        ${lib.optionalString (config.modules.services.qbittorrent.enable or false) ''
+            # Wait for qBittorrent to become available
+            for i in {1..30}; do
+              if ${pkgs.curl}/bin/curl -sf http://${cfg.qbittorrent.host}:${toString cfg.qbittorrent.port}/api/v2/app/version > /dev/null 2>&1; then
+                echo "qBittorrent is ready"
+                break
+              fi
+              echo "Waiting for qBittorrent... ($i/30)"
+              sleep 2
+              if [ "$i" -eq 30 ]; then
+                echo "ERROR: qBittorrent did not become available after 60 seconds" >&2
+                exit 1
+              fi
+            done
+          ''}
+        '';
 
-      serviceConfig = {
-        Type = "oneshot";
-        User = cfg.user;
-        Group = cfg.group;
+        serviceConfig = {
+          Type = "oneshot";
+          User = cfg.user;
+          Group = cfg.group;
 
-        # Mutual exclusion: stop tqm before running, restart after success
-        # Prevents race conditions where both tools modify same torrents
-        # If qbit-manage fails, onFailure restarts tqm instead
-        ExecStartPre = lib.mkIf (config.modules.services.tqm.enable or false) "+${pkgs.systemd}/bin/systemctl stop tqm.service";
-        ExecStart = "${cfg.package}/bin/qbit_manage --config ${configFile} --log-file ${cfg.dataDir}/qbit_manage.log";
-        ExecStartPost = lib.mkIf (config.modules.services.tqm.enable or false) "+${pkgs.systemd}/bin/systemctl start tqm.service";
+          # Mutual exclusion: stop tqm before running, restart after success
+          # Prevents race conditions where both tools modify same torrents
+          # If qbit-manage fails, onFailure restarts tqm instead
+          ExecStartPre = lib.mkIf (config.modules.services.tqm.enable or false) "+${pkgs.systemd}/bin/systemctl stop tqm.service";
+          ExecStart = "${cfg.package}/bin/qbit_manage --config ${configFile} --log-file ${cfg.dataDir}/qbit_manage.log";
+          ExecStartPost = lib.mkIf (config.modules.services.tqm.enable or false) "+${pkgs.systemd}/bin/systemctl start tqm.service";
 
-        # Security hardening
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        PrivateTmp = true;
-        NoNewPrivileges = true;
-        PrivateDevices = true;
-        ProtectKernelTunables = true;
-        ProtectKernelModules = true;
-        ProtectControlGroups = true;
-        RestrictAddressFamilies = [ "AF_INET" "AF_INET6" ];
-        RestrictNamespaces = true;
-        LockPersonality = true;
-        RestrictRealtime = true;
-        RestrictSUIDSGID = true;
-        RemoveIPC = true;
+          # Security hardening
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          NoNewPrivileges = true;
+          PrivateDevices = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectControlGroups = true;
+          RestrictAddressFamilies = [ "AF_INET" "AF_INET6" ];
+          RestrictNamespaces = true;
+          LockPersonality = true;
+          RestrictRealtime = true;
+          RestrictSUIDSGID = true;
+          RemoveIPC = true;
 
-        # Resource limits
-        MemoryMax = "512M";
-        CPUQuota = "50%";
+          # Resource limits
+          MemoryMax = "512M";
+          CPUQuota = "50%";
 
-        # Directory permissions
-        ReadWritePaths = [
-          cfg.dataDir
-          cfg.contentDirectory
-        ];
-        StateDirectory = "qbit-manage";
+          # Directory permissions
+          ReadWritePaths = [
+            cfg.dataDir
+            cfg.contentDirectory
+          ];
+          StateDirectory = "qbit-manage";
+        };
       };
-    };
 
-    # Systemd timer for periodic execution
-    systemd.timers.qbit-manage = {
-      description = "qbit_manage periodic execution timer";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnBootSec = "5m";  # Wait 5 minutes after boot
-        OnCalendar = cfg.schedule;
-        Persistent = true;  # Run immediately if missed
-        Unit = "qbit-manage.service";
+      # Systemd timer for periodic execution
+      systemd.timers.qbit-manage = {
+        description = "qbit_manage periodic execution timer";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnBootSec = "5m"; # Wait 5 minutes after boot
+          OnCalendar = cfg.schedule;
+          Persistent = true; # Run immediately if missed
+          Unit = "qbit-manage.service";
+        };
       };
-    };
 
-    # Firewall (localhost only, no ports needed)
-    networking.firewall.interfaces.lo.allowedTCPPorts = [];
+      # Firewall (localhost only, no ports needed)
+      networking.firewall.interfaces.lo.allowedTCPPorts = [ ];
 
-    # Backup integration
-    # Auto-register backup job if backup is enabled
-    modules.backup.restic.jobs.qbit-manage = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      enable = true;
-      paths = cfg.backup.paths;
-      repository = cfg.backup.repository;
-      frequency = cfg.backup.frequency;
-      retention = cfg.backup.retention;
-      useSnapshots = cfg.backup.useSnapshots;
-      excludePatterns = cfg.backup.excludePatterns;
-      preBackupScript = cfg.backup.preBackupScript;
-      postBackupScript = cfg.backup.postBackupScript;
-    };
-  })
+      # Backup integration
+      # Auto-register backup job if backup is enabled
+      modules.backup.restic.jobs.qbit-manage = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+        enable = true;
+        paths = cfg.backup.paths;
+        repository = cfg.backup.repository;
+        frequency = cfg.backup.frequency;
+        retention = cfg.backup.retention;
+        useSnapshots = cfg.backup.useSnapshots;
+        excludePatterns = cfg.backup.excludePatterns;
+        preBackupScript = cfg.backup.preBackupScript;
+        postBackupScript = cfg.backup.postBackupScript;
+      };
+    })
 
     # Preseed service
     (lib.mkIf (cfg.enable && cfg.preseed.enable) (

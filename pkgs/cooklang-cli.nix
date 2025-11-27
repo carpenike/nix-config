@@ -1,9 +1,8 @@
-{
-  lib,
-  pkgs,
-  rustPlatform,
-  fetchFromGitHub,
-  ...
+{ lib
+, pkgs
+, rustPlatform
+, fetchFromGitHub
+, ...
 }:
 let
   version = "0.18.2";
@@ -46,7 +45,7 @@ rustPlatform.buildRustPackage {
     homepage = "https://github.com/cooklang/CookCLI";
     license = licenses.mit;
     mainProgram = "cook";
-    maintainers = [];
+    maintainers = [ ];
     platforms = platforms.unix;
   };
 }

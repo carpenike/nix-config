@@ -108,13 +108,13 @@ in
 
     extraScrapeConfigs = mkOption {
       type = types.listOf types.attrs;
-      default = [];
+      default = [ ];
       description = "Additional scrape configurations";
       example = [
         {
           job_name = "nginx";
           static_configs = [{
-            targets = ["localhost"];
+            targets = [ "localhost" ];
             labels = {
               job = "nginx";
               __path__ = "/var/log/nginx/*.log";
@@ -132,7 +132,7 @@ in
 
     extraConfig = mkOption {
       type = types.attrs;
-      default = {};
+      default = { };
       description = "Additional Promtail configuration";
     };
 
@@ -239,7 +239,7 @@ in
     backup = mkOption {
       type = types.nullOr sharedTypes.backupSubmodule;
       default = lib.mkIf cfg.enable {
-        enable = lib.mkDefault false;  # Disabled per Gemini Pro recommendation
+        enable = lib.mkDefault false; # Disabled per Gemini Pro recommendation
       };
       description = "Backup configuration for Promtail (disabled by default - see NOTE above)";
     };
@@ -295,220 +295,224 @@ in
     services.promtail = {
       enable = true;
 
-      configuration = lib.recursiveUpdate {
-        server = {
-          http_listen_address = "127.0.0.1";
-          http_listen_port = cfg.port;
-          grpc_listen_port = cfg.grpcPort;
-          log_level = cfg.logLevel;
-        };
+      configuration = lib.recursiveUpdate
+        {
+          server = {
+            http_listen_address = "127.0.0.1";
+            http_listen_port = cfg.port;
+            grpc_listen_port = cfg.grpcPort;
+            log_level = cfg.logLevel;
+          };
 
-        positions = {
-          filename = "${cfg.dataDir}/positions.yaml";
-        };
+          positions = {
+            filename = "${cfg.dataDir}/positions.yaml";
+          };
 
-        clients = [
-          {
-            url = "${cfg.lokiUrl}/loki/api/v1/push";
-            backoff_config = {
-              min_period = "500ms";
-              max_period = "5m";
-              max_retries = 20;
-            };
-            batchsize = 1048576; # 1MB
-            batchwait = "1s";
-            timeout = "10s";
-          }
-        ];
-
-        scrape_configs =
-          # Systemd journal scraping
-          (lib.optional cfg.journal.enable {
-            job_name = "journal";
-            journal = {
-              max_age = cfg.journal.maxAge;
-              labels = cfg.journal.labels;
-              path = "/var/log/journal";
-            };
-            relabel_configs = [
-              # Map systemd fields to labels
-              {
-                source_labels = [ "__journal__systemd_unit" ];
-                target_label = "unit";
-              }
-              # Normalize unit → app for cross-source consistency (strip .service)
-              {
-                source_labels = [ "__journal__systemd_unit" ];
-                regex = "([^.]+)\\.service";
-                target_label = "app";
-                replacement = "$1";
-              }
-              {
-                source_labels = [ "__journal__hostname" ];
-                target_label = "host";
-              }
-              {
-                source_labels = [ "__journal_priority_keyword" ];
-                target_label = "level";
-              }
-              {
-                source_labels = [ "__journal__systemd_user_unit" ];
-                target_label = "user_unit";
-              }
-              # Drop noisy systemd units
-            ] ++ (map (identifier: {
-              source_labels = [ "__journal__systemd_unit" ];
-              regex = "${identifier}\\.service";
-              action = "drop";
-            }) cfg.journal.dropIdentifiers);
-            pipeline_stages = [
-              # Promote stable, low-cardinality labels for taxonomy
-              {
-                labels = {
-                  env = "homelab";
-                };
-              }
-            ];
-          }) ++
-
-          # Container logs (journald source)
-          (lib.optional (cfg.containers.enable && cfg.containers.source == "journald") {
-            job_name = "containers-journal";
-            journal = {
-              max_age = cfg.journal.maxAge;
-              labels = cfg.containers.labels;
-              path = "/var/log/journal";
-            };
-            relabel_configs = [
-              # Only keep container logs
-              {
-                source_labels = [ "__journal__systemd_unit" ];
-                regex = "podman-.*\\.service";
-                action = "keep";
-              }
-              # Extract container name from unit
-              {
-                source_labels = [ "__journal__systemd_unit" ];
-                regex = "podman-(.+)\\.service";
-                target_label = "container";
-              }
-              {
-                source_labels = [ "__journal__hostname" ];
-                target_label = "host";
-              }
-              {
-                source_labels = [ "__journal_priority_keyword" ];
-                target_label = "level";
-              }
-            ];
-            pipeline_stages = [
-              # Normalize taxonomy
-              {
-                labels = {
-                  env = "homelab";
-                };
-              }
-              # Parse container logs
-              {
-                regex = {
-                  expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z)\\s+(?P<stream>stdout|stderr)\\s+[FP]\\s+(?P<message>.*)$";
-                };
-              }
-              {
-                labels = {
-                  stream = null;
-                };
-              }
-              {
-                timestamp = {
-                  source = "timestamp";
-                  format = "RFC3339Nano";
-                };
-              }
-              # Drop ultra-noisy health checks (example)
-              {
-                match = {
-                  selector = "{job=\"containers-journal\"} |= \"/health\"";
-                  action = "drop";
-                };
-              }
-            ];
-          }) ++
-
-          # Container logs (file source)
-          (lib.optional (cfg.containers.enable && cfg.containers.source == "podmanFiles") {
-            job_name = "containers-files";
-            static_configs = [{
-              targets = [ "localhost" ];
-              labels = cfg.containers.labels // {
-                __path__ = cfg.containers.podmanLogsPath;
+          clients = [
+            {
+              url = "${cfg.lokiUrl}/loki/api/v1/push";
+              backoff_config = {
+                min_period = "500ms";
+                max_period = "5m";
+                max_retries = 20;
               };
-            }];
-            relabel_configs = [
-              # Extract container name from path
-              {
-                source_labels = [ "__path__" ];
-                regex = ".*/overlay-containers/([^/]+)/userdata/ctr\\.log";
-                target_label = "container_id";
-              }
-            ];
-            pipeline_stages = [
-              { labels = { env = "homelab"; }; }
-              # Parse container log format
-              {
-                regex = {
-                  expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z)\\s+(?P<stream>stdout|stderr)\\s+[FP]\\s+(?P<message>.*)$";
-                };
-              }
-              {
-                labels = {
-                  stream = null;
-                };
-              }
-              {
-                timestamp = {
-                  source = "timestamp";
-                  format = "RFC3339Nano";
-                };
-              }
-            ];
-          }) ++
+              batchsize = 1048576; # 1MB
+              batchwait = "1s";
+              timeout = "10s";
+            }
+          ];
 
-          # Syslog receiver (external systems)
-          (lib.optional cfg.syslog.enable {
-            job_name = "syslog";
-            syslog = {
-              # Promtail expects host:port here, protocol set separately
-              listen_address = "${cfg.syslog.address}:${toString cfg.syslog.port}";
-              listen_protocol = cfg.syslog.protocol; # "udp" or "tcp"
-              idle_timeout = cfg.syslog.idleTimeout;
-              label_structured_data = cfg.syslog.labelStructuredData;
-              use_incoming_timestamp = cfg.syslog.useIncomingTimestamp;
-              labels = cfg.syslog.labels;
-            };
-            relabel_configs = [
-              { source_labels = [ "__syslog_message_hostname" ]; target_label = "syslog_host"; }
-              { source_labels = [ "__syslog_message_app_name" ]; target_label = "app"; }
-              { source_labels = [ "__syslog_message_severity" ]; target_label = "severity"; }
-              { source_labels = [ "__syslog_message_severity" ]; target_label = "level"; }
-              { source_labels = [ "__syslog_message_facility" ]; target_label = "facility"; }
-              { source_labels = [ "__syslog_connection_ip_address" ]; target_label = "src_ip"; }
-            ];
-            pipeline_stages = [
-              { labels = { env = "homelab"; }; }
-              # Example drop rule for extremely chatty syslog senders
-              {
-                match = {
-                  selector = "{job=\"syslog\"} |= \"healthcheck\"";
+          scrape_configs =
+            # Systemd journal scraping
+            (lib.optional cfg.journal.enable {
+              job_name = "journal";
+              journal = {
+                max_age = cfg.journal.maxAge;
+                labels = cfg.journal.labels;
+                path = "/var/log/journal";
+              };
+              relabel_configs = [
+                # Map systemd fields to labels
+                {
+                  source_labels = [ "__journal__systemd_unit" ];
+                  target_label = "unit";
+                }
+                # Normalize unit → app for cross-source consistency (strip .service)
+                {
+                  source_labels = [ "__journal__systemd_unit" ];
+                  regex = "([^.]+)\\.service";
+                  target_label = "app";
+                  replacement = "$1";
+                }
+                {
+                  source_labels = [ "__journal__hostname" ];
+                  target_label = "host";
+                }
+                {
+                  source_labels = [ "__journal_priority_keyword" ];
+                  target_label = "level";
+                }
+                {
+                  source_labels = [ "__journal__systemd_user_unit" ];
+                  target_label = "user_unit";
+                }
+                # Drop noisy systemd units
+              ] ++ (map
+                (identifier: {
+                  source_labels = [ "__journal__systemd_unit" ];
+                  regex = "${identifier}\\.service";
                   action = "drop";
-                };
-              }
-            ];
-          }) ++
+                })
+                cfg.journal.dropIdentifiers);
+              pipeline_stages = [
+                # Promote stable, low-cardinality labels for taxonomy
+                {
+                  labels = {
+                    env = "homelab";
+                  };
+                }
+              ];
+            }) ++
 
-          # Additional scrape configs
-          cfg.extraScrapeConfigs;
-      } cfg.extraConfig;
+            # Container logs (journald source)
+            (lib.optional (cfg.containers.enable && cfg.containers.source == "journald") {
+              job_name = "containers-journal";
+              journal = {
+                max_age = cfg.journal.maxAge;
+                labels = cfg.containers.labels;
+                path = "/var/log/journal";
+              };
+              relabel_configs = [
+                # Only keep container logs
+                {
+                  source_labels = [ "__journal__systemd_unit" ];
+                  regex = "podman-.*\\.service";
+                  action = "keep";
+                }
+                # Extract container name from unit
+                {
+                  source_labels = [ "__journal__systemd_unit" ];
+                  regex = "podman-(.+)\\.service";
+                  target_label = "container";
+                }
+                {
+                  source_labels = [ "__journal__hostname" ];
+                  target_label = "host";
+                }
+                {
+                  source_labels = [ "__journal_priority_keyword" ];
+                  target_label = "level";
+                }
+              ];
+              pipeline_stages = [
+                # Normalize taxonomy
+                {
+                  labels = {
+                    env = "homelab";
+                  };
+                }
+                # Parse container logs
+                {
+                  regex = {
+                    expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z)\\s+(?P<stream>stdout|stderr)\\s+[FP]\\s+(?P<message>.*)$";
+                  };
+                }
+                {
+                  labels = {
+                    stream = null;
+                  };
+                }
+                {
+                  timestamp = {
+                    source = "timestamp";
+                    format = "RFC3339Nano";
+                  };
+                }
+                # Drop ultra-noisy health checks (example)
+                {
+                  match = {
+                    selector = "{job=\"containers-journal\"} |= \"/health\"";
+                    action = "drop";
+                  };
+                }
+              ];
+            }) ++
+
+            # Container logs (file source)
+            (lib.optional (cfg.containers.enable && cfg.containers.source == "podmanFiles") {
+              job_name = "containers-files";
+              static_configs = [{
+                targets = [ "localhost" ];
+                labels = cfg.containers.labels // {
+                  __path__ = cfg.containers.podmanLogsPath;
+                };
+              }];
+              relabel_configs = [
+                # Extract container name from path
+                {
+                  source_labels = [ "__path__" ];
+                  regex = ".*/overlay-containers/([^/]+)/userdata/ctr\\.log";
+                  target_label = "container_id";
+                }
+              ];
+              pipeline_stages = [
+                { labels = { env = "homelab"; }; }
+                # Parse container log format
+                {
+                  regex = {
+                    expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z)\\s+(?P<stream>stdout|stderr)\\s+[FP]\\s+(?P<message>.*)$";
+                  };
+                }
+                {
+                  labels = {
+                    stream = null;
+                  };
+                }
+                {
+                  timestamp = {
+                    source = "timestamp";
+                    format = "RFC3339Nano";
+                  };
+                }
+              ];
+            }) ++
+
+            # Syslog receiver (external systems)
+            (lib.optional cfg.syslog.enable {
+              job_name = "syslog";
+              syslog = {
+                # Promtail expects host:port here, protocol set separately
+                listen_address = "${cfg.syslog.address}:${toString cfg.syslog.port}";
+                listen_protocol = cfg.syslog.protocol; # "udp" or "tcp"
+                idle_timeout = cfg.syslog.idleTimeout;
+                label_structured_data = cfg.syslog.labelStructuredData;
+                use_incoming_timestamp = cfg.syslog.useIncomingTimestamp;
+                labels = cfg.syslog.labels;
+              };
+              relabel_configs = [
+                { source_labels = [ "__syslog_message_hostname" ]; target_label = "syslog_host"; }
+                { source_labels = [ "__syslog_message_app_name" ]; target_label = "app"; }
+                { source_labels = [ "__syslog_message_severity" ]; target_label = "severity"; }
+                { source_labels = [ "__syslog_message_severity" ]; target_label = "level"; }
+                { source_labels = [ "__syslog_message_facility" ]; target_label = "facility"; }
+                { source_labels = [ "__syslog_connection_ip_address" ]; target_label = "src_ip"; }
+              ];
+              pipeline_stages = [
+                { labels = { env = "homelab"; }; }
+                # Example drop rule for extremely chatty syslog senders
+                {
+                  match = {
+                    selector = "{job=\"syslog\"} |= \"healthcheck\"";
+                    action = "drop";
+                  };
+                }
+              ];
+            }) ++
+
+            # Additional scrape configs
+            cfg.extraScrapeConfigs;
+        }
+        cfg.extraConfig;
     };
 
     # Systemd service resource limits and permissions

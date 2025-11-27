@@ -17,7 +17,7 @@ in
       [
         "wheel"
         "users"
-        "podman"  # Rootless podman container management
+        "podman" # Rootless podman container management
       ]
       ++ ifGroupsExist [
         "network"
@@ -44,10 +44,10 @@ in
   # all run as group "media" (GID 65537) with 0750 directory permissions
   # Also add monitoring service groups (grafana, loki, promtail)
   users.users.restic-backup.extraGroups = [
-    "media"      # All *arr services, qbittorrent, recyclarr, etc.
-    "grafana"    # Grafana dashboards and database
-    "loki"       # Loki log storage
-    "promtail"   # Promtail positions file
+    "media" # All *arr services, qbittorrent, recyclarr, etc.
+    "grafana" # Grafana dashboards and database
+    "loki" # Loki log storage
+    "promtail" # Promtail positions file
   ];
 
   system.activationScripts.postActivation.text = ''

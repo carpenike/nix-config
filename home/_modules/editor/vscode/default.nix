@@ -1,8 +1,7 @@
-{
-  pkgs,
-  lib,
-  config,
-  ...
+{ pkgs
+, lib
+, config
+, ...
 }:
 let
   cfg = config.modules.editor.vscode;
@@ -12,11 +11,11 @@ in
     enable = lib.mkEnableOption "vscode";
     extensions = lib.mkOption {
       type = lib.types.listOf lib.types.package;
-      default = [];
+      default = [ ];
     };
     userSettings = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
     };
   };
 

@@ -1,8 +1,7 @@
-{
-  lib,
-  config,
-  pkgs,
-  ...
+{ lib
+, config
+, pkgs
+, ...
 }:
 let
   cfg = config.modules.filesystems.zfs;
@@ -12,7 +11,7 @@ in
     enable = lib.mkEnableOption "zfs";
     mountPoolsAtBoot = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [];
+      default = [ ];
       description = "List of ZFS pools to mount at boot";
     };
     persistDataset = lib.mkOption {

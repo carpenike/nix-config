@@ -15,7 +15,7 @@ let
   getMountUnitName = path:
     let
       # Remove leading slash and replace / with -
-      escaped = lib.replaceStrings ["/"] ["-"] (lib.removePrefix "/" path);
+      escaped = lib.replaceStrings [ "/" ] [ "-" ] (lib.removePrefix "/" path);
     in
     "${escaped}.mount";
 in
@@ -96,7 +96,7 @@ in
         };
       };
     }));
-    default = {};
+    default = { };
     description = "Declarative definitions for shared NFS mounts.";
     example = lib.literalExpression ''
       {
@@ -115,56 +115,68 @@ in
   config = {
     # Generate fileSystems entries ONLY for automounted shares.
     # This leverages NixOS's native support for generating .automount and .mount units.
-    fileSystems = lib.mkMerge (lib.mapAttrsToList (name: mount:
-      lib.mkIf (mount.enable && mount.automount) {
-        "${mount.localPath}" = {
-          device = "${mount.server}:${mount.remotePath}";
-          fsType = "nfs";
-          options = mount.mountOptions ++ [
-            "x-systemd.automount"
-            "x-systemd.idle-timeout=${mount.idleTimeout}"
-            "x-systemd.mount-timeout=${mount.mountTimeout}"
-          ];
-        };
-      }) cfg);
+    fileSystems = lib.mkMerge (lib.mapAttrsToList
+      (name: mount:
+        lib.mkIf (mount.enable && mount.automount) {
+          "${mount.localPath}" = {
+            device = "${mount.server}:${mount.remotePath}";
+            fsType = "nfs";
+            options = mount.mountOptions ++ [
+              "x-systemd.automount"
+              "x-systemd.idle-timeout=${mount.idleTimeout}"
+              "x-systemd.mount-timeout=${mount.mountTimeout}"
+            ];
+          };
+        })
+      cfg);
 
     # Generate static systemd.mount units for non-automounted shares.
     # This is more robust for "always-on" mounts, as it ensures the unit file
     # exists during `nixos-rebuild switch`, preventing activation failures when
     # other services depend on the mount.
-    systemd.mounts = lib.flatten (lib.mapAttrsToList (_: mount:
-      lib.optional (mount.enable && !mount.automount) {
-        description = "NFS mount for ${mount.localPath}";
-        what = "${mount.server}:${mount.remotePath}";
-        where = mount.localPath;
-        type = "nfs";
-        # Options must be a comma-separated string for systemd units.
-        options = lib.concatStringsSep "," mount.mountOptions;
-        # Ensure the mount is attempted only after the network is available.
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
-        # Enable the mount unit to start at boot.
-        wantedBy = [ "remote-fs.target" ];
-        # Prevent boot hangs if the NFS server is unreachable.
-        mountConfig.TimeoutSec = mount.mountTimeout;
-      }
-    ) cfg);
+    systemd.mounts = lib.flatten (lib.mapAttrsToList
+      (_: mount:
+        lib.optional (mount.enable && !mount.automount) {
+          description = "NFS mount for ${mount.localPath}";
+          what = "${mount.server}:${mount.remotePath}";
+          where = mount.localPath;
+          type = "nfs";
+          # Options must be a comma-separated string for systemd units.
+          options = lib.concatStringsSep "," mount.mountOptions;
+          # Ensure the mount is attempted only after the network is available.
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          # Enable the mount unit to start at boot.
+          wantedBy = [ "remote-fs.target" ];
+          # Prevent boot hangs if the NFS server is unreachable.
+          mountConfig.TimeoutSec = mount.mountTimeout;
+        }
+      )
+      cfg);
 
-    systemd.tmpfiles.rules = lib.flatten (lib.mapAttrsToList (_: mount:
-      lib.optional mount.enable
-        # Create the mount point directory before systemd tries to mount it
-        ''d "${mount.localPath}" ${mount.mode} ${mount.owner} ${mount.group} - -''
-    ) cfg);
+    systemd.tmpfiles.rules = lib.flatten (lib.mapAttrsToList
+      (_: mount:
+        lib.optional mount.enable
+          # Create the mount point directory before systemd tries to mount it
+          ''d "${mount.localPath}" ${mount.mode} ${mount.owner} ${mount.group} - -''
+      )
+      cfg);
 
-    assertions = (lib.mapAttrsToList (name: mount: {
-      assertion = !mount.enable || lib.hasPrefix "/" mount.localPath;
-      message = "NFS mount '${name}': localPath must be an absolute path.";
-    }) cfg) ++ (lib.mapAttrsToList (name: mount: {
-      assertion = !mount.enable || lib.hasPrefix "/" mount.remotePath;
-      message = "NFS mount '${name}': remotePath must be an absolute path.";
-    }) cfg) ++ (lib.mapAttrsToList (name: mount: {
-      assertion = !mount.enable || (mount.server != "");
-      message = "NFS mount '${name}': server must not be empty.";
-    }) cfg);
+    assertions = (lib.mapAttrsToList
+      (name: mount: {
+        assertion = !mount.enable || lib.hasPrefix "/" mount.localPath;
+        message = "NFS mount '${name}': localPath must be an absolute path.";
+      })
+      cfg) ++ (lib.mapAttrsToList
+      (name: mount: {
+        assertion = !mount.enable || lib.hasPrefix "/" mount.remotePath;
+        message = "NFS mount '${name}': remotePath must be an absolute path.";
+      })
+      cfg) ++ (lib.mapAttrsToList
+      (name: mount: {
+        assertion = !mount.enable || (mount.server != "");
+        message = "NFS mount '${name}': server must not be empty.";
+      })
+      cfg);
   };
 }

@@ -74,10 +74,12 @@ let
   ];
 
   securityCredentialItems = lib.filter (entry: (entry.jsonPath or null) != null) credentialItems;
-  securityMappingsJson = builtins.toJSON (map (entry: {
-    envVar = entry.envVar;
-    path = entry.jsonPath;
-  }) securityCredentialItems);
+  securityMappingsJson = builtins.toJSON (map
+    (entry: {
+      envVar = entry.envVar;
+      path = entry.jsonPath;
+    })
+    securityCredentialItems);
 
   loadCredentialEntries = map (entry: "${entry.name}:${toString entry.path}") credentialItems;
   needsRuntimeEnv = credentialItems != [ ];
@@ -127,25 +129,25 @@ let
 
   replicationConfig =
     if foundReplication == null then null else
-      let
-        datasetSuffix =
-          if foundReplication.sourcePath == datasetPath then
-            ""
-          else
-            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-      in
-      {
-        targetHost = foundReplication.replication.targetHost;
-        targetDataset =
-          if datasetSuffix == "" then
-            foundReplication.replication.targetDataset
-          else
-            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-        sendOptions = foundReplication.replication.sendOptions or "w";
-        recvOptions = foundReplication.replication.recvOptions or "u";
-      };
+    let
+      datasetSuffix =
+        if foundReplication.sourcePath == datasetPath then
+          ""
+        else
+          lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+    in
+    {
+      targetHost = foundReplication.replication.targetHost;
+      targetDataset =
+        if datasetSuffix == "" then
+          foundReplication.replication.targetDataset
+        else
+          "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+      sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
+      sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+      sendOptions = foundReplication.replication.sendOptions or "w";
+      recvOptions = foundReplication.replication.recvOptions or "u";
+    };
 in
 {
   options.modules.services."zwave-js-ui" = {
@@ -387,54 +389,58 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf (
-          (config.modules.services.authelia.enable or false)
-          && cfg.reverseProxy != null
-          && cfg.reverseProxy.enable
-          && cfg.reverseProxy.authelia != null
-          && cfg.reverseProxy.authelia.enable
-        ) (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-            bypassPaths = authCfg.bypassPaths or [ ];
-            bypassResources = authCfg.bypassResources or [ ];
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
-              ++ bypassResources;
-          }
-        );
+        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
+          (
+            (config.modules.services.authelia.enable or false)
+            && cfg.reverseProxy != null
+            && cfg.reverseProxy.enable
+            && cfg.reverseProxy.authelia != null
+            && cfg.reverseProxy.authelia.enable
+          )
+          (
+            let
+              authCfg = cfg.reverseProxy.authelia;
+              bypassPaths = authCfg.bypassPaths or [ ];
+              bypassResources = authCfg.bypassResources or [ ];
+            in
+            {
+              domain = cfg.reverseProxy.hostName;
+              policy = authCfg.policy;
+              subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
+              bypassResources =
+                (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
+                ++ bypassResources;
+            }
+          );
 
-        modules.services.emqx.integrations.${serviceName} = mkIf (
-          cfg.mqtt.enable
-          && cfg.mqtt.registerEmqxIntegration
-          && cfg.mqtt.username != null
-          && cfg.mqtt.passwordFile != null
-        ) {
-          users = [
-            {
-              username = cfg.mqtt.username;
-              passwordFile = cfg.mqtt.passwordFile;
-              tags = [ serviceName "zwave" ];
-            }
-          ];
-          acls = [
-            {
-              permission = "allow";
-              action = "pubsub";
-              subject = {
-                kind = "user";
-                value = cfg.mqtt.username;
-              };
-              topics = mqttAclTopics;
-              comment = "Z-Wave JS UI publishes device state and consumes commands.";
-            }
-          ];
-        };
+        modules.services.emqx.integrations.${serviceName} = mkIf
+          (
+            cfg.mqtt.enable
+            && cfg.mqtt.registerEmqxIntegration
+            && cfg.mqtt.username != null
+            && cfg.mqtt.passwordFile != null
+          )
+          {
+            users = [
+              {
+                username = cfg.mqtt.username;
+                passwordFile = cfg.mqtt.passwordFile;
+                tags = [ serviceName "zwave" ];
+              }
+            ];
+            acls = [
+              {
+                permission = "allow";
+                action = "pubsub";
+                subject = {
+                  kind = "user";
+                  value = cfg.mqtt.username;
+                };
+                topics = mqttAclTopics;
+                comment = "Z-Wave JS UI publishes device state and consumes commands.";
+              }
+            ];
+          };
 
         modules.storage.datasets.services.${serviceName} =
           let
@@ -483,11 +489,11 @@ in
           priority = cfg.notifications.priority or "high";
           title = cfg.notifications.title or "❌ Z-Wave JS UI failure";
           body = cfg.notifications.body or ''
-<b>Host:</b> ${config.networking.hostName}
-<b>Service:</b> ${serviceUnit}
+            <b>Host:</b> ${config.networking.hostName}
+            <b>Service:</b> ${serviceUnit}
 
-Inspect logs with <code>journalctl -u ${serviceUnit} -n 200</code>.
-'';
+            Inspect logs with <code>journalctl -u ${serviceUnit} -n 200</code>.
+          '';
         };
 
         systemd.services.${serviceName} = mkMerge [
@@ -520,137 +526,137 @@ Inspect logs with <code>journalctl -u ${serviceUnit} -n 200</code>.
               })
             ];
             preStart = lib.mkAfter ''
-              set -euo pipefail
-              ${optionalString (cfg.serial.device != null) ''
-                ${pkgs.systemd}/bin/udevadm settle --exit-if-exists=${lib.escapeShellArg cfg.serial.device}
-              ''}
-              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}
-              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${configDbPath}
-              install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}/store
-              ${optionalString needsRuntimeEnv ''
-                envFile=${lib.escapeShellArg runtimeEnvPath}
-                : > "$envFile"
-                chmod 600 "$envFile"
-                chown ${cfg.user}:${cfg.group} "$envFile"
-                ${lib.concatMapStrings (entry: ''
-                  if [ -f "$CREDENTIALS_DIRECTORY/${entry.name}" ]; then
-                    value="$(tr -d '\r\n' < "$CREDENTIALS_DIRECTORY/${entry.name}")"
-                    printf '%s=%s\n' ${lib.escapeShellArg entry.envVar} "$value" >> "$envFile"
-                  fi
-                '') credentialItems}
-                ${optionalString (securityCredentialItems != [ ]) ''
-                  settingsFile=${lib.escapeShellArg settingsPath}
-                  if [ -s "$envFile" ]; then
-                    ${pkgs.python3}/bin/python3 - "$settingsFile" "$envFile" ${lib.escapeShellArg securityMappingsJson} <<'PY'
-import json
-import os
-import sys
+                            set -euo pipefail
+                            ${optionalString (cfg.serial.device != null) ''
+                              ${pkgs.systemd}/bin/udevadm settle --exit-if-exists=${lib.escapeShellArg cfg.serial.device}
+                            ''}
+                            install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}
+                            install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${configDbPath}
+                            install -d -m 750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}/store
+                            ${optionalString needsRuntimeEnv ''
+                              envFile=${lib.escapeShellArg runtimeEnvPath}
+                              : > "$envFile"
+                              chmod 600 "$envFile"
+                              chown ${cfg.user}:${cfg.group} "$envFile"
+                              ${lib.concatMapStrings (entry: ''
+                                if [ -f "$CREDENTIALS_DIRECTORY/${entry.name}" ]; then
+                                  value="$(tr -d '\r\n' < "$CREDENTIALS_DIRECTORY/${entry.name}")"
+                                  printf '%s=%s\n' ${lib.escapeShellArg entry.envVar} "$value" >> "$envFile"
+                                fi
+                              '') credentialItems}
+                              ${optionalString (securityCredentialItems != [ ]) ''
+                                settingsFile=${lib.escapeShellArg settingsPath}
+                                if [ -s "$envFile" ]; then
+                                  ${pkgs.python3}/bin/python3 - "$settingsFile" "$envFile" ${lib.escapeShellArg securityMappingsJson} <<'PY'
+              import json
+              import os
+              import sys
 
-settings_path = sys.argv[1]
-env_file = sys.argv[2]
-mapping = json.loads(sys.argv[3])
+              settings_path = sys.argv[1]
+              env_file = sys.argv[2]
+              mapping = json.loads(sys.argv[3])
 
-env_values = {}
-try:
-    with open(env_file, encoding="utf-8") as handle:
-        for raw_line in handle:
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            env_values[key] = value
-except FileNotFoundError:
-    sys.exit(0)
+              env_values = {}
+              try:
+                  with open(env_file, encoding="utf-8") as handle:
+                      for raw_line in handle:
+                          line = raw_line.strip()
+                          if not line or line.startswith("#") or "=" not in line:
+                              continue
+                          key, value = line.split("=", 1)
+                          env_values[key] = value
+              except FileNotFoundError:
+                  sys.exit(0)
 
-if not any(env_values.get(entry["envVar"]) for entry in mapping):
-    sys.exit(0)
+              if not any(env_values.get(entry["envVar"]) for entry in mapping):
+                  sys.exit(0)
 
-if os.path.exists(settings_path):
-    try:
-        with open(settings_path, encoding="utf-8") as existing:
-            data = json.load(existing)
-    except json.JSONDecodeError:
-        data = {}
-else:
-    data = {}
+              if os.path.exists(settings_path):
+                  try:
+                      with open(settings_path, encoding="utf-8") as existing:
+                          data = json.load(existing)
+                  except json.JSONDecodeError:
+                      data = {}
+              else:
+                  data = {}
 
-def ensure_parent(root, path):
-    current = root
-    for key in path[:-1]:
-        child = current.get(key)
-        if not isinstance(child, dict):
-            child = {}
-            current[key] = child
-        current = child
-    return current
+              def ensure_parent(root, path):
+                  current = root
+                  for key in path[:-1]:
+                      child = current.get(key)
+                      if not isinstance(child, dict):
+                          child = {}
+                          current[key] = child
+                      current = child
+                  return current
 
-changed = False
-for entry in mapping:
-    value = env_values.get(entry["envVar"])
-    if not value:
-        continue
-    parent = ensure_parent(data, entry["path"])
-    leaf = entry["path"][-1]
-    if parent.get(leaf) != value:
-        parent[leaf] = value
-        changed = True
+              changed = False
+              for entry in mapping:
+                  value = env_values.get(entry["envVar"])
+                  if not value:
+                      continue
+                  parent = ensure_parent(data, entry["path"])
+                  leaf = entry["path"][-1]
+                  if parent.get(leaf) != value:
+                      parent[leaf] = value
+                      changed = True
 
-if changed:
-    tmp_path = settings_path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as out:
-        json.dump(data, out, indent=2)
-        out.write("\n")
-    os.replace(tmp_path, settings_path)
-PY
-                    if [ -f "$settingsFile" ]; then
-                      chown ${cfg.user}:${cfg.group} "$settingsFile"
-                      chmod 640 "$settingsFile"
-                    fi
-                  fi
-                ''}
-              ''}
-                settingsFile=${lib.escapeShellArg settingsPath}
-                ${pkgs.python3}/bin/python3 - "$settingsFile" ${lib.escapeShellArg (cfg.serial.device or "")} ${lib.escapeShellArg (builtins.toString cfg.zwave.serverPort)} <<'PY'
-        import json
-        import os
-        import sys
+              if changed:
+                  tmp_path = settings_path + ".tmp"
+                  with open(tmp_path, "w", encoding="utf-8") as out:
+                      json.dump(data, out, indent=2)
+                      out.write("\n")
+                  os.replace(tmp_path, settings_path)
+              PY
+                                  if [ -f "$settingsFile" ]; then
+                                    chown ${cfg.user}:${cfg.group} "$settingsFile"
+                                    chmod 640 "$settingsFile"
+                                  fi
+                                fi
+                              ''}
+                            ''}
+                              settingsFile=${lib.escapeShellArg settingsPath}
+                              ${pkgs.python3}/bin/python3 - "$settingsFile" ${lib.escapeShellArg (cfg.serial.device or "")} ${lib.escapeShellArg (builtins.toString cfg.zwave.serverPort)} <<'PY'
+                      import json
+                      import os
+                      import sys
 
-        settings_path = sys.argv[1]
-        serial_port = sys.argv[2]
-        server_port = int(sys.argv[3])
+                      settings_path = sys.argv[1]
+                      serial_port = sys.argv[2]
+                      server_port = int(sys.argv[3])
 
-        if os.path.exists(settings_path):
-          try:
-            with open(settings_path, encoding="utf-8") as existing:
-              data = json.load(existing)
-          except json.JSONDecodeError:
-            data = {}
-        else:
-          data = {}
+                      if os.path.exists(settings_path):
+                        try:
+                          with open(settings_path, encoding="utf-8") as existing:
+                            data = json.load(existing)
+                        except json.JSONDecodeError:
+                          data = {}
+                      else:
+                        data = {}
 
-        zwave_cfg = data.setdefault("zwave", {})
-        changed = False
+                      zwave_cfg = data.setdefault("zwave", {})
+                      changed = False
 
-        if serial_port:
-          if zwave_cfg.get("port") != serial_port:
-            zwave_cfg["port"] = serial_port
-            changed = True
+                      if serial_port:
+                        if zwave_cfg.get("port") != serial_port:
+                          zwave_cfg["port"] = serial_port
+                          changed = True
 
-        if zwave_cfg.get("serverPort") != server_port:
-          zwave_cfg["serverPort"] = server_port
-          changed = True
+                      if zwave_cfg.get("serverPort") != server_port:
+                        zwave_cfg["serverPort"] = server_port
+                        changed = True
 
-        if changed:
-          tmp_path = settings_path + ".tmp"
-          with open(tmp_path, "w", encoding="utf-8") as out:
-            json.dump(data, out, indent=2)
-            out.write("\n")
-          os.replace(tmp_path, settings_path)
-        PY
-                if [ -f "$settingsFile" ]; then
-                chown ${cfg.user}:${cfg.group} "$settingsFile"
-                chmod 640 "$settingsFile"
-                fi
+                      if changed:
+                        tmp_path = settings_path + ".tmp"
+                        with open(tmp_path, "w", encoding="utf-8") as out:
+                          json.dump(data, out, indent=2)
+                          out.write("\n")
+                        os.replace(tmp_path, settings_path)
+                      PY
+                              if [ -f "$settingsFile" ]; then
+                              chown ${cfg.user}:${cfg.group} "$settingsFile"
+                              chmod 640 "$settingsFile"
+                              fi
             '';
           }
           (mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {

@@ -28,31 +28,35 @@ let
   discoverServiceBackups = config:
     let
       # Extract all modules.services.* configurations
-      allServices = config.modules.services or {};
+      allServices = config.modules.services or { };
 
       # Filter services that have backup enabled
-      servicesWithBackup = lib.filterAttrs (name: service:
-        (service.backup or null) != null &&
-        (service.backup.enable or false)
-      ) allServices;
+      servicesWithBackup = lib.filterAttrs
+        (name: service:
+          (service.backup or null) != null &&
+          (service.backup.enable or false)
+        )
+        allServices;
 
       # Convert to backup job format
-      backupJobs = mapAttrsToList (serviceName: service: {
-        name = "service-${serviceName}";
-        config = {
-          enable = true;
-          repository = service.backup.repository or cfg.defaultRepository;
-          tags = [ serviceName ] ++ (service.backup.tags or []);
-          paths = service.backup.paths or [ "/var/lib/${serviceName}" ];
-          excludePatterns = (service.backup.excludePatterns or []) ++ cfg.globalExcludePatterns;
-          preBackupScript = service.backup.preBackupScript or "";
-          postBackupScript = service.backup.postBackupScript or "";
+      backupJobs = mapAttrsToList
+        (serviceName: service: {
+          name = "service-${serviceName}";
+          config = {
+            enable = true;
+            repository = service.backup.repository or cfg.defaultRepository;
+            tags = [ serviceName ] ++ (service.backup.tags or [ ]);
+            paths = service.backup.paths or [ "/var/lib/${serviceName}" ];
+            excludePatterns = (service.backup.excludePatterns or [ ]) ++ cfg.globalExcludePatterns;
+            preBackupScript = service.backup.preBackupScript or "";
+            postBackupScript = service.backup.postBackupScript or "";
 
-          # Note: Schedule and retention are configured globally in the backup module, not per-job
-        };
-      }) servicesWithBackup;
+            # Note: Schedule and retention are configured globally in the backup module, not per-job
+          };
+        })
+        servicesWithBackup;
     in
-      builtins.listToAttrs (map (job: { name = job.name; value = job.config; }) backupJobs);
+    builtins.listToAttrs (map (job: { name = job.name; value = job.config; }) backupJobs);
 
   # Generate discovered backup jobs
   discoveredBackupJobs = discoverServiceBackups config;
@@ -124,24 +128,28 @@ in
     ] ++ (
       # Repository validation assertions - prevent build failures from missing repositories
       let
-        allServices = config.modules.services or {};
-        servicesWithBackup = lib.filterAttrs (name: service:
-          (service.backup or null) != null &&
-          (service.backup.enable or false)
-        ) allServices;
+        allServices = config.modules.services or { };
+        servicesWithBackup = lib.filterAttrs
+          (name: service:
+            (service.backup or null) != null &&
+              (service.backup.enable or false)
+          )
+          allServices;
       in
-        mapAttrsToList (serviceName: service: {
+      mapAttrsToList
+        (serviceName: service: {
           assertion =
             let
               repoName = service.backup.repository or cfg.defaultRepository;
             in
-              hasAttr repoName (config.modules.backup.restic.repositories or {});
+            hasAttr repoName (config.modules.backup.restic.repositories or { });
           message = ''
             Service '${serviceName}' references an unknown backup repository '${service.backup.repository or cfg.defaultRepository}'.
             Please define it in modules.backup.restic.repositories or update the service backup configuration.
             Available repositories: ${concatStringsSep ", " (attrNames (config.modules.backup.restic.repositories or {}))}
           '';
-        }) servicesWithBackup
+        })
+        servicesWithBackup
     );
   };
 }

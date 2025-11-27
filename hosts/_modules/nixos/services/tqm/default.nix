@@ -4,7 +4,7 @@ let
   cfg = config.modules.services.tqm;
 
   # Build the YAML configuration for tqm
-  yamlFormat = pkgs.formats.yaml {};
+  yamlFormat = pkgs.formats.yaml { };
 
   # Build client configuration
   clientConfig = {
@@ -14,7 +14,7 @@ let
       url = "http://${cfg.client.host}:${toString cfg.client.port}/";
       download_path = cfg.client.downloadPath;
       filter = "default";
-    } // lib.optionalAttrs (cfg.client.downloadPathMapping != {}) {
+    } // lib.optionalAttrs (cfg.client.downloadPathMapping != { }) {
       download_path_mapping = cfg.client.downloadPathMapping;
     } // lib.optionalAttrs (cfg.client.user != null) {
       user = cfg.client.user;
@@ -27,37 +27,40 @@ let
     };
   };
 
-  configFile = yamlFormat.generate "tqm-config.yml" (lib.recursiveUpdate {
-    clients = clientConfig;
+  configFile = yamlFormat.generate "tqm-config.yml" (lib.recursiveUpdate
+    {
+      clients = clientConfig;
 
-    bypassIgnoreIfUnregistered = cfg.bypassIgnoreIfUnregistered;
+      bypassIgnoreIfUnregistered = cfg.bypassIgnoreIfUnregistered;
 
-    filters = cfg.filters;
+      filters = cfg.filters;
 
-  } (lib.optionalAttrs (cfg.notifications != null) {
-    notifications = {
-      detailed = cfg.notifications.detailed;
-      skip_empty_run = cfg.notifications.skipEmptyRun;
-    } // lib.optionalAttrs (cfg.notifications.discord != null) {
-      service.discord = {
-        webhook_url = cfg.notifications.discord.webhookUrl;
-      } // lib.optionalAttrs (cfg.notifications.discord.username != null) {
-        username = cfg.notifications.discord.username;
-      } // lib.optionalAttrs (cfg.notifications.discord.avatarUrl != null) {
-        avatar_url = cfg.notifications.discord.avatarUrl;
+    }
+    (lib.optionalAttrs (cfg.notifications != null) {
+      notifications = {
+        detailed = cfg.notifications.detailed;
+        skip_empty_run = cfg.notifications.skipEmptyRun;
+      } // lib.optionalAttrs (cfg.notifications.discord != null) {
+        service.discord = {
+          webhook_url = cfg.notifications.discord.webhookUrl;
+        } // lib.optionalAttrs (cfg.notifications.discord.username != null) {
+          username = cfg.notifications.discord.username;
+        } // lib.optionalAttrs (cfg.notifications.discord.avatarUrl != null) {
+          avatar_url = cfg.notifications.discord.avatarUrl;
+        };
       };
-    };
-  }) // lib.optionalAttrs (cfg.trackers != {}) {
+    }) // lib.optionalAttrs (cfg.trackers != { }) {
     trackers = cfg.trackers;
   } // cfg.extraConfig);
 
-in {
+in
+{
   options.modules.services.tqm = {
     enable = lib.mkEnableOption "tqm - Torrent Queue Manager";
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ./package.nix {};
+      default = pkgs.callPackage ./package.nix { };
       description = "The tqm package to use";
     };
 
@@ -119,7 +122,7 @@ in {
 
       downloadPathMapping = lib.mkOption {
         type = lib.types.attrsOf lib.types.str;
-        default = {};
+        default = { };
         description = "Path mapping for container environments";
       };
 
@@ -185,7 +188,7 @@ in {
     # Tracker API integration
     trackers = lib.mkOption {
       type = lib.types.attrsOf lib.types.attrs;
-      default = {};
+      default = { };
       description = "Tracker API configurations for validation";
     };
 
@@ -201,7 +204,7 @@ in {
         options = {
           MapHardlinksFor = lib.mkOption {
             type = lib.types.listOf lib.types.str;
-            default = [];
+            default = [ ];
             description = "Commands that should map hardlinks";
           };
 
@@ -213,19 +216,19 @@ in {
 
           ignore = lib.mkOption {
             type = lib.types.listOf lib.types.str;
-            default = [];
+            default = [ ];
             description = "Filter expressions for torrents to ignore";
           };
 
           remove = lib.mkOption {
             type = lib.types.listOf lib.types.str;
-            default = [];
+            default = [ ];
             description = "Filter expressions for torrents to remove";
           };
 
           pause = lib.mkOption {
             type = lib.types.listOf lib.types.str;
-            default = [];
+            default = [ ];
             description = "Filter expressions for torrents to pause";
           };
 
@@ -243,7 +246,7 @@ in {
                 };
               };
             });
-            default = [];
+            default = [ ];
             description = "Label rules for relabeling torrents";
           };
 
@@ -273,7 +276,7 @@ in {
                 };
               };
             });
-            default = [];
+            default = [ ];
             description = "Tag rules for retagging torrents";
           };
 
@@ -288,7 +291,7 @@ in {
 
                 ignore_paths = lib.mkOption {
                   type = lib.types.listOf lib.types.str;
-                  default = [];
+                  default = [ ];
                   description = "Paths to ignore during orphan check";
                 };
               };
@@ -298,7 +301,7 @@ in {
           };
         };
       });
-      default = {};
+      default = { };
       description = "Filter configurations per named filter set";
     };
 
@@ -337,7 +340,7 @@ in {
 
     extraConfig = lib.mkOption {
       type = lib.types.attrs;
-      default = {};
+      default = { };
       description = "Additional tqm configuration";
     };
   };
@@ -351,7 +354,7 @@ in {
       description = "tqm service user";
     };
 
-    users.groups.${cfg.group} = {};
+    users.groups.${cfg.group} = { };
 
     # Create systemd services for each tqm command
     systemd.services = {

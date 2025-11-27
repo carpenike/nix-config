@@ -23,81 +23,81 @@ in
       modules.services.cooklang = {
         enable = true;
 
-    # Recipe directory on ZFS dataset
-    recipeDir = "/data/cooklang/recipes";
+        # Recipe directory on ZFS dataset
+        recipeDir = "/data/cooklang/recipes";
 
-    # Network configuration (localhost only, accessed via Caddy)
-    listenAddress = "127.0.0.1";
-    port = 9085;
+        # Network configuration (localhost only, accessed via Caddy)
+        listenAddress = "127.0.0.1";
+        port = 9085;
 
-    # Declarative configuration
-    settings = {
-      # Organize ingredients by store section
-      aisle = ''
-        [produce]
-        tomatoes
-        onions
-        garlic
-        bell peppers
-        lettuce
-        spinach
+        # Declarative configuration
+        settings = {
+          # Organize ingredients by store section
+          aisle = ''
+            [produce]
+            tomatoes
+            onions
+            garlic
+            bell peppers
+            lettuce
+            spinach
 
-        [dairy]
-        milk
-        cheese
-        butter
-        yogurt
-        cream
+            [dairy]
+            milk
+            cheese
+            butter
+            yogurt
+            cream
 
-        [meat]
-        chicken
-        beef
-        pork
-        fish
+            [meat]
+            chicken
+            beef
+            pork
+            fish
 
-        [pantry]
-        flour
-        sugar
-        salt
-        pasta
-        rice
-        olive oil
+            [pantry]
+            flour
+            sugar
+            salt
+            pasta
+            rice
+            olive oil
 
-        [spices]
-        black pepper
-        paprika
-        cumin
-        oregano
-      '';
+            [spices]
+            black pepper
+            paprika
+            cumin
+            oregano
+          '';
 
-      # Leave pantry.conf as stateful (managed via CLI)
-      # Set to null to create empty file that can be edited
-      pantry = null;
-    };
+          # Leave pantry.conf as stateful (managed via CLI)
+          # Set to null to create empty file that can be edited
+          pantry = null;
+        };
 
-    # Reverse proxy via Caddy (unauthenticated by design)
-    reverseProxy = {
-      enable = true;
-      hostName = "cook.holthome.net";
-      # Intentional: no SSO guard so the shared recipe site stays public to household guests.
-    };
+        # Reverse proxy via Caddy (unauthenticated by design)
+        reverseProxy = {
+          enable = true;
+          hostName = "cook.holthome.net";
+          # Intentional: no SSO guard so the shared recipe site stays public to household guests.
+        };
 
-    # Logging to Loki
-    logging = {
-      enable = true;
-      journalUnit = "cooklang.service";
-      labels = {
-        service = "cooklang";
-        service_type = "recipe_management";
-        environment = "homelab";
-      };
-    };
+        # Logging to Loki
+        logging = {
+          enable = true;
+          journalUnit = "cooklang.service";
+          labels = {
+            service = "cooklang";
+            service_type = "recipe_management";
+            environment = "homelab";
+          };
+        };
 
-    # Backup configuration
-    backup = forgeDefaults.backup;
+        # Backup configuration
+        backup = forgeDefaults.backup;
 
-    # Disaster recovery via preseed
-    preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+        # Disaster recovery via preseed
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
@@ -105,10 +105,10 @@ in
       # Storage configuration - ZFS dataset
       modules.storage.datasets.services.cooklang = {
         mountpoint = "/data/cooklang";
-        recordsize = "128K";  # Good for text files
+        recordsize = "128K"; # Good for text files
         compression = "zstd"; # Excellent compression for text
         properties = {
-          "com.sun:auto-snapshot" = "true";  # Enable sanoid snapshots
+          "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots
           atime = "off";
         };
         owner = config.modules.services.cooklang.user;
@@ -130,15 +130,15 @@ in
           mode = "2770";
 
           # Enable all discovery methods for better connectivity
-          useRelayServer = true;    # Helps with NAT traversal
-          useTracker = true;         # Public tracker for peer discovery
-          useDHT = true;            # Distributed peer discovery
-          searchLAN = true;         # Local network discovery
+          useRelayServer = true; # Helps with NAT traversal
+          useTracker = true; # Public tracker for peer discovery
+          useDHT = true; # Distributed peer discovery
+          searchLAN = true; # Local network discovery
 
           # Explicit hosts for direct connection (optional but helpful)
           knownHosts = [
             "nas-1.holthome.net:4444"
-            "forge.holthome.net:4444"  # Add forge's own hostname for external access
+            "forge.holthome.net:4444" # Add forge's own hostname for external access
           ];
         };
       };
