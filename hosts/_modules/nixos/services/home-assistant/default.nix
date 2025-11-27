@@ -217,6 +217,7 @@ in
       };
 
       # Reverse proxy registration with Caddy
+      # Note: Caddy handles WebSocket upgrades automatically - no special header manipulation needed
       modules.services.caddy.virtualHosts.${serviceName} = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         enable = true;
         hostName = cfg.reverseProxy.hostName;
@@ -228,16 +229,7 @@ in
         auth = cfg.reverseProxy.auth or null;
         authelia = cfg.reverseProxy.authelia or null;
         security = cfg.reverseProxy.security or { };
-        reverseProxyBlock = ''
-          header_up -Connection
-          header_up Connection "Upgrade"
-          header_up -X-Forwarded-For
-          header_up -X-Forwarded-Proto
-          header_up -X-Forwarded-Host
-          header_up -X-Forwarded-Port
-          header_up -Forwarded
-          ${cfg.reverseProxy.extraConfig or ""}
-        '';
+        reverseProxyBlock = cfg.reverseProxy.extraConfig or "";
       };
 
       modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
