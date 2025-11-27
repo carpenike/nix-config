@@ -36,7 +36,7 @@ jobs:
           PR_JSON: ${{ toJson(github.event.workflow_run.pull_requests) }}
 
       - name: Download build artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           run-id: ${{ github.event.workflow_run.id }}
           path: artifacts
