@@ -80,6 +80,12 @@ in
       modules.backup.sanoid.datasets."tank/services/plex" =
         forgeDefaults.mkSanoidDataset "plex";
 
+      # Enable external access via Cloudflare Tunnel
+      modules.services.caddy.virtualHosts.plex.cloudflare = {
+        enable = true;
+        tunnel = "forge";
+      };
+
       # Prometheus alerts for Plex
       # Using monitoring-helpers library for consistency
       modules.alerting.rules = {
