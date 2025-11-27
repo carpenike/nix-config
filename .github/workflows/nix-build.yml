@@ -67,6 +67,8 @@ jobs:
 
       - name: Set up Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
+        with:
+          use-flakehub: false
 
       - name: Nix flake check
         run: nix flake check --keep-going
