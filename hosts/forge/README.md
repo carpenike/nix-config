@@ -132,7 +132,9 @@ in
 | `mkSanoidDataset serviceName` | Standard ZFS snapshot/replication | Replicates to `nas-1.holthome.net` |
 | `mkServiceDownAlert name display desc` | Container service-down alert | Prometheus alert for Podman services |
 | `mkSystemdServiceDownAlert name display desc` | Systemd service-down alert | Prometheus alert for native services |
-| `backupTags.*` | Standard backup tag sets | `.media`, `.iptv`, `.home`, `.infrastructure`, `.database` |
+| `mkHealthcheckStaleAlert name display threshold` | Healthcheck staleness alert | Alert when healthcheck timer is stale |
+| `mkBackupWithTags serviceName tags` | Backup with custom tags | Full backup config with ZFS + tags |
+| `backupTags.*` | Standard backup tag sets | `.media`, `.iptv`, `.home`, `.infrastructure`, `.database`, `.monitoring`, `.downloads` |
 
 **Preseed Policy**: Preseed restore methods should only include `syncoid` and `local`. Restic is intentionally excluded from automatic preseed - offsite restic restore is a manual DR decision when syncoid/local sources are unavailable.
 

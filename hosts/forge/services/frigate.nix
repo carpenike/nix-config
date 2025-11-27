@@ -82,6 +82,8 @@ in
 
         backup = forgeDefaults.mkBackupWithTags "frigate" [ "frigate" "nvr" "security" ];
 
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+
         notifications.enable = true;
 
         settings = {

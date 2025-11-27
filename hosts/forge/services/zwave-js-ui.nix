@@ -67,6 +67,8 @@ in
 
         backup = forgeDefaults.mkBackupWithTags "zwave-js-ui" [ "zwave" "automation" "forge" ];
 
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+
         notifications = {
           enable = true;
           channels.onFailure = [ "critical-alerts" ];

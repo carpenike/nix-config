@@ -172,13 +172,7 @@ in
       };
 
       # Backup configuration
-      backup = {
-        enable = true;
-        repository = "nas-primary";
-        frequency = "daily";
-        zfsDataset = "tank/services/authelia";
-        tags = [ "authentication" "sso" "authelia" ];
-      };
+      backup = forgeDefaults.mkBackupWithTags "authelia" [ "authentication" "sso" "authelia" ];
 
       # Preseed/DR configuration
       preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
@@ -193,6 +187,10 @@ in
 
       # Users file is managed via SOPS (declared in secrets.nix)
       # The secret is placed at /var/lib/authelia-main/users.yaml automatically
+
+      # ZFS snapshot and replication configuration
+      modules.backup.sanoid.datasets."tank/services/authelia" =
+        forgeDefaults.mkSanoidDataset "authelia";
 
       modules.alerting.rules."authelia-service-down" =
         forgeDefaults.mkServiceDownAlert "authelia" "Authelia" "SSO authentication";

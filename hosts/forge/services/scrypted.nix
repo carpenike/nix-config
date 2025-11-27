@@ -65,6 +65,8 @@ in
           ];
         };
 
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+
         notifications.enable = true;
 
         resources = {

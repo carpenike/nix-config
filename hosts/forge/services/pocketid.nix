@@ -84,12 +84,9 @@ in
           };
         };
 
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          zfsDataset = dataset;
-          tags = [ "identity" "pocketid" "sqlite" ];
-        };
+        backup = forgeDefaults.mkBackupWithTags "pocketid" [ "identity" "pocketid" "sqlite" ];
+
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         smtp = {
           enable = true;

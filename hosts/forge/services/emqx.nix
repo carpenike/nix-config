@@ -33,13 +33,7 @@ in
             };
           };
         };
-        backup = {
-          enable = true;
-          repository = "nas-primary";
-          zfsDataset = dataset;
-          frequency = "daily";
-          tags = [ "emqx" "mqtt" ];
-        };
+        backup = forgeDefaults.mkBackupWithTags "emqx" [ "emqx" "mqtt" ];
 
         notifications.enable = true;
 
