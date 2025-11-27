@@ -49,6 +49,7 @@ in
     ./services/pgbackrest.nix      # pgBackRest PostgreSQL backup system
     ./services/dispatcharr.nix     # Dispatcharr service
     ./services/plex.nix            # Plex media server
+    ./services/tautulli.nix        # Tautulli Plex monitoring
     ./services/uptime-kuma.nix     # Uptime monitoring and status page
     ./services/ups.nix             # UPS monitoring configuration
     ./services/pgweb.nix           # PostgreSQL web management interface

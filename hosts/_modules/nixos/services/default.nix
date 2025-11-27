@@ -65,6 +65,7 @@
     ./scrypted                                # Scrypted NVR / automation hub
     ./sonarr
   ./teslamate                               # TeslaMate telemetry stack
+    ./tautulli                                # Tautulli Plex monitoring (native wrapper)
     ./tdarr                                   # Tdarr transcoding automation
     ./tqm                                     # tqm fast torrent management for racing
     ./unifi
