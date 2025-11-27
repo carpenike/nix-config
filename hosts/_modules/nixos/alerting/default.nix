@@ -8,6 +8,9 @@ let
 
   # Helper function to generate Pushover receiver configurations
   # Reduces duplication by generating all severity-level receivers from a simple spec
+  # NOTE: Go template variables use $name syntax, but NixOS's alertmanager module
+  # uses envsubst to substitute environment variables. We must escape $ as $$
+  # so envsubst produces literal $ in the output for Go templates.
   mkPushoverReceiver = { name, priority, emoji }: {
     name = "pushover-${name}";
     pushover_configs = [{
@@ -17,17 +20,17 @@ let
       send_resolved = true;
       title = ''${emoji} ${lib.toUpper name}: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
       message = ''
-        {{- $alertCount := .Alerts.Firing | len -}}
-        {{- range $i, $alert := .Alerts -}}
-        {{- if lt $i 10 }}
-         • {{ or $alert.Annotations.summary $alert.Annotations.message "No summary" }}
-        {{- if $alert.Annotations.description }}
-           {{ $alert.Annotations.description }}
+        {{- $$alertCount := .Alerts.Firing | len -}}
+        {{- range $$i, $$alert := .Alerts -}}
+        {{- if lt $$i 10 }}
+         • {{ or $$alert.Annotations.summary $$alert.Annotations.message "No summary" }}
+        {{- if $$alert.Annotations.description }}
+           {{ $$alert.Annotations.description }}
         {{- end }}
         {{- end -}}
         {{- end -}}
-        {{- if gt $alertCount 10 }}
-        ... and {{ sub $alertCount 10 }} more alerts.
+        {{- if gt $$alertCount 10 }}
+        ... and {{ sub $$alertCount 10 }} more alerts.
         {{- end }}
 
         {{- with .CommonLabels }}
