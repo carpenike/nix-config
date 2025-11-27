@@ -49,20 +49,20 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "sctx/overseerr:latest";
+      default = "sctx/overseerr:1.34.0";
       description = ''
         Full container image name including tag or digest.
 
         This uses the official Overseerr image from sctx/overseerr.
 
         Best practices:
-        - Pin to specific version tags (e.g., "1.33.2")
-        - Use digest pinning for immutability (e.g., "1.33.2@sha256:...")
+        - Pin to specific version tags (e.g., "1.34.0")
+        - Use digest pinning for immutability (e.g., "1.34.0@sha256:...")
         - Avoid 'latest' tag for production systems
 
         Use Renovate bot to automate version updates with digest pinning.
       '';
-      example = "sctx/overseerr:1.33.2@sha256:f3ad4f59e6e5e4a...";
+      example = "sctx/overseerr:1.34.0@sha256:f3ad4f59e6e5e4a...";
     };
 
     timezone = lib.mkOption {

@@ -16,7 +16,7 @@ in
         # Overseerr - Request management for Plex
         # Using official sctx/overseerr image (not LinuxServer)
         enable = true;
-        image = "sctx/overseerr:latest";
+        image = "sctx/overseerr:1.34.0";
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
@@ -46,6 +46,13 @@ in
       # Service availability alert
       modules.alerting.rules."overseerr-service-down" =
         forgeDefaults.mkServiceDownAlert "overseerr" "Overseerr" "request management";
+
+      # Enable external access via Cloudflare Tunnel
+      # Overseerr uses native Plex OAuth - no Authelia needed
+      modules.services.caddy.virtualHosts.overseerr.cloudflare = {
+        enable = true;
+        tunnel = "forge";
+      };
     })
   ];
 }
