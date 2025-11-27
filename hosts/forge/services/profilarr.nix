@@ -18,6 +18,9 @@ in
         backup = forgeDefaults.mkBackupWithSnapshots "profilarr";
         notifications.enable = true;
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+
+        # Note: profilarr runs as a scheduled timer, not a long-running service
+        # Healthcheck is not applicable for oneshot timer-based services
       };
     }
 
