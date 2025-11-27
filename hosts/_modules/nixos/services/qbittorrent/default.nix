@@ -135,7 +135,7 @@ in
         Use Renovate bot to automate version updates with digest pinning.
 
         When updating qBittorrent version, verify VueTorrent compatibility:
-        https://github.com/WDaan/VueTorrent#compatibility
+        https://github.com/VueTorrent/VueTorrent#compatibility
       '';
       example = "lscr.io/linuxserver/qbittorrent:5.0.2@sha256:f3ad4f59e6e5e4a...";
     };
@@ -188,8 +188,8 @@ in
       package = lib.mkOption {
         type = lib.types.package;
         default = pkgs.fetchzip {
-          url = "https://github.com/WDaan/VueTorrent/releases/download/v2.30.2/vuetorrent.zip";
-          hash = "sha256-DeRRFZm50ryMP1nS6BAhA60cqtiIU2EVuZy103t/Wic=";
+          url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.31.0/vuetorrent.zip";
+          hash = "sha256-kVDnDoCoJlY2Ew71lEMeE67kNOrKTJEMqNj2OfP01qw=";
           stripRoot = false;
         };
         description = ''
@@ -198,7 +198,7 @@ in
           Pinned to a specific version for reproducibility.
           Update the URL and hash together when upgrading.
 
-          Check compatibility: https://github.com/WDaan/VueTorrent#compatibility
+          Check compatibility: https://github.com/VueTorrent/VueTorrent#compatibility
         '';
       };
     };

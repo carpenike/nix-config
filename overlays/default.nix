@@ -35,9 +35,12 @@
   # Your own overlays for stable nixpkgs should be declared here
   nixpkgs-overlays = final: prev: {
     # Custom Caddy build with Cloudflare DNS provider and caddy-security plugins
+    # Note: When Renovate updates plugin versions, manually update the hash
     caddy = final.unstable.caddy.withPlugins {
       plugins = [
+        # renovate: depName=github.com/caddy-dns/cloudflare datasource=go
         "github.com/caddy-dns/cloudflare@v0.2.2"
+        # renovate: depName=github.com/greenpau/caddy-security datasource=go
         "github.com/greenpau/caddy-security@v1.1.31"
       ];
       hash = "sha256-bsq6GLVN0so0OUHPOqbq17g4i5nrYJdpxeRpkksXCYA=";
