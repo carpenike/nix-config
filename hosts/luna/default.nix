@@ -71,9 +71,14 @@ in
           domain = "holthome.net";
         };
 
+        # BIND disabled - using Mikrotik DNS for holthome.net
+        # Mikrotik handles:
+        # - DHCP-to-DNS auto-registration for clients
+        # - Static entries for infrastructure (forge, nas-1, etc.)
+        # AdGuard forwards *.holthome.net queries to Mikrotik (10.10.0.1)
         bind = {
           enable = true;
-          shared.enable = true; # Use shared holthome.net configuration
+          shared.enable = true;
         };
 
         # Note: Disabled blocky in favor of AdGuardHome

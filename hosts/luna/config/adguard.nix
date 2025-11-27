@@ -26,22 +26,22 @@
       "1.1.1.1"
       "2606:4700:4700::1111"
     ];
-    # Local domain routing (replacing dnsdist functionality)
+    # Local domain routing - Mikrotik DNS handles holthome.net
+    # DHCP clients auto-register, static entries for infrastructure
     upstream_dns = [
-      # Local domains to BIND
-      "[/holthome.net/]127.0.0.1:5391"
-      "[/unifi/]127.0.0.1:5391"
-      "[/in-addr.arpa/]127.0.0.1:5391"  # Reverse DNS for hostname logging
-      "[/ip6.arpa/]127.0.0.1:5391"     # IPv6 reverse DNS
-      # RV domain routing (was in dnsdist)
+      # Local domains to Mikrotik (DHCP-DNS integration)
+      "[/holthome.net/]10.20.0.1"
+      "[/in-addr.arpa/]10.20.0.1"   # Reverse DNS for hostname logging
+      "[/ip6.arpa/]10.20.0.1"       # IPv6 reverse DNS
+      # RV domain routing
       "[/holtel.io/]192.168.88.1:53"
-      # Global upstreams
+      # Global upstreams (DoH)
       "https://1.1.1.1/dns-query"
       "https://1.0.0.1/dns-query"
     ];
     upstream_mode = "load_balance";
     fallback_dns = [];  # Not needed with two load-balanced DoH upstreams
-    local_ptr_upstreams = [ "127.0.0.1:5391" ];  # For local hostname resolution
+    local_ptr_upstreams = [ "10.20.0.1" ];  # Mikrotik for local hostname resolution
     use_private_ptr_resolvers = true;
 
     # security
