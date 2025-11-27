@@ -43,7 +43,7 @@
         # renovate: depName=github.com/greenpau/caddy-security datasource=go
         "github.com/greenpau/caddy-security@v1.1.31"
       ];
-      hash = "sha256-bsq6GLVN0so0OUHPOqbq17g4i5nrYJdpxeRpkksXCYA=";
+      hash = "sha256-jVL3AR0EzAg35M+U5dCdcUNFPgLNOsmzUmzqqttVZwk=";
     };
   };
 }
