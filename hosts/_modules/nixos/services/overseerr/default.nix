@@ -49,18 +49,20 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "lscr.io/linuxserver/overseerr:latest";
+      default = "sctx/overseerr:latest";
       description = ''
         Full container image name including tag or digest.
 
+        This uses the official Overseerr image from sctx/overseerr.
+
         Best practices:
-        - Pin to specific version tags
+        - Pin to specific version tags (e.g., "1.33.2")
         - Use digest pinning for immutability (e.g., "1.33.2@sha256:...")
         - Avoid 'latest' tag for production systems
 
         Use Renovate bot to automate version updates with digest pinning.
       '';
-      example = "lscr.io/linuxserver/overseerr:1.33.2@sha256:f3ad4f59e6e5e4a...";
+      example = "sctx/overseerr:1.33.2@sha256:f3ad4f59e6e5e4a...";
     };
 
     timezone = lib.mkOption {
@@ -325,26 +327,31 @@ in
     };
 
     # Overseerr container configuration
+    # Uses official sctx/overseerr image which expects:
+    # - Config at /app/config (not /config like LinuxServer)
+    # - User mapping via --user flag (not PUID/PGID)
+    # - TZ and LOG_LEVEL environment variables
     virtualisation.oci-containers.containers.overseerr = podmanLib.mkContainer "overseerr" {
       image = cfg.image;
       environment = {
-        PUID = cfg.user;
-        PGID = toString config.users.groups.${cfg.group}.gid;
         TZ = cfg.timezone;
+        LOG_LEVEL = "info";
       };
       volumes = [
-        "${cfg.dataDir}:/config:rw"
+        "${cfg.dataDir}:/app/config:rw"
       ];
       ports = [ "${toString overseerrPort}:5055" ];
       log-driver = "journald";
       extraOptions =
-        (lib.optionals (cfg.resources != null) [
+        # Run as specified user:group for proper file permissions
+        [ "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}" ]
+        ++ (lib.optionals (cfg.resources != null) [
           "--memory=${cfg.resources.memory}"
           "--memory-reservation=${cfg.resources.memoryReservation}"
           "--cpus=${cfg.resources.cpus}"
         ])
         ++ (lib.optionals (cfg.healthcheck.enable) [
-          "--health-cmd=curl --fail http://localhost:5055/api/v1/status || exit 1"
+          "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1"
           "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"

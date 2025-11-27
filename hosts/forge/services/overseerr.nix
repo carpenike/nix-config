@@ -14,8 +14,9 @@ in
     {
       modules.services.overseerr = {
         # Overseerr - Request management for Plex
+        # Using official sctx/overseerr image (not LinuxServer)
         enable = true;
-        image = "lscr.io/linuxserver/overseerr:latest";
+        image = "sctx/overseerr:latest";
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
