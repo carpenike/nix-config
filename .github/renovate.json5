@@ -1,7 +1,10 @@
 {
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
-    'github>carpenike/renovate-config',
-    'github>carpenike/renovate-config:automerge-github-actions',
+    'config:recommended',
+    ':automergeMinor',
+    ':automergeDigest',
+    ':automergePr',
   ],
   nix: {
     enabled: true,
@@ -9,13 +12,62 @@
   lockFileMaintenance: {
     enabled: true,
   },
+  prConcurrentLimit: 5,
+  branchConcurrentLimit: 10,
+  labels: ['dependencies'],
+  packageRules: [
+    {
+      // Docker container updates
+      matchDatasources: ['docker'],
+      pinDigests: true,
+      separateMinorPatch: true,
+      semanticCommits: 'enabled',
+      commitMessagePrefix: 'feat(containers):',
+      commitMessageTopic: '{{depName}}',
+      commitMessageExtra: 'to {{newVersion}}',
+      labels: ['dependencies', 'containers'],
+    },
+    {
+      // GitHub Actions automerge
+      matchManagers: ['github-actions'],
+      automerge: true,
+      automergeType: 'pr',
+      labels: ['dependencies', 'github-actions'],
+    },
+  ],
   customManagers: [
     {
+      // Docker images in .nix files
+      // Matches: image = "ghcr.io/org/name:1.2.3@sha256:..."
       customType: 'regex',
-      description: 'Process various dependencies in nix files',
-      managerFilePatterns: [
-        '/\\.nix$/',
+      description: 'Docker images in nix files',
+      fileMatch: ['\\.nix$'],
+      matchStrings: [
+        'image\\s*=\\s*"(?<depName>.+?):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?";?',
       ],
+      datasourceTemplate: 'docker',
+    },
+    {
+      // GitHub releases with fetchzip/fetchurl (multiline url + hash)
+      // Matches:
+      //   url = "https://github.com/org/repo/releases/download/v1.2.3/file.zip";
+      //   hash = "sha256-...";
+      customType: 'regex',
+      description: 'GitHub releases in nix fetchzip/fetchurl',
+      fileMatch: ['\\.nix$'],
+      matchStrings: [
+        'url\\s*=\\s*"https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/v(?<currentValue>[^/]+)/[^"]+";\\s*\\n\\s*hash\\s*=\\s*"(?<currentDigest>sha256-[A-Za-z0-9+/=]+)";?',
+      ],
+      datasourceTemplate: 'github-releases',
+      versioningTemplate: 'semver',
+    },
+    {
+      // Explicit renovate comments for other dependencies
+      // Matches: # renovate: depName=foo/bar datasource=github-releases
+      //          version = "1.2.3";
+      customType: 'regex',
+      description: 'Dependencies with renovate comment markers',
+      fileMatch: ['\\.nix$'],
       matchStrings: [
         '(?m:^[ \\t]*?# ?renovate: depName=(?<depName>\\S+)( datasource=(?<datasource>\\S+))?( versioning=(?<versioning>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n[ \\t ]*?\\S+ = "?(?<currentValue>[^" ]+?)";?$)',
       ],
