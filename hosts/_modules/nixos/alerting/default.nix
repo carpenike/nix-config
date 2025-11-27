@@ -20,8 +20,7 @@ let
       send_resolved = true;
       title = ''${emoji} ${lib.toUpper name}: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
       message = ''
-        {{- $$alertCount := .Alerts.Firing | len -}}
-        {{- range $$i, $$alert := .Alerts -}}
+        {{- range $$i, $$alert := .Alerts.Firing -}}
         {{- if lt $$i 10 }}
          • {{ or $$alert.Annotations.summary $$alert.Annotations.message "No summary" }}
         {{- if $$alert.Annotations.description }}
@@ -29,8 +28,8 @@ let
         {{- end }}
         {{- end -}}
         {{- end -}}
-        {{- if gt $$alertCount 10 }}
-        ... and {{ sub $$alertCount 10 }} more alerts.
+        {{- if gt (len .Alerts.Firing) 10 }}
+        ... and more alerts ({{ len .Alerts.Firing }} total).
         {{- end }}
 
         {{- with .CommonLabels }}
@@ -311,6 +310,7 @@ in
                 # Do not continue to other routes
                 continue = false;
                 # Send frequently to maintain heartbeat
+                group_interval = "1m";
                 repeat_interval = "1m";
               })
               ++ [
