@@ -1,9 +1,20 @@
 # Monitoring UI Exposure Configuration
 # Provides LAN-only access to Prometheus and Alertmanager web interfaces
-# with basic authentication from SOPS secrets.
+# with PocketID/OIDC authentication via caddy-security.
+#
+# API access from internal networks is allowed without authentication to support
+# CLI tools like `backup-status` that query Prometheus metrics.
 
 { config, pkgs, ... }:
 
+let
+  # RFC 1918 private network ranges for internal API access
+  internalNetworks = [
+    "10.0.0.0/8"
+    "172.16.0.0/12"
+    "192.168.0.0/16"
+  ];
+in
 {
   # Expose Prometheus UI on subdomain with Pocket ID + caddy-security protection
   modules.services.caddy.virtualHosts."prometheus" = {
@@ -29,6 +40,11 @@
           role = "admins";
         }
       ];
+
+      # Allow API access from internal networks without authentication
+      # This enables CLI tools (e.g., backup-status) to query Prometheus metrics
+      bypassPaths = [ "/api" ];
+      allowedNetworks = internalNetworks;
     };
 
     # Security headers for web interface

@@ -9,8 +9,12 @@ Usage:
 
 Environment Variables:
     PROMETHEUS_URL: URL of the Prometheus server (default: http://localhost:9090)
-    PROMETHEUS_USERNAME: Username for basic authentication
-    PROMETHEUS_PASSWORD: Password for basic authentication
+    PROMETHEUS_USERNAME: Username for basic authentication (optional)
+    PROMETHEUS_PASSWORD: Password for basic authentication (optional)
+
+Note: When accessing Prometheus from internal networks (RFC 1918), authentication
+is bypassed at the Caddy reverse proxy level. Credentials are only needed when
+accessing from external networks.
 """
 
 import argparse

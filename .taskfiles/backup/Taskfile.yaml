@@ -139,9 +139,8 @@ tasks:
       Args:
         host: Target host with Prometheus (default: forge)
 
-      Environment Variables (required):
-        PROMETHEUS_USERNAME: Username for Prometheus authentication
-        PROMETHEUS_PASSWORD: Password for Prometheus authentication
+      Note: Prometheus API access is allowed from internal networks (RFC 1918)
+      without authentication. No credentials required when running from LAN.
 
       Examples:
         task backup:status
@@ -151,10 +150,6 @@ tasks:
     preconditions:
       - sh: which backup-status
         msg: "backup-status command not found. Has it been installed via home-manager?"
-      - sh: test -n "$PROMETHEUS_USERNAME"
-        msg: "PROMETHEUS_USERNAME environment variable not set"
-      - sh: test -n "$PROMETHEUS_PASSWORD"
-        msg: "PROMETHEUS_PASSWORD environment variable not set"
 
   pgbackrest-info:
     desc: Show pgBackRest backup info for both repositories
