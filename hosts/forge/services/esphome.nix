@@ -23,7 +23,7 @@ in
       modules.services.esphome = {
         enable = true;
 
-        image = "ghcr.io/esphome/esphome:2025.11.1@sha256:02ca34d33789b1c7f4389c644d28e7f6892c26f931a67972e74221a8932d1457";
+        image = "ghcr.io/esphome/esphome:2025.11.2@sha256:cd8223eecd8383b30f9b9c549a9993b5a748734c52fd9b6e6ef4d704ec7d2385";
         hostNetwork = true; # needed for ICMP dashboard checks + mDNS discovery
         dataDir = "/var/lib/esphome";
         secretsFile = config.sops.secrets."esphome/secrets.yaml".path;
