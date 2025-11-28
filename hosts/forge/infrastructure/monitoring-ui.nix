@@ -43,7 +43,11 @@ in
 
       # Allow API access from internal networks without authentication
       # This enables CLI tools (e.g., backup-status) to query Prometheus metrics
-      bypassPaths = [ "/api" ];
+      # Only the specific query endpoints needed by backup-status are bypassed
+      bypassResources = [
+        "^/api/v1/query$"       # Instant query endpoint
+        "^/api/v1/query_range$" # Range query endpoint
+      ];
       allowedNetworks = internalNetworks;
     };
 
@@ -63,6 +67,8 @@ in
   };
 
   # Expose Alertmanager UI on subdomain with Pocket ID + caddy-security protection
+  # Note: No API bypass configured - Alertmanager is only accessed through the web UI.
+  # CLI tools (backup-status) only query Prometheus, not Alertmanager.
   modules.services.caddy.virtualHosts."alertmanager" = {
     enable = true;
     hostName = "alertmanager.forge.holthome.net";
