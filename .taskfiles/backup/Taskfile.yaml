@@ -189,6 +189,136 @@ tasks:
       - sh: which ssh
         msg: "ssh not found"
 
+  list:
+    desc: List backup status from Prometheus metrics (fast)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
+    summary: |
+      Lists backup status for all services by querying Prometheus metrics.
+      This is the fast default mode - uses cached metrics from last backup run.
+
+      Shows for each backup job:
+        - Status (success/failure)
+        - Last backup time
+        - Duration
+        - Snapshot count
+        - Size added
+        - Repository health
+
+      Args:
+        host: Target host (default: forge)
+
+      Additional arguments can be passed after --:
+        --service NAME  Filter by service name (partial match)
+        --repo NAME     Filter by repository name
+        --verify        Query restic directly (slower, validates data)
+        --json          JSON output for scripting
+
+      Environment Variables (required for Prometheus mode):
+        PROMETHEUS_API_KEY: API key for Prometheus authentication
+
+      Examples:
+        task backup:list
+        task backup:list host=forge
+        task backup:list -- --service sonarr
+        task backup:list -- --repo nas-primary
+    cmds:
+      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} {{.CLI_ARGS}}
+    preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set. Use 'task backup:verify' for direct restic queries."
+
+  verify:
+    desc: Verify backups by querying restic repositories directly (slow)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Verifies backup data by directly querying each restic repository via SSH.
+      This is slower but validates that snapshots are actually accessible.
+
+      Use this when:
+        - Prometheus metrics seem stale or incorrect
+        - You need to verify repository integrity
+        - You want to see actual snapshot details (IDs, times, tags)
+
+      Args:
+        host: Target host (default: forge)
+
+      Additional arguments can be passed after --:
+        --service NAME  Filter by service name (partial match)
+        --repo NAME     Filter by repository name
+        --limit N       Maximum snapshots per service (default: 10)
+        --json          JSON output for scripting
+
+      Examples:
+        task backup:verify
+        task backup:verify -- --service sonarr
+        task backup:verify -- --limit 5
+    cmds:
+      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --verify {{.CLI_ARGS}}
+    preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: which ssh
+        msg: "ssh not found"
+
+  list-json:
+    desc: List backup status in JSON format (for scripting)
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
+    summary: |
+      Lists backup status in JSON format for scripting and automation.
+      Uses Prometheus metrics by default (add --verify for direct queries).
+
+      Args:
+        host: Target host (default: forge)
+
+      Environment Variables (required for Prometheus mode):
+        PROMETHEUS_API_KEY: API key for Prometheus authentication
+
+      Output Format (Prometheus mode):
+        {
+          "host": "forge.holthome.net",
+          "mode": "prometheus",
+          "services": [
+            {
+              "job_name": "service-name",
+              "repository_name": "nas-primary",
+              "status": 1,
+              "last_success": 1732806000,
+              "snapshots": 42,
+              "healthy": true
+            }
+          ],
+          "summary": {
+            "total_services": N,
+            "healthy_services": N,
+            "total_snapshots": N
+          }
+        }
+
+      Examples:
+        task backup:list-json
+        task backup:list-json | jq '.services[].job_name'
+        task backup:list-json | jq '.summary.healthy_services'
+        task backup:list-json -- --verify  # Direct restic queries (no API key needed)
+    cmds:
+      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json {{.CLI_ARGS}}
+    preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set"
   pgbackrest-metrics-check:
     desc: Check pgBackRest metrics collection status
     silent: true

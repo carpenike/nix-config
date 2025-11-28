@@ -13,6 +13,7 @@
       wget
 
       # Custom packaged tools
+      backup-list
       backup-status
     ];
   };

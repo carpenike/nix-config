@@ -112,21 +112,62 @@ let
             local end_time=$(date +%s)
             local duration=$((end_time - START_TIME))
 
+            # Common labels for all metrics
+            local labels="backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\""
+
+            # Collect snapshot stats on success
+            local files_total=0
+            local size_bytes=0
+            local snapshots_total=0
+            local repo_healthy=0
+
+            if [[ $exit_code -eq 0 ]]; then
+              # Get latest snapshot stats - if this works, repo is healthy
+              local latest_snapshot
+              if latest_snapshot=$(${pkgs.restic}/bin/restic snapshots --latest 1 --json 2>/dev/null); then
+                repo_healthy=1
+                # Extract file count and size from the latest snapshot
+                local stats
+                if stats=$(echo "$latest_snapshot" | ${pkgs.jq}/bin/jq -r '.[0] | "\(.summary.files_new // 0) \(.summary.data_added // 0)"' 2>/dev/null); then
+                  files_total=$(echo "$stats" | ${pkgs.coreutils}/bin/cut -d' ' -f1)
+                  size_bytes=$(echo "$stats" | ${pkgs.coreutils}/bin/cut -d' ' -f2)
+                fi
+                # Count total snapshots for this job's tags
+                snapshots_total=$(${pkgs.restic}/bin/restic snapshots ${tagArgs} --json 2>/dev/null | ${pkgs.jq}/bin/jq 'length' 2>/dev/null || echo 0)
+              fi
+            fi
+
             # Write metrics
             {
               echo "# HELP restic_backup_status Backup job status (1=success, 0=failure)"
               echo "# TYPE restic_backup_status gauge"
-              echo "restic_backup_status{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\"} $([[ $exit_code -eq 0 ]] && echo 1 || echo 0)"
+              echo "restic_backup_status{$labels} $([[ $exit_code -eq 0 ]] && echo 1 || echo 0)"
 
               echo "# HELP restic_backup_duration_seconds Backup job duration in seconds"
               echo "# TYPE restic_backup_duration_seconds gauge"
-              echo "restic_backup_duration_seconds{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\"} $duration"
+              echo "restic_backup_duration_seconds{$labels} $duration"
 
               echo "# HELP restic_backup_last_success_timestamp Last successful backup timestamp"
               echo "# TYPE restic_backup_last_success_timestamp gauge"
               if [[ $exit_code -eq 0 ]]; then
-                echo "restic_backup_last_success_timestamp{backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\"} $end_time"
+                echo "restic_backup_last_success_timestamp{$labels} $end_time"
               fi
+
+              echo "# HELP restic_backup_files_total Number of new files in the latest backup snapshot"
+              echo "# TYPE restic_backup_files_total gauge"
+              echo "restic_backup_files_total{$labels} $files_total"
+
+              echo "# HELP restic_backup_size_bytes Size of data added in the latest backup snapshot"
+              echo "# TYPE restic_backup_size_bytes gauge"
+              echo "restic_backup_size_bytes{$labels} $size_bytes"
+
+              echo "# HELP restic_backup_snapshots_total Total snapshots for this backup job"
+              echo "# TYPE restic_backup_snapshots_total gauge"
+              echo "restic_backup_snapshots_total{$labels} $snapshots_total"
+
+              echo "# HELP restic_backup_repo_healthy Repository is accessible and readable (1=healthy, 0=unhealthy)"
+              echo "# TYPE restic_backup_repo_healthy gauge"
+              echo "restic_backup_repo_healthy{$labels} $repo_healthy"
             } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
           }
           trap cleanup EXIT
@@ -140,13 +181,25 @@ let
           # All backup jobs depend on restic-init-${jobConfig.repository}.service
 
           # Perform backup
+          # Exit code 3 = some files couldn't be read but snapshot was created
+          # We treat this as success since a snapshot exists
+          restic_exit=0
           ${pkgs.restic}/bin/restic backup \
             ${pathArgs} \
             ${excludeArgs} \
             ${tagArgs} \
             --verbose \
             --read-concurrency ${toString cfg.globalSettings.readConcurrency} \
-            --compression ${cfg.globalSettings.compression}
+            --compression ${cfg.globalSettings.compression} || restic_exit=$?
+
+          # Exit code 3 = partial success (snapshot created, some files unreadable)
+          # This is common with permission issues on temp files, plugin dirs, etc.
+          if [[ $restic_exit -eq 3 ]]; then
+            echo "Warning: Backup completed with some unreadable files (exit code 3)"
+          elif [[ $restic_exit -ne 0 ]]; then
+            echo "Backup failed with exit code $restic_exit"
+            exit $restic_exit
+          fi
 
           # Post-backup script
           ${jobConfig.postBackupScript}

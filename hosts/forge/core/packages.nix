@@ -12,7 +12,7 @@
     # ZFS utilities
     pkgs.zfs
 
-    # Backup orchestration
+    # Backup orchestration (runs on host)
     pkgs.backup-orchestrator
 
     # TODO: Add more packages as needed
