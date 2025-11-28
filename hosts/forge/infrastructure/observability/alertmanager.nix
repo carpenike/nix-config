@@ -11,8 +11,8 @@
     alertmanager.url = "http://127.0.0.1:9093";
 
     # External URLs for alert links (via Caddy reverse proxy)
-    alertmanager.externalUrl = "https://alertmanager.forge.holthome.net";
-    prometheus.externalUrl = "https://prometheus.forge.holthome.net";
+    alertmanager.externalUrl = "https://am.holthome.net";
+    prometheus.externalUrl = "https://prom.holthome.net";
 
     # Pushover receiver: these names must match secrets.sops.yaml keys
     receivers.pushover = {

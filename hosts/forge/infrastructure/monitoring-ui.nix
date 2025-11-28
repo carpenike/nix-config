@@ -8,7 +8,7 @@
   # Expose Prometheus UI on subdomain with Pocket ID + caddy-security protection
   modules.services.caddy.virtualHosts."prometheus" = {
     enable = true;
-    hostName = "prometheus.forge.holthome.net";
+    hostName = "prom.holthome.net";
 
     # Structured backend configuration
     backend = {
@@ -49,7 +49,7 @@
   # Expose Alertmanager UI on subdomain with Pocket ID + caddy-security protection
   modules.services.caddy.virtualHosts."alertmanager" = {
     enable = true;
-    hostName = "alertmanager.forge.holthome.net";
+    hostName = "am.holthome.net";
 
     # Structured backend configuration
     backend = {
