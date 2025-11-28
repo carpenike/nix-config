@@ -290,7 +290,7 @@
       annotations = {
         summary = "ZFS replication lag exceeds 24h: {{ $labels.dataset }} → {{ $labels.target_host }}";
         description = "Dataset {{ $labels.dataset }} on {{ $labels.instance }} has not replicated to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Next steps: systemctl status syncoid-*.service; journalctl -u syncoid-*.service --since '2 hours ago'; verify SSH for user 'zfs-replication' to {{ $labels.target_host }}; check NAS reachability.";
-        runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=zfs_replication_lag_seconds&g0.tab=1";
+        runbook_url = "https://prom.holthome.net/graph?g0.expr=zfs_replication_lag_seconds&g0.tab=1";
         command = "journalctl -u syncoid-*.service --since '2 hours ago'";
       };
     };
@@ -306,7 +306,7 @@
       annotations = {
         summary = "ZFS replication stalled: {{ $labels.dataset }} → {{ $labels.target_host }}";
         description = "No replication of {{ $labels.dataset }} on {{ $labels.instance }} to {{ $labels.target_host }} in {{ $value | humanizeDuration }}. Data loss risk if source fails. Investigate immediately. Check Syncoid unit logs and network/SSH to target NAS.";
-        runbook_url = "https://alertmanager.forge.holthome.net";
+        runbook_url = "https://am.holthome.net";
         command = "systemctl status syncoid-*.service";
       };
     };
@@ -395,7 +395,7 @@
       annotations = {
         summary = "Syncoid unit failed: {{ $labels.dataset }} → {{ $labels.target_host }}";
         description = "The systemd unit {{ $labels.name }} is in failed state on {{ $labels.instance }}. Check logs and SSH connectivity to {{ $labels.target_host }}.";
-        runbook_url = "https://prometheus.forge.holthome.net/graph?g0.expr=node_systemd_unit_state%7Bstate%3D%22failed%22%2Cname%3D~%22syncoid-.*%5C.service%22%7D&g0.tab=1";
+        runbook_url = "https://prom.holthome.net/graph?g0.expr=node_systemd_unit_state%7Bstate%3D%22failed%22%2Cname%3D~%22syncoid-.*%5C.service%22%7D&g0.tab=1";
         command = "systemctl status {{ $labels.name }} && journalctl -u {{ $labels.name }} --since '2 hours ago'";
       };
     };

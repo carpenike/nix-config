@@ -18,8 +18,8 @@
     # Commented out for observation period - will be fully removed if no issues arise.
     #
     # extraHosts = ''
-    #   127.0.0.1 alertmanager.forge.holthome.net
-    #   127.0.0.1 prometheus.forge.holthome.net
+    #   127.0.0.1 am.holthome.net
+    #   127.0.0.1 prom.holthome.net
     #   127.0.0.1 loki.holthome.net
     #   127.0.0.1 grafana.holthome.net
     #   127.0.0.1 iptv.holthome.net
