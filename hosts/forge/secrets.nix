@@ -7,8 +7,9 @@ let
   inherit (lib) optionalAttrs;
 
   autheliaEnabled = config.modules.services.authelia.enable or false;
-  backupEnabled = config.modules.backup.enable or false;
-  resticEnabled = backupEnabled && (config.modules.backup.restic.enable or false);
+  # Use the new unified backup system (modules.services.backup)
+  backupEnabled = config.modules.services.backup.enable or false;
+  resticEnabled = backupEnabled && (config.modules.services.backup.restic.enable or false);
   sanoidEnabled = config.modules.backup.sanoid.enable or false;
   alertingEnabled = config.modules.alerting.enable or false;
   dispatcharrEnabled = config.modules.services.dispatcharr.enable or false;
@@ -152,6 +153,13 @@ in
 
           # Loki Basic Auth password hash for Caddy reverse proxy (environment variable)
           "services/caddy/environment/loki-admin-bcrypt" = {
+            mode = "0400";
+            owner = "caddy";
+            group = "caddy";
+          };
+
+          # Prometheus API key for backup taskfile (used by Caddy static API key auth)
+          "prometheus/api-keys/backup-taskfile" = {
             mode = "0400";
             owner = "caddy";
             group = "caddy";

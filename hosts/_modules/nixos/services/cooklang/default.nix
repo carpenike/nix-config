@@ -615,26 +615,11 @@ in
         };
       };
 
-      system.activationScripts."cooklang-preseed-validation" = mkIf preseedEnabled ''
-        set -euo pipefail
-
-        if [ ! -r ${preseedCfg.passwordFile} ]; then
-          echo "Cooklang preseed password file (${preseedCfg.passwordFile}) is missing or unreadable" >&2
-          exit 1
-        fi
-
-        ${lib.optionalString (preseedCfg.environmentFile != null) ''
-          if [ ! -r ${preseedCfg.environmentFile} ]; then
-            echo "Cooklang preseed environment file (${preseedCfg.environmentFile}) is missing or unreadable" >&2
-            exit 1
-          fi
-        ''}
-
-        if ! printf '%s' "${preseedCfg.repositoryUrl}" | ${pkgs.gnugrep}/bin/grep -Eq '^[A-Za-z0-9+.-]+:'; then
-          echo "Cooklang preseed repository URL (${preseedCfg.repositoryUrl}) must include a scheme (e.g., rest:http:// or sftp://)" >&2
-          exit 1
-        fi
-      '';
+      # Note: Preseed validation moved to the preseed service itself.
+      # Activation scripts run before SOPS secrets are mounted under /run/secrets,
+      # so we cannot validate secret file presence at activation time.
+      # The preseed service (preseed-cooklang.service) will fail gracefully with
+      # appropriate error messages if required files are missing at runtime.
 
       assertions = [
         {

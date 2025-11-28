@@ -1,9 +1,10 @@
 { config, ... }:
 
 let
+  # Use the new unified backup system (modules.services.backup)
   resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
+    (config.modules.services.backup.enable or false)
+    && (config.modules.services.backup.restic.enable or false);
 in
 {
   config.modules.services = {

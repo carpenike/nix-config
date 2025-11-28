@@ -460,6 +460,77 @@ in
         };
         description = "Authentication configuration for Loki web interface";
       };
+
+      authelia = mkOption {
+        type = types.nullOr types.attrs;
+        default = null;
+        description = "LEGACY: Authelia SSO configuration. Prefer caddySecurity.";
+      };
+
+      caddySecurity = mkOption {
+        type = types.nullOr (types.submodule {
+          options = {
+            enable = mkEnableOption "caddy-security protection for observability services";
+
+            portal = mkOption {
+              type = types.str;
+              default = "pocketid";
+              description = "Authentication portal name for Pocket ID SSO.";
+            };
+
+            policy = mkOption {
+              type = types.str;
+              default = "default";
+              description = "Authorization policy to apply.";
+            };
+
+            bypassPaths = mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = "Path prefixes that bypass authentication.";
+            };
+
+            staticApiKeys = mkOption {
+              type = types.listOf (types.submodule {
+                options = {
+                  name = mkOption {
+                    type = types.str;
+                    description = "Identifier for this API key.";
+                  };
+                  envVar = mkOption {
+                    type = types.str;
+                    description = "Environment variable containing the API key.";
+                  };
+                  headerName = mkOption {
+                    type = types.str;
+                    default = "X-Api-Key";
+                    description = "HTTP header name for the API key.";
+                  };
+                  paths = mkOption {
+                    type = types.nullOr (types.listOf types.str);
+                    default = null;
+                    description = "Path prefixes this key is valid for. Null = all paths.";
+                  };
+                  allowedNetworks = mkOption {
+                    type = types.listOf types.str;
+                    default = [ ];
+                    description = "CIDR ranges this key is valid from.";
+                  };
+                  injectAuthHeader = mkOption {
+                    type = types.bool;
+                    default = true;
+                    description = "Inject X-Auth-Source header for auditing.";
+                  };
+                };
+              });
+              default = [ ];
+              description = "Static API keys for S2S authentication (e.g., backup scripts).";
+            };
+          };
+        });
+        default = null;
+        description = "Pocket ID SSO with optional static API keys for automation.";
+      };
     };
 
     alerts = {
@@ -586,6 +657,7 @@ in
       };
       auth = cfg.reverseProxy.auth;
       authelia = cfg.reverseProxy.authelia;
+      caddySecurity = cfg.reverseProxy.caddySecurity;
       security.customHeaders = {
         "X-Frame-Options" = "SAMEORIGIN";
         "X-Content-Type-Options" = "nosniff";

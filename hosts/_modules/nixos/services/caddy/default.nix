@@ -134,6 +134,24 @@ let
     let
       sec = cfg.security;
 
+      # Local identity store blocks (for user-generated API keys)
+      localStoreBlocks = mapAttrsToList
+        (name: store:
+          let
+            extra = store.extraConfig;
+          in
+          ''
+              local identity store ${name} {
+              realm ${store.realm}
+              path ${store.path}
+            ${optionalString store.enablePasswordRecovery "  enable password recovery"}
+            ${optionalString store.enableUsernameRecovery "  enable username recovery"}
+            ${optionalString (extra != "") extra}
+            }''
+        )
+        sec.localIdentityStores;
+
+      # OAuth identity provider blocks
       providerBlocks = mapAttrsToList
         (name: provider:
           let
@@ -159,7 +177,10 @@ let
       portalBlocks = mapAttrsToList
         (name: portal:
           let
+            # Enable OAuth identity providers
             providerLines = map (providerName: "  enable identity provider ${providerName}") portal.identityProviders;
+            # Enable local identity stores
+            storeLines = map (storeName: "  enable identity store ${storeName}") portal.identityStores;
             cookieLines =
               let
                 cookie = portal.cookie;
@@ -179,6 +200,7 @@ let
               authentication portal ${name} {
               crypto default token lifetime ${toString portal.tokenLifetime}
             ${concatStringsSep "\n" providerLines}
+            ${concatStringsSep "\n" storeLines}
             ${concatStringsSep "\n" cookieLines}
             ${optionalString (extra != "") extra}
             }''
@@ -189,6 +211,11 @@ let
         (name: policy:
           let
             rolesLine = concatStringsSep " " policy.allowRoles;
+            # API key and basic auth directives
+            apiKeyLine = optionalString policy.apiKeyAuth.enable
+              "  with api key auth portal ${policy.apiKeyAuth.portal} realm ${policy.apiKeyAuth.realm}";
+            basicAuthLine = optionalString policy.basicAuth.enable
+              "  with basic auth portal ${policy.basicAuth.portal} realm ${policy.basicAuth.realm}";
             extra = policy.extraConfig;
           in
           ''
@@ -196,12 +223,15 @@ let
               set auth url ${policy.authUrl}
               allow roles ${rolesLine}
             ${optionalString policy.injectHeaders "  inject headers with claims"}
+            ${apiKeyLine}
+            ${basicAuthLine}
             ${optionalString (extra != "") extra}
             }''
         )
         sec.authorizationPolicies;
 
-      innerSections = filter (s: s != "") (providerBlocks ++ portalBlocks ++ policyBlocks ++ [ sec.extraConfig ]);
+      # Combine all sections: local stores first, then providers, then portals, then policies
+      innerSections = filter (s: s != "") (localStoreBlocks ++ providerBlocks ++ portalBlocks ++ policyBlocks ++ [ sec.extraConfig ]);
       innerBlock = concatStringsSep "\n\n" innerSections;
       securityBody = if innerBlock == "" then "" else indentLines innerBlock;
       orderLine = optionalString sec.orderAuthenticateBeforeRespond "  order authenticate before respond\n\n";
@@ -302,6 +332,63 @@ in
             description = "Map of caddy-security identity providers keyed by provider name.";
           };
 
+          # Local identity stores for user-generated API keys
+          localIdentityStores = mkOption {
+            type = types.attrsOf (types.submodule {
+              options = {
+                realm = mkOption {
+                  type = types.str;
+                  default = "local";
+                  description = "Realm name for this local identity store.";
+                };
+
+                path = mkOption {
+                  type = types.str;
+                  default = "/var/lib/caddy/auth/users.json";
+                  description = "Path to the local user database JSON file (auto-created on first start).";
+                };
+
+                adminUserEnvVar = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                  description = "Environment variable for initial admin username (AUTHP_ADMIN_USER).";
+                };
+
+                adminEmailEnvVar = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                  description = "Environment variable for initial admin email (AUTHP_ADMIN_EMAIL).";
+                };
+
+                adminSecretEnvVar = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                  description = "Environment variable for initial admin password (AUTHP_ADMIN_SECRET).";
+                };
+
+                enablePasswordRecovery = mkOption {
+                  type = types.bool;
+                  default = false;
+                  description = "Enable password recovery for local users.";
+                };
+
+                enableUsernameRecovery = mkOption {
+                  type = types.bool;
+                  default = false;
+                  description = "Enable username recovery for local users.";
+                };
+
+                extraConfig = mkOption {
+                  type = types.lines;
+                  default = "";
+                  description = "Additional raw directives for this local identity store block.";
+                };
+              };
+            });
+            default = { };
+            description = "Map of local identity stores for username/password and API key authentication.";
+          };
+
           authenticationPortals = mkOption {
             type = types.attrsOf (types.submodule {
               options = {
@@ -309,6 +396,12 @@ in
                   type = types.listOf types.str;
                   default = [ ];
                   description = "Identity providers to enable for this portal (must reference keys defined in identityProviders).";
+                };
+
+                identityStores = mkOption {
+                  type = types.listOf types.str;
+                  default = [ ];
+                  description = "Local identity stores to enable for this portal (must reference keys defined in localIdentityStores).";
                 };
 
                 tokenLifetime = mkOption {
@@ -375,6 +468,40 @@ in
                   description = "Whether to inject identity claims into upstream headers (common for apps expecting X-Auth-* headers).";
                 };
 
+                # API key authentication via local identity store
+                apiKeyAuth = {
+                  enable = mkEnableOption "API key authentication via local identity store";
+
+                  portal = mkOption {
+                    type = types.str;
+                    default = "default";
+                    description = "Portal name to validate API keys against.";
+                  };
+
+                  realm = mkOption {
+                    type = types.str;
+                    default = "local";
+                    description = "Realm of the local identity store for API key validation.";
+                  };
+                };
+
+                # Basic authentication via local identity store
+                basicAuth = {
+                  enable = mkEnableOption "HTTP Basic authentication via local identity store";
+
+                  portal = mkOption {
+                    type = types.str;
+                    default = "default";
+                    description = "Portal name to validate credentials against.";
+                  };
+
+                  realm = mkOption {
+                    type = types.str;
+                    default = "local";
+                    description = "Realm of the local identity store for credential validation.";
+                  };
+                };
+
                 extraConfig = mkOption {
                   type = types.lines;
                   default = "";
@@ -396,6 +523,7 @@ in
       default = {
         enable = false;
         identityProviders = { };
+        localIdentityStores = { };
         authenticationPortals = { };
         authorizationPolicies = { };
         extraConfig = "";
@@ -656,6 +784,53 @@ in
                   default = false;
                   description = ''Force the caddy-security portal to prompt for credentials even when a session cookie exists.
                     Useful for services that rely on HTTP Basic headers or need re-authentication.'';
+                };
+
+                # Static S2S API keys (pre-defined, for automation like GitHub Actions)
+                staticApiKeys = mkOption {
+                  type = types.listOf (types.submodule {
+                    options = {
+                      name = mkOption {
+                        type = types.str;
+                        description = "Identifier for this API key (used in audit headers and logging).";
+                        example = "github-actions";
+                      };
+
+                      envVar = mkOption {
+                        type = types.str;
+                        description = "Environment variable name containing the API key secret.";
+                        example = "PROMETHEUS_GITHUB_API_KEY";
+                      };
+
+                      headerName = mkOption {
+                        type = types.str;
+                        default = "X-Api-Key";
+                        description = "HTTP header name to check for the API key.";
+                      };
+
+                      paths = mkOption {
+                        type = types.nullOr (types.listOf types.str);
+                        default = null;
+                        description = "Path prefixes this key is valid for. If null, key is valid for all paths.";
+                        example = [ "/api" "/v1" ];
+                      };
+
+                      allowedNetworks = mkOption {
+                        type = types.listOf types.str;
+                        default = [ ];
+                        description = "CIDR ranges this key is valid from. Empty means any source.";
+                        example = [ "10.0.0.0/8" ];
+                      };
+
+                      injectAuthHeader = mkOption {
+                        type = types.bool;
+                        default = true;
+                        description = "Inject X-Auth-Source header with key name for auditing.";
+                      };
+                    };
+                  });
+                  default = [ ];
+                  description = "Static API keys for S2S authentication that bypass caddy-security entirely.";
                 };
               };
             });
@@ -928,6 +1103,37 @@ in
 
                   '';
 
+                  # Static API key bypass routes (for S2S automation like GitHub Actions)
+                  staticApiKeys = if useCaddySecurity then (vhost.caddySecurity.staticApiKeys or []) else [];
+                  hasStaticApiKeys = staticApiKeys != [];
+                  staticApiKeyConfig = optionalString hasStaticApiKeys (concatStringsSep "\n" (map (apiKey:
+                    let
+                      matcherName = "@static_api_key_${sanitizeForMatcher apiKey.name}_${sanitizeForMatcher vhost.hostName}";
+                      keyPlaceholder = "{$" + apiKey.envVar + "}";
+                      headerName = apiKey.headerName or "X-Api-Key";
+                      hasPathRestriction = apiKey.paths or null != null;
+                      hasNetworkRestriction = (apiKey.allowedNetworks or []) != [];
+                      injectHeader = apiKey.injectAuthHeader or true;
+                    in
+                    ''
+                    # Static API key: ${apiKey.name}
+                    ${matcherName} {
+                      header ${headerName} ${keyPlaceholder}
+                      ${optionalString hasPathRestriction "path ${concatStringsSep " " (map (p: "${p}*") apiKey.paths)}"}
+                      ${optionalString hasNetworkRestriction "remote_ip ${concatStringsSep " " apiKey.allowedNetworks}"}
+                    }
+
+                    route ${matcherName} {
+                      reverse_proxy ${backendUrl} {
+                        ${optionalString injectHeader "header_up X-Auth-Source \"static-api-key:${apiKey.name}\""}
+                        ${tlsTransport}
+                        ${vhost.reverseProxyBlock}
+                      }
+                    }
+
+                    ''
+                  ) staticApiKeys));
+
                   reverseProxyDirective =
                     if useCaddySecurity then ''
                                       ${authMatcherName} {
@@ -957,7 +1163,7 @@ in
                       ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
                     }
                     ''}
-                      ${ipRestrictedBypassConfig}${caddySecurityBypassConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
+                      ${ipRestrictedBypassConfig}${caddySecurityBypassConfig}${staticApiKeyConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
                     # Reverse proxy to backend
                     ${reverseProxyDirective}
                     ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}

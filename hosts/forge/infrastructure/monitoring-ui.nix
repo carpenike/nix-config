@@ -29,6 +29,14 @@
           role = "admins";
         }
       ];
+
+      # Static API key for automation (backup status queries from taskfiles)
+      staticApiKeys = [
+        {
+          name = "backup-taskfile";
+          envVar = "PROMETHEUS_BACKUP_API_KEY";
+        }
+      ];
     };
 
     # Security headers for web interface

@@ -122,7 +122,7 @@ tasks:
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
-      PROMETHEUS_URL: 'https://prometheus.{{.host}}.{{.NIXOS_DOMAIN}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
     summary: |
       Displays a consolidated dashboard of all backup system statuses by querying
       Prometheus metrics. Shows:
@@ -140,8 +140,7 @@ tasks:
         host: Target host with Prometheus (default: forge)
 
       Environment Variables (required):
-        PROMETHEUS_USERNAME: Username for Prometheus authentication
-        PROMETHEUS_PASSWORD: Password for Prometheus authentication
+        PROMETHEUS_API_KEY: API key for Prometheus authentication (X-Api-Key header)
 
       Examples:
         task backup:status
@@ -151,10 +150,8 @@ tasks:
     preconditions:
       - sh: which backup-status
         msg: "backup-status command not found. Has it been installed via home-manager?"
-      - sh: test -n "$PROMETHEUS_USERNAME"
-        msg: "PROMETHEUS_USERNAME environment variable not set"
-      - sh: test -n "$PROMETHEUS_PASSWORD"
-        msg: "PROMETHEUS_PASSWORD environment variable not set"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set"
 
   pgbackrest-info:
     desc: Show pgBackRest backup info for both repositories

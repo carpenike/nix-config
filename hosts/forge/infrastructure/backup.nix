@@ -40,9 +40,11 @@
 # 4. Deploy configuration and verify first backup succeeds
 
 let
+  # Use the new unified backup system (modules.services.backup)
+  # Note: The old modules.backup.* is deprecated
   resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
+    (config.modules.services.backup.enable or false)
+    && (config.modules.services.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [
@@ -86,6 +88,16 @@ in
 
       modules.services.backup = {
         enable = true;
+
+        # Enable Restic backup discovery and management
+        restic.enable = true;
+
+        # ZFS snapshot coordination (opt-in for services)
+        snapshots.enable = true;
+
+        # Enterprise monitoring and verification
+        monitoring.enable = true;
+        verification.enable = true;
 
         # PostgreSQL backup (pgBackRest with dual-repo PITR)
         # Restic meta-backup DISABLED - redundant now that repo2 has WAL archiving
@@ -154,16 +166,6 @@ in
             repositoryLocation = "offsite";
           };
         };
-
-        # Restic backup discovery and management
-        restic.enable = true;
-
-        # ZFS snapshot coordination (opt-in for services)
-        snapshots.enable = true;
-
-        # Enterprise monitoring and verification
-        monitoring.enable = true;
-        verification.enable = true;
       };
 
       # Forge-specific backup monitoring alerts

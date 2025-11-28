@@ -6,9 +6,10 @@ let
   grafanaUrl = "https://grafana.${domain}";
   logoutRedirect = lib.strings.escapeURL grafanaUrl;
   serviceEnabled = config.modules.services.observability.grafana.enable or false;
+  # Use the new unified backup system (modules.services.backup)
   resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
+    (config.modules.services.backup.enable or false)
+    && (config.modules.services.backup.restic.enable or false);
 in
 {
   config = lib.mkMerge [

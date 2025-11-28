@@ -21,9 +21,10 @@
 
 let
   # Check if restic backup is enabled globally
+  # Uses the new unified backup system (modules.services.backup)
   resticEnabled =
-    (config.modules.backup.enable or false)
-    && (config.modules.backup.restic.enable or false);
+    (config.modules.services.backup.enable or false)
+    && (config.modules.services.backup.restic.enable or false);
 in
 {
   # =============================================================================
@@ -136,6 +137,54 @@ in
         }
       ];
     };
+  };
+
+  # =============================================================================
+  # Static API Key Helpers
+  # =============================================================================
+
+  # Generate a static API key configuration for S2S authentication
+  # These bypass caddy-security entirely and use native Caddy header matching
+  #
+  # Usage in service config:
+  #   reverseProxy.caddySecurity = {
+  #     enable = true;
+  #     portal = "pocketid";
+  #     policy = "admin";
+  #     staticApiKeys = [
+  #       (forgeDefaults.mkStaticApiKey "github-actions" "PROMETHEUS_GITHUB_API_KEY")
+  #     ];
+  #   };
+  mkStaticApiKey = name: envVar: {
+    inherit name envVar;
+    headerName = "X-Api-Key";
+    paths = null; # Valid for all paths
+    allowedNetworks = [ ]; # Allow any source
+    injectAuthHeader = true;
+  };
+
+  # Static API key with path restrictions
+  # Usage: forgeDefaults.mkStaticApiKeyWithPaths "automation" "API_KEY_VAR" [ "/api" "/v1" ]
+  mkStaticApiKeyWithPaths = name: envVar: paths: {
+    inherit name envVar paths;
+    headerName = "X-Api-Key";
+    allowedNetworks = [ ];
+    injectAuthHeader = true;
+  };
+
+  # Static API key with network restrictions
+  # Usage: forgeDefaults.mkStaticApiKeyWithNetworks "internal-api" "INTERNAL_API_KEY" [ "10.0.0.0/8" ]
+  mkStaticApiKeyWithNetworks = name: envVar: allowedNetworks: {
+    inherit name envVar allowedNetworks;
+    headerName = "X-Api-Key";
+    paths = null;
+    injectAuthHeader = true;
+  };
+
+  # Full control static API key
+  # Usage: forgeDefaults.mkStaticApiKeyFull { name = "webhook"; envVar = "WEBHOOK_KEY"; paths = [ "/hook" ]; allowedNetworks = [ "192.168.0.0/16" ]; }
+  mkStaticApiKeyFull = { name, envVar, headerName ? "X-Api-Key", paths ? null, allowedNetworks ? [], injectAuthHeader ? true }: {
+    inherit name envVar headerName paths allowedNetworks injectAuthHeader;
   };
 
   # =============================================================================

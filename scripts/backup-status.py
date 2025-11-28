@@ -5,12 +5,11 @@
 A CLI dashboard for monitoring the status of various backup systems via Prometheus.
 
 Usage:
-    python backup-status.py [--prometheus-url URL] [--username USER] [--password PASS]
+    python backup-status.py [--prometheus-url URL] [--api-key KEY]
 
 Environment Variables:
     PROMETHEUS_URL: URL of the Prometheus server (default: http://localhost:9090)
-    PROMETHEUS_USERNAME: Username for basic authentication
-    PROMETHEUS_PASSWORD: Password for basic authentication
+    PROMETHEUS_API_KEY: API key for X-Api-Key header authentication
 """
 
 import argparse
@@ -55,11 +54,11 @@ QUERIES = {
 }
 
 
-def query_prometheus(base_url: str, query: str, auth: Tuple[str, str] = None) -> List[Dict]:
+def query_prometheus(base_url: str, query: str, headers: Dict[str, str] = None) -> List[Dict]:
     """Sends a query to the Prometheus API and returns the result vector."""
     api_url = f"{base_url}/api/v1/query"
     try:
-        response = requests.get(api_url, params={"query": query}, auth=auth, timeout=10)
+        response = requests.get(api_url, params={"query": query}, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json()
         if data["status"] == "success" and data["data"]["resultType"] == "vector":
@@ -125,26 +124,21 @@ def main():
         help=f"Prometheus server URL (default: {DEFAULT_PROMETHEUS_URL})"
     )
     parser.add_argument(
-        "--username",
-        default=os.getenv("PROMETHEUS_USERNAME"),
-        help="Username for basic authentication (or set PROMETHEUS_USERNAME)"
-    )
-    parser.add_argument(
-        "--password",
-        default=os.getenv("PROMETHEUS_PASSWORD"),
-        help="Password for basic authentication (or set PROMETHEUS_PASSWORD)"
+        "--api-key",
+        default=os.getenv("PROMETHEUS_API_KEY"),
+        help="API key for X-Api-Key header authentication (or set PROMETHEUS_API_KEY)"
     )
     args = parser.parse_args()
 
     console = Console()
 
-    # Setup authentication if credentials provided
-    auth = None
-    if args.username and args.password:
-        auth = (args.username, args.password)
+    # Setup authentication headers if API key provided
+    headers = None
+    if args.api_key:
+        headers = {"X-Api-Key": args.api_key}
 
     # Fetch all data from Prometheus
-    results = {name: query_prometheus(args.prometheus_url, query, auth) for name, query in QUERIES.items()}
+    results = {name: query_prometheus(args.prometheus_url, query, headers) for name, query in QUERIES.items()}
 
     table = Table(title="Backup Status Dashboard", show_header=True, header_style="bold magenta")
     table.add_column("System", style="cyan", no_wrap=True)
