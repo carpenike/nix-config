@@ -794,6 +794,9 @@ in
             FAILED_COUNT=$(echo "$STANZA_JSON" | jq '[.backup[] | select(.error == true)] | length')
             echo "pgbackrest_backup_failed_total{stanza=\"main\"} $FAILED_COUNT" >> "$METRICS_TEMP"
 
+            # Set permissions so node_exporter can read the file
+            chmod 644 "$METRICS_TEMP"
+
             # Atomically replace the old metrics file
             mv "$METRICS_TEMP" "$METRICS_FILE"
     '';

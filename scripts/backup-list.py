@@ -598,7 +598,7 @@ Environment Variables:
         else:
             # Create summary table
             table = Table(
-                title=f"Backup Status - {full_host}",
+                title=f"Restic Backup Status - {full_host}",
                 show_header=True,
                 header_style="bold magenta"
             )

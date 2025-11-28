@@ -159,6 +159,7 @@ tasks:
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      FORMATTER: '{{.ROOT_DIR}}/scripts/format-pgbackrest.py'
     summary: |
       Displays pgBackRest backup information for both repositories:
         - Repo1 (NFS): /mnt/nas-postgresql/pgbackrest
@@ -183,21 +184,76 @@ tasks:
             --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \\
             --repo2-s3-region=auto \\
             --repo2-s3-uri-style=path \\
+            --output=json \\
             info
-        '"
+        '" 2>&1 | python3 {{.FORMATTER}}
     preconditions:
       - sh: which ssh
         msg: "ssh not found"
+      - sh: which python3
+        msg: "python3 not found"
 
   list:
-    desc: List backup status from Prometheus metrics (fast)
+    desc: List all backups (Restic + pgBackRest)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
+      FORMATTER: '{{.ROOT_DIR}}/scripts/format-pgbackrest.py'
+    summary: |
+      Lists backup status for all backup systems:
+        - Restic: Application backups (via Prometheus metrics)
+        - pgBackRest: PostgreSQL backups (via SSH)
+
+      This is a combined view of both backup:restic and backup:pgbackrest.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:list
+        task backup:list host=forge
+    cmds:
+      - |
+        echo ""
+        echo "=============================="
+        echo "  Restic Backup Status"
+        echo "=============================="
+        echo ""
+        backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}}
+        echo ""
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres bash -c '
+          source /run/secrets/restic/r2-prod-env
+          export PGBACKREST_REPO2_S3_KEY=\$AWS_ACCESS_KEY_ID
+          export PGBACKREST_REPO2_S3_KEY_SECRET=\$AWS_SECRET_ACCESS_KEY
+          pgbackrest --stanza=main \\
+            --repo2-type=s3 \\
+            --repo2-path=/forge-pgbackrest \\
+            --repo2-s3-bucket=nix-homelab-prod-servers \\
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \\
+            --repo2-s3-region=auto \\
+            --repo2-s3-uri-style=path \\
+            --output=json \\
+            info
+        '" 2>&1 | python3 {{.FORMATTER}}
+    preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set"
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic:
+    desc: List Restic backup status from Prometheus metrics (fast)
     silent: false
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
       PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
     summary: |
-      Lists backup status for all services by querying Prometheus metrics.
+      Lists Restic backup status for all services by querying Prometheus metrics.
       This is the fast default mode - uses cached metrics from last backup run.
 
       Shows for each backup job:
@@ -221,20 +277,20 @@ tasks:
         PROMETHEUS_API_KEY: API key for Prometheus authentication
 
       Examples:
-        task backup:list
-        task backup:list host=forge
-        task backup:list -- --service sonarr
-        task backup:list -- --repo nas-primary
+        task backup:restic
+        task backup:restic host=forge
+        task backup:restic -- --service sonarr
+        task backup:restic -- --repo nas-primary
     cmds:
       - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} {{.CLI_ARGS}}
     preconditions:
       - sh: which backup-list
         msg: "backup-list command not found. Has it been installed via home-manager?"
       - sh: test -n "$PROMETHEUS_API_KEY"
-        msg: "PROMETHEUS_API_KEY environment variable not set. Use 'task backup:verify' for direct restic queries."
+        msg: "PROMETHEUS_API_KEY environment variable not set. Use 'task backup:restic-verify' for direct restic queries."
 
-  verify:
-    desc: Verify backups by querying restic repositories directly (slow)
+  restic-verify:
+    desc: Verify Restic backups by querying repositories directly (slow)
     silent: false
     vars:
       host: '{{.host | default "forge"}}'
@@ -258,9 +314,9 @@ tasks:
         --json          JSON output for scripting
 
       Examples:
-        task backup:verify
-        task backup:verify -- --service sonarr
-        task backup:verify -- --limit 5
+        task backup:restic-verify
+        task backup:restic-verify -- --service sonarr
+        task backup:restic-verify -- --limit 5
     cmds:
       - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --verify {{.CLI_ARGS}}
     preconditions:
@@ -269,15 +325,15 @@ tasks:
       - sh: which ssh
         msg: "ssh not found"
 
-  list-json:
-    desc: List backup status in JSON format (for scripting)
+  restic-json:
+    desc: List Restic backup status in JSON format (for scripting)
     silent: true
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
       PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
     summary: |
-      Lists backup status in JSON format for scripting and automation.
+      Lists Restic backup status in JSON format for scripting and automation.
       Uses Prometheus metrics by default (add --verify for direct queries).
 
       Args:
@@ -308,10 +364,10 @@ tasks:
         }
 
       Examples:
-        task backup:list-json
-        task backup:list-json | jq '.services[].job_name'
-        task backup:list-json | jq '.summary.healthy_services'
-        task backup:list-json -- --verify  # Direct restic queries (no API key needed)
+        task backup:restic-json
+        task backup:restic-json | jq '.services[].job_name'
+        task backup:restic-json | jq '.summary.healthy_services'
+        task backup:restic-json -- --verify  # Direct restic queries (no API key needed)
     cmds:
       - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json {{.CLI_ARGS}}
     preconditions:
@@ -319,6 +375,52 @@ tasks:
         msg: "backup-list command not found. Has it been installed via home-manager?"
       - sh: test -n "$PROMETHEUS_API_KEY"
         msg: "PROMETHEUS_API_KEY environment variable not set"
+
+  pgbackrest:
+    desc: Show pgBackRest backup status (PostgreSQL)
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Displays pgBackRest backup status for PostgreSQL databases.
+
+      Shows a formatted summary including:
+        - Repository status (NFS and R2)
+        - Backup counts by type (full/incr/diff)
+        - Latest backup timestamps with age
+        - Recent incremental backups
+        - WAL archive range
+        - Storage summary
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest
+        task backup:pgbackrest host=forge
+    cmds:
+      - |
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres bash -c '
+          source /run/secrets/restic/r2-prod-env
+          export PGBACKREST_REPO2_S3_KEY=\$AWS_ACCESS_KEY_ID
+          export PGBACKREST_REPO2_S3_KEY_SECRET=\$AWS_SECRET_ACCESS_KEY
+          pgbackrest --stanza=main \
+            --repo2-type=s3 \
+            --repo2-path=/forge-pgbackrest \
+            --repo2-s3-bucket=nix-homelab-prod-servers \
+            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
+            --repo2-s3-region=auto \
+            --repo2-s3-uri-style=path \
+            --output=json \
+            info
+        '" 2>/dev/null | python3 {{.ROOT_DIR}}/scripts/format-pgbackrest.py
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: which python3
+        msg: "python3 not found"
+
   pgbackrest-metrics-check:
     desc: Check pgBackRest metrics collection status
     silent: true
