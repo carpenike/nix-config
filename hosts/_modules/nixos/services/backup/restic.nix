@@ -122,9 +122,9 @@ let
             local repo_healthy=0
 
             if [[ $exit_code -eq 0 ]]; then
-              # Get latest snapshot stats - if this works, repo is healthy
+              # Get latest snapshot stats for THIS job's tags - if this works, repo is healthy
               local latest_snapshot
-              if latest_snapshot=$(${pkgs.restic}/bin/restic snapshots --latest 1 --json 2>/dev/null); then
+              if latest_snapshot=$(${pkgs.restic}/bin/restic snapshots ${tagArgs} --latest 1 --json 2>/dev/null); then
                 repo_healthy=1
                 # Extract file count and size from the latest snapshot
                 local stats
