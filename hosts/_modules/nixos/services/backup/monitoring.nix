@@ -272,20 +272,16 @@ in
           };
         };
 
-        # Restic slow backup alert
-        "restic-backup-slow" = {
-          type = "promql";
-          alertname = "ResticBackupSlow";
-          expr = "restic_backup_duration_seconds{backup_job!=\"\"} > (avg_over_time(restic_backup_duration_seconds{backup_job!=\"\"}[7d]) * ${toString monitoringCfg.alerting.thresholds.slowBackupMultiplier})";
-          for = "30m";
-          severity = "medium";
-          labels = { service = "backup"; category = "restic"; };
-          annotations = {
-            summary = "Restic backup job {{ $labels.backup_job }} is running slowly on {{ $labels.instance }}";
-            description = "Restic backup {{ $labels.backup_job }} is taking longer than expected. Check for performance issues or large data changes.";
-            command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '2 hours ago'";
-          };
-        };
+        # NOTE: Removed restic-backup-slow alert (2025-11-28)
+        # Backup durations have high natural variance due to:
+        # - Variable amounts of changed data between runs
+        # - Disk I/O contention from other services
+        # - Network conditions for remote repositories
+        # - First backups of new datasets
+        # The 2x multiplier was too sensitive and caused alert fatigue.
+        # Actual backup problems are covered by:
+        # - restic-backup-stale: Jobs that don't complete on schedule
+        # - restic-backup-failed: Jobs that exit with errors
 
         # Restic repository verification failed
         "restic-verification-failed" = {
