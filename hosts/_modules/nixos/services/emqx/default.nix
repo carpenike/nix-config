@@ -326,6 +326,18 @@ in
       description = "Podman resource limits applied to EMQX.";
     };
 
+    healthcheck = mkOption {
+      type = types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "60s";
+      };
+      description = "Container healthcheck configuration.";
+    };
+
     backup = mkOption {
       type = types.nullOr sharedTypes.backupSubmodule;
       default = null;
@@ -541,7 +553,15 @@ in
               "${cfg.dashboard.listenAddress}:${toString cfg.dashboard.port}:18083/tcp"
             ];
           resources = cfg.resources;
-          extraOptions = [ "--pull=newer" ] ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ];
+          extraOptions = [ "--pull=newer" ]
+            ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ]
+            ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+              "--health-cmd=/opt/emqx/bin/emqx ctl status || exit 1"
+              "--health-interval=${cfg.healthcheck.interval}"
+              "--health-timeout=${cfg.healthcheck.timeout}"
+              "--health-retries=${toString cfg.healthcheck.retries}"
+              "--health-start-period=${cfg.healthcheck.startPeriod}"
+            ];
         };
 
         systemd.services.${serviceAttrName} = {

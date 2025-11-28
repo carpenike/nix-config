@@ -267,6 +267,18 @@ in
       description = "Container resource limits (translated to Podman run options).";
     };
 
+    healthcheck = mkOption {
+      type = types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "120s";
+      };
+      description = "Container healthcheck configuration.";
+    };
+
     reverseProxy = mkOption {
       type = types.nullOr sharedTypes.reverseProxySubmodule;
       default = null;
@@ -649,7 +661,14 @@ in
         ];
         resources = cfg.resources;
         extraOptions = [ "--pull=newer" ]
-          ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ];
+          ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ]
+          ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+            "--health-cmd=wget --no-verbose --tries=1 --spider http://127.0.0.1:9000/api/app/about || exit 1"
+            "--health-interval=${cfg.healthcheck.interval}"
+            "--health-timeout=${cfg.healthcheck.timeout}"
+            "--health-retries=${toString cfg.healthcheck.retries}"
+            "--health-start-period=${cfg.healthcheck.startPeriod}"
+          ];
       };
 
       systemd.services.${serviceAttrName} = mkMerge [

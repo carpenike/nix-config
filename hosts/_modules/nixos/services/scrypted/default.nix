@@ -63,10 +63,19 @@ let
     "--security-opt=apparmor=unconfined"
   ];
 
+  healthcheckOptions = lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+    "--health-cmd=curl --fail --silent --max-time 5 http://127.0.0.1:${toString cfg.httpPort}/ || exit 1"
+    "--health-interval=${cfg.healthcheck.interval}"
+    "--health-timeout=${cfg.healthcheck.timeout}"
+    "--health-retries=${toString cfg.healthcheck.retries}"
+    "--health-start-period=${cfg.healthcheck.startPeriod}"
+  ];
+
   extraOptions = privilegedOptions
     ++ hostNetworkOptions
     ++ deviceOptions
     ++ mdnsSecurityOptions
+    ++ healthcheckOptions
     ++ cfg.extraOptions;
 
   portMappings = lib.optionals (!cfg.hostNetwork) (
@@ -344,6 +353,18 @@ in
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = null;
       description = "Optional Podman resource limits for the container.";
+    };
+
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "120s";
+      };
+      description = "Container healthcheck configuration.";
     };
   };
 

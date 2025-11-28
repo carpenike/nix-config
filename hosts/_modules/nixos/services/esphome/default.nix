@@ -321,7 +321,7 @@ in
           (lib.optionals cfg.hostNetwork [ "--network=host" ])
           ++ (lib.optionals (!cfg.hostNetwork && cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ])
           ++ lib.optionals cfg.healthcheck.enable [
-            ''--health-cmd=sh -c 'exec 3<>/dev/tcp/127.0.0.1/${toString esphomePort}' ''
+            "--health-cmd=curl --fail --silent --max-time 5 http://127.0.0.1:${toString esphomePort}/ || exit 1"
             "--health-interval=0s"
             "--health-timeout=${cfg.healthcheck.timeout}"
             "--health-retries=3"

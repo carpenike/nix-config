@@ -261,6 +261,18 @@ in
       description = "Optional Podman resource limits for the TeslaMate container.";
     };
 
+    healthcheck = mkOption {
+      type = types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "60s";
+      };
+      description = "Container healthcheck configuration.";
+    };
+
     podmanNetwork = mkOption {
       type = types.nullOr types.str;
       default = null;
@@ -544,6 +556,12 @@ in
           "--pull=newer"
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           "--network=${cfg.podmanNetwork}"
+        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+          "--health-cmd=curl --fail --silent --max-time 5 http://127.0.0.1:4000/ || exit 1"
+          "--health-interval=${cfg.healthcheck.interval}"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
         ];
       };
 
