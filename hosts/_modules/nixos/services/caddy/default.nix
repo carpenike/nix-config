@@ -1182,5 +1182,17 @@ in
 
     # Open firewall for HTTP/HTTPS
     networking.firewall.allowedTCPPorts = [ 80 443 ];
+
+    # Ensure local identity store directory exists (for user-generated API keys)
+    systemd.tmpfiles.rules = mkIf (cfg.security.enable && cfg.security.localIdentityStores != { }) (
+      concatLists (mapAttrsToList (name: store:
+        let
+          storeDir = builtins.dirOf store.path;
+        in
+        [
+          "d ${storeDir} 0750 ${config.services.caddy.user} ${config.services.caddy.group} - -"
+        ]
+      ) cfg.security.localIdentityStores)
+    );
   };
 }

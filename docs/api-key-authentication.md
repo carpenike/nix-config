@@ -137,66 +137,70 @@ myapp.holthome.net {
 
 ## User-Generated API Keys (Local Identity Store)
 
-For human users who need API access (CLI scripts, personal automation), use the local identity store pattern.
+> **⚠️ Note**: The caddy-security "Portal Settings" page for self-service API key generation requires the **Profile UI**, which is a separate React application not currently deployed.
+>
+> The infrastructure below is configured and ready, but users cannot yet generate their own API keys through the web interface. For now, use **static API keys** (see above) for automation.
 
-### Portal-Based Key Generation
+For human users who need API access (CLI scripts, personal automation), the local identity store pattern will be available once Profile UI is deployed.
 
-1. Configure a local identity store in caddy-security
-2. Enable the identity store in an authentication portal
-3. Users log in via OIDC (PocketID) and navigate to `/settings`
-4. Users generate their own API keys through the portal UI
-5. Keys are validated via `with api key auth portal <name> realm local`
+### What's Already Configured
 
-### Local Store Setup
-
-#### Step 1: Define Local Identity Store
+The following infrastructure is in place (in `hosts/forge/services/pocketid.nix`):
 
 ```nix
 modules.services.caddy.security = {
-  enable = true;
-
+  # Local identity store for user-generated API keys
   localIdentityStores.localdb = {
     realm = "local";
     path = "/var/lib/caddy/auth/users.json";
   };
-};
-```
 
-#### Step 2: Enable in Authentication Portal
+  authenticationPortals.pocketid = {
+    identityProviders = [ "pocketid" ];
+    identityStores = [ "localdb" ];  # Enables user API key generation
+    # ...
+  };
 
-```nix
-modules.services.caddy.security.authenticationPortals.pocketid = {
-  identityProviders = [ "pocketid" ];
-  identityStores = [ "localdb" ];  # Enable local store
-  tokenLifetime = 86400;
-};
-```
-
-#### Step 3: Add API Key Auth to Authorization Policy
-
-```nix
-modules.services.caddy.security.authorizationPolicies.default = {
-  authUrl = "/caddy-security/oauth2/generic";
-  allowRoles = [ "authenticated" ];
-  apiKeyAuth = {
-    enable = true;
-    portal = "pocketid";
-    realm = "local";
+  authorizationPolicies = {
+    default = {
+      apiKeyAuth = {
+        enable = true;
+        portal = "pocketid";
+        realm = "local";
+      };
+    };
+    # admins and media policies also have apiKeyAuth enabled
   };
 };
 ```
 
-### User Experience
+### Future: Portal-Based Key Generation
 
-1. User authenticates via PocketID (passkey/WebAuthn)
-2. User navigates to `https://service.example.com/settings`
-3. User clicks "Generate API Key" in portal UI
-4. Key is stored in local identity store
-5. User can use key in `X-Api-Key` header for API requests
+Once Profile UI is deployed, users will be able to:
 
-### Local Store Configuration
+1. Log in via OIDC (PocketID) to any protected service
+2. Click "Profile" or "Settings" link
+3. Navigate to API Keys section and generate keys
+4. Keys are validated via `with api key auth portal <name> realm local`
 
-See Step 1-3 above for the configuration details.
+### Using User-Generated API Keys
+
+```bash
+# Access a protected service with your personal API key
+curl -H "X-Api-Key: $MY_API_KEY" https://prom.holthome.net/api/v1/query?query=up
+
+# Access Grafana API
+curl -H "X-Api-Key: $MY_API_KEY" https://grafana.holthome.net/api/dashboards
+```
+
+### Policies with API Key Auth Enabled
+
+| Policy | Description | API Key Auth |
+|--------|-------------|--------------|
+| `default` | Authenticated users | ✅ Enabled |
+| `admins` | Admin group members | ✅ Enabled |
+| `media` | Media group members | ✅ Enabled |
+| `lan-only` | Automation/internal | ❌ Static keys only |
 
 ## Comparison
 

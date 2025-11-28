@@ -15,14 +15,24 @@ let
   metadataUrl = "https://${serviceDomain}/.well-known/openid-configuration";
   internalAppUrl = "https://${serviceDomain}";
 
-  authenticatedTransform = ''
+  # Transform rules for caddy-security portal
+  # - 'authenticated' role for general access control
+  # - 'authp/user' role for API features
+  # NOTE: The settings/profile page requires deploying the separate Profile UI app
+  # For now, API key auth uses the local identity store configured above
+  portalTransforms = ''
     transform user {
       match realm forge-pocketid
       action add role authenticated
     }
+
+    transform user {
+      match realm forge-pocketid
+      action add role authp/user
+    }
   '';
 
-  portalExtraConfig = authenticatedTransform;
+  portalExtraConfig = portalTransforms;
   serviceEnabled = config.modules.services.pocketid.enable or false;
 in
 {
@@ -129,8 +139,18 @@ in
           metadataUrl = metadataUrl;
         };
 
+        # Local identity store for user-generated API keys
+        # Users can generate personal API keys via the portal UI at /settings
+        # These keys are stored in a local JSON file and validated via caddy-security
+        localIdentityStores.localdb = {
+          realm = "local";
+          path = "/var/lib/caddy/auth/users.json";
+        };
+
         authenticationPortals.pocketid = {
           identityProviders = [ "pocketid" ];
+          # Enable local identity store for user-generated API keys
+          identityStores = [ "localdb" ];
           cookie = {
             insecure = false;
             domain = ".${domain}";
@@ -142,16 +162,32 @@ in
           default = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "authenticated" ];
+            # Enable API key authentication via local identity store
+            apiKeyAuth = {
+              enable = true;
+              portal = "pocketid";
+              realm = "local";
+            };
           };
 
           admins = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "admins" ];
+            apiKeyAuth = {
+              enable = true;
+              portal = "pocketid";
+              realm = "local";
+            };
           };
 
           media = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "media" ];
+            apiKeyAuth = {
+              enable = true;
+              portal = "pocketid";
+              realm = "local";
+            };
           };
 
           lan-only = {

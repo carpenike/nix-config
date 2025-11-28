@@ -1,9 +1,12 @@
 # Monitoring UI Exposure Configuration
 # Provides LAN-only access to Prometheus and Alertmanager web interfaces
-# with basic authentication from SOPS secrets.
+# with Pocket ID SSO + optional static API keys for automation.
 
-{ config, pkgs, ... }:
+{ config, lib, ... }:
 
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+in
 {
   # Expose Prometheus UI on subdomain with Pocket ID + caddy-security protection
   modules.services.caddy.virtualHosts."prometheus" = {
@@ -32,10 +35,7 @@
 
       # Static API key for automation (backup status queries from taskfiles)
       staticApiKeys = [
-        {
-          name = "backup-taskfile";
-          envVar = "PROMETHEUS_BACKUP_API_KEY";
-        }
+        (forgeDefaults.mkStaticApiKey "backup-taskfile" "PROMETHEUS_BACKUP_API_KEY")
       ];
     };
 

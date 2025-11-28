@@ -4,6 +4,9 @@ let
   inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList filter concatLists;
   cfg = config.modules.services.observability;
 
+  # Import shared types for consistent API key definitions
+  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+
   # Auto-discovery function for services with metrics submodules
   # Uses the same safe pattern as backup-integration.nix to avoid nix store path issues
   discoverMetricsTargets = config:
@@ -490,39 +493,9 @@ in
               description = "Path prefixes that bypass authentication.";
             };
 
+            # Use shared type definition for consistency across modules
             staticApiKeys = mkOption {
-              type = types.listOf (types.submodule {
-                options = {
-                  name = mkOption {
-                    type = types.str;
-                    description = "Identifier for this API key.";
-                  };
-                  envVar = mkOption {
-                    type = types.str;
-                    description = "Environment variable containing the API key.";
-                  };
-                  headerName = mkOption {
-                    type = types.str;
-                    default = "X-Api-Key";
-                    description = "HTTP header name for the API key.";
-                  };
-                  paths = mkOption {
-                    type = types.nullOr (types.listOf types.str);
-                    default = null;
-                    description = "Path prefixes this key is valid for. Null = all paths.";
-                  };
-                  allowedNetworks = mkOption {
-                    type = types.listOf types.str;
-                    default = [ ];
-                    description = "CIDR ranges this key is valid from.";
-                  };
-                  injectAuthHeader = mkOption {
-                    type = types.bool;
-                    default = true;
-                    description = "Inject X-Auth-Source header for auditing.";
-                  };
-                };
-              });
+              type = types.listOf sharedTypes.staticApiKeySubmodule;
               default = [ ];
               description = "Static API keys for S2S authentication (e.g., backup scripts).";
             };
