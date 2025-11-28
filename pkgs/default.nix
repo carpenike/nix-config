@@ -8,6 +8,7 @@
   backup-list = pkgs.callPackage ./backup-list.nix { };
   backup-orchestrator = pkgs.callPackage ./backup-orchestrator.nix { };
   backup-status = pkgs.callPackage ./backup-status.nix { };
+  syncoid-list = pkgs.callPackage ./syncoid-list.nix { };
   kubecolor-catppuccin = pkgs.callPackage ./kubecolor-catppuccin.nix { };
   kubectl-browse-pvc = pkgs.callPackage ./kubectl-browse-pvc.nix { };
   kubectl-get-all = pkgs.callPackage ./kubectl-get-all.nix { };

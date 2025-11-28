@@ -959,6 +959,64 @@ in
           wantedBy = [ "multi-user.target" ];
         };
       }
+      # Cleanup orphaned syncoid metrics files (runs on activation)
+      # When a syncoid service is removed from config, its .prom file persists
+      # and causes stale metrics to appear in Prometheus. This service removes
+      # any metrics files that don't correspond to currently configured datasets.
+      {
+        services.syncoid-metrics-cleanup = {
+          description = "Remove orphaned syncoid replication metrics files";
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart =
+              let
+                # Generate list of valid metric file names from current config
+                validMetricFiles = lib.mapAttrsToList
+                  (dataset: _conf:
+                    "syncoid_replication_${lib.strings.replaceStrings ["/"] ["-"] dataset}.prom"
+                  )
+                  datasetsWithReplication;
+                validFilesStr = lib.concatStringsSep " " validMetricFiles;
+                cleanupScript = pkgs.writeShellScript "syncoid-metrics-cleanup" ''
+                  set -eu
+                  METRICS_DIR="/var/lib/node_exporter/textfile_collector"
+
+                  # List of currently configured metric files
+                  VALID_FILES="${validFilesStr}"
+
+                  # Find all syncoid_replication_*.prom files
+                  for file in "$METRICS_DIR"/syncoid_replication_*.prom; do
+                    [ -e "$file" ] || continue  # Handle no matches
+
+                    basename=$(${pkgs.coreutils}/bin/basename "$file")
+
+                    # Check if this file is in our valid list
+                    is_valid=0
+                    for valid in $VALID_FILES; do
+                      if [ "$basename" = "$valid" ]; then
+                        is_valid=1
+                        break
+                      fi
+                    done
+
+                    # Remove orphaned files
+                    if [ "$is_valid" -eq 0 ]; then
+                      echo "Removing orphaned syncoid metrics file: $file"
+                      ${pkgs.coreutils}/bin/rm -f "$file"
+                    fi
+                  done
+
+                  echo "Syncoid metrics cleanup complete"
+                '';
+              in
+              cleanupScript;
+          };
+          # Run on system activation (after nixos-rebuild switch)
+          wantedBy = [ "multi-user.target" ];
+          # Run before the info metric service to ensure clean state
+          before = lib.optional (datasetsWithReplication != { }) "syncoid-replication-info.service";
+        };
+      }
     ]);
   };
 }

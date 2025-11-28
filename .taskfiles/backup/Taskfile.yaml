@@ -448,3 +448,224 @@ tasks:
     preconditions:
       - sh: which ssh
         msg: "ssh not found"
+
+  # ============================================================================
+  # Syncoid ZFS Replication Tasks
+  # ============================================================================
+
+  syncoid:
+    desc: List Syncoid ZFS replication status from Prometheus metrics (fast)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
+    summary: |
+      Lists Syncoid ZFS replication status for all configured datasets by querying
+      Prometheus metrics. This is the fast default mode - uses cached metrics.
+
+      Shows for each replication job:
+        - Dataset name
+        - Target host/location
+        - Status (OK/STALE/FAILED/RUNNING)
+        - Last successful replication time
+
+      Args:
+        host: Target host (default: forge)
+
+      Additional arguments can be passed after --:
+        --dataset NAME   Filter by dataset name (partial match)
+        --target NAME    Filter by target host (partial match)
+        --verify         Query systemd directly (slower, validates data)
+        --json           JSON output for scripting
+
+      Environment Variables (required for Prometheus mode):
+        PROMETHEUS_API_KEY: API key for Prometheus authentication
+
+      Examples:
+        task backup:syncoid
+        task backup:syncoid host=forge
+        task backup:syncoid -- --dataset sonarr
+        task backup:syncoid -- --target nas-1
+    cmds:
+      - syncoid-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} {{.CLI_ARGS}}
+    preconditions:
+      - sh: which syncoid-list
+        msg: "syncoid-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set. Use 'task backup:syncoid-verify' for direct queries."
+
+  syncoid-verify:
+    desc: Verify Syncoid replication by querying systemd directly (slow)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Verifies replication status by directly querying systemd units via SSH.
+      This is slower but validates that services are actually running/succeeded.
+
+      Use this when:
+        - Prometheus metrics seem stale or incorrect
+        - You need to verify actual systemd unit status
+        - You want to see systemd state details
+
+      Args:
+        host: Target host (default: forge)
+
+      Additional arguments can be passed after --:
+        --dataset NAME   Filter by dataset name (partial match)
+        --target NAME    Filter by target host (partial match)
+        --json           JSON output for scripting
+
+      Examples:
+        task backup:syncoid-verify
+        task backup:syncoid-verify -- --dataset sonarr
+    cmds:
+      - syncoid-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --verify {{.CLI_ARGS}}
+    preconditions:
+      - sh: which syncoid-list
+        msg: "syncoid-list command not found. Has it been installed via home-manager?"
+      - sh: which ssh
+        msg: "ssh not found"
+
+  syncoid-json:
+    desc: List Syncoid replication status in JSON format (for scripting)
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
+    summary: |
+      Lists Syncoid replication status in JSON format for scripting and automation.
+      Uses Prometheus metrics by default (add --verify for direct queries).
+
+      Args:
+        host: Target host (default: forge)
+
+      Environment Variables (required for Prometheus mode):
+        PROMETHEUS_API_KEY: API key for Prometheus authentication
+
+      Output Format:
+        {
+          "host": "forge.holthome.net",
+          "mode": "prometheus",
+          "stale_threshold_hours": 2,
+          "jobs": [
+            {
+              "dataset": "tank/services/sonarr",
+              "unit": "syncoid-tank-services-sonarr",
+              "target_host": "nas-1.holthome.net",
+              "target_name": "NFS",
+              "target_location": "nas-1",
+              "status": 1,
+              "status_text": "OK",
+              "last_success": 1732806000,
+              "details": "Healthy"
+            }
+          ],
+          "summary": {
+            "total": N,
+            "ok": N,
+            "running": N,
+            "stale": N,
+            "failed": N,
+            "healthy": N
+          }
+        }
+
+      Examples:
+        task backup:syncoid-json
+        task backup:syncoid-json | jq '.jobs[].dataset'
+        task backup:syncoid-json | jq '.summary.healthy'
+        task backup:syncoid-json -- --verify  # Direct systemd queries (no API key needed)
+    cmds:
+      - syncoid-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json {{.CLI_ARGS}}
+    preconditions:
+      - sh: which syncoid-list
+        msg: "syncoid-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set"
+
+  syncoid-trigger:
+    desc: Manually trigger all Syncoid replication jobs
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Manually triggers all Syncoid replication jobs on the target host.
+      Useful for forcing immediate replication before a deployment or maintenance.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:syncoid-trigger
+        task backup:syncoid-trigger host=forge
+    cmds:
+      - |
+        echo "Triggering all Syncoid replication jobs on {{.host}}.{{.NIXOS_DOMAIN}}..."
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo systemctl start syncoid.target"
+        echo "Syncoid jobs triggered. Use 'task backup:syncoid' to monitor status."
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  syncoid-logs:
+    desc: Show recent Syncoid replication logs
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      dataset: '{{.dataset | default ""}}'
+    summary: |
+      Shows recent logs from Syncoid replication services.
+
+      Args:
+        host: Target host (default: forge)
+        dataset: Optional dataset filter (e.g., "sonarr" to see syncoid-*-sonarr logs)
+
+      Examples:
+        task backup:syncoid-logs
+        task backup:syncoid-logs dataset=sonarr
+        task backup:syncoid-logs host=forge dataset=plex
+    cmds:
+      - |
+        {{if .dataset}}
+        echo "=== Syncoid logs for *{{.dataset}}* on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo journalctl -u 'syncoid-*{{.dataset}}*' --since '2 hours ago' --no-pager"
+        {{else}}
+        echo "=== All Syncoid logs on {{.host}}.{{.NIXOS_DOMAIN}} (last 2 hours) ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo journalctl -u 'syncoid-*' --since '2 hours ago' --no-pager | tail -100"
+        {{end}}
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  syncoid-metrics-check:
+    desc: Check Syncoid metrics collection status
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Checks the status of Syncoid metrics collection:
+        - Lists all syncoid metric files
+        - Shows content of metrics
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:syncoid-metrics-check
+    cmds:
+      - |
+        echo "=== Syncoid Metrics Files on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "ls -la /var/lib/node_exporter/textfile_collector/syncoid_*.prom 2>/dev/null || echo 'No syncoid metrics files found'"
+        echo ""
+        echo "=== Syncoid Metrics Content ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "cat /var/lib/node_exporter/textfile_collector/syncoid_*.prom 2>/dev/null | grep -v '^#' | sort || echo 'No metrics available'"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"

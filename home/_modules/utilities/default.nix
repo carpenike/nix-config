@@ -15,6 +15,7 @@
       # Custom packaged tools
       backup-list
       backup-status
+      syncoid-list
     ];
   };
 }
