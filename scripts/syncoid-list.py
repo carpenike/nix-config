@@ -18,6 +18,7 @@ Environment Variables:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -273,8 +274,8 @@ def discover_syncoid_services(host: str) -> List[Dict[str, Any]]:
         # Extract service name from timer (syncoid-tank-services-sonarr.timer -> syncoid-tank-services-sonarr)
         service_name = timer_name.replace('.timer', '')
 
-        # Get the service unit status
-        status_cmd = f"systemctl show {service_name}.service --property=ActiveState,SubState,ExecMainExitTimestamp,Result"
+        # Get the service unit status and ExecStart to parse target
+        status_cmd = f"systemctl show {service_name}.service --property=ActiveState,SubState,ExecMainExitTimestamp,Result,ExecStart"
         ret, status_out, _ = run_ssh_command(host, status_cmd)
 
         if ret != 0:
@@ -289,6 +290,16 @@ def discover_syncoid_services(host: str) -> List[Dict[str, Any]]:
         # Parse dataset from service name (syncoid-tank-services-sonarr -> tank/services/sonarr)
         dataset = service_name.replace('syncoid-', '').replace('-', '/')
 
+        # Parse target from ExecStart
+        # Format: { path=/nix/store/.../syncoid ; argv[]=/nix/store/.../syncoid --sshkey ... tank/services/sonarr zfs-replication@nas-1.holthome.net:backup/... ; ... }
+        target_host = None
+        exec_start = props.get('ExecStart', '')
+        if exec_start:
+            # Look for user@host:path pattern in the command
+            match = re.search(r'(\w+)@([^:\s]+):', exec_start)
+            if match:
+                target_host = match.group(2)  # Get the host part
+
         services.append({
             'unit': service_name,
             'dataset': dataset,
@@ -296,6 +307,7 @@ def discover_syncoid_services(host: str) -> List[Dict[str, Any]]:
             'sub_state': props.get('SubState', 'unknown'),
             'exit_timestamp': props.get('ExecMainExitTimestamp', ''),
             'result': props.get('Result', 'unknown'),
+            'target_host': target_host,
         })
 
     return services
@@ -316,22 +328,26 @@ def get_syncoid_verify_data(host: str, console: Console) -> List[Dict[str, Any]]
             status = 0  # Failed
 
         # Parse exit timestamp
+        # Format: "Fri 2025-11-28 17:00:54 EST"
         last_success = None
         if svc['exit_timestamp'] and svc['result'] == 'success':
             try:
-                # Format: "Thu 2025-11-28 10:15:00 EST"
                 ts_str = svc['exit_timestamp']
                 if ts_str:
-                    # Convert to timestamp - this is approximate
-                    dt = datetime.strptime(ts_str.split('.')[0], "%a %Y-%m-%d %H:%M:%S")
-                    last_success = dt.timestamp()
+                    # Strip timezone suffix (EST, PST, UTC, etc.) and parse
+                    # Format: "Fri 2025-11-28 17:00:54 EST" -> "Fri 2025-11-28 17:00:54"
+                    parts = ts_str.rsplit(' ', 1)
+                    if len(parts) == 2:
+                        ts_no_tz = parts[0]
+                        dt = datetime.strptime(ts_no_tz, "%a %Y-%m-%d %H:%M:%S")
+                        last_success = dt.timestamp()
             except Exception:
                 pass
 
         results.append({
             'dataset': svc['dataset'],
             'unit': svc['unit'],
-            'target_host': 'unknown',  # Would need to parse from config
+            'target_host': svc.get('target_host') or 'unknown',
             'target_name': '',
             'target_location': '',
             'status': status,

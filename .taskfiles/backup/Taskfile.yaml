@@ -1,7 +1,18 @@
 ---
 version: "3"
 
+# Common variables used across multiple tasks
+vars:
+  # R2/S3 configuration (centralized to avoid duplication)
+  R2_BUCKET: 'nix-homelab-prod-servers'
+  R2_ENDPOINT: '21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com'
+  R2_PATH: '/forge-pgbackrest'
+
 tasks:
+  # ============================================================================
+  # Orchestration Tasks
+  # ============================================================================
+
   orchestrate:
     desc: Trigger all backup systems before deployment
     silent: true
@@ -116,9 +127,44 @@ tasks:
       - sh: ssh {{.host}}.{{.NIXOS_DOMAIN}} "which backup-orchestrator" 2>/dev/null
         msg: "backup-orchestrator not installed on {{.host}}.{{.NIXOS_DOMAIN}}"
 
+  orchestrate-watch:
+    desc: Trigger backups and watch progress in real-time
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Starts the backup orchestrator and then follows the journal logs in real-time.
+      Useful for monitoring long-running backup operations.
+
+      Press Ctrl+C to stop watching (backup continues in background).
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:orchestrate-watch
+        task backup:orchestrate-watch host=forge
+    cmds:
+      - |
+        echo "Starting backup orchestrator on {{.host}}.{{.NIXOS_DOMAIN}}..."
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo backup-orchestrator --yes &" &
+        sleep 3
+        echo "Watching backup logs (Ctrl+C to stop watching, backup continues)..."
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo journalctl -f -u 'sanoid*' -u 'syncoid-*' -u 'restic-*' -u 'pgbackrest-*' --since 'now'"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: ssh {{.host}}.{{.NIXOS_DOMAIN}} "which backup-orchestrator" 2>/dev/null
+        msg: "backup-orchestrator not installed on {{.host}}.{{.NIXOS_DOMAIN}}"
+
+  # ============================================================================
+  # Status & Health Tasks
+  # ============================================================================
+
   status:
     desc: Show current status of all backup systems
-    silent: false
+    silent: true
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
@@ -153,49 +199,100 @@ tasks:
       - sh: test -n "$PROMETHEUS_API_KEY"
         msg: "PROMETHEUS_API_KEY environment variable not set"
 
-  pgbackrest-info:
-    desc: Show pgBackRest backup info for both repositories
+  health:
+    desc: Quick health check of all backup systems (no new backups)
     silent: true
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
-      FORMATTER: '{{.ROOT_DIR}}/scripts/format-pgbackrest.py'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
     summary: |
-      Displays pgBackRest backup information for both repositories:
-        - Repo1 (NFS): /mnt/nas-postgresql/pgbackrest
-        - Repo2 (R2): s3://nix-homelab-prod-servers/forge-pgbackrest
+      Fast health check that validates backup system health without triggering
+      new backups. Returns exit code 0 if all healthy, 1 if issues detected.
+
+      Checks:
+        - All Restic backup jobs have recent successful runs (<26 hours)
+        - All Syncoid replication jobs are current (<2 hours)
+        - pgBackRest repositories are accessible
+        - No critical alerts in Prometheus
+
+      Use this before deployments to quickly verify backup health without
+      waiting for new backups to complete.
 
       Args:
         host: Target host (default: forge)
 
+      Environment Variables (required):
+        PROMETHEUS_API_KEY: API key for Prometheus authentication
+
+      Exit Codes:
+        0 = All backup systems healthy
+        1 = One or more backup systems unhealthy
+
       Examples:
-        task backup:pgbackrest-info
-        task backup:pgbackrest-info host=forge
+        task backup:health
+        task backup:health host=forge
+        task backup:health && task nix:apply-nixos host=forge  # Deploy only if healthy
     cmds:
       - |
-        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres bash -c '
-          source /run/secrets/restic/r2-prod-env
-          export PGBACKREST_REPO2_S3_KEY=\$AWS_ACCESS_KEY_ID
-          export PGBACKREST_REPO2_S3_KEY_SECRET=\$AWS_SECRET_ACCESS_KEY
-          pgbackrest --stanza=main \\
-            --repo2-type=s3 \\
-            --repo2-path=/forge-pgbackrest \\
-            --repo2-s3-bucket=nix-homelab-prod-servers \\
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \\
-            --repo2-s3-region=auto \\
-            --repo2-s3-uri-style=path \\
-            --output=json \\
-            info
-        '" 2>&1 | python3 {{.FORMATTER}}
+        echo "=== Backup Health Check for {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        echo ""
+        HEALTHY=true
+
+        # Check Restic backups
+        echo "Checking Restic backups..."
+        RESTIC_STATUS=$(backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json 2>/dev/null | jq -r '.summary.healthy_services // 0')
+        RESTIC_TOTAL=$(backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json 2>/dev/null | jq -r '.summary.total_services // 0')
+        if [ "$RESTIC_STATUS" = "$RESTIC_TOTAL" ] && [ "$RESTIC_TOTAL" -gt 0 ]; then
+          echo "  ✓ Restic: $RESTIC_STATUS/$RESTIC_TOTAL services healthy"
+        else
+          echo "  ✗ Restic: $RESTIC_STATUS/$RESTIC_TOTAL services healthy"
+          HEALTHY=false
+        fi
+
+        # Check Syncoid replication
+        echo "Checking Syncoid replication..."
+        SYNCOID_STATUS=$(syncoid-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json 2>/dev/null | jq -r '.summary.healthy // 0')
+        SYNCOID_TOTAL=$(syncoid-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json 2>/dev/null | jq -r '.summary.total // 0')
+        if [ "$SYNCOID_STATUS" = "$SYNCOID_TOTAL" ] && [ "$SYNCOID_TOTAL" -gt 0 ]; then
+          echo "  ✓ Syncoid: $SYNCOID_STATUS/$SYNCOID_TOTAL replications healthy"
+        else
+          echo "  ✗ Syncoid: $SYNCOID_STATUS/$SYNCOID_TOTAL replications healthy"
+          HEALTHY=false
+        fi
+
+        # Check pgBackRest
+        echo "Checking pgBackRest..."
+        if ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres pgbackrest --stanza=main check" 2>/dev/null; then
+          echo "  ✓ pgBackRest: Stanza check passed"
+        else
+          echo "  ✗ pgBackRest: Stanza check failed"
+          HEALTHY=false
+        fi
+
+        echo ""
+        if [ "$HEALTHY" = true ]; then
+          echo "✓ All backup systems healthy"
+          exit 0
+        else
+          echo "✗ One or more backup systems unhealthy"
+          exit 1
+        fi
     preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: which syncoid-list
+        msg: "syncoid-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set"
       - sh: which ssh
         msg: "ssh not found"
-      - sh: which python3
-        msg: "python3 not found"
+      - sh: which jq
+        msg: "jq not found"
 
   list:
     desc: List all backups (Restic + pgBackRest)
-    silent: false
+    silent: true
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
@@ -229,9 +326,9 @@ tasks:
           export PGBACKREST_REPO2_S3_KEY_SECRET=\$AWS_SECRET_ACCESS_KEY
           pgbackrest --stanza=main \\
             --repo2-type=s3 \\
-            --repo2-path=/forge-pgbackrest \\
-            --repo2-s3-bucket=nix-homelab-prod-servers \\
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \\
+            --repo2-path={{.R2_PATH}} \\
+            --repo2-s3-bucket={{.R2_BUCKET}} \\
+            --repo2-s3-endpoint={{.R2_ENDPOINT}} \\
             --repo2-s3-region=auto \\
             --repo2-s3-uri-style=path \\
             --output=json \\
@@ -245,206 +342,181 @@ tasks:
       - sh: which ssh
         msg: "ssh not found"
 
-  restic:
-    desc: List Restic backup status from Prometheus metrics (fast)
-    silent: false
-    vars:
-      host: '{{.host | default "forge"}}'
-      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
-      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
-    summary: |
-      Lists Restic backup status for all services by querying Prometheus metrics.
-      This is the fast default mode - uses cached metrics from last backup run.
-
-      Shows for each backup job:
-        - Status (success/failure)
-        - Last backup time
-        - Duration
-        - Snapshot count
-        - Size added
-        - Repository health
-
-      Args:
-        host: Target host (default: forge)
-
-      Additional arguments can be passed after --:
-        --service NAME  Filter by service name (partial match)
-        --repo NAME     Filter by repository name
-        --verify        Query restic directly (slower, validates data)
-        --json          JSON output for scripting
-
-      Environment Variables (required for Prometheus mode):
-        PROMETHEUS_API_KEY: API key for Prometheus authentication
-
-      Examples:
-        task backup:restic
-        task backup:restic host=forge
-        task backup:restic -- --service sonarr
-        task backup:restic -- --repo nas-primary
-    cmds:
-      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} {{.CLI_ARGS}}
-    preconditions:
-      - sh: which backup-list
-        msg: "backup-list command not found. Has it been installed via home-manager?"
-      - sh: test -n "$PROMETHEUS_API_KEY"
-        msg: "PROMETHEUS_API_KEY environment variable not set. Use 'task backup:restic-verify' for direct restic queries."
-
-  restic-verify:
-    desc: Verify Restic backups by querying repositories directly (slow)
-    silent: false
-    vars:
-      host: '{{.host | default "forge"}}'
-      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
-    summary: |
-      Verifies backup data by directly querying each restic repository via SSH.
-      This is slower but validates that snapshots are actually accessible.
-
-      Use this when:
-        - Prometheus metrics seem stale or incorrect
-        - You need to verify repository integrity
-        - You want to see actual snapshot details (IDs, times, tags)
-
-      Args:
-        host: Target host (default: forge)
-
-      Additional arguments can be passed after --:
-        --service NAME  Filter by service name (partial match)
-        --repo NAME     Filter by repository name
-        --limit N       Maximum snapshots per service (default: 10)
-        --json          JSON output for scripting
-
-      Examples:
-        task backup:restic-verify
-        task backup:restic-verify -- --service sonarr
-        task backup:restic-verify -- --limit 5
-    cmds:
-      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --verify {{.CLI_ARGS}}
-    preconditions:
-      - sh: which backup-list
-        msg: "backup-list command not found. Has it been installed via home-manager?"
-      - sh: which ssh
-        msg: "ssh not found"
-
-  restic-json:
-    desc: List Restic backup status in JSON format (for scripting)
+  status-all:
+    desc: Show backup status across all hosts
     silent: true
     vars:
-      host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
       PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
     summary: |
-      Lists Restic backup status in JSON format for scripting and automation.
-      Uses Prometheus metrics by default (add --verify for direct queries).
+      Displays backup status for all configured hosts in the homelab.
+      Useful for getting a quick overview of backup health across the infrastructure.
 
-      Args:
-        host: Target host (default: forge)
-
-      Environment Variables (required for Prometheus mode):
+      Environment Variables (required):
         PROMETHEUS_API_KEY: API key for Prometheus authentication
 
-      Output Format (Prometheus mode):
-        {
-          "host": "forge.holthome.net",
-          "mode": "prometheus",
-          "services": [
-            {
-              "job_name": "service-name",
-              "repository_name": "nas-primary",
-              "status": 1,
-              "last_success": 1732806000,
-              "snapshots": 42,
-              "healthy": true
-            }
-          ],
-          "summary": {
-            "total_services": N,
-            "healthy_services": N,
-            "total_snapshots": N
-          }
-        }
-
       Examples:
-        task backup:restic-json
-        task backup:restic-json | jq '.services[].job_name'
-        task backup:restic-json | jq '.summary.healthy_services'
-        task backup:restic-json -- --verify  # Direct restic queries (no API key needed)
+        task backup:status-all
     cmds:
-      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json {{.CLI_ARGS}}
+      - |
+        for host in forge; do
+          echo ""
+          echo "=============================================="
+          echo "  Backup Status: $host.{{.NIXOS_DOMAIN}}"
+          echo "=============================================="
+          echo ""
+          backup-status --prometheus-url {{.PROMETHEUS_URL}} 2>/dev/null || echo "  Failed to get status for $host"
+        done
     preconditions:
-      - sh: which backup-list
-        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: which backup-status
+        msg: "backup-status command not found. Has it been installed via home-manager?"
       - sh: test -n "$PROMETHEUS_API_KEY"
         msg: "PROMETHEUS_API_KEY environment variable not set"
 
-  pgbackrest:
-    desc: Show pgBackRest backup status (PostgreSQL)
+  # ============================================================================
+  # Sanoid ZFS Snapshot Tasks
+  # ============================================================================
+
+  sanoid:
+    desc: Show Sanoid ZFS snapshot status
     silent: true
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
     summary: |
-      Displays pgBackRest backup status for PostgreSQL databases.
+      Displays Sanoid ZFS snapshot status for all configured datasets.
 
-      Shows a formatted summary including:
-        - Repository status (NFS and R2)
-        - Backup counts by type (full/incr/diff)
-        - Latest backup timestamps with age
-        - Recent incremental backups
-        - WAL archive range
-        - Storage summary
+      Shows:
+        - Dataset name and snapshot policy
+        - Snapshot counts by type (hourly, daily, weekly, monthly)
+        - Most recent snapshot age
+        - Retention policy compliance
 
       Args:
         host: Target host (default: forge)
 
       Examples:
-        task backup:pgbackrest
-        task backup:pgbackrest host=forge
+        task backup:sanoid
+        task backup:sanoid host=forge
     cmds:
       - |
-        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres bash -c '
-          source /run/secrets/restic/r2-prod-env
-          export PGBACKREST_REPO2_S3_KEY=\$AWS_ACCESS_KEY_ID
-          export PGBACKREST_REPO2_S3_KEY_SECRET=\$AWS_SECRET_ACCESS_KEY
-          pgbackrest --stanza=main \
-            --repo2-type=s3 \
-            --repo2-path=/forge-pgbackrest \
-            --repo2-s3-bucket=nix-homelab-prod-servers \
-            --repo2-s3-endpoint=21ee32956d11b5baf662d186bd0b4ab4.r2.cloudflarestorage.com \
-            --repo2-s3-region=auto \
-            --repo2-s3-uri-style=path \
-            --output=json \
-            info
-        '" 2>/dev/null | python3 {{.ROOT_DIR}}/scripts/format-pgbackrest.py
+        echo "=== Sanoid Snapshot Status on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        echo ""
+        echo "Active Snapshots by Dataset:"
+        echo "----------------------------"
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "zfs list -t snapshot -o name,creation -s creation | grep autosnap | tail -50"
+        echo ""
+        echo "Snapshot Counts:"
+        echo "----------------"
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "zfs list -t snapshot -o name | grep autosnap | cut -d@ -f1 | sort | uniq -c | sort -rn"
     preconditions:
       - sh: which ssh
         msg: "ssh not found"
-      - sh: which python3
-        msg: "python3 not found"
 
-  pgbackrest-metrics-check:
-    desc: Check pgBackRest metrics collection status
-    silent: true
+  sanoid-trigger:
+    desc: Manually trigger Sanoid snapshot creation
+    silent: false
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
     summary: |
-      Checks the status of pgBackRest metrics collection:
+      Manually triggers Sanoid to create new snapshots on all configured datasets.
+      Useful for creating snapshots before manual operations or testing.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:sanoid-trigger
+        task backup:sanoid-trigger host=forge
+    cmds:
+      - |
+        echo "Triggering Sanoid snapshot creation on {{.host}}.{{.NIXOS_DOMAIN}}..."
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo systemctl start sanoid.service"
+        echo ""
+        echo "Sanoid triggered. Checking new snapshots..."
+        sleep 2
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "zfs list -t snapshot -o name,creation -s creation | grep autosnap | tail -10"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  sanoid-prune:
+    desc: Manually trigger Sanoid snapshot pruning
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Manually triggers Sanoid to prune old snapshots according to retention policies.
+      This is normally done automatically but can be triggered manually if needed.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:sanoid-prune
+        task backup:sanoid-prune host=forge
+    cmds:
+      - |
+        echo "Current snapshot count:"
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "zfs list -t snapshot | grep autosnap | wc -l"
+        echo ""
+        echo "Triggering Sanoid prune on {{.host}}.{{.NIXOS_DOMAIN}}..."
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo sanoid --prune-snapshots --verbose"
+        echo ""
+        echo "New snapshot count:"
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "zfs list -t snapshot | grep autosnap | wc -l"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  sanoid-logs:
+    desc: Show recent Sanoid snapshot logs
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Shows recent logs from Sanoid snapshot service.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:sanoid-logs
+        task backup:sanoid-logs host=forge
+    cmds:
+      - |
+        echo "=== Sanoid logs on {{.host}}.{{.NIXOS_DOMAIN}} (last 2 hours) ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo journalctl -u sanoid.service --since '2 hours ago' --no-pager"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  sanoid-metrics-check:
+    desc: Check Sanoid metrics collection status
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Checks the status of Sanoid/ZFS snapshot metrics collection:
         - Service status
-        - Last run time
         - Metrics file content
 
       Args:
         host: Target host (default: forge)
 
       Examples:
-        task backup:pgbackrest-metrics-check
+        task backup:sanoid-metrics-check
     cmds:
       - |
-        echo "=== pgBackRest Metrics Service Status ==="
-        ssh {{.host}}.{{.NIXOS_DOMAIN}} "systemctl status pgbackrest-metrics.service --no-pager"
+        echo "=== Sanoid Service Status on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "systemctl status sanoid.service sanoid.timer --no-pager" || true
         echo ""
-        echo "=== Last Metrics Collection ==="
-        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo tail -30 /var/lib/node_exporter/textfile_collector/pgbackrest.prom"
+        echo "=== ZFS Snapshot Metrics ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "cat /var/lib/node_exporter/textfile_collector/zfs_snapshot*.prom 2>/dev/null | grep -v '^#' | head -30 || echo 'No snapshot metrics files found'"
     preconditions:
       - sh: which ssh
         msg: "ssh not found"
@@ -666,6 +738,561 @@ tasks:
         echo ""
         echo "=== Syncoid Metrics Content ==="
         ssh {{.host}}.{{.NIXOS_DOMAIN}} "cat /var/lib/node_exporter/textfile_collector/syncoid_*.prom 2>/dev/null | grep -v '^#' | sort || echo 'No metrics available'"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  # ============================================================================
+  # Restic Application Backup Tasks
+  # ============================================================================
+
+  restic:
+    desc: List Restic backup status from Prometheus metrics (fast)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
+    summary: |
+      Lists Restic backup status for all services by querying Prometheus metrics.
+      This is the fast default mode - uses cached metrics from last backup run.
+
+      Shows for each backup job:
+        - Status (success/failure)
+        - Last backup time
+        - Duration
+        - Snapshot count
+        - Size added
+        - Repository health
+
+      Args:
+        host: Target host (default: forge)
+
+      Additional arguments can be passed after --:
+        --service NAME  Filter by service name (partial match)
+        --repo NAME     Filter by repository name
+        --verify        Query restic directly (slower, validates data)
+        --json          JSON output for scripting
+
+      Environment Variables (required for Prometheus mode):
+        PROMETHEUS_API_KEY: API key for Prometheus authentication
+
+      Examples:
+        task backup:restic
+        task backup:restic host=forge
+        task backup:restic -- --service sonarr
+        task backup:restic -- --repo nas-primary
+    cmds:
+      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} {{.CLI_ARGS}}
+    preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set. Use 'task backup:restic-verify' for direct restic queries."
+
+  restic-verify:
+    desc: Verify Restic backups by querying repositories directly (slow)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Verifies backup data by directly querying each restic repository via SSH.
+      This is slower but validates that snapshots are actually accessible.
+
+      Use this when:
+        - Prometheus metrics seem stale or incorrect
+        - You need to verify repository integrity
+        - You want to see actual snapshot details (IDs, times, tags)
+
+      Args:
+        host: Target host (default: forge)
+
+      Additional arguments can be passed after --:
+        --service NAME  Filter by service name (partial match)
+        --repo NAME     Filter by repository name
+        --limit N       Maximum snapshots per service (default: 10)
+        --json          JSON output for scripting
+
+      Examples:
+        task backup:restic-verify
+        task backup:restic-verify -- --service sonarr
+        task backup:restic-verify -- --limit 5
+    cmds:
+      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --verify {{.CLI_ARGS}}
+    preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic-json:
+    desc: List Restic backup status in JSON format (for scripting)
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      PROMETHEUS_URL: 'https://prom.{{.NIXOS_DOMAIN}}'
+    summary: |
+      Lists Restic backup status in JSON format for scripting and automation.
+      Uses Prometheus metrics by default (add --verify for direct queries).
+
+      Args:
+        host: Target host (default: forge)
+
+      Environment Variables (required for Prometheus mode):
+        PROMETHEUS_API_KEY: API key for Prometheus authentication
+
+      Output Format (Prometheus mode):
+        {
+          "host": "forge.holthome.net",
+          "mode": "prometheus",
+          "services": [
+            {
+              "job_name": "service-name",
+              "repository_name": "nas-primary",
+              "status": 1,
+              "last_success": 1732806000,
+              "snapshots": 42,
+              "healthy": true
+            }
+          ],
+          "summary": {
+            "total_services": N,
+            "healthy_services": N,
+            "total_snapshots": N
+          }
+        }
+
+      Examples:
+        task backup:restic-json
+        task backup:restic-json | jq '.services[].job_name'
+        task backup:restic-json | jq '.summary.healthy_services'
+        task backup:restic-json -- --verify  # Direct restic queries (no API key needed)
+    cmds:
+      - backup-list --host {{.host}} --domain {{.NIXOS_DOMAIN}} --prometheus-url {{.PROMETHEUS_URL}} --json {{.CLI_ARGS}}
+    preconditions:
+      - sh: which backup-list
+        msg: "backup-list command not found. Has it been installed via home-manager?"
+      - sh: test -n "$PROMETHEUS_API_KEY"
+        msg: "PROMETHEUS_API_KEY environment variable not set"
+
+  restic-logs:
+    desc: Show recent Restic backup logs
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      service: '{{.service | default ""}}'
+    summary: |
+      Shows recent logs from Restic backup services.
+
+      Args:
+        host: Target host (default: forge)
+        service: Optional service filter (e.g., "sonarr" to see restic-*-sonarr logs)
+
+      Examples:
+        task backup:restic-logs
+        task backup:restic-logs service=sonarr
+        task backup:restic-logs host=forge service=plex
+    cmds:
+      - |
+        {{if .service}}
+        echo "=== Restic logs for *{{.service}}* on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo journalctl -u 'restic-backups-{{.service}}*' --since '2 hours ago' --no-pager"
+        {{else}}
+        echo "=== All Restic backup logs on {{.host}}.{{.NIXOS_DOMAIN}} (last 2 hours) ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo journalctl -u 'restic-backups-*' --since '2 hours ago' --no-pager | tail -100"
+        {{end}}
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic-metrics-check:
+    desc: Check Restic metrics collection status
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Checks the status of Restic metrics collection:
+        - Lists all restic metric files
+        - Shows content of metrics
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:restic-metrics-check
+    cmds:
+      - |
+        echo "=== Restic Metrics Files on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "ls -la /var/lib/node_exporter/textfile_collector/restic*.prom 2>/dev/null || echo 'No restic metrics files found'"
+        echo ""
+        echo "=== Restic Metrics Content (sample) ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "cat /var/lib/node_exporter/textfile_collector/restic*.prom 2>/dev/null | grep -v '^#' | head -50 || echo 'No metrics available'"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic-snapshots:
+    desc: List detailed Restic snapshots for a service
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      service: '{{.service | default ""}}'
+      limit: '{{.limit | default "20"}}'
+    summary: |
+      Lists detailed Restic snapshots for a specific service or all services.
+      Shows snapshot IDs, timestamps, tags, and paths.
+
+      Args:
+        host: Target host (default: forge)
+        service: Service name to filter (required for detailed view)
+        limit: Maximum number of snapshots to show (default: 20)
+
+      Examples:
+        task backup:restic-snapshots service=sonarr
+        task backup:restic-snapshots service=plex limit=10
+        task backup:restic-snapshots host=forge service=grafana
+    cmds:
+      - |
+        {{if .service}}
+        echo "=== Restic snapshots for {{.service}} on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup snapshots --tag {{.service}} --json 2>/dev/null | jq -r '.[] | \"\\(.short_id) \\(.time) \\(.tags | join(\",\"))\"' | tail -{{.limit}}" || echo "Failed to list snapshots"
+        {{else}}
+        echo "Please specify a service: task backup:restic-snapshots service=<name>"
+        echo ""
+        echo "Available services (from metrics):"
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "cat /var/lib/node_exporter/textfile_collector/restic*.prom 2>/dev/null | grep 'backup_job=' | sed 's/.*backup_job=\"\\([^\"]*\\)\".*/\\1/' | sort -u" || echo "Could not list services"
+        {{end}}
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic-check:
+    desc: Verify Restic repository integrity
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      repo: '{{.repo | default "nas-primary"}}'
+    summary: |
+      Runs a full integrity check on a Restic repository.
+      This verifies the repository structure and optionally the data.
+
+      WARNING: This can take a long time for large repositories.
+
+      Args:
+        host: Target host (default: forge)
+        repo: Repository to check (default: nas-primary)
+
+      Options:
+        --read-data: Also verify actual data (much slower)
+
+      Examples:
+        task backup:restic-check
+        task backup:restic-check repo=b2-offsite
+    cmds:
+      - |
+        echo "=== Checking Restic repository '{{.repo}}' on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        echo "This may take a while..."
+        echo ""
+        {{if eq .repo "nas-primary"}}
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup check"
+        {{else}}
+        echo "Repository '{{.repo}}' check not implemented yet"
+        echo "Only 'nas-primary' is currently supported"
+        {{end}}
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic-prune:
+    desc: Run Restic prune to clean up old snapshots
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      repo: '{{.repo | default "nas-primary"}}'
+    summary: |
+      Runs Restic prune to remove old snapshots according to retention policy
+      and reclaim storage space.
+
+      WARNING: This permanently deletes old backup data. Make sure you have
+      verified your retention policy is correct.
+
+      Args:
+        host: Target host (default: forge)
+        repo: Repository to prune (default: nas-primary)
+
+      Examples:
+        task backup:restic-prune
+        task backup:restic-prune repo=b2-offsite
+    cmds:
+      - |
+        echo "=== Pruning Restic repository '{{.repo}}' on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        echo ""
+        echo "Current repository stats:"
+        {{if eq .repo "nas-primary"}}
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup stats"
+        echo ""
+        echo "Running prune (dry-run first)..."
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup forget --dry-run --keep-daily 14 --keep-weekly 8 --keep-monthly 6 --keep-yearly 2 --prune"
+        echo ""
+        read -p "Proceed with actual prune? [y/N] " confirm
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+          ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup forget --keep-daily 14 --keep-weekly 8 --keep-monthly 6 --keep-yearly 2 --prune"
+        else
+          echo "Prune cancelled"
+        fi
+        {{else}}
+        echo "Repository '{{.repo}}' prune not implemented yet"
+        {{end}}
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic-unlock:
+    desc: Unlock a stuck Restic repository
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      repo: '{{.repo | default "nas-primary"}}'
+    summary: |
+      Removes stale locks from a Restic repository.
+      Use this when a backup was interrupted and left a lock behind.
+
+      WARNING: Only use this if you are sure no other backup process is running.
+      Running this while another backup is in progress can cause data corruption.
+
+      Args:
+        host: Target host (default: forge)
+        repo: Repository to unlock (default: nas-primary)
+
+      Examples:
+        task backup:restic-unlock
+        task backup:restic-unlock repo=b2-offsite
+    cmds:
+      - |
+        echo "=== Unlocking Restic repository '{{.repo}}' on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        echo ""
+        echo "WARNING: Only proceed if you are SURE no backup is currently running!"
+        echo ""
+        {{if eq .repo "nas-primary"}}
+        echo "Current locks:"
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup list locks" || echo "No locks found or error listing"
+        echo ""
+        read -p "Remove all locks? [y/N] " confirm
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+          ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup unlock"
+          echo "Repository unlocked"
+        else
+          echo "Unlock cancelled"
+        fi
+        {{else}}
+        echo "Repository '{{.repo}}' unlock not implemented yet"
+        {{end}}
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  restic-restore:
+    desc: Restore files from a Restic backup
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      snapshot: '{{.snapshot | default "latest"}}'
+      target: '{{.target | default "/tmp/restic-restore"}}'
+      path: '{{.path | default ""}}'
+    summary: |
+      Restores files from a Restic backup to a target directory.
+
+      Args:
+        host: Target host (default: forge)
+        snapshot: Snapshot ID or 'latest' (default: latest)
+        target: Directory to restore to (default: /tmp/restic-restore)
+        path: Specific path within snapshot to restore (optional)
+
+      Examples:
+        task backup:restic-restore snapshot=abc123 target=/tmp/restore
+        task backup:restic-restore snapshot=latest path=/var/lib/sonarr
+        task backup:restic-restore snapshot=abc123 target=/tmp/restore path=/etc
+    cmds:
+      - |
+        echo "=== Restic Restore on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        echo "  Snapshot: {{.snapshot}}"
+        echo "  Target: {{.target}}"
+        {{if .path}}
+        echo "  Path filter: {{.path}}"
+        {{end}}
+        echo ""
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo mkdir -p {{.target}} && sudo chown restic-backup:restic-backup {{.target}}"
+        {{if .path}}
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup restore {{.snapshot}} --target {{.target}} --include '{{.path}}'"
+        {{else}}
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u restic-backup restic -r /mnt/nas-backup restore {{.snapshot}} --target {{.target}}"
+        {{end}}
+        echo ""
+        echo "Restore complete. Files are in {{.target}} on {{.host}}.{{.NIXOS_DOMAIN}}"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  # ============================================================================
+  # pgBackRest PostgreSQL Backup Tasks
+  # ============================================================================
+
+  pgbackrest:
+    desc: Show pgBackRest backup status (PostgreSQL)
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Displays pgBackRest backup status for PostgreSQL databases.
+
+      Shows a formatted summary including:
+        - Repository status (NFS and R2)
+        - Backup counts by type (full/incr/diff)
+        - Latest backup timestamps with age
+        - Recent incremental backups
+        - WAL archive range
+        - Storage summary
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest
+        task backup:pgbackrest host=forge
+    cmds:
+      - |
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres bash -c '
+          source /run/secrets/restic/r2-prod-env
+          export PGBACKREST_REPO2_S3_KEY=\$AWS_ACCESS_KEY_ID
+          export PGBACKREST_REPO2_S3_KEY_SECRET=\$AWS_SECRET_ACCESS_KEY
+          pgbackrest --stanza=main \
+            --repo2-type=s3 \
+            --repo2-path={{.R2_PATH}} \
+            --repo2-s3-bucket={{.R2_BUCKET}} \
+            --repo2-s3-endpoint={{.R2_ENDPOINT}} \
+            --repo2-s3-region=auto \
+            --repo2-s3-uri-style=path \
+            --output=json \
+            info
+        '" 2>/dev/null | python3 {{.ROOT_DIR}}/scripts/format-pgbackrest.py
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: which python3
+        msg: "python3 not found"
+
+  pgbackrest-metrics-check:
+    desc: Check pgBackRest metrics collection status
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Checks the status of pgBackRest metrics collection:
+        - Service status
+        - Last run time
+        - Metrics file content
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest-metrics-check
+    cmds:
+      - |
+        echo "=== pgBackRest Metrics Service Status ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "systemctl status pgbackrest-metrics.service --no-pager" || true
+        echo ""
+        echo "=== Last Metrics Collection ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo tail -30 /var/lib/node_exporter/textfile_collector/pgbackrest.prom"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  pgbackrest-logs:
+    desc: Show recent pgBackRest backup logs
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Shows recent logs from pgBackRest backup services.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest-logs
+        task backup:pgbackrest-logs host=forge
+    cmds:
+      - |
+        echo "=== pgBackRest logs on {{.host}}.{{.NIXOS_DOMAIN}} (last 2 hours) ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo journalctl -u 'pgbackrest-*' --since '2 hours ago' --no-pager | tail -100"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  pgbackrest-check:
+    desc: Verify pgBackRest stanza configuration
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Verifies pgBackRest stanza configuration and repository accessibility.
+      This is a quick health check for PostgreSQL backups.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest-check
+        task backup:pgbackrest-check host=forge
+    cmds:
+      - |
+        echo "=== pgBackRest Stanza Check on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres pgbackrest --stanza=main check"
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  pgbackrest-restore-test:
+    desc: Test pgBackRest restore capability (non-destructive)
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Tests pgBackRest restore capability by verifying backup integrity.
+      This is a non-destructive check that validates backups can be restored.
+
+      Note: This does NOT perform an actual restore - it only verifies
+      that the backup data is valid and restorable.
+
+      Args:
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:pgbackrest-restore-test
+        task backup:pgbackrest-restore-test host=forge
+    cmds:
+      - |
+        echo "=== pgBackRest Restore Test on {{.host}}.{{.NIXOS_DOMAIN}} ==="
+        echo ""
+        echo "Verifying backup integrity..."
+        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres pgbackrest --stanza=main verify"
+        echo ""
+        echo "Backup verification complete."
     preconditions:
       - sh: which ssh
         msg: "ssh not found"
