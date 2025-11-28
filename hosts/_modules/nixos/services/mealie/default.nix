@@ -663,7 +663,7 @@ in
         extraOptions = [ "--pull=newer" ]
           ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ]
           ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-            "--health-cmd=wget --no-verbose --tries=1 --spider http://127.0.0.1:9000/api/app/about || exit 1"
+            ''--health-cmd=python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/api/app/about', timeout=5)" || exit 1''
             "--health-interval=${cfg.healthcheck.interval}"
             "--health-timeout=${cfg.healthcheck.timeout}"
             "--health-retries=${toString cfg.healthcheck.retries}"

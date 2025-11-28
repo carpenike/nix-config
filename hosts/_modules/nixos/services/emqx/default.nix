@@ -556,7 +556,7 @@ in
           extraOptions = [ "--pull=newer" ]
             ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ]
             ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-              "--health-cmd=/opt/emqx/bin/emqx ctl status || exit 1"
+              "--health-cmd=bash -c 'echo > /dev/tcp/127.0.0.1/1883' || exit 1"
               "--health-interval=${cfg.healthcheck.interval}"
               "--health-timeout=${cfg.healthcheck.timeout}"
               "--health-retries=${toString cfg.healthcheck.retries}"

@@ -557,7 +557,7 @@ in
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           "--network=${cfg.podmanNetwork}"
         ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          "--health-cmd=curl --fail --silent --max-time 5 http://127.0.0.1:4000/ || exit 1"
+          "--health-cmd=nc -z 127.0.0.1 4000 || exit 1"
           "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
