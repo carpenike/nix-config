@@ -124,18 +124,13 @@ in
     };
   };
 
-  modules.alerting.rules."acme-challenges-failing" = {
-    type = "promql";
-    alertname = "AcmeChallengesFailing";
-    expr = "increase(caddy_acme_challenges_failed_total[4h]) > 0";
-    for = "5m";
-    severity = "high";
-    labels = { service = "caddy"; category = "acme"; };
-    annotations = {
-      summary = "ACME challenges are failing";
-      description = "ACME challenge failures detected in the last 4 hours. Check Caddy logs: journalctl -u caddy -n 100 | grep -i acme";
-    };
-  };
+  # NOTE: Removed "acme-challenges-failing" alert (2025-11-28)
+  # This alert triggered false positives because:
+  # 1. We use DNS-01 ACME challenges via Cloudflare (not HTTP-01)
+  # 2. External bots probe /.well-known/acme-challenge/ endpoints
+  # 3. Caddy logs "no information found" for HTTP-01 lookups it can't serve
+  # 4. These are NOT actual certificate failures - just bots hitting the wrong endpoint
+  # Actual certificate health is monitored via tls_certificate_* metrics below.
 
   modules.alerting.rules."caddy-certificate-storage-missing" = {
     type = "promql";
