@@ -337,12 +337,17 @@ in
         );
 
       # ZFS dataset auto-registration
-      # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
+      # Permissions must be set explicitly for ZFS mounts (StateDirectory doesn't apply to pre-mounted directories)
       modules.storage.datasets.services.plex = lib.mkIf (cfg.zfs.dataset != null) {
         recordsize = cfg.zfs.recordsize;
         compression = cfg.zfs.compression;
         mountpoint = cfg.dataDir;
         properties = cfg.zfs.properties;
+        # Explicit permissions for ZFS-mounted datasets
+        # StateDirectory only works for directories created by systemd, not pre-existing mounts
+        owner = cfg.user;
+        group = cfg.group;
+        mode = "0750"; # rwxr-x--- allows backup user (group member) to read
       };
 
       # Backup auto-registration
@@ -363,13 +368,12 @@ in
       networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ]
         ++ lib.optional (cfg.metrics != null && cfg.metrics.enable) cfg.metrics.port;
 
-      # Optional systemd resource limits and permissions
+      # Optional systemd resource limits and file creation permissions
       systemd.services.plex.serviceConfig = lib.mkMerge [
-        # Permissions: Managed by systemd StateDirectory (native approach)
-        # StateDirectory tells systemd to create /var/lib/plex with correct ownership
-        # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
-        # UMask 0027 ensures files created by service are 640 (rw-r-----)
+        # File creation permissions: UMask 0027 ensures files created by service are 640 (rw-r-----)
         # This allows restic-backup user (member of plex group) to read data
+        # Note: Directory ownership is managed by tmpfiles for ZFS-mounted datasets,
+        # since StateDirectory only works for directories created by systemd.
         {
           StateDirectory = "plex";
           StateDirectoryMode = "0750";
