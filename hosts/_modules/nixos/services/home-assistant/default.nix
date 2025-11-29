@@ -336,7 +336,7 @@ in
         properties = { "com.sun:auto-snapshot" = "true"; };
         owner = "hass";
         group = "hass";
-        mode = "0750";
+        mode = "0770";
       };
 
       # Systemd unit coordination

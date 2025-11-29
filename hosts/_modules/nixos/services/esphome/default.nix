@@ -270,7 +270,7 @@ in
         };
         owner = "esphome";
         group = "esphome";
-        mode = "0750";
+        mode = "0770";
       };
 
       users.groups.esphome = { };
@@ -285,7 +285,7 @@ in
       # expected ownership. Other containerized services achieve this via their
       # tmpfiles entries, so mirror that behavior here with a recursive rule.
       systemd.tmpfiles.rules = [
-        "Z ${cfg.dataDir} 0750 esphome esphome - -"
+        "Z ${cfg.dataDir} 0770 esphome esphome - -"
       ];
 
       modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {

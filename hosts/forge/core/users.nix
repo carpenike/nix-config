@@ -23,6 +23,8 @@ in
       ]
       ++ ifGroupsExist [
         "network"
+        "esphome" # Edit ESPHome YAML configs via VS Code Remote SSH
+        "hass" # Edit Home Assistant configs via VS Code Remote SSH
       ];
   };
 
@@ -54,6 +56,6 @@ in
 
   system.activationScripts.postActivation.text = ''
     # Must match what is in /etc/shells
-    chsh -s /run/current-system/sw/bin/fish ryan
+    chsh -s /run/current-system/sw/bin/bash ryan
   '';
 }
