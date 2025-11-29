@@ -4,11 +4,13 @@
 # - Standardized integration submodules (reverseProxy, backup, notifications)
 # - Contributory pattern for services to register themselves
 # - Host-level integration patterns (storage, monitoring, etc.)
+# - ZFS dataset integration for persistent storage with impermanence
 #
 # Architecture Decision:
 # - Uses native NixOS module (services.homepage-dashboard) - NOT a container
 # - Follows "native over containers" principle per modular-design-patterns.md
 # - Homepage does NOT have native auth - relies on reverse proxy (Caddy + PocketID)
+# - Disables DynamicUser to ensure proper ZFS dataset ownership and persistence
 #
 # Contributory Pattern:
 # Other services can add themselves to the dashboard by setting:
@@ -147,6 +149,10 @@ let
 
   # Enabled contributions only
   enabledContributions = lib.filterAttrs (_: _c: true) cfg.contributions;
+
+  # Service name and data directory
+  serviceName = "homepage";
+  dataDir = "/var/lib/homepage-dashboard";
 in
 {
   options.modules.services.homepage = {
@@ -156,6 +162,33 @@ in
       type = types.port;
       default = 3003;
       description = "Port for Homepage dashboard to listen on";
+    };
+
+    # =========================================================================
+    # ZFS Dataset Configuration
+    # =========================================================================
+
+    zfs = {
+      dataset = mkOption {
+        type = types.nullOr types.str;
+        default = "tank/services/homepage";
+        description = ''
+          ZFS dataset name for Homepage data directory.
+          Set to null to disable ZFS dataset management.
+          When enabled, the dataset is mounted at /var/lib/homepage-dashboard.
+        '';
+        example = "tank/services/homepage";
+      };
+
+      properties = mkOption {
+        type = types.attrsOf types.str;
+        default = {
+          compression = "zstd";
+          atime = "off";
+          "com.sun:auto-snapshot" = "true";
+        };
+        description = "ZFS dataset properties";
+      };
     };
 
     # =========================================================================
@@ -266,6 +299,7 @@ in
       description = ''
         Backup configuration for Homepage data.
         Homepage stores minimal state (bookmarks, custom CSS/JS) in /var/lib/homepage-dashboard.
+        Data persists on a dedicated ZFS dataset (tank/services/homepage) for impermanence compatibility.
         With declarative NixOS config, backups are optional but recommended for custom changes.
       '';
     };
@@ -353,6 +387,25 @@ in
     # Systemd Service Hardening & Dependencies
     # -------------------------------------------------------------------------
 
+    # Create dedicated user and group for Homepage (instead of DynamicUser)
+    # This ensures proper ZFS dataset ownership and persistence with impermanence
+    users.users.${serviceName} = {
+      isSystemUser = true;
+      group = serviceName;
+      home = "/var/empty"; # Prevent home dir interference with dataDir permissions
+      description = "Homepage dashboard service user";
+    };
+
+    users.groups.${serviceName} = { };
+
+    # ZFS dataset configuration for persistent storage
+    modules.storage.datasets.services.${serviceName} = mkIf (cfg.zfs.dataset != null) {
+      mountpoint = dataDir;
+      recordsize = "128K"; # Default for general purpose use
+      compression = "zstd";
+      properties = cfg.zfs.properties;
+    };
+
     systemd.services.homepage-dashboard = {
       # Add notification on failure if centralized notifications enabled
       unitConfig = mkIf (
@@ -363,10 +416,40 @@ in
         OnFailure = [ "notify@homepage-failure:%n.service" ];
       };
 
-      # Homepage is lightweight; minimal hardening needed
+      # Service dependencies for ZFS dataset mounting
+      after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
+      wants = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
+
       serviceConfig = {
+        # Disable DynamicUser to use our static user with proper ZFS ownership
+        DynamicUser = lib.mkForce false;
+        User = serviceName;
+        Group = serviceName;
+
+        # Permissions: Managed by systemd StateDirectory (native approach)
+        # StateDirectory tells systemd to create /var/lib/homepage-dashboard with correct ownership
+        # StateDirectoryMode sets directory permissions to 750 (rwxr-x---)
+        # UMask 0027 ensures files created by service are 640 (rw-r-----)
+        StateDirectory = lib.mkForce "homepage-dashboard";
+        StateDirectoryMode = lib.mkForce "0750";
+        UMask = lib.mkForce "0027";
+
         # Ensure clean shutdown
         TimeoutStopSec = 30;
+
+        # Security hardening (relaxed from upstream defaults to allow ZFS access)
+        ProtectSystem = lib.mkForce "full";
+        ProtectHome = lib.mkForce "read-only";
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectControlGroups = true;
+        NoNewPrivileges = true;
+        RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+
+        # Ensure Homepage retains write access to its dataDir
+        ReadWritePaths = [ dataDir ];
       };
     };
 
