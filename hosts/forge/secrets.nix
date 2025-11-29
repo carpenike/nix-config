@@ -37,6 +37,7 @@ let
   quiEnabled = config.modules.services.qui.enable or false;
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
+  tautulliEnabled = config.modules.services.tautulli.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -335,6 +336,15 @@ in
             group = "root";
           };
         }
+        // optionalAttrs tautulliEnabled {
+          # Tautulli API key for Homepage widget
+          # Get from: Tautulli Settings > Web Interface > API
+          "tautulli/api-key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs teslamateEnabled {
           "teslamate/database_password" = {
             mode = "0440";
@@ -608,6 +618,7 @@ in
               (lib.optionalString prowlarrEnabled "HOMEPAGE_VAR_PROWLARR_API_KEY=${config.sops.placeholder."prowlarr/api-key"}")
               (lib.optionalString sabnzbdEnabled "HOMEPAGE_VAR_SABNZBD_API_KEY=${config.sops.placeholder."sabnzbd/api-key"}")
               (lib.optionalString plexEnabled "HOMEPAGE_VAR_PLEX_TOKEN=${config.sops.placeholder."plex/token"}")
+              (lib.optionalString tautulliEnabled "HOMEPAGE_VAR_TAUTULLI_API_KEY=${config.sops.placeholder."tautulli/api-key"}")
             ]);
             mode = "0400"; # root-only readable
             owner = "root";

@@ -42,6 +42,23 @@ in
         # Enable self-healing restore from backups using forgeDefaults
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
+
+      # Homepage dashboard contribution with Tautulli widget
+      modules.services.homepage.contributions.tautulli = {
+        group = "Media";
+        name = "Tautulli";
+        icon = "tautulli";
+        href = "https://tautulli.holthome.net";
+        description = "Plex media server monitoring and statistics";
+        siteMonitor = "http://localhost:8181";
+        widget = {
+          type = "tautulli";
+          url = "http://localhost:8181";
+          key = "{{HOMEPAGE_VAR_TAUTULLI_API_KEY}}";
+          enableUser = true;
+          showEpisodeNumber = true;
+        };
+      };
     }
 
     # Infrastructure contributions (guarded by service enable)
