@@ -44,6 +44,7 @@
     ./openssh
     ./omada
     ./overseerr # Overseerr request management (DEPRECATED - use seerr)
+    ./paperless # Paperless-ngx document management system
     ./seerr # Seerr request management (successor to Overseerr/Jellyseerr)
     ./podman
     ./pgweb # Pgweb PostgreSQL database browser

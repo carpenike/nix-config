@@ -30,6 +30,7 @@ let
   zigbeeEnabled = config.modules.services.zigbee2mqtt.enable or false;
   zwaveEnabled = config.modules.services."zwave-js-ui".enable or false;
   mealieEnabled = config.modules.services.mealie.enable or false;
+  paperlessEnabled = config.modules.services.paperless.enable or false;
   emqxEnabled = config.modules.services.emqx.enable or false;
   crossSeedEnabled = config.modules.services."cross-seed".enable or false;
   sabnzbdEnabled = config.modules.services.sabnzbd.enable or false;
@@ -506,6 +507,26 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+          };
+        }
+        // optionalAttrs paperlessEnabled {
+          # Paperless-ngx service secrets
+          "paperless/database_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          "paperless/admin_password" = {
+            mode = "0400";
+            owner = "paperless";
+            group = "paperless";
+          };
+
+          "paperless/oidc_client_secret" = {
+            mode = "0400";
+            owner = "paperless";
+            group = "paperless";
           };
         }
         // optionalAttrs emqxEnabled {

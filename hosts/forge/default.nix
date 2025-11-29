@@ -77,6 +77,7 @@ in
     ./services/cooklang.nix # Cooklang recipe management
     ./services/cooklang-federation.nix # Cooklang federation search service
     ./services/mealie.nix # Mealie recipe manager
+    ./services/paperless.nix # Paperless-ngx document management system
     ./services/emqx.nix # Shared EMQX MQTT broker
     ./services/teslamate.nix # TeslaMate telemetry + dashboards
     ./services/frigate.nix # Frigate NVR service
