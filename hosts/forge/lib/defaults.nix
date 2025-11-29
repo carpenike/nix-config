@@ -32,7 +32,7 @@ in
   # =============================================================================
 
   # Default Podman network for media services
-  # Used by: sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, overseerr, etc.
+  # Used by: sonarr, radarr, prowlarr, bazarr, sabnzbd, qbittorrent, seerr, etc.
   podmanNetwork = "media-services";
 
   # =============================================================================

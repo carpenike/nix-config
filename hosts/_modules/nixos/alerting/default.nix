@@ -18,8 +18,24 @@ let
       user_key_file = config.sops.secrets.${cfg.receivers.pushover.userSecret}.path;
       priority = priority;
       send_resolved = true;
-      title = ''${emoji} ${lib.toUpper name}: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }})'';
+      # Title: Show ✅ RESOLVED or appropriate emoji + severity for firing alerts
+      # Include count of firing alerts, or "RESOLVED" status indicator
+      title = ''{{ if eq .Status "resolved" }}✅ RESOLVED: {{ or .GroupLabels.alertname .CommonLabels.alertname "Alert" }}{{ else }}${emoji} ${lib.toUpper name}: {{ or .GroupLabels.alertname .CommonLabels.alertname "Multiple Alerts" }} ({{ .Alerts.Firing | len }}){{ end }}'';
       message = ''
+        {{- if eq .Status "resolved" -}}
+        {{- /* Resolved alerts section */ -}}
+        {{- range $$i, $$alert := .Alerts.Resolved -}}
+        {{- if lt $$i 5 }}
+        ✓ {{ or $$alert.Annotations.summary $$alert.Annotations.message "Alert resolved" }}
+        {{- end -}}
+        {{- end -}}
+        {{- if gt (len .Alerts.Resolved) 5 }}
+        ... and {{ sub (len .Alerts.Resolved) 5 }} more resolved.
+        {{- end }}
+
+        Duration: {{ with (index .Alerts.Resolved 0) }}{{ .StartsAt.Format "15:04" }} → {{ .EndsAt.Format "15:04 MST" }}{{ end }}
+        {{- else -}}
+        {{- /* Firing alerts section */ -}}
         {{- range $$i, $$alert := .Alerts.Firing -}}
         {{- if lt $$i 10 }}
          • {{ or $$alert.Annotations.summary $$alert.Annotations.message "No summary" }}
@@ -30,6 +46,7 @@ let
         {{- end -}}
         {{- if gt (len .Alerts.Firing) 10 }}
         ... and more alerts ({{ len .Alerts.Firing }} total).
+        {{- end }}
         {{- end }}
 
         {{- with .CommonLabels }}
@@ -52,7 +69,7 @@ let
         {{- end }}'';
       html = true;
       url = ''{{ if gt (len .Alerts) 0 }}{{ (index .Alerts 0).GeneratorURL }}{{ else }}{{ .ExternalURL }}{{ end }}'';
-      url_title = ''View in Prometheus'';
+      url_title = ''{{ if eq .Status "resolved" }}View History{{ else }}View in Prometheus{{ end }}'';
     }];
   };
 

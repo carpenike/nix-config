@@ -42,7 +42,8 @@
     ./onepassword-connect
     ./openssh
     ./omada
-    ./overseerr # Overseerr request management
+    ./overseerr # Overseerr request management (DEPRECATED - use seerr)
+    ./seerr # Seerr request management (successor to Overseerr/Jellyseerr)
     ./podman
     ./pgweb # Pgweb PostgreSQL database browser
     ./plex

@@ -69,7 +69,7 @@ in
     ./services/tqm.nix # tqm torrent lifecycle management
     ./services/qbit-manage.nix # qbit-manage (DISABLED - migrated to tqm)
     ./services/sabnzbd.nix # SABnzbd usenet downloader
-    ./services/overseerr.nix # Overseerr media request management
+    ./services/seerr.nix # Seerr media request management (formerly Overseerr)
     ./services/autobrr.nix # Autobrr IRC announce bot
     ./services/profilarr.nix # Profilarr profile sync for *arr services
     ./services/tdarr.nix # Tdarr transcoding automation
@@ -158,7 +158,7 @@ in
         # tqm configuration moved to ./services/tqm.nix
         # qbit-manage configuration moved to ./services/qbit-manage.nix
         # SABnzbd configuration moved to ./services/sabnzbd.nix
-        # Overseerr configuration moved to ./services/overseerr.nix
+        # Seerr configuration moved to ./services/seerr.nix
         # Autobrr configuration moved to ./services/autobrr.nix
         # Profilarr configuration moved to ./services/profilarr.nix
         # Tdarr configuration moved to ./services/tdarr.nix

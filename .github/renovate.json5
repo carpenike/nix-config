@@ -34,6 +34,20 @@
       ],
     },
     {
+      matchDatasources: [
+        'github-releases',
+      ],
+      pinDigests: false,
+      semanticCommits: 'enabled',
+      commitMessagePrefix: 'feat(deps):',
+      commitMessageTopic: '{{depName}}',
+      commitMessageExtra: 'to {{newVersion}}',
+      labels: [
+        'dependencies',
+        'nix',
+      ],
+    },
+    {
       matchManagers: [
         'github-actions',
       ],
@@ -64,7 +78,7 @@
         '/\\.nix$/',
       ],
       matchStrings: [
-        'url\\s*=\\s*"https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/v(?<currentValue>[^/]+)/[^"]+";\\s*\\n\\s*hash\\s*=\\s*"(?<currentDigest>sha256-[A-Za-z0-9+/=]+)";?',
+        'url\\s*=\\s*"https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/v(?<currentValue>[^/]+)/[^"]+";',
       ],
       datasourceTemplate: 'github-releases',
       versioningTemplate: 'semver',
