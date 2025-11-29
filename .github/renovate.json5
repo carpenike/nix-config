@@ -19,6 +19,18 @@
   ],
   packageRules: [
     {
+      // Skip pinning for 'latest' tags - these are intentionally floating
+      matchDatasources: ['docker'],
+      matchCurrentVersion: '/^latest$/',
+      pinDigests: false,
+    },
+    {
+      // Skip kubernetes busybox - not a real container dependency
+      matchDatasources: ['docker'],
+      matchPackageNames: ['busybox'],
+      enabled: false,
+    },
+    {
       matchDatasources: [
         'docker',
       ],
@@ -67,7 +79,8 @@
         '/\\.nix$/',
       ],
       matchStrings: [
-        'image\\s*=\\s*"(?<depName>.+?):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?";?',
+        // Match container images with registry/org/repo:tag format
+        'image\\s*=\\s*"(?<depName>(?:[a-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._-]+/[a-z0-9._-]+):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?";?',
       ],
       datasourceTemplate: 'docker',
     },
