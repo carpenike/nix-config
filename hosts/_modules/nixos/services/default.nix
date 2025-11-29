@@ -29,6 +29,7 @@
     ./grafana # Grafana monitoring dashboard
     ./haproxy
     ./home-assistant
+    ./homepage # Homepage dashboard (native wrapper)
     ./zigbee2mqtt
     ./zwave-js-ui
     ./lidarr # Lidarr music collection manager

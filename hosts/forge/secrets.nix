@@ -35,6 +35,8 @@ let
   sabnzbdEnabled = config.modules.services.sabnzbd.enable or false;
   autobrrEnabled = config.modules.services.autobrr.enable or false;
   quiEnabled = config.modules.services.qui.enable or false;
+  homepageEnabled = config.modules.services.homepage.enable or false;
+  plexEnabled = config.modules.services.plex.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -324,6 +326,15 @@ in
             group = "root";
           };
         }
+        // optionalAttrs plexEnabled {
+          # Plex token for API access (used by Homepage widget)
+          # Get token from: https://www.plexopedia.com/plex-media-server/general/plex-token/
+          "plex/token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs teslamateEnabled {
           "teslamate/database_password" = {
             mode = "0440";
@@ -581,6 +592,23 @@ in
               AUTOBRR__SESSION_SECRET=${config.sops.placeholder."autobrr/session-secret"}
               AUTOBRR__OIDC_CLIENT_SECRET=${config.sops.placeholder."autobrr/oidc-client-secret"}
             '';
+            mode = "0400"; # root-only readable
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs homepageEnabled {
+          # Homepage dashboard widget API keys
+          # Re-uses existing arr service secrets for widget integration
+          # Homepage reads HOMEPAGE_VAR_* directly as values (not file paths)
+          "homepage-env" = {
+            content = lib.concatStringsSep "\n" (lib.filter (x: x != "") [
+              (lib.optionalString sonarrEnabled "HOMEPAGE_VAR_SONARR_API_KEY=${config.sops.placeholder."sonarr/api-key"}")
+              (lib.optionalString radarrEnabled "HOMEPAGE_VAR_RADARR_API_KEY=${config.sops.placeholder."radarr/api-key"}")
+              (lib.optionalString prowlarrEnabled "HOMEPAGE_VAR_PROWLARR_API_KEY=${config.sops.placeholder."prowlarr/api-key"}")
+              (lib.optionalString sabnzbdEnabled "HOMEPAGE_VAR_SABNZBD_API_KEY=${config.sops.placeholder."sabnzbd/api-key"}")
+              (lib.optionalString plexEnabled "HOMEPAGE_VAR_PLEX_TOKEN=${config.sops.placeholder."plex/token"}")
+            ]);
             mode = "0400"; # root-only readable
             owner = "root";
             group = "root";

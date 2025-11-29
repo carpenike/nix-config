@@ -79,6 +79,7 @@ in
     ./services/frigate.nix # Frigate NVR service
     ./services/scrypted.nix # Scrypted NVR/automation hub
     ./services/home-assistant.nix # Home Assistant automation platform
+    ./services/homepage.nix # Homepage dashboard (LAN only)
     ./services/zigbee2mqtt.nix # Zigbee2MQTT coordinator service
     ./services/zwave-js-ui.nix # Z-Wave JS UI coordinator service
     ./services/esphome.nix # ESPHome dashboard and firmware builder

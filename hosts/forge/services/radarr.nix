@@ -50,6 +50,24 @@ in
       # Service availability alert
       modules.alerting.rules."radarr-service-down" =
         forgeDefaults.mkServiceDownAlert "radarr" "Radarr" "movie management";
+
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.radarr = {
+        group = "Media";
+        name = "Radarr";
+        icon = "radarr";
+        href = "https://radarr.holthome.net";
+        description = "Movie collection manager";
+        siteMonitor = "http://localhost:7878";
+        # Widget displays queue and movie stats
+        # API key injected via HOMEPAGE_VAR_RADARR_API_KEY environment variable
+        widget = {
+          type = "radarr";
+          url = "http://localhost:7878";
+          key = "{{HOMEPAGE_VAR_RADARR_API_KEY}}";
+          enableQueue = true;
+        };
+      };
     })
   ];
 }

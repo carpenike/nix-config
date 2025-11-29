@@ -61,6 +61,16 @@ in
       modules.alerting.rules."uptime-kuma-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "uptime-kuma" "UptimeKuma" "status monitoring";
 
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.uptime-kuma = {
+        group = "Monitoring";
+        name = "Uptime Kuma";
+        icon = "uptime-kuma";
+        href = "https://status.holthome.net";
+        description = "Service status monitoring";
+        siteMonitor = "http://localhost:3001";
+      };
+
       # Custom unhealthy alert (unique pattern - healthcheck.service state monitoring)
       # This catches zombie/frozen processes where service is "active" but unresponsive
       modules.alerting.rules."uptime-kuma-unhealthy" = mylib.monitoring-helpers.mkThresholdAlert {

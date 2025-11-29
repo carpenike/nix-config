@@ -56,6 +56,25 @@ in
       # Contributes to host-level alerting configuration following the contribution pattern
       modules.alerting.rules."sonarr-service-down" =
         forgeDefaults.mkServiceDownAlert "sonarr" "Sonarr" "TV series management";
+
+      # Homepage dashboard contribution
+      # Service registers itself with the dashboard using the contributory pattern
+      modules.services.homepage.contributions.sonarr = {
+        group = "Media";
+        name = "Sonarr";
+        icon = "sonarr";
+        href = "https://sonarr.holthome.net";
+        description = "TV series management";
+        siteMonitor = "http://localhost:8989";
+        # Widget displays queue and series stats
+        # API key injected via HOMEPAGE_VAR_SONARR_API_KEY environment variable
+        widget = {
+          type = "sonarr";
+          url = "http://localhost:8989";
+          key = "{{HOMEPAGE_VAR_SONARR_API_KEY}}";
+          enableQueue = true;
+        };
+      };
     })
   ];
 }

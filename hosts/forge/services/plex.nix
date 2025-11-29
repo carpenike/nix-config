@@ -86,6 +86,21 @@ in
         tunnel = "forge";
       };
 
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.plex = {
+        group = "Media";
+        name = "Plex";
+        icon = "plex";
+        href = "https://plex.holthome.net";
+        description = "Media streaming server";
+        siteMonitor = "http://localhost:32400/web";
+        widget = {
+          type = "plex";
+          url = "http://localhost:32400";
+          key = "{{HOMEPAGE_VAR_PLEX_TOKEN}}";
+        };
+      };
+
       # Prometheus alerts for Plex
       # Using monitoring-helpers library for consistency
       modules.alerting.rules = {

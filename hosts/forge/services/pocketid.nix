@@ -190,6 +190,16 @@ in
             };
           };
 
+          home = {
+            authUrl = "/caddy-security/oauth2/forge-pocketid";
+            allowRoles = [ "home" ];
+            apiKeyAuth = {
+              enable = true;
+              portal = "pocketid";
+              realm = "local";
+            };
+          };
+
           lan-only = {
             authUrl = "/caddy-security/oauth2/forge-pocketid";
             allowRoles = [ "automation" ];
