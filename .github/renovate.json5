@@ -7,7 +7,7 @@
     ':automergePr',
   ],
   nix: {
-    enabled: true,
+    enabled: false,  // Flake inputs handled by update-flake-lock.yml workflow
   },
   lockFileMaintenance: {
     enabled: false,  // Handled by update-flake-lock.yml workflow
