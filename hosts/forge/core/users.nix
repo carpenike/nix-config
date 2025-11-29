@@ -10,7 +10,9 @@ in
     name = "ryan";
     home = "/home/ryan";
     group = "ryan";
-    shell = pkgs.fish;
+    # Use bash as login shell for VS Code Remote SSH compatibility.
+    # Fish is launched for interactive sessions via Home Manager's bash config.
+    shell = pkgs.bash;
     openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../../home/ryan/config/ssh/ssh.pub);
     isNormalUser = true;
     extraGroups =
