@@ -75,8 +75,13 @@ in
           };
           autoSignup = true;
           allowSignups = true;
-          autoRedirect = true;
-          disableLocalLogin = false; # Keep local login for initial admin setup
+          autoRedirect = true; # Auto-redirect to PocketID (OIDC account now linked)
+          disableLocalLogin = false; # Keep local login as fallback
+
+          # Pre-create admin user matching OIDC identity
+          # When you log in via PocketID with this email, you'll have admin privileges
+          adminUser = "ryan@ryanholt.net"; # Must match your PocketID email
+          adminPasswordFile = config.sops.secrets."paperless/admin_password".path;
         };
 
         # Reverse proxy via Caddy

@@ -402,6 +402,50 @@ in
         default = false;
         description = "Disable username/password login (OIDC only).";
       };
+
+      adminUser = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Username for the OIDC admin user.
+          This should match the username claim from your OIDC provider.
+          If using email as username (claims.username = "email"), set this to your email.
+          Paperless will pre-create this user as a superuser at startup.
+        '';
+        example = "admin@holthome.net";
+      };
+
+      adminEmail = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Email address for the OIDC admin user.
+          Used together with adminUser to pre-create the superuser.
+          If not set, defaults to the adminUser value (useful when username is email).
+        '';
+        example = "admin@holthome.net";
+      };
+
+      adminPasswordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to file containing password for the OIDC admin user.
+          Required when adminUser is set to pre-create the superuser.
+          The user will be able to log in with this password OR via OIDC.
+        '';
+        example = "/run/secrets/paperless/admin_password";
+      };
+
+      autoConnectExisting = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Automatically connect OIDC accounts to existing local accounts
+          that have the same email address. This is essential for making
+          OIDC users inherit permissions from pre-created admin accounts.
+        '';
+      };
     };
 
     # ==========================================================================
@@ -626,7 +670,22 @@ in
             (if cfg.oidc.autoRedirect then "true" else "false");
           PAPERLESS_DISABLE_REGULAR_LOGIN = lib.mkIf cfg.oidc.enable
             (if cfg.oidc.disableLocalLogin then "true" else "false");
+
+          # Auto-connect OIDC accounts to existing local accounts with matching email
+          # This is critical for OIDC users to inherit pre-created admin privileges
+          PAPERLESS_ACCOUNT_EMAIL_VERIFICATION = lib.mkIf cfg.oidc.enable "none";
+          PAPERLESS_SOCIALACCOUNT_EMAIL_AUTHENTICATION = lib.mkIf (cfg.oidc.enable && cfg.oidc.autoConnectExisting)
+            "true";
+          PAPERLESS_SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = lib.mkIf (cfg.oidc.enable && cfg.oidc.autoConnectExisting)
+            "true";
           # PAPERLESS_SOCIALACCOUNT_PROVIDERS via environmentFile (contains secret)
+
+          # OIDC Admin User - pre-creates superuser matching OIDC identity
+          # When the user logs in via OIDC with this username, they get admin privileges
+          PAPERLESS_ADMIN_USER = lib.mkIf (cfg.oidc.enable && cfg.oidc.adminUser != null)
+            cfg.oidc.adminUser;
+          PAPERLESS_ADMIN_MAIL = lib.mkIf (cfg.oidc.enable && cfg.oidc.adminUser != null)
+            (if cfg.oidc.adminEmail != null then cfg.oidc.adminEmail else cfg.oidc.adminUser);
         };
       };
 
@@ -660,7 +719,9 @@ in
             (lib.optional (cfg.database.passwordFile != null)
               "db_password:${cfg.database.passwordFile}")
             ++ (lib.optional (cfg.oidc.enable && cfg.oidc.clientSecretFile != null)
-              "oidc_client_secret:${cfg.oidc.clientSecretFile}");
+              "oidc_client_secret:${cfg.oidc.clientSecretFile}")
+            ++ (lib.optional (cfg.oidc.enable && cfg.oidc.adminUser != null && cfg.oidc.adminPasswordFile != null)
+              "admin_password:${cfg.oidc.adminPasswordFile}");
         };
 
         script = ''
@@ -678,6 +739,9 @@ in
               oidc_json='${oidcProviderJson}'
               oidc_json="''${oidc_json/__OIDC_CLIENT_SECRET__/$oidc_secret}"
               printf "PAPERLESS_SOCIALACCOUNT_PROVIDERS=%s\n" "$oidc_json"
+            ''}
+            ${lib.optionalString (cfg.oidc.enable && cfg.oidc.adminUser != null && cfg.oidc.adminPasswordFile != null) ''
+              printf "PAPERLESS_ADMIN_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/admin_password")"
             ''}
           } > "$tmp"
 
