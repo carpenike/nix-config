@@ -169,6 +169,35 @@ in
       description = "Notification routing for Home Assistant failures.";
     };
 
+    mqtt = {
+      server = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "mqtt://localhost:1883";
+        description = "MQTT broker URL for Home Assistant integration.";
+      };
+      username = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "MQTT username for broker authentication.";
+      };
+      passwordFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "SOPS-managed secret containing the MQTT password.";
+      };
+      registerEmqxIntegration = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Automatically register credentials and ACLs with the EMQX integration module.";
+      };
+      allowedTopics = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "Explicit MQTT topics to allow when registering with EMQX. Defaults to homeassistant/# and hass/#.";
+      };
+    };
+
     preseed = {
       enable = mkEnableOption "automatic dataset restore before Home Assistant starts";
       repositoryUrl = mkOption {
@@ -202,6 +231,10 @@ in
         {
           assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl or "") != "";
           message = "Home Assistant preseed requires a Restic repository URL.";
+        }
+        {
+          assertion = !(cfg.mqtt.passwordFile != null && cfg.mqtt.username == null);
+          message = "Home Assistant MQTT username must be provided when passwordFile is set.";
         }
       ];
 
@@ -251,6 +284,47 @@ in
             bypassResources =
               (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ])) ++
               (authCfg.bypassResources or [ ]);
+          }
+        );
+
+      # EMQX MQTT integration - auto-register user and ACLs
+      modules.services.emqx.integrations.${serviceName} = mkIf
+        (
+          cfg.mqtt.registerEmqxIntegration &&
+          cfg.mqtt.username != null &&
+          cfg.mqtt.passwordFile != null
+        )
+        (
+          let
+            mqttAclTopics =
+              if cfg.mqtt.allowedTopics != [ ] then
+                cfg.mqtt.allowedTopics
+              else
+                [
+                  "homeassistant/#"
+                  "hass/#"
+                ];
+          in
+          {
+            users = [
+              {
+                username = cfg.mqtt.username;
+                passwordFile = cfg.mqtt.passwordFile;
+                tags = [ serviceName "home-automation" ];
+              }
+            ];
+            acls = [
+              {
+                permission = "allow";
+                action = "pubsub";
+                subject = {
+                  kind = "user";
+                  value = cfg.mqtt.username;
+                };
+                topics = mqttAclTopics;
+                comment = "${serviceName} MQTT integration for device discovery and control";
+              }
+            ];
           }
         );
 

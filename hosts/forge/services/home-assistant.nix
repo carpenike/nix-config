@@ -44,6 +44,15 @@ in
         configWritable = false;
         environmentFiles = lib.optional haEnabled config.sops.secrets."home-assistant/env".path;
 
+        # MQTT integration with EMQX broker
+        mqtt = {
+          server = "mqtt://127.0.0.1:1883";
+          username = "home-assistant";
+          passwordFile = config.sops.secrets."home-assistant/mqtt-password".path;
+          # registerEmqxIntegration = true; # default - auto-registers user + ACLs
+          # Default topics: homeassistant/# and hass/#
+        };
+
         declarativeConfig = {
           default_config = { };
           homeassistant = {

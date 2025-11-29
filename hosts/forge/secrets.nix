@@ -144,6 +144,12 @@ in
             group = "hass";
             restartUnits = [ "home-assistant.service" ];
           };
+
+          "home-assistant/mqtt-password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs caddyEnabled {
           # Cloudflare API token for Caddy DNS-01 ACME challenges
