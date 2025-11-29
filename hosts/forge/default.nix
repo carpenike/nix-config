@@ -52,6 +52,7 @@ in
     ./services/tautulli.nix # Tautulli Plex monitoring
     ./services/uptime-kuma.nix # Uptime monitoring and status page
     ./services/ups.nix # UPS monitoring configuration
+    ./services/infrastructure.nix # Infrastructure device widgets (Mikrotik, etc.)
     ./services/pgweb.nix # PostgreSQL web management interface
     ./services/authelia.nix # SSO authentication service
     ./services/pocketid.nix # Pocket ID passkey/OIDC provider

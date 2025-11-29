@@ -2,14 +2,17 @@
 #
 # Monitors APC Smart-UPS 2200 RM XL via SNMP for graceful shutdown on low battery.
 # Exports metrics to Prometheus via node_exporter textfile collector.
+# PeaNUT provides a web dashboard and API for Homepage widget integration.
 #
 # Infrastructure Contributions:
 #   - Backup: Not applicable (hardware monitor, no persistent data)
 #   - Sanoid: Not applicable (no ZFS dataset)
 #   - Monitoring: UPS-specific alerts defined below (battery, load, status)
+#   - Homepage: PeaNUT widget for UPS status display
 { config, pkgs, lib, mylib, ... }:
 let
   serviceEnabled = config.power.ups.enable or false;
+  peanutPort = 8089;  # Port for PeaNUT web dashboard
 in
 {
   # UPS system control (graceful shutdown on low battery)
@@ -301,6 +304,99 @@ in
       category = "connectivity";
       summary = "UPS {{ $labels.ups }} appears offline";
       description = "Cannot communicate with UPS or UPS reports offline status. Check network connectivity and UPS health.";
+    };
+  };
+
+  # PeaNUT container for Homepage widget integration
+  # Provides a web dashboard and API endpoint for NUT UPS monitoring
+  # Configuration is done through the UI and stored in /var/lib/peanut/settings.yml
+  virtualisation.oci-containers.containers.peanut = lib.mkIf serviceEnabled {
+    image = "docker.io/brandawg93/peanut:latest";
+    autoStart = true;
+
+    environment = {
+      TZ = "America/New_York";
+      WEB_HOST = "0.0.0.0";
+      WEB_PORT = toString peanutPort;
+      # NUT_HOST and NUT_PORT are configured via the web UI
+    };
+
+    # Config persistence
+    volumes = [
+      "/var/lib/peanut:/config:rw"
+    ];
+
+    # Only expose on localhost - accessed via reverse proxy or directly
+    ports = [
+      "127.0.0.1:${toString peanutPort}:${toString peanutPort}"
+    ];
+
+    # Use host network to access NUT on localhost:3493
+    extraOptions = [
+      "--network=host"
+    ];
+  };
+
+  # Create data directory and pre-configure PeaNUT to connect to local NUT server
+  systemd.tmpfiles.rules = lib.mkIf serviceEnabled [
+    "d /var/lib/peanut 0755 root root -"
+  ];
+
+  # Pre-configure PeaNUT to connect to the local NUT server
+  # This runs before the container starts and sets up the NUT server connection
+  environment.etc."peanut-settings.yml" = lib.mkIf serviceEnabled {
+    text = ''
+      NUT_SERVERS:
+        - HOST: localhost
+          PORT: 3493
+          USERNAME: upsmon
+          PASSWORD: changeme
+      INFLUX_HOST: ""
+      INFLUX_TOKEN: ""
+      INFLUX_ORG: ""
+      INFLUX_BUCKET: ""
+      INFLUX_INTERVAL: 10
+      DATE_FORMAT: MM/DD/YYYY
+      TIME_FORMAT: 12-hour
+      DASHBOARD_SECTIONS:
+        - key: KPIS
+          enabled: true
+        - key: CHARTS
+          enabled: true
+        - key: VARIABLES
+          enabled: true
+      DISABLE_VERSION_CHECK: false
+      TEMPERATURE_UNIT: celsius
+    '';
+  };
+
+  # Copy config to PeaNUT data directory before container starts
+  systemd.services.peanut-config = lib.mkIf serviceEnabled {
+    description = "Configure PeaNUT settings";
+    wantedBy = [ "podman-peanut.service" ];
+    before = [ "podman-peanut.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      mkdir -p /var/lib/peanut
+      cp /etc/peanut-settings.yml /var/lib/peanut/settings.yml
+      chmod 644 /var/lib/peanut/settings.yml
+    '';
+  };
+
+  # Homepage contribution for UPS monitoring via PeaNUT
+  modules.services.homepage.contributions.ups = lib.mkIf serviceEnabled {
+    group = "Infrastructure";
+    name = "UPS";
+    icon = "apc";
+    href = "http://forge.holthome.net:${toString peanutPort}";
+    description = "APC Smart-UPS 2200 RM XL";
+    widget = {
+      type = "peanut";
+      url = "http://127.0.0.1:${toString peanutPort}";
+      key = "apc";  # UPS name in NUT
     };
   };
 }

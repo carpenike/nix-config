@@ -77,6 +77,16 @@ in
           theme = "dark";
           color = "slate";
           headerStyle = "boxed";
+
+          # Background image with opacity/blur for readability
+          background = {
+            image = "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=2560&q=80";
+            blur = "sm";
+            saturate = 50;
+            brightness = 50;
+            opacity = 50;
+          };
+
           layout = {
             Media = {
               style = "row";

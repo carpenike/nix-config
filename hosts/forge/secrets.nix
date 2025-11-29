@@ -345,6 +345,15 @@ in
             group = "root";
           };
         }
+        // optionalAttrs homepageEnabled {
+          # Mikrotik API password for Homepage widget
+          # Created on Mikrotik: /user add name=homepage group=read password=xxx
+          "mikrotik/homepage-password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs teslamateEnabled {
           "teslamate/database_password" = {
             mode = "0440";
@@ -619,6 +628,8 @@ in
               (lib.optionalString sabnzbdEnabled "HOMEPAGE_VAR_SABNZBD_API_KEY=${config.sops.placeholder."sabnzbd/api-key"}")
               (lib.optionalString plexEnabled "HOMEPAGE_VAR_PLEX_TOKEN=${config.sops.placeholder."plex/token"}")
               (lib.optionalString tautulliEnabled "HOMEPAGE_VAR_TAUTULLI_API_KEY=${config.sops.placeholder."tautulli/api-key"}")
+              # Mikrotik router widget (always enabled when homepage is enabled)
+              "HOMEPAGE_VAR_MIKROTIK_PASSWORD=${config.sops.placeholder."mikrotik/homepage-password"}"
             ]);
             mode = "0400"; # root-only readable
             owner = "root";
