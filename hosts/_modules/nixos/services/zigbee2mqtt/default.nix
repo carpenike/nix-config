@@ -685,6 +685,9 @@ in
           recordsize = "16K";
           compression = "zstd";
           properties = { "com.sun:auto-snapshot" = "true"; };
+          owner = cfg.user;
+          group = cfg.group;
+          mode = "0750";
         };
 
         modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
