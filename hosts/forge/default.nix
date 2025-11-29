@@ -50,7 +50,8 @@ in
     ./services/dispatcharr.nix # Dispatcharr service
     ./services/plex.nix # Plex media server
     ./services/tautulli.nix # Tautulli Plex monitoring
-    ./services/uptime-kuma.nix # Uptime monitoring and status page
+    ./services/uptime-kuma.nix # DEPRECATED - replaced by Gatus, kept for migration reference
+    ./services/gatus.nix # Gatus black-box monitoring and status page
     ./services/ups.nix # UPS monitoring configuration
     ./services/infrastructure.nix # Infrastructure device widgets (Mikrotik, etc.)
     ./services/glances.nix # Glances system monitoring

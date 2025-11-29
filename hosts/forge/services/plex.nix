@@ -101,6 +101,27 @@ in
         };
       };
 
+      # Gatus black-box monitoring contribution
+      # User-facing availability check from external perspective
+      modules.services.gatus.contributions.plex = {
+        name = "Plex Media Server";
+        group = "Media";
+        url = "http://localhost:32400/web/index.html";
+        interval = "60s";
+        conditions = [
+          "[STATUS] == 200"
+          "[RESPONSE_TIME] < 5000"
+        ];
+        alerts = [{
+          type = "pushover";
+          enabled = true;
+          failureThreshold = 3;
+          successThreshold = 2;
+          sendOnResolved = true;
+          description = "Plex media server is not responding";
+        }];
+      };
+
       # Prometheus alerts for Plex
       # Using monitoring-helpers library for consistency
       modules.alerting.rules = {

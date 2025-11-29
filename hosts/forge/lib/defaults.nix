@@ -100,7 +100,7 @@ in
     media = {
       enable = true;
       portal = "pocketid";
-      policy = "media";
+      policy = "media";  # Matches authorizationPolicies.media in pocketid.nix
       claimRoles = [
         {
           claim = "groups";
@@ -114,12 +114,12 @@ in
     admin = {
       enable = true;
       portal = "pocketid";
-      policy = "admin";
+      policy = "admins";  # Matches authorizationPolicies.admins in pocketid.nix
       claimRoles = [
         {
           claim = "groups";
           value = "admin";
-          role = "admin";
+          role = "admins";  # Role must match allowRoles in the policy
         }
       ];
     };
@@ -128,7 +128,7 @@ in
     home = {
       enable = true;
       portal = "pocketid";
-      policy = "home";
+      policy = "home";  # Matches authorizationPolicies.home in pocketid.nix
       claimRoles = [
         {
           claim = "groups";

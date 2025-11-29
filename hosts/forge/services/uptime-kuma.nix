@@ -1,10 +1,18 @@
 { config, lib, mylib, ... }:
 # Uptime Kuma Configuration for forge
 #
-# Provides uptime monitoring and status pages for homelab services.
-# Uses native NixOS service (not containerized) wrapped with homelab patterns.
+# STATUS: DEPRECATED - Replaced by Gatus
 #
-# ARCHITECTURE EVOLUTION:
+# This service is disabled. Gatus has replaced Uptime Kuma for black-box monitoring.
+# File retained for reference during migration period.
+#
+# Reason for replacement:
+# - Gatus is YAML-config-based, enabling declarative configuration
+# - Native Prometheus metrics without additional exporter
+# - Contribution pattern allows services to self-register
+# - Lightweight and focused on monitoring (no unnecessary features)
+#
+# ORIGINAL ARCHITECTURE EVOLUTION:
 #
 # 1. Container Version (369 lines) - Nov 5, 2025
 #    Initially implemented as Podman container with full homelab patterns
@@ -16,14 +24,10 @@
 #    - Better NixOS integration
 #    - Easier updates via nix flake update
 #
-# 3. Pragmatic Monitoring (current) - Nov 5, 2025
-#    Gemini Pro analysis: Skip uptime-kuma-exporter, use blackbox approach
-#    - Uptime Kuma handles notifications for services it monitors
-#    - Prometheus monitors Uptime Kuma itself (meta-monitoring via systemd healthcheck)
-#    - No additional exporter service = simpler, more reliable
-#    - Avoids "monitoring the monitor" complexity trap
+# 3. Gatus Replacement - Current
+#    Migrated to Gatus for declarative, contribution-based monitoring
 #
-# Retains all homelab integrations: ZFS, backups, preseed, monitoring, DR.
+# To fully remove: Delete this file and remove from hosts/forge/default.nix imports
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.uptime-kuma.enable or false;
@@ -32,7 +36,8 @@ in
   config = lib.mkMerge [
     {
       modules.services.uptime-kuma = {
-        enable = true;
+        # DISABLED: Replaced by Gatus
+        enable = false;
 
         # Reverse proxy integration via Caddy
         reverseProxy = {
