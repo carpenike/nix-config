@@ -47,6 +47,21 @@ in
       # Service availability alert
       modules.alerting.rules."prowlarr-service-down" =
         forgeDefaults.mkServiceDownAlert "prowlarr" "Prowlarr" "indexer manager";
+
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.prowlarr = {
+        group = "Downloads";
+        name = "Prowlarr";
+        icon = "prowlarr";
+        href = "https://prowlarr.holthome.net";
+        description = "Indexer Manager";
+        siteMonitor = "http://localhost:9696";
+        widget = {
+          type = "prowlarr";
+          url = "http://localhost:9696";
+          key = "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}";
+        };
+      };
     })
   ];
 }

@@ -55,6 +55,21 @@ in
       # Service availability alert
       modules.alerting.rules."qbittorrent-service-down" =
         forgeDefaults.mkServiceDownAlert "qbittorrent" "Qbittorrent" "torrent download client";
+
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.qbittorrent = {
+        group = "Downloads";
+        name = "qBittorrent";
+        icon = "qbittorrent";
+        href = "https://qbittorrent.holthome.net";
+        description = "Torrent Client";
+        siteMonitor = "http://localhost:8080";
+        widget = {
+          type = "qbittorrent";
+          url = "http://localhost:8080";
+          # Auth disabled - Caddy handles authentication
+        };
+      };
     })
   ];
 }

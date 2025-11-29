@@ -63,6 +63,21 @@ in
       # Service availability alert
       modules.alerting.rules."autobrr-service-down" =
         forgeDefaults.mkServiceDownAlert "autobrr" "Autobrr" "IRC announce bot";
+
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.autobrr = {
+        group = "Downloads";
+        name = "Autobrr";
+        icon = "autobrr";
+        href = "https://autobrr.holthome.net";
+        description = "IRC announce bot";
+        siteMonitor = "http://localhost:7474";
+        widget = {
+          type = "autobrr";
+          url = "http://localhost:7474";
+          key = "{{HOMEPAGE_VAR_AUTOBRR_API_KEY}}";
+        };
+      };
     })
   ];
 }

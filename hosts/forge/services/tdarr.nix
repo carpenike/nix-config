@@ -48,6 +48,21 @@ in
       # Service availability alert
       modules.alerting.rules."tdarr-service-down" =
         forgeDefaults.mkServiceDownAlert "tdarr" "Tdarr" "transcoding automation";
+
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.tdarr = {
+        group = "Media";
+        name = "Tdarr";
+        icon = "tdarr";
+        href = "https://tdarr.holthome.net";
+        description = "Transcoding";
+        siteMonitor = "http://localhost:8265";
+        widget = {
+          type = "tdarr";
+          url = "http://localhost:8265";
+          # API key optional - not configured
+        };
+      };
     })
   ];
 }

@@ -190,6 +190,21 @@ in
             owner = config.users.users.cloudflared.name;
             group = config.users.groups.cloudflared.name;
           };
+
+          # Homepage widget credentials
+          # API token requires: Account.Cloudflare Tunnel:Read permission
+          # Account ID can be found in Cloudflare dashboard URL or forge-credentials JSON (AccountTag)
+          "networking/cloudflare/homepage-api-token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          "networking/cloudflare/account-id" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs cooklangEnabled {
           "resilio/cooklang-secret" = {
@@ -353,6 +368,20 @@ in
             owner = "root";
             group = "root";
           };
+
+          # Omada SDN Controller credentials for Homepage widget
+          # Create a read-only user in Omada controller: Settings -> Admins -> Add Admin
+          "omada/homepage-username" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          "omada/homepage-password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs teslamateEnabled {
           "teslamate/database_password" = {
@@ -511,6 +540,12 @@ in
             owner = "root";
             group = "root";
           };
+
+          "autobrr/api-key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs quiEnabled {
           "qui/oidc-client-secret" = {
@@ -628,6 +663,12 @@ in
               (lib.optionalString sabnzbdEnabled "HOMEPAGE_VAR_SABNZBD_API_KEY=${config.sops.placeholder."sabnzbd/api-key"}")
               (lib.optionalString plexEnabled "HOMEPAGE_VAR_PLEX_TOKEN=${config.sops.placeholder."plex/token"}")
               (lib.optionalString tautulliEnabled "HOMEPAGE_VAR_TAUTULLI_API_KEY=${config.sops.placeholder."tautulli/api-key"}")
+              (lib.optionalString autobrrEnabled "HOMEPAGE_VAR_AUTOBRR_API_KEY=${config.sops.placeholder."autobrr/api-key"}")
+              (lib.optionalString cloudflaredEnabled "HOMEPAGE_VAR_CLOUDFLARED_API_TOKEN=${config.sops.placeholder."networking/cloudflare/homepage-api-token"}")
+              (lib.optionalString cloudflaredEnabled "HOMEPAGE_VAR_CLOUDFLARED_ACCOUNT_ID=${config.sops.placeholder."networking/cloudflare/account-id"}")
+              # Omada SDN controller widget (runs on luna, accessed remotely)
+              "HOMEPAGE_VAR_OMADA_USERNAME=${config.sops.placeholder."omada/homepage-username"}"
+              "HOMEPAGE_VAR_OMADA_PASSWORD=${config.sops.placeholder."omada/homepage-password"}"
               # Mikrotik router widget (always enabled when homepage is enabled)
               "HOMEPAGE_VAR_MIKROTIK_PASSWORD=${config.sops.placeholder."mikrotik/homepage-password"}"
             ]);

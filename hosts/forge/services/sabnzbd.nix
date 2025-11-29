@@ -86,6 +86,21 @@ in
       # Contributes to host-level alerting configuration following the contribution pattern
       modules.alerting.rules."sabnzbd-service-down" =
         forgeDefaults.mkServiceDownAlert "sabnzbd" "Sabnzbd" "usenet download";
+
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.sabnzbd = {
+        group = "Downloads";
+        name = "SABnzbd";
+        icon = "sabnzbd";
+        href = "https://sabnzbd.holthome.net";
+        description = "Usenet Client";
+        siteMonitor = "http://localhost:8082";
+        widget = {
+          type = "sabnzbd";
+          url = "http://localhost:8082";
+          key = "{{HOMEPAGE_VAR_SABNZBD_API_KEY}}";
+        };
+      };
     })
   ];
 }
