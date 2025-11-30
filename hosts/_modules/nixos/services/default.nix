@@ -23,6 +23,7 @@
     ./dispatcharr
     ./esphome # ESPHome dashboard and firmware builder
     ./emqx # EMQX MQTT broker service
+    ./enclosed # Enclosed encrypted note sharing service
     ./frigate # Frigate NVR wrapper
     ./gatus # Gatus black-box monitoring (replaces Uptime Kuma)
     ./dnsdist
