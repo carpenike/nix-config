@@ -123,6 +123,17 @@ in
       example = 104857600; # 100 MB
     };
 
+    storageQuota = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = "5G";
+      description = ''
+        ZFS quota for the Enclosed data directory.
+        Provides hard limit to prevent filesystem abuse.
+        Set to null to disable quota (not recommended for public services).
+      '';
+      example = "10G";
+    };
+
     # UX/Policy settings for note creation defaults
     settings = {
       defaultTtlSeconds = lib.mkOption {
@@ -289,6 +300,9 @@ in
         compression = "zstd"; # Good compression for encrypted data
         properties = {
           "com.sun:auto-snapshot" = "true";
+        } // lib.optionalAttrs (cfg.storageQuota != null) {
+          # ZFS quota provides hard limit against abuse
+          quota = cfg.storageQuota;
         };
         owner = cfg.user;
         group = cfg.group;
