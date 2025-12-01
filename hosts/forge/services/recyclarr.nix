@@ -16,7 +16,7 @@ in
         enable = true;
 
         # Pin container image to specific version
-        image = "ghcr.io/recyclarr/recyclarr:7.4.1";
+        image = "ghcr.io/recyclarr/recyclarr:7.5.2";
 
         # Sync TRaSH guides once per day at a random time
         schedule = "daily";
