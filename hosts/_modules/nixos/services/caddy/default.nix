@@ -1104,35 +1104,37 @@ in
                   '';
 
                   # Static API key bypass routes (for S2S automation like GitHub Actions)
-                  staticApiKeys = if useCaddySecurity then (vhost.caddySecurity.staticApiKeys or []) else [];
-                  hasStaticApiKeys = staticApiKeys != [];
-                  staticApiKeyConfig = optionalString hasStaticApiKeys (concatStringsSep "\n" (map (apiKey:
-                    let
-                      matcherName = "@static_api_key_${sanitizeForMatcher apiKey.name}_${sanitizeForMatcher vhost.hostName}";
-                      keyPlaceholder = "{$" + apiKey.envVar + "}";
-                      headerName = apiKey.headerName or "X-Api-Key";
-                      hasPathRestriction = apiKey.paths or null != null;
-                      hasNetworkRestriction = (apiKey.allowedNetworks or []) != [];
-                      injectHeader = apiKey.injectAuthHeader or true;
-                    in
-                    ''
-                    # Static API key: ${apiKey.name}
-                    ${matcherName} {
-                      header ${headerName} ${keyPlaceholder}
-                      ${optionalString hasPathRestriction "path ${concatStringsSep " " (map (p: "${p}*") apiKey.paths)}"}
-                      ${optionalString hasNetworkRestriction "remote_ip ${concatStringsSep " " apiKey.allowedNetworks}"}
-                    }
+                  staticApiKeys = if useCaddySecurity then (vhost.caddySecurity.staticApiKeys or [ ]) else [ ];
+                  hasStaticApiKeys = staticApiKeys != [ ];
+                  staticApiKeyConfig = optionalString hasStaticApiKeys (concatStringsSep "\n" (map
+                    (apiKey:
+                      let
+                        matcherName = "@static_api_key_${sanitizeForMatcher apiKey.name}_${sanitizeForMatcher vhost.hostName}";
+                        keyPlaceholder = "{$" + apiKey.envVar + "}";
+                        headerName = apiKey.headerName or "X-Api-Key";
+                        hasPathRestriction = apiKey.paths or null != null;
+                        hasNetworkRestriction = (apiKey.allowedNetworks or [ ]) != [ ];
+                        injectHeader = apiKey.injectAuthHeader or true;
+                      in
+                      ''
+                        # Static API key: ${apiKey.name}
+                        ${matcherName} {
+                          header ${headerName} ${keyPlaceholder}
+                          ${optionalString hasPathRestriction "path ${concatStringsSep " " (map (p: "${p}*") apiKey.paths)}"}
+                          ${optionalString hasNetworkRestriction "remote_ip ${concatStringsSep " " apiKey.allowedNetworks}"}
+                        }
 
-                    route ${matcherName} {
-                      reverse_proxy ${backendUrl} {
-                        ${optionalString injectHeader "header_up X-Auth-Source \"static-api-key:${apiKey.name}\""}
-                        ${tlsTransport}
-                        ${vhost.reverseProxyBlock}
-                      }
-                    }
+                        route ${matcherName} {
+                          reverse_proxy ${backendUrl} {
+                            ${optionalString injectHeader "header_up X-Auth-Source \"static-api-key:${apiKey.name}\""}
+                            ${tlsTransport}
+                            ${vhost.reverseProxyBlock}
+                          }
+                        }
 
-                    ''
-                  ) staticApiKeys));
+                      ''
+                    )
+                    staticApiKeys));
 
                   reverseProxyDirective =
                     if useCaddySecurity then ''
@@ -1185,14 +1187,16 @@ in
 
     # Ensure local identity store directory exists (for user-generated API keys)
     systemd.tmpfiles.rules = mkIf (cfg.security.enable && cfg.security.localIdentityStores != { }) (
-      concatLists (mapAttrsToList (name: store:
-        let
-          storeDir = builtins.dirOf store.path;
-        in
-        [
-          "d ${storeDir} 0750 ${config.services.caddy.user} ${config.services.caddy.group} - -"
-        ]
-      ) cfg.security.localIdentityStores)
+      concatLists (mapAttrsToList
+        (name: store:
+          let
+            storeDir = builtins.dirOf store.path;
+          in
+          [
+            "d ${storeDir} 0750 ${config.services.caddy.user} ${config.services.caddy.group} - -"
+          ]
+        )
+        cfg.security.localIdentityStores)
     );
   };
 }

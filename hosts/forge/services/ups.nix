@@ -12,7 +12,7 @@
 { config, pkgs, lib, mylib, ... }:
 let
   serviceEnabled = config.power.ups.enable or false;
-  peanutPort = 8089;  # Port for PeaNUT web dashboard
+  peanutPort = 8089; # Port for PeaNUT web dashboard
 in
 {
   # UPS system control (graceful shutdown on low battery)
@@ -396,7 +396,7 @@ in
     widget = {
       type = "peanut";
       url = "http://127.0.0.1:${toString peanutPort}";
-      key = "apc";  # UPS name in NUT
+      key = "apc"; # UPS name in NUT
     };
   };
 }

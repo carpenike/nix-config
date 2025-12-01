@@ -556,12 +556,12 @@ in
           extraOptions = [ "--pull=newer" ]
             ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ]
             ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-              "--health-cmd=bash -c 'echo > /dev/tcp/127.0.0.1/1883' || exit 1"
-              "--health-interval=${cfg.healthcheck.interval}"
-              "--health-timeout=${cfg.healthcheck.timeout}"
-              "--health-retries=${toString cfg.healthcheck.retries}"
-              "--health-start-period=${cfg.healthcheck.startPeriod}"
-            ];
+            "--health-cmd=bash -c 'echo > /dev/tcp/127.0.0.1/1883' || exit 1"
+            "--health-interval=${cfg.healthcheck.interval}"
+            "--health-timeout=${cfg.healthcheck.timeout}"
+            "--health-retries=${toString cfg.healthcheck.retries}"
+            "--health-start-period=${cfg.healthcheck.startPeriod}"
+          ];
         };
 
         systemd.services.${serviceAttrName} = {

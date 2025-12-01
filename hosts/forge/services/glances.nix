@@ -33,77 +33,79 @@ in
 
       # Homepage dashboard contributions - multiple Glances widgets for different metrics
       # All widgets link to the main Glances UI
-      modules.services.homepage.contributions = let
-        glancesUrl = "https://glances.forge.holthome.net";
-        baseWidget = {
-          type = "glances";
-          url = "http://localhost:61208";
-          version = 4;
-        };
-      in {
-        # System info widget (hostname, OS, kernel, CPU/RAM/SWAP usage)
-        glances-info = {
-          group = "System Resources";
-          name = "System Info";
-          icon = "glances";
-          href = glancesUrl;
-          widget = baseWidget // { metric = "info"; };
-        };
+      modules.services.homepage.contributions =
+        let
+          glancesUrl = "https://glances.forge.holthome.net";
+          baseWidget = {
+            type = "glances";
+            url = "http://localhost:61208";
+            version = 4;
+          };
+        in
+        {
+          # System info widget (hostname, OS, kernel, CPU/RAM/SWAP usage)
+          glances-info = {
+            group = "System Resources";
+            name = "System Info";
+            icon = "glances";
+            href = glancesUrl;
+            widget = baseWidget // { metric = "info"; };
+          };
 
-        # CPU usage graph
-        glances-cpu = {
-          group = "System Resources";
-          name = "CPU Usage";
-          icon = "mdi-cpu-64-bit";
-          href = glancesUrl;
-          widget = baseWidget // { metric = "cpu"; };
-        };
+          # CPU usage graph
+          glances-cpu = {
+            group = "System Resources";
+            name = "CPU Usage";
+            icon = "mdi-cpu-64-bit";
+            href = glancesUrl;
+            widget = baseWidget // { metric = "cpu"; };
+          };
 
-        # Memory usage graph
-        glances-memory = {
-          group = "System Resources";
-          name = "Memory Usage";
-          icon = "mdi-memory";
-          href = glancesUrl;
-          widget = baseWidget // { metric = "memory"; };
-        };
+          # Memory usage graph
+          glances-memory = {
+            group = "System Resources";
+            name = "Memory Usage";
+            icon = "mdi-memory";
+            href = glancesUrl;
+            widget = baseWidget // { metric = "memory"; };
+          };
 
-        # Top processes by CPU
-        glances-process = {
-          group = "System Resources";
-          name = "Top Processes";
-          icon = "mdi-application-cog";
-          href = glancesUrl;
-          widget = baseWidget // { metric = "process"; };
-        };
+          # Top processes by CPU
+          glances-process = {
+            group = "System Resources";
+            name = "Top Processes";
+            icon = "mdi-application-cog";
+            href = glancesUrl;
+            widget = baseWidget // { metric = "process"; };
+          };
 
-        # GPU usage (Intel integrated or discrete)
-        glances-gpu = {
-          group = "System Resources";
-          name = "GPU Usage";
-          icon = "mdi-expansion-card";
-          href = glancesUrl;
-          widget = baseWidget // { metric = "gpu:0"; };
-        };
+          # GPU usage (Intel integrated or discrete)
+          glances-gpu = {
+            group = "System Resources";
+            name = "GPU Usage";
+            icon = "mdi-expansion-card";
+            href = glancesUrl;
+            widget = baseWidget // { metric = "gpu:0"; };
+          };
 
-        # Root filesystem usage
-        glances-fs-root = {
-          group = "System Resources";
-          name = "Root Filesystem";
-          icon = "mdi-harddisk";
-          href = glancesUrl;
-          widget = baseWidget // { metric = "fs:/"; };
-        };
+          # Root filesystem usage
+          glances-fs-root = {
+            group = "System Resources";
+            name = "Root Filesystem";
+            icon = "mdi-harddisk";
+            href = glancesUrl;
+            widget = baseWidget // { metric = "fs:/"; };
+          };
 
-        # Link to full Glances UI (in Infrastructure group for quick access)
-        glances = {
-          group = "Infrastructure";
-          name = "Glances";
-          icon = "glances";
-          href = glancesUrl;
-          description = "Full System Monitoring Dashboard";
+          # Link to full Glances UI (in Infrastructure group for quick access)
+          glances = {
+            group = "Infrastructure";
+            name = "Glances";
+            icon = "glances";
+            href = glancesUrl;
+            description = "Full System Monitoring Dashboard";
+          };
         };
-      };
     })
   ];
 }

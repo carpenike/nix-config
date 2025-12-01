@@ -27,7 +27,7 @@ in
       description = "RB5009 Core Router";
       widget = {
         type = "mikrotik";
-        url = "http://10.20.0.1";  # HTTP for REST API (HTTPS causes ECONNRESET)
+        url = "http://10.20.0.1"; # HTTP for REST API (HTTPS causes ECONNRESET)
         username = "homepage";
         password = "{{HOMEPAGE_VAR_MIKROTIK_PASSWORD}}";
       };

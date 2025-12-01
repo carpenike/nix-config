@@ -338,7 +338,8 @@ in
       allowedHosts =
         let
           localhostHosts = "localhost:${toString cfg.port},127.0.0.1:${toString cfg.port}";
-          proxyHost = if (cfg.reverseProxy != null && cfg.reverseProxy.enable)
+          proxyHost =
+            if (cfg.reverseProxy != null && cfg.reverseProxy.enable)
             then ",${cfg.reverseProxy.hostName}"
             else "";
         in
@@ -408,13 +409,15 @@ in
 
     systemd.services.homepage-dashboard = {
       # Add notification on failure if centralized notifications enabled
-      unitConfig = mkIf (
-        (config.modules.notifications.enable or false) &&
-        cfg.notifications != null &&
-        cfg.notifications.enable
-      ) {
-        OnFailure = [ "notify@homepage-failure:%n.service" ];
-      };
+      unitConfig = mkIf
+        (
+          (config.modules.notifications.enable or false) &&
+          cfg.notifications != null &&
+          cfg.notifications.enable
+        )
+        {
+          OnFailure = [ "notify@homepage-failure:%n.service" ];
+        };
 
       # Service dependencies for ZFS dataset mounting
       after = lib.optionals (cfg.zfs.dataset != null) [ "zfs-mount.service" "zfs-service-datasets.service" ];
@@ -457,29 +460,31 @@ in
     # Notification Template
     # -------------------------------------------------------------------------
 
-    modules.notifications.templates = mkIf (
-      (config.modules.notifications.enable or false) &&
-      cfg.notifications != null &&
-      cfg.notifications.enable
-    ) {
-      "homepage-failure" = {
-        enable = lib.mkDefault true;
-        priority = lib.mkDefault "high";
-        title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Homepage</font></b>'';
-        body = lib.mkDefault ''
-          <b>Host:</b> ''${hostname}
-          <b>Service:</b> <code>''${serviceName}</code>
+    modules.notifications.templates = mkIf
+      (
+        (config.modules.notifications.enable or false) &&
+        cfg.notifications != null &&
+        cfg.notifications.enable
+      )
+      {
+        "homepage-failure" = {
+          enable = lib.mkDefault true;
+          priority = lib.mkDefault "high";
+          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Homepage</font></b>'';
+          body = lib.mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
 
-          The Homepage dashboard service has entered a failed state.
+            The Homepage dashboard service has entered a failed state.
 
-          <b>Quick Actions:</b>
-          1. Check logs:
-             <code>ssh ''${hostname} 'journalctl -u homepage-dashboard -n 100'</code>
-          2. Restart service:
-             <code>ssh ''${hostname} 'systemctl restart homepage-dashboard'</code>
-        '';
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u homepage-dashboard -n 100'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart homepage-dashboard'</code>
+          '';
+        };
       };
-    };
 
     # -------------------------------------------------------------------------
     # Firewall (localhost only - reverse proxy handles external)

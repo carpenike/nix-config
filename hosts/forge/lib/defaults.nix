@@ -100,7 +100,7 @@ in
     media = {
       enable = true;
       portal = "pocketid";
-      policy = "media";  # Matches authorizationPolicies.media in pocketid.nix
+      policy = "media"; # Matches authorizationPolicies.media in pocketid.nix
       claimRoles = [
         {
           claim = "groups";
@@ -114,12 +114,12 @@ in
     admin = {
       enable = true;
       portal = "pocketid";
-      policy = "admins";  # Matches authorizationPolicies.admins in pocketid.nix
+      policy = "admins"; # Matches authorizationPolicies.admins in pocketid.nix
       claimRoles = [
         {
           claim = "groups";
           value = "admin";
-          role = "admins";  # Role must match allowRoles in the policy
+          role = "admins"; # Role must match allowRoles in the policy
         }
       ];
     };
@@ -128,7 +128,7 @@ in
     home = {
       enable = true;
       portal = "pocketid";
-      policy = "home";  # Matches authorizationPolicies.home in pocketid.nix
+      policy = "home"; # Matches authorizationPolicies.home in pocketid.nix
       claimRoles = [
         {
           claim = "groups";
@@ -183,7 +183,7 @@ in
 
   # Full control static API key
   # Usage: forgeDefaults.mkStaticApiKeyFull { name = "webhook"; envVar = "WEBHOOK_KEY"; paths = [ "/hook" ]; allowedNetworks = [ "192.168.0.0/16" ]; }
-  mkStaticApiKeyFull = { name, envVar, headerName ? "X-Api-Key", paths ? null, allowedNetworks ? [], injectAuthHeader ? true }: {
+  mkStaticApiKeyFull = { name, envVar, headerName ? "X-Api-Key", paths ? null, allowedNetworks ? [ ], injectAuthHeader ? true }: {
     inherit name envVar headerName paths allowedNetworks injectAuthHeader;
   };
 

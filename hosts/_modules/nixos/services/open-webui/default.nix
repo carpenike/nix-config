@@ -45,7 +45,7 @@ let
     ENABLE_OAUTH_ROLE_MANAGEMENT = "true";
     OAUTH_ROLES_CLAIM = cfg.oidc.roleManagement.rolesClaim;
     OAUTH_ADMIN_ROLES = lib.concatStringsSep "," cfg.oidc.roleManagement.adminRoles;
-  } // optionalAttrs (cfg.oidc.roleManagement.enable && cfg.oidc.roleManagement.allowedRoles != []) {
+  } // optionalAttrs (cfg.oidc.roleManagement.enable && cfg.oidc.roleManagement.allowedRoles != [ ]) {
     OAUTH_ALLOWED_ROLES = lib.concatStringsSep "," cfg.oidc.roleManagement.allowedRoles;
   });
 

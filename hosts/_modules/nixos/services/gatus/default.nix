@@ -172,10 +172,11 @@ let
             description = a.description;
           })
           contrib.alerts;
-        client = if contrib.client != null then {
-          insecure = contrib.client.insecure;
-          timeout = contrib.client.timeout;
-        } else null;
+        client =
+          if contrib.client != null then {
+            insecure = contrib.client.insecure;
+            timeout = contrib.client.timeout;
+          } else null;
         enabled = contrib.enabled;
       } // contrib.extraConfig))
     (lib.filterAttrs (_: c: c.enabled) cfg.contributions);
