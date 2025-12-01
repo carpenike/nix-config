@@ -42,6 +42,7 @@
     ./node-exporter
     ./observability # Unified observability stack (Loki + Promtail)
     ./onepassword-connect
+    ./open-webui # Open WebUI AI chat interface
     ./openssh
     ./omada
     ./overseerr # Overseerr request management (DEPRECATED - use seerr)

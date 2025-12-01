@@ -30,6 +30,7 @@ let
   zigbeeEnabled = config.modules.services.zigbee2mqtt.enable or false;
   zwaveEnabled = config.modules.services."zwave-js-ui".enable or false;
   mealieEnabled = config.modules.services.mealie.enable or false;
+  openWebuiEnabled = config.modules.services.open-webui.enable or false;
   paperlessEnabled = config.modules.services.paperless.enable or false;
   emqxEnabled = config.modules.services.emqx.enable or false;
   crossSeedEnabled = config.modules.services."cross-seed".enable or false;
@@ -504,6 +505,38 @@ in
           };
 
           "mealie/openai_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs openWebuiEnabled {
+          # Open WebUI service secrets - OIDC is always required when enabled
+          "open-webui/oidc_client_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs (openWebuiEnabled && (config.modules.services.open-webui.azure.enable or false)) {
+          # Azure OpenAI API key (only when Azure provider enabled)
+          "open-webui/azure_openai_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs (openWebuiEnabled && (config.modules.services.open-webui.anthropic.enable or false)) {
+          # Anthropic API key (only when Anthropic provider enabled)
+          "open-webui/anthropic_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs (openWebuiEnabled && (config.modules.services.open-webui.openai.enable or false)) {
+          # OpenAI API key (only when OpenAI provider enabled)
+          "open-webui/openai_api_key" = {
             mode = "0400";
             owner = "root";
             group = "root";

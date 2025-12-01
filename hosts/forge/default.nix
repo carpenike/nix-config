@@ -78,6 +78,7 @@ in
     ./services/cooklang-federation.nix # Cooklang federation search service
     ./services/enclosed.nix # Enclosed encrypted note sharing
     ./services/mealie.nix # Mealie recipe manager
+    ./services/open-webui.nix # Open WebUI AI chat interface
     ./services/paperless.nix # Paperless-ngx document management system
     ./services/emqx.nix # Shared EMQX MQTT broker
     ./services/teslamate.nix # TeslaMate telemetry + dashboards
