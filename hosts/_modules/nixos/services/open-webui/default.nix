@@ -24,8 +24,9 @@ let
   # Import shared type definitions
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
 
-  # Environment file location (in /run, created by oneshot service)
-  envDir = "/run/${serviceName}";
+  # Environment file location (separate from main service's RuntimeDirectory
+  # to avoid cleanup conflicts when the main service restarts)
+  envDir = "/run/${serviceName}-secrets";
   envFile = "${envDir}/env";
 
   boolStr = b: if b then "true" else "false";
@@ -50,10 +51,25 @@ let
   });
 
   # Build Azure OpenAI environment when enabled
+  #
+  # IMPORTANT: Azure OpenAI configuration (Provider Type, API Version, etc.)
+  # must be done in the Open WebUI Admin Settings → Connections UI.
+  # Environment variables like AZURE_OPENAI_API_VERSION are NOT used for
+  # the main chat/completions API - that config is stored in the database.
+  #
+  # What we CAN configure via environment:
+  # - OPENAI_API_BASE_URL: Default base URL for connections (used as fallback)
+  # - OPENAI_API_KEY: Default API key (loaded via credential)
+  #
+  # What must be configured in UI:
+  # - Provider Type: "Azure OpenAI"
+  # - API Version: e.g., "2024-12-01-preview"
+  # - Model deployments and their names
   azureEnv = optionalAttrs cfg.azure.enable {
     ENABLE_OPENAI_API = "true";
+    # Provide base URL as a default - actual Azure config is done in the UI
     OPENAI_API_BASE_URL = cfg.azure.endpoint;
-    # OPENAI_API_KEY loaded via LoadCredential (Azure key takes precedence)
+    # OPENAI_API_KEY loaded via LoadCredential (Azure key)
   };
 
   # Build standard OpenAI environment when enabled (and Azure not overriding)
@@ -83,9 +99,14 @@ let
   };
 
   # Combine all environment variables
+  # NOTE: The upstream NixOS open-webui module expects DATA_DIR to point to
+  # a "/data" subdirectory under stateDir. It has a preStart migration that
+  # moves legacy files (webui.db, cache, uploads, vector_db) into this subdirectory.
+  # We MUST match this expectation to avoid the migration script moving files
+  # out from under our DATA_DIR setting.
   combinedEnv = {
-    # Base configuration
-    DATA_DIR = cfg.dataDir;
+    # Base configuration - must match upstream's DATA_DIR convention
+    DATA_DIR = "${cfg.dataDir}/data";
     WEBUI_URL = cfg.baseUrl;
 
     # User registration
@@ -263,6 +284,16 @@ in
 
     # -------------------------------------------------------------------
     # LLM Provider: Azure AI Foundry / Azure OpenAI
+    #
+    # IMPORTANT: Azure OpenAI has limited environment variable support.
+    # The full Azure configuration (Provider Type, API Version, model
+    # deployments) must be done in the Open WebUI Admin UI:
+    #   Admin Settings → Connections → Add Connection
+    #   - Provider Type: "Azure OpenAI"
+    #   - API Version: e.g., "2024-12-01-preview"
+    #
+    # This NixOS option only provides the endpoint URL and API key as
+    # defaults. The UI configuration is stored in Open WebUI's database.
     # -------------------------------------------------------------------
     azure = mkOption {
       type = types.submodule {
@@ -272,10 +303,17 @@ in
           endpoint = mkOption {
             type = types.str;
             default = "";
-            example = "https://my-resource.openai.azure.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-08-01-preview";
+            example = "https://my-resource.openai.azure.com";
             description = ''
-              Azure OpenAI endpoint URL. For Azure AI Foundry, use the inference endpoint.
-              Note: This sets OPENAI_API_BASE_URL and takes precedence over standard OpenAI.
+              Azure OpenAI endpoint URL (base URL only, without path).
+              This is set as OPENAI_API_BASE_URL and used as the default.
+
+              IMPORTANT: After deployment, you must configure the connection
+              in Open WebUI Admin Settings → Connections:
+              - Set Provider Type to "Azure OpenAI"
+              - Set API Version (e.g., 2024-12-01-preview for o-series models)
+
+              Example: https://my-resource.openai.azure.com
             '';
           };
 
@@ -287,7 +325,13 @@ in
         };
       };
       default = { };
-      description = "Azure AI Foundry / Azure OpenAI configuration.";
+      description = ''
+        Azure AI Foundry / Azure OpenAI configuration.
+
+        Note: Only the endpoint URL and API key can be set via NixOS.
+        The API version and provider type must be configured in the
+        Open WebUI Admin Settings UI after deployment.
+      '';
     };
 
     # -------------------------------------------------------------------
@@ -524,7 +568,7 @@ in
         serviceConfig = {
           Type = "oneshot";
           RemainAfterExit = true;
-          RuntimeDirectory = serviceName;
+          RuntimeDirectory = "${serviceName}-secrets";
           RuntimeDirectoryMode = "0700";
           LoadCredential = credentials;
         };

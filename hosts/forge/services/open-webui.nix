@@ -56,10 +56,12 @@ in
         };
 
         # Azure AI Foundry - Primary LLM provider
+        # NOTE: After deployment, you must configure Azure in the Admin UI:
+        #   Admin Settings → Connections → Edit default connection
+        #   - Set Provider Type: "Azure OpenAI"
+        #   - Set API Version: "2024-12-01-preview" (for o-series models)
         azure = {
           enable = true;
-          # Azure OpenAI endpoint from Azure AI Foundry
-          # Format: https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=<version>
           endpoint = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com/";
           apiKeyFile = config.sops.secrets."open-webui/azure_openai_key".path;
         };
