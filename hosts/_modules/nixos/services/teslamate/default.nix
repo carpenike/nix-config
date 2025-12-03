@@ -403,6 +403,24 @@ in
         default = defaultDashboardsPath;
         description = "Directory containing TeslaMate dashboard JSON files.";
       };
+      host = mkOption {
+        type = types.str;
+        default = "127.0.0.1";
+        description = ''
+          PostgreSQL host for Grafana to connect to. Since Grafana runs as a native
+          NixOS service (not a container), it should use 127.0.0.1 or localhost rather
+          than host.containers.internal which is only resolvable from containers.
+        '';
+      };
+      postgresVersion = mkOption {
+        type = types.str;
+        default = "1600";
+        description = ''
+          PostgreSQL version number for Grafana datasource configuration.
+          Format: major * 100 (e.g., "1600" for PostgreSQL 16, "1500" for 15).
+          This prevents Grafana from defaulting to 9.3 and enables version-specific features.
+        '';
+      };
     };
 
     reverseProxy = mkOption {
@@ -713,12 +731,13 @@ in
           uid = cfg.grafanaIntegration.datasourceUid;
           type = "postgres";
           access = "proxy";
-          url = "${cfg.database.host}:${toString cfg.database.port}";
+          url = "${cfg.grafanaIntegration.host}:${toString cfg.database.port}";
           user = cfg.database.user;
           database = cfg.database.name;
           jsonData = {
             sslmode = "disable";
             timescaledb = false;
+            postgresVersion = cfg.grafanaIntegration.postgresVersion;
           };
           secureJsonData = {
             password = "$__file{${grafanaCredentialPath}}";

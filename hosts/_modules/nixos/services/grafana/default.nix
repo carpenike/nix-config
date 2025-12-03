@@ -14,6 +14,9 @@
 let
   inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList;
   cfg = config.modules.services.grafana;
+  # Service name used consistently for user/group and dataset paths
+  serviceName = "grafana";
+
   # Import shared type definitions
   sharedTypes = import ../../../lib/types.nix { inherit lib; };
 
@@ -477,15 +480,20 @@ in
 
         # Override Grafana user's home directory to prevent activation script from
         # enforcing 0700 permissions on /var/lib/grafana (which would revert our 0750 tmpfiles rules)
-        users.users.grafana.home = lib.mkForce "/var/empty";
+        users.users.${serviceName}.home = lib.mkForce "/var/empty";
 
         # ZFS dataset configuration
-        # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
-        modules.storage.datasets.services.grafana = mkIf (cfg.zfs.dataset != null) {
+        # Note: For native systemd services, permissions on the ZFS mountpoint must be set
+        # explicitly via owner/group since StateDirectory only manages directories it creates,
+        # not pre-existing ZFS mountpoints. The tmpfiles "z" rule ensures correct ownership.
+        modules.storage.datasets.services.${serviceName} = mkIf (cfg.zfs.dataset != null) {
           mountpoint = cfg.dataDir;
           recordsize = "128K"; # Default recordsize for general purpose use
           compression = "zstd"; # Better compression for Grafana database files
           properties = cfg.zfs.properties;
+          owner = serviceName;
+          group = serviceName;
+          mode = "0750"; # Allow group read for backup systems
         };
 
         # Automatically register with Caddy reverse proxy using standardized pattern
