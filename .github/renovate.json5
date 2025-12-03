@@ -110,6 +110,4 @@
       extractVersionTemplate: '{{#if extractVersion}}{{{extractVersion}}}{{else}}^(?<version>.*)${{/if}}',
     },
   ],
-  "logLevel": "debug",
-  "logLevelRemap": [],
 }
