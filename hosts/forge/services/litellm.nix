@@ -6,14 +6,14 @@
 # - Google Gemini
 # - OpenAI
 #
-# STATELESS MODE: This uses the native NixOS module which runs LiteLLM
-# without database features. Provides routing, failover, and streaming.
-# For spend tracking/user management, use the container version.
+# CONTAINER MODE: Uses the ghcr.io/berriai/litellm-database image with
+# full PostgreSQL support for spend tracking, virtual keys, and user management.
 #
 # Features:
+# - PostgreSQL database for enterprise features
+# - SSO via PocketID (JWT/OIDC authentication, free for up to 5 users)
 # - ZFS storage with optimized recordsize
 # - Local-only access (no Cloudflare Tunnel)
-# - Auto-generated master key
 #
 { config, lib, ... }:
 
@@ -31,9 +31,38 @@ in
         enable = true;
         port = 4100; # 8080=qbittorrent, 4000=teslamate
 
-        # Master key is auto-generated and stored in state directory
         # Provider credentials via SOPS (defined in secrets.nix)
         environmentFile = config.sops.secrets."litellm/provider-keys".path;
+
+        # Master key for API authentication (optional - auto-generated if not provided)
+        masterKeyFile = config.sops.secrets."litellm/master_key".path;
+
+        # =====================================================================
+        # Database Configuration (PostgreSQL)
+        # =====================================================================
+        database = {
+          host = "host.containers.internal";
+          port = 5432;
+          name = "litellm";
+          user = "litellm";
+          passwordFile = config.sops.secrets."litellm/database_password".path;
+          manageDatabase = true;
+          localInstance = true;
+        };
+
+        # =====================================================================
+        # SSO Configuration (PocketID - free for up to 5 users)
+        # =====================================================================
+        sso = {
+          enable = true;
+          jwksUrl = "https://id.holthome.net/.well-known/openid-configuration/jwks";
+          audience = "litellm";
+          userIdField = "sub";
+          userEmailField = "email";
+          teamIdField = "groups";
+          adminScope = "litellm-admin";
+          allowedEmailDomains = [ "holthome.net" ];
+        };
 
         # =====================================================================
         # Model Configuration
@@ -186,7 +215,7 @@ in
         # =====================================================================
         # ZFS Storage
         # =====================================================================
-        zfs.dataset = "tank/services/litellm";
+        datasetPath = "tank/services/litellm";
 
         # =====================================================================
         # Reverse Proxy (Local Only - No Cloudflare)
@@ -201,7 +230,7 @@ in
         };
 
         # =====================================================================
-        # Backup Configuration (for auto-generated master key)
+        # Backup Configuration
         # =====================================================================
         backup = forgeDefaults.backup;
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
@@ -218,9 +247,9 @@ in
       modules.backup.sanoid.datasets."tank/services/litellm" =
         forgeDefaults.mkSanoidDataset "litellm";
 
-      # Service monitoring alert
+      # Service monitoring alert (container-based)
       modules.alerting.rules."litellm-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert "litellm" "LiteLLM" "AI gateway";
+        forgeDefaults.mkServiceDownAlert "litellm" "LiteLLM" "AI gateway";
     })
   ];
 }

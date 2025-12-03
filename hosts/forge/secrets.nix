@@ -545,12 +545,25 @@ in
         }
         // optionalAttrs litellmEnabled {
           # LiteLLM AI Gateway secrets
-          # Master key is auto-generated, no SOPS secret needed
-          # Database and OIDC not used in stateless mode
+          # Uses PostgreSQL for spend tracking, virtual keys, and user management
 
           # Provider API keys (environment file format)
           # Contains: AZURE_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY
           "litellm/provider-keys" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # PostgreSQL database password (litellm user)
+          "litellm/database_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          # Master key for API authentication (optional - auto-generated if not set)
+          "litellm/master_key" = {
             mode = "0400";
             owner = "root";
             group = "root";
