@@ -16,7 +16,7 @@ in
         enable = true;
 
         # Pin container image to specific version with digest
-        image = "ghcr.io/home-operations/radarr:6.0.4@sha256:73fbdba72dcde5fec16264e63a9daba7829b5c2806a75615463a67117b100de3";
+        image = "ghcr.io/home-operations/radarr:6.1.0@sha256:22bbf7e924dd929b756147d8110664c3e2da37c59516b249945ab1d63657be29";
 
         # Use shared NFS mount and attach to media services network
         nfsMountDependency = "media";
