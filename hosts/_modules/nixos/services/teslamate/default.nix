@@ -421,6 +421,26 @@ in
           This prevents Grafana from defaulting to 9.3 and enables version-specific features.
         '';
       };
+      user = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "teslamate-readonly";
+        description = ''
+          PostgreSQL user for Grafana datasource. If null (default), uses the
+          database owner. For security, set this to a separate read-only user
+          and provide passwordFile. The user will be created with readonly role
+          inheritance via the PostgreSQL module's additionalRoles feature.
+        '';
+      };
+      passwordFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        example = "/run/secrets/teslamate-grafana-password";
+        description = ''
+          Password file for the Grafana PostgreSQL user. Required when
+          grafanaIntegration.user is set. Ignored if user is null.
+        '';
+      };
     };
 
     reverseProxy = mkOption {
@@ -516,6 +536,10 @@ in
           assertion = !(cfg.grafanaIntegration.enable && !(config.modules.services.grafana.enable or false));
           message = "TeslaMate grafanaIntegration requires modules.services.grafana.enable.";
         }
+        {
+          assertion = cfg.grafanaIntegration.user == null || cfg.grafanaIntegration.passwordFile != null;
+          message = "TeslaMate grafanaIntegration.passwordFile is required when grafanaIntegration.user is set.";
+        }
       ];
 
       users.users.${cfg.user} = {
@@ -546,6 +570,14 @@ in
         extensions = cfg.database.extensions;
         permissionsPolicy = "owner-readwrite+readonly-select";
         schemaMigrations = cfg.database.schemaMigrations;
+
+        # Create separate read-only user for Grafana when configured
+        additionalRoles = mkIf (cfg.grafanaIntegration.user != null) {
+          ${cfg.grafanaIntegration.user} = {
+            passwordFile = cfg.grafanaIntegration.passwordFile;
+            grantRoles = [ "readonly" ];
+          };
+        };
       };
 
       virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
@@ -725,33 +757,44 @@ in
       # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/teslamate.nix)
       # to keep modules portable and not assume Prometheus availability
 
-      modules.services.grafana.integrations.teslamate = mkIf (cfg.grafanaIntegration.enable) {
-        datasources.teslamate = {
-          name = cfg.grafanaIntegration.datasourceName;
-          uid = cfg.grafanaIntegration.datasourceUid;
-          type = "postgres";
-          access = "proxy";
-          url = "${cfg.grafanaIntegration.host}:${toString cfg.database.port}";
-          user = cfg.database.user;
-          database = cfg.database.name;
-          jsonData = {
-            sslmode = "disable";
-            timescaledb = false;
-            postgresVersion = cfg.grafanaIntegration.postgresVersion;
+      modules.services.grafana.integrations.teslamate = mkIf (cfg.grafanaIntegration.enable) (
+        let
+          # Use custom Grafana user if configured, otherwise use database owner
+          grafanaUser = if cfg.grafanaIntegration.user != null
+            then cfg.grafanaIntegration.user
+            else cfg.database.user;
+          grafanaPasswordFile = if cfg.grafanaIntegration.user != null
+            then cfg.grafanaIntegration.passwordFile
+            else cfg.database.passwordFile;
+        in
+        {
+          datasources.teslamate = {
+            name = cfg.grafanaIntegration.datasourceName;
+            uid = cfg.grafanaIntegration.datasourceUid;
+            type = "postgres";
+            access = "proxy";
+            url = "${cfg.grafanaIntegration.host}:${toString cfg.database.port}";
+            user = grafanaUser;
+            database = cfg.database.name;
+            jsonData = {
+              sslmode = "disable";
+              timescaledb = false;
+              postgresVersion = cfg.grafanaIntegration.postgresVersion;
+            };
+            secureJsonData = {
+              password = "$__file{${grafanaCredentialPath}}";
+            };
           };
-          secureJsonData = {
-            password = "$__file{${grafanaCredentialPath}}";
+          dashboards = {
+            teslamate = {
+              name = "TeslaMate Dashboards";
+              folder = cfg.grafanaIntegration.folder;
+              path = cfg.grafanaIntegration.dashboardsPath;
+            };
           };
-        };
-        dashboards = {
-          teslamate = {
-            name = "TeslaMate Dashboards";
-            folder = cfg.grafanaIntegration.folder;
-            path = cfg.grafanaIntegration.dashboardsPath;
-          };
-        };
-        loadCredentials = [ "${grafanaCredentialName}:${cfg.database.passwordFile}" ];
-      };
+          loadCredentials = [ "${grafanaCredentialName}:${grafanaPasswordFile}" ];
+        }
+      );
     }
     )
 

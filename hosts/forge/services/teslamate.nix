@@ -71,6 +71,14 @@ in
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         notifications.enable = true;
+
+        # Grafana integration with dedicated read-only user for security
+        grafanaIntegration = {
+          enable = true;
+          user = "teslamate_grafana";
+          passwordFile = config.sops.secrets."teslamate/grafana_password".path;
+          host = "127.0.0.1";  # Grafana connects directly to PostgreSQL on localhost
+        };
       };
     }
 

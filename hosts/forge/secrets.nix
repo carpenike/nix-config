@@ -405,6 +405,12 @@ in
             group = "root";
           };
 
+          "teslamate/grafana_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
           "teslamate/mqtt_password" = {
             mode = "0400";
             owner = "root";

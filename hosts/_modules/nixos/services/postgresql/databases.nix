@@ -226,6 +226,51 @@ let
     ''}
   '';
 
+  # Generate SQL for additional roles with optional role memberships
+  # Used for creating read-only users for Grafana, monitoring, etc.
+  mkAdditionalRoleSQL = roleName: roleCfg: ''
+    -- Create additional role: ${roleName}
+    DO $role$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = ${quoteSqlString roleName}) THEN
+        CREATE ROLE ${quoteSqlIdentifier roleName} WITH ${if roleCfg.login then "LOGIN" else "NOLOGIN"}${lib.optionalString roleCfg.createDb " CREATEDB"}${lib.optionalString roleCfg.createRole " CREATEROLE"};
+        RAISE NOTICE 'Created additional role: %', ${quoteSqlString roleName};
+      ELSE
+        RAISE NOTICE 'Additional role already exists: %', ${quoteSqlString roleName};
+      END IF;
+    END
+    $role$;
+
+    ${lib.optionalString (roleCfg.passwordFile != null) ''
+      -- Set/update password for additional role
+      SET password_encryption = 'scram-sha-256';
+      SELECT trim(both E'\n\r' FROM pg_read_file(${quoteSqlString roleCfg.passwordFile})) AS pw \gset
+      ALTER ROLE ${quoteSqlIdentifier roleName} WITH PASSWORD :'pw';
+      \unset pw
+      \echo Updated password for additional role: ${roleName}
+    ''}
+
+    ${lib.concatMapStringsSep "\n" (grantedRole: ''
+      -- Grant ${grantedRole} role to ${roleName}
+      DO $grant$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT FROM pg_auth_members m
+          JOIN pg_roles r ON r.oid = m.roleid
+          JOIN pg_roles u ON u.oid = m.member
+          WHERE r.rolname = ${quoteSqlString grantedRole}
+            AND u.rolname = ${quoteSqlString roleName}
+        ) THEN
+          GRANT ${quoteSqlIdentifier grantedRole} TO ${quoteSqlIdentifier roleName};
+          RAISE NOTICE 'Granted % to %', ${quoteSqlString grantedRole}, ${quoteSqlString roleName};
+        ELSE
+          RAISE NOTICE 'Role % already has % membership', ${quoteSqlString roleName}, ${quoteSqlString grantedRole};
+        END IF;
+      END
+      $grant$;
+    '') (roleCfg.grantRoles or [])}
+  '';
+
   # Generate safe database creation SQL with idempotent pre-check
   # NOTE: CREATE DATABASE cannot run inside a transaction block, so we use \gexec instead of DO blocks
   mkDatabaseSQL = dbName: dbCfg:
@@ -853,6 +898,15 @@ in
             END
             $role$;
             ''}
+
+            -- ========================================
+            -- Create additional roles (e.g., read-only users for Grafana)
+            -- ========================================
+            ${lib.concatStringsSep "\n" (lib.flatten (lib.mapAttrsToList (dbName: dbCfg:
+              lib.mapAttrsToList (roleName: roleCfg:
+                mkAdditionalRoleSQL roleName roleCfg
+              ) (dbCfg.additionalRoles or {})
+            ) mergedDatabases))}
 
             -- ========================================
             -- PHASE 2: Create all databases (still in postgres database)

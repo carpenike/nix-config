@@ -202,6 +202,57 @@ let
     };
   };
 
+  # Additional role type for creating extra login roles per database
+  additionalRoleType = types.submodule {
+    options = {
+      passwordFile = lib.mkOption {
+        type = types.str;
+        apply = p:
+          assert lib.assertMsg
+            (!lib.hasPrefix "/nix/store" p)
+            "passwordFile must not be in the Nix store (would leak secrets). Use a runtime path like /run/secrets/...";
+          p;
+        description = ''
+          Runtime path to file containing the role's password.
+          Must be a runtime path (e.g., /run/secrets/..., /run/agenix/...)
+          that is NOT copied to the Nix store.
+
+          SECURITY: Never use a literal path that would be copied to /nix/store.
+          Use SOPS, agenix, or systemd LoadCredential for secret management.
+        '';
+        example = "/run/secrets/myapp/grafana_db_password";
+      };
+
+      grantRoles = lib.mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = ''
+          List of roles to grant to this role. Common use case is granting the
+          'readonly' role to create a read-only login user for Grafana or monitoring.
+        '';
+        example = [ "readonly" ];
+      };
+
+      login = lib.mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether this role can log in (LOGIN attribute).";
+      };
+
+      createDb = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether this role can create databases (CREATEDB attribute).";
+      };
+
+      createRole = lib.mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether this role can create other roles (CREATEROLE attribute).";
+      };
+    };
+  };
+
   insertedAtColumnType = types.submodule {
     options = {
       name = lib.mkOption {
@@ -325,6 +376,28 @@ in
                   Use SOPS, agenix, or systemd LoadCredential for secret management.
                 '';
                 example = "/run/secrets/myapp/db_password";
+              };
+
+              additionalRoles = lib.mkOption {
+                type = types.attrsOf additionalRoleType;
+                default = { };
+                description = ''
+                  Additional login roles to create for this database. These roles are created
+                  alongside the database owner and can be granted membership in other roles
+                  (e.g., the 'readonly' role for read-only access).
+
+                  Common use case: Create a read-only user for Grafana datasources that
+                  has SELECT-only access via the 'readonly' role membership.
+
+                  Note: These roles are created at the cluster level but are conceptually
+                  associated with this database for organizational purposes.
+                '';
+                example = {
+                  grafana = {
+                    passwordFile = "/run/secrets/myapp/grafana_db_password";
+                    grantRoles = [ "readonly" ];
+                  };
+                };
               };
 
               extensions = lib.mkOption {
