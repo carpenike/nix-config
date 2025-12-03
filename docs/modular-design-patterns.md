@@ -1179,11 +1179,14 @@ systemd.tmpfiles.rules = lib.flatten (lib.mapAttrsToList (serviceName: serviceCo
 | Service Type | Directory Creation | Permission Management | Home Directory |
 |-------------|-------------------|----------------------|----------------|
 | **Native SystemD** | `StateDirectory` | `StateDirectoryMode` + `UMask` | `/var/empty` |
+| **Native + ZFS** | ZFS dataset | `owner`/`group`/`mode` in dataset config | `/var/empty` |
 | **OCI Container** | tmpfiles | `mode`/`owner`/`group` in dataset config | `/var/empty` |
+
+**IMPORTANT**: When using ZFS datasets, `StateDirectory` only manages permissions for directories it **creates**. If a ZFS dataset is already mounted at the path, `StateDirectory` cannot change its permissions. You must explicitly set `owner`, `group`, and `mode` in the dataset configuration.
 
 #### Examples from Working Implementations
 
-**Grafana (Native Service):**
+**Grafana (Native Service with ZFS):**
 ```nix
 users.users.grafana.home = lib.mkForce "/var/empty";
 
@@ -1193,10 +1196,13 @@ systemd.services.grafana.serviceConfig = {
   UMask = "0027";
 };
 
-# ZFS dataset - NO owner/group/mode
+# ZFS dataset - MUST include owner/group/mode since ZFS mountpoint pre-exists
+# StateDirectory cannot change permissions on pre-existing directories
 modules.storage.datasets.services.grafana = {
   mountpoint = "/var/lib/grafana";
-  # owner/group/mode omitted - StateDirectory handles it
+  owner = "grafana";
+  group = "grafana";
+  mode = "0750";
 };
 ```
 
