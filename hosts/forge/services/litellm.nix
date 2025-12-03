@@ -51,17 +51,31 @@ in
         };
 
         # =====================================================================
-        # SSO Configuration (PocketID - free for up to 5 users)
+        # SSO Configuration (PocketID - OAuth2 Generic for Admin UI)
+        # NOTE: JWT API auth is enterprise-only; we only use Admin UI SSO
         # =====================================================================
         sso = {
-          enable = true;
-          jwksUrl = "https://id.holthome.net/.well-known/openid-configuration/jwks";
-          audience = "litellm";
-          userIdField = "sub";
-          userEmailField = "email";
-          teamIdField = "groups";
-          adminScope = "litellm-admin";
-          allowedEmailDomains = [ "holthome.net" ];
+          # Admin UI SSO (OAuth2 Generic Provider) - FREE feature
+          adminUi = {
+            enable = true;
+            clientId = "litellm";
+            clientSecretFile = config.sops.secrets."litellm/oidc-client-secret".path;
+            authorizationEndpoint = "https://id.holthome.net/authorize";
+            tokenEndpoint = "https://id.holthome.net/api/oidc/token";
+            userinfoEndpoint = "https://id.holthome.net/api/oidc/userinfo";
+            redirectUri = "https://llm.holthome.net/sso/callback";
+            scope = "openid profile email";
+            proxyAdminId = "ryan";
+          };
+        };
+
+        # =====================================================================
+        # General Settings
+        # =====================================================================
+        # Enable store_model_in_db so config-defined models are synced to the
+        # database and visible/testable in the Admin UI
+        generalSettings = {
+          store_model_in_db = true;
         };
 
         # =====================================================================
@@ -73,6 +87,7 @@ in
           {
             name = "gpt-4o";
             model = "azure/gpt-4o";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
@@ -80,36 +95,42 @@ in
           {
             name = "gpt-5";
             model = "azure/gpt-5";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
           {
             name = "gpt-5-chat";
             model = "azure/gpt-5-chat";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
           {
             name = "gpt-5-codex";
             model = "azure/gpt-5-codex";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
           {
             name = "gpt-5-pro";
             model = "azure/gpt-5-pro";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
           {
             name = "gpt-5.1";
             model = "azure/gpt-5.1";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
           {
             name = "gpt-5.1-codex";
             model = "azure/gpt-5.1-codex";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
@@ -117,6 +138,7 @@ in
           {
             name = "o3-mini";
             model = "azure/o3-mini";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }
@@ -124,6 +146,7 @@ in
           {
             name = "text-embedding-3-small";
             model = "azure/text-embedding-3-small";
+            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
             extraParams = { api_version = "2024-08-01-preview"; };
           }

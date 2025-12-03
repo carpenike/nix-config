@@ -568,6 +568,13 @@ in
             owner = "root";
             group = "root";
           };
+
+          # OIDC client secret for Admin UI SSO (PocketID)
+          "litellm/oidc-client-secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs paperlessEnabled {
           # Paperless-ngx service secrets

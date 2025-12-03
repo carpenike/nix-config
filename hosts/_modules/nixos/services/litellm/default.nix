@@ -28,7 +28,7 @@ let
     optional
     optionals
     optionalAttrs
-    concatStringsSep
+    optionalString
     ;
 
   cfg = config.modules.services.litellm;
@@ -69,19 +69,21 @@ let
 
   # Build model_list configuration for LiteLLM config.yaml
   # Uses os.environ/... syntax for API keys
-  buildModelList = models: map (m: {
-    model_name = m.name;
-    litellm_params = {
-      model = m.model;
-    } // optionalAttrs (m.apiBase != null) {
-      api_base = m.apiBase;
-    } // optionalAttrs (m.apiKey != null) {
-      # Reference environment variable by name using LiteLLM's syntax
-      api_key = "os.environ/${m.apiKey}";
-    } // optionalAttrs (m.apiVersion != null) {
-      api_version = m.apiVersion;
-    } // (m.extraParams or { });
-  }) models;
+  buildModelList = models: map
+    (m: {
+      model_name = m.name;
+      litellm_params = {
+        model = m.model;
+      } // optionalAttrs (m.apiBase != null) {
+        api_base = m.apiBase;
+      } // optionalAttrs (m.apiKey != null) {
+        # Reference environment variable by name using LiteLLM's syntax
+        api_key = "os.environ/${m.apiKey}";
+      } // optionalAttrs (m.apiVersion != null) {
+        api_version = m.apiVersion;
+      } // (m.extraParams or { });
+    })
+    models;
 
   # Build the LiteLLM config.yaml content
   # This is a Nix attrset that will be converted to YAML
@@ -98,39 +100,25 @@ let
 
       # Database URL from environment (PostgreSQL)
       database_url = "os.environ/DATABASE_URL";
-    } // optionalAttrs cfg.sso.enable {
-      # SSO configuration (free for up to 5 users)
-      # See: https://docs.litellm.ai/docs/proxy/admin_ui_sso
+    } // optionalAttrs cfg.sso.adminUi.enable {
+      # Admin UI SSO requires ui_access_mode = "all"
+      # NOTE: JWT auth (enable_jwt_auth) is enterprise-only as of late 2024
+      # We only use OAuth2 Generic for Admin UI login (free feature)
       ui_access_mode = "all";
-      enable_jwt_auth = true;
     } // cfg.generalSettings;
-  } // optionalAttrs cfg.sso.enable {
-    # JWT authentication configuration for SSO
-    environment_variables = {
-      JWT_PUBLIC_KEY_URL = cfg.sso.jwksUrl;
-    } // optionalAttrs (cfg.sso.audience != null) {
-      JWT_AUDIENCE = cfg.sso.audience;
-    };
-
-    litellm_jwtauth = {
-      # User identification from JWT
-      user_id_jwt_field = cfg.sso.userIdField;
-      user_email_jwt_field = cfg.sso.userEmailField;
-
-      # Role/group management
-      team_id_jwt_field = cfg.sso.teamIdField;
-    } // optionalAttrs (cfg.sso.adminScope != null) {
-      admin_jwt_scope = cfg.sso.adminScope;
-    } // optionalAttrs (cfg.sso.allowedEmailDomains != [ ]) {
-      user_allowed_email_domain = concatStringsSep "," cfg.sso.allowedEmailDomains;
-      user_id_upsert = true;
-    };
   };
 
-  # Generate config.yaml file from Nix attrset
-  configYaml = pkgs.writeText "litellm-config.yaml" (
-    lib.generators.toYAML { } litellmConfig
+  # Generate JSON first, then convert to proper YAML
+  configJson = pkgs.writeText "litellm-config.json" (
+    builtins.toJSON litellmConfig
   );
+
+  # Convert JSON to proper YAML format using yq
+  configYaml = pkgs.runCommand "litellm-config.yaml" {
+    nativeBuildInputs = [ pkgs.yq-go ];
+  } ''
+    yq -o=yaml '.' ${configJson} > $out
+  '';
 
   # Recursively locate replication config from parent datasets (if any)
   findReplication = dsPath:
@@ -453,6 +441,126 @@ in
               to auto-create users on first login.
             '';
           };
+
+          # =================================================================
+          # Admin UI SSO (OAuth2 flow for web UI login)
+          # =================================================================
+          adminUi = mkOption {
+            type = types.submodule {
+              options = {
+                enable = mkEnableOption "Admin UI SSO via OAuth2";
+
+                clientId = mkOption {
+                  type = types.str;
+                  default = "";
+                  example = "litellm";
+                  description = "OAuth2 client ID for Admin UI SSO.";
+                };
+
+                clientSecretFile = mkOption {
+                  type = types.nullOr types.path;
+                  default = null;
+                  description = "Path to file containing OAuth2 client secret.";
+                };
+
+                authorizationEndpoint = mkOption {
+                  type = types.str;
+                  default = "";
+                  example = "https://id.holthome.net/authorize";
+                  description = "OAuth2 authorization endpoint.";
+                };
+
+                tokenEndpoint = mkOption {
+                  type = types.str;
+                  default = "";
+                  example = "https://id.holthome.net/token";
+                  description = "OAuth2 token endpoint.";
+                };
+
+                userinfoEndpoint = mkOption {
+                  type = types.str;
+                  default = "";
+                  example = "https://id.holthome.net/userinfo";
+                  description = "OAuth2 userinfo endpoint.";
+                };
+
+                scope = mkOption {
+                  type = types.str;
+                  default = "openid profile email";
+                  description = "OAuth2 scopes to request.";
+                };
+
+                redirectUri = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                  example = "https://llm.holthome.net/sso/callback";
+                  description = "OAuth2 redirect URI. Defaults to <proxy_base_url>/sso/callback.";
+                };
+
+                userIdAttribute = mkOption {
+                  type = types.str;
+                  default = "sub";
+                  description = "Attribute containing user ID in OAuth2 response.";
+                };
+
+                userEmailAttribute = mkOption {
+                  type = types.str;
+                  default = "email";
+                  description = "Attribute containing user email in OAuth2 response.";
+                };
+
+                userDisplayNameAttribute = mkOption {
+                  type = types.str;
+                  default = "name";
+                  description = "Attribute containing display name in OAuth2 response.";
+                };
+
+                userRoleAttribute = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                  example = "litellm_role";
+                  description = ''
+                    KNOWN ISSUE: This option currently does NOT work with Generic SSO providers
+                    due to a bug in LiteLLM's generic_response_convertor function, which always
+                    sets user_role=None. Use proxyAdminId as a workaround until LiteLLM fixes this.
+
+                    When working, this would specify the attribute containing user role in
+                    OAuth2 userinfo response. The claim value must be a valid LiteLLM role:
+                    - proxy_admin: Full admin access
+                    - proxy_admin_viewer: Read-only admin access
+                    - internal_user: Can create/manage own keys
+                    - internal_user_viewer: Can view own keys (read-only)
+
+                    See: https://github.com/BerriAI/litellm/blob/main/litellm/proxy/management_endpoints/ui_sso.py
+                  '';
+                };
+
+                proxyAdminId = mkOption {
+                  type = types.nullOr types.str;
+                  default = null;
+                  example = "ryan@example.com";
+                  description = ''
+                    User ID (email) to grant proxy admin access on first SSO login.
+                    Must match the value returned in userIdAttribute claim (typically email).
+
+                    NOTE: Only supports a SINGLE admin. For multiple admins:
+                    1. Set this to the first/primary admin's email
+                    2. Have that admin use the LiteLLM UI to promote other users
+                       via Internal Users → Update User Role → proxy_admin
+
+                    This is a LiteLLM limitation - PROXY_ADMIN_ID does direct string
+                    comparison, not list parsing.
+                  '';
+                };
+              };
+            };
+            default = { };
+            description = ''
+              Admin UI SSO configuration for web-based login.
+              Uses OAuth2 Generic provider pattern.
+              See: https://docs.litellm.ai/docs/proxy/admin_ui_sso
+            '';
+          };
         };
       };
       default = { };
@@ -504,7 +612,7 @@ in
         interval = "30s";
         timeout = "10s";
         retries = 3;
-        startPeriod = "60s";
+        startPeriod = "120s";  # LiteLLM needs time to connect to DB and sync models
       };
       description = "Container healthcheck configuration.";
     };
@@ -595,6 +703,26 @@ in
           assertion = !cfg.sso.enable || cfg.sso.jwksUrl != "";
           message = "modules.services.litellm.sso.jwksUrl must be set when SSO is enabled.";
         }
+        {
+          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.clientId != "";
+          message = "modules.services.litellm.sso.adminUi.clientId must be set when Admin UI SSO is enabled.";
+        }
+        {
+          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.clientSecretFile != null;
+          message = "modules.services.litellm.sso.adminUi.clientSecretFile must be set when Admin UI SSO is enabled.";
+        }
+        {
+          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.authorizationEndpoint != "";
+          message = "modules.services.litellm.sso.adminUi.authorizationEndpoint must be set when Admin UI SSO is enabled.";
+        }
+        {
+          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.tokenEndpoint != "";
+          message = "modules.services.litellm.sso.adminUi.tokenEndpoint must be set when Admin UI SSO is enabled.";
+        }
+        {
+          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.userinfoEndpoint != "";
+          message = "modules.services.litellm.sso.adminUi.userinfoEndpoint must be set when Admin UI SSO is enabled.";
+        }
       ];
 
       # ========================================================================
@@ -648,6 +776,10 @@ in
 
       virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
         image = cfg.image;
+
+        # Explicitly specify --config to load models from config.yaml
+        # The litellm-database image default CMD doesn't include this
+        cmd = [ "--config" "/app/config.yaml" "--port" (toString internalContainerPort) ];
 
         environmentFiles = [ envFile ];
 
@@ -722,7 +854,9 @@ in
           LoadCredential = [
             "provider-keys:${cfg.environmentFile}"
             "db_password:${cfg.database.passwordFile}"
-          ] ++ optional (cfg.masterKeyFile != null) "master-key:${cfg.masterKeyFile}";
+          ] ++ optional (cfg.masterKeyFile != null) "master-key:${cfg.masterKeyFile}"
+          ++ optional (cfg.sso.adminUi.enable && cfg.sso.adminUi.clientSecretFile != null)
+            "oidc-client-secret:${cfg.sso.adminUi.clientSecretFile}";
         };
 
         script = ''
@@ -750,6 +884,30 @@ in
               fi
               printf "LITELLM_MASTER_KEY=%s\n" "$(cat "$MASTER_KEY_FILE")"
             fi
+        '' + optionalString cfg.sso.adminUi.enable ''
+
+            # Admin UI SSO (OAuth2 Generic Provider)
+            printf "GENERIC_CLIENT_ID=${cfg.sso.adminUi.clientId}\n"
+            if [[ -f "$CREDENTIALS_DIRECTORY/oidc-client-secret" ]]; then
+              printf "GENERIC_CLIENT_SECRET=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/oidc-client-secret")"
+            fi
+            printf "GENERIC_AUTHORIZATION_ENDPOINT=${cfg.sso.adminUi.authorizationEndpoint}\n"
+            printf "GENERIC_TOKEN_ENDPOINT=${cfg.sso.adminUi.tokenEndpoint}\n"
+            printf "GENERIC_USERINFO_ENDPOINT=${cfg.sso.adminUi.userinfoEndpoint}\n"
+            printf "GENERIC_SCOPE=${cfg.sso.adminUi.scope}\n"
+          '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.redirectUri != null) ''
+          printf "PROXY_BASE_URL=${lib.removeSuffix "/sso/callback" cfg.sso.adminUi.redirectUri}\n"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userIdAttribute != "sub") ''
+          printf "GENERIC_USER_ID_ATTRIBUTE=${cfg.sso.adminUi.userIdAttribute}\n"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userEmailAttribute != "email") ''
+          printf "GENERIC_USER_EMAIL_ATTRIBUTE=${cfg.sso.adminUi.userEmailAttribute}\n"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userDisplayNameAttribute != "name") ''
+          printf "GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=${cfg.sso.adminUi.userDisplayNameAttribute}\n"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userRoleAttribute != null) ''
+          printf "GENERIC_USER_ROLE_ATTRIBUTE=${cfg.sso.adminUi.userRoleAttribute}\n"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.proxyAdminId != null && cfg.sso.adminUi.userRoleAttribute == null) ''
+          printf "PROXY_ADMIN_ID=${cfg.sso.adminUi.proxyAdminId}\n"
+        '' + ''
           } > "$tmp"
 
           install -m 600 "$tmp" "${envFile}"
