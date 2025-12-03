@@ -35,6 +35,7 @@
     ./zigbee2mqtt
     ./zwave-js-ui
     ./lidarr # Lidarr music collection manager
+    ./litellm # LiteLLM unified AI gateway (native wrapper)
     ./loki # Loki log aggregation server
     ./mealie # Mealie recipe manager
     ./nginx

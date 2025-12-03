@@ -40,6 +40,7 @@ let
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
   tautulliEnabled = config.modules.services.tautulli.enable or false;
+  litellmEnabled = config.modules.services.litellm.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -537,6 +538,19 @@ in
         // optionalAttrs (openWebuiEnabled && (config.modules.services.open-webui.openai.enable or false)) {
           # OpenAI API key (only when OpenAI provider enabled)
           "open-webui/openai_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs litellmEnabled {
+          # LiteLLM AI Gateway secrets
+          # Master key is auto-generated, no SOPS secret needed
+          # Database and OIDC not used in stateless mode
+
+          # Provider API keys (environment file format)
+          # Contains: AZURE_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY
+          "litellm/provider-keys" = {
             mode = "0400";
             owner = "root";
             group = "root";
