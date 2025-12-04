@@ -52,16 +52,84 @@ jobs:
       - name: Validate updated packages
         run: nix flake check --no-build
 
+      - name: Build and fix nvfetcher-managed packages
+        id: build-packages
+        run: |
+          # Extract package names from nvfetcher.toml
+          packages=$(grep '^\[' pkgs/nvfetcher.toml | tr -d '[]' | while read pkg; do
+            # Map nvfetcher names to flake package names if different
+            case "$pkg" in
+              usage-cli) echo "usage" ;;
+              *) echo "$pkg" ;;
+            esac
+          done)
+
+          echo "Building packages: $packages"
+          fixed_packages=""
+          failed_packages=""
+
+          for pkg in $packages; do
+            echo "::group::Building $pkg"
+
+            # First attempt: try to build directly
+            if nix build ".#$pkg" --no-link 2>&1; then
+              echo "✅ $pkg built successfully"
+            else
+              echo "Build failed, attempting to fix hashes with nix-update..."
+
+              # Use nix-update to fix hashes (--version=skip means don't change version, just hashes)
+              # --flake tells it we're in a flake, --build verifies the fix works
+              if nix-shell -p nix-update --run "nix-update --flake --version=skip --build $pkg" 2>&1; then
+                echo "✅ $pkg fixed and rebuilt successfully"
+                fixed_packages="$fixed_packages $pkg"
+              else
+                echo "❌ $pkg could not be fixed automatically"
+                failed_packages="$failed_packages $pkg"
+              fi
+            fi
+
+            echo "::endgroup::"
+          done
+
+          # Output results
+          if [ -n "$fixed_packages" ]; then
+            echo "fixed_packages=$fixed_packages" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -n "$failed_packages" ]; then
+            echo "::error::Packages that could not be fixed:$failed_packages"
+            echo "failed_packages=$failed_packages" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
       - name: Create Pull Request
         id: create-pull-request
+        if: always()
         uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7
         with:
           token: ${{ steps.app-token.outputs.token }}
           branch: nvfetcher/deps
           title: "chore(deps): Update packages managed by nvfetcher"
-          commit-message: "chore(deps): Update packages managed by nvfetcher"
+          commit-message: |
+            chore(deps): Update packages managed by nvfetcher
+
+            ${{ steps.build-packages.outputs.fixed_packages && format('Auto-fixed hashes for:{0}', steps.build-packages.outputs.fixed_packages) || '' }}
           body: |
             ## ${{ steps.run-nvfetcher.outputs.changes }}
+
+            ${{ steps.build-packages.outputs.fixed_packages && format('### ✅ Auto-fixed Hash Updates
+
+            The following packages had their hashes automatically updated via `nix-update`:
+            {0}
+
+            All packages build successfully.', steps.build-packages.outputs.fixed_packages) || '' }}
+
+            ${{ steps.build-packages.outputs.failed_packages && format('### ⚠️ Manual Intervention Required
+
+            The following packages could not be automatically fixed:
+            {0}
+
+            Please update the hashes manually.', steps.build-packages.outputs.failed_packages) || '' }}
           add-paths: |
             pkgs/**
           delete-branch: true
