@@ -139,12 +139,6 @@ diff --git a/src/indexer/schema.rs b/src/indexer/schema.rs
 index a30066e..e9c56e9 100644
 --- a/src/indexer/schema.rs
 +++ b/src/indexer/schema.rs
-@@ -1,4 +1,4 @@
--use tantivy::schema::{Field, Schema, FAST, STORED, STRING, TEXT};
-+use tantivy::schema::{Field, Schema, FAST, STORED, STRING, TEXT, INDEXED};
-
- /// Schema for recipe search index
- #[derive(Clone)]
 @@ -41,11 +41,11 @@ impl RecipeSchema {
          // Difficulty (faceted, filterable)
          let difficulty = schema_builder.add_text_field("difficulty", STRING | STORED);
