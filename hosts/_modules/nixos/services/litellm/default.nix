@@ -172,8 +172,9 @@ let
 
   # Build healthcheck options (use internal container port)
   # Note: /health requires API key auth, but /health/liveliness is unauthenticated
+  # Note: LiteLLM container doesn't have curl, use wget (matches upstream docker-compose)
   healthcheckOptions = optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-    "--health-cmd=curl --fail --silent --max-time 5 http://127.0.0.1:${toString internalContainerPort}/health/liveliness || exit 1"
+    "--health-cmd=wget --no-verbose --tries=1 http://127.0.0.1:${toString internalContainerPort}/health/liveliness || exit 1"
     "--health-interval=${cfg.healthcheck.interval}"
     "--health-timeout=${cfg.healthcheck.timeout}"
     "--health-retries=${toString cfg.healthcheck.retries}"
@@ -616,7 +617,7 @@ in
         interval = "30s";
         timeout = "10s";
         retries = 3;
-        startPeriod = "120s"; # LiteLLM needs time to connect to DB and sync models
+        startPeriod = "40s"; # Matches upstream docker-compose
       };
       description = "Container healthcheck configuration.";
     };
