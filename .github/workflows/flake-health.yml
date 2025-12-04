@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 8 * * *'
 
+concurrency:
+  group: flake-health
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

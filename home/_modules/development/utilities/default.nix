@@ -6,6 +6,8 @@
 }:
 let
   cfg = config.modules.development;
+  # nix-inspect uses nix-cargo-integration which has issues on aarch64
+  isX86 = pkgs.stdenv.hostPlatform.isx86_64;
 in
 {
   config = lib.mkIf cfg.enable {
@@ -21,8 +23,8 @@ in
       unstable.helm-ls
       unstable.minio-client
     ]) ++
-    [
+    (lib.optionals isX86 [
       inputs.nix-inspect.packages.${pkgs.system}.default
-    ];
+    ]);
   };
 }

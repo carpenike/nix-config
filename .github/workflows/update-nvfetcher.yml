@@ -10,20 +10,30 @@ on:
     paths:
       - pkgs/nvfetcher.toml
 
-permissions:
-  contents: read
+concurrency:
+  group: update-nvfetcher
+  cancel-in-progress: true
 
 jobs:
   update-nvfetcher:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.CARPENIKE_APP_ID }}
+          private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
+
       - name: Set up Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
         with:
@@ -39,18 +49,8 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Update flake.lock for nvfetcher sources
-        run: nix flake update
-
       - name: Validate updated packages
         run: nix flake check --no-build
-
-      - name: Generate Token
-        uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2
-        id: app-token
-        with:
-          app-id: ${{ secrets.CARPENIKE_APP_ID }}
-          private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
 
       - name: Create Pull Request
         id: create-pull-request
@@ -64,5 +64,4 @@ jobs:
             ## ${{ steps.run-nvfetcher.outputs.changes }}
           add-paths: |
             pkgs/**
-            flake.lock
           delete-branch: true

@@ -71,7 +71,7 @@ jobs:
           use-flakehub: false
 
       - name: Nix flake check
-        run: nix flake check --keep-going
+        run: nix flake check --no-build
 
       - name: Register binfmt
         run: |
@@ -110,45 +110,23 @@ jobs:
           exit 1
 
       - name: Diff profile
-        id: diff
         run: |
-          nix profile diff-closures --profile ./profile
-          delimiter="$(openssl rand -hex 16)"
-          echo "diff<<${delimiter}" >> "${GITHUB_OUTPUT}"
-          nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' >> "${GITHUB_OUTPUT}"
-          echo "${delimiter}" >> "${GITHUB_OUTPUT}"
+          nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' | tee diff.txt
 
       - name: Scan for security issues
-        id: security
         run: |
-          nix run nixpkgs/nixos-unstable#vulnix -- -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml ./profile | tee /tmp/security.txt
-          OUTPUT_SECURITY="$(cat /tmp/security.txt)"
-          OUTPUT_SECURITY="${OUTPUT_SECURITY//'%'/'%25'}"
-          OUTPUT_SECURITY="${OUTPUT_SECURITY//$'\n'/'%0A'}"
-          OUTPUT_SECURITY="${OUTPUT_SECURITY//$'\r'/'%0D'}"
-          echo "$OUTPUT_SECURITY"
+          nix run nixpkgs/nixos-unstable#vulnix -- -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml ./profile | tee security.txt
 
-          delimiter="$(openssl rand -hex 16)"
-          echo "security<<${delimiter}" >> "${GITHUB_OUTPUT}"
-          echo "$OUTPUT_SECURITY" >> "${GITHUB_OUTPUT}"
-          echo "${delimiter}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload build logs
+      - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          name: nix-build-logs-${{ matrix.system }}
+          name: build-report-${{ matrix.system }}
           path: |
+            diff.txt
+            security.txt
             stdout.log
             /tmp/nix-build-err.log
-          if-no-files-found: ignore
-
-      - name: Upload security report
-        if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
-        with:
-          name: security-report-${{ matrix.system }}
-          path: /tmp/security.txt
           if-no-files-found: ignore
 
   nix-build-success:

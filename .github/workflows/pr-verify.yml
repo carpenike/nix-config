@@ -44,19 +44,18 @@ jobs:
       - name: Build comment body
         id: comment
         run: |
-          tmp="comment.md"
-          : > "$tmp"
-          for dir in artifacts/report-*; do
-            [ -d "$dir" ] || continue
-            system=${dir##*/report-}
-            {
-              echo "### Report for \\`${system}\\`"
+          {
+            echo 'body<<EOF'
+            for dir in artifacts/report-*; do
+              [ -d "$dir" ] || continue
+              system=${dir##*/report-}
+              echo "### Report for \`${system}\`"
               echo
               echo "<details>"
               echo "<summary>Version diff</summary>"
               echo
               echo '<pre>'
-              cat "$dir/diff.txt" 2>/dev/null || true
+              cat "$dir/diff.txt" 2>/dev/null || echo "No diff available"
               echo '</pre>'
               echo "</details>"
               echo
@@ -64,20 +63,16 @@ jobs:
               echo "<summary>Security report</summary>"
               echo
               echo '```'
-              cat "$dir/security.txt" 2>/dev/null || true
+              cat "$dir/security.txt" 2>/dev/null || echo "No security report available"
               echo '```'
               echo "</details>"
               echo
-            } >> "$tmp"
-          done
-          if [ ! -s "$tmp" ]; then
-            echo "No build artifacts were uploaded for this run." >> "$tmp"
-          fi
-          body=$(cat "$tmp")
-          body="${body//'%'/'%25'}"
-          body="${body//$'\n'/'%0A'}"
-          body="${body//$'\r'/'%0D'}"
-          echo "body=$body" >> "$GITHUB_OUTPUT"
+            done
+            if [ ! -d artifacts/report-* ] 2>/dev/null; then
+              echo "No build artifacts were uploaded for this run."
+            fi
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Generate Token
         uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2
