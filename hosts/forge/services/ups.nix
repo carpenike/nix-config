@@ -306,7 +306,7 @@ in
   # Provides a web dashboard and API endpoint for NUT UPS monitoring
   # Configuration is done through the UI and stored in /var/lib/peanut/settings.yml
   virtualisation.oci-containers.containers.peanut = lib.mkIf serviceEnabled {
-    image = "docker.io/brandawg93/peanut:latest";
+    image = "docker.io/brandawg93/peanut:5.19.0@sha256:faff0ad19adebd8cea1155cc658b52f2eea4d1c020e8a76fef03f4e588a50cd6";
     autoStart = true;
 
     environment = {
@@ -329,6 +329,12 @@ in
     # Use host network to access NUT on localhost:3493
     extraOptions = [
       "--network=host"
+      # Health check - matches upstream: /api/ping endpoint, 30s interval, 3s timeout, 5s start
+      "--health-cmd=wget --no-verbose --tries=1 --spider --no-check-certificate http://127.0.0.1:${toString peanutPort}/api/ping || exit 1"
+      "--health-interval=30s"
+      "--health-timeout=3s"
+      "--health-retries=3"
+      "--health-start-period=5s"
     ];
   };
 

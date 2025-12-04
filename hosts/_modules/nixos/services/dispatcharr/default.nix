@@ -697,56 +697,6 @@ in
         }
       ];
 
-      # Create explicit health check timer/service that we control
-      # We don't use Podman's native --health-* flags because they create transient units
-      # that bypass systemd overrides and cause activation failures
-      systemd.timers.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Dispatcharr Container Health Check Timer";
-        wantedBy = [ "timers.target" ];
-        partOf = [ mainServiceUnit ]; # Bind timer lifecycle to container service
-        after = [ mainServiceUnit ];
-        timerConfig = {
-          # Delay first check to allow container initialization
-          OnActiveSec = cfg.healthcheck.startPeriod; # e.g., "300s"
-          # Regular interval for subsequent checks
-          OnUnitActiveSec = cfg.healthcheck.interval; # e.g., "30s"
-          # Continue timer even if check fails
-          Persistent = false;
-        };
-      };
-
-      systemd.services.dispatcharr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Dispatcharr Container Health Check";
-        after = [ mainServiceUnit ];
-        requires = [ mainServiceUnit ];
-        serviceConfig = {
-          Type = "oneshot";
-          # We allow the unit to fail for better observability. The timer's OnActiveSec
-          # provides the startup grace period, and after that we want genuine failures
-          # to be visible in systemctl --failed for monitoring.
-          ExecStart = pkgs.writeShellScript "dispatcharr-healthcheck" ''
-            set -euo pipefail
-
-            # 1. Check if container is running to avoid unnecessary errors
-            if ! ${pkgs.podman}/bin/podman inspect dispatcharr --format '{{.State.Running}}' | grep -q true; then
-              echo "Container dispatcharr is not running, skipping health check."
-              exit 1
-            fi
-
-            # 2. Run the health check defined in the container.
-            # This updates the container's status for `podman ps` and exits with
-            # a proper status code for systemd.
-            if ${pkgs.podman}/bin/podman healthcheck run dispatcharr; then
-              echo "Health check passed."
-              exit 0
-            else
-              echo "Health check failed."
-              exit 1
-            fi
-          '';
-        };
-      };
-
       # Register notification template
       modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         "dispatcharr-failure" = {

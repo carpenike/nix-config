@@ -358,40 +358,6 @@ in
         })
       ];
 
-      systemd.timers.readarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Readarr Container Health Check Timer";
-        wantedBy = [ "timers.target" ];
-        after = [ mainServiceUnit ];
-        timerConfig = {
-          OnActiveSec = cfg.healthcheck.startPeriod;
-          OnUnitActiveSec = cfg.healthcheck.interval;
-          Persistent = false;
-        };
-      };
-
-      systemd.services.readarr-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "Readarr Health Check";
-        after = [ mainServiceUnit ];
-        requires = [ mainServiceUnit ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "readarr-healthcheck" ''
-            set -euo pipefail
-            if ! ${pkgs.podman}/bin/podman inspect readarr --format '{{.State.Running}}' | grep -q true; then
-              echo "Container readarr is not running, skipping health check."
-              exit 1
-            fi
-            if ${pkgs.podman}/bin/podman healthcheck run readarr; then
-              echo "Health check passed."
-              exit 0
-            else
-              echo "Health check failed."
-              exit 1
-            fi
-          '';
-        };
-      };
-
       modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         "readarr-failure" = {
           enable = lib.mkDefault true;

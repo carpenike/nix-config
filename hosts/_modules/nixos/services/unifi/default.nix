@@ -238,6 +238,14 @@ in
           "${cfg.logDir}:/logs"
         ];
         resources = cfg.resources;
+        extraOptions = [
+          # Health check matching upstream docker-healthcheck.sh
+          "--health-cmd=curl --max-time 5 -kILs --fail https://localhost:8443 || exit 1"
+          "--health-interval=30s"
+          "--health-timeout=10s"
+          "--health-retries=3"
+          "--health-start-period=120s"
+        ];
       };
 
       systemd.services.${mainServiceUnit} = lib.mkMerge [

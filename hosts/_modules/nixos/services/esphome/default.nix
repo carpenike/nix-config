@@ -71,15 +71,6 @@ let
         recvOptions = foundReplication.replication.recvOptions or "u";
       };
 
-  healthcheckScript = pkgs.writeShellScript "esphome-healthcheck" ''
-    set -euo pipefail
-    url="http://127.0.0.1:${toString esphomePort}/"
-    if ! ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 5 "$url" >/dev/null; then
-      echo "ESPHome dashboard probe failed for $url" >&2
-      exit 1
-    fi
-  '';
-
 in
 {
   options.modules.services.esphome = {
@@ -196,22 +187,22 @@ in
       enable = lib.mkOption {
         type = lib.types.bool;
         default = true;
-        description = "Enable the periodic HTTP probe for the dashboard.";
+        description = "Enable Podman container health check (matches upstream).";
       };
       interval = lib.mkOption {
         type = lib.types.str;
         default = "30s";
-        description = "Timer interval between HTTP health checks (matches upstream).";
+        description = "Interval between health checks (matches upstream).";
       };
       timeout = lib.mkOption {
         type = lib.types.str;
         default = "30s";
-        description = "Timeout applied to the HTTP probe (matches upstream).";
+        description = "Timeout for health check probe (matches upstream).";
       };
       startPeriod = lib.mkOption {
         type = lib.types.str;
         default = "1m";
-        description = "Grace period after service start before marking probes as failures.";
+        description = "Grace period after container start before health checks count as failures.";
       };
     };
 
@@ -347,26 +338,8 @@ in
         })
       ];
 
-      systemd.timers.esphome-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "ESPHome dashboard health check timer";
-        wantedBy = [ "timers.target" ];
-        after = [ mainServiceUnit ];
-        timerConfig = {
-          OnActiveSec = cfg.healthcheck.startPeriod;
-          OnUnitActiveSec = cfg.healthcheck.interval;
-          Persistent = false;
-        };
-      };
-
-      systemd.services.esphome-healthcheck = lib.mkIf cfg.healthcheck.enable {
-        description = "ESPHome dashboard HTTP probe";
-        after = [ mainServiceUnit ];
-        requires = [ mainServiceUnit ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = healthcheckScript;
-        };
-      };
+      # Health check is handled natively by Podman container (see extraOptions above)
+      # No separate systemd timer needed - Prometheus scrapes container health status
 
       modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         "esphome-failure" = {
