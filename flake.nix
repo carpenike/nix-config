@@ -207,9 +207,10 @@
 
           # Checks for CI
           checks = {
-            # Statix linter
+            # Statix linter (uses statix.toml for configuration)
             statix = pkgs.runCommand "statix-check" { nativeBuildInputs = [ pkgs.statix ]; } ''
-              statix check ${./.} || exit 1
+              cd ${./.}
+              statix check . --config statix.toml || exit 1
               touch $out
             '';
 
