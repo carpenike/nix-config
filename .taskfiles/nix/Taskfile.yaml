@@ -97,16 +97,178 @@ tasks:
     preconditions:
       - sh: which nix
         msg: "nix not found"
-      - sh: 'echo "{{.host}}" | grep -E "^(luna|rydev|nixos-bootstrap)$"'
-        msg: "VM testing only available for NixOS hosts (luna, rydev, nixos-bootstrap)"
+      - sh: 'echo "{{.host}}" | grep -E "^(luna|rydev|nixos-bootstrap|forge)$"'
+        msg: "VM testing only available for NixOS hosts (luna, rydev, nixos-bootstrap, forge)"
       - sh: 'test "{{OS}}" != "darwin"'
         msg: |
           ❌ VM testing is not supported on macOS (Darwin)
 
           The 'nix-test-vm' command requires QEMU, which has compatibility issues on macOS.
           Please run this command on a Linux host, or use alternative testing methods:
-          - Build-only validation for a host: /nix-deploy host=<hostname> --build-only
-          - General configuration check: /nix-validate
+          - Build-only validation: task nix:build-nixos host=<hostname>
+          - General configuration check: task nix:validate
+
+  validate:
+    desc: Comprehensive pre-deployment validation for Nix configurations
+    silent: true
+    summary: |
+      Validates Nix flake configuration. ALWAYS run before deployment.
+
+      Args:
+        host: (optional) Validate only this host
+        fast: (optional) Skip formatting check
+
+      Examples:
+        task nix:validate                    # Validate all configurations
+        task nix:validate host=forge         # Validate specific host
+        task nix:validate fast=true          # Skip formatting check
+    vars:
+      NIXOS_HOSTS: "luna rydev nixos-bootstrap forge"
+      DARWIN_HOSTS: "rymac"
+    cmds:
+      - |
+        {{if .host}}
+          echo "🔍 Validating {{.host}}..."
+          # Determine if NixOS or Darwin
+          if echo "{{.NIXOS_HOSTS}}" | grep -qw "{{.host}}"; then
+            nix build .#nixosConfigurations.{{.host}}.config.system.build.toplevel --no-link --show-trace
+          elif echo "{{.DARWIN_HOSTS}}" | grep -qw "{{.host}}"; then
+            nix build .#darwinConfigurations.{{.host}}.config.system.build.toplevel --no-link --show-trace
+          else
+            echo "❌ Unknown host: {{.host}}"
+            exit 1
+          fi
+        {{else}}
+          echo "🔍 Running nix flake check..."
+          nix flake check --show-trace
+        {{end}}
+      - |
+        {{if not .fast}}
+          echo "📝 Checking formatting..."
+          nix fmt -- --check || echo "⚠️  Formatting issues found. Run 'nix fmt' to fix."
+        {{end}}
+      - echo "✅ Validation complete"
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+
+  update:
+    desc: Update flake inputs
+    silent: true
+    summary: |
+      Updates flake.lock with latest input versions.
+
+      Args:
+        input: (optional) Update only specific input
+
+      Examples:
+        task nix:update                      # Update all inputs
+        task nix:update input=nixpkgs        # Update only nixpkgs
+    cmds:
+      - |
+        {{if .input}}
+          echo "📦 Updating {{.input}}..."
+          nix flake update {{.input}}
+        {{else}}
+          echo "📦 Updating all flake inputs..."
+          nix flake update
+        {{end}}
+      - echo "✅ Update complete. Run 'task nix:validate' to verify."
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+
+  update-package:
+    desc: Update custom package hashes using nix-update
+    silent: true
+    summary: |
+      Updates package hashes (cargoHash, vendorHash, etc.) after source changes.
+
+      Args:
+        package: Package name in pkgs/ directory (required)
+        version: (optional) Specific version to update to
+        commit:  (optional) Commit the changes
+
+      Examples:
+        task nix:update-package package=cooklang-cli
+        task nix:update-package package=cooklang-cli version=0.10.0
+        task nix:update-package package=cooklang-cli commit=true
+    requires:
+      vars:
+        - package
+    cmds:
+      - |
+        echo "🔧 Updating {{.package}} hashes..."
+        {{if .version}}
+          nix run nixpkgs#nix-update -- --flake {{.package}} --version {{.version}} {{if .commit}}--commit{{end}}
+        {{else}}
+          nix run nixpkgs#nix-update -- --flake {{.package}} {{if .commit}}--commit{{end}}
+        {{end}}
+      - echo "✅ Package update complete. Run 'task nix:validate' to verify."
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+
+  diff:
+    desc: Compare system generations on a target host
+    silent: true
+    vars:
+      ssh_user: ryan
+      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"holthome.net\"}}"
+    summary: |
+      Shows what changed between system generations on a NixOS host.
+
+      Args:
+        host: Target host to inspect (required)
+
+      Examples:
+        task nix:diff host=forge
+        task nix:diff host=luna
+    requires:
+      vars:
+        - host
+    cmds:
+      - |
+        echo "🔍 Comparing generations on {{.host}}..."
+        ssh {{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}} 'nvd diff $(ls -d /nix/var/nix/profiles/system-*-link | tail -2 | tr "\n" " ")'
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+
+  why-depends:
+    desc: Analyze why a package is included in the closure
+    silent: true
+    summary: |
+      Shows the dependency chain that causes a package to be included.
+
+      Args:
+        host:    Target host configuration (required)
+        package: Package to trace (required)
+
+      Examples:
+        task nix:why-depends host=forge package=openssl
+        task nix:why-depends host=rymac package=python3
+    requires:
+      vars:
+        - host
+        - package
+    vars:
+      NIXOS_HOSTS: "luna rydev nixos-bootstrap forge"
+      DARWIN_HOSTS: "rymac"
+    cmds:
+      - |
+        echo "🔍 Finding why {{.package}} is in {{.host}}..."
+        if echo "{{.NIXOS_HOSTS}}" | grep -qw "{{.host}}"; then
+          nix why-depends .#nixosConfigurations.{{.host}}.config.system.build.toplevel nixpkgs#{{.package}}
+        elif echo "{{.DARWIN_HOSTS}}" | grep -qw "{{.host}}"; then
+          nix why-depends .#darwinConfigurations.{{.host}}.config.system.build.toplevel nixpkgs#{{.package}}
+        else
+          echo "❌ Unknown host: {{.host}}"
+          exit 1
+        fi
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
 
   dns-records:
     desc: Smart diff DNS records - shows only what needs to be added/removed

@@ -13,6 +13,7 @@ This directory contains custom Claude commands designed to streamline operations
 ### Development & Testing
 - **`/nix-test-vm`** - Test NixOS configurations in QEMU VMs
 - **`/nix-update`** - Update flake inputs with validation reminders
+- **`/nix-update-package`** - Update custom package hashes using nix-update
 - **`/nix-scaffold`** - Generate boilerplate for modules and hosts
 - **`/sops-reencrypt`** - Re-encrypt all SOPS secrets
 
@@ -52,6 +53,7 @@ Commands for creating new components and maintaining the repository.
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
 | `/nix-update` | Update flake inputs | Regular maintenance |
+| `/nix-update-package` | Update custom package hashes | After nvfetcher updates |
 | `/nix-scaffold` | Generate boilerplate | Create new modules/hosts |
 
 ### 🔍 Debugging & Analysis
@@ -83,11 +85,12 @@ Commands for troubleshooting deployment issues and understanding system state.
 
 ### Maintenance Workflow
 ```bash
-1. /nix-update                      # Update all inputs
-2. /nix-validate                    # Ensure still valid
-3. /nix-test-vm host=rydev          # Test on development host
-4. /nix-deploy host=rydev           # Deploy to dev first
-5. /nix-deploy host=luna            # Deploy to production
+1. /nix-update                      # Update all flake inputs
+2. /nix-update-package <pkg>        # Update custom package hashes (if needed)
+3. /nix-validate                    # Ensure still valid
+4. /nix-test-vm host=rydev          # Test on development host
+5. /nix-deploy host=rydev           # Deploy to dev first
+6. /nix-deploy host=luna            # Deploy to production
 ```
 
 ### Troubleshooting Workflow

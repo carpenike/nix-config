@@ -3,6 +3,38 @@
 version: "3"
 
 tasks:
+  edit:
+    desc: Edit encrypted secrets for a host
+    silent: true
+    summary: |
+      Opens SOPS-encrypted secrets file for editing.
+
+      Args:
+        host: Host whose secrets to edit (required)
+        file: (optional) Specific secrets file (default: secrets.sops.yaml)
+
+      Examples:
+        task sops:edit host=forge
+        task sops:edit host=luna file=wireguard.sops.yaml
+    requires:
+      vars:
+        - host
+    vars:
+      secrets_file: "{{.file | default \"secrets.sops.yaml\"}}"
+    cmds:
+      - |
+        SECRETS_PATH="hosts/{{.host}}/{{.secrets_file}}"
+        if [ ! -f "$SECRETS_PATH" ]; then
+          echo "❌ Secrets file not found: $SECRETS_PATH"
+          exit 1
+        fi
+        echo "🔐 Editing $SECRETS_PATH..."
+        sops "$SECRETS_PATH"
+        echo "✅ Secrets saved. Run 'task nix:validate host={{.host}}' to verify."
+    preconditions:
+      - sh: which sops
+        msg: "sops not found"
+
   re-encrypt:
     desc: Decrypt and re-encrypt all sops secrets
     silent: true

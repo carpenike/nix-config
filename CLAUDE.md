@@ -6,22 +6,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a comprehensive Nix configuration repository that manages both NixOS and Darwin (macOS) systems using Nix flakes. The repository follows a sophisticated modular architecture with support for multiple hosts, unified user configurations, and enterprise-level patterns including secrets management, impermanence, and automated validation.
 
-## Custom Project Commands
+## Task Runner Commands
 
-These commands streamline common operations and enforce best practices. Use them for routine development and operational tasks.
+All operations use the Taskfile runner (`task`). Run `task --list` to see all available commands.
 
-| Command | Description | When to Use | Preconditions/Limitations |
-|---------|-------------|-------------|---------------------------|
-| `/nix-validate` | Comprehensive pre-deployment validation | **ALWAYS** before deployment, commits, or PRs | None |
-| `/nix-deploy` | Unified deployment with automatic OS detection | Deploy configurations to any host | Requires valid configuration |
-| `/task-list` | Discover available Task runner commands | Explore automation options | None |
-| `/sops-edit` | Edit encrypted secrets with path resolution | Add/modify secrets | Requires GPG/age key access |
-| `/nix-test-vm` | Test NixOS configs in QEMU VMs | Test risky changes safely | **CRITICAL: Linux only - fails on macOS (Darwin) due to QEMU incompatibility** |
-| `/nix-update` | Update flake inputs with validation reminders | Regular maintenance | Always validate after updates |
-| `/nix-scaffold` | Generate boilerplate for modules/hosts | Create new components | Follow up with imports/registration |
-| `/sops-reencrypt` | Re-encrypt all SOPS secrets | After key changes | Requires decryption access |
-| `/nix-diff` | Compare system generations | Debug deployment changes | Requires SSH to target host |
-| `/nix-why-depends` | Analyze package dependency chains | Understand closures | Build must be evaluatable |
+### Core Commands
+
+| Command | Description | When to Use |
+|---------|-------------|-------------|
+| `task nix:validate` | Comprehensive pre-deployment validation | **ALWAYS** before deployment, commits, or PRs |
+| `task nix:validate host=<host>` | Validate specific host | Targeted validation for faster feedback |
+| `task nix:apply-nixos host=<host>` | Deploy to NixOS host | Deploy configurations to NixOS systems |
+| `task nix:apply-darwin host=<host>` | Deploy to Darwin host | Deploy configurations to macOS systems |
+| `task nix:build-nixos host=<host>` | Build without deploying | Test build before deployment |
+| `task nix:build-darwin host=<host>` | Build Darwin without deploying | Test build before deployment |
+| `task nix:test-vm host=<host>` | Test NixOS in QEMU VM | **Linux only** - test risky changes safely |
+| `task nix:update` | Update all flake inputs | Regular maintenance |
+| `task nix:update input=<name>` | Update specific input | Targeted updates |
+| `task nix:update-package package=<pkg>` | Update package hashes | After nvfetcher updates sources |
+| `task nix:diff host=<host>` | Compare system generations | Debug deployment changes |
+| `task nix:why-depends host=<host> package=<pkg>` | Analyze dependency chains | Understand why package is included |
+| `task sops:edit host=<host>` | Edit encrypted secrets | Add/modify secrets |
+| `task sops:re-encrypt` | Re-encrypt all secrets | After key changes |
+
+### Backup Commands
+
+| Command | Description |
+|---------|-------------|
+| `task backup:status` | Show current backup status |
+| `task backup:health` | Quick health check |
+| `task backup:orchestrate` | Trigger all backups before deployment |
 
 ## External Tools (MCP Servers)
 
@@ -44,47 +58,46 @@ Combine tools and commands to accomplish common goals efficiently.
 1. **Perplexity**: Research libraries or best practices for the feature
 2. **Zen**: Discuss and refine the architecture
 3. **GitHub**: Create a new feature branch
-4. `/nix-scaffold`: Generate module boilerplate if needed
-5. *(Code Development)*
-6. `/nix-validate`: Check code quality
-7. `/nix-test-vm`: (If on Linux) Perform integration test
-8. **GitHub**: Create pull request for review
+4. *(Code Development)*
+5. `task nix:validate`: Check code quality
+6. `task nix:test-vm host=<host>`: (If on Linux) Perform integration test
+7. **GitHub**: Create pull request for review
 
 ### Bug Fix Workflow
 1. **GitHub**: Locate the issue describing the bug
 2. **Zen**: Analyze the bug report and code to form hypothesis
 3. **GitHub**: Create branch (e.g., `fix/issue-123`)
-4. `/nix-diff`: Compare system generations if deployment-related
+4. `task nix:diff host=<host>`: Compare system generations if deployment-related
 5. *(Code Development & Debugging)*
-6. `/nix-validate`: Ensure code quality
-7. `/nix-test-vm`: (If on Linux) Confirm fix under integration
+6. `task nix:validate`: Ensure code quality
+7. `task nix:test-vm host=<host>`: (If on Linux) Confirm fix under integration
 8. **GitHub**: Create PR linking the resolved issue
 
 ### Dependency Update Workflow
-1. `/nix-update`: Update specific or all flake inputs
-2. `/nix-validate`: Immediate validation of all configs
-3. `/nix-test-vm`: (If on Linux) Test critical services
-4. `/nix-deploy host=rydev --build-only`: Test build on dev host
-5. `/nix-deploy host=rydev`: Deploy to development first
+1. `task nix:update`: Update specific or all flake inputs
+2. `task nix:validate`: Immediate validation of all configs
+3. `task nix:test-vm host=rydev`: (If on Linux) Test critical services
+4. `task nix:build-nixos host=rydev`: Test build on dev host
+5. `task nix:apply-nixos host=rydev`: Deploy to development first
 6. Monitor for issues, then deploy to production hosts
 
 ### Secret Management Workflow
-1. `/sops-edit host=<hostname>`: Edit encrypted secrets
-2. `/nix-validate host=<hostname>`: Validate configuration with new secrets
-3. `/nix-deploy host=<hostname> --build-only`: Test build
-4. `/sops-reencrypt`: (If keys changed) Re-encrypt all secrets
+1. `task sops:edit host=<hostname>`: Edit encrypted secrets
+2. `task nix:validate host=<hostname>`: Validate configuration with new secrets
+3. `task nix:build-nixos host=<hostname>`: Test build
+4. `task sops:re-encrypt`: (If keys changed) Re-encrypt all secrets
 5. Deploy carefully with validation at each step
 
 ### Infrastructure Service Development Workflow
 1. **Research & Discovery**:
    - Check for native NixOS module first (`search.nixos.org/options`)
-   - **CRITICAL**: Prefer native modules over containers (see `/docs/modular-design-patterns.md#native-vs-container-decision`)
+   - **CRITICAL**: Prefer native modules over containers (see `docs/modular-design-patterns.md`)
    - Use Perplexity for current best practices and security considerations
 2. **Architecture Review**:
    - Use Zen or Gemini Pro to evaluate native vs container approach
    - Review security implications and integration complexity
 3. **Module Creation**:
-   - **REQUIRED**: Follow `/docs/modular-design-patterns.md#creating-new-service-modules`
+   - **REQUIRED**: Follow `docs/modular-design-patterns.md`
    - Use wrapper pattern for native modules (preferred)
    - Only use containers when native module doesn't exist or isn't practical
 4. **Pattern Compliance**:
@@ -93,12 +106,12 @@ Combine tools and commands to accomplish common goals efficiently.
 5. **Monitoring Setup**:
    - Add Gatus endpoint contribution for user-facing checks (if applicable)
    - Configure Prometheus alerts for system health
-   - Follow guidance in `/docs/monitoring-strategy.md`
+   - Follow guidance in `docs/monitoring-strategy.md`
 6. **Security**:
    - Localhost binding + reverse proxy + authentication + systemd hardening
    - Follow principle of least privilege
 7. **Testing**:
-   - Validate with `/nix-validate` and test deployment on `rydev` first
+   - Validate with `task nix:validate` and test deployment on `rydev` first
    - Verify all integrations (backup, monitoring, logging, proxy)
 8. **Migration Planning**:
    - For existing container services, evaluate migration to native
@@ -109,7 +122,7 @@ Combine tools and commands to accomplish common goals efficiently.
 ### Package Management Workflow
 1. **Determine package type**: CLI tool → Nix, GUI app → Homebrew
 2. **Add to configuration**: Edit appropriate module file
-3. `/nix-validate`: Check configuration syntax
+3. `task nix:validate`: Check configuration syntax
 4. `darwin-rebuild build --flake .`: Preview changes safely
 5. `darwin-rebuild switch --flake .`: Apply if build succeeds
 6. **Important**: Never use `brew install` directly - always declare in configuration
@@ -244,8 +257,10 @@ See `/docs/service-migration-roadmap.md` for the current status of migrating exi
 | `hosts/_modules/nixos/services/` | NixOS service modules with reverse proxy integration patterns |
 | `hosts/<hostname>/` | Individual host configurations and secrets |
 | `home/` | Home Manager configurations for user environments |
-| `overlays/` | Package overlays for modified/custom packages |
-| `pkgs/` | Custom package definitions (kubectl plugins, utilities) |
+| `overlays/` | Package overlays importing from `pkgs/` |
+| `pkgs/` | Custom packages and nvfetcher-managed sources (see `docs/custom-package-patterns.md`) |
+| `pkgs/_sources/` | Auto-generated by nvfetcher (DO NOT EDIT) |
+| `pkgs/nvfetcher.toml` | nvfetcher configuration for source tracking |
 | `.taskfiles/` | Task runner configuration for build/deploy automation |
 
 ### Layered Module Architecture
@@ -286,8 +301,8 @@ Unified user experience across platforms achieved through:
 - **Impermanence**: Ephemeral root filesystem with explicit persistence (NixOS only)
 - **Disko**: Declarative disk partitioning and formatting (NixOS only)
 - **Catppuccin Theming**: Unified color scheme across all applications
-- **Custom Packages**: kubectl plugins and utilities in `pkgs/`
-- **Overlays**: Shared package modifications ensuring consistency across hosts
+- **Custom Packages**: nvfetcher for source tracking, nix-update for hash management (see `docs/custom-package-patterns.md`)
+- **Overlays**: Package modifications importing from `pkgs/` for consistency
 - **Podman Infrastructure**: Rootful container orchestration with health checks, resource limits, and security hardening
 
 ### Infrastructure Services Architecture
