@@ -217,6 +217,7 @@ in
             aiohttp-sse
             mcp
             pyipp
+            beautifulsoup4
 
           ];
 
