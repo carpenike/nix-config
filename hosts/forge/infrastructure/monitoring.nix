@@ -400,14 +400,30 @@ in
   # Note: ZFS collector disabled due to kernel hangs when snapshot unmount operations are pending.
   # The ZFS collector calls statfs() which can block indefinitely in zfsctl_snapshot_unmount_delay().
   # We use custom textfile collectors for critical ZFS metrics instead.
-  services.prometheus.exporters.node = {
-    # Note: monitoring-agent.nix enables [ "systemd" ], monitoring module adds "textfile"
-    enabledCollectors = lib.mkForce [ "systemd" "textfile" ];
-  };
 
-  # Define the scrape targets for this instance of the monitoring hub.
-  # If the hub were moved to another host, this block would move with it.
+  # Consolidated services.prometheus configuration
   services.prometheus = {
+    # Host-specific node exporter overrides
+    exporters.node = {
+      # Note: monitoring-agent.nix enables [ "systemd" ], monitoring module adds "textfile"
+      enabledCollectors = lib.mkForce [ "systemd" "textfile" ];
+    };
+
+    # PostgreSQL Performance Monitoring via postgres_exporter
+    exporters.postgres = {
+      enable = true;
+      port = 9187;
+      # Use peer authentication as postgres user (no password needed)
+      runAsLocalSuperUser = true;
+      # DataSourceName not needed when using runAsLocalSuperUser
+
+      # Custom queries for forge-specific monitoring
+      extraFlags = [
+        "--auto-discover-databases"
+        "--exclude-databases=template0,template1"
+      ];
+    };
+
     # Wire Prometheus to Alertmanager for alert delivery
     alertmanagers = [{
       static_configs = [{
@@ -465,23 +481,96 @@ in
     interval = "minutely";
   };
 
-  # ZFS metrics exporter service and timer
-  systemd.services.zfs-metrics-exporter = {
-    description = "ZFS Pool Metrics Exporter for Prometheus";
-    serviceConfig = {
-      Type = "oneshot";
-      User = "root"; # zpool commands require root
-      ExecStart = "${zfsMetricsScript}/bin/export-zfs-metrics";
+  # Consolidated systemd configuration for all metrics exporters
+  systemd.services = {
+    # ZFS metrics exporter service
+    zfs-metrics-exporter = {
+      description = "ZFS Pool Metrics Exporter for Prometheus";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root"; # zpool commands require root
+        ExecStart = "${zfsMetricsScript}/bin/export-zfs-metrics";
+      };
+    };
+
+    # TLS metrics exporter service
+    tls-metrics-exporter = {
+      description = "TLS Certificate Metrics Exporter for Prometheus";
+      # Wait for both Caddy and the permission fixer to complete
+      # The permission fixer sets ACLs on /var/lib/caddy/.local/share/caddy/certificates
+      # so that node-exporter (in caddy group) can read certificates
+      after = [ "caddy.service" "fix-caddy-cert-permissions.service" ];
+      wants = [ "caddy.service" "fix-caddy-cert-permissions.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        User = "node-exporter";
+        Group = "node-exporter";
+        WorkingDirectory = "/var/lib/node_exporter";
+        ExecStart = "${tlsMetricsScript}/bin/export-tls-metrics";
+
+        # Grant read access to Caddy certificates and write access to node_exporter directory
+        # Note: ReadWritePaths must include the parent directory to allow path traversal
+        ReadWritePaths = [ "/var/lib/node_exporter" ];
+        ReadOnlyPaths = [ "/var/lib/caddy/.local/share/caddy/certificates" ];
+
+        # Capture output to journal for debugging
+        StandardOutput = "journal";
+        StandardError = "journal";
+
+        # Add timeout to prevent hanging on certificate checks
+        TimeoutStartSec = "60s";
+      };
+    };
+
+    # Container metrics exporter service
+    container-metrics-exporter = {
+      description = "Container Resource Metrics Exporter for Prometheus";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root"; # Run as root to access systemd-managed containers
+        ExecStart = "${containerMetricsScript}/bin/export-container-metrics";
+
+        # Grant write access to the textfile collector directory
+        ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
+
+        # Add timeout to prevent hanging on podman commands
+        TimeoutStartSec = "30s";
+      };
     };
   };
 
-  systemd.timers.zfs-metrics-exporter = {
-    description = "Run ZFS metrics exporter every minute";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "1m";
-      OnUnitActiveSec = "1m";
-      Unit = "zfs-metrics-exporter.service";
+  systemd.timers = {
+    # ZFS metrics timer
+    zfs-metrics-exporter = {
+      description = "Run ZFS metrics exporter every minute";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "1m";
+        OnUnitActiveSec = "1m";
+        Unit = "zfs-metrics-exporter.service";
+      };
+    };
+
+    # TLS metrics timer
+    tls-metrics-exporter = {
+      description = "Run TLS metrics exporter every 5 minutes";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "5m"; # Wait for Caddy to start AND permissions to be fixed (fix-caddy runs at 2m + processing time)
+        OnUnitActiveSec = "5m"; # Check every 5 minutes
+        Unit = "tls-metrics-exporter.service";
+      };
+    };
+
+    # Container metrics timer
+    container-metrics-exporter = {
+      description = "Run container metrics exporter every minute";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "1m"; # Wait for containers to start
+        OnUnitActiveSec = "60s"; # Check every minute (balanced resolution vs overhead)
+        Unit = "container-metrics-exporter.service";
+      };
     };
   };
 
@@ -573,91 +662,8 @@ in
 
   # NOTE: ZFS pool health alerts moved to infrastructure/storage.nix for co-location with ZFS lifecycle management
 
-  # TLS metrics exporter service and timer
-  systemd.services.tls-metrics-exporter = {
-    description = "TLS Certificate Metrics Exporter for Prometheus";
-    # Wait for both Caddy and the permission fixer to complete
-    # The permission fixer sets ACLs on /var/lib/caddy/.local/share/caddy/certificates
-    # so that node-exporter (in caddy group) can read certificates
-    after = [ "caddy.service" "fix-caddy-cert-permissions.service" ];
-    wants = [ "caddy.service" "fix-caddy-cert-permissions.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "node-exporter";
-      Group = "node-exporter";
-      WorkingDirectory = "/var/lib/node_exporter";
-      ExecStart = "${tlsMetricsScript}/bin/export-tls-metrics";
-
-      # Grant read access to Caddy certificates and write access to node_exporter directory
-      # Note: ReadWritePaths must include the parent directory to allow path traversal
-      ReadWritePaths = [ "/var/lib/node_exporter" ];
-      ReadOnlyPaths = [ "/var/lib/caddy/.local/share/caddy/certificates" ];
-
-      # Capture output to journal for debugging
-      StandardOutput = "journal";
-      StandardError = "journal";
-
-      # Add timeout to prevent hanging on certificate checks
-      TimeoutStartSec = "60s";
-    };
-  };
-
-  systemd.timers.tls-metrics-exporter = {
-    description = "Run TLS metrics exporter every 5 minutes";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "5m"; # Wait for Caddy to start AND permissions to be fixed (fix-caddy runs at 2m + processing time)
-      OnUnitActiveSec = "5m"; # Check every 5 minutes
-      Unit = "tls-metrics-exporter.service";
-    };
-  };
-
-  # Container metrics exporter service and timer
-  systemd.services.container-metrics-exporter = {
-    description = "Container Resource Metrics Exporter for Prometheus";
-    serviceConfig = {
-      Type = "oneshot";
-      User = "root"; # Run as root to access systemd-managed containers
-      ExecStart = "${containerMetricsScript}/bin/export-container-metrics";
-
-      # Grant write access to the textfile collector directory
-      ReadWritePaths = [ "/var/lib/node_exporter/textfile_collector" ];
-
-      # Remove socket environment - use default podman context as root
-      # Environment = [ "PODMAN_HOST=unix:///run/podman/podman.sock" ];
-
-      # Add timeout to prevent hanging on podman commands
-      TimeoutStartSec = "30s";
-    };
-  };
-
-  systemd.timers.container-metrics-exporter = {
-    description = "Run container metrics exporter every minute";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "1m"; # Wait for containers to start
-      OnUnitActiveSec = "60s"; # Check every minute (balanced resolution vs overhead)
-      Unit = "container-metrics-exporter.service";
-    };
-  };
-
   # NOTE: TLS/Caddy alerts moved to infrastructure/reverse-proxy.nix for co-location with Caddy configuration
   # NOTE: Container alerts moved to infrastructure/containerization.nix for co-location with container platform config
-
-  # PostgreSQL Performance Monitoring via postgres_exporter
-  services.prometheus.exporters.postgres = {
-    enable = true;
-    port = 9187;
-    # Use peer authentication as postgres user (no password needed)
-    runAsLocalSuperUser = true;
-    # DataSourceName not needed when using runAsLocalSuperUser
-
-    # Custom queries for forge-specific monitoring
-    extraFlags = [
-      "--auto-discover-databases"
-      "--exclude-databases=template0,template1"
-    ];
-  };
 
   # NOTE: PostgreSQL-specific alert rules have been moved to services/postgresql.nix
   # This follows the contribution pattern where each service defines its own monitoring rules.
