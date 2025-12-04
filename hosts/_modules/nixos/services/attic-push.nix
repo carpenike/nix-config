@@ -8,7 +8,7 @@ let
 
   # Script to push built paths to Attic
   pushScript = pkgs.writeShellScript "attic-post-build-hook" ''
-    set -euf
+    set -uf
 
     # Only push if we have paths to push
     if [[ -z "''${OUT_PATHS:-}" ]]; then
@@ -19,11 +19,11 @@ let
     echo "Pushing paths to Attic cache: $OUT_PATHS"
 
     # Push the paths to the cache
-    # Use --ignore-upload-errors to avoid failing builds if cache is temporarily unavailable
-    exec ${pkgs.attic-client}/bin/attic push \
-      --ignore-upload-errors \
-      ${cfg.cacheName} \
-      $OUT_PATHS
+    # Exit 0 regardless of success to avoid failing builds if cache is temporarily unavailable
+    ${pkgs.attic-client}/bin/attic push ${cfg.cacheName} $OUT_PATHS || {
+      echo "Warning: Failed to push to Attic cache (exit code $?), continuing anyway"
+      exit 0
+    }
   '';
 in
 {
