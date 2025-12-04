@@ -58,7 +58,7 @@ in
         default-server = "homelab"
 
         [servers.homelab]
-        url = "https://attic.holthome.net/"
+        endpoint = "https://attic.holthome.net/"
         token = "${config.sops.placeholder."attic/push-token"}"
       '';
       # Put this in root's config since post-build-hook runs as root
