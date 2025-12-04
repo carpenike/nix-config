@@ -218,6 +218,7 @@ in
             mcp
             pyipp
             beautifulsoup4
+            androidtvremote2
 
           ];
 

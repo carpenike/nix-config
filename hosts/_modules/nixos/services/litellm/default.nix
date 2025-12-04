@@ -10,8 +10,10 @@
 # - ZFS storage management
 # - Standard homelab integrations (reverse proxy, backup, preseed, notifications)
 #
-# The container expects config.yaml for model configuration while secrets
-# are loaded from environment variables using the `os.environ/...` syntax.
+# The container expects config.yaml for model configuration. Secrets are
+# substituted into config.yaml at runtime using envsubst, which resolves
+# the limitation where LiteLLM's `os.environ/` syntax only works during
+# database sync and not when reading config.yaml directly.
 #
 # Reference: https://docs.litellm.ai/docs/proxy/deploy
 # SSO Docs: https://docs.litellm.ai/docs/proxy/admin_ui_sso
@@ -68,7 +70,8 @@ let
   configFile = "${configDir}/config.yaml";
 
   # Build model_list configuration for LiteLLM config.yaml
-  # Uses os.environ/... syntax for API keys
+  # Uses shell variable syntax ($VAR_NAME) for API keys.
+  # These will be substituted by envsubst when the config is generated at runtime.
   buildModelList = models: map
     (m: {
       model_name = m.name;
@@ -77,8 +80,8 @@ let
       } // optionalAttrs (m.apiBase != null) {
         api_base = m.apiBase;
       } // optionalAttrs (m.apiKey != null) {
-        # Reference environment variable by name using LiteLLM's syntax
-        api_key = "os.environ/${m.apiKey}";
+        # Shell variable reference - will be substituted by envsubst at runtime
+        api_key = "\${${m.apiKey}}";
       } // optionalAttrs (m.apiVersion != null) {
         api_version = m.apiVersion;
       } // (m.extraParams or { });
@@ -95,11 +98,11 @@ let
     litellm_settings = cfg.litellmSettings;
 
     general_settings = {
-      # Master key from environment
-      master_key = "os.environ/LITELLM_MASTER_KEY";
+      # Master key from environment (substituted by envsubst at runtime)
+      master_key = "\${LITELLM_MASTER_KEY}";
 
-      # Database URL from environment (PostgreSQL)
-      database_url = "os.environ/DATABASE_URL";
+      # Database URL from environment (substituted by envsubst at runtime)
+      database_url = "\${DATABASE_URL}";
     } // optionalAttrs cfg.sso.adminUi.enable {
       # Admin UI SSO requires ui_access_mode = "all"
       # NOTE: JWT auth (enable_jwt_auth) is enterprise-only as of late 2024
@@ -286,7 +289,7 @@ in
           apiKey = mkOption {
             type = types.nullOr types.str;
             default = null;
-            description = "Environment variable name containing API key (without os.environ/ prefix).";
+            description = "Environment variable name containing API key. Will be substituted at runtime via envsubst.";
             example = "AZURE_API_KEY";
           };
 
@@ -866,16 +869,16 @@ in
           trap 'rm -f "$tmp"' EXIT
 
           {
-            # Load provider keys
+            # Load provider keys (these should already be properly formatted KEY=value)
             cat "$CREDENTIALS_DIRECTORY/provider-keys"
 
-            # Database connection URL
+            # Database connection URL (quoted to handle special chars in password)
             DB_PASS=$(cat "$CREDENTIALS_DIRECTORY/db_password")
-            printf "DATABASE_URL=postgresql://${cfg.database.user}:%s@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}\n" "$DB_PASS"
+            printf "DATABASE_URL='postgresql://${cfg.database.user}:%s@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}'\n" "$DB_PASS"
 
-            # Master key handling
+            # Master key handling (quoted for safety)
             if [[ -f "$CREDENTIALS_DIRECTORY/master-key" ]]; then
-              printf "LITELLM_MASTER_KEY=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/master-key")"
+              printf "LITELLM_MASTER_KEY='%s'\n" "$(cat "$CREDENTIALS_DIRECTORY/master-key")"
             else
               # Auto-generate master key if not provided
               MASTER_KEY_FILE="/var/lib/${serviceName}/master-key"
@@ -883,40 +886,51 @@ in
                 head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32 > "$MASTER_KEY_FILE"
                 chmod 600 "$MASTER_KEY_FILE"
               fi
-              printf "LITELLM_MASTER_KEY=%s\n" "$(cat "$MASTER_KEY_FILE")"
+              printf "LITELLM_MASTER_KEY='%s'\n" "$(cat "$MASTER_KEY_FILE")"
             fi
         '' + optionalString cfg.sso.adminUi.enable ''
 
             # Admin UI SSO (OAuth2 Generic Provider)
-            printf "GENERIC_CLIENT_ID=${cfg.sso.adminUi.clientId}\n"
+            # All values must be quoted to handle spaces (e.g., in GENERIC_SCOPE)
+            printf "GENERIC_CLIENT_ID='${cfg.sso.adminUi.clientId}'\n"
             if [[ -f "$CREDENTIALS_DIRECTORY/oidc-client-secret" ]]; then
-              printf "GENERIC_CLIENT_SECRET=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/oidc-client-secret")"
+              printf "GENERIC_CLIENT_SECRET='%s'\n" "$(cat "$CREDENTIALS_DIRECTORY/oidc-client-secret")"
             fi
-            printf "GENERIC_AUTHORIZATION_ENDPOINT=${cfg.sso.adminUi.authorizationEndpoint}\n"
-            printf "GENERIC_TOKEN_ENDPOINT=${cfg.sso.adminUi.tokenEndpoint}\n"
-            printf "GENERIC_USERINFO_ENDPOINT=${cfg.sso.adminUi.userinfoEndpoint}\n"
-            printf "GENERIC_SCOPE=${cfg.sso.adminUi.scope}\n"
+            printf "GENERIC_AUTHORIZATION_ENDPOINT='${cfg.sso.adminUi.authorizationEndpoint}'\n"
+            printf "GENERIC_TOKEN_ENDPOINT='${cfg.sso.adminUi.tokenEndpoint}'\n"
+            printf "GENERIC_USERINFO_ENDPOINT='${cfg.sso.adminUi.userinfoEndpoint}'\n"
+            printf "GENERIC_SCOPE='${cfg.sso.adminUi.scope}'\n"
           '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.redirectUri != null) ''
-          printf "PROXY_BASE_URL=${lib.removeSuffix "/sso/callback" cfg.sso.adminUi.redirectUri}\n"
+          printf "PROXY_BASE_URL='${lib.removeSuffix "/sso/callback" cfg.sso.adminUi.redirectUri}'\n"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userIdAttribute != "sub") ''
-          printf "GENERIC_USER_ID_ATTRIBUTE=${cfg.sso.adminUi.userIdAttribute}\n"
+          printf "GENERIC_USER_ID_ATTRIBUTE='${cfg.sso.adminUi.userIdAttribute}'\n"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userEmailAttribute != "email") ''
-          printf "GENERIC_USER_EMAIL_ATTRIBUTE=${cfg.sso.adminUi.userEmailAttribute}\n"
+          printf "GENERIC_USER_EMAIL_ATTRIBUTE='${cfg.sso.adminUi.userEmailAttribute}'\n"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userDisplayNameAttribute != "name") ''
-          printf "GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=${cfg.sso.adminUi.userDisplayNameAttribute}\n"
+          printf "GENERIC_USER_DISPLAY_NAME_ATTRIBUTE='${cfg.sso.adminUi.userDisplayNameAttribute}'\n"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userRoleAttribute != null) ''
-          printf "GENERIC_USER_ROLE_ATTRIBUTE=${cfg.sso.adminUi.userRoleAttribute}\n"
+          printf "GENERIC_USER_ROLE_ATTRIBUTE='${cfg.sso.adminUi.userRoleAttribute}'\n"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.proxyAdminId != null && cfg.sso.adminUi.userRoleAttribute == null) ''
-          printf "PROXY_ADMIN_ID=${cfg.sso.adminUi.proxyAdminId}\n"
+          printf "PROXY_ADMIN_ID='${cfg.sso.adminUi.proxyAdminId}'\n"
         '' + ''
           } > "$tmp"
 
           install -m 600 "$tmp" "${envFile}"
           echo "Environment file created at ${envFile}"
 
-          # Also install the config.yaml file
-          install -D -m 644 "${configYaml}" "${configFile}"
-          echo "Config file installed at ${configFile}"
+          # Process config.yaml through envsubst to substitute actual values
+          # This is necessary because LiteLLM's os.environ/ syntax only works during
+          # database sync, not when reading config.yaml directly at runtime.
+          # Source the env file to make variables available for substitution
+          set -a
+          source "${envFile}"
+          set +a
+
+          # Substitute environment variables in config.yaml
+          ${pkgs.envsubst}/bin/envsubst < "${configYaml}" > "${configFile}.tmp"
+          install -D -m 644 "${configFile}.tmp" "${configFile}"
+          rm -f "${configFile}.tmp"
+          echo "Config file installed at ${configFile} (with substituted values)"
         '';
       };
 
