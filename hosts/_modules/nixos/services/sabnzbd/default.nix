@@ -910,16 +910,6 @@ in
 
     })
 
-    # Register with Authelia for SSO protection
-    (lib.mkIf (cfg.enable && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) {
-      modules.services.authelia.accessControl.declarativelyProtectedServices.sabnzbd = {
-        domain = cfg.reverseProxy.hostName;
-        policy = cfg.reverseProxy.authelia.policy;
-        subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
-        bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
-      };
-    })
-
     # Add the preseed service using the standard helper
     (lib.mkIf (cfg.enable && cfg.preseed.enable) (
       storageHelpers.mkPreseedService {

@@ -6,7 +6,6 @@
     ./attic.nix
     ./attic-admin.nix
     ./attic-push.nix
-    ./authelia # Authelia SSO authentication service
     ./autobrr # Autobrr IRC announce bot for torrents
     ./backup # Unified backup management system
     ./backup-integration.nix # Legacy auto-discovery for service backup configurations
@@ -47,7 +46,6 @@
     ./open-webui # Open WebUI AI chat interface
     ./openssh
     ./omada
-    ./overseerr # Overseerr request management (DEPRECATED - use seerr)
     ./paperless # Paperless-ngx document management system
     ./seerr # Seerr request management (successor to Overseerr/Jellyseerr)
     ./podman
@@ -76,7 +74,6 @@
     ./tdarr # Tdarr transcoding automation
     ./tqm # tqm fast torrent management for racing
     ./unifi
-    ./uptime-kuma # Uptime Kuma monitoring service (native wrapper)
     # ./ups                                   # REMOVED: Use services.nut directly in host configs
   ];
 }

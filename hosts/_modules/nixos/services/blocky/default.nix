@@ -109,29 +109,6 @@ in
       extraConfig = cfg.reverseProxy.extraConfig;
     };
 
-    # Register with Authelia if SSO protection is enabled
-    modules.services.authelia.accessControl.declarativelyProtectedServices.blocky = lib.mkIf
-      (
-        config.modules.services.authelia.enable &&
-        cfg.reverseProxy != null &&
-        cfg.reverseProxy.enable &&
-        cfg.reverseProxy.authelia != null &&
-        cfg.reverseProxy.authelia.enable
-      )
-      (
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in
-        {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
-            ++ (authCfg.bypassResources or [ ]);
-        }
-      );
-
     systemd.services.blocky = {
       description = "A DNS proxy and ad-blocker for the local network";
       wantedBy = [ "multi-user.target" ];

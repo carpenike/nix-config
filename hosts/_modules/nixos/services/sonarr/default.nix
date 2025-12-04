@@ -353,32 +353,6 @@ in
         extraConfig = cfg.reverseProxy.extraConfig;
       };
 
-      # Register with Authelia if SSO protection is enabled
-      # This declares INTENT - Caddy module handles IMPLEMENTATION
-      modules.services.authelia.accessControl.declarativelyProtectedServices.sonarr = lib.mkIf
-        (
-          config.modules.services.authelia.enable && # Check global Authelia is enabled
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            # Convert groups to Authelia subject format
-            subject = map (g: "group:${g}") authCfg.allowedGroups;
-            # Authelia will handle ALL bypass logic - no Caddy-level bypass
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-              ++ authCfg.bypassResources;
-          }
-        );
-
       # Declare dataset requirements for per-service ZFS isolation
       # This integrates with the storage.datasets module to automatically
       # create tank/services/sonarr with appropriate ZFS properties

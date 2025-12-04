@@ -734,26 +734,6 @@ in
           ];
         };
 
-      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
-        (
-          config.modules.services.authelia.enable or false
-          && cfg.reverseProxy != null && cfg.reverseProxy.enable
-          && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or [ ]))
-              ++ (authCfg.bypassResources or [ ]);
-          }
-        );
-
       # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/teslamate.nix)
       # to keep modules portable and not assume Prometheus availability
 

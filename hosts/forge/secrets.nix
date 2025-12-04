@@ -6,7 +6,6 @@
 let
   inherit (lib) optionalAttrs;
 
-  autheliaEnabled = config.modules.services.authelia.enable or false;
   # Use the new unified backup system (modules.services.backup)
   backupEnabled = config.modules.services.backup.enable or false;
   resticEnabled = backupEnabled && (config.modules.services.backup.restic.enable or false);
@@ -277,57 +276,6 @@ in
             mode = "0400";
             owner = "caddy";
             group = "caddy";
-          };
-        }
-        // optionalAttrs autheliaEnabled {
-          # Authelia secrets
-          "authelia/jwt_secret" = {
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
-          };
-
-          "authelia/session_secret" = {
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
-          };
-
-          "authelia/storage_encryption_key" = {
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
-          };
-
-          "authelia/oidc/hmac_secret" = {
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
-          };
-
-          "authelia/oidc/issuer_private_key" = {
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
-          };
-
-          "authelia/oidc/grafana_client_secret" = {
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
-          };
-
-          "authelia/smtp_password" = {
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
-          };
-
-          "authelia/users.yaml" = {
-            path = "/var/lib/authelia-main/users.yaml";
-            mode = "0400";
-            owner = "authelia-main";
-            group = "authelia-main";
           };
         }
         // optionalAttrs sonarrEnabled {

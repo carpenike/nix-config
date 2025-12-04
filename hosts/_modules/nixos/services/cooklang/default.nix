@@ -514,28 +514,6 @@ in
         }
       );
 
-      modules.services.authelia.accessControl.declarativelyProtectedServices.cooklang = mkIf
-        (
-          config.modules.services.authelia.enable &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (g: "group:${g}") authCfg.allowedGroups;
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-              ++ authCfg.bypassResources;
-          }
-        );
-
       # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/cooklang.nix)
       # to keep modules portable and not assume Prometheus availability
 

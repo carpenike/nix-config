@@ -204,24 +204,6 @@ in
       };
     })
 
-    # Register with Authelia if SSO protection is enabled
-    (mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable) {
-      modules.services.authelia.accessControl.declarativelyProtectedServices.pgweb =
-        let
-          authCfg = cfg.reverseProxy.authelia;
-        in
-        {
-          domain = cfg.reverseProxy.hostName;
-          policy = authCfg.policy;
-          # Convert groups to Authelia subject format
-          subject = map (g: "group:${g}") authCfg.allowedGroups;
-          # Authelia will handle ALL bypass logic
-          bypassResources =
-            (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
-            ++ (authCfg.bypassResources or [ ]);
-        };
-    })
-
     # NOTE: Service alerts are defined at host level
     # to keep modules portable and not assume Prometheus availability
   ]);

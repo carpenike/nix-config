@@ -265,28 +265,6 @@ in
         reverseProxyBlock = cfg.reverseProxy.extraConfig or "";
       };
 
-      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
-        (
-          config.modules.services.authelia.enable &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ])) ++
-              (authCfg.bypassResources or [ ]);
-          }
-        );
-
       # EMQX MQTT integration - auto-register user and ACLs
       modules.services.emqx.integrations.${serviceName} = mkIf
         (

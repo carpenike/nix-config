@@ -425,31 +425,6 @@ in
 
         modules.services.scrypted.reverseProxy.backend = lib.mkIf (cfg.reverseProxy != null) (lib.mkDefault defaultBackend);
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = lib.mkIf
-          (
-            (config.modules.services.authelia.enable or false)
-            && cfg.reverseProxy != null
-            && cfg.reverseProxy.enable
-            && cfg.reverseProxy.authelia != null
-            && cfg.reverseProxy.authelia.enable
-          )
-          (
-            let
-              authCfg = cfg.reverseProxy.authelia;
-              bypassPaths = authCfg.bypassPaths or [ ];
-              extraBypass = authCfg.bypassResources or [ ];
-              allowedGroups = authCfg.allowedGroups or [ ];
-            in
-            {
-              domain = reverseProxyHost;
-              policy = authCfg.policy;
-              subject = map (group: "group:${group}") allowedGroups;
-              bypassResources =
-                (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
-                ++ extraBypass;
-            }
-          );
-
         modules.storage.datasets.services.${cfg.datasetName} = lib.mkIf cfg.manageStorage {
           mountpoint = cfg.dataDir;
           recordsize = "16K";

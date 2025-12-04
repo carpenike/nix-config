@@ -565,18 +565,6 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        # Register with Authelia for SSO protection
-        modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr = lib.mkIf
-          (
-            cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable
-          )
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = cfg.reverseProxy.authelia.policy;
-            subject = map (group: "group:${group}") cfg.reverseProxy.authelia.allowedGroups;
-            bypassResources = map (path: "^${lib.escapeRegex path}/.*$") cfg.reverseProxy.authelia.bypassPaths;
-          };
-
         # Backup integration using standardized restic pattern
         modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
           autobrr = {
@@ -615,31 +603,5 @@ in
           group = cfg.group;
         }
       ))
-
-      # Register with Authelia if SSO protection is enabled
-      # This declares INTENT - Caddy module handles IMPLEMENTATION
-      (lib.mkIf
-        (
-          config.modules.services.authelia.enable &&
-          cfg.enable &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        )
-        {
-          modules.services.authelia.accessControl.declarativelyProtectedServices.autobrr =
-            let
-              authCfg = cfg.reverseProxy.authelia;
-            in
-            {
-              domain = cfg.reverseProxy.hostName;
-              policy = authCfg.policy;
-              subject = map (g: "group:${g}") authCfg.allowedGroups;
-              bypassResources =
-                (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-                ++ authCfg.bypassResources;
-            };
-        })
     ];
 }

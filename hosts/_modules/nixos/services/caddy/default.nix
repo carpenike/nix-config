@@ -4,10 +4,6 @@ with lib;
 let
   cfg = config.modules.services.caddy;
 
-  # Find all vhosts with Authelia enabled to dynamically build systemd dependencies
-  autheliaEnabledVhosts = filter (vhost: vhost.enable && vhost.authelia != null && vhost.authelia.enable) (attrValues cfg.virtualHosts);
-  autheliaInstances = unique (map (vhost: vhost.authelia.instance or "main") autheliaEnabledVhosts);
-
   # Helper: Build backend URL from structured config
   buildBackendUrl = vhost:
     if vhost.backend != null then
@@ -995,13 +991,6 @@ in
         assertion = cfg.acme.provider != "http" -> (cfg.acme.credentials.envVar != "");
         message = "Caddy ACME provider '${cfg.acme.provider}' requires credentials.envVar to be set.";
       }];
-
-    # Add systemd dependencies on Authelia if any vhost uses it
-    # Dynamically builds dependencies for all Authelia instances in use
-    systemd.services.caddy = mkIf (autheliaEnabledVhosts != [ ]) {
-      wants = map (instance: "authelia-${instance}.service") autheliaInstances;
-      after = map (instance: "authelia-${instance}.service") autheliaInstances;
-    };
 
     # Render the Caddyfile once and supply it via configFile so we fully control ordering
     services.caddy =

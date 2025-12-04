@@ -389,30 +389,6 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
-          (
-            (config.modules.services.authelia.enable or false)
-            && cfg.reverseProxy != null
-            && cfg.reverseProxy.enable
-            && cfg.reverseProxy.authelia != null
-            && cfg.reverseProxy.authelia.enable
-          )
-          (
-            let
-              authCfg = cfg.reverseProxy.authelia;
-              bypassPaths = authCfg.bypassPaths or [ ];
-              bypassResources = authCfg.bypassResources or [ ];
-            in
-            {
-              domain = cfg.reverseProxy.hostName;
-              policy = authCfg.policy;
-              subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
-              bypassResources =
-                (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
-                ++ bypassResources;
-            }
-          );
-
         modules.services.emqx.integrations.${serviceName} = mkIf
           (
             cfg.mqtt.enable

@@ -681,27 +681,6 @@ in
           }
         );
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices."${serviceName}-dashboard" = mkIf
-          (
-            (config.modules.services.authelia.enable or false)
-            && cfg.dashboard.enable
-            && cfg.dashboard.reverseProxy != null && cfg.dashboard.reverseProxy.enable
-            && cfg.dashboard.reverseProxy.authelia != null && cfg.dashboard.reverseProxy.authelia.enable
-          )
-          (
-            let
-              authCfg = cfg.dashboard.reverseProxy.authelia;
-            in
-            {
-              domain = cfg.dashboard.reverseProxy.hostName;
-              policy = authCfg.policy;
-              subject = map (group: "group:${group}") (authCfg.allowedGroups or [ ]);
-              bypassResources =
-                (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or [ ]))
-                ++ (authCfg.bypassResources or [ ]);
-            }
-          );
-
         # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/emqx.nix)
         # to keep modules portable and not assume Prometheus availability
       }

@@ -439,29 +439,6 @@ in
         '';
       };
 
-      # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices.loki = mkIf
-        (
-          config.modules.services.authelia.enable &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (g: "group:${g}") authCfg.allowedGroups;
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
-              ++ (authCfg.bypassResources or [ ]);
-          }
-        );
-
       # Backup configuration
       # Note: Backup can be configured at the host level using the backup.restic system
       # Loki relies on ZFS snapshots for primary data protection

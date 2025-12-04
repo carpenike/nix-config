@@ -338,29 +338,6 @@ in
         extraConfig = cfg.reverseProxy.extraConfig;
       };
 
-      # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices.radarr = lib.mkIf
-        (
-          config.modules.services.authelia.enable &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (g: "group:${g}") authCfg.allowedGroups;
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-              ++ authCfg.bypassResources;
-          }
-        );
-
       # Declare dataset requirements for per-service ZFS isolation
       modules.storage.datasets.services.radarr = {
         mountpoint = cfg.dataDir;

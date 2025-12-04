@@ -364,31 +364,6 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        modules.services.authelia.accessControl.declarativelyProtectedServices.frigate = lib.mkIf
-          (
-            (config.modules.services.authelia.enable or false) &&
-            cfg.reverseProxy != null &&
-            cfg.reverseProxy.enable &&
-            cfg.reverseProxy.authelia != null &&
-            cfg.reverseProxy.authelia.enable
-          )
-          (
-            let
-              authCfg = cfg.reverseProxy.authelia;
-              bypassPaths = authCfg.bypassPaths or [ ];
-              extraBypass = authCfg.bypassResources or [ ];
-              allowedGroups = authCfg.allowedGroups or [ ];
-            in
-            {
-              domain = reverseProxyHost;
-              policy = authCfg.policy;
-              subject = map (group: "group:${group}") allowedGroups;
-              bypassResources =
-                (map (path: "^${lib.escapeRegex path}/.*$") bypassPaths)
-                ++ extraBypass;
-            }
-          );
-
         modules.services.emqx.integrations.frigate = lib.mkIf (cfg.mqtt.enable && cfg.mqtt.registerEmqxIntegration) {
           users = [
             {

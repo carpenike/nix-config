@@ -619,32 +619,6 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        # Register with Authelia if SSO protection is enabled
-        # This declares INTENT - Caddy module handles IMPLEMENTATION
-        modules.services.authelia.accessControl.declarativelyProtectedServices.qui = lib.mkIf
-          (
-            config.modules.services.authelia.enable && # Check global Authelia is enabled
-            cfg.reverseProxy != null &&
-            cfg.reverseProxy.enable &&
-            cfg.reverseProxy.authelia != null &&
-            cfg.reverseProxy.authelia.enable
-          )
-          (
-            let
-              authCfg = cfg.reverseProxy.authelia;
-            in
-            {
-              domain = cfg.reverseProxy.hostName;
-              policy = authCfg.policy;
-              # Convert groups to Authelia subject format
-              subject = map (g: "group:${g}") authCfg.allowedGroups;
-              # Authelia will handle ALL bypass logic - no Caddy-level bypass
-              bypassResources =
-                (map (path: "^${lib.escapeRegex path}/.*$") authCfg.bypassPaths)
-                ++ authCfg.bypassResources;
-            }
-          );
-
         # Note: Prometheus scrape config should be added manually in host configuration
         # Example:
         #   services.prometheus.scrapeConfigs = [{

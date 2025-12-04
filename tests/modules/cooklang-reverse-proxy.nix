@@ -24,10 +24,6 @@ let
           type = lib.types.attrs;
           default = { };
         };
-        options.modules.services.authelia = lib.mkOption {
-          type = lib.types.attrs;
-          default = { };
-        };
         options.modules.services.caddy = lib.mkOption {
           type = lib.types.attrs;
           default = { };
@@ -51,7 +47,6 @@ let
             rules = { };
           };
           services = {
-            authelia.enable = false;
             caddy.virtualHosts = { };
           };
         };

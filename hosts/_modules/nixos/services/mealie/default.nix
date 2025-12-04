@@ -140,9 +140,6 @@ let
     ++ (lib.optional (cfg.smtp.enable && cfg.smtp.passwordFile != null) "smtp_password:${cfg.smtp.passwordFile}")
     ++ (lib.optional (cfg.oidc.enable && cfg.oidc.clientSecretFile != null) "oidc_client_secret:${cfg.oidc.clientSecretFile}")
     ++ (lib.optional (cfg.openai.enable && cfg.openai.apiKeyFile != null) "openai_api_key:${cfg.openai.apiKeyFile}");
-
-  makeAutheliaRule =
-    cfg.reverseProxy != null && cfg.reverseProxy.enable && cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable;
 in
 {
   options.modules.services.mealie = {
@@ -737,24 +734,6 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         }
       );
-
-      modules.services.authelia.accessControl.declarativelyProtectedServices.${serviceName} = mkIf
-        (
-          config.modules.services.authelia.enable or false && makeAutheliaRule
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (groupName: "group:${groupName}") (authCfg.allowedGroups or [ ]);
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}.*") (authCfg.bypassPaths or [ ]))
-              ++ (authCfg.bypassResources or [ ]);
-          }
-        );
 
       modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
         enable = true;

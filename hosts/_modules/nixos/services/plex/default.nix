@@ -313,29 +313,6 @@ in
         + (if (cfg.reverseProxy.extraConfig or "") != "" then "\n" + cfg.reverseProxy.extraConfig else "");
       };
 
-      # Register with Authelia if SSO protection is enabled
-      modules.services.authelia.accessControl.declarativelyProtectedServices.plex = lib.mkIf
-        (
-          config.modules.services.authelia.enable &&
-          cfg.reverseProxy != null &&
-          cfg.reverseProxy.enable &&
-          cfg.reverseProxy.authelia != null &&
-          cfg.reverseProxy.authelia.enable
-        )
-        (
-          let
-            authCfg = cfg.reverseProxy.authelia;
-          in
-          {
-            domain = cfg.reverseProxy.hostName;
-            policy = authCfg.policy;
-            subject = map (g: "group:${g}") authCfg.allowedGroups;
-            bypassResources =
-              (map (path: "^${lib.escapeRegex path}/.*$") (authCfg.bypassPaths or [ ]))
-              ++ (authCfg.bypassResources or [ ]);
-          }
-        );
-
       # ZFS dataset auto-registration
       # Permissions must be set explicitly for ZFS mounts (StateDirectory doesn't apply to pre-mounted directories)
       modules.storage.datasets.services.plex = lib.mkIf (cfg.zfs.dataset != null) {
