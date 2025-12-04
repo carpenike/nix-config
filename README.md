@@ -70,28 +70,31 @@ A comprehensive **Infrastructure-as-Code** repository managing NixOS servers, ma
 
 The `forge` host demonstrates our architectural approach, separating concerns into three distinct layers:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    APPLICATION SERVICES                      │
-│  Media: Plex, Sonarr, Radarr, qBittorrent, Tdarr            │
-│  Home: Home Assistant, Frigate, Zigbee2MQTT, ESPHome        │
-│  AI/LLM: Open WebUI, LiteLLM                                │
-│  Utils: Paperless, Mealie, Enclosed, Cooklang               │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ consumes
-┌─────────────────────────▼───────────────────────────────────┐
-│                    INFRASTRUCTURE                            │
-│  Storage: ZFS datasets, Sanoid snapshots, Syncoid replication│
-│  Backup: Restic (system), pgBackRest (PostgreSQL)           │
-│  Observability: Prometheus, Grafana, Loki, Alertmanager     │
-│  Networking: Caddy reverse proxy, Cloudflare Tunnel         │
-│  Monitoring: Gatus status page, service health checks       │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ runs on
-┌─────────────────────────▼───────────────────────────────────┐
-│                       CORE OS                                │
-│  Boot, Networking, Users, Impermanence, System Health       │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Services["🔧 APPLICATION SERVICES"]
+        direction LR
+        Media["Media: Plex, Sonarr, Radarr, qBittorrent, Tdarr"]
+        Home["Home: Home Assistant, Frigate, Zigbee2MQTT, ESPHome"]
+        AI["AI/LLM: Open WebUI, LiteLLM"]
+        Utils["Utils: Paperless, Mealie, Enclosed, Cooklang"]
+    end
+
+    subgraph Infra["⚙️ INFRASTRUCTURE"]
+        direction LR
+        Storage["Storage: ZFS datasets, Sanoid, Syncoid"]
+        Backup["Backup: Restic, pgBackRest"]
+        Obs["Observability: Prometheus, Grafana, Loki"]
+        Net["Networking: Caddy, Cloudflare Tunnel"]
+    end
+
+    subgraph Core["🖥️ CORE OS"]
+        direction LR
+        CoreItems["Boot, Networking, Users, Impermanence, System Health"]
+    end
+
+    Services -->|consumes| Infra
+    Infra -->|runs on| Core
 ```
 
 ### Key Design Patterns
@@ -291,11 +294,18 @@ Internal metrics and predictive alerting:
 
 ### Alerting Flow
 
-```
-Prometheus → Alertmanager → Pushover/Discord
-                         ↓
-                    Alert Rules defined per-service
-                    (co-located in service files)
+```mermaid
+flowchart LR
+    P[Prometheus] --> A[Alertmanager]
+    A --> Push[Pushover]
+    A --> Discord[Discord]
+
+    subgraph Rules["Alert Rules"]
+        R1["Defined per-service"]
+        R2["Co-located in service files"]
+    end
+
+    P -.->|evaluates| Rules
 ```
 
 See [docs/monitoring-strategy.md](docs/monitoring-strategy.md) for detailed guidance.
@@ -304,10 +314,10 @@ See [docs/monitoring-strategy.md](docs/monitoring-strategy.md) for detailed guid
 
 ### Multi-Layer Strategy
 
-1. **ZFS Snapshots** (Sanoid) - Hourly/daily/weekly/monthly
-2. **ZFS Replication** (Syncoid) - Offsite to nas-1
-3. **Restic** - Encrypted backups to NAS + Cloudflare R2
-4. **pgBackRest** - PostgreSQL PITR to R2
+1. **ZFS Snapshots** (Sanoid) - Hourly/daily/weekly/monthly local snapshots
+2. **ZFS Replication** (Syncoid) - Local replication to nas-1
+3. **Restic** - Encrypted backups to NAS (local) + Cloudflare R2 (offsite)
+4. **pgBackRest** - PostgreSQL PITR to Cloudflare R2 (offsite)
 
 ### Disaster Recovery
 
