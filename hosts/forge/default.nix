@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, ... }:
 
 let
   # Centralized Cloudflare R2 configuration for offsite backups
@@ -143,6 +143,13 @@ in
 
       services = {
         openssh.enable = true;
+
+        # Attic binary cache auto-push
+        attic-push = {
+          enable = true;
+          cacheName = "homelab";
+          tokenFile = config.sops.secrets."attic/push-token".path;
+        };
 
         # Caddy reverse proxy
         caddy = {

@@ -41,6 +41,7 @@ let
   plexEnabled = config.modules.services.plex.enable or false;
   tautulliEnabled = config.modules.services.tautulli.enable or false;
   litellmEnabled = config.modules.services.litellm.enable or false;
+  atticPushEnabled = config.modules.services.attic-push.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -75,6 +76,14 @@ in
             owner = "esphome";
             group = "esphome";
             restartUnits = [ "esphome-sync-secrets.service" "podman-esphome.service" ];
+          };
+        }
+        // optionalAttrs atticPushEnabled {
+          # Attic binary cache push token for automatic cache population
+          "attic/push-token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
           };
         }
         // optionalAttrs r2CredentialsEnabled {

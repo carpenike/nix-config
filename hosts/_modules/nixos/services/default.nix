@@ -5,6 +5,7 @@
     ./adguardhome
     ./attic.nix
     ./attic-admin.nix
+    ./attic-push.nix
     ./authelia # Authelia SSO authentication service
     ./autobrr # Autobrr IRC announce bot for torrents
     ./backup # Unified backup management system
