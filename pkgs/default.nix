@@ -2,7 +2,7 @@
 # You can build them using 'nix build .#example' or (legacy) 'nix-build -A example'
 { pkgs ? import <nixpkgs> { }
 , ...
-} @_inputs:
+}:
 {
   backup-list = pkgs.callPackage ./backup-list.nix { };
   backup-orchestrator = pkgs.callPackage ./backup-orchestrator.nix { };
@@ -16,7 +16,7 @@
   kubectl-pgo = pkgs.callPackage ./kubectl-pgo.nix { };
   cooklang-cli = pkgs.callPackage ./cooklang-cli.nix { };
   cooklang-federation = pkgs.callPackage ./cooklang-federation.nix { };
-  nvim = pkgs.callPackage ./nvim.nix _inputs;
+  # nvim = pkgs.callPackage ./nvim.nix _inputs;  # FIXME: References non-existent homes/bjw-s path
   shcopy = pkgs.callPackage ./shcopy.nix { };
   # talhelper = inputs.talhelper.packages.${pkgs.system}.default;
   usage = pkgs.callPackage ./usage.nix { };

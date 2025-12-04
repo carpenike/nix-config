@@ -204,7 +204,6 @@ in
       name = "ups";
       alertname = "UPSMetricsScrapeFailure";
       expr = "ups_metrics_scrape_success == 0";
-      threshold = 0;
       for = "5m";
       severity = "high";
       category = "monitoring";
@@ -245,7 +244,6 @@ in
     "ups-battery-charge-low" = mylib.monitoring-helpers.mkHighCapacityAlert {
       name = "ups";
       expr = "ups_battery_charge < 50";
-      threshold = 50;
       for = "5m";
       severity = "medium";
       category = "power";
@@ -272,7 +270,6 @@ in
       name = "ups";
       alertname = "UPSLoadHigh";
       expr = "ups_load_percent > 80";
-      threshold = 80;
       for = "10m";
       severity = "medium";
       category = "capacity";
@@ -285,7 +282,6 @@ in
       name = "ups";
       alertname = "UPSTemperatureHigh";
       expr = "ups_temperature_celsius > 30";
-      threshold = 30;
       for = "15m";
       severity = "medium";
       category = "health";
@@ -298,7 +294,6 @@ in
       name = "ups";
       alertname = "UPSOffline";
       expr = "ups_online == 0";
-      threshold = 0;
       for = "2m";
       severity = "critical";
       category = "connectivity";

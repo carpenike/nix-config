@@ -82,7 +82,6 @@ in
         name = "uptime-kuma";
         alertname = "UptimeKumaUnhealthy";
         expr = ''node_systemd_unit_state{name="uptime-kuma-healthcheck.service", state="failed", instance=~".*forge.*"} == 1'';
-        threshold = 1;
         for = "0m";
         severity = "critical";
         category = "availability";

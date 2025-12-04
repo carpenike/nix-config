@@ -77,7 +77,6 @@ in
         name = "tautulli";
         alertname = "TautulliUnhealthy";
         expr = ''node_systemd_unit_state{name="tautulli-healthcheck.service", state="failed", instance=~".*forge.*"} == 1'';
-        threshold = 1;
         for = "0m";
         severity = "critical";
         category = "availability";

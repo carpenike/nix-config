@@ -130,7 +130,6 @@ in
           name = "plex";
           alertname = "PlexDown";
           expr = "plex_up == 0";
-          threshold = 0;
           for = "5m";
           severity = "critical";
           category = "availability";

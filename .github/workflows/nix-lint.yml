@@ -26,16 +26,16 @@ jobs:
 
       - name: Check Formatting
         run: |
-          nix run nixpkgs#nixpkgs-fmt -- --check .
+          nix fmt -- --check .
 
       - name: Run Linters (non-blocking)
         continue-on-error: true
         run: |
           echo "::group::statix warnings"
-          nix run nixpkgs#statix -- check . || true
+          nix build .#checks.x86_64-linux.statix --no-link 2>&1 || true
           echo "::endgroup::"
           echo "::group::deadnix warnings"
-          nix run nixpkgs#deadnix -- . || true
+          nix build .#checks.x86_64-linux.deadnix --no-link 2>&1 || true
           echo "::endgroup::"
 
       - name: Nix Flake Checker
@@ -46,7 +46,7 @@ jobs:
           if ! git diff --exit-code; then
             echo "❌ Formatting changes detected. Please run locally and commit:"
             echo ""
-            echo "  nix run nixpkgs#nixpkgs-fmt -- ."
+            echo "  nix fmt"
             echo ""
             exit 1
           fi

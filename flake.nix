@@ -1,6 +1,18 @@
 {
   description = "carpenike's Nix-Config";
 
+  # Binary caches for faster builds
+  nixConfig = {
+    extra-substituters = [
+      "https://nix-community.cachix.org"
+      "https://cache.garnix.io"
+    ];
+    extra-trusted-public-keys = [
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
+    ];
+  };
+
   inputs = {
     #################### Official NixOS and HM Package Sources ####################
 
@@ -122,13 +134,94 @@
         "aarch64-linux"
       ];
       imports = [ ];
+
+      # Per-system outputs (packages, devShells, formatter, checks)
+      perSystem = { system, ... }:
+        let
+          # Use nixpkgs with our overlays applied
+          pkgs = import inputs.nixpkgs {
+            inherit system;
+            overlays = builtins.attrValues overlays;
+            config.allowUnfree = true;
+          };
+
+          # Import all custom packages
+          allPackages = import ./pkgs { inherit pkgs inputs; };
+
+          # Filter packages to only those available on the current system
+          # This prevents errors when checking packages on Darwin that are Linux-only
+          availablePackages = inputs.nixpkgs.lib.filterAttrs
+            (_name: pkg:
+              let
+                # Check if package has meta.platforms defined
+                hasPlatforms = pkg ? meta && pkg.meta ? platforms;
+                # If no platforms specified, assume available everywhere
+                # Otherwise check if current system is in the platforms list
+                isAvailable = !hasPlatforms ||
+                  builtins.elem system pkg.meta.platforms ||
+                  # Also check for platform patterns like "x86_64-linux"
+                  builtins.any (p: p == system) pkg.meta.platforms;
+              in
+              isAvailable
+            )
+            allPackages;
+        in
+        {
+          # Development shell for working on nix-config
+          devShells.default = pkgs.mkShell {
+            NIX_CONFIG = "extra-experimental-features = nix-command flakes";
+            nativeBuildInputs = with pkgs; [
+              # Nix tools
+              nix
+              home-manager
+              nixpkgs-fmt
+              statix
+              deadnix
+
+              # Version control & CI
+              git
+              just
+              pre-commit
+
+              # Secrets management
+              age
+              ssh-to-age
+              sops
+
+              # Required for pre-commit on Darwin
+              libiconv
+            ];
+
+            shellHook = ''
+              echo "🔧 nix-config development shell"
+              echo "   Run 'just' to see available commands"
+            '';
+          };
+
+          # Code formatter (nix fmt)
+          formatter = pkgs.nixpkgs-fmt;
+
+          # Custom packages - available via 'nix build .#<name>'
+          # Filtered to only packages available on the current system
+          packages = availablePackages;
+
+          # Checks for CI
+          checks = {
+            # Statix linter
+            statix = pkgs.runCommand "statix-check" { nativeBuildInputs = [ pkgs.statix ]; } ''
+              statix check ${./.} || exit 1
+              touch $out
+            '';
+
+            # Deadnix - find dead code
+            deadnix = pkgs.runCommand "deadnix-check" { nativeBuildInputs = [ pkgs.deadnix ]; } ''
+              deadnix --fail ${./.} || exit 1
+              touch $out
+            '';
+          };
+        };
+
       flake = {
-        # Shell configured with packages that are typically only needed when working on or with nix-config. -- NEEDS TO BE FIXED MAYBE
-        # devShells = forAllSystems
-        #   (system:
-        #     let pkgs = nixpkgs.legacyPackages.${system};
-        #     in import ./shell.nix { inherit pkgs; }
-        #   );
         #################### NixOS Configurations ####################
         #
         # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`

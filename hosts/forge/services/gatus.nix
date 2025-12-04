@@ -111,7 +111,6 @@ in
         name = "gatus";
         alertname = "GatusMetricsStale";
         expr = ''time() - gatus_results_last_execution_timestamp_seconds > 300'';
-        threshold = 1;
         for = "5m";
         severity = "high";
         category = "availability";
