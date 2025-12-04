@@ -216,6 +216,7 @@ in
             jsonpath
             aiohttp-sse
             mcp
+            pyipp
 
           ];
 
