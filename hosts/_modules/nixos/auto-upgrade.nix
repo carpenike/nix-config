@@ -10,7 +10,7 @@
 #     # schedule = "04:00";
 #     # rebootWindow = { lower = "03:00"; upper = "05:00"; };
 #   };
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 
 let
   cfg = config.modules.autoUpgrade;
@@ -100,22 +100,7 @@ in
 
     # Add failure notification via systemd
     systemd.services.nixos-upgrade = lib.mkIf notificationsEnabled {
-      onFailure = [ "nixos-upgrade-notify-failure.service" ];
-    };
-
-    systemd.services.nixos-upgrade-notify-failure = lib.mkIf notificationsEnabled {
-      description = "Notify on NixOS upgrade failure";
-      serviceConfig = {
-        Type = "oneshot";
-      };
-      # Use the notification system's send-notification helper
-      script = ''
-        ${pkgs.systemd}/bin/journalctl -u nixos-upgrade.service -n 50 --no-pager
-        # Trigger notification via the centralized system
-        if [[ -x /run/current-system/sw/bin/send-notification ]]; then
-          /run/current-system/sw/bin/send-notification nixos-upgrade-failure
-        fi
-      '';
+      onFailure = [ "notify@nixos-upgrade-failure.service" ];
     };
   };
 }
