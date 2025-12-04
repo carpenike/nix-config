@@ -98,6 +98,10 @@ in
     my.r2 = r2Config;
 
     modules = {
+      # Disable Attic binary cache - server on luna is unreachable
+      # TODO: Re-enable when attic.holthome.net is back online
+      binaryCache.attic.enable = false;
+
       # Automatic system upgrades from GitHub
       autoUpgrade = {
         enable = true;
