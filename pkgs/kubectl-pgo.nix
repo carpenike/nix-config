@@ -10,7 +10,7 @@ in
 buildGoModule rec {
   inherit (packageData) pname src;
   version = lib.strings.removePrefix "v" packageData.version;
-  vendorHash = "sha256-T0rdqBeLKplmEwzchZWdhvU30G6u/vwzu3lQ2FO3+3U=";
+  vendorHash = "sha256-2w3pccBAYwj1ucEAIr+31xWdxJBz3P9HrsIamTmBJXU=";
 
   doCheck = false;
 
