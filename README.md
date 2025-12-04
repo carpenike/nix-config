@@ -94,8 +94,8 @@ flowchart TB
         CoreItems["Boot, Networking, Users, Impermanence, System Health"]
     end
 
-    Services -->|consumes| Infra
-    Infra -->|runs on| Core
+    Services -->| consumes | Infra
+    Infra -->| runs on | Core
 
     classDef services fill:#e1f5fe,stroke:#01579b
     classDef infra fill:#fff3e0,stroke:#e65100
