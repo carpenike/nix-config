@@ -514,7 +514,6 @@ in
               port = backendCfg.port or cfg.port;
             };
             auth = cfg.reverseProxy.auth;
-            authelia = cfg.reverseProxy.authelia;
             security = cfg.reverseProxy.security;
             extraConfig = cfg.reverseProxy.extraConfig or "";
           }

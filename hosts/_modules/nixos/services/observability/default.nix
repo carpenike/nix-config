@@ -464,12 +464,6 @@ in
         description = "Authentication configuration for Loki web interface";
       };
 
-      authelia = mkOption {
-        type = types.nullOr types.attrs;
-        default = null;
-        description = "LEGACY: Authelia SSO configuration. Prefer caddySecurity.";
-      };
-
       caddySecurity = mkOption {
         type = types.nullOr (types.submodule {
           options = {
@@ -629,7 +623,6 @@ in
         port = cfg.prometheus.port;
       };
       auth = cfg.reverseProxy.auth;
-      authelia = cfg.reverseProxy.authelia;
       caddySecurity = cfg.reverseProxy.caddySecurity;
       security.customHeaders = {
         "X-Frame-Options" = "SAMEORIGIN";

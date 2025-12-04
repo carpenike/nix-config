@@ -364,7 +364,6 @@ in
         auth = cfg.reverseProxy.auth;
         security = cfg.reverseProxy.security;
         extraConfig = cfg.reverseProxy.extraConfig;
-        authelia = null;
         caddySecurity = null;
       };
 

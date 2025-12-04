@@ -570,9 +570,6 @@ in
         # Authentication configuration from shared types
         auth = cfg.reverseProxy.auth;
 
-        # Authelia SSO configuration from shared types
-        authelia = cfg.reverseProxy.authelia;
-
         # PocketID / caddy-security configuration
         caddySecurity = cfg.reverseProxy.caddySecurity;
 

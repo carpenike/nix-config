@@ -260,7 +260,6 @@ in
           port = cfg.port;
         };
         auth = cfg.reverseProxy.auth or null;
-        authelia = cfg.reverseProxy.authelia or null;
         security = cfg.reverseProxy.security or { };
         reverseProxyBlock = cfg.reverseProxy.extraConfig or "";
       };

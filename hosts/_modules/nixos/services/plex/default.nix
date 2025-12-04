@@ -302,7 +302,6 @@ in
 
         # Pass-through auth/security from shared types
         auth = cfg.reverseProxy.auth;
-        authelia = cfg.reverseProxy.authelia;
         security = cfg.reverseProxy.security;
 
         # Caddy-specific headers for Plex compatibility

@@ -852,14 +852,6 @@ in
             description = "Additional site-level Caddy directives";
           };
 
-          # Authelia forward authentication (passed through from service reverseProxy.authelia)
-          authelia = mkOption {
-            type = types.nullOr types.attrs;
-            default = null;
-            internal = true;
-            description = "Authelia configuration passed from service module (handled by Caddy module)";
-          };
-
           # Cloudflare Tunnel integration
           cloudflare = mkOption {
             type = types.nullOr (types.submodule {
@@ -968,12 +960,6 @@ in
           message = "Virtual host '${name}' references caddy-security but modules.services.caddy.security.enable is false.";
         })
         cfg.virtualHosts) ++
-      (mapAttrsToList
-        (name: vhost: {
-          assertion = !vhost.enable || vhost.caddySecurity == null || vhost.authelia == null;
-          message = "Virtual host '${name}' cannot enable both Authelia and caddy-security simultaneously.";
-        })
-        cfg.virtualHosts) ++
       (optional (cfg.security.enable && cfg.security.identityProviders == { }) {
         assertion = false;
         message = "Caddy security is enabled but no identity providers are defined.";
@@ -997,26 +983,11 @@ in
       let
         caddyfileText =
           let
-            # Helper: Build Authelia verification URL
-            buildAutheliaUrl = authCfg:
-              "${authCfg.autheliaScheme}://${authCfg.autheliaHost}:${toString authCfg.autheliaPort}";
-
-            # Helper: Generate forward_auth block for Authelia-protected hosts
-            generateAutheliaForwardAuth = authCfg: ''
-              # Authelia SSO forward authentication
-              # NOTE: ALL traffic goes through forward_auth - Authelia handles bypass logic
-              forward_auth ${buildAutheliaUrl authCfg} {
-                uri /api/verify?rd=https://${authCfg.authDomain}
-                copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-              }'';
-
             # Generate configuration for each virtual host
             vhostConfigs = filter (s: s != "") (mapAttrsToList
               (name: vhost:
                 let
-                  hasAuthelia = vhost.authelia != null && vhost.authelia.enable;
-                  # Disable basic auth if Authelia is enabled
-                  useBasicAuth = vhost.auth != null && !hasAuthelia;
+                  useBasicAuth = vhost.auth != null;
                   useCaddySecurity = vhost.caddySecurity != null && vhost.caddySecurity.enable;
                   requireCredentials =
                     if useCaddySecurity then
@@ -1032,12 +1003,6 @@ in
                   hasCaddySecurityBypassPaths = caddySecurityBypassPaths != [ ];
                   hasCaddySecurityBypassResources = caddySecurityBypassResources != [ ];
                   hasCaddySecurityBypass = hasCaddySecurityBypassPaths || hasCaddySecurityBypassResources;
-
-                  # IP-restricted bypass configuration
-                  hasBypassPaths = hasAuthelia && (vhost.authelia.bypassPaths or [ ]) != [ ];
-                  hasNetworkRestrictions = hasAuthelia && (vhost.authelia.allowedNetworks or [ ]) != [ ];
-                  useIpRestrictedBypass = hasBypassPaths && hasNetworkRestrictions;
-                  bypassPathPatterns = map (path: "${path}*") (vhost.authelia.bypassPaths or [ ]);
 
                   backendUrl = buildBackendUrl vhost;
                   tlsTransport = generateTlsTransport vhost;
@@ -1056,23 +1021,6 @@ in
                   reverseProxyBlockIndented = indentLines reverseProxyBlockBase;
                   reverseProxyBlockDoubleIndented = indentLines reverseProxyBlockIndented;
 
-                  # Generate IP-restricted routes for bypass paths
-                  ipRestrictedBypassConfig = optionalString useIpRestrictedBypass ''
-                    # Matcher: API/bypass paths from internal networks only
-                    @internalApi {
-                      path ${concatStringsSep " " bypassPathPatterns}
-                      remote_ip ${concatStringsSep " " vhost.authelia.allowedNetworks}
-                    }
-
-                    # Route: Direct access for trusted internal IPs (skip Authelia)
-                    route @internalApi {
-                      reverse_proxy ${backendUrl} {
-                        ${tlsTransport}
-                        ${vhost.reverseProxyBlock}
-                      }
-                    }
-
-                  '';
                   escapeForExpression = str: lib.replaceStrings [ "\"" ] [ "\\\"" ] str;
                   caddySecurityBypassMatcher = "@caddy_security_bypass_${sanitizeForMatcher vhost.hostName}";
                   caddySecurityBypassConfig = optionalString (useCaddySecurity && hasCaddySecurityBypass) ''
@@ -1154,7 +1102,7 @@ in
                       ${vhost.auth.user} {env.${vhost.auth.passwordHashEnvVar}}
                     }
                     ''}
-                      ${ipRestrictedBypassConfig}${caddySecurityBypassConfig}${staticApiKeyConfig}${optionalString hasAuthelia (generateAutheliaForwardAuth vhost.authelia)}
+                      ${caddySecurityBypassConfig}${staticApiKeyConfig}
                     # Reverse proxy to backend
                     ${reverseProxyDirective}
                     ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}

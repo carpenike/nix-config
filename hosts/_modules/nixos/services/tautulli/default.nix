@@ -228,7 +228,6 @@ in
         # No auth - Tautulli has built-in authentication (Plex or HTTP Basic)
         # Using PocketID would require double-auth since Tautulli can't disable its auth
         auth = cfg.reverseProxy.auth or null;
-        authelia = cfg.reverseProxy.authelia or null;
         security = cfg.reverseProxy.security or { };
         extraConfig = cfg.reverseProxy.extraConfig or "";
       };

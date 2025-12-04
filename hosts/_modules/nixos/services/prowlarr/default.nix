@@ -20,10 +20,7 @@ let
   usesExternalAuth =
     cfg.reverseProxy != null
     && cfg.reverseProxy.enable
-    && (
-      (cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable)
-      || (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable)
-    );
+    && (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable);
 
   # Recursively find the replication config from the most specific dataset path upwards.
   # This allows a service dataset (e.g., tank/services/prowlarr) to inherit replication
@@ -295,7 +292,6 @@ in
           port = prowlarrPort;
         };
         auth = cfg.reverseProxy.auth;
-        authelia = cfg.reverseProxy.authelia;
         caddySecurity = cfg.reverseProxy.caddySecurity;
         security = cfg.reverseProxy.security;
         extraConfig = cfg.reverseProxy.extraConfig;

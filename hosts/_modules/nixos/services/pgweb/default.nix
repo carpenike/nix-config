@@ -189,9 +189,6 @@ in
         # Pass through auth configuration if provided
         auth = cfg.reverseProxy.auth or null;
 
-        # Pass through Authelia SSO configuration if provided
-        authelia = cfg.reverseProxy.authelia or null;
-
         backend = mkDefault {
           scheme = "http";
           host = cfg.listenAddress;

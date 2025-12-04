@@ -106,9 +106,6 @@ in
       # Authentication from shared types
       auth = lib.mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
 
-      # No Authelia - using basic auth for vault security
-      authelia = null;
-
       extraConfig = ''
         # High security headers for vault access
         header / {

@@ -20,10 +20,7 @@ let
   usesExternalAuth =
     cfg.reverseProxy != null
     && cfg.reverseProxy.enable
-    && (
-      (cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable)
-      || (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable)
-    );
+    && (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable);
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
@@ -286,7 +283,6 @@ in
           port = lidarrPort;
         };
         auth = cfg.reverseProxy.auth;
-        authelia = cfg.reverseProxy.authelia;
         caddySecurity = cfg.reverseProxy.caddySecurity;
         security = cfg.reverseProxy.security;
         extraConfig = cfg.reverseProxy.extraConfig;

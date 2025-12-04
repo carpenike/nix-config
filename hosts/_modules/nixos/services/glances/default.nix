@@ -104,9 +104,6 @@ in
       # Authentication from shared types
       auth = cfg.reverseProxy.auth;
 
-      # Authelia SSO configuration from shared types
-      authelia = cfg.reverseProxy.authelia;
-
       # Security configuration
       security = cfg.reverseProxy.security;
 

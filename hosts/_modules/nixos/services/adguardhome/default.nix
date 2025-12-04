@@ -112,9 +112,6 @@ in
       # Authentication configuration from shared types
       auth = cfg.reverseProxy.auth;
 
-      # Authelia SSO configuration from shared types
-      authelia = cfg.reverseProxy.authelia;
-
       # Security configuration with AdGuardHome-specific headers
       security = cfg.reverseProxy.security // {
         customHeaders = cfg.reverseProxy.security.customHeaders // {

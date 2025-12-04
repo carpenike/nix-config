@@ -20,10 +20,7 @@ let
   usesExternalAuth =
     cfg.reverseProxy != null
     && cfg.reverseProxy.enable
-    && (
-      (cfg.reverseProxy.authelia != null && cfg.reverseProxy.authelia.enable)
-      || (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable)
-    );
+    && (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable);
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
@@ -340,9 +337,6 @@ in
 
         # Authentication configuration from shared types
         auth = cfg.reverseProxy.auth;
-
-        # Authelia SSO configuration from shared types
-        authelia = cfg.reverseProxy.authelia;
 
         # PocketID / caddy-security configuration
         caddySecurity = cfg.reverseProxy.caddySecurity;

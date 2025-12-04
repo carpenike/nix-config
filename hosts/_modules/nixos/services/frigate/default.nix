@@ -359,7 +359,6 @@ in
             port = 5000;
           };
           auth = cfg.reverseProxy.auth;
-          authelia = cfg.reverseProxy.authelia;
           security = cfg.reverseProxy.security;
           extraConfig = cfg.reverseProxy.extraConfig;
         };

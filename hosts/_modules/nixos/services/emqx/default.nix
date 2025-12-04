@@ -675,7 +675,6 @@ in
             hostName = cfg.dashboard.reverseProxy.hostName;
             backend = lib.recursiveUpdate defaultBackend configuredBackend;
             auth = cfg.dashboard.reverseProxy.auth;
-            authelia = cfg.dashboard.reverseProxy.authelia;
             security = cfg.dashboard.reverseProxy.security;
             extraConfig = cfg.dashboard.reverseProxy.extraConfig;
           }
