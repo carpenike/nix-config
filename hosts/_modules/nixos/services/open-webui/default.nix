@@ -10,7 +10,7 @@
 #
 # Complexity: Moderate (native wrapper with OIDC + multi-provider)
 #
-# Reference: Mealie module for OIDC pattern, Uptime Kuma for native wrapper pattern
+# Reference: Mealie module for OIDC pattern, Gatus for native wrapper pattern
 
 { config, lib, pkgs, ... }:
 

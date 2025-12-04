@@ -1,23 +1,23 @@
 # Monitoring Strategy: Black-Box vs White-Box
 
-This document establishes the strategic division of monitoring responsibilities between Uptime Kuma (black-box) and Prometheus/Alertmanager (white-box) for homelab services.
+This document establishes the strategic division of monitoring responsibilities between Gatus (black-box) and Prometheus/Alertmanager (white-box) for homelab services.
 
-**Last Updated**: November 5, 2025
-**Gemini Pro Analysis**: Pragmatic monitoring approach for homelab context
+**Last Updated**: December 4, 2025
+**Architecture**: Gatus replaces Uptime Kuma as the black-box monitoring solution
 
 ---
 
 ## Core Principle
 
-**"Use Uptime Kuma for user-facing availability (is it up?) and Prometheus for system internals (how well is it running?)."**
+**"Use Gatus for user-facing availability (is it up?) and Prometheus for system internals (how well is it running?)."**
 
 These two monitoring perspectives are **complementary, not redundant**:
-- **Uptime Kuma alert** tells you *what* is broken (user impact)
+- **Gatus alert** tells you *what* is broken (user impact)
 - **Prometheus alert** tells you *why* it's breaking (system health)
 
 ---
 
-## Black-Box Monitoring (Uptime Kuma)
+## Black-Box Monitoring (Gatus)
 
 ### Purpose
 External validation from the user's perspective. Answers: **"Is this service available and behaving as a user would expect from the outside?"**
@@ -27,10 +27,11 @@ External validation from the user's perspective. Answers: **"Is this service ava
 - **Binary checks**: Service is UP ✅ or DOWN ❌
 - **Immediate alerts**: User-facing failures require immediate action
 - **Public status page**: Family/users can see service availability
+- **Declarative configuration**: Services contribute their own endpoints
 
-### What to Monitor in Uptime Kuma
+### What to Monitor in Gatus
 
-Add to Uptime Kuma if the service meets ANY of these criteria:
+Add to Gatus if the service meets ANY of these criteria:
 - ✅ Users directly interact with it (web UI, API, network service)
 - ✅ You want it displayed on a public status page
 - ✅ The check is simple and external (HTTP 200, port open, ping)
@@ -49,7 +50,7 @@ Add to Uptime Kuma if the service meets ANY of these criteria:
 ### Alert Routing
 - **Target**: Phone notifications (critical/immediate)
 - **When**: User-visible service failures
-- **Configure in**: Uptime Kuma UI (per-monitor notifications)
+- **Configure in**: NixOS configuration via `modules.services.gatus.contributions`
 
 ---
 
@@ -106,7 +107,7 @@ Use both monitoring systems when:
 
 ### Example: PostgreSQL
 
-**Uptime Kuma Check:**
+**Gatus Check:**
 - Type: TCP Port
 - Target: `localhost:5432`
 - Alert: "Database is completely unreachable"
@@ -127,42 +128,42 @@ Use both monitoring systems when:
 ### Authentication (PocketID, Keycloak)
 | System | Check | Purpose |
 |--------|-------|---------|
-| **Uptime Kuma** | HTTPS → login page returns 200 + "Login" keyword | Users can access login |
+| **Gatus** | HTTPS → login page returns 200 + "Login" keyword | Users can access login |
 | **Prometheus** | Auth success/failure rate, request latency | Detect attacks or misconfig |
 
 ### DNS (AdGuard Home, Pihole)
 | System | Check | Purpose |
 |--------|-------|---------|
-| **Uptime Kuma** | DNS query for google.com succeeds | DNS resolution working |
+| **Gatus** | DNS query for google.com succeeds | DNS resolution working |
 | **Prometheus** | systemd unit state, query rate, block rate | Service health, performance |
 
 ### Reverse Proxy (Caddy, Traefik)
 | System | Check | Purpose |
 |--------|-------|---------|
-| **Uptime Kuma** | HTTP(S) checks on **proxied services** (not Caddy itself) | Detect broken routes |
+| **Gatus** | HTTP(S) checks on **proxied services** (not Caddy itself) | Detect broken routes |
 | **Prometheus** | systemd unit state, restart count | Caddy service health |
 
-**Note**: Don't monitor "Caddy itself" in Uptime Kuma. Monitor the services **behind** Caddy. If Caddy is down, all HTTP checks fail - that's your signal.
+**Note**: Don't monitor "Caddy itself" in Gatus. Monitor the services **behind** Caddy. If Caddy is down, all HTTP checks fail - that's your signal.
 
 ### Media (Plex, Jellyfin)
 | System | Check | Purpose |
 |--------|-------|---------|
-| **Uptime Kuma** | HTTPS → web UI returns 200 | Status page for family 📊 |
+| **Gatus** | HTTPS → web UI returns 200 | Status page for family 📊 |
 | **Prometheus** | Memory usage (transcode leaks), CPU (encoding) | Prevent OOM, resource exhaustion |
 
 ### Databases (PostgreSQL, MySQL)
 | System | Check | Purpose |
 |--------|-------|---------|
-| **Uptime Kuma** | TCP port check (optional - systemd check may suffice) | Basic reachability |
+| **Gatus** | TCP port check (optional - systemd check may suffice) | Basic reachability |
 | **Prometheus** | Connection pools, query performance, backup status | Internal health, capacity |
 
-### Monitoring Itself (Uptime Kuma, Prometheus)
+### Monitoring Itself (Gatus, Prometheus)
 | System | Check | Purpose |
 |--------|-------|---------|
-| **Uptime Kuma** | ❌ Don't monitor itself (circular dependency) | N/A |
+| **Gatus** | ❌ Don't monitor itself (circular dependency) | N/A |
 | **Prometheus** | systemd health check service state | Meta-monitoring |
 
-**Critical Pattern**: Use systemd health check timers to probe Uptime Kuma, then monitor the timer state in Prometheus. This avoids the "monitoring the monitor" complexity trap.
+**Critical Pattern**: Use systemd health check timers to probe Gatus, then monitor the timer state in Prometheus. This avoids the "monitoring the monitor" complexity trap.
 
 ---
 
@@ -187,8 +188,8 @@ When adding a service to your homelab, follow this decision tree:
               ↓   ↓
     ┌─────────┐  └──────────────┐
     │ Add to  │                 │
-    │ Uptime  │                 │
-    │ Kuma    │                 │
+    │ Gatus   │                 │
+    │         │                 │
     └─────┬───┘                 │
           │                     │
           ↓                     ↓
@@ -219,16 +220,29 @@ When adding a service to your homelab, follow this decision tree:
 - Examples: caddy-security (auth failures), Caddy (request latency), critical APIs
 - **Default to NO** - infrastructure monitoring is usually sufficient
 
-### Uptime Kuma Configuration (User-Facing Only)
+### Gatus Configuration (Declarative)
 
-For each **user-facing** service, add ONE check in Uptime Kuma UI:
+For each **user-facing** service, add a Gatus contribution in the service's NixOS configuration:
 
-1. **Web services**: HTTP(S) check with keyword validation
+```nix
+# In service module or host service file
+modules.services.gatus.contributions.myservice = {
+  name = "My Service";
+  group = "Applications";
+  url = "https://myservice.holthome.net/health";
+  interval = "60s";
+  conditions = [
+    "[STATUS] == 200"
+    "[RESPONSE_TIME] < 1000"
+  ];
+};
+```
+
+**Check types**:
+1. **Web services**: HTTP(S) check with keyword/status validation
 2. **DNS services**: DNS query check
 3. **Databases**: TCP port check (if not sufficiently covered by Prometheus)
-4. **Infrastructure hosts**: Ping check for critical nodes (NAS, etc.)
-
-**Configure notifications**: Set up Discord/Slack/Email alerts per monitor for immediate user-impact failures.
+4. **Infrastructure hosts**: Ping/ICMP check for critical nodes (NAS, etc.)
 
 ---
 
@@ -243,13 +257,13 @@ For each **user-facing** service, add ONE check in Uptime Kuma UI:
 - Internal failures (backup failed, restart loop)
 - **Route through Alertmanager** with severity-based routing
 
-### Uptime Kuma Alerts
+### Gatus Alerts
 **Goal**: Immediate notification of user-visible failures
 
 **Characteristics**:
 - Binary (service up or down)
 - External perspective (as users see it)
-- **Configure in Uptime Kuma UI** per monitor
+- **Configure in NixOS** via contribution pattern
 - Direct notifications (phone, critical channels)
 
 ### Alert Fatigue Prevention
@@ -267,7 +281,7 @@ For each **user-facing** service, add ONE check in Uptime Kuma UI:
 
 ## Visualization Strategy
 
-### Uptime Kuma
+### Gatus
 - **Purpose**: Public status page for users/family
 - **Audience**: Non-technical users
 - **Content**: Service availability (green/red), uptime percentages
@@ -288,13 +302,13 @@ For each **user-facing** service, add ONE check in Uptime Kuma UI:
 - ✅ postgres_exporter deployed
 - ✅ Custom textfile collectors (ZFS, GPU, containers)
 - ✅ Alertmanager integrated
-- ✅ Uptime Kuma deployed with systemd health checks
+- ✅ Gatus deployed with contributory endpoint pattern
 
 ### To Implement
-1. **Configure Uptime Kuma monitors** for user-facing services (manual, in UI)
+1. **Add Gatus contributions** for user-facing services (in NixOS config)
 2. **Review Prometheus alert rules** - ensure they follow "alert on symptoms" philosophy
 3. **Document runbooks** for each alert type (what to do when it fires)
-4. **Test alert delivery** - verify both Uptime Kuma and Prometheus alerts reach you
+4. **Test alert delivery** - verify both Gatus and Prometheus alerts reach you
 
 ### Future Enhancements (Optional)
 - Add application exporters for critical services (if justified by value)
@@ -305,16 +319,16 @@ For each **user-facing** service, add ONE check in Uptime Kuma UI:
 
 ## Anti-Patterns to Avoid
 
-❌ **Don't monitor Uptime Kuma inside Uptime Kuma** (circular dependency)
-✅ **Do** use Prometheus + systemd health check timer to monitor Uptime Kuma
+❌ **Don't monitor Gatus inside Gatus** (circular dependency)
+✅ **Do** use Prometheus + systemd health check timer to monitor Gatus
 
-❌ **Don't add both Uptime Kuma and Prometheus checks for the same thing**
-✅ **Do** use Uptime Kuma for availability, Prometheus for internals (different perspectives)
+❌ **Don't add both Gatus and Prometheus checks for the same thing**
+✅ **Do** use Gatus for availability, Prometheus for internals (different perspectives)
 
-❌ **Don't add uptime-kuma-exporter** to expose Uptime Kuma metrics
-✅ **Do** let Uptime Kuma handle its own notifications, use Prometheus to monitor Uptime Kuma's health
+❌ **Don't add gatus-exporter** to expose Gatus metrics to Prometheus
+✅ **Do** use Gatus's native `/metrics` endpoint (already built-in)
 
-❌ **Don't monitor Caddy directly in Uptime Kuma**
+❌ **Don't monitor Caddy directly in Gatus**
 ✅ **Do** monitor the services **behind** Caddy (if Caddy is down, all checks fail)
 
 ❌ **Don't alert on resource usage without validation**
@@ -326,8 +340,8 @@ For each **user-facing** service, add ONE check in Uptime Kuma UI:
 
 ### Quick Reference Table
 
-| Question | Uptime Kuma | Prometheus | Both |
-|----------|-------------|------------|------|
+| Question | Gatus | Prometheus | Both |
+|----------|-------|------------|------|
 | User-facing web service? | ✅ HTTP(S) check | Optional: app metrics | If critical |
 | Database service? | Optional: TCP check | ✅ Internal metrics | Usually |
 | Infrastructure host? | ✅ Ping check | ✅ node_exporter | Yes |
@@ -340,7 +354,7 @@ For each **user-facing** service, add ONE check in Uptime Kuma UI:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    User Perspective                          │
-│                  (Uptime Kuma Checks)                        │
+│                     (Gatus Checks)                            │
 │                                                              │
 │  "Can users access the service right now?"                  │
 │   → HTTP 200? DNS resolving? Port open?                     │
@@ -366,16 +380,19 @@ For each **user-facing** service, add ONE check in Uptime Kuma UI:
 
 ## References
 
-- **Uptime Kuma Module**: `hosts/_modules/nixos/services/uptime-kuma/default.nix`
+- **Gatus Module**: `hosts/_modules/nixos/services/gatus/default.nix`
 - **Prometheus Configuration**: `hosts/forge/monitoring.nix`
 - **Alerting Module**: `hosts/_modules/nixos/alerting.nix`
-- **Alert Definitions**: Co-located with services (e.g., `hosts/forge/uptime-kuma.nix`)
-- **Gemini Pro Analysis**: Session Nov 5, 2025 - "Pragmatic blackbox monitoring approach"
+- **Alert Definitions**: Co-located with services (e.g., `hosts/forge/services/*.nix`)
 
 ---
 
 ## Revision History
 
+- **Dec 4, 2025**: Updated to use Gatus as black-box monitoring solution
+  - Replaced Uptime Kuma references with Gatus
+  - Added declarative configuration patterns via NixOS contributions
+  - Updated decision framework and examples
 - **Nov 5, 2025**: Initial document created based on Gemini Pro strategic analysis
   - Established black-box vs white-box monitoring principles
   - Defined clear decision framework for service monitoring

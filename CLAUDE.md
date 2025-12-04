@@ -91,7 +91,7 @@ Combine tools and commands to accomplish common goals efficiently.
    - Ensure new services use standardized submodules (reverseProxy, metrics, logging, backup, notifications)
    - Follow auto-registration patterns for infrastructure integration
 5. **Monitoring Setup**:
-   - Add to Uptime Kuma for user-facing checks (if applicable)
+   - Add Gatus endpoint contribution for user-facing checks (if applicable)
    - Configure Prometheus alerts for system health
    - Follow guidance in `/docs/monitoring-strategy.md`
 6. **Security**:

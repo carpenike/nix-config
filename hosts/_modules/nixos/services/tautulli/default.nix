@@ -15,7 +15,7 @@
 # Authentication must be handled by Tautulli itself (Plex auth or HTTP Basic).
 # Using PocketID would result in double authentication, so we skip it.
 #
-# Reference: uptime-kuma module for native wrapper pattern
+# Reference: Gatus module for native wrapper pattern
 { lib
 , pkgs
 , config

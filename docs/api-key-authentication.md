@@ -16,7 +16,7 @@ Two types of API key authentication are available:
 Static API keys bypass caddy-security entirely and use native Caddy header matching. They're ideal for:
 
 - GitHub Actions CI/CD pipelines
-- Monitoring systems (Prometheus, Uptime Kuma)
+- Monitoring systems (Prometheus, Gatus)
 - Webhook receivers
 - Automated scripts
 

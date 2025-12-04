@@ -128,7 +128,7 @@ From your study, you MUST document these patterns:
 **Monitoring patterns:**
 - How do services expose metrics?
 - How do they register with Prometheus?
-- What's the Uptime Kuma integration pattern?
+- What's the Gatus contribution pattern?
 
 **Service user patterns:**
 - What's the naming convention?
@@ -375,7 +375,7 @@ BASIC INTEGRATIONS (auto-registration pattern):
 - Caddy reverse proxy: auto-configured via services.<service>.reverseProxy.enable
 - Prometheus: auto-configured via services.<service>.metrics.enable
 - Backup: auto-configured via services.<service>.backup.enable
-- Uptime Kuma: [check if pattern exists]
+- Gatus: add endpoint contribution via modules.services.gatus.contributions.<service>
 
 HOST CONFIGURATION (following forge pattern):
 ---

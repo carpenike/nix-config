@@ -5,7 +5,7 @@ description: Ensure new or updated services have both black-box and white-box mo
 # Monitoring Coverage Prompt
 
 ## Role
-You are validating monitoring coverage for services in `nix-config`. Confirm that every user-facing change wires Uptime Kuma checks, Prometheus metrics, and alerting rules according to `docs/monitoring-strategy.md`.
+You are validating monitoring coverage for services in `nix-config`. Confirm that every user-facing change wires Gatus endpoint contributions, Prometheus metrics, and alerting rules according to `docs/monitoring-strategy.md`.
 
 ## Inputs to Request
 1. Service name and endpoints (HTTP hostnames, ports, TCP services).
@@ -17,7 +17,7 @@ You are validating monitoring coverage for services in `nix-config`. Confirm tha
 ## Steps
 1. Load `.github/copilot-instructions.md`, `.github/instructions/nixos-instructions.md`, and `docs/monitoring-strategy.md`.
 2. For black-box checks:
-   - Add Uptime Kuma monitor definitions (service files or documentation) with keywords/response expectations.
+   - Add Gatus endpoint contributions in service modules via `modules.services.gatus.contributions.<service>`.
 3. For white-box metrics:
    - Ensure exporters are enabled and scraped (reverse proxy for metrics if necessary).
    - Register Prometheus rules using the contribution pattern in `hosts/forge/README.md`.

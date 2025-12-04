@@ -63,7 +63,7 @@ Cooklang is a markup language and CLI tool for managing cooking recipes. This do
 ```
 /var/lib/cooklang/              # StateDirectory (systemd-managed)
 ├── data.db                     # SQLite database (if server uses one)
-└── .uptime-kuma/               # Server runtime state
+└── .server/                    # Server runtime state
 
 /data/cooklang/                 # ZFS dataset (persistent storage)
 ├── recipes/                    # Recipe collection (.cook files)
@@ -358,7 +358,7 @@ modules.services.cooklang.preseed = {
        - targets: ['127.0.0.1:9080']
    ```
 
-3. **HTTP Check via Reverse Proxy** (Uptime Kuma):
+3. **HTTP Check via Reverse Proxy** (Gatus):
    - Monitor `https://recipes.holthome.net`
    - Expected status: 200
    - Check interval: 60s
@@ -549,7 +549,7 @@ basicauth {
 1. ⬜ Add reverse proxy integration (Caddy)
 2. ⬜ Implement logging (Promtail)
 3. ⬜ Add monitoring alerts (Prometheus)
-4. ⬜ Configure Uptime Kuma check
+4. ⬜ Configure Gatus endpoint contribution
 5. ⬜ Test end-to-end access via reverse proxy
 
 **Deliverables**:
@@ -787,7 +787,7 @@ basicauth {
 ### Related Patterns
 - [Modular Design Patterns](../modular-design-patterns.md)
 - [Disaster Recovery Preseed Pattern](../disaster-recovery-preseed-pattern.md)
-- [Uptime Kuma Module](../../hosts/_modules/nixos/services/uptime-kuma/default.nix) - Native wrapper reference
+- [Gatus Module](../../hosts/_modules/nixos/services/gatus/default.nix) - Black-box monitoring reference
 
 ### AI Research
 - **Model Used**: Gemini 2.5 Pro

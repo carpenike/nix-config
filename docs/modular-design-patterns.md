@@ -17,7 +17,7 @@ This document establishes standardized design patterns for NixOS service modules
 - **Web Services**: `hosts/_modules/nixos/services/caddy/default.nix` - Structured backend configuration, security options, automatic DNS record generation
 - **Storage Services**: `hosts/_modules/nixos/services/postgresql/` - Database provisioning, secure credential handling, systemd integration
 - **Observability Services**: `hosts/_modules/nixos/services/loki/default.nix`, `hosts/_modules/nixos/services/promtail/default.nix` - Complete observability stack with standardized patterns
-- **Monitoring Services**: `hosts/_modules/nixos/services/uptime-kuma/default.nix` - Black-box monitoring with pragmatic Prometheus integration
+- **Monitoring Services**: `hosts/_modules/nixos/services/gatus/default.nix` - Black-box monitoring with contributory endpoint system and native Prometheus metrics
 - **Shared Types**: `hosts/_modules/lib/types.nix` - Centralized type definitions for all standardized submodules
 
 ### Related Documentation
@@ -54,7 +54,7 @@ When adding a new service, follow this priority order:
 
 1. **Check for native NixOS module** (`search.nixos.org/options`)
    - ✅ **PREFERRED**: Wrap native module with homelab patterns
-   - Example: Uptime Kuma has `services.uptime-kuma` - use this instead of container
+   - Example: Gatus has `services.gatus` - use this instead of container
    - Benefits: Better NixOS integration, easier updates, no container overhead
 
 2. **If native module doesn't exist**, check if upstream provides one
@@ -66,35 +66,46 @@ When adding a new service, follow this priority order:
    - Service explicitly requires containerization (security isolation)
    - Rapid prototyping before creating native module
 
-#### Architecture Pivot Example: Uptime Kuma
+#### Architecture Example: Gatus
 
-The Uptime Kuma module demonstrates the preferred approach:
+The Gatus module demonstrates the preferred approach:
 
-**Initial Implementation** (Nov 5, 2025):
-- Podman container with full homelab patterns (369 lines)
-- Custom image management, systemd integration, volume mounts
+**Native Module with Contributory Pattern**:
+- Wraps native `services.gatus` NixOS module
+- Adds homelab-specific contribution system
+- Services register endpoints declaratively
 
-**Discovery & Pivot**:
-- Found native `services.uptime-kuma` module in NixOS
-- Pivoted to wrapper approach (~200 lines, 46% reduction)
-
-**Final Architecture**:
+**Key Architecture**:
 ```nix
 # Wrapper around native module adds homelab patterns
 config = mkIf cfg.enable {
   # Enable native NixOS service
-  services.uptime-kuma = {
+  services.gatus = {
     enable = true;
-    settings.HOST = "0.0.0.0";
-    settings.PORT = "3001";
+    settings = {
+      web.port = cfg.port;
+      # Endpoints contributed by other services
+    };
   };
 
   # Add homelab integrations
   # - ZFS storage management
   # - Backup integration
   # - Reverse proxy registration
-  # - Monitoring/alerting
+  # - Native Prometheus metrics
   # - Preseed/DR capability
+};
+```
+
+**Contributory Pattern**:
+```nix
+# Services register themselves with Gatus
+modules.services.gatus.contributions.plex = {
+  name = "Plex";
+  group = "Media";
+  url = "https://plex.holthome.net/web/index.html";
+  interval = "60s";
+  conditions = [ "[STATUS] == 200" ];
 };
 ```
 
@@ -405,7 +416,7 @@ Follow the standardized submodule patterns:
    ```
 
 2. **Monitoring** (see Monitoring Strategy doc):
-   - Add to Uptime Kuma (user-facing check)
+   - Add Gatus endpoint contribution (user-facing check)
    - Configure Prometheus alerts (system health)
    - Add systemd health check if needed
 
@@ -466,7 +477,7 @@ Add inline comments explaining:
 
 #### Web Application
 - ✅ Reverse proxy (Caddy)
-- ✅ Uptime Kuma health check
+- ✅ Gatus health check contribution
 - ✅ Backup (if stores data)
 - ⚠️ Metrics (only if critical)
 
@@ -518,8 +529,6 @@ If you have existing container-based services:
 4. **Implement native wrapper** with same functionality
 5. **Test thoroughly** before removing container
 6. **Document architecture change** with reasoning
-
-Example: Uptime Kuma migration saved as `hosts/_modules/nixos/services/uptime-kuma/default.nix.container-backup` for reference.
 
 ---
 

@@ -23,7 +23,7 @@ You are preparing a new host (or rebuilding an existing one) inside `nix-config`
    - `hosts/<host>/services/*.nix`
 4. Define persistence per `docs/persistence-quick-reference.md` and register datasets with `modules.storage.datasets`.
 5. Wire backups using `docs/backup-system-onboarding.md` conventions.
-6. Add monitoring hooks per `docs/monitoring-strategy.md` (systemd alerts, Uptime Kuma checks, Prometheus rules).
+6. Add monitoring hooks per `docs/monitoring-strategy.md` (systemd alerts, Gatus endpoint contributions, Prometheus rules).
 7. Validate with `task nix:build-<host>` before recommending `task nix:apply-nixos host=<host> NIXOS_DOMAIN=holthome.net`.
 
 ## Deliverables

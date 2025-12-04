@@ -56,7 +56,7 @@ This directory contains comprehensive documentation for the NixOS configuration 
 ### Monitoring & Observability
 
 - **[Monitoring Strategy](./monitoring-strategy.md)** - ⚡ **Black-box vs white-box monitoring** principles for homelab services
-  - Decision framework for Uptime Kuma vs Prometheus
+  - Decision framework for Gatus vs Prometheus
   - Service-specific monitoring guidance
   - Alert routing and configuration strategies
   - Anti-patterns to avoid
