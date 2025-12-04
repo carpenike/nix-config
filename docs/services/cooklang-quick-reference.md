@@ -288,7 +288,7 @@ sudo nixos-rebuild switch --flake .
 - All access goes through Caddy reverse proxy with HTTPS
 - SystemD sandboxing enabled (ProtectSystem, PrivateTmp, etc.)
 - Resource limits: 512MB RAM max, 50% CPU quota
-- Consider adding Authelia authentication if exposing externally
+- Consider adding caddy-security/PocketID authentication if exposing externally
 
 ## Performance
 

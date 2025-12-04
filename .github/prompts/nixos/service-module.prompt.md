@@ -95,7 +95,7 @@ rg "types.submodule" --type nix -A 15 hosts/_modules/nixos/services/teslamate/
 # Discover Cloudflare Tunnel integration (public access opt-in)
 rg "cloudflare.enable" --type nix -A 3
 rg "cloudflare.tunnel" --type nix -A 2
-cat hosts/forge/services/authelia.nix  # Example with cloudflare
+cat hosts/forge/services/pocketid.nix  # Example with cloudflare
 
 # FORGE DEFAULTS LIBRARY (reduces host-level boilerplate):
 cat hosts/forge/lib/defaults.nix
@@ -498,7 +498,7 @@ Does this plan match your expectations, or should anything be different?
 
 **Public access questions:**
 - "Should this service be accessible from the internet via Cloudflare Tunnel?"
-- "If public: Is authentication already handled (Authelia, built-in auth, etc.)?"
+- "If public: Is authentication already handled (caddy-security/PocketID, built-in auth, etc.)?"
 
 **Confirmation:**
 - "Does my pattern-based plan look correct?"
@@ -967,7 +967,7 @@ rg "cloudflare.enable" --type nix -A 3
 rg "cloudflare.tunnel" --type nix
 
 # Example service
-cat hosts/forge/services/authelia.nix
+cat hosts/forge/services/pocketid.nix
 ```
 
 **Pattern (Module remains unchanged):**
@@ -1025,23 +1025,23 @@ modules.services.caddy.virtualHosts.${serviceName} = mkIf cfg.reverseProxy.enabl
 
 **When to use:**
 - ✅ Service needs internet access (remote access, webhooks, etc.)
-- ✅ Service is already secured (Authelia, built-in auth, API keys)
+- ✅ Service is already secured (caddy-security/PocketID, built-in auth, API keys)
 - ✅ Public exposure is intentional and necessary
 - ❌ Don't expose unauthenticated services
 - ❌ Don't expose if LAN-only access is sufficient
 
 **Security considerations:**
 ```nix
-# Example: Public service with Authelia protection
+# Example: Public service with caddy-security/PocketID protection
 modules.services.caddy.virtualHosts.myservice = {
   enable = true;
   hostName = "myservice.${config.networking.domain}";
 
-  # Require authentication
-  authelia = {
+  # Require authentication via PocketID SSO
+  caddySecurity = {
     enable = true;
-    instance = "main";
-    policy = "two_factor";
+    portal = "pocketid";
+    policy = "default";
     allowedGroups = [ "admins" ];
   };
 
@@ -1055,14 +1055,15 @@ modules.services.caddy.virtualHosts.myservice = {
 
 **Ask user:**
 - "Should this service be accessible from the internet?"
-- "If yes: Does it have authentication (Authelia, built-in, API keys)?"
+- "If yes: Does it have authentication (caddy-security/PocketID, built-in, API keys)?"
+- "What's the use case for public access (remote access, webhooks, sharing)?"
 - "What's the use case for public access (remote access, webhooks, sharing)?"
 
 **Common services using Cloudflare Tunnel:**
-- Authelia (SSO login portal - must be public)
+- PocketID (SSO login portal - must be public)
 - Services with webhooks (autobrr, dispatcharr)
 - Shared services (recipe manager, photo galleries)
-- Remote access dashboards (with 2FA)
+- Remote access dashboards (with SSO)
 
 **Common services NOT using Cloudflare Tunnel:**
 - Internal tools (Prometheus, Grafana - unless specifically shared)
@@ -1184,7 +1185,7 @@ After user approval:
 - Integration points (auto-registered)
 - **Public access decision:**
   - Is service exposed via Cloudflare Tunnel? (Y/N)
-  - If yes: Authentication mechanism (Authelia, built-in, API keys)
+  - If yes: Authentication mechanism (caddy-security/PocketID, built-in, API keys)
   - If yes: Justification for public exposure
   - If no: Access method (LAN-only, VPN, etc.)
 

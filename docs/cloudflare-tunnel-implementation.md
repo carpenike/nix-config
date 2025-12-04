@@ -18,7 +18,7 @@ Internet → Cloudflare Network → cloudflared → Caddy → Internal Service
 **Key Benefits:**
 - ✅ **Single Point of Truth**: Caddy remains the central reverse proxy for ALL traffic
 - ✅ **Zero Code Duplication**: All proxy logic, authentication, and security stays in Caddy
-- ✅ **Preserves Existing Features**: Authelia SSO, IP restrictions, structured backends all continue working
+- ✅ **Preserves Existing Features**: caddy-security/PocketID SSO, IP restrictions, structured backends all continue working
 - ✅ **Simple Tunnel Config**: cloudflared only forwards hostnames to Caddy
 - ✅ **Declarative Opt-in**: Services declare tunnel exposure via configuration
 
@@ -28,8 +28,8 @@ Internet → Cloudflare Network → cloudflared → Caddy → Internal Service
 
 This would require:
 - ❌ Duplicating reverse proxy logic in Cloudflare configuration
-- ❌ Re-implementing Authelia SSO integration
-- ❌ Maintaining two authentication systems (Cloudflare Access + Authelia)
+- ❌ Re-implementing caddy-security SSO integration
+- ❌ Maintaining two authentication systems (Cloudflare Access + caddy-security)
 - ❌ Splitting service configuration between Caddy and cloudflared
 - ❌ Violating the "Single code path" design principle
 
@@ -40,7 +40,7 @@ This would require:
 **Caddy Module** (`hosts/_modules/nixos/services/caddy/default.nix`):
 - Add `cloudflare` submodule to `virtualHosts` options
 - Services opt-in to tunnel exposure declaratively
-- No changes to existing Authelia, security, or backend logic
+- No changes to existing caddy-security, security, or backend logic
 
 **cloudflared Module** (`hosts/_modules/nixos/services/cloudflared/default.nix`):
 - Replace with declarative implementation
@@ -57,9 +57,10 @@ modules.services.caddy.virtualHosts.grafana = {
   enable = true;
   hostName = "grafana.holthome.net";
   backend = { port = 3000; };
-  authelia = {
+  caddySecurity = {
     enable = true;
-    policy = "one_factor";
+    portal = "pocketid";
+    policy = "default";
   };
 };
 ```
@@ -70,9 +71,10 @@ modules.services.caddy.virtualHosts.grafana = {
   enable = true;
   hostName = "grafana.holthome.net";
   backend = { port = 3000; };
-  authelia = {
+  caddySecurity = {
     enable = true;
-    policy = "one_factor";
+    portal = "pocketid";
+    policy = "default";
   };
   # NEW: Opt-in to Cloudflare Tunnel
   cloudflare = {
@@ -207,25 +209,27 @@ Each tunnel gets its own systemd service: `cloudflared-{tunnelName}.service`
 
 ## Security Considerations
 
-### 1. Authelia SSO Continues Working
+### 1. caddy-security/PocketID SSO Continues Working
 
 **No Changes Required:**
 - All authentication flows remain in Caddy
 - Passwordless WebAuthn still works
-- Two-factor authentication unchanged
+- SSO authentication unchanged
 - IP-based bypass rules continue to function
 
 **Request Flow:**
 ```
-User → Cloudflare → cloudflared → Caddy → Authelia → Service
+User → Cloudflare → cloudflared → Caddy → caddy-security → Service
 ```
 
 ### 2. IP Restrictions Preserved
 
 Services with IP-restricted API bypass (like Sonarr, Radarr) continue working:
 ```nix
-authelia = {
+caddySecurity = {
   enable = true;
+  portal = "pocketid";
+  policy = "default";
   bypassPaths = [ "/api" "/feed" ];
   allowedNetworks = [
     "172.16.0.0/12"    # Docker networks
@@ -235,7 +239,7 @@ authelia = {
 };
 ```
 
-**Note**: External access via tunnel will NOT bypass Authelia for API endpoints. This is correct - API access should still require authentication for external requests.
+**Note**: External access via tunnel will NOT bypass authentication for API endpoints. This is correct - API access should still require authentication for external requests.
 
 ### 3. Credential Management
 
@@ -285,13 +289,13 @@ This prevents accidental exposure of unlisted services and protects the origin I
 1. Start with non-critical service (e.g., test service)
 2. Add `cloudflare.enable = true` to service config
 3. Deploy and validate external access
-4. Verify Authelia authentication still works
+4. Verify caddy-security/PocketID authentication still works
 5. Migrate additional services incrementally
 
 ### Phase 4: Validation
 1. External access from internet works
 2. Internal LAN access still works (dual-path)
-3. Authelia SSO functions correctly
+3. caddy-security/PocketID SSO functions correctly
 4. IP-based bypass rules work for internal networks
 5. Metrics and monitoring operational
 
@@ -299,7 +303,7 @@ This prevents accidental exposure of unlisted services and protects the origin I
 
 ### What Stays the Same
 - ✅ Caddy reverse proxy configuration
-- ✅ Authelia SSO integration
+- ✅ caddy-security/PocketID SSO integration
 - ✅ Passwordless WebAuthn authentication
 - ✅ Security headers (HSTS, CSP, etc.)
 - ✅ IP-based API bypass rules
@@ -342,7 +346,7 @@ This prevents accidental exposure of unlisted services and protects the origin I
 2. **TLS Termination**: Two layers (Cloudflare + Caddy)
 3. **Rate Limiting**: Can add Cloudflare rate limiting rules
 4. **WAF Available**: Optional Web Application Firewall
-5. **Centralized Auth**: All authentication still via Authelia
+5. **Centralized Auth**: All authentication still via caddy-security/PocketID
 
 ## Anti-Patterns to Avoid
 
@@ -369,9 +373,9 @@ defaultService = "http://127.0.0.1:3000";  # Service port
 
 ### ❌ DON'T: Mix Authentication Systems
 ```nix
-# BAD: Using both Cloudflare Access and Authelia
+# BAD: Using both Cloudflare Access and caddy-security
 cloudflare.access = { enable = true; };
-authelia = { enable = true; };
+caddySecurity = { enable = true; };
 ```
 
 **Why**: Redundant, confusing, harder to maintain
@@ -409,7 +413,7 @@ cloudflare.tunnel = "homelab";  # Same name across all envs
 ### Documentation
 - [Modular Design Patterns](./modular-design-patterns.md) - Core design principles
 - [Reverse Proxy Pattern](./reverse-proxy-pattern.md) - Caddy integration patterns
-- [Authentication SSO Pattern](./authentication-sso-pattern.md) - Authelia configuration
+- [PocketID Integration Pattern](./pocketid-integration-pattern.md) - SSO configuration
 
 ### External Resources
 - [Cloudflare Tunnel Documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/)
@@ -434,7 +438,7 @@ cloudflare.tunnel = "homelab";  # Same name across all envs
 - [ ] Approve architecture pattern (tunnel complements Caddy)
 - [ ] Approve service declaration pattern (cloudflare submodule)
 - [ ] Approve auto-discovery mechanism
-- [ ] Approve security approach (all auth via Authelia)
+- [ ] Approve security approach (all auth via caddy-security/PocketID)
 - [ ] Choose initial tunnel name convention
 
 ### Before Production

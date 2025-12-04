@@ -264,7 +264,7 @@ config = lib.mkIf (cfg.enable && cfg.reverseProxy.enable) {
 
 **Features**:
 - TLS termination via Caddy
-- Optional authentication (Authelia)
+- Optional authentication (caddy-security/PocketID)
 - Request logging to Loki
 
 ### 2. Storage (ZFS) & Backup (Sanoid)
@@ -448,7 +448,7 @@ users.groups.cooklang = {};
 - NOT directly accessible from network
 - ALL traffic goes through Caddy reverse proxy
 - Caddy handles TLS termination
-- Optional Authelia authentication for SSO
+- Optional caddy-security/PocketID authentication for SSO
 
 **Firewall**:
 ```nix
@@ -490,15 +490,15 @@ serviceConfig = {
 - Suitable for internal network only
 - Trust network-level security
 
-**Option B: Authelia SSO**
+**Option B: caddy-security/PocketID SSO**
 ```nix
 modules.services.cooklang.reverseProxy = {
   enable = true;
   domain = "recipes.holthome.net";
-  authentication = {
+  caddySecurity = {
     enable = true;
-    provider = "authelia";
-    policy = "one_factor";  # Username/password
+    portal = "pocketid";
+    policy = "default";
   };
 };
 ```
@@ -511,7 +511,7 @@ basicauth {
 }
 ```
 
-**Recommendation**: Start with Option A (internal only), add Authelia later if exposing externally.
+**Recommendation**: Start with Option A (internal only), add caddy-security/PocketID later if exposing externally.
 
 ## Implementation Plan
 

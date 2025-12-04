@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document outlines the complete design and implementation plan for the *arr media management service ecosystem in our NixOS homelab configuration. All services follow the established modular design patterns and integrate with our existing infrastructure (Caddy, Authelia, Prometheus, Loki, Restic, ZFS).
+This document outlines the complete design and implementation plan for the *arr media management service ecosystem in our NixOS homelab configuration. All services follow the established modular design patterns and integrate with our existing infrastructure (Caddy, caddy-security/PocketID, Prometheus, Loki, Restic, ZFS).
 
 ## Completed Work
 
@@ -34,7 +34,7 @@ The following modules have been **fully designed** by Gemini 2.5 Pro and are rea
 - Volume mount: `/movies`
 - Media group integration for NFS access
 - API bypass paths for Prowlarr integration
-- Authelia SSO with API endpoint protection
+- caddy-security/PocketID SSO with API endpoint protection
 
 #### 2. Bazarr (Subtitles)
 **File**: `hosts/_modules/nixos/services/bazarr/default.nix`
@@ -180,8 +180,9 @@ All services enable:
 
 ## Authentication
 
-All services support Authelia SSO:
-- **Policy**: one_factor (passwordless WebAuthn)
+All services support caddy-security/PocketID SSO:
+- **Portal**: pocketid
+- **Policy**: default (passwordless WebAuthn)
 - **Groups**: `media` group access
 - **API Bypass**: `/api`, `/feed` paths
 - **Network Restriction**: Internal networks only for API endpoints
@@ -235,9 +236,10 @@ modules.services.bazarr = {
   reverseProxy = {
     enable = true;
     hostName = "bazarr.holthome.net";
-    authelia = {
+    caddySecurity = {
       enable = true;
-      policy = "one_factor";
+      portal = "pocketid";
+      policy = "default";
       allowedGroups = [ "media" ];
     };
   };

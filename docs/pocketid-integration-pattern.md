@@ -109,12 +109,12 @@ Behind the scenes the Caddy module emits:
 | API bypass ignored | IP not in `allowedNetworks` or path mismatch | Ensure `allowedNetworks` covers the client IP and that the path/regex includes leading slashes. |
 | Pocket ID login fails with SMTP error | Missing or incorrect SMTP secret | Verify `config.sops.secrets."pocketid/smtp_password"` exists and restart the service. |
 
-## Migration Tips
+## Adding Authentication to New Services
 
 1. **Add `reverseProxy.caddySecurity`** to the service module and configure the desired policy.
-2. **Remove legacy `reverseProxy.authelia` blocks** once the new settings are deployed.
+2. **Set `allowedGroups`** to restrict access to specific PocketID groups.
 3. **Update documentation** (service README) to reflect Pocket ID requirements.
-4. **Test passkey login end-to-end** before deleting any Authelia secrets.
+4. **Test passkey login end-to-end** before marking the service as production-ready.
 
 ## References
 

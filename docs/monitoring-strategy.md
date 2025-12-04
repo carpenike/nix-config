@@ -124,7 +124,7 @@ Use both monitoring systems when:
 
 ## Service-Specific Guidance
 
-### Authentication (Authelia, Keycloak)
+### Authentication (PocketID, Keycloak)
 | System | Check | Purpose |
 |--------|-------|---------|
 | **Uptime Kuma** | HTTPS → login page returns 200 + "Login" keyword | Users can access login |
@@ -216,7 +216,7 @@ When adding a service to your homelab, follow this decision tree:
 
 **When to add application exporters:**
 - Only for **critical services** where internal metrics provide significant value
-- Examples: Authelia (auth failures), Caddy (request latency), critical APIs
+- Examples: caddy-security (auth failures), Caddy (request latency), critical APIs
 - **Default to NO** - infrastructure monitoring is usually sufficient
 
 ### Uptime Kuma Configuration (User-Facing Only)

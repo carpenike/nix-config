@@ -4,14 +4,14 @@
 
 - TeslaMate core app published through Podman with pinned image digests for deterministic deploys.
 - Optional-but-enabled components on `forge`: local PostgreSQL role/database plus shared services (central Grafana + EMQX MQTT broker).
-- Reverse proxy entries for TeslaMate (`teslamate.${domain}`) and the EMQX dashboard (`mqtt.${domain}`) routed through Authelia (two-factor for TeslaMate, one-factor for MQTT admin UI).
+- Reverse proxy entries for TeslaMate (`teslamate.${domain}`) and the EMQX dashboard (`mqtt.${domain}`) protected via caddy-security/PocketID authentication.
 - Restic backups plus ZFS dataset replication (Sanoid) keep `/tank/services/teslamate` synchronized to `nas-1`.
 - Prometheus/Loki wiring ensures metrics (`/metrics` on port 4000) and journald logs are exported automatically.
 
 ## Bootstrap Checklist
 
 1. **DNS** – Publish `teslamate.<domain>` (TeslaMate UI) and `mqtt.<domain>` (EMQX dashboard) to your public zone.
-2. **SSO** – Create the Authelia groups referenced by the modules (TeslaMate UI: `admins`, MQTT dashboard: `admins`).
+2. **SSO** – Configure PocketID groups referenced by the modules (TeslaMate UI: `admins`, MQTT dashboard: `admins`).
 3. **Secrets** – Add the SOPS entries shown below plus the shared Restic password at `restic/password`.
 4. **Dataset** – Create `tank/services/teslamate` (or import from backup) on the target host; permissions land on the `teslamate` system user/group during activation.
 5. **Replication Target** – Make sure `nas-1.holthome.net` trusts the `forge` replication key listed in the host module (or update both sides accordingly).
@@ -31,13 +31,13 @@
 
 ## Deploy / Update Flow
 
-1. Edit `hosts/forge/services/teslamate.nix` (or another host) to adjust registry, domains, and Authelia policies.
+1. Edit `hosts/forge/services/teslamate.nix` (or another host) to adjust registry, domains, and caddy-security policies.
 2. Validate locally: `nix build .#nixosConfigurations.forge.config.system.build.toplevel --dry-run`.
 3. Push to Git, then run `task nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net` to apply.
 4. Confirm systemd units are healthy:
   - `systemctl status podman-teslamate.service`
   - `systemctl status podman-emqx.service`
-5. Verify ingress via Authelia (TeslaMate enforces two-factor; EMQX dashboard uses one-factor) and ensure Grafana dashboards load via the shared observability stack.
+5. Verify ingress via PocketID authentication and ensure Grafana dashboards load via the shared observability stack.
 
 ## Backups & Restore
 
