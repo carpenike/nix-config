@@ -18,9 +18,11 @@ let
     # Log what we're doing
     echo "Pushing paths to Attic cache: $OUT_PATHS"
 
-    # Push the paths to the cache
-    # Exit 0 regardless of success to avoid failing builds if cache is temporarily unavailable
-    ${pkgs.attic-client}/bin/attic push ${cfg.cacheName} $OUT_PATHS || {
+    # Push the paths to the cache with a timeout
+    # - timeout: 5 minutes max per push to prevent hangs
+    # - --jobs 2: limit parallelism to reduce server load
+    # - Exit 0 regardless of success to avoid failing builds
+    ${pkgs.coreutils}/bin/timeout 300 ${pkgs.attic-client}/bin/attic push --jobs 2 ${cfg.cacheName} $OUT_PATHS || {
       echo "Warning: Failed to push to Attic cache (exit code $?), continuing anyway"
       exit 0
     }
