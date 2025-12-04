@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ ... }:
 {
   # Temporary filesystems to reduce SD card wear
   fileSystems."/tmp" = {

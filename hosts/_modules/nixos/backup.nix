@@ -1680,7 +1680,7 @@ with lib;
                           echo "Documentation generated successfully in $DOC_DIR"
 
                           # Copy documentation to NAS for DR access
-                          ${concatStringsSep "\n" (mapAttrsToList (repoName: repoConfig:
+                          ${concatStringsSep "\n" (mapAttrsToList (_repoName: repoConfig:
                             optionalString (repoConfig.primary && (hasPrefix "/mnt/" repoConfig.url || hasPrefix "nfs://" repoConfig.url)) ''
                               # Copy to sibling DR directory for immediate disaster recovery access
                               # If repo is at /mnt/nas-backup, DR docs go to /mnt/nas-docs/dr/
@@ -2230,7 +2230,7 @@ with lib;
       systemd.timers = mkMerge [
         # Repository verification timers
         (mkMerge (mapAttrsToList
-          (repoName: repoConfig:
+          (repoName: _repoConfig:
             mkIf cfg.verification.enable {
               "restic-check-${repoName}" = {
                 description = "Timer for restic repository integrity check (${repoName})";
@@ -2247,7 +2247,7 @@ with lib;
 
         # Repository restore testing timers
         (mkMerge (mapAttrsToList
-          (repoName: repoConfig:
+          (repoName: _repoConfig:
             mkIf cfg.restoreTesting.enable {
               "restic-restore-test-${repoName}" = {
                 description = "Timer for automated restore testing (${repoName})";

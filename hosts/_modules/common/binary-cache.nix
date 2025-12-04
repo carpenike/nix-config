@@ -1,5 +1,5 @@
 # Binary Cache Configuration for Attic
-{ config, lib, pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
   imports = [

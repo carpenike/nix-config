@@ -123,7 +123,7 @@ let
   # Expand permission presets into actual permission configurations
   # This allows users to use opinionated presets (owner-only, owner-readwrite+readonly-select)
   # while still supporting custom fine-grained permissions
-  expandPermissionsPolicy = dbName: dbCfg:
+  expandPermissionsPolicy = _dbName: dbCfg:
     let
       owner = dbCfg.owner;
       policy = dbCfg.permissionsPolicy or "custom";
@@ -529,7 +529,7 @@ let
   # Generate schema-level permission grants (Phase 2)
   # Includes REVOKE logic for empty permission lists
   # NOTE: Caller must ensure correct database context (\c) before calling this helper
-  mkSchemaPermissionsSQL = dbName: schemaPerms:
+  mkSchemaPermissionsSQL = _dbName: schemaPerms:
     lib.concatStringsSep "\n" (lib.mapAttrsToList
       (schemaName: rolePerms:
         lib.concatStringsSep "\n" (lib.mapAttrsToList
@@ -612,7 +612,7 @@ let
 
   # Generate function-level permission grants (Phase 2 - separate from tablePermissions)
   # NOTE: Caller must ensure correct database context (\c) before calling this helper
-  mkFunctionPermissionsSQL = dbName: functionPerms:
+  mkFunctionPermissionsSQL = _dbName: functionPerms:
     let
       # Parse all patterns and group by schema
       parsedPatterns = lib.mapAttrsToList
@@ -793,7 +793,7 @@ in
             # Compute hash of all password files to detect secret rotation
             # This ensures password changes trigger re-provisioning
             SECRETS_HASH=""
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (_dbName: dbCfg:
               lib.optionalString (dbCfg.ownerPasswordFile or null != null) ''
                 if [ -f "${dbCfg.ownerPasswordFile}" ]; then
                   SECRETS_HASH="$SECRETS_HASH$(sha256sum "${dbCfg.ownerPasswordFile}" | cut -d' ' -f1)"
@@ -877,7 +877,7 @@ in
             SET lock_timeout = 10000;
             SET search_path = pg_catalog, public;
 
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dbName: dbCfg:
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (_dbName: dbCfg:
               mkRoleSQL dbCfg.owner dbCfg.ownerPasswordFile
             ) mergedDatabases)}
 
@@ -902,7 +902,7 @@ in
             -- ========================================
             -- Create additional roles (e.g., read-only users for Grafana)
             -- ========================================
-            ${lib.concatStringsSep "\n" (lib.flatten (lib.mapAttrsToList (dbName: dbCfg:
+            ${lib.concatStringsSep "\n" (lib.flatten (lib.mapAttrsToList (_dbName: dbCfg:
               lib.mapAttrsToList (roleName: roleCfg:
                 mkAdditionalRoleSQL roleName roleCfg
               ) (dbCfg.additionalRoles or {})
@@ -1075,7 +1075,7 @@ in
             SupplementaryGroups = lib.unique (
               (lib.optional (config.modules.monitoring.enable or false) "node-exporter")
               ++ (lib.mapAttrsToList
-                (dbName: dbCfg:
+                (_dbName: dbCfg:
                   # Extract group from password file secret config
                   let
                     secretName = lib.removePrefix "/run/secrets/" (dbCfg.ownerPasswordFile or "");

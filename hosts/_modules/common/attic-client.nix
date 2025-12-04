@@ -1,5 +1,5 @@
 # Attic Client Configuration
-{ config, lib, pkgs, ... }:
+{ lib, pkgs, ... }:
 
 {
   # Install attic-client on all systems

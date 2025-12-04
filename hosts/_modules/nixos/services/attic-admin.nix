@@ -1,6 +1,6 @@
 # Attic Admin Configuration
 # This module provides admin token access for cache management
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 
 let
   cfg = config.modules.services.attic-admin;

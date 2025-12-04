@@ -9,7 +9,7 @@ in
 {
   _module.args.podmanLib = rec {
     # Helper to create a container with standard logging configuration and optional resource limits
-    mkContainer = name: containerConfig:
+    mkContainer = _name: containerConfig:
       let
         defaults = {
           log-driver = cfg.containerDefaults.logDriver;

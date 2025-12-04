@@ -244,7 +244,7 @@ in
     # This is used by the generic dispatcher to look up template details
     environment.etc."notification-templates.json".text = builtins.toJSON (
       lib.mapAttrs
-        (name: template: {
+        (_name: template: {
           inherit (template) enable priority backend title body;
           extraOptions = template.extraOptions or { };
         })

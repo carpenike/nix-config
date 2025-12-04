@@ -1,0 +1,21 @@
+# Statix configuration
+# See: https://github.com/nerdypepper/statix
+
+# Lints to disable (these are stylistic preferences, not errors)
+disabled = [
+  "manual_inherit",        # W03: suggests inherit x instead of x = x
+  "manual_inherit_from",   # W04: suggests inherit (cfg) port instead of port = cfg.port
+  "useless_parens",        # W08: suggests removing parentheses
+  "empty_pattern",         # W10: suggests _ instead of { ... }
+  "repeated_keys",         # W20: suggests merging repeated attribute keys
+  "empty_list_concat"      # W23: suggests removing [] ++ pattern
+]
+
+# Nix language version
+nix_version = "2.4"
+
+# Directories to ignore
+ignore = [
+  ".direnv",
+  "tmp"
+]

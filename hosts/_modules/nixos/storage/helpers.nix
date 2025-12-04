@@ -12,7 +12,6 @@
 # Status: Safe to delete - no longer imported in default.nix
 { pkgs
 , lib
-, config
 , ...
 }:
 let

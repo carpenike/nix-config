@@ -760,10 +760,12 @@ in
       modules.services.grafana.integrations.teslamate = mkIf (cfg.grafanaIntegration.enable) (
         let
           # Use custom Grafana user if configured, otherwise use database owner
-          grafanaUser = if cfg.grafanaIntegration.user != null
+          grafanaUser =
+            if cfg.grafanaIntegration.user != null
             then cfg.grafanaIntegration.user
             else cfg.database.user;
-          grafanaPasswordFile = if cfg.grafanaIntegration.user != null
+          grafanaPasswordFile =
+            if cfg.grafanaIntegration.user != null
             then cfg.grafanaIntegration.passwordFile
             else cfg.database.passwordFile;
         in

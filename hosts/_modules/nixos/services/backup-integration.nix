@@ -19,7 +19,7 @@
 #     };
 #   };
 #
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 with lib;
 let
   cfg = config.modules.services.backup-integration;
@@ -32,7 +32,7 @@ let
 
       # Filter services that have backup enabled
       servicesWithBackup = lib.filterAttrs
-        (name: service:
+        (_name: service:
           (service.backup or null) != null &&
           (service.backup.enable or false)
         )
@@ -130,7 +130,7 @@ in
       let
         allServices = config.modules.services or { };
         servicesWithBackup = lib.filterAttrs
-          (name: service:
+          (_name: service:
             (service.backup or null) != null &&
               (service.backup.enable or false)
           )

@@ -745,7 +745,7 @@ in
 
             # Declaratively managed Usenet servers
             [servers]
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: server: ''
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (_name: server: ''
             [[${server.host}]]
             name = ${server.host}
             displayname = ${server.host}

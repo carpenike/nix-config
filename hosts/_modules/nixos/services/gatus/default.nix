@@ -19,7 +19,7 @@
 #       conditions = [ "[STATUS] == 200" ];
 #     };
 #
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 
 let
   cfg = config.modules.services.gatus;
@@ -155,15 +155,15 @@ let
 
   # Convert contributions to Gatus endpoints config
   contributionsToEndpoints = lib.mapAttrsToList
-    (serviceName: contrib:
-      lib.filterAttrs (n: v: v != null) ({
+    (_serviceName: contrib:
+      lib.filterAttrs (_n: v: v != null) ({
         name = contrib.name;
         group = contrib.group;
         url = contrib.url;
         interval = contrib.interval;
         conditions = contrib.conditions;
         alerts = map
-          (a: lib.filterAttrs (n: v: v != null) {
+          (a: lib.filterAttrs (_n: v: v != null) {
             type = a.type;
             enabled = a.enabled;
             failure-threshold = a.failureThreshold;

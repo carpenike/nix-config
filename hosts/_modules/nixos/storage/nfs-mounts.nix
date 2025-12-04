@@ -116,7 +116,7 @@ in
     # Generate fileSystems entries ONLY for automounted shares.
     # This leverages NixOS's native support for generating .automount and .mount units.
     fileSystems = lib.mkMerge (lib.mapAttrsToList
-      (name: mount:
+      (_name: mount:
         lib.mkIf (mount.enable && mount.automount) {
           "${mount.localPath}" = {
             device = "${mount.server}:${mount.remotePath}";

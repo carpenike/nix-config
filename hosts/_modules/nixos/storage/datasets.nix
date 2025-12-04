@@ -397,7 +397,7 @@ in
       ++
       # Utility datasets
       (lib.mapAttrsToList
-        (datasetPath: datasetConfig:
+        (_datasetPath: datasetConfig:
           let
             mountpoint = datasetConfig.mountpoint;
             hasExplicitPermissions = (datasetConfig.mode or null) != null

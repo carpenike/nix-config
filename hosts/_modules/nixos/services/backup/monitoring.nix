@@ -106,11 +106,11 @@ in
     let
       # Get list of all enabled backup jobs
       allJobs = cfg._internal.allJobs;
-      enabledJobs = lib.filterAttrs (name: job: job.enable) allJobs;
+      enabledJobs = lib.filterAttrs (_name: job: job.enable) allJobs;
 
       # Generate expected metric filenames
       expectedMetricFiles = lib.mapAttrsToList
-        (jobName: jobDef: "restic_backup_${jobName}.prom")
+        (jobName: _jobDef: "restic_backup_${jobName}.prom")
         enabledJobs;
 
       # Cleanup script for stale metric files

@@ -320,7 +320,7 @@ in
     systemd.services = lib.mkMerge [
       # Backup job services
       (lib.mkMerge (lib.mapAttrsToList mkBackupService
-        (lib.filterAttrs (name: job: job.enable) allJobs)))
+        (lib.filterAttrs (_name: job: job.enable) allJobs)))
 
       # Prune services (one per repository)
       (lib.mkMerge (lib.mapAttrsToList
@@ -446,7 +446,7 @@ in
             };
           };
         })
-        (lib.filterAttrs (name: job: job.enable) allJobs)))
+        (lib.filterAttrs (_name: job: job.enable) allJobs)))
 
       # Prune timers
       (lib.mkMerge (lib.mapAttrsToList

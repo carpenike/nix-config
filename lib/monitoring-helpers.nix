@@ -123,7 +123,6 @@
     { name
     , alertname
     , expr
-    , threshold
     , for ? "5m"
     , severity ? "medium"
     , service ? name
@@ -146,7 +145,6 @@
   mkDatabaseConnectionsAlert =
     { name ? "database"
     , expr
-    , threshold ? 80
     , for ? "5m"
     , severity ? "high"
     , category ? "capacity"
@@ -169,7 +167,6 @@
   mkHighCapacityAlert =
     { name
     , expr
-    , threshold ? 85
     , for ? "15m"
     , severity ? "high"
     , category ? "capacity"

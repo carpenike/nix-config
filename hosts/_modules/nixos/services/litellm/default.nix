@@ -114,9 +114,10 @@ let
   );
 
   # Convert JSON to proper YAML format using yq
-  configYaml = pkgs.runCommand "litellm-config.yaml" {
-    nativeBuildInputs = [ pkgs.yq-go ];
-  } ''
+  configYaml = pkgs.runCommand "litellm-config.yaml"
+    {
+      nativeBuildInputs = [ pkgs.yq-go ];
+    } ''
     yq -o=yaml '.' ${configJson} > $out
   '';
 
@@ -612,7 +613,7 @@ in
         interval = "30s";
         timeout = "10s";
         retries = 3;
-        startPeriod = "120s";  # LiteLLM needs time to connect to DB and sync models
+        startPeriod = "120s"; # LiteLLM needs time to connect to DB and sync models
       };
       description = "Container healthcheck configuration.";
     };

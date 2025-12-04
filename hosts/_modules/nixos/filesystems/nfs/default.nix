@@ -9,7 +9,7 @@ let
   cfg = config.modules.filesystems.nfs;
 
   # Helper to build mount options list
-  buildMountOptions = share: shareConfig:
+  buildMountOptions = _share: shareConfig:
     shareConfig.options ++
     (optional shareConfig.readOnly "ro") ++
     (optional shareConfig.lazy "x-systemd.automount") ++
@@ -20,7 +20,7 @@ let
     (optional (!shareConfig.soft) "hard");
 
   # Helper to determine if a share should be mounted
-  shouldMountShare = shareName: shareConfig:
+  shouldMountShare = _shareName: shareConfig:
     shareConfig.enable &&
     (shareConfig.localPath != null) &&
     (shareConfig.hostFilter == [ ] || elem config.networking.hostName shareConfig.hostFilter);
@@ -279,7 +279,7 @@ in
           neededForBoot = shareConfig.neededForBoot;
         })
       )
-      (filterAttrs (name: share: share.localPath != null) cfg.shares);
+      (filterAttrs (_name: share: share.localPath != null) cfg.shares);
 
     # Create systemd automount units for lazy mounts
     systemd.automounts = mapAttrsToList

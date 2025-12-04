@@ -77,7 +77,7 @@ in
           enable = true;
           user = "teslamate_grafana";
           passwordFile = config.sops.secrets."teslamate/grafana_password".path;
-          host = "127.0.0.1";  # Grafana connects directly to PostgreSQL on localhost
+          host = "127.0.0.1"; # Grafana connects directly to PostgreSQL on localhost
         };
       };
     }

@@ -324,7 +324,7 @@ in
     systemd.services = lib.mkMerge [
       (lib.mkMerge (lib.mapAttrsToList mkVerificationService repositories))
       (lib.mkMerge (lib.mapAttrsToList mkRestoreTestService
-        (lib.filterAttrs (name: repo: verificationCfg.restoreTesting.enable) repositories)))
+        (lib.filterAttrs (_name: _repo: verificationCfg.restoreTesting.enable) repositories)))
       {
         # Verification reporting service
         backup-verification-report = lib.mkIf verificationCfg.reporting.enable {
@@ -350,7 +350,7 @@ in
               EOF
 
               # Add status for each repository
-              ${lib.concatStringsSep "\n" (lib.mapAttrsToList (repoName: repoConfig: ''
+              ${lib.concatStringsSep "\n" (lib.mapAttrsToList (repoName: _repoConfig: ''
                 echo "### Repository: ${repoName}" >> "$REPORT_FILE"
                 echo "" >> "$REPORT_FILE"
 

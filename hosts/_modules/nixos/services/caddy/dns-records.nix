@@ -21,7 +21,7 @@ let
   generateDnsRecords = vhosts: domain:
     concatStringsSep "\n" (
       mapAttrsToList
-        (name: vhost:
+        (_name: vhost:
           if vhost.enable then
             let
               subdomain = dnsLib.extractSubdomain vhost.hostName domain;

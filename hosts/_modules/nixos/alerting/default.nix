@@ -219,7 +219,7 @@ in
             name = "homelab-alerts";
             interval = "15s";
             rules = mapAttrsToList
-              (name: rule: {
+              (_name: rule: {
                 alert = rule.alertname;
                 expr = rule.expr;
                 for = rule.for;

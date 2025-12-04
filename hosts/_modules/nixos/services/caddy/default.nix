@@ -1188,7 +1188,7 @@ in
     # Ensure local identity store directory exists (for user-generated API keys)
     systemd.tmpfiles.rules = mkIf (cfg.security.enable && cfg.security.localIdentityStores != { }) (
       concatLists (mapAttrsToList
-        (name: store:
+        (_name: store:
           let
             storeDir = builtins.dirOf store.path;
           in

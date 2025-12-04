@@ -7,7 +7,7 @@ let
   anyEnabled = instances: lib.any (inst: inst.enable) (lib.attrValues instances);
 
   # Helper to build dependency structure for a service instance
-  mkServiceDependencies = serviceType: instanceName:
+  mkServiceDependencies = serviceType: _instanceName:
     let
       # For radarr and sonarr: wire to all enabled prowlarr instances
       prowlarrDeps = lib.optionalAttrs
@@ -45,8 +45,6 @@ let
   mkInstanceConfig = serviceType: instanceName: instanceCfg:
     let
       serviceDeps = mkServiceDependencies serviceType instanceName;
-      # Use instance name as suffix for unique systemd service names
-      serviceNameSuffix = if instanceName == "default" then "" else "-${instanceName}";
     in
     {
       modules.services.${serviceType} = {

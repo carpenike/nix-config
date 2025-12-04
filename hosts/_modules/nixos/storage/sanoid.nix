@@ -27,7 +27,7 @@
 let
   cfg = config.modules.backup.sanoid;
   # Get datasets that have replication configured
-  datasetsWithReplication = lib.filterAttrs (name: conf: conf.replication != null) cfg.datasets;
+  datasetsWithReplication = lib.filterAttrs (_name: conf: conf.replication != null) cfg.datasets;
 in
 {
   options.modules.backup.sanoid = {
@@ -298,7 +298,7 @@ in
     # Populate global SSH known_hosts with replication targets to avoid per-user management
     programs.ssh.knownHosts =
       let
-        replicationEntries = lib.mapAttrsToList (dataset: conf: conf.replication) (lib.filterAttrs (n: ds: ds.replication != null) cfg.datasets);
+        replicationEntries = lib.mapAttrsToList (_dataset: conf: conf.replication) (lib.filterAttrs (_n: ds: ds.replication != null) cfg.datasets);
       in
       lib.foldl'
         (acc: repl:
@@ -381,7 +381,7 @@ in
       interval = cfg.snapshotInterval;
       templates = cfg.templates;
       datasets = lib.mapAttrs
-        (name: conf: {
+        (_name: conf: {
           inherit (conf) recursive useTemplate autosnap autoprune;
         } // conf.retention)
         cfg.datasets;
@@ -399,7 +399,7 @@ in
 
       commands = lib.mapAttrs
         (
-          name: conf: {
+          _name: conf: {
             target = "${conf.replication.targetUser}@${conf.replication.targetHost}:${conf.replication.targetDataset}";
             recursive = conf.recursive; # Inherit recursiveness from snapshot config
             inherit (conf.replication) sendOptions recvOptions;
@@ -448,7 +448,7 @@ in
           script = ''
             echo "Applying ZFS delegated permissions..."
             # Grant permissions for Sanoid to manage snapshots
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: _conf: ''
               if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
                 # Redirect output to suppress verbose permission listings
                 if ! ${pkgs.zfs}/bin/zfs allow sanoid send,snapshot,hold,destroy ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
@@ -461,7 +461,7 @@ in
 
             # Grant permissions for Syncoid to send snapshots for replication
             # NOTE: 'hold' permission removed - syncoid only needs send,snapshot for replication
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: conf: ''
+            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (dataset: _conf: ''
               if ${pkgs.zfs}/bin/zfs list ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
                 # Redirect output to suppress verbose permission listings
                 if ! ${pkgs.zfs}/bin/zfs allow ${cfg.replicationUser} send,snapshot ${lib.escapeShellArg dataset} >/dev/null 2>&1; then
@@ -509,20 +509,20 @@ in
       {
         services.sanoid.serviceConfig =
           let
-            datasetsWithPreScript = lib.filterAttrs (name: conf: conf.preSnapshotScript != null) cfg.datasets;
-            datasetsWithPostScript = lib.filterAttrs (name: conf: conf.postSnapshotScript != null) cfg.datasets;
+            datasetsWithPreScript = lib.filterAttrs (_name: conf: conf.preSnapshotScript != null) cfg.datasets;
+            datasetsWithPostScript = lib.filterAttrs (_name: conf: conf.postSnapshotScript != null) cfg.datasets;
           in
           {
             ExecStartPre = lib.mkIf (datasetsWithPreScript != { }) (
               lib.mkBefore (lib.mapAttrsToList
-                (name: conf:
+                (_name: conf:
                   "${pkgs.bash}/bin/bash -c 'test -x ${toString conf.preSnapshotScript} && exec ${toString conf.preSnapshotScript} || { echo \"ERROR: Pre-snapshot script ${toString conf.preSnapshotScript} not found or not executable\" >&2; exit 1; }'"
                 )
                 datasetsWithPreScript)
             );
             ExecStartPost = lib.mkIf (datasetsWithPostScript != { }) (
               lib.mkAfter (lib.mapAttrsToList
-                (name: conf:
+                (_name: conf:
                   "${pkgs.bash}/bin/bash -c 'test -x ${toString conf.postSnapshotScript} && exec ${toString conf.postSnapshotScript} || { echo \"ERROR: Post-snapshot script ${toString conf.postSnapshotScript} not found or not executable\" >&2; exit 1; }'"
                 )
                 datasetsWithPostScript)
@@ -654,7 +654,7 @@ in
         }
       )
       datasetsWithReplication) ++ (lib.mapAttrsToList
-      (dataset: conf:
+      (dataset: _conf:
         let
           serviceName = "syncoid-${lib.strings.replaceStrings ["/"] ["-"] dataset}";
         in
@@ -897,7 +897,7 @@ in
             ExecStart =
               let
                 # Build a list of unique replication target hosts (dedupe per-host probes)
-                uniqueHosts = lib.unique (lib.mapAttrsToList (dataset: conf: conf.replication.targetHost) datasetsWithReplication);
+                uniqueHosts = lib.unique (lib.mapAttrsToList (_dataset: conf: conf.replication.targetHost) datasetsWithReplication);
                 probeScript = pkgs.writeShellScript "syncoid-target-reachability" ''
                   set -eu
                   METRICS=/var/lib/node_exporter/textfile_collector/syncoid-target-reachability.prom

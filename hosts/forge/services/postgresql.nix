@@ -1,4 +1,4 @@
-{ config, pkgs, lib, mylib, ... }:
+{ config, pkgs, lib, ... }:
 # PostgreSQL Configuration for forge
 #
 # Provides a shared PostgreSQL instance for services on forge that need a database backend.

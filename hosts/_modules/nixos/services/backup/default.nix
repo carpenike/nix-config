@@ -25,7 +25,7 @@ let
     let
       allServices = config.modules.services or { };
       servicesWithBackup = lib.filterAttrs
-        (name: service:
+        (_name: service:
           (service.backup or null) != null &&
           (service.backup.enable or false) &&
           (service.enable or false)  # Only backup services that are actually enabled
@@ -59,12 +59,7 @@ let
   # Combine discovered jobs with manual jobs - this is the single source of truth
   allJobs = discoverServiceBackups // (cfg.restic.jobs or { });
 
-  # Import submodules
-  resticModule = import ./restic.nix { inherit config lib pkgs; };
-  postgresModule = import ./postgres.nix { inherit config lib pkgs; };
-  snapshotsModule = import ./snapshots.nix { inherit config lib pkgs; };
-  monitoringModule = import ./monitoring.nix { inherit config lib pkgs; };
-  verificationModule = import ./verification.nix { inherit config lib pkgs; };
+  # Submodules are imported below
 in
 {
   imports = [

@@ -13,7 +13,7 @@ in
 
       mergeAttrsList = builtins.foldl' lib.mergeAttrs { };
 
-      fileAttrsType = lib.types.attrsOf (lib.types.submodule ({ config, ... }: {
+      fileAttrsType = lib.types.attrsOf (lib.types.submodule ({ ... }: {
         options.mutable = lib.mkOption {
           type = lib.types.bool;
           default = false;

@@ -16,7 +16,6 @@
   mkResticBackup =
     { name
     , paths
-    , repository
     , preBackupScript ? ""
     , postBackupScript ? ""
     , excludePatterns ? [ ]

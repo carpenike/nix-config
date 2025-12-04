@@ -456,7 +456,7 @@ in
         {
           assertion =
             let
-              domains = lib.mapAttrsToList (name: svc: svc.domain) cfg.accessControl.declarativelyProtectedServices;
+              domains = lib.mapAttrsToList (_name: svc: svc.domain) cfg.accessControl.declarativelyProtectedServices;
               uniqueDomains = lib.unique domains;
             in
             lib.length domains == lib.length uniqueDomains;
@@ -464,8 +464,8 @@ in
             Multiple services are configured with the same domain in Authelia access control!
             Each service must have a unique hostName. Check your reverseProxy.hostName settings.
             Conflicting domains: ${lib.concatStringsSep ", " (
-              lib.filter (d: lib.count (x: x == d) (lib.mapAttrsToList (name: svc: svc.domain) cfg.accessControl.declarativelyProtectedServices) > 1)
-              (lib.unique (lib.mapAttrsToList (name: svc: svc.domain) cfg.accessControl.declarativelyProtectedServices))
+              lib.filter (d: lib.count (x: x == d) (lib.mapAttrsToList (_name: svc: svc.domain) cfg.accessControl.declarativelyProtectedServices) > 1)
+              (lib.unique (lib.mapAttrsToList (_name: svc: svc.domain) cfg.accessControl.declarativelyProtectedServices))
             )}
           '';
         }
@@ -612,7 +612,7 @@ in
                 # Second: Auto-generated rules from services with reverseProxy.authelia enabled
                 # This creates two rules per service: one for bypass paths, one for main policy
                 (lib.flatten (lib.mapAttrsToList
-                  (serviceName: svc:
+                  (_serviceName: svc:
                     # Generate bypass rule first (higher priority in Authelia)
                     (lib.optionals (svc.bypassResources != [ ]) [{
                       domain = [ svc.domain ];

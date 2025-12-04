@@ -10,7 +10,7 @@ let
   # This makes Caddy's virtualHosts the single source of truth for web services.
   findTunneledVhosts = tunnelName:
     attrValues (filterAttrs
-      (name: vhost:
+      (_name: vhost:
         vhost.enable
         && (vhost.cloudflare or null) != null
         && vhost.cloudflare.enable

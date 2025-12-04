@@ -1,4 +1,4 @@
-{ config, lib, pkgs, inputs, ... }:
+{ config, lib, ... }:
 let
   cfg = config.modules.services.coachiq;
 in

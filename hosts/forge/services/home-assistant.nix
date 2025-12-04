@@ -141,28 +141,6 @@ in
         # required by Home Assistant's default_config bundle. Provide them here
         # until the packaged closure includes the Python wheels directly.
         extraPackages = python3Packages:
-          let
-            # Build async-upnp-client against the same Python toolchain Home Assistant uses
-            asyncUpnpClient =
-              python3Packages.callPackage
-                "${unstablePkgs.path}/pkgs/development/python-modules/async-upnp-client/default.nix"
-                { };
-
-            # Same story for go2rtc-client, which isn't present in the narrowed package set
-            go2rtcClient =
-              python3Packages.callPackage
-                "${unstablePkgs.path}/pkgs/development/python-modules/go2rtc-client/default.nix"
-                { };
-
-            zwaveJsServerPython =
-              python3Packages.callPackage
-                "${unstablePkgs.path}/pkgs/development/python-modules/zwave-js-server-python/default.nix"
-                { };
-            esphomeDashboardApi =
-              python3Packages.esphome-dashboard-api or
-                unstablePkgs.python3Packages.esphome-dashboard-api;
-
-          in
           with python3Packages;
           [
             # HomeKit integration

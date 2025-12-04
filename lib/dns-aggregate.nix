@@ -10,7 +10,7 @@ let
   dnsLib = import ./dns.nix { inherit lib; };
 
   # Collect DNS records from a single host
-  collectHostRecords = name: hostCfg:
+  collectHostRecords = _name: hostCfg:
     let
       # Use tryEval to safely access potentially undefined options
       ipResult = builtins.tryEval (hostCfg.config.my.hostIp or null);
@@ -31,7 +31,7 @@ let
       # Check Caddy is enabled (if caddy module is loaded) or if registry has vhosts
     if hostIp != null && registryCfg != null && (caddyCfg == null || caddyCfg.enable or false) then
       lib.mapAttrsToList
-        (vhostName: vhost:
+        (_vhostName: vhost:
           if (vhost.enable or false) && (vhost.publishDns or true) then
             let
               subdomain = dnsLib.extractSubdomain vhost.hostName domain;

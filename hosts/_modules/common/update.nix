@@ -1,4 +1,4 @@
-{ config, pkgs, hostname, lib, ... }:
+{ pkgs, hostname, ... }:
 {
   environment.systemPackages = [
     # Universal update script that uses the current hostname

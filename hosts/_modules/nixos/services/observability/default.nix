@@ -1,7 +1,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList filter concatLists;
+  inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList;
   cfg = config.modules.services.observability;
 
   # Import shared types for consistent API key definitions
@@ -12,11 +12,11 @@ let
   discoverMetricsTargets = config:
     let
       # Extract all modules.services.* configurations (excluding observability to prevent recursion)
-      allServices = lib.filterAttrs (name: service: name != "observability") (config.modules.services or { });
+      allServices = lib.filterAttrs (name: _service: name != "observability") (config.modules.services or { });
 
       # Filter services that have metrics enabled
       servicesWithMetrics = lib.filterAttrs
-        (name: service:
+        (_name: service:
           (service.metrics or null) != null &&
           (service.metrics.enable or false)
         )

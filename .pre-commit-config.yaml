@@ -52,6 +52,7 @@ repos:
         entry: nix run nixpkgs#deadnix -- --fail
         language: system
         files: '\.nix$'
+        exclude: '^tmp/'
 
   # - repo: https://github.com/yuvipanda/pre-commit-hook-ensure-sops
   #   rev: v1.1

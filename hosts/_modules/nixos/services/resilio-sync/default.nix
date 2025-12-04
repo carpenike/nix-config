@@ -13,7 +13,7 @@ let
 
   cfg = config.modules.services.resilioSync;
 
-  folderSubmodule = name: types.submodule ({ ... }:
+  folderSubmodule = _name: types.submodule ({ ... }:
     {
       options = {
         path = mkOption {

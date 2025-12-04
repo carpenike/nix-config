@@ -14,7 +14,7 @@ let
 
   # Get services that need snapshot-coordinated backups from centralized job list
   servicesNeedingSnapshots = lib.filterAttrs
-    (name: job:
+    (_name: job:
       job.enable && job.useSnapshots && job.zfsDataset != null
     )
     cfg._internal.allJobs;
