@@ -30,7 +30,7 @@ let
         {{- end -}}
         {{- end -}}
         {{- if gt (len .Alerts.Resolved) 5 }}
-        ... and {{ sub (len .Alerts.Resolved) 5 }} more resolved.
+        ... and more ({{ len .Alerts.Resolved }} total resolved).
         {{- end }}
 
         Duration: {{ with (index .Alerts.Resolved 0) }}{{ .StartsAt.Format "15:04" }} → {{ .EndsAt.Format "15:04 MST" }}{{ end }}
@@ -498,6 +498,8 @@ in
       systemd.services.alertmanager = {
         serviceConfig = {
           DynamicUser = lib.mkForce false;
+          User = "alertmanager";
+          Group = "alertmanager";
         };
       };
 
