@@ -1,18 +1,12 @@
-{ lib, pkgs, rustPlatform, fetchFromGitHub, ... }:
+{ lib, pkgs, rustPlatform, ... }:
 let
-  version = "unstable-2025-11-17";
-
-  src = fetchFromGitHub {
-    owner = "cooklang";
-    repo = "federation";
-    rev = "1690f4554e74b66ca875162955a301b7ca99a79c";
-    hash = "sha256-G3XyM5LFbfcTF3OBLyi24i5DB/hD04calpQN4EcH8hU=";
-  };
-
+  sourceData = pkgs.callPackage ./_sources/generated.nix { };
+  src = sourceData.cooklang-federation;
 in
 rustPlatform.buildRustPackage {
   pname = "cooklang-federation";
-  inherit version src;
+  inherit (src) version;
+  inherit (src) src;
 
   cargoHash = "sha256-DaM87ROyA8phsUIUf8pNv62w+VnF5cSNBm+dkDyUm+Y=";
 

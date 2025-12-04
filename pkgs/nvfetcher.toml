@@ -1,3 +1,12 @@
+[cooklang-cli]
+src.github = "cooklang/CookCLI"
+fetch.github = "cooklang/CookCLI"
+
+[cooklang-federation]
+src.git = "https://github.com/cooklang/federation.git"
+src.branch = "main"
+fetch.github = "cooklang/federation"
+
 [kubecolor-catppuccin]
 src.git = "https://github.com/vkhitrin/kubecolor-catppuccin.git"
 src.branch = "main"

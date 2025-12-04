@@ -215,8 +215,9 @@
             '';
 
             # Deadnix - find dead code
+            # Exclude auto-generated files from nvfetcher
             deadnix = pkgs.runCommand "deadnix-check" { nativeBuildInputs = [ pkgs.deadnix ]; } ''
-              deadnix --fail ${./.} || exit 1
+              deadnix --fail --exclude pkgs/_sources/generated.nix ${./.} || exit 1
               touch $out
             '';
           };

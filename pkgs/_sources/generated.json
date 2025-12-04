@@ -1,4 +1,46 @@
 {
+    "cooklang-cli": {
+        "cargoLocks": null,
+        "date": null,
+        "extract": null,
+        "name": "cooklang-cli",
+        "passthru": null,
+        "pinned": false,
+        "src": {
+            "deepClone": false,
+            "fetchSubmodules": false,
+            "leaveDotGit": false,
+            "name": null,
+            "owner": "cooklang",
+            "repo": "CookCLI",
+            "rev": "v0.19.0",
+            "sha256": "sha256-yNUiwMzCAj5aXuQIzfzpy2GylhB37CuSmyHsyxcmKXM=",
+            "sparseCheckout": [],
+            "type": "github"
+        },
+        "version": "v0.19.0"
+    },
+    "cooklang-federation": {
+        "cargoLocks": null,
+        "date": "2025-11-20",
+        "extract": null,
+        "name": "cooklang-federation",
+        "passthru": null,
+        "pinned": false,
+        "src": {
+            "deepClone": false,
+            "fetchSubmodules": false,
+            "leaveDotGit": false,
+            "name": null,
+            "owner": "cooklang",
+            "repo": "federation",
+            "rev": "36d5dbb86095e0a331d2e76deb520107ded0c84d",
+            "sha256": "sha256-Jg8sn7ytT5AWGsOpoE7V9jlqPgec3sQygYQv4zeOv3w=",
+            "sparseCheckout": [],
+            "type": "github"
+        },
+        "version": "36d5dbb86095e0a331d2e76deb520107ded0c84d"
+    },
     "kubecolor-catppuccin": {
         "cargoLocks": null,
         "date": "2024-05-24",
@@ -118,12 +160,12 @@
             "name": null,
             "owner": "CrunchyData",
             "repo": "postgres-operator-client",
-            "rev": "v0.5.2",
-            "sha256": "sha256-ppFhr6bMZjXZaiPFNss0Q18bJ3jGjYnRcn9bpot6OlI=",
+            "rev": "v0.5.3",
+            "sha256": "sha256-QaOa8L86YaR1GJ5+iNQO/T83yLzqWTngBr0UzovQ9yg=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.5.2"
+        "version": "v0.5.3"
     },
     "shcopy": {
         "cargoLocks": null,
@@ -160,11 +202,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v2.3.2",
-            "sha256": "sha256-QKGyswc3tWcZIsGZhh0qyULnWNvLcveqx9e4qpwaC9Y=",
+            "rev": "v2.9.0",
+            "sha256": "sha256-Ul4yTwsaEEv45p0cScMmsuyV7ZllJrN2IpO2tjmTGm0=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v2.3.2"
+        "version": "v2.9.0"
     }
 }
