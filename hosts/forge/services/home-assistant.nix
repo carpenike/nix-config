@@ -71,9 +71,10 @@ in
               media = mediaShare;
             };
             packages = "!include_dir_named packages";
-            customize = "!include_dir_named customizations";
           };
           http = {
+            server_host = [ "0.0.0.0" "::" ];
+            server_port = 8123;
             use_x_forwarded_for = true;
             trusted_proxies = [
               "127.0.0.1"
@@ -87,12 +88,25 @@ in
           logbook = { };
           frontend = { };
           conversation = { };
+          lovelace = {
+            mode = "storage";
+            resources = [ ];
+            dashboards = {
+              lovelace-home = {
+                mode = "yaml";
+                title = "Home";
+                icon = "mdi:home";
+                show_in_sidebar = true;
+                filename = "dashboards/home.yaml";
+              };
+            };
+          };
           automation = "!include automations.yaml";
           logger = {
-            default = "info";
+            default = "warning";
             logs = {
               "homeassistant.components.http" = "warning";
-              "homeassistant.components.recorder" = "info";
+              "homeassistant.components.recorder" = "warning";
             };
           };
           recorder = {
@@ -102,6 +116,19 @@ in
             purge_keep_days = 30;
             db_max_retries = 10;
           };
+          tts = [
+            {
+              platform = "microsoft";
+              api_key = "!env_var SECRET_MSFT_TTS_API_KEY";
+            }
+          ];
+          amcrest = [
+            {
+              host = "10.50.50.101";
+              username = "admin";
+              password = "!env_var SECRET_AMCREST_PASSWORD";
+            }
+          ];
         };
 
         # Backup using forgeDefaults helper with home automation tags
@@ -138,6 +165,11 @@ in
           in
           with python3Packages;
           [
+            # HomeKit integration
+            hap-python
+            pychromecast
+            base36
+
             aiodiscover
             aiodhcpwatcher
             aiousbwatcher
@@ -203,6 +235,9 @@ in
             govee-local-api
             govee-led-wez
             govee-ble
+            jsonpath
+            aiohttp-sse
+            mcp
 
           ];
 

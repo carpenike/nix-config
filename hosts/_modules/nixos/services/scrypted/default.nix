@@ -47,7 +47,8 @@ let
   ];
 
   mdnsHostVolumes = lib.optionals (cfg.mdns.enable && cfg.mdns.mode == "host") [
-    "${cfg.mdns.host.dbusSocket}:${cfg.mdns.host.dbusSocket}:rw"
+    # Mount full /var/run/dbus directory, not just the socket - required for DBus permissions
+    "${cfg.mdns.host.dbusPath}:${cfg.mdns.host.dbusPath}:rw"
     "${cfg.mdns.host.avahiSocket}:${cfg.mdns.host.avahiSocket}:rw"
   ];
 
@@ -273,10 +274,10 @@ in
       };
 
       host = {
-        dbusSocket = lib.mkOption {
+        dbusPath = lib.mkOption {
           type = lib.types.path;
-          default = "/var/run/dbus/system_bus_socket";
-          description = "Host DBus socket forwarded when mdns.mode = host.";
+          default = "/var/run/dbus";
+          description = "Host DBus directory forwarded when mdns.mode = host (must be full directory for permissions).";
         };
 
         avahiSocket = lib.mkOption {

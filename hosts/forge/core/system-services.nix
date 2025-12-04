@@ -3,6 +3,24 @@
   # This file contains OS-level service configurations:
   # - rsyslogd: Omada device log relay to Loki
   # - journald: Persistent logging configuration
+  # - avahi: mDNS/DNS-SD for HomeKit and local service discovery
+
+  # Avahi mDNS daemon for HomeKit integration (Scrypted, ESPHome, etc.)
+  # Required for services that need to advertise via Bonjour/mDNS
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true; # Enable mDNS resolution in NSS for .local domains
+    publish = {
+      enable = true;
+      addresses = true; # Publish host addresses
+      workstation = false; # Don't publish workstation service
+    };
+    # Allow containers to use host Avahi via socket
+    # The socket is at /var/run/avahi-daemon/socket
+  };
+
+  # DBus is required for Avahi (usually enabled by default, but ensure it's explicit)
+  services.dbus.enable = true;
 
   # Rsyslog configuration for Omada device log relay
   # Receives syslog from Omada network devices and forwards to Loki

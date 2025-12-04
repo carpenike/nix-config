@@ -3,7 +3,7 @@
 # Host-specific configuration for Zigbee2MQTT on 'forge'.
 # Zigbee2MQTT bridges Zigbee devices to MQTT for Home Assistant integration.
 
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
@@ -18,6 +18,7 @@ in
     {
       modules.services.zigbee2mqtt = {
         enable = true;
+        package = pkgs.unstable.zigbee2mqtt;
         dataDir = dataDir;
 
         reverseProxy = {

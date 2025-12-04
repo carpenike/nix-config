@@ -35,7 +35,7 @@ in
 
         mdns = {
           enable = true;
-          mode = "container"; # Run Avahi inside the container to avoid host-level socket mapping complexity
+          mode = "container"; # Run Avahi inside container - host mode has DBus permission issues
         };
 
         nvr = {
