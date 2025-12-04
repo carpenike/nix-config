@@ -71,6 +71,7 @@ A comprehensive **Infrastructure-as-Code** repository managing NixOS servers, ma
 The `forge` host demonstrates our architectural approach, separating concerns into three distinct layers:
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'fontSize': '14px' }}}%%
 flowchart TB
     subgraph Services["🔧 APPLICATION SERVICES"]
         direction LR
@@ -95,6 +96,13 @@ flowchart TB
 
     Services -->|consumes| Infra
     Infra -->|runs on| Core
+
+    classDef services fill:#e1f5fe,stroke:#01579b
+    classDef infra fill:#fff3e0,stroke:#e65100
+    classDef core fill:#f3e5f5,stroke:#4a148c
+    class Services services
+    class Infra infra
+    class Core core
 ```
 
 ### Key Design Patterns
@@ -295,6 +303,7 @@ Internal metrics and predictive alerting:
 ### Alerting Flow
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 flowchart LR
     P[Prometheus] --> A[Alertmanager]
     A --> Push[Pushover]
@@ -306,6 +315,13 @@ flowchart LR
     end
 
     P -.->|evaluates| Rules
+
+    classDef monitor fill:#e8f5e9,stroke:#2e7d32
+    classDef alert fill:#fff8e1,stroke:#f57f17
+    classDef notify fill:#e3f2fd,stroke:#1565c0
+    class P,Rules monitor
+    class A alert
+    class Push,Discord notify
 ```
 
 See [docs/monitoring-strategy.md](docs/monitoring-strategy.md) for detailed guidance.
