@@ -102,13 +102,15 @@ in
       # Note: We don't check pathExists here because sops secrets won't exist until runtime
     ];
 
-    # Systemd path unit that triggers the service when a payload file appears
+    # Systemd path unit template that triggers the service when a payload file appears
     # This eliminates race conditions and the need for root escalation in the dispatcher
+    # Note: Template units should NOT have wantedBy - specific instances define their own
+    # activation (e.g., notify-pushover@system-boot:boot in system-notifications.nix)
     systemd.paths."notify-pushover@" = {
       pathConfig = {
         PathExists = "/run/notify/%i.json";
       };
-      wantedBy = [ "multi-user.target" ];
+      # No wantedBy here - this is a template; instances are activated by their callers
     };
 
     # Generic notification service template using Pushover

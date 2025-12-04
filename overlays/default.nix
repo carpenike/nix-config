@@ -16,6 +16,7 @@
     unstable = import inputs.nixpkgs-unstable {
       inherit (final) system;
       config.allowUnfree = true;
+      config.allowBroken = true; # Temporary: python3.13-aio-georss-client broken in nixpkgs-unstable
       overlays = [
         # overlays of unstable packages are declared here
         (_final: prev: {
