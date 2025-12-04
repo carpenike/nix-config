@@ -868,50 +868,84 @@ in
           tmp="${envFile}.tmp"
           trap 'rm -f "$tmp"' EXIT
 
-          {
-            # Load provider keys (these should already be properly formatted KEY=value)
-            cat "$CREDENTIALS_DIRECTORY/provider-keys"
+          # Export variables as we build them (for envsubst later)
+          set -a
 
-            # Database connection URL (quoted to handle special chars in password)
-            DB_PASS=$(cat "$CREDENTIALS_DIRECTORY/db_password")
-            printf "DATABASE_URL='postgresql://${cfg.database.user}:%s@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}'\n" "$DB_PASS"
+          # Load provider keys into environment
+          # shellcheck source=/dev/null
+          source "$CREDENTIALS_DIRECTORY/provider-keys"
 
-            # Master key handling (quoted for safety)
-            if [[ -f "$CREDENTIALS_DIRECTORY/master-key" ]]; then
-              printf "LITELLM_MASTER_KEY='%s'\n" "$(cat "$CREDENTIALS_DIRECTORY/master-key")"
-            else
-              # Auto-generate master key if not provided
-              MASTER_KEY_FILE="/var/lib/${serviceName}/master-key"
-              if [[ ! -f "$MASTER_KEY_FILE" ]]; then
-                head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32 > "$MASTER_KEY_FILE"
-                chmod 600 "$MASTER_KEY_FILE"
-              fi
-              printf "LITELLM_MASTER_KEY='%s'\n" "$(cat "$MASTER_KEY_FILE")"
+          # Database connection URL
+          DB_PASS=$(cat "$CREDENTIALS_DIRECTORY/db_password")
+          DATABASE_URL="postgresql://${cfg.database.user}:$DB_PASS@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}"
+
+          # Master key handling
+          if [[ -f "$CREDENTIALS_DIRECTORY/master-key" ]]; then
+            LITELLM_MASTER_KEY=$(cat "$CREDENTIALS_DIRECTORY/master-key")
+          else
+            # Auto-generate master key if not provided
+            MASTER_KEY_FILE="/var/lib/${serviceName}/master-key"
+            if [[ ! -f "$MASTER_KEY_FILE" ]]; then
+              head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32 > "$MASTER_KEY_FILE"
+              chmod 600 "$MASTER_KEY_FILE"
             fi
+            LITELLM_MASTER_KEY=$(cat "$MASTER_KEY_FILE")
+          fi
         '' + optionalString cfg.sso.adminUi.enable ''
 
-            # Admin UI SSO (OAuth2 Generic Provider)
-            # All values must be quoted to handle spaces (e.g., in GENERIC_SCOPE)
-            printf "GENERIC_CLIENT_ID='${cfg.sso.adminUi.clientId}'\n"
-            if [[ -f "$CREDENTIALS_DIRECTORY/oidc-client-secret" ]]; then
-              printf "GENERIC_CLIENT_SECRET='%s'\n" "$(cat "$CREDENTIALS_DIRECTORY/oidc-client-secret")"
-            fi
-            printf "GENERIC_AUTHORIZATION_ENDPOINT='${cfg.sso.adminUi.authorizationEndpoint}'\n"
-            printf "GENERIC_TOKEN_ENDPOINT='${cfg.sso.adminUi.tokenEndpoint}'\n"
-            printf "GENERIC_USERINFO_ENDPOINT='${cfg.sso.adminUi.userinfoEndpoint}'\n"
-            printf "GENERIC_SCOPE='${cfg.sso.adminUi.scope}'\n"
-          '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.redirectUri != null) ''
-          printf "PROXY_BASE_URL='${lib.removeSuffix "/sso/callback" cfg.sso.adminUi.redirectUri}'\n"
+          # Admin UI SSO (OAuth2 Generic Provider)
+          GENERIC_CLIENT_ID="${cfg.sso.adminUi.clientId}"
+          if [[ -f "$CREDENTIALS_DIRECTORY/oidc-client-secret" ]]; then
+            GENERIC_CLIENT_SECRET=$(cat "$CREDENTIALS_DIRECTORY/oidc-client-secret")
+          fi
+          GENERIC_AUTHORIZATION_ENDPOINT="${cfg.sso.adminUi.authorizationEndpoint}"
+          GENERIC_TOKEN_ENDPOINT="${cfg.sso.adminUi.tokenEndpoint}"
+          GENERIC_USERINFO_ENDPOINT="${cfg.sso.adminUi.userinfoEndpoint}"
+          GENERIC_SCOPE="${cfg.sso.adminUi.scope}"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.redirectUri != null) ''
+          PROXY_BASE_URL="${lib.removeSuffix "/sso/callback" cfg.sso.adminUi.redirectUri}"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userIdAttribute != "sub") ''
-          printf "GENERIC_USER_ID_ATTRIBUTE='${cfg.sso.adminUi.userIdAttribute}'\n"
+          GENERIC_USER_ID_ATTRIBUTE="${cfg.sso.adminUi.userIdAttribute}"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userEmailAttribute != "email") ''
-          printf "GENERIC_USER_EMAIL_ATTRIBUTE='${cfg.sso.adminUi.userEmailAttribute}'\n"
+          GENERIC_USER_EMAIL_ATTRIBUTE="${cfg.sso.adminUi.userEmailAttribute}"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userDisplayNameAttribute != "name") ''
-          printf "GENERIC_USER_DISPLAY_NAME_ATTRIBUTE='${cfg.sso.adminUi.userDisplayNameAttribute}'\n"
+          GENERIC_USER_DISPLAY_NAME_ATTRIBUTE="${cfg.sso.adminUi.userDisplayNameAttribute}"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userRoleAttribute != null) ''
-          printf "GENERIC_USER_ROLE_ATTRIBUTE='${cfg.sso.adminUi.userRoleAttribute}'\n"
+          GENERIC_USER_ROLE_ATTRIBUTE="${cfg.sso.adminUi.userRoleAttribute}"
         '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.proxyAdminId != null && cfg.sso.adminUi.userRoleAttribute == null) ''
-          printf "PROXY_ADMIN_ID='${cfg.sso.adminUi.proxyAdminId}'\n"
+          PROXY_ADMIN_ID="${cfg.sso.adminUi.proxyAdminId}"
+        '' + ''
+
+          set +a
+
+          # Write environment file for Podman (unquoted KEY=value format)
+          {
+            # Provider keys
+            cat "$CREDENTIALS_DIRECTORY/provider-keys"
+
+            # Core variables
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "LITELLM_MASTER_KEY=$LITELLM_MASTER_KEY"
+        '' + optionalString cfg.sso.adminUi.enable ''
+          # SSO variables
+          echo "GENERIC_CLIENT_ID=$GENERIC_CLIENT_ID"
+          echo "GENERIC_CLIENT_SECRET=''${GENERIC_CLIENT_SECRET:-}"
+          echo "GENERIC_AUTHORIZATION_ENDPOINT=$GENERIC_AUTHORIZATION_ENDPOINT"
+          echo "GENERIC_TOKEN_ENDPOINT=$GENERIC_TOKEN_ENDPOINT"
+          echo "GENERIC_USERINFO_ENDPOINT=$GENERIC_USERINFO_ENDPOINT"
+          echo "GENERIC_SCOPE=$GENERIC_SCOPE"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.redirectUri != null) ''
+          echo "PROXY_BASE_URL=$PROXY_BASE_URL"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userIdAttribute != "sub") ''
+          echo "GENERIC_USER_ID_ATTRIBUTE=$GENERIC_USER_ID_ATTRIBUTE"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userEmailAttribute != "email") ''
+          echo "GENERIC_USER_EMAIL_ATTRIBUTE=$GENERIC_USER_EMAIL_ATTRIBUTE"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userDisplayNameAttribute != "name") ''
+          echo "GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=$GENERIC_USER_DISPLAY_NAME_ATTRIBUTE"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userRoleAttribute != null) ''
+          echo "GENERIC_USER_ROLE_ATTRIBUTE=$GENERIC_USER_ROLE_ATTRIBUTE"
+        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.proxyAdminId != null && cfg.sso.adminUi.userRoleAttribute == null) ''
+          echo "PROXY_ADMIN_ID=$PROXY_ADMIN_ID"
         '' + ''
           } > "$tmp"
 
@@ -919,14 +953,7 @@ in
           echo "Environment file created at ${envFile}"
 
           # Process config.yaml through envsubst to substitute actual values
-          # This is necessary because LiteLLM's os.environ/ syntax only works during
-          # database sync, not when reading config.yaml directly at runtime.
-          # Source the env file to make variables available for substitution
-          set -a
-          source "${envFile}"
-          set +a
-
-          # Substitute environment variables in config.yaml
+          # Variables are already exported from above, so envsubst can use them directly
           ${pkgs.envsubst}/bin/envsubst < "${configYaml}" > "${configFile}.tmp"
           install -D -m 644 "${configFile}.tmp" "${configFile}"
           rm -f "${configFile}.tmp"

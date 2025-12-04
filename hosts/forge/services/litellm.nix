@@ -89,7 +89,7 @@ in
             model = "azure/gpt-4o";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2024-12-01-preview"; };
           }
           # GPT-5 variants
           {
@@ -97,42 +97,42 @@ in
             model = "azure/gpt-5";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2024-12-01-preview"; };
           }
           {
             name = "gpt-5-chat";
             model = "azure/gpt-5-chat";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2024-12-01-preview"; };
           }
           {
             name = "gpt-5-codex";
             model = "azure/gpt-5-codex";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2024-12-01-preview"; };
           }
           {
             name = "gpt-5-pro";
             model = "azure/gpt-5-pro";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2024-12-01-preview"; };
           }
           {
             name = "gpt-5.1";
             model = "azure/gpt-5.1";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2024-12-01-preview"; };
           }
           {
             name = "gpt-5.1-codex";
             model = "azure/gpt-5.1-codex";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2025-04-01-preview"; };
           }
           # Reasoning model
           {
@@ -140,7 +140,7 @@ in
             model = "azure/o3-mini";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2025-01-01-preview"; };
           }
           # Embeddings
           {
@@ -148,7 +148,7 @@ in
             model = "azure/text-embedding-3-small";
             apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
             apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-08-01-preview"; };
+            extraParams = { api_version = "2024-12-01-preview"; };
           }
 
           # Anthropic Claude models

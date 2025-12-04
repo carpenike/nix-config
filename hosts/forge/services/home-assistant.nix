@@ -219,6 +219,7 @@ in
             pyipp
             beautifulsoup4
             androidtvremote2
+            pysmlight
 
           ];
 

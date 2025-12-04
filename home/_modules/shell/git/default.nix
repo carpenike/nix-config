@@ -27,6 +27,12 @@ in
       type = lib.types.listOf lib.types.attrs;
       default = [ ];
     };
+    trustedDirectories = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "List of directories to add to git's safe.directory config";
+      example = [ "/var/lib/myrepo" "*" ];
+    };
   };
 
   config = lib.mkMerge [
@@ -55,6 +61,12 @@ in
               autoStash = true;
             };
           }
+          # Add safe.directory entries if configured
+          (lib.mkIf (cfg.trustedDirectories != [ ]) {
+            safe = {
+              directory = cfg.trustedDirectories;
+            };
+          })
           cfg.config
         ];
 
