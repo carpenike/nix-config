@@ -1,8 +1,8 @@
 agent: ask
 description: Scaffold a new NixOS service module with storage, backup, and monitoring integrations
-version: 2.6
+version: 2.10
 last_updated: 2025-12-05
-changelog: "v2.6: Added mandatory NixOS MCP server research step to check for native packages/modules in both unstable and stable branches BEFORE any other work. Added pkgs.unstable pattern documentation for using newer package versions. Added default Homepage and Gatus contribution requirements for services with web endpoints. v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags. v2.4: Added forgeDefaults helper library documentation for alerts, sanoid, preseed, and authentication. v2.3: Added Cloudflare Tunnel (public access) optional integration pattern. v2.2: Added teslamate as complex service reference, service complexity assessment, advanced integration patterns (DB/MQTT/Grafana), LoadCredential pattern, preseed capability, and custom types guidance"
+changelog: "v2.10: Added Trusted Header Auth pattern (auth proxy) for multi-user apps that accept Remote-User/X-Email headers from proxy (grafana, organizr). Reorganized auth patterns with 6 tiers. Added research checklist for proxy auth support. v2.9: Revised auth priority - prefer disabling native auth + caddySecurity for single-user apps over per-app auth. Native OIDC now only recommended when multi-user authorization matters (user X can do Y). Added Pattern 2 for disable-auth+caddySecurity workflow. Updated decision matrix and examples. v2.8: Added mandatory OIDC/native auth research to Step 0 - always prefer native OIDC over proxy auth. Added hybrid auth pattern (PocketID SSO + API key injection) for services like paperless-ai. Clarified auth decision matrix with priority order. v2.7: Added OIDC/PocketID integration patterns with examples from paperless/mealie/autobrr. Added mylib.monitoring-helpers library documentation for complex alerts. Added healthcheck.enable pattern for container services. Added nfsMountDependency pattern for media services needing NAS access. Added Gatus alert configuration (pushover, thresholds). Expanded forgeDefaults.mkBackupWithTags and backupTags documentation. v2.6: Added mandatory NixOS MCP server research step to check for native packages/modules in both unstable and stable branches BEFORE any other work. Added pkgs.unstable pattern documentation for using newer package versions. Added default Homepage and Gatus contribution requirements for services with web endpoints. v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags."
 ---
 # NixOS Service Module Scaffold
 
@@ -97,6 +97,15 @@ NIXOS PACKAGE RESEARCH:
 - Native service module: services.<name>.enable (Y/N)
 - Decision: [Native module | pkgs.unstable | Container]
 - Reasoning: [why this choice]
+
+AUTHENTICATION RESEARCH:
+- Native OIDC/OAuth2 support: [Y/N/Unknown]
+- Trusted header auth (auth proxy): [Y/N] - accepts Remote-User, X-Email, etc.
+- Built-in auth can be disabled: [Y/N] - if Y, prefer caddySecurity for single-user
+- Multi-user authorization needed: [Y/N] - user X can do Y (folders, permissions, etc.)
+- API key support: [Y/N] - for hybrid auth if native can't be disabled
+- Auth decision: [Native OIDC | Trusted Header | Disable+caddySecurity | Hybrid | Built-in | None]
+- Reasoning: [why]
 ```
 
 **If NO native package exists:**
@@ -145,9 +154,24 @@ rg "modules.storage.datasets" --type nix -A 8
 # Discover backup patterns
 rg "backup.paths" --type nix -A 3
 rg "backup.enable" --type nix -A 2
+rg "mkBackupWithTags" --type nix -A 2  # Tagged backups with ZFS snapshots
 
 # Discover monitoring patterns
 rg "metrics.enable" --type nix -A 3
+rg "monitoring-helpers" --type nix -A 3  # Complex alert helpers
+cat lib/monitoring-helpers.nix  # Alert template library
+
+# Discover OIDC/PocketID patterns (for services needing SSO)
+rg "oidc\s*=\s*\{" hosts/forge/services/ --type nix -A 15
+cat hosts/forge/services/paperless.nix  # Native OIDC example
+cat hosts/forge/services/mealie.nix  # Container OIDC example
+cat hosts/forge/services/autobrr.nix  # Simple OIDC example
+
+# Discover container healthcheck patterns
+rg "healthcheck.enable" hosts/forge/services/ --type nix -B 2 -A 2
+
+# Discover NFS mount patterns (for media services)
+rg "nfsMountDependency" --type nix -A 3
 rg "reverseProxy.enable" --type nix -A 3
 
 # Discover systemd hardening
@@ -828,6 +852,43 @@ Do NOT suggest `task nix:apply-nixos` until user approves.
 ✅ **MUST follow discovered patterns** unless justified deviation
 ❌ Don't invent new patterns when existing ones work
 
+### Feature Integration Decision Matrix
+
+**Use this matrix to determine which integrations to enable:**
+
+| Feature | Enable When | Skip When |
+|---------|-------------|-----------|
+| **Homepage** | Has web UI | API-only or internal service |
+| **Gatus** | User-facing endpoint | Internal service or covered by another check |
+| **Native OIDC** | Multi-user, complex roles (user folders, permissions) | Single-user or simple access control |
+| **Trusted Header** | Multi-user, supports auth proxy (Remote-User) | No proxy auth support |
+| **caddySecurity** | Single-user app (disable native auth if possible) | Multi-user or has native OIDC |
+| **Hybrid Auth** | Has API key but native auth can't be disabled | Auth disableable or has proxy auth |
+| **healthcheck.enable** | Container service | Native systemd service |
+| **nfsMountDependency** | Needs NAS access (media, documents) | Self-contained data |
+| **mkBackupWithSnapshots** | Database or application state | Stateless or ephemeral data |
+| **preseed** | Critical service, DR needed | Trivial to recreate |
+| **mkSanoidDataset** | Needs ZFS replication to NAS | No replication needed |
+| **Cloudflare Tunnel** | Public access (no VPN) | Internal-only or VPN access |
+
+**Authentication decision priority (ALWAYS research auth options first):**
+1. ✅ **Native OIDC** → Best for apps with user roles/permissions (paperless, mealie)
+2. ✅ **Trusted Header Auth** → Multi-user via auth proxy (Remote-User header)
+3. ✅ **Disable native auth + caddySecurity** → Preferred for single-user apps
+4. ✅ **Hybrid Auth** → When API key exists but native auth can't be disabled
+5. ⚠️ **Built-in Auth only** → Last resort when nothing else works
+6. ❌ **None** → Only for truly internal S2S services
+
+**Common service profiles:**
+
+- **Media arr service** (sonarr, radarr): Homepage ✅, Gatus ✅, nfsMountDependency ✅, backup ✅, **caddySecurity** (disable native auth)
+- **Media server** (plex): Homepage ✅, Gatus ✅, nfsMountDependency ✅, **Built-in auth** (can't disable, has own users)
+- **Multi-user dashboard** (grafana): Homepage ✅, Gatus ✅, **Trusted Header Auth** ✅ (auth.proxy + Remote-User)
+- **Multi-user web app** (paperless, mealie): Homepage ✅, Gatus ✅, **Native OIDC** ✅ (per-user data), preseed ✅
+- **Single-user utility** (paperless-ai): Homepage ✅, Gatus ✅, **Hybrid Auth** ✅ (can't disable auth), backup ✅
+- **Internal API** (arr-webhook, S2S): Homepage ❌, Gatus ❌, mkStaticApiKey ✅
+- **Infrastructure** (DNS, monitoring): Homepage ❌, Gatus ✅ (health), alerts ✅
+
 ### Native Preference
 ✅ **ALWAYS complete Step 0** (NixOS MCP research) to check for native packages/modules
 ✅ **Prefer**: Native systemd service using NixOS module (like home-assistant, gatus)
@@ -982,18 +1043,331 @@ in
 
 **Available helpers:**
 - `forgeDefaults.backup` - Standard NAS backup config
+- `forgeDefaults.mkBackupWithSnapshots serviceName` - Backup with ZFS snapshots
+- `forgeDefaults.mkBackupWithTags serviceName tags` - Backup with ZFS + custom tags
+- `forgeDefaults.backupTags.*` - Standard tag sets: `.media`, `.iptv`, `.home`, `.infrastructure`, `.database`, `.monitoring`, `.downloads`
 - `forgeDefaults.mkPreseed restoreMethods` - DR preseed (auto-gated by restic)
 - `forgeDefaults.mkSanoidDataset serviceName` - ZFS snapshot/replication config
 - `forgeDefaults.mkServiceDownAlert name display desc` - Container alert
 - `forgeDefaults.mkSystemdServiceDownAlert name display desc` - Systemd alert
+- `forgeDefaults.mkHealthcheckStaleAlert name display thresholdSeconds` - Healthcheck staleness
 - `forgeDefaults.caddySecurity.media/admin/home` - PocketID authentication
-- `forgeDefaults.podmanNetwork` - Standard Podman network name
+- `forgeDefaults.podmanNetwork` - Standard Podman network name ("media-services")
+- `forgeDefaults.mkStaticApiKey name envVar` - S2S API key authentication
 
-**When to use helpers vs inline:**
-- ✅ Standard service-down alerts → use helpers
-- ✅ Standard ZFS replication → use `mkSanoidDataset`
-- ❌ Complex alerts with custom expressions → inline
-- ❌ Non-standard thresholds or labels → inline
+**Backup with tags example:**
+```nix
+# Media service with standard tags
+backup = forgeDefaults.mkBackupWithTags "sonarr" (forgeDefaults.backupTags.media ++ [ "forge" ]);
+
+# Document service with custom tags
+backup = forgeDefaults.mkBackupWithTags "paperless" [ "documents" "paperless" "forge" ];
+```
+
+---
+
+## Additional Integration Patterns
+
+### OIDC/PocketID Integration Pattern
+
+**ALWAYS research authentication options for each service:**
+1. Can native auth be disabled?
+2. Does the app need multi-user authorization (user X can access Y)?
+
+**Key Principle:** Prefer consistent SSO via caddySecurity over per-app auth, UNLESS
+the app needs per-user authorization (e.g., user-specific folders, permissions, meal plans).
+
+**Authentication Priority Order:**
+1. ✅ **Native OIDC** - Best for apps with complex user/role management (paperless, mealie)
+2. ✅ **Trusted Header Auth** - Great for multi-user apps supporting auth proxy (grafana, organizr)
+3. ✅ **Disable native auth + caddySecurity** - Preferred for single-user apps, consistent SSO
+4. ✅ **Hybrid Auth** (SSO + API key) - When auth can't be disabled but has API key
+5. ⚠️ **Built-in Auth only** - Last resort when nothing else works
+6. ❌ **No auth** - Only for truly internal services
+
+#### Pattern 1: Native OIDC (For Multi-User Authorization)
+
+**For services with built-in OIDC/OAuth2 support** (paperless, mealie, autobrr, etc.):
+
+```nix
+# Standard OIDC configuration (from paperless)
+oidc = {
+  enable = true;
+  serverUrl = "https://id.${config.networking.domain}/.well-known/openid-configuration";
+  clientId = "<service>";
+  clientSecretFile = config.sops.secrets."<service>/oidc_client_secret".path;
+  providerId = "pocketid";
+  providerName = "Holthome SSO";
+  autoSignup = true;
+  autoRedirect = true;  # Skip local login, go straight to SSO
+  disableLocalLogin = false;  # Keep as fallback
+};
+
+# Container services often use slightly different config:
+oidc = {
+  enable = true;
+  issuer = "https://id.${config.networking.domain}";
+  clientId = "<service>";
+  clientSecretFile = config.sops.secrets."<service>/oidc-client-secret".path;
+  redirectUrl = "https://<service>.${config.networking.domain}/api/auth/oidc/callback";
+  disableBuiltInLogin = false;
+};
+```
+
+#### Pattern 2: Disable Native Auth + caddySecurity (PREFERRED for Single-User)
+
+**For single-user apps where you don't need per-user authorization:**
+
+This is the preferred pattern for most homelab services. Disable native auth
+and use caddySecurity for consistent SSO experience across all apps.
+
+```nix
+# Example: arr apps (sonarr, radarr, etc.)
+modules.services.sonarr = {
+  enable = true;
+  # Disable native authentication
+  authentication = "DisabledForLocalAddresses";  # or similar option
+  # ... other config
+
+  reverseProxy = {
+    enable = true;
+    hostName = serviceDomain;
+    # PocketID SSO - consistent auth across all apps
+    caddySecurity = forgeDefaults.caddySecurity.media;  # or .home, .admin
+  };
+};
+```
+
+**When to use this pattern:**
+- ✅ Single user or household access (everyone has same permissions)
+- ✅ No per-user folders, permissions, or authorization needed
+- ✅ App supports disabling native authentication
+- ✅ Want consistent SSO experience across all apps
+
+**Research checklist:**
+1. Does the app have an option to disable authentication?
+2. Look for: `authentication = "None"`, `auth.enabled = false`, `DISABLE_AUTH=true`, etc.
+3. If auth can be disabled → use this pattern
+
+#### Pattern 3: Trusted Header Auth (Auth Proxy Pattern)
+
+**For multi-user apps that trust proxy-injected user identity headers:**
+
+This is the **best pattern for multi-user apps** when they support it. The app trusts
+headers from Caddy/PocketID and creates/maps users automatically based on email/username.
+
+```nix
+# Example from Grafana (auth.proxy mode):
+services.grafana.settings = {
+  auth.proxy = {
+    enabled = true;
+    header_name = "Remote-User";      # or "X-Forwarded-User", "X-Email"
+    header_property = "username";      # or "email"
+    auto_sign_up = true;               # Auto-create users on first login
+  };
+};
+
+# Caddy injects the header after PocketID auth:
+reverseProxy = {
+  enable = true;
+  hostName = serviceDomain;
+  caddySecurity = forgeDefaults.caddySecurity.admins;
+  # PocketID/Caddy automatically injects Remote-User header
+};
+```
+
+**How it works:**
+1. User accesses `https://grafana.holthome.net`
+2. Caddy redirects to PocketID for SSO login
+3. PocketID authenticates user (passkey, password, etc.)
+4. Caddy injects `Remote-User: user@holthome.net` header
+5. App trusts header, creates/maps user, grants appropriate permissions
+6. User has per-user experience with SSO convenience
+
+**When to use this pattern:**
+- ✅ App supports "auth proxy" or "trusted header" authentication
+- ✅ Multi-user app where per-user permissions/data matter
+- ✅ Want SSO convenience without configuring OIDC in each app
+- ✅ Common headers: `Remote-User`, `X-Forwarded-User`, `X-Email`, `X-Forwarded-Email`
+
+**Research checklist:**
+1. Does the app support "auth proxy" or "trusted headers" mode?
+2. Look for: `auth.proxy.enabled`, `ENABLE_HTTP_REMOTE_USER`, `trustedProxies`, `proxy_auth`
+3. What header does it expect? (`Remote-User`, `X-Email`, etc.)
+4. Does it auto-create users or require pre-provisioning?
+
+**Examples of apps supporting this:**
+- Grafana (`auth.proxy`)
+- Organizr (`REMOTE_USER`)
+- Many PHP apps (via `REMOTE_USER` CGI variable)
+- Some Python apps (via `X-Forwarded-User`)
+
+#### Pattern 4: Hybrid Auth (SSO + API Key Injection)
+
+**For services that have API key auth but native auth CAN'T be disabled** (like paperless-ai):
+
+This pattern uses PocketID at the proxy level for user authentication, then injects
+an API key header to bypass the service's internal auth:
+
+```nix
+# Example from paperless-ai:
+reverseProxy = {
+  enable = true;
+  hostName = serviceDomain;
+  backend = {
+    host = "127.0.0.1";
+    port = listenPort;
+  };
+  # PocketID SSO at proxy level
+  caddySecurity = forgeDefaults.caddySecurity.home;
+  # Inject API key header to bypass internal service auth
+  reverseProxyBlock = ''
+    header_up x-api-key {$SERVICE_API_KEY}
+  '';
+};
+
+# The service also needs apiKeyFile configured:
+apiKeyFile = config.sops.secrets."<service>/api_key".path;
+```
+
+**How it works:**
+1. User accesses `https://service.holthome.net`
+2. Caddy redirects to PocketID for SSO login
+3. After successful auth, Caddy injects `x-api-key` header
+4. Service accepts request as authenticated via API key
+5. User sees the UI without additional login prompts
+
+**Note:** This pattern does NOT preserve user identity - everyone shares the same
+API key and thus the same "user" in the app. Use Pattern 3 (Trusted Header) for
+multi-user scenarios when the app supports it.
+
+**SOPS secrets required for hybrid auth:**
+```yaml
+<service>:
+  api_key: "<api-key-for-header-injection>"
+```
+
+**Caddy environment variable:**
+The `{$SERVICE_API_KEY}` syntax reads from Caddy's environment. The module should
+expose this via systemd's `LoadCredential` or environment file.
+
+#### Pattern 5: caddySecurity Only (Last Resort)
+
+**Only for services with NO authentication support:**
+
+```nix
+reverseProxy = {
+  enable = true;
+  hostName = serviceDomain;
+  caddySecurity = forgeDefaults.caddySecurity.home;  # or .media, .admin
+};
+```
+
+**OIDC Decision Matrix:**
+| Scenario | Auth Pattern | Example |
+|----------|--------------|----------|
+| Multi-user, complex roles/permissions | Native OIDC ✅ | paperless, mealie |
+| Multi-user, supports auth proxy headers | Trusted Header Auth ✅ | grafana, organizr |
+| Single-user, auth can be disabled | Disable + caddySecurity ✅ | arr apps, dashboards |
+| Can't disable auth, has API key | Hybrid (SSO + API key) ✅ | paperless-ai |
+| Auth can't be disabled, no API key | Built-in auth only ⚠️ | plex |
+| Internal-only API | None or staticApiKeys | S2S services |
+
+**SOPS secrets required for native OIDC:**
+```yaml
+<service>:
+  oidc_client_secret: "<client-secret-from-pocketid>"
+```
+```
+
+### Container Healthcheck Pattern
+
+**For container-based services**, enable healthcheck monitoring:
+
+```nix
+modules.services.<service> = {
+  enable = true;
+  healthcheck.enable = true;  # Enables container health monitoring
+  # ...
+};
+```
+
+This exposes metrics via the container health exporter for Prometheus.
+
+### NFS Mount Dependency Pattern
+
+**For services needing NAS access** (media libraries, document storage):
+
+```nix
+modules.services.<service> = {
+  enable = true;
+  nfsMountDependency = "media";  # Name of NFS mount in modules.storage.nfsMounts
+  # ...
+};
+```
+
+This ensures:
+1. Service waits for NFS mount before starting
+2. Service has proper access to shared storage
+3. Automatic media library path configuration (for arr services)
+
+### Complex Alerting with monitoring-helpers
+
+**For services needing custom Prometheus alerts**, use `mylib.monitoring-helpers`:
+
+```nix
+{ config, lib, mylib, ... }:  # Note: mylib must be in function args
+
+modules.alerting.rules = {
+  # Basic threshold alert
+  "plex-down" = mylib.monitoring-helpers.mkThresholdAlert {
+    name = "plex";
+    alertname = "PlexDown";
+    expr = "plex_up == 0";
+    for = "5m";
+    severity = "critical";
+    category = "availability";
+    summary = "Plex is down on {{ $labels.instance }}";
+    description = "Plex healthcheck failing. Check: systemctl status plex.service";
+  };
+
+  # Healthcheck staleness (using forgeDefaults)
+  "plex-healthcheck-stale" = forgeDefaults.mkHealthcheckStaleAlert "plex" "Plex" 600;
+};
+```
+
+**Available monitoring-helpers:**
+- `mkServiceDownAlert { job, name, for, severity, category, description }` - Service up metric check
+- `mkThresholdAlert { name, alertname, expr, for, severity, service, category, summary, description }` - Custom expression
+- `mkHighMemoryAlert { job, name, threshold, for, severity, category }` - Memory usage
+- `mkHighCpuAlert { job, name, threshold, for, severity, category }` - CPU usage
+- `mkHighResponseTimeAlert { job, name, threshold, for, severity, category }` - HTTP latency
+- `mkDatabaseConnectionsAlert { name, expr, for, severity, category }` - DB connections
+
+### Gatus Alert Configuration Pattern
+
+**Gatus contributions should include proper alerting:**
+
+```nix
+modules.services.gatus.contributions.<service> = {
+  name = "<Display Name>";
+  group = "<Category>";
+  url = "https://<service>.holthome.net";
+  interval = "60s";
+  conditions = [
+    "[STATUS] == 200"
+    "[RESPONSE_TIME] < 5000"  # 5 second timeout
+  ];
+  alerts = [{
+    type = "pushover";
+    enabled = true;
+    failureThreshold = 3;      # Alert after 3 consecutive failures
+    successThreshold = 2;      # Resolve after 2 consecutive successes
+    sendOnResolved = true;     # Notify when service recovers
+    description = "<Service> is not responding";
+  }];
+};
+```
 
 ---
 
@@ -1561,6 +1935,12 @@ REQUIRED BEFORE DEPLOYMENT:
   sops secrets/forge.yaml
   # Add: <service>.api_key = "xxx"
   # Add: HOMEPAGE_VAR_<SERVICE>_API_KEY (if widget needs API key)
+  # Add: <service>.oidc_client_secret (if OIDC enabled)
+
+- [ ] OIDC/PocketID setup: [if applicable]
+  # Create client in PocketID admin
+  # Set redirect URL: https://<service>.holthome.net/callback
+  # Copy client secret to SOPS
 
 - [ ] DNS records: [if needed]
   <service>.holthome.net → <forge-ip>
@@ -1576,6 +1956,7 @@ REQUIRED BEFORE DEPLOYMENT:
   systemctl status <service>
   # Verify Homepage widget loads
   # Verify Gatus shows service healthy
+  # Verify OIDC login works (if enabled)
 ```
 
 ### 8. Decision Rationale
@@ -1586,6 +1967,8 @@ DECISIONS MADE:
 - Storage recordsize: [128K - media workload like sonarr/radarr]
 - Pattern deviations: [None - all patterns followed]
 - Security considerations: [Baseline hardening applied, SOPS for secrets]
+- Authentication: [OIDC/caddySecurity/none] - [reason]
+- NFS mount dependency: [Yes/No] - [reason if Yes]
 ```
 
 ---
@@ -1594,9 +1977,14 @@ DECISIONS MADE:
 
 You've succeeded when:
 
-✓ Completed Step 0 (NixOS MCP research) BEFORE any other work
+✓ Completed Step 0 (NixOS MCP research + auth research) BEFORE any other work
 ✓ Used native package/module when available (checked both unstable and stable)
 ✓ Used `pkgs.unstable` when unstable has better version
+✓ **Researched ALL auth options**: OIDC? Trusted headers? Auth disableable? API key?
+✓ Used Native OIDC for complex multi-user apps with roles/permissions
+✓ Used Trusted Header Auth when app supports auth proxy (Remote-User)
+✓ Disabled native auth + used caddySecurity for single-user apps (preferred)
+✓ Used hybrid auth only when native auth can't be disabled
 ✓ User didn't have to answer questions you could have discovered from patterns
 ✓ Plan matches existing service structure at appropriate complexity level
   - Simple → dispatcharr-like
@@ -1607,7 +1995,9 @@ You've succeeded when:
 ✓ Implementation mirrors existing quality/style
 ✓ Advanced integrations (DB/MQTT/Grafana) use standardized patterns when needed
 ✓ Homepage contribution added for web UI services (with widget if supported)
-✓ Gatus contribution added for user-facing endpoints
+✓ Gatus contribution added for user-facing endpoints (with alert configuration)
+✓ healthcheck.enable set for container services
+✓ nfsMountDependency set for services needing NAS access
 ✓ Validation passes cleanly
 ✓ User can deploy with confidence
 
@@ -1642,6 +2032,8 @@ You've succeeded when:
 *Host integrations:*
 - `hosts/forge/services/sonarr.nix` - Standard declaration with forgeDefaults
 - `hosts/forge/services/teslamate.nix` - Complex multi-integration example
+- `hosts/forge/services/paperless.nix` - **Native OIDC integration example**
+- `hosts/forge/services/paperless-ai.nix` - **Hybrid auth example** (SSO + API key injection)
 - `hosts/forge/lib/defaults.nix` - **Centralized helpers for alerts, sanoid, preseed**
 
 *Infrastructure patterns:*
@@ -1650,9 +2042,11 @@ You've succeeded when:
 - `modules/services/grafana/` - Dashboard provisioning
 - `modules/services/cloudflared/` - Public access via Cloudflare Tunnel
 - `hosts/forge/networking/cloudflared.nix` - Tunnel configuration example
+- `lib/monitoring-helpers.nix` - Prometheus alert template functions (`mylib.monitoring-helpers`)
 
 **Reference these docs:**
 - `docs/modular-design-patterns.md` - Architecture principles, forgeDefaults patterns
+- `docs/authentication-sso-pattern.md` - **SSO patterns: OIDC, auth proxy, caddySecurity**
 - `docs/persistence-quick-reference.md` - Storage details
 - `docs/backup-system-onboarding.md` - Backup integration
 - `docs/monitoring-strategy.md` - Monitoring details
