@@ -72,12 +72,14 @@ in
   # - Cloudflare DNS-01 ACME challenge authentication
   # - HTTP basic auth for monitoring UIs (Loki, pgweb)
   # - Static API keys for S2S authentication (backup scripts, etc.)
+  # - Service API keys for header injection after SSO auth
   sops.templates."caddy-env" = {
     content = ''
             CLOUDFLARE_API_TOKEN=${lib.strings.removeSuffix "\n" config.sops.placeholder."networking/cloudflare/ddns/apiToken"}
             CADDY_LOKI_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/loki-admin-bcrypt"}
             PGWEB_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/pgweb-admin-bcrypt"}
             PROMETHEUS_BACKUP_API_KEY=${lib.strings.removeSuffix "\n" config.sops.placeholder."prometheus/api-keys/backup-taskfile"}
+            PAPERLESS_AI_API_KEY=${lib.strings.removeSuffix "\n" config.sops.placeholder."paperless-ai/api_key"}
       ${lib.optionalString pocketIdEnabled "      CADDY_SECURITY_POCKETID_CLIENT_SECRET=${lib.strings.removeSuffix "\\n" config.sops.placeholder."caddy/pocket-id-client-secret"}"}
     '';
     owner = config.services.caddy.user;

@@ -195,9 +195,9 @@ in
         description = "Interval between health checks (matches upstream).";
       };
       timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Timeout for health check probe (matches upstream).";
+        type = lib.types.int;
+        default = 30;
+        description = "Timeout in seconds for health check probe (matches upstream).";
       };
       startPeriod = lib.mkOption {
         type = lib.types.str;
@@ -312,9 +312,9 @@ in
           ++ (lib.optionals (!cfg.hostNetwork && cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ])
           ++ lib.optionals cfg.healthcheck.enable [
             # Match upstream: curl --fail http://localhost:6052/version -A "HealthCheck"
-            "--health-cmd=curl --fail --silent --max-time ${cfg.healthcheck.timeout} http://127.0.0.1:${toString esphomePort}/version -A HealthCheck || exit 1"
+            "--health-cmd=curl --fail --silent --max-time ${toString cfg.healthcheck.timeout} http://127.0.0.1:${toString esphomePort}/version -A HealthCheck || exit 1"
             "--health-interval=${cfg.healthcheck.interval}"
-            "--health-timeout=${cfg.healthcheck.timeout}"
+            "--health-timeout=${toString cfg.healthcheck.timeout}s"
             "--health-retries=3"
             "--health-start-period=${cfg.healthcheck.startPeriod}"
           ];

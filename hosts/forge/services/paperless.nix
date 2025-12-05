@@ -11,13 +11,22 @@ let
   dataset = "tank/services/paperless";
   dataDir = "/var/lib/paperless";
   pocketIdIssuer = "https://id.${domain}";
-  listenAddr = "127.0.0.1";
+  # Listen on all interfaces so containers can connect via host.containers.internal
+  # External access is controlled by Caddy reverse proxy
+  listenAddr = "0.0.0.0";
   listenPort = 28981;
+  # Use multiple workers to prevent single-request blocking
+  # The paperless-ai container makes frequent API calls that can cause Granian to hang
+  granianWorkers = 2;
   serviceEnabled = config.modules.services.paperless.enable or false;
 in
 {
   config = lib.mkMerge [
     {
+      # Configure Granian web server workers for better concurrency
+      # Prevents single blocking request from hanging the entire service
+      services.paperless.settings.GRANIAN_WORKERS = toString granianWorkers;
+
       modules.services.paperless = {
         enable = true;
 
@@ -123,6 +132,10 @@ in
         # Preseed for disaster recovery (ZFS state only)
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
+
+      # Increase shutdown timeout for Granian - default 90s is insufficient
+      # Granian sometimes takes longer to drain connections gracefully
+      systemd.services.paperless-web.serviceConfig.TimeoutStopSec = "120s";
     }
 
     (lib.mkIf serviceEnabled {

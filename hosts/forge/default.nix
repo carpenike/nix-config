@@ -79,6 +79,7 @@ in
     ./services/mealie.nix # Mealie recipe manager
     ./services/open-webui.nix # Open WebUI AI chat interface
     ./services/paperless.nix # Paperless-ngx document management system
+    ./services/paperless-ai.nix # Paperless-AI document tagging
     ./services/emqx.nix # Shared EMQX MQTT broker
     ./services/teslamate.nix # TeslaMate telemetry + dashboards
     ./services/frigate.nix # Frigate NVR service

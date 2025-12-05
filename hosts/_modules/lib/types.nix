@@ -503,6 +503,16 @@ in
         description = ''Protect this reverse proxy definition with the caddy-security plugin. Requires `modules.services.caddy.security.enable = true`.'';
       };
 
+      reverseProxyBlock = mkOption {
+        type = types.lines;
+        default = "";
+        description = "Directives for inside the reverse_proxy block (e.g., header_up)";
+        example = ''
+          header_up X-Api-Key {$MY_API_KEY}
+          header_up Host {upstream_hostport}
+        '';
+      };
+
       extraConfig = mkOption {
         type = types.lines;
         default = "";

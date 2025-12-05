@@ -31,6 +31,7 @@ let
   mealieEnabled = config.modules.services.mealie.enable or false;
   openWebuiEnabled = config.modules.services.open-webui.enable or false;
   paperlessEnabled = config.modules.services.paperless.enable or false;
+  paperlessAiEnabled = config.modules.services.paperless-ai.enable or false;
   emqxEnabled = config.modules.services.emqx.enable or false;
   crossSeedEnabled = config.modules.services."cross-seed".enable or false;
   sabnzbdEnabled = config.modules.services.sabnzbd.enable or false;
@@ -557,6 +558,29 @@ in
             mode = "0400";
             owner = "paperless";
             group = "paperless";
+          };
+        }
+        // optionalAttrs paperlessAiEnabled {
+          # Paperless-AI service secrets
+          # API token for accessing Paperless-ngx (generate in Paperless admin)
+          "paperless-ai/paperless_token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # LLM API key for LiteLLM gateway
+          "paperless-ai/llm_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # API key for paperless-ai's own REST API (secures its endpoints)
+          "paperless-ai/api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
           };
         }
         // optionalAttrs emqxEnabled {
