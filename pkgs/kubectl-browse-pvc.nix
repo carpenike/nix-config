@@ -10,7 +10,10 @@ in
 buildGoModule rec {
   inherit (packageData) pname src;
   version = lib.strings.removePrefix "v" packageData.version;
-  vendorHash = "sha256-kalnhBWVZaStdUeTiKln0mVow4x1K2+BZPXG+5/YRVM=";
+  vendorHash = "sha256-WwEFtiWP9rQnOjMNnY8nFBKvw0Gp29wcKrLrUqOr7DQ=";
+
+  # Go source is in src/ subdirectory
+  modRoot = "src";
 
   doCheck = false;
 
