@@ -32,6 +32,7 @@
     ./haproxy
     ./home-assistant
     ./homepage # Homepage dashboard (native wrapper)
+    ./it-tools # IT-Tools developer utilities
     ./zigbee2mqtt
     ./zwave-js-ui
     ./lidarr # Lidarr music collection manager

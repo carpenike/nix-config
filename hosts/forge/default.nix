@@ -53,6 +53,7 @@ in
     ./services/gatus.nix # Gatus black-box monitoring and status page
     ./services/ups.nix # UPS monitoring configuration
     ./services/infrastructure.nix # Infrastructure device widgets (Mikrotik, etc.)
+    ./services/it-tools.nix # IT-Tools developer utilities
     ./services/glances.nix # Glances system monitoring
     ./services/pgweb.nix # PostgreSQL web management interface
     ./services/pocketid.nix # Pocket ID passkey/OIDC provider
