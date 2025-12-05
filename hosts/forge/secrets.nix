@@ -37,6 +37,7 @@ let
   sabnzbdEnabled = config.modules.services.sabnzbd.enable or false;
   autobrrEnabled = config.modules.services.autobrr.enable or false;
   quiEnabled = config.modules.services.qui.enable or false;
+  unpackerrEnabled = config.modules.services.unpackerr.enable or false;
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
   tautulliEnabled = config.modules.services.tautulli.enable or false;
@@ -727,6 +728,52 @@ in
               AUTOBRR__SESSION_SECRET=${config.sops.placeholder."autobrr/session-secret"}
               AUTOBRR__OIDC_CLIENT_SECRET=${config.sops.placeholder."autobrr/oidc-client-secret"}
             '';
+            mode = "0400"; # root-only readable
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs unpackerrEnabled {
+          # Unpackerr environment file with arr API keys
+          # Uses UN_ prefix for environment variables
+          # See: https://unpackerr.zip/docs/install/configuration
+          "unpackerr/env" = {
+            content = lib.concatStringsSep "\n" (lib.filter (x: x != "") [
+              # Global settings
+              "UN_DEBUG=false"
+              "UN_LOG_FILE="
+              "UN_LOG_FILES=0"
+              "UN_LOG_FILE_MB=0"
+              "UN_QUIET=false"
+              "UN_ACTIVITY=false"
+              "UN_START_DELAY=1m"
+              "UN_RETRY_DELAY=5m"
+              "UN_MAX_RETRIES=3"
+              "UN_PARALLEL=1"
+              "UN_FILE_MODE=0644"
+              "UN_DIR_MODE=0755"
+              "TZ=${config.time.timeZone}"
+              "PUID=917"
+              "PGID=65537"
+              # Sonarr integration
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_URL=http://sonarr:8989")
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_API_KEY=${config.sops.placeholder."sonarr/api-key"}")
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_PATHS_0=/data/qb/downloads")
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_PROTOCOLS=torrent,usenet")
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_TIMEOUT=10s")
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_DELETE_ORIG=false")
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_DELETE_DELAY=5m")
+              (lib.optionalString sonarrEnabled "UN_SONARR_0_SYNCTHING=false")
+              # Radarr integration
+              (lib.optionalString radarrEnabled "UN_RADARR_0_URL=http://radarr:7878")
+              (lib.optionalString radarrEnabled "UN_RADARR_0_API_KEY=${config.sops.placeholder."radarr/api-key"}")
+              (lib.optionalString radarrEnabled "UN_RADARR_0_PATHS_0=/data/qb/downloads")
+              (lib.optionalString radarrEnabled "UN_RADARR_0_PROTOCOLS=torrent,usenet")
+              (lib.optionalString radarrEnabled "UN_RADARR_0_TIMEOUT=10s")
+              (lib.optionalString radarrEnabled "UN_RADARR_0_DELETE_ORIG=false")
+              (lib.optionalString radarrEnabled "UN_RADARR_0_DELETE_DELAY=5m")
+              (lib.optionalString radarrEnabled "UN_RADARR_0_SYNCTHING=false")
+            ]);
             mode = "0400"; # root-only readable
             owner = "root";
             group = "root";

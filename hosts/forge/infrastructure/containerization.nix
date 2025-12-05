@@ -94,11 +94,13 @@ let
             echo "''${health_data}" | ${pkgs.jq}/bin/jq -r '
               .[] |
               (.State.Health.Status // "unknown") as $status |
+              # Check if container has a healthcheck configured (not null and has Test command)
+              (if (.Config.Healthcheck != null and (.Config.Healthcheck.Test | length) > 0) then "true" else "false" end) as $has_healthcheck |
               (if $status == "healthy" then 0
                elif $status == "unhealthy" then 1
                elif $status == "starting" then 3
                else 2 end) as $metric_value |
-              "container_health_status{name=\"" + (.Name | sub("^/"; "")) + "\",health=\"" + $status + "\"} " + ($metric_value | tostring)
+              "container_health_status{name=\"" + (.Name | sub("^/"; "")) + "\",health=\"" + $status + "\",has_healthcheck=\"" + $has_healthcheck + "\"} " + ($metric_value | tostring)
             ' 2>/dev/null || true
           fi
         fi
@@ -205,16 +207,47 @@ in
     };
   };
 
+  # Memory alerts - tiered severity based on limit proximity
   modules.alerting.rules."container-high-memory" = {
     type = "promql";
     alertname = "ContainerHighMemory";
-    expr = "container_memory_percent > 80";
+    expr = "container_memory_percent > 80 and container_memory_percent <= 95";
     for = "5m";
     severity = "high";
     labels = { service = "container"; category = "resources"; };
     annotations = {
-      summary = "Container {{ $labels.name }} high memory usage";
-      description = "Container {{ $labels.name }} is using {{ $value }}% of its memory limit.";
+      summary = "Container {{ $labels.name }} high memory usage ({{ $value | printf \"%.1f\" }}%)";
+      description = "Container {{ $labels.name }} is using {{ $value | printf \"%.1f\" }}% of its configured memory limit. Current: {{ with printf \"container_memory_usage_bytes{name='%s'}\" $labels.name | query }}{{ . | first | value | humanize1024 }}{{ end }} / Limit: {{ with printf \"container_memory_limit_bytes{name='%s'}\" $labels.name | query }}{{ . | first | value | humanize1024 }}{{ end }}.";
+    };
+  };
+
+  modules.alerting.rules."container-critical-memory" = {
+    type = "promql";
+    alertname = "ContainerCriticalMemory";
+    expr = "container_memory_percent > 95";
+    for = "2m";
+    severity = "critical";
+    labels = { service = "container"; category = "resources"; };
+    annotations = {
+      summary = "Container {{ $labels.name }} critically high memory ({{ $value | printf \"%.1f\" }}%)";
+      description = "Container {{ $labels.name }} is at {{ $value | printf \"%.1f\" }}% of memory limit and may be OOM killed. Current: {{ with printf \"container_memory_usage_bytes{name='%s'}\" $labels.name | query }}{{ . | first | value | humanize1024 }}{{ end }} / Limit: {{ with printf \"container_memory_limit_bytes{name='%s'}\" $labels.name | query }}{{ . | first | value | humanize1024 }}{{ end }}.";
+      command = "sudo podman stats --no-stream {{ $labels.name }}";
+    };
+  };
+
+  # Detect containers without memory limits (potential runaway risk)
+  modules.alerting.rules."container-no-memory-limit" = {
+    type = "promql";
+    alertname = "ContainerNoMemoryLimit";
+    # container_memory_limit_bytes = 0 means no limit set, or equals host memory
+    # We alert on containers using significant memory without a limit
+    expr = "(container_memory_limit_bytes == 0 or container_memory_limit_bytes > 16e9) and container_memory_usage_bytes > 100e6";
+    for = "10m";
+    severity = "low"; # Advisory - not urgent but should be addressed
+    labels = { service = "container"; category = "resources"; };
+    annotations = {
+      summary = "Container {{ $labels.name }} has no memory limit";
+      description = "Container {{ $labels.name }} is running without a memory limit and using {{ with printf \"container_memory_usage_bytes{name='%s'}\" $labels.name | query }}{{ . | first | value | humanize1024 }}{{ end }}. Consider adding resource limits via podmanLib.mkContainer.";
     };
   };
 
@@ -260,7 +293,8 @@ in
   modules.alerting.rules."container-unhealthy" = {
     type = "promql";
     alertname = "ContainerUnhealthy";
-    expr = "container_health_status == 1";
+    # Only alert for containers that have a healthcheck configured
+    expr = ''container_health_status{has_healthcheck="true"} == 1'';
     for = "3m";
     severity = "high";
     labels = { service = "container"; category = "health"; };
@@ -273,7 +307,8 @@ in
   modules.alerting.rules."container-stuck-starting" = {
     type = "promql";
     alertname = "ContainerStuckStarting";
-    expr = "container_health_status == 3";
+    # Only alert for containers that have a healthcheck configured
+    expr = ''container_health_status{has_healthcheck="true"} == 3'';
     for = "10m";
     severity = "high";
     labels = { service = "container"; category = "health"; };
@@ -309,16 +344,38 @@ in
     };
   };
 
+  # Alert for containers without healthchecks (advisory only)
+  # Only alerts for containers that SHOULD have healthchecks but don't
+  # Containers with has_healthcheck="false" are intentionally excluded (distroless, etc.)
   modules.alerting.rules."container-health-unknown" = {
     type = "promql";
     alertname = "ContainerHealthUnknown";
-    expr = "container_health_status == 2";
+    # Only alert when a container HAS a healthcheck configured but status is unknown
+    # This filters out distroless/scratch containers that intentionally have no healthcheck
+    expr = ''container_health_status{has_healthcheck="true"} == 2'';
     for = "15m";
     severity = "low";
     labels = { service = "container"; category = "health"; };
     annotations = {
-      summary = "Container {{ $labels.name }} has an unknown health status";
-      description = "The health status for container {{ $labels.name }} is unknown. This may be because no health check is configured. Consider adding one to improve monitoring reliability.";
+      summary = "Container {{ $labels.name }} healthcheck status unknown";
+      description = "Container {{ $labels.name }} has a healthcheck configured but status is unknown. This may indicate the healthcheck is misconfigured or failing to report.";
+    };
+  };
+
+  # System-wide OOM kill detection
+  # This fires when any process is killed by the kernel due to memory pressure
+  # Often indicates a container exceeded its memory limit
+  modules.alerting.rules."system-oom-kill" = {
+    type = "promql";
+    alertname = "SystemOOMKill";
+    expr = "increase(node_vmstat_oom_kill[5m]) > 0";
+    for = "0m"; # Alert immediately on OOM
+    severity = "critical";
+    labels = { service = "system"; category = "memory"; };
+    annotations = {
+      summary = "OOM kill detected on {{ $labels.instance }}";
+      description = "The kernel killed a process due to memory exhaustion. {{ $value }} OOM kills in the last 5 minutes. Check container memory limits and system memory usage. Run 'dmesg | grep -i oom' for details.";
+      runbook = "Check which container was killed: journalctl -k | grep -i 'out of memory'. Review container memory limits with 'podman stats'. Consider increasing memory limits for affected services.";
     };
   };
 }

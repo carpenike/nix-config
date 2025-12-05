@@ -70,6 +70,7 @@ in
     ./services/tqm.nix # tqm torrent lifecycle management
     ./services/qbit-manage.nix # qbit-manage (DISABLED - migrated to tqm)
     ./services/sabnzbd.nix # SABnzbd usenet downloader
+    ./services/unpackerr.nix # Unpackerr archive extraction for Starr apps
     ./services/seerr.nix # Seerr media request management (formerly Overseerr)
     ./services/autobrr.nix # Autobrr IRC announce bot
     ./services/profilarr.nix # Profilarr profile sync for *arr services

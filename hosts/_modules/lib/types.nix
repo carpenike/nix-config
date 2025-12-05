@@ -708,14 +708,14 @@ in
       cpus = mkOption {
         type = types.nullOr types.str;
         default = null;
-        description = "CPU limit in cores (e.g., '0.5', '2')";
+        description = "CPU limit in cores (e.g., '0.5' for half a core, '2' for 2 cores). Use this for podman containers.";
         example = "1.0";
       };
 
       cpuQuota = mkOption {
         type = types.nullOr types.str;
         default = null;
-        description = "CPU quota percentage (e.g., '50%')";
+        description = "CPU quota percentage for systemd services (e.g., '50%'). NOT used by podman containers - use cpus instead.";
         example = "75%";
       };
 

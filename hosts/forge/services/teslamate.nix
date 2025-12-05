@@ -66,6 +66,15 @@ in
           };
         };
 
+        # Resource limits based on Elixir/Phoenix workload characteristics:
+        # - 1GB memory recommended (512MB leads to OOM during migrations/heavy dashboard use)
+        # - 0.5 CPU sufficient (mostly I/O-bound: API calls, DB writes)
+        resources = {
+          memory = "1g";
+          memoryReservation = "512m";
+          cpus = "0.5";
+        };
+
         backup = forgeDefaults.mkBackupWithTags "teslamate" [ "teslamate" "telemetry" "forge" ];
 
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];

@@ -121,11 +121,16 @@ in
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
-        memory = "512M";
-        memoryReservation = "256M";
-        cpus = "1.0";
+        # ESPHome firmware compilation is VERY memory-intensive!
+        # PlatformIO/ESP-IDF compilation can easily consume 2-4GB during builds.
+        # 512MB causes OOM kills. 2GB is marginal. 4GB provides comfortable headroom.
+        # See: https://github.com/esphome/issues/issues/3488
+        # See: https://github.com/esphome/issues/issues/5530
+        memory = "4G";
+        memoryReservation = "1G";
+        cpus = "2.0"; # Parallel compilation benefits from multiple cores
       };
-      description = "Container resource limits.";
+      description = "Container resource limits. ESPHome compilation requires significant memory (4GB+ recommended).";
     };
 
     reverseProxy = lib.mkOption {

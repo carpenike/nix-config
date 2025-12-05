@@ -76,6 +76,7 @@
     ./tdarr # Tdarr transcoding automation
     ./tqm # tqm fast torrent management for racing
     ./unifi
+    ./unpackerr # Unpackerr archive extraction for Starr apps
     # ./ups                                   # REMOVED: Use services.nut directly in host configs
   ];
 }

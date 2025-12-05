@@ -321,7 +321,7 @@ in
       default = {
         memory = "512m";
         memoryReservation = "256m";
-        cpuQuota = "50%";
+        cpus = "0.5"; # 50% of one CPU core
       };
       description = "Podman resource limits applied to EMQX.";
     };

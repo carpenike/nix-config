@@ -18,17 +18,23 @@ in
           ] ++ (containerConfig.extraOptions or [ ]);
         };
         # Add resource limits if specified in containerConfig
+        # Supports: memory, memoryReservation, cpus
+        # Note: cpuQuota is NOT supported because podman's --cpu-quota expects microseconds,
+        # not percentage. Use cpus (e.g., "0.5" for 50% of one core) instead.
+        resources = containerConfig.resources or null;
         withResourceLimits =
-          if (containerConfig ? resources && containerConfig.resources != null)
+          if (resources != null)
           then defaults // {
             extraOptions = defaults.extraOptions ++
-              (lib.optional (containerConfig.resources ? memory) "--memory=${containerConfig.resources.memory}") ++
-              (lib.optional (containerConfig.resources ? memoryReservation) "--memory-reservation=${containerConfig.resources.memoryReservation}") ++
-              (lib.optional (containerConfig.resources ? cpus) "--cpus=${containerConfig.resources.cpus}");
+              (lib.optional (resources.memory or null != null) "--memory=${resources.memory}") ++
+              (lib.optional (resources.memoryReservation or null != null) "--memory-reservation=${resources.memoryReservation}") ++
+              (lib.optional (resources.cpus or null != null) "--cpus=${resources.cpus}");
           }
           else defaults;
       in
-      withResourceLimits // (builtins.removeAttrs containerConfig [ "resources" ]);
+      # Remove both "resources" and "extraOptions" from containerConfig to prevent overwriting
+        # the merged extraOptions that includes logging config and resource limits
+      withResourceLimits // (builtins.removeAttrs containerConfig [ "resources" "extraOptions" ]);
 
     # Helper to create logrotate configuration for a container's application logs
     # Note: This helper ONLY creates the logrotate configuration.
