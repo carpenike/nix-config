@@ -16,7 +16,7 @@
   inputs = {
     #################### Official NixOS and HM Package Sources ####################
 
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable"; # also see 'unstable-packages' overlay at 'overlays/default.nix"
 
     # nixos-hardware - does not have a nixpkgs input, pure module flake
@@ -34,7 +34,7 @@
     # home-manager - home user+dotfile manager
     # https://github.com/nix-community/home-manager
     home-manager = {
-      url = "github:nix-community/home-manager/release-25.05";
+      url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -89,7 +89,7 @@
     # nix-darwin - nix modules for darwin (MacOS)
     # https://github.com/LnL7/nix-darwin
     nix-darwin = {
-      url = "github:LnL7/nix-darwin/nix-darwin-25.05";
+      url = "github:LnL7/nix-darwin/nix-darwin-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
