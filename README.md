@@ -483,6 +483,7 @@ This configuration draws inspiration from:
 - [hlissner/dotfiles](https://github.com/hlissner/dotfiles)
 - [bjw-s/nix-config](https://github.com/bjw-s/nix-config)
 - [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config)
+- [Truxnell/nix-config](https://github.com/Truxnell/nix-config)
 
 ---
 
