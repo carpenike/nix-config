@@ -105,12 +105,6 @@
       url = "github:nix-community/impermanence";
     };
 
-    # CoachIQ RV monitoring
-    coachiq = {
-      url = "github:carpenike/coachiq";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     #################### Personal Repositories ####################
   };
 
