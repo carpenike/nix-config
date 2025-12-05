@@ -1,8 +1,8 @@
 agent: ask
 description: Scaffold a new NixOS service module with storage, backup, and monitoring integrations
-version: 2.4
-last_updated: 2025-11-26
-changelog: "v2.4: Added forgeDefaults helper library documentation for alerts, sanoid, preseed, and authentication. v2.3: Added Cloudflare Tunnel (public access) optional integration pattern. v2.2: Added teslamate as complex service reference, service complexity assessment, advanced integration patterns (DB/MQTT/Grafana), LoadCredential pattern, preseed capability, and custom types guidance"
+version: 2.5
+last_updated: 2025-12-05
+changelog: "v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags. v2.4: Added forgeDefaults helper library documentation for alerts, sanoid, preseed, and authentication. v2.3: Added Cloudflare Tunnel (public access) optional integration pattern. v2.2: Added teslamate as complex service reference, service complexity assessment, advanced integration patterns (DB/MQTT/Grafana), LoadCredential pattern, preseed capability, and custom types guidance"
 ---
 # NixOS Service Module Scaffold
 
@@ -109,6 +109,7 @@ From your study, you MUST document these patterns:
 **Port conventions:**
 - What port range do services use?
 - How are metrics ports assigned relative to main port?
+- **ALWAYS scan for port conflicts before assigning**
 
 **Domain patterns:**
 - How are reverse proxy domains constructed?
@@ -231,7 +232,84 @@ Alternative: Could guess based on similar services, but want authoritative info
 
 Query: "Best practices for running [SERVICE] on NixOS/Linux homelab: default ports, data directories, user/group, systemd vs container, security considerations, common pitfalls"
 
-### Step 5: Form Preliminary Plan
+**For container-based services, also determine:**
+- Docker Hub or GitHub Container Registry image name
+- Latest stable version tag (NOT `:latest`)
+- Container's exposed ports (internal)
+- Required environment variables
+- Volume mount expectations
+
+### Step 4b: Fetch Container Image Digest (if container service)
+
+**If the service will use a container, fetch the pinned digest.**
+
+**Registry preference order:**
+1. **GitHub Container Registry (ghcr.io)** - preferred, better rate limits, often more current
+2. **Quay.io** - good alternative
+3. **Docker Hub** - use only if no GHCR/Quay option exists
+
+```bash
+# Check if GHCR image exists (preferred)
+skopeo inspect docker://ghcr.io/myservice/app:v1.2.3
+
+# Get latest stable version tag, then fetch the immutable digest
+
+# Option 1: Using crane (preferred - no pull required)
+nix shell nixpkgs#crane -c crane digest ghcr.io/myservice/app:v1.2.3
+
+# Option 2: Using skopeo
+skopeo inspect docker://myservice/app:v1.2.3 | jq -r '.Digest'
+
+# Option 3: Docker (requires pulling the image)
+docker pull myservice/app:v1.2.3
+docker inspect --format='{{index .RepoDigests 0}}' myservice/app:v1.2.3
+```
+
+**Document the result:**
+```
+CONTAINER IMAGE:
+- Registry: ghcr.io (preferred) or docker.io (fallback)
+- Image: myservice/app
+- Tag: v1.2.3 (latest stable as of YYYY-MM-DD)
+- Digest: sha256:abc123def456...
+- Full reference: ghcr.io/myservice/app:v1.2.3@sha256:abc123def456...
+- Docker Hub fallback: (only if no GHCR available)
+```
+
+### Step 5: Port Conflict Scanning (REQUIRED)
+
+**Before assigning any port, scan the repository for conflicts:**
+
+```bash
+# Search for the upstream default port
+rg "port.*=.*8080" --type nix
+rg ":8080" --type nix
+rg "8080" --type nix | head -20
+
+# If conflicts found, try adjacent ports
+rg "port.*=.*8081" --type nix
+rg ":8081" --type nix
+
+# Check common port ranges used in repo
+rg "port.*=.*[0-9]{4}" --type nix | sort | uniq -c | sort -rn | head -20
+```
+
+**Port assignment rules:**
+1. **First choice**: Use upstream's default port if available
+2. **If conflict**: Increment by 100 (e.g., 8080 → 8180 → 8280)
+3. **Document conflict**: Note in module why non-default port was chosen
+4. **Avoid busy ranges**: 8080-8099 often crowded, consider 8300+ for new services
+
+**Example conflict resolution:**
+```nix
+port = mkOption {
+  type = types.port;
+  default = 8380;  # Upstream default is 8080, but used by qbittorrent
+  description = "Port for service. Changed from upstream default (8080) to avoid conflict.";
+};
+```
+
+### Step 6: Form Preliminary Plan
 
 Based on discovered patterns, upstream research, and **service complexity tier**, create a 90% complete plan:
 
@@ -594,6 +672,64 @@ Do NOT suggest `task nix:apply-nixos` until user approves.
   - Needs hardware isolation
 
 Document justification if using container.
+
+### Container Image Pinning (REQUIRED for containers)
+
+When using OCI containers, **ALWAYS pin images with SHA256 digest**.
+
+**Registry preference:** GHCR (`ghcr.io`) > Quay (`quay.io`) > Docker Hub (`docker.io`)
+
+```nix
+# ❌ Wrong - mutable tag, breaks reproducibility
+image = mkOption {
+  type = types.str;
+  default = "myservice/app:latest";  # Never use :latest
+};
+
+# ❌ Also wrong - version tag without digest
+image = mkOption {
+  type = types.str;
+  default = "myservice/app:v1.2.3";  # Tags can be overwritten
+};
+
+# ✅ Correct - GHCR with versioned tag and SHA256 digest
+image = mkOption {
+  type = types.str;
+  default = "ghcr.io/myservice/app:v1.2.3@sha256:abc123def456...";  # Immutable, GHCR preferred
+  description = ''Container image with pinned digest for reproducibility.'';
+};
+```
+
+**How to get the digest:**
+```bash
+# For Docker Hub images
+docker pull myservice/app:v1.2.3
+docker inspect --format='{{index .RepoDigests 0}}' myservice/app:v1.2.3
+
+# Or use crane (preferred - doesn't require pulling)
+nix shell nixpkgs#crane -c crane digest myservice/app:v1.2.3
+
+# Or use skopeo
+skopeo inspect docker://myservice/app:v1.2.3 | jq -r '.Digest'
+```
+
+**Version and registry selection priority:**
+1. **GHCR image** (`ghcr.io/...`) - preferred registry, better rate limits
+2. **Latest stable release tag** (e.g., `v1.2.3`) - preferred version
+3. **Latest minor release** if patch versions are frequent
+4. **Avoid** Docker Hub if GHCR available - rate limited, less reliable
+5. **Avoid** `:latest` - it's a moving target, breaks reproducibility
+6. **Avoid** commit SHA tags unless no releases exist
+
+**Document in module:**
+```nix
+image = mkOption {
+  type = types.str;
+  # Renovate: datasource=docker depName=ghcr.io/myservice/app
+  default = "ghcr.io/myservice/app:v1.2.3@sha256:abc123...";
+  description = ''Container image (GHCR preferred). Update via Renovate or manually with crane digest.'';
+};
+```
 
 ### Security Mandates (from pattern study)
 ```nix
@@ -1144,6 +1280,36 @@ recordsize = "64K";  # Why? Other media services use 128K
 ### ✅ Following pattern with reasoning
 ```nix
 recordsize = "128K";  # Media workload, matches sonarr/radarr pattern
+```
+
+---
+
+### ❌ Using :latest, unpinned, or Docker Hub when GHCR available
+```nix
+image = "myservice/app:latest";  # Wrong - mutable, breaks reproducibility
+image = "myservice/app:v1.2.3";  # Wrong - tags can be overwritten
+image = "docker.io/myservice/app:v1.2.3@sha256:...";  # Wrong if GHCR exists
+```
+
+### ✅ GHCR with pinned SHA256 digest
+```nix
+image = "ghcr.io/myservice/app:v1.2.3@sha256:abc123...";  # Correct - GHCR + immutable
+```
+
+---
+
+### ❌ Assigning ports without checking for conflicts
+```nix
+port = 8080;  # Wrong - didn't check if already used
+```
+
+### ✅ Scanning repo before port assignment
+```bash
+# First: rg "8080" --type nix  # Check for conflicts
+# If conflict: choose different port and document why
+```
+```nix
+port = 8380;  # Upstream default 8080 conflicts with qbittorrent
 ```
 
 ---
