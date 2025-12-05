@@ -1,8 +1,8 @@
 agent: ask
 description: Scaffold a new NixOS service module with storage, backup, and monitoring integrations
-version: 2.5
+version: 2.6
 last_updated: 2025-12-05
-changelog: "v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags. v2.4: Added forgeDefaults helper library documentation for alerts, sanoid, preseed, and authentication. v2.3: Added Cloudflare Tunnel (public access) optional integration pattern. v2.2: Added teslamate as complex service reference, service complexity assessment, advanced integration patterns (DB/MQTT/Grafana), LoadCredential pattern, preseed capability, and custom types guidance"
+changelog: "v2.6: Added mandatory NixOS MCP server research step to check for native packages/modules in both unstable and stable branches BEFORE any other work. Added pkgs.unstable pattern documentation for using newer package versions. Added default Homepage and Gatus contribution requirements for services with web endpoints. v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags. v2.4: Added forgeDefaults helper library documentation for alerts, sanoid, preseed, and authentication. v2.3: Added Cloudflare Tunnel (public access) optional integration pattern. v2.2: Added teslamate as complex service reference, service complexity assessment, advanced integration patterns (DB/MQTT/Grafana), LoadCredential pattern, preseed capability, and custom types guidance"
 ---
 # NixOS Service Module Scaffold
 
@@ -19,6 +19,90 @@ Senior NixOS infrastructure engineer in `nix-config` repo. You understand:
 - ZFS persistence with modules.storage.datasets
 - Taskfile-based workflows
 - SOPS secret management
+
+---
+
+## MANDATORY: Package Research Phase
+
+**YOU MUST complete this phase FIRST, BEFORE studying patterns or asking questions.**
+
+### Step 0: Search for Native NixOS Package and Module (REQUIRED)
+
+**CRITICAL**: Before assuming a service needs a container, use the NixOS MCP server to search for:
+1. Native package availability (in both **unstable** and **stable** branches)
+2. Native NixOS service module (e.g., `services.<servicename>`)
+
+**Search both channels:**
+```bash
+# Use the mcp_nixos_nixos_search tool for package discovery
+# Search unstable channel (preferred - more up-to-date packages)
+mcp_nixos_nixos_search(query="<servicename>", search_type="packages", channel="unstable")
+
+# Search stable channel for comparison
+mcp_nixos_nixos_search(query="<servicename>", search_type="packages", channel="stable")
+
+# Search for NixOS options (service modules)
+mcp_nixos_nixos_search(query="services.<servicename>", search_type="options", channel="unstable")
+mcp_nixos_nixos_search(query="services.<servicename>", search_type="options", channel="stable")
+```
+
+**If native package/module exists:**
+- Document package name and available versions in both channels
+- If unstable has newer version needed, use `pkgs.unstable.<package>`
+- Prefer wrapping native NixOS module over creating container
+- Study the native module options with `mcp_nixos_nixos_info`
+
+**The `pkgs.unstable` Pattern:**
+
+This repo makes unstable nixpkgs available via overlay at `pkgs.unstable`:
+
+```nix
+# In overlays/default.nix:
+unstable-packages = final: _prev: {
+  unstable = import inputs.nixpkgs-unstable {
+    inherit (final) system;
+    config.allowUnfree = true;
+  };
+};
+```
+
+**When to use `pkgs.unstable`:**
+- Service package is significantly newer in unstable (security fixes, features)
+- Stable version has known bugs fixed in unstable
+- Service requires a version only available in unstable
+
+**Usage patterns from existing services:**
+```nix
+# Direct reference (simple):
+package = pkgs.unstable.open-webui;
+package = pkgs.unstable.zigbee2mqtt;
+package = pkgs.unstable.pocket-id;
+
+# Variable binding (when used multiple times):
+let
+  unstablePkgs = pkgs.unstable;
+in
+{
+  package = unstablePkgs.home-assistant;
+  extraComponents = with unstablePkgs; [ ... ];
+}
+```
+
+**Document your findings:**
+```
+NIXOS PACKAGE RESEARCH:
+- Package name: <name>
+- Stable version: <version> (nixos-24.11)
+- Unstable version: <version> (nixos-unstable)
+- Native service module: services.<name>.enable (Y/N)
+- Decision: [Native module | pkgs.unstable | Container]
+- Reasoning: [why this choice]
+```
+
+**If NO native package exists:**
+- Check if upstream provides a NixOS flake
+- Consider if packaging is feasible
+- Only then fall back to container approach
 
 ---
 
@@ -214,7 +298,7 @@ For **Complex** services:
 
 ### Step 4: Research Upstream (if needed)
 
-If you don't know the service's:
+**After completing Step 0 (NixOS package research)**, if you still need:
 - Default ports
 - Data directory structure
 - Common configuration patterns
@@ -454,6 +538,52 @@ BASIC INTEGRATIONS (auto-registration pattern):
 - Prometheus: auto-configured via services.<service>.metrics.enable
 - Backup: auto-configured via services.<service>.backup.enable
 - Gatus: add endpoint contribution via modules.services.gatus.contributions.<service>
+- Homepage: add dashboard entry via modules.services.homepage.contributions.<service>
+
+DEFAULT INTEGRATIONS (REQUIRED for services with web endpoints):
+---
+For ANY service with a web UI or API endpoint, you MUST add:
+
+1. **Homepage contribution** (dashboard entry with optional widget):
+```nix
+modules.services.homepage.contributions.<service> = {
+  group = "<Category>";  # e.g., "Media", "Monitoring", "Infrastructure"
+  name = "<Display Name>";
+  icon = "<service>";  # Icon name from dashboard-icons
+  href = "https://<service>.holthome.net";
+  description = "<brief description>";
+  siteMonitor = "http://localhost:<port>";  # Internal health check URL
+  # Optional: Add widget if service has a supported Homepage widget
+  # See: https://gethomepage.dev/widgets/services/
+  widget = {
+    type = "<service>";
+    url = "http://localhost:<port>";
+    key = "{{HOMEPAGE_VAR_<SERVICE>_API_KEY}}";  # If API key needed
+  };
+};
+```
+
+2. **Gatus contribution** (black-box monitoring):
+```nix
+modules.services.gatus.contributions.<service> = {
+  name = "<Display Name>";
+  group = "<Category>";  # e.g., "Media", "Services", "Infrastructure"
+  url = "https://<service>.holthome.net";  # External URL to monitor
+  interval = "60s";
+  conditions = [
+    "[STATUS] == 200"
+    "[RESPONSE_TIME] < 1000"  # Adjust threshold as appropriate
+  ];
+};
+```
+
+**Integration Decision Matrix:**
+| Service Type | Homepage | Gatus | Notes |
+|-------------|----------|-------|-------|
+| Web UI (user-facing) | ✅ Required | ✅ Required | Both for visibility |
+| API-only service | ✅ Optional | ✅ Required | Gatus monitors health |
+| Database/Backend | ❌ No | ❌ Optional | Internal services, Prometheus monitors |
+| Infrastructure | ✅ If browseable | ✅ If external endpoint | Case by case |
 
 HOST CONFIGURATION (following forge pattern):
 ---
@@ -487,6 +617,28 @@ in
       modules.storage.datasets.services.<service> = { ... };
       modules.backup.sanoid.datasets."tank/services/<service>" = { ... };
       modules.alerting.rules."<service>-service-down" = { ... };
+
+      # REQUIRED for services with web endpoints:
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.<service> = {
+        group = "<Category>";
+        name = "<DisplayName>";
+        icon = "<service>";
+        href = "https://<service>.holthome.net";
+        description = "<brief description>";
+        siteMonitor = "http://localhost:<port>";
+        # Add widget if supported by Homepage
+        widget = { ... };  # Optional
+      };
+
+      # Gatus black-box monitoring
+      modules.services.gatus.contributions.<service> = {
+        name = "<DisplayName>";
+        group = "<Category>";
+        url = "https://<service>.holthome.net";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" ];
+      };
     })
   ];
 }
@@ -538,7 +690,15 @@ Present your findings and plan first, THEN ask only targeted questions:
 
 ### Presentation Format:
 ```
-I studied the existing service modules (sonarr, radarr, scrypted) and forge host configuration.
+I completed NixOS package research and studied existing service modules.
+
+NIXOS PACKAGE RESEARCH (Step 0):
+- Package name: <name>
+- Stable version: <version> (nixos-24.11)
+- Unstable version: <version> (nixos-unstable)
+- Native service module: services.<name>.enable (Y/N)
+- Decision: [Native module | pkgs.unstable | pkgs | Container]
+- Reasoning: [why this choice]
 
 PATTERNS DISCOVERED:
 - Port range: Services use 7000-9000, metrics at port+1
@@ -550,6 +710,10 @@ PATTERNS DISCOVERED:
 
 PROPOSED PLAN FOR [SERVICE]:
 [Show your 90% complete plan based on patterns]
+
+INTEGRATIONS (enabled by default for web services):
+- Homepage: [group, widget type if supported]
+- Gatus: [monitoring URL and conditions]
 
 QUESTIONS I CANNOT ANSWER FROM PATTERNS:
 1. [Targeted question about service-specific detail]
@@ -665,11 +829,20 @@ Do NOT suggest `task nix:apply-nixos` until user approves.
 ❌ Don't invent new patterns when existing ones work
 
 ### Native Preference
-✅ **Prefer**: Native systemd service (like sonarr/radarr)
+✅ **ALWAYS complete Step 0** (NixOS MCP research) to check for native packages/modules
+✅ **Prefer**: Native systemd service using NixOS module (like home-assistant, gatus)
+✅ **Second choice**: Native package from nixpkgs with custom systemd wrapper (like sonarr/radarr)
+✅ **Use `pkgs.unstable`** when unstable has significantly newer/better version
 ❌ **Avoid**: Container unless:
-  - Not in nixpkgs and hard to package
+  - Not in nixpkgs (stable or unstable) and hard to package
   - Upstream only ships containers
   - Needs hardware isolation
+
+**Decision tree:**
+1. Check `mcp_nixos_nixos_search` for native module → Use native NixOS service
+2. Check for package in unstable → Use `pkgs.unstable.<package>`
+3. Check for package in stable → Use `pkgs.<package>`
+4. No package available → Container (document justification)
 
 Document justification if using container.
 
@@ -1316,7 +1489,20 @@ port = 8380;  # Upstream default 8080 conflicts with qbittorrent
 
 ## Deliverables
 
-### 1. Pattern Study Evidence
+### 1. NixOS Package Research Evidence (Step 0)
+Show your MCP research results:
+```
+NIXOS PACKAGE RESEARCH:
+- Package name: <name>
+- Stable version: <version> (nixos-24.11)
+- Unstable version: <version> (nixos-unstable)
+- Native service module: services.<name>.enable (Y/N)
+- NixOS module options explored: [list key options if native module exists]
+- Decision: [Native module | pkgs.unstable | pkgs | Container]
+- Reasoning: [why this choice]
+```
+
+### 2. Pattern Study Evidence
 Show what you learned:
 ```
 PATTERN STUDY SUMMARY:
@@ -1328,34 +1514,36 @@ From sonarr/radarr/scrypted, I discovered:
 [etc.]
 ```
 
-### 2. Preliminary Plan (Before User Input)
+### 3. Preliminary Plan (Before User Input)
 90% complete plan based on patterns:
 ```nix
 # Module structure
 # Storage datasets
 # Service definition
 # Integration configuration
-# Host integration
+# Host integration (including Homepage + Gatus contributions)
 ```
 
-### 3. Implementation Files
+### 4. Implementation Files
 After user approval:
 - `hosts/_modules/nixos/services/<service>/default.nix`
 - `hosts/forge/services/<service>.nix`
 - Support files if needed
 
-### 4. Documentation
+### 5. Documentation
 - Pattern alignment explanation
 - Storage recordsize rationale
 - Any deviations from patterns (justified)
 - Integration points (auto-registered)
+- **Homepage integration:** Group, widget type (if applicable), API key secret (if needed)
+- **Gatus monitoring:** Endpoint URL, conditions, interval
 - **Public access decision:**
   - Is service exposed via Cloudflare Tunnel? (Y/N)
   - If yes: Authentication mechanism (caddy-security/PocketID, built-in, API keys)
   - If yes: Justification for public exposure
   - If no: Access method (LAN-only, VPN, etc.)
 
-### 5. Validation Results
+### 6. Validation Results
 ```bash
 $ task nix:build-forge
 [actual output]
@@ -1366,12 +1554,13 @@ $ nix flake check
 # Any warnings or errors explained
 ```
 
-### 6. Follow-up Checklist
+### 7. Follow-up Checklist
 ```
 REQUIRED BEFORE DEPLOYMENT:
 - [ ] Add secrets to SOPS: [exact commands]
   sops secrets/forge.yaml
   # Add: <service>.api_key = "xxx"
+  # Add: HOMEPAGE_VAR_<SERVICE>_API_KEY (if widget needs API key)
 
 - [ ] DNS records: [if needed]
   <service>.holthome.net → <forge-ip>
@@ -1385,12 +1574,15 @@ REQUIRED BEFORE DEPLOYMENT:
 - [ ] Post-deploy testing:
   curl https://<service>.holthome.net
   systemctl status <service>
+  # Verify Homepage widget loads
+  # Verify Gatus shows service healthy
 ```
 
-### 7. Decision Rationale
+### 8. Decision Rationale
 ```
 DECISIONS MADE:
-- Native vs container: [Native - service in nixpkgs, follows pattern]
+- Native vs container: [Native/pkgs.unstable/Container - justify with Step 0 findings]
+- Package source: [pkgs | pkgs.unstable | container image] - [reason]
 - Storage recordsize: [128K - media workload like sonarr/radarr]
 - Pattern deviations: [None - all patterns followed]
 - Security considerations: [Baseline hardening applied, SOPS for secrets]
@@ -1402,6 +1594,9 @@ DECISIONS MADE:
 
 You've succeeded when:
 
+✓ Completed Step 0 (NixOS MCP research) BEFORE any other work
+✓ Used native package/module when available (checked both unstable and stable)
+✓ Used `pkgs.unstable` when unstable has better version
 ✓ User didn't have to answer questions you could have discovered from patterns
 ✓ Plan matches existing service structure at appropriate complexity level
   - Simple → dispatcharr-like
@@ -1411,6 +1606,8 @@ You've succeeded when:
 ✓ User only had to answer service-specific unknowns
 ✓ Implementation mirrors existing quality/style
 ✓ Advanced integrations (DB/MQTT/Grafana) use standardized patterns when needed
+✓ Homepage contribution added for web UI services (with widget if supported)
+✓ Gatus contribution added for user-facing endpoints
 ✓ Validation passes cleanly
 ✓ User can deploy with confidence
 
