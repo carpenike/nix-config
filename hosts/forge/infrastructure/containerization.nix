@@ -47,6 +47,12 @@ let
       echo "# TYPE container_restart_count counter"
       echo "# HELP container_health_status Container health check status (0=healthy, 1=unhealthy, 2=unknown, 3=starting)"
       echo "# TYPE container_health_status gauge"
+      echo "# HELP container_oom_kills_total Number of times processes in this container were OOM killed (cgroup v2)"
+      echo "# TYPE container_oom_kills_total counter"
+      echo "# HELP container_memory_high_events_total Number of times container hit memory.high throttle threshold (cgroup v2)"
+      echo "# TYPE container_memory_high_events_total counter"
+      echo "# HELP container_memory_max_events_total Number of times container hit memory.max limit (cgroup v2)"
+      echo "# TYPE container_memory_max_events_total counter"
 
       # Parse container stats (running containers only)
       if [[ "''${container_stats}" != "[]" ]] && [[ -n "''${container_stats}" ]]; then
@@ -104,6 +110,36 @@ let
             ' 2>/dev/null || true
           fi
         fi
+      fi
+
+      # Per-container OOM and memory pressure events from cgroup v2
+      # This reads memory.events from each container's cgroup to track OOM kills
+      # The cgroup path for podman containers is: /sys/fs/cgroup/machine.slice/libpod-<container_id>.scope/
+      if [[ "''${container_list}" != "[]" ]] && [[ -n "''${container_list}" ]]; then
+        echo "''${container_list}" | ${pkgs.jq}/bin/jq -r '.[] | select(.State == "running") | .Names[0] + " " + .Id' 2>/dev/null | \
+        while read -r container_name container_id; do
+          if [[ -n "$container_id" ]]; then
+            # Try to find the cgroup path for this container
+            # Podman uses libpod-<full_id>.scope under machine.slice
+            cgroup_path="/sys/fs/cgroup/machine.slice/libpod-''${container_id}.scope"
+
+            if [[ -f "''${cgroup_path}/memory.events" ]]; then
+              # Parse memory.events file for OOM and memory pressure counters
+              oom_kills=$(${pkgs.gawk}/bin/awk '/^oom_kill/ {print $2}' "''${cgroup_path}/memory.events" 2>/dev/null || echo "0")
+              high_events=$(${pkgs.gawk}/bin/awk '/^high/ {print $2}' "''${cgroup_path}/memory.events" 2>/dev/null || echo "0")
+              max_events=$(${pkgs.gawk}/bin/awk '/^max/ {print $2}' "''${cgroup_path}/memory.events" 2>/dev/null || echo "0")
+
+              # Default to 0 if parsing fails
+              oom_kills=''${oom_kills:-0}
+              high_events=''${high_events:-0}
+              max_events=''${max_events:-0}
+
+              echo "container_oom_kills_total{name=\"''${container_name}\",id=\"''${container_id:0:12}\"} ''${oom_kills}"
+              echo "container_memory_high_events_total{name=\"''${container_name}\",id=\"''${container_id:0:12}\"} ''${high_events}"
+              echo "container_memory_max_events_total{name=\"''${container_name}\",id=\"''${container_id:0:12}\"} ''${max_events}"
+            fi
+          fi
+        done
       fi
 
       # Container service health from systemd (dynamic discovery)
@@ -374,8 +410,42 @@ in
     labels = { service = "system"; category = "memory"; };
     annotations = {
       summary = "OOM kill detected on {{ $labels.instance }}";
-      description = "The kernel killed a process due to memory exhaustion. {{ $value }} OOM kills in the last 5 minutes. Check container memory limits and system memory usage. Run 'dmesg | grep -i oom' for details.";
-      runbook = "Check which container was killed: journalctl -k | grep -i 'out of memory'. Review container memory limits with 'podman stats'. Consider increasing memory limits for affected services.";
+      description = "The kernel killed a process due to memory exhaustion. {{ $value }} OOM kills in the last 5 minutes. Check container_oom_kills_total metric to identify which container was killed, or run 'dmesg | grep -i oom' for details.";
+      runbook = "1) Check container_oom_kills_total metric for the culprit. 2) Run: journalctl -k | grep -i 'out of memory'. 3) Review container memory limits with 'podman stats'. 4) Consider increasing memory limits for affected services.";
+    };
+  };
+
+  # Per-container OOM kill detection (cgroup v2)
+  # This tells you exactly WHICH container was OOM killed
+  modules.alerting.rules."container-oom-killed" = {
+    type = "promql";
+    alertname = "ContainerOOMKilled";
+    expr = "increase(container_oom_kills_total[5m]) > 0";
+    for = "0m"; # Alert immediately
+    severity = "critical";
+    labels = { service = "container"; category = "memory"; };
+    annotations = {
+      summary = "Container {{ $labels.name }} was OOM killed";
+      description = "Container {{ $labels.name }} had {{ $value }} OOM kill(s) in the last 5 minutes. The container's memory limit was exceeded and the kernel killed a process inside it.";
+      command = "podman stats --no-stream {{ $labels.name }} && podman inspect {{ $labels.name }} | jq '.[0].HostConfig.Memory'";
+      runbook = "1) Check current memory usage: podman stats {{ $labels.name }}. 2) Check memory limit: podman inspect {{ $labels.name }} | jq '.[0].HostConfig.Memory'. 3) Review logs: journalctl -u podman-{{ $labels.name }}.service -n 100. 4) Consider increasing memory limit in the container configuration.";
+    };
+  };
+
+  # Container memory pressure detection (hitting memory.high throttle)
+  # This fires BEFORE OOM - the container is being throttled/slowed
+  modules.alerting.rules."container-memory-throttled" = {
+    type = "promql";
+    alertname = "ContainerMemoryThrottled";
+    expr = "increase(container_memory_high_events_total[10m]) > 10";
+    for = "5m";
+    severity = "high";
+    labels = { service = "container"; category = "memory"; };
+    annotations = {
+      summary = "Container {{ $labels.name }} is being memory throttled";
+      description = "Container {{ $labels.name }} has hit its memory.high threshold {{ $value }} times in the last 10 minutes. The container is being actively throttled by the kernel, causing performance degradation. This often precedes OOM kills.";
+      command = "podman stats --no-stream {{ $labels.name }}";
+      runbook = "This is a warning that the container is running low on memory and being slowed down. Consider increasing memory limits before it gets OOM killed.";
     };
   };
 }
