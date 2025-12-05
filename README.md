@@ -1,11 +1,47 @@
-# nix-config
+<h1 align="center">🏗️ Ryan's Homelab Infrastructure</h1>
 
-[![NixOS](https://img.shields.io/badge/NixOS-25.05-blue?logo=nixos&logoColor=white)](https://nixos.org)
-[![Flakes](https://img.shields.io/badge/Nix-Flakes-informational?logo=nixos)](https://wiki.nixos.org/wiki/Flakes)
-[![Darwin](https://img.shields.io/badge/nix--darwin-25.05-black?logo=apple)](https://github.com/LnL7/nix-darwin)
-[![Home Manager](https://img.shields.io/badge/Home%20Manager-25.05-purple)](https://github.com/nix-community/home-manager)
+<p align="center">
+  <a href="https://nixos.org"><img src="https://img.shields.io/badge/NixOS-25.05-blue?logo=nixos&logoColor=white" alt="NixOS"></a>
+  <a href="https://wiki.nixos.org/wiki/Flakes"><img src="https://img.shields.io/badge/Nix-Flakes-informational?logo=nixos" alt="Flakes"></a>
+  <a href="https://github.com/LnL7/nix-darwin"><img src="https://img.shields.io/badge/nix--darwin-25.05-black?logo=apple" alt="Darwin"></a>
+  <a href="https://github.com/nix-community/home-manager"><img src="https://img.shields.io/badge/Home%20Manager-25.05-purple" alt="Home Manager"></a>
+</p>
 
-A comprehensive **Infrastructure-as-Code** repository managing NixOS servers, macOS workstations, and user environments through Nix flakes. Features enterprise-grade patterns including declarative service management, encrypted secrets, ZFS storage with replication, comprehensive monitoring, and disaster recovery capabilities.
+> [!WARNING]
+> **Personal Configuration Repository — Not a Template**
+>
+> This is my **personal infrastructure configuration** tailored for my specific hardware, network topology, and homelab environment. It is **not designed to be cloned and deployed by others**.
+>
+> - Contains hardcoded hostnames, IP addresses, and domain names (`holthome.net`)
+> - References my specific hardware (Intel i9-9900K, GTX 1080 Ti, specific NIC names)
+> - Depends on my personal SOPS/age keys — secrets will not decrypt for you
+> - Assumes my ZFS pool layouts (`tank`, `rpool`, `backup`) and NAS topology
+> - Expects my network infrastructure (VLANs, DNS, Cloudflare tunnels)
+>
+> **Use this repository as a learning resource for patterns and ideas, not as a starting point for your own config.** If you're new to NixOS, start with [nix.dev](https://nix.dev) or the [official NixOS manual](https://nixos.org/manual/nixos/stable/).
+
+<p align="center">
+  <em>Personal Infrastructure-as-Code managing NixOS servers, macOS workstation, and user environments through Nix flakes.</em>
+</p>
+
+---
+
+## 📑 Table of Contents
+
+- [Highlights](#-highlights)
+- [Repository Structure](#-repository-structure)
+- [Architecture](#-architecture)
+- [Operational Commands](#-operational-commands)
+- [My Systems](#-my-systems)
+- [Services on Forge](#-services-on-forge)
+- [Observability Stack](#-observability-stack)
+- [Backup Architecture](#-backup-architecture)
+- [Security](#-security)
+- [Documentation](#-documentation)
+- [Development Notes](#-development-notes)
+- [Acknowledgments](#-acknowledgments)
+
+---
 
 ## ✨ Highlights
 
@@ -17,9 +53,11 @@ A comprehensive **Infrastructure-as-Code** repository managing NixOS servers, ma
 - **ZFS-First Storage**: Per-service datasets with optimized recordsizes, Sanoid snapshots, Syncoid replication
 - **Disaster Recovery**: Preseed patterns for automatic service restoration from backups
 
+---
+
 ## 📁 Repository Structure
 
-```
+```text
 .
 ├── flake.nix                 # Flake entrypoint - inputs and outputs
 ├── flake.lock                # Locked dependency versions for reproducibility
@@ -63,6 +101,8 @@ A comprehensive **Infrastructure-as-Code** repository managing NixOS servers, ma
     ├── backup-system-onboarding.md
     └── ...
 ```
+
+---
 
 ## 🏗️ Architecture
 
@@ -155,6 +195,8 @@ Containers are used when:
 - Application explicitly requires containerization
 - Rapid prototyping before native implementation
 
+<br>
+
 #### Standardized Submodules
 
 All services use consistent submodule patterns from `hosts/_modules/lib/types.nix`:
@@ -165,22 +207,16 @@ All services use consistent submodule patterns from `hosts/_modules/lib/types.ni
 - `backup` - Restic backup integration
 - `notifications` - Alert routing
 
-## 🚀 Quick Start
+---
 
-### Prerequisites
+## 🔧 Operational Commands
 
-- NixOS installed on target systems, or
-- nix-darwin for macOS
-- Flakes enabled (`nix.settings.experimental-features = [ "nix-command" "flakes" ]`)
-- SOPS/age keys configured for secrets
+> [!NOTE]
+> These commands are for the repository maintainer. They will not work on your system without significant adaptation (secrets, hostnames, network configuration, etc.).
 
 ### Deployment
 
 ```bash
-# Clone repository
-git clone https://github.com/carpenike/nix-config.git
-cd nix-config
-
 # List available tasks
 task --list
 
@@ -222,16 +258,25 @@ task backup:status
 task backup:orchestrate
 ```
 
-## 🖥️ Managed Systems
+---
 
-| Host | Platform | Architecture | Role |
-|------|----------|--------------|------|
-| `forge` | NixOS | x86_64-linux | Primary homelab server (43+ services) |
-| `luna` | NixOS | x86_64-linux | Secondary server |
-| `nas-1` | NixOS | x86_64-linux | ZFS NAS, backup target |
-| `rymac` | nix-darwin | aarch64-darwin | MacBook Pro workstation |
-| `rydev` | NixOS | aarch64-linux | Development VM |
-| `nixpi` | NixOS | aarch64-linux | Raspberry Pi |
+## 🖥️ My Systems
+
+> These are my actual machines with specific hardware. Configuration assumes this exact topology.
+> See **[hosts/README.md](hosts/README.md)** for detailed hardware specs, network topology, and VLAN structure.
+
+| Host | Platform | Hardware | Role |
+|------|----------|----------|------|
+| `forge` | NixOS | Intel i9-9900K, 32GB RAM, GTX 1080 Ti + Intel UHD 630, 2×NVMe (ZFS mirror) | Primary homelab (43+ services) |
+| `nas-0` | TrueNAS | Intel i3-7100, 64GB RAM, 28×HDD (14 mirrored vdevs, 117TB) | Primary storage, NFS exports |
+| `nas-1` | NixOS | Intel i3-7100, 32GB RAM, 4×HDD (RAIDZ1, 51TB raw) | Backup target, ZFS replication |
+| `luna` | NixOS | Intel Celeron J3455, 8GB RAM, 128GB SSD | Infrastructure services |
+| `rymac` | nix-darwin | Apple M1 Max, 32GB RAM | MacBook Pro workstation |
+| `rydev` | NixOS | VM (aarch64) | Development environment |
+
+**Network**: Mikrotik CCR2004-16G-2S+ router with VLANs (Servers/10.20.x, Wired/10.10.x, Wireless/10.30.x, IoT/10.40.x, Video/10.50.x)
+
+---
 
 ## 🔧 Services on Forge
 
@@ -281,6 +326,8 @@ task backup:orchestrate
 | Cooklang | Recipe markup |
 | Enclosed | Encrypted notes |
 
+---
+
 ## 📊 Observability Stack
 
 ### Black-Box Monitoring (Gatus)
@@ -326,6 +373,8 @@ flowchart LR
 
 See [docs/monitoring-strategy.md](docs/monitoring-strategy.md) for detailed guidance.
 
+---
+
 ## 💾 Backup Architecture
 
 ### Multi-Layer Strategy
@@ -344,6 +393,8 @@ preseed = forgeDefaults.mkPreseed [ "syncoid" "local" "restic" ];
 ```
 
 See [docs/backup-system-onboarding.md](docs/backup-system-onboarding.md) for complete documentation.
+
+---
 
 ## 🔐 Security
 
@@ -367,6 +418,8 @@ task sops:edit host=forge
 - Caddy handles TLS termination
 - Cloudflare Tunnel for external access (no port forwarding)
 
+---
+
 ## 📚 Documentation
 
 Key documentation files in `docs/`:
@@ -379,7 +432,11 @@ Key documentation files in `docs/`:
 | [persistence-quick-reference.md](docs/persistence-quick-reference.md) | ZFS dataset patterns |
 | [custom-package-patterns.md](docs/custom-package-patterns.md) | nvfetcher and package updates |
 
-## 🛠️ Development
+---
+
+## 🛠️ Development Notes
+
+> Personal notes for maintaining this configuration.
 
 ### Validation
 
@@ -394,7 +451,7 @@ task nix:validate host=forge
 task nix:test-vm host=rydev
 ```
 
-### Adding a New Service
+### Adding a New Service (Personal Workflow)
 
 1. Check for native NixOS module first ([search.nixos.org](https://search.nixos.org))
 2. Create service file: `hosts/forge/services/myservice.nix`
@@ -403,6 +460,8 @@ task nix:test-vm host=rydev
 5. Use `forgeDefaults` helpers for consistency
 
 See [docs/modular-design-patterns.md](docs/modular-design-patterns.md) for detailed patterns.
+
+<br>
 
 ### Package Updates
 
@@ -414,6 +473,8 @@ nix run .#nvfetcher
 task nix:update-package package=cooklang-cli
 ```
 
+---
+
 ## 🙏 Acknowledgments
 
 This configuration draws inspiration from:
@@ -423,9 +484,31 @@ This configuration draws inspiration from:
 - [bjw-s/nix-config](https://github.com/bjw-s/nix-config)
 - [ryan4yin/nix-config](https://github.com/ryan4yin/nix-config)
 
-## 📝 License
+---
 
-This repository is shared for educational purposes. Feel free to use patterns and ideas, but this is a personal configuration - not a framework or distribution.
+## 📝 Disclaimer & License
+
+This repository is shared for **educational and reference purposes only**.
+
+**What you can do:**
+
+- Study the patterns and architectural decisions
+- Adapt ideas and code snippets for your own configurations
+- Use the documentation as a learning resource
+
+**What you should understand:**
+
+- ❌ **No support**: Issues asking "how do I use this on my system" will be closed
+- ❌ **No stability guarantees**: Breaking changes happen frequently without notice
+- ❌ **No portability**: This configuration is tested only on my specific hardware
+- ❌ **Secrets won't work**: You cannot decrypt my SOPS secrets
+
+**Better starting points for your own NixOS journey:**
+
+- [nix.dev](https://nix.dev) — Modern Nix documentation
+- [NixOS Manual](https://nixos.org/manual/nixos/stable/) — Official reference
+- [nix-starter-configs](https://github.com/Misterio77/nix-starter-configs) — Minimal templates
+- [nixos-hardware](https://github.com/NixOS/nixos-hardware) — Hardware-specific modules
 
 ---
 
