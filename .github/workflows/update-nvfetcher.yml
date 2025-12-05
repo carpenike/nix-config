@@ -56,20 +56,26 @@ jobs:
         id: build-packages
         run: |
           # Extract package names from nvfetcher.toml
-          packages=$(grep '^\[' pkgs/nvfetcher.toml | tr -d '[]' | while read pkg; do
+          # Use process substitution to avoid subshell issues
+          packages=""
+          while IFS= read -r pkg; do
             # Map nvfetcher names to flake package names if different
             case "$pkg" in
-              usage-cli) echo "usage" ;;
-              *) echo "$pkg" ;;
+              usage-cli) pkg="usage" ;;
             esac
-          done)
+            packages="$packages $pkg"
+          done < <(grep '^\[' pkgs/nvfetcher.toml | tr -d '[]')
 
-          echo "Building packages: $packages"
+          echo "Building packages:$packages"
           fixed_packages=""
           failed_packages=""
 
           for pkg in $packages; do
             echo "::group::Building $pkg"
+
+            # Determine the nix file for this package
+            # nvfetcher packages have their hashes in pkgs/<name>.nix
+            pkg_file="pkgs/${pkg}.nix"
 
             # First attempt: try to build directly
             if nix build ".#$pkg" --no-link 2>&1; then
@@ -77,14 +83,27 @@ jobs:
             else
               echo "Build failed, attempting to fix hashes with nix-update..."
 
-              # Use nix-update to fix hashes (--version=skip means don't change version, just hashes)
-              # --flake tells it we're in a flake, --build verifies the fix works
-              if nix-shell -p nix-update --run "nix-update --flake --version=skip --build $pkg" 2>&1; then
-                echo "✅ $pkg fixed and rebuilt successfully"
-                fixed_packages="$fixed_packages $pkg"
+              # nix-update needs --override-filename because our packages use
+              # nvfetcher's _sources/generated.nix for src, but vendorHash/cargoHash
+              # are in the package's own .nix file
+              if [ -f "$pkg_file" ]; then
+                echo "Using override filename: $pkg_file"
+                if nix-shell -p nix-update --run "nix-update --flake --version=skip --override-filename=$pkg_file --build $pkg" 2>&1; then
+                  echo "✅ $pkg fixed and rebuilt successfully"
+                  fixed_packages="$fixed_packages $pkg"
+                else
+                  echo "❌ $pkg could not be fixed automatically"
+                  failed_packages="$failed_packages $pkg"
+                fi
               else
-                echo "❌ $pkg could not be fixed automatically"
-                failed_packages="$failed_packages $pkg"
+                echo "⚠️ Package file $pkg_file not found, trying without override..."
+                if nix-shell -p nix-update --run "nix-update --flake --version=skip --build $pkg" 2>&1; then
+                  echo "✅ $pkg fixed and rebuilt successfully"
+                  fixed_packages="$fixed_packages $pkg"
+                else
+                  echo "❌ $pkg could not be fixed automatically"
+                  failed_packages="$failed_packages $pkg"
+                fi
               fi
             fi
 
