@@ -43,11 +43,12 @@ in
       programs.git = {
         enable = true;
 
-        userName = cfg.username;
-        userEmail = cfg.email;
-
-        extraConfig = lib.mkMerge [
+        settings = lib.mkMerge [
           {
+            user = {
+              name = cfg.username;
+              email = cfg.email;
+            };
             core = {
               autocrlf = "input";
             };
@@ -59,6 +60,9 @@ in
             };
             rebase = {
               autoStash = true;
+            };
+            alias = {
+              co = "checkout";
             };
           }
           # Add safe.directory entries if configured
@@ -72,9 +76,6 @@ in
 
         includes = cfg.includes;
 
-        aliases = {
-          co = "checkout";
-        };
         ignores = [
           # Mac OS X hidden files
           ".DS_Store"
@@ -99,7 +100,7 @@ in
     })
     (lib.mkIf (cfg.enable && isDarwin) {
       programs.git = {
-        extraConfig = {
+        settings = {
           credential = { helper = "osxkeychain"; };
         };
       };

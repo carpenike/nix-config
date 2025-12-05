@@ -3,8 +3,6 @@
 , ...
 }:
 let
-  inherit (pkgs.stdenv.hostPlatform) isDarwin;
-  inherit (pkgs.darwin.apple_sdk.frameworks) Security SystemConfiguration;
   rustPlatform = pkgs.makeRustPlatform {
     cargo = pkgs.rust-bin.stable.latest.minimal;
     rustc = pkgs.rust-bin.stable.latest.minimal;
@@ -16,8 +14,6 @@ rustPlatform.buildRustPackage rec {
   inherit (packageData) pname src;
   version = lib.strings.removePrefix "v" packageData.version;
   cargoHash = "sha256-/vXoTMx3Je1nCAdRYJR+F3l7cZCbtSnCwUAwsKEE4oY=";
-
-  buildInputs = lib.optionals isDarwin [ Security SystemConfiguration ];
 
   meta = {
     homepage = "https://usage.jdx.dev";

@@ -2,7 +2,7 @@
   config = {
     home.packages = with pkgs; [
       curl
-      du-dust
+      dust
       envsubst
       findutils
       fish

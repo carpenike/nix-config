@@ -17,9 +17,6 @@ in
 
     # Use nixos-hardware for Raspberry Pi 4 support (same as original repo)
     inputs.hardware.nixosModules.raspberry-pi-4
-
-    # Import coachiq module for RV monitoring
-    inputs.coachiq.nixosModules.coachiq
   ];
 
   config = {
@@ -159,36 +156,6 @@ in
       "C /var/lib/iwd/iot.psk 0600 root root - ${config.sops.secrets."wifi/iot_password".path}"
       "C /var/lib/iwd/rvproblems-2ghz.psk 0600 root root - ${config.sops.secrets."wifi/rvproblems_password".path}"
     ];
-
-
-    # Configure coachiq for RV monitoring
-    coachiq = {
-      enable = true;
-      settings = {
-        server = {
-          host = "0.0.0.0";
-          port = 8000;
-        };
-
-        canbus = {
-          channels = [ "can0" "can1" ];
-          bustype = "socketcan";
-          bitrate = 500000;
-          interfaceMappings = {
-            house = "can1"; # House systems -> can1
-            chassis = "can0"; # Chassis systems -> can0
-          };
-        };
-
-        security = {
-          tlsTerminationIsExternal = true;
-        };
-
-        controllerSourceAddr = "0xF9";
-        rvcCoachModel = "2021_Entegra_Aspire_44R";
-        githubUpdateRepo = "carpenike/coachiq";
-      };
-    };
 
     # Additional system configuration
     hardware.enableRedistributableFirmware = true;

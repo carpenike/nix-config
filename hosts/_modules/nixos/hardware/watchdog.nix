@@ -12,9 +12,9 @@ in
     boot.kernelModules = [ "bcm2835_wdt" ];
 
     # Configure systemd to use the watchdog
-    systemd.extraConfig = ''
-      RuntimeWatchdogSec=30s
-      ShutdownWatchdogSec=10s
-    '';
+    systemd.settings.Manager = {
+      RuntimeWatchdogSec = "30s";
+      ShutdownWatchdogSec = "10s";
+    };
   };
 }

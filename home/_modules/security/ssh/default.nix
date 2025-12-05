@@ -17,10 +17,18 @@ in
   config = lib.mkIf cfg.enable {
     programs.ssh = {
       enable = true;
-      inherit (cfg) matchBlocks;
 
-      controlMaster = "auto";
-      controlPath = "~/.ssh/control/%C";
+      # Disable default config injection, set our own defaults via wildcard match
+      enableDefaultConfig = false;
+
+      # Merge user-provided matchBlocks with our defaults
+      matchBlocks = cfg.matchBlocks // {
+        # Wildcard block for global defaults (replaces deprecated controlMaster/controlPath)
+        "*" = {
+          controlMaster = "auto";
+          controlPath = "~/.ssh/control/%C";
+        };
+      };
 
       includes = [
         "config.d/*"
