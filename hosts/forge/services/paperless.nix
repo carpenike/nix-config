@@ -16,8 +16,9 @@ let
   listenAddr = "0.0.0.0";
   listenPort = 28981;
   # Use multiple workers to prevent single-request blocking
-  # The paperless-ai container makes frequent API calls that can cause Granian to hang
-  granianWorkers = 2;
+  # Granian workers can hang under certain conditions (known NixOS issue)
+  # More workers = resilience if one hangs. With 16 cores/32GB, 6 is conservative.
+  granianWorkers = 6;
   serviceEnabled = config.modules.services.paperless.enable or false;
 in
 {
