@@ -49,6 +49,7 @@ in
     ./services/pgbackrest.nix # pgBackRest PostgreSQL backup system
     ./services/dispatcharr.nix # Dispatcharr service
     ./services/plex.nix # Plex media server
+    ./services/pinchflat.nix # Pinchflat YouTube media manager
     ./services/tautulli.nix # Tautulli Plex monitoring
     ./services/gatus.nix # Gatus black-box monitoring and status page
     ./services/ups.nix # UPS monitoring configuration

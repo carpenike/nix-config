@@ -43,6 +43,7 @@ let
   tautulliEnabled = config.modules.services.tautulli.enable or false;
   litellmEnabled = config.modules.services.litellm.enable or false;
   atticPushEnabled = config.modules.services.attic-push.enable or false;
+  pinchflatEnabled = config.modules.services.pinchflat.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -317,6 +318,17 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+          };
+        }
+        // optionalAttrs pinchflatEnabled {
+          # Pinchflat environment variables
+          # Contains: SECRET_KEY_BASE (required, generate with: openssl rand -hex 64)
+          #           YOUTUBE_API_KEY (optional, for faster metadata fetching)
+          "pinchflat/env" = {
+            mode = "0400";
+            owner = "pinchflat";
+            group = "media";
+            restartUnits = [ "pinchflat.service" ];
           };
         }
         // optionalAttrs tautulliEnabled {

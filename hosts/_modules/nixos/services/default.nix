@@ -49,6 +49,7 @@
     ./omada
     ./paperless # Paperless-ngx document management system
     ./paperless-ai # Paperless-AI document tagging service
+    ./pinchflat # Pinchflat YouTube media manager (native wrapper)
     ./seerr # Seerr request management (successor to Overseerr/Jellyseerr)
     ./podman
     ./pgweb # Pgweb PostgreSQL database browser
