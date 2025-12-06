@@ -329,6 +329,12 @@ in
     # Use host network to access NUT on localhost:3493
     extraOptions = [
       "--network=host"
+      # Resource limits based on Prometheus data:
+      # - 7d max: 73 MB, current: ~100 MB
+      # - Limit: 256M (2.5x headroom), Reservation: 128M
+      "--memory=256m"
+      "--memory-reservation=128m"
+      "--cpus=0.5"
       # Health check - matches upstream: /api/ping endpoint, 30s interval, 3s timeout, 5s start
       "--health-cmd=wget --no-verbose --tries=1 --spider --no-check-certificate http://127.0.0.1:${toString peanutPort}/api/ping || exit 1"
       "--health-interval=30s"
