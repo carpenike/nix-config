@@ -73,11 +73,11 @@ in
         # Podman network for media services communication
         podmanNetwork = "media-services"; # Enable DNS resolution to qBittorrent and other media services
 
-        # Resource limits
+        # Resource limits - 7d peak (12M) × 2.5 = 128M minimum
         resources = {
-          memory = "512M";
-          memoryReservation = "256M";
-          cpus = "1.0";
+          memory = "128M";
+          memoryReservation = "64M";
+          cpus = "0.5";
         };
 
         # Health check

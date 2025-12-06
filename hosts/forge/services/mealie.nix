@@ -96,9 +96,10 @@ in
 
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
+        # Resource limits - 7d peak (295M) × 2.5 = 738M, using 768M
         resources = {
-          memory = "1536M";
-          memoryReservation = "768M";
+          memory = "768M";
+          memoryReservation = "384M";
           cpus = "1.0";
         };
       };

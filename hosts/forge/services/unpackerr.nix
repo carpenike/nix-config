@@ -64,10 +64,10 @@ in
         maxRetries = 3;
         parallel = 1; # Sequential extractions
 
-        # Resource limits
+        # Resource limits - 7d peak (9M) × 2.5 = 128M minimum
         resources = {
-          memory = "512M";
-          memoryReservation = "128M";
+          memory = "128M";
+          memoryReservation = "64M";
           cpus = "1.0";
         };
       };

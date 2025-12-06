@@ -21,10 +21,10 @@ in
         # render node for VA-API transcoding.
         accelerationDevices = [ "/dev/dri" ];
 
-        # Resource limits for transcoding workloads
+        # Resource limits - 7d peak (130M) × 2.5 = 325M, using 512M for transcoding headroom
         resources = {
-          memory = "4G";
-          memoryReservation = "2G";
+          memory = "512M";
+          memoryReservation = "256M";
           cpus = "4.0";
         };
 

@@ -69,10 +69,11 @@ in
 
         notifications.enable = true;
 
+        # Resource limits - 7d peak (577M) × 2.5 = 1442M, using 1536M
         resources = {
-          memory = "6G";
-          memoryReservation = "2G";
-          cpus = "6.0";
+          memory = "1536M";
+          memoryReservation = "768M";
+          cpus = "4.0";
         };
       };
     }

@@ -66,12 +66,10 @@ in
           };
         };
 
-        # Resource limits based on Elixir/Phoenix workload characteristics:
-        # - 1GB memory recommended (512MB leads to OOM during migrations/heavy dashboard use)
-        # - 0.5 CPU sufficient (mostly I/O-bound: API calls, DB writes)
+        # Resource limits - 7d peak (198M) × 2.5 = 495M, using 512M
         resources = {
-          memory = "1g";
-          memoryReservation = "512m";
+          memory = "512M";
+          memoryReservation = "256M";
           cpus = "0.5";
         };
 

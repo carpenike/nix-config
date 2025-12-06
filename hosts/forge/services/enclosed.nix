@@ -55,10 +55,10 @@ in
 
         notifications.enable = true;
 
-        # Lightweight resources - Enclosed is very small
+        # Lightweight resources - 7d peak (25M) × 2.5 = 128M minimum
         resources = {
-          memory = "256M";
-          memoryReservation = "128M";
+          memory = "128M";
+          memoryReservation = "64M";
           cpus = "0.5";
         };
       };

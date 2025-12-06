@@ -60,8 +60,8 @@ in
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
-        memory = "256M";
-        memoryReservation = "128M";
+        memory = "128M"; # Based on 7d peak (26M) × 2.5 = 65M, with headroom
+        memoryReservation = "64M";
         cpus = "0.5";
       };
       description = "Resource limits for the container";
