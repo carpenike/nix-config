@@ -240,6 +240,21 @@ in
         description = "Custom healthcheck command. If null, uses service-specific default.";
         example = "curl -f http://localhost:8080/health || exit 1";
       };
+
+      onFailure = mkOption {
+        type = types.enum [ "none" "kill" "restart" "stop" ];
+        default = "kill";
+        description = ''
+          Action to take when the container becomes unhealthy.
+          - "none": No action, just mark unhealthy (legacy behavior)
+          - "kill": Kill the container with SIGKILL, allowing systemd to restart it
+          - "restart": Podman restarts the container directly
+          - "stop": Stop the container gracefully
+
+          "kill" is recommended as it integrates well with systemd's restart policies,
+          allowing proper restart counting and backoff behavior.
+        '';
+      };
     };
   };
 

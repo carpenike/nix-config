@@ -137,28 +137,17 @@ in
       example = "media-services";
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check";
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "60s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "60s";
+        timeout = "30s";
+        retries = 3;
+        startPeriod = "120s";
+        onFailure = "kill";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "120s";
-        description = "Grace period for container initialization (Tdarr needs time to start MongoDB).";
-      };
+      description = "Container healthcheck configuration. Uses Podman native health checks with automatic restart on failure. Tdarr needs extra time to start MongoDB.";
     };
 
     # Standardized reverse proxy integration
@@ -442,12 +431,13 @@ in
             ++ (lib.optionals (cfg.podmanNetwork != null) [
               "--network=${cfg.podmanNetwork}"
             ])
-            ++ (lib.optionals (cfg.healthcheck.enable) [
+            ++ (lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
               "--health-cmd=curl --fail http://localhost:8265/api/v2/status || exit 1"
               "--health-interval=${cfg.healthcheck.interval}"
               "--health-timeout=${cfg.healthcheck.timeout}"
               "--health-retries=${toString cfg.healthcheck.retries}"
               "--health-start-period=${cfg.healthcheck.startPeriod}"
+              "--health-on-failure=${cfg.healthcheck.onFailure}"
             ]);
         };
 

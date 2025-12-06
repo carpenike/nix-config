@@ -225,28 +225,17 @@ in
       description = "Resource limits for the container";
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check";
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "60s";
+        onFailure = "kill";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "60s";
-        description = "Grace period for the container to initialize before failures are counted.";
-      };
+      description = "Container healthcheck configuration. Uses Podman native health checks with automatic restart on failure.";
     };
 
     # Standardized reverse proxy integration
@@ -641,14 +630,15 @@ in
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           # Connect to Podman network for inter-container DNS resolution
           "--network=${cfg.podmanNetwork}"
-        ] ++ lib.optionals cfg.healthcheck.enable [
+        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           # Define the health check on the container itself
           ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:8080/api?mode=version)" = 200 ]' ''
-          # CRITICAL: Disable Podman's internal timer to prevent transient systemd units
-          "--health-interval=0s"
+          "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+          # When unhealthy, take configured action (default: kill so systemd can restart)
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
         ];
       };
 
@@ -843,28 +833,9 @@ in
         }
       ];
 
-      # Standardized health monitoring service
-      systemd.services."sabnzbd-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-        description = "SABnzbd Health Check";
-        after = [ mainServiceUnit ];
-        requires = [ mainServiceUnit ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${pkgs.podman}/bin/podman healthcheck run sabnzbd";
-          # Health checks should not restart the service
-          Restart = "no";
-        };
-      };
-
-      systemd.timers."sabnzbd-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-        description = "Timer for SABnzbd Health Check";
-        wantedBy = [ "timers.target" ];
-        timerConfig = {
-          OnUnitActiveSec = cfg.healthcheck.interval;
-          OnBootSec = cfg.healthcheck.startPeriod;
-          Unit = "sabnzbd-healthcheck.service";
-        };
-      };
+      # NOTE: Health monitoring is now handled by Podman's native healthcheck timer
+      # with --health-on-failure=kill to trigger systemd restart on unhealthy state.
+      # The previous external systemd timer pattern is no longer needed.
 
       # Notifications for service failures (centralized pattern)
       modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {

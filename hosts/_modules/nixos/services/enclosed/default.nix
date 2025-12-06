@@ -176,28 +176,16 @@ in
       description = "Resource limits for the container (Enclosed is very lightweight)";
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check" // { default = true; };
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "30s";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Grace period for the container to initialize.";
-      };
+      description = "Container health check configuration";
     };
 
     # Standardized reverse proxy integration
@@ -331,13 +319,14 @@ in
         extraOptions = [
           "--pull=newer"
           "--umask=0027"
-        ] ++ lib.optionals cfg.healthcheck.enable [
+        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           # Simple HTTP health check
           ''--health-cmd=wget --no-verbose --spider http://127.0.0.1:8787/ || exit 1''
-          "--health-interval=0s" # Disable Podman's internal timer, use systemd
+          "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
         ];
       };
 
@@ -354,42 +343,6 @@ in
         })
       ];
 
-      # Health check timer
-      systemd.timers."${serviceName}-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-        description = "Enclosed Container Health Check Timer";
-        wantedBy = [ "timers.target" ];
-        after = [ mainServiceUnit ];
-        timerConfig = {
-          OnActiveSec = cfg.healthcheck.startPeriod;
-          OnUnitActiveSec = cfg.healthcheck.interval;
-          Persistent = false;
-        };
-      };
-
-      systemd.services."${serviceName}-healthcheck" = lib.mkIf cfg.healthcheck.enable {
-        description = "Enclosed Health Check";
-        after = [ mainServiceUnit ];
-        requires = [ mainServiceUnit ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = pkgs.writeShellScript "${serviceName}-healthcheck" ''
-            set -euo pipefail
-
-            if ! ${pkgs.podman}/bin/podman inspect ${serviceName} --format '{{.State.Running}}' | grep -q true; then
-              echo "Container ${serviceName} is not running, skipping health check."
-              exit 1
-            fi
-
-            if ${pkgs.podman}/bin/podman healthcheck run ${serviceName}; then
-              echo "Health check passed."
-              exit 0
-            else
-              echo "Health check failed."
-              exit 1
-            fi
-          '';
-        };
-      };
 
       # Automatically register with Caddy reverse proxy if enabled
       modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {

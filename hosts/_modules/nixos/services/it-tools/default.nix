@@ -32,24 +32,6 @@ let
   containerPort = 80; # IT-Tools listens on port 80 inside the container
   domain = config.networking.domain or null;
   defaultHostname = if domain == null || domain == "" then "it-tools.local" else "it-tools.${domain}";
-
-  # Build healthcheck options
-  healthcheckOptions = lib.optionals (cfg.healthcheck.enable) [
-    "--health-cmd=wget --no-verbose --tries=1 --spider http://127.0.0.1:${toString containerPort}/ || exit 1"
-    "--health-interval=${cfg.healthcheck.interval}"
-    "--health-timeout=${cfg.healthcheck.timeout}"
-    "--health-retries=${toString cfg.healthcheck.retries}"
-    "--health-start-period=${cfg.healthcheck.startPeriod}"
-  ];
-
-  # Build resource limit options
-  resourceOptions = lib.optionals (cfg.resources != null) (
-    lib.optional (cfg.resources.memory != null) "--memory=${cfg.resources.memory}"
-    ++ lib.optional (cfg.resources.memoryReservation != null) "--memory-reservation=${cfg.resources.memoryReservation}"
-    ++ lib.optional (cfg.resources.cpus != null) "--cpus=${cfg.resources.cpus}"
-  );
-
-  extraOptions = healthcheckOptions ++ resourceOptions;
 in
 {
   options.modules.services.it-tools = {
@@ -101,32 +83,16 @@ in
       '';
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check" // { default = true; };
-
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "10s";
       };
-
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Grace period for the container to initialize. IT-Tools starts quickly.";
-      };
+      description = "Container health check configuration. IT-Tools starts quickly.";
     };
 
     # Standardized reverse proxy integration
@@ -176,7 +142,20 @@ in
 
       # No volumes needed - IT-Tools is stateless
 
-      extraOptions = extraOptions;
+      extraOptions =
+        (lib.optionals (cfg.resources != null) [
+          "--memory=${cfg.resources.memory}"
+          "--memory-reservation=${cfg.resources.memoryReservation}"
+          "--cpus=${cfg.resources.cpus}"
+        ])
+        ++ (lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+          "--health-cmd=wget --no-verbose --tries=1 --spider http://127.0.0.1:${toString containerPort}/ || exit 1"
+          "--health-interval=${cfg.healthcheck.interval}"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
+        ]);
     };
 
     # Override systemd service for better integration

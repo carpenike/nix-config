@@ -304,28 +304,16 @@ in
       '';
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check";
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "30s";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Grace period for container initialization.";
-      };
+      description = "Container health check configuration";
     };
 
     # Standardized reverse proxy integration
@@ -568,12 +556,13 @@ in
             "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
           ] ++ lib.optionals (cfg.podmanNetwork != null) [
             "--network=${cfg.podmanNetwork}"
-          ] ++ lib.optionals cfg.healthcheck.enable [
+          ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
             "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:${toString cfg.port}/health || exit 1"
             "--health-interval=${cfg.healthcheck.interval}"
             "--health-timeout=${cfg.healthcheck.timeout}"
             "--health-retries=${toString cfg.healthcheck.retries}"
             "--health-start-period=${cfg.healthcheck.startPeriod}"
+            "--health-on-failure=${cfg.healthcheck.onFailure}"
           ];
         };
 

@@ -278,28 +278,17 @@ in
       example = [ "/dev/dri" ];
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check";
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "300s";
+        onFailure = "kill";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "300s";
-        description = "Grace period for the container to initialize before failures are counted. Allows time for DB migrations and first-run initialization.";
-      };
+      description = "Container healthcheck configuration. Uses Podman native health checks with automatic restart on failure.";
     };
 
     # Standardized reverse proxy integration
@@ -631,18 +620,18 @@ in
         ++ lib.optionals (cfg.accelerationDevices != [ ]) (
           map (dev: "--device=${dev}:${dev}:rwm") cfg.accelerationDevices
         )
-        ++ lib.optionals cfg.healthcheck.enable [
+        ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           # Define the health check on the container itself.
           # This allows `podman healthcheck run` to work and updates status in `podman ps`.
           # NOTE: Dispatcharr container doesn't include curl/wget by default, so we use a TCP connection test
           # to verify nginx (port 9191) is responding. This is less precise than HTTP checks but more reliable.
           ''--health-cmd=sh -c 'timeout 3 bash -c "</dev/tcp/127.0.0.1/9191" 2>/dev/null' ''
-          # CRITICAL: Disable Podman's internal timer to prevent transient systemd units.
-          # Use "0s" instead of "disable" for better Podman version compatibility
-          "--health-interval=0s"
+          "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+          # When unhealthy, take configured action (default: kill so systemd can restart)
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
         ];
       };
 

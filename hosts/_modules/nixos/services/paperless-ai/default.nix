@@ -407,28 +407,16 @@ in
       description = "Resource limits for the container";
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check" // { default = true; };
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "60s";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "60s";
-        description = "Grace period for the container to initialize.";
-      };
+      description = "Container health check configuration";
     };
 
     # =========================================================================
@@ -680,7 +668,7 @@ in
           "--pull=newer"
           # Use UID:GID (writable paths redirected to /app/data via env vars)
           "--user=${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}"
-        ] ++ lib.optionals cfg.healthcheck.enable [
+        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           # Health check: verify web UI is responding (uses upstream /health endpoint)
           # Note: Container internally always runs on port 3000, cfg.port is external mapping
           ''--health-cmd=curl -f http://127.0.0.1:3000/health || exit 1''
@@ -688,6 +676,7 @@ in
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
         ];
       };
 

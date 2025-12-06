@@ -188,27 +188,16 @@ in
       description = "Notification preferences for ESPHome failures.";
     };
 
-    healthcheck = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Enable Podman container health check (matches upstream).";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "30s";
+        retries = 3;
+        startPeriod = "1m";
       };
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Interval between health checks (matches upstream).";
-      };
-      timeout = lib.mkOption {
-        type = lib.types.int;
-        default = 30;
-        description = "Timeout in seconds for health check probe (matches upstream).";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "1m";
-        description = "Grace period after container start before health checks count as failures.";
-      };
+      description = "Container health check configuration (matches upstream).";
     };
 
     preseed = {
@@ -315,13 +304,14 @@ in
         extraOptions =
           (lib.optionals cfg.hostNetwork [ "--network=host" ])
           ++ (lib.optionals (!cfg.hostNetwork && cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ])
-          ++ lib.optionals cfg.healthcheck.enable [
+          ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
             # Match upstream: curl --fail http://localhost:6052/version -A "HealthCheck"
-            "--health-cmd=curl --fail --silent --max-time ${toString cfg.healthcheck.timeout} http://127.0.0.1:${toString esphomePort}/version -A HealthCheck || exit 1"
+            "--health-cmd=curl --fail --silent http://127.0.0.1:${toString esphomePort}/version -A HealthCheck || exit 1"
             "--health-interval=${cfg.healthcheck.interval}"
-            "--health-timeout=${toString cfg.healthcheck.timeout}s"
-            "--health-retries=3"
+            "--health-timeout=${cfg.healthcheck.timeout}"
+            "--health-retries=${toString cfg.healthcheck.retries}"
             "--health-start-period=${cfg.healthcheck.startPeriod}"
+            "--health-on-failure=${cfg.healthcheck.onFailure}"
           ];
       };
 

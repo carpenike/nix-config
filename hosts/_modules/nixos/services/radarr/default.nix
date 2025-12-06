@@ -173,28 +173,17 @@ in
       description = "Resource limits for the container";
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check";
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "300s";
+        onFailure = "kill";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "300s";
-        description = "Grace period for the container to initialize before failures are counted. Allows time for DB migrations, preseed operations, and first-run initialization.";
-      };
+      description = "Container healthcheck configuration. Uses Podman native health checks with automatic restart on failure.";
     };
 
     # Standardized reverse proxy integration
@@ -391,12 +380,14 @@ in
         ] ++ lib.optionals (nfsMountConfig != null) [
           # Add media group to container so process can write to group-owned NFS mount
           "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
-        ] ++ lib.optionals cfg.healthcheck.enable [
+        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:7878/ping)" = 200 ]' ''
-          "--health-interval=0s"
+          "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+          # When unhealthy, take configured action (default: kill so systemd can restart)
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           "--network=${cfg.podmanNetwork}"
         ];

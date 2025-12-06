@@ -264,28 +264,17 @@ in
       description = "Resource limits for the container";
     };
 
-    healthcheck = {
-      enable = lib.mkEnableOption "container health check";
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "30s";
-        description = "Frequency of health checks.";
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "60s";
+        onFailure = "kill";
       };
-      timeout = lib.mkOption {
-        type = lib.types.str;
-        default = "10s";
-        description = "Timeout for each health check.";
-      };
-      retries = lib.mkOption {
-        type = lib.types.int;
-        default = 3;
-        description = "Number of retries before marking as unhealthy.";
-      };
-      startPeriod = lib.mkOption {
-        type = lib.types.str;
-        default = "60s";
-        description = "Grace period for container initialization.";
-      };
+      description = "Container healthcheck configuration. Uses Podman native health checks with automatic restart on failure.";
     };
 
     reverseProxy = lib.mkOption {
@@ -562,7 +551,7 @@ in
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           # Attach to Podman network for DNS-based service discovery
           "--network=${cfg.podmanNetwork}"
-        ] ++ lib.optionals cfg.healthcheck.enable [
+        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           # Health check using /api/ping endpoint (returns 200 when healthy)
           # This is the proper health check endpoint used in Kubernetes deployments
           ''--health-cmd=curl -f http://localhost:${toString crossSeedPort}/api/ping''
@@ -570,6 +559,7 @@ in
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
         ];
       };
 
