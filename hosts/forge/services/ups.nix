@@ -306,7 +306,7 @@ in
   # Provides a web dashboard and API endpoint for NUT UPS monitoring
   # Configuration is done through the UI and stored in /var/lib/peanut/settings.yml
   virtualisation.oci-containers.containers.peanut = lib.mkIf serviceEnabled {
-    image = "docker.io/brandawg93/peanut:5.19.0@sha256:86fb4aab35a60b78a6f3ddb509e46db0bcfa5f3d854bf00c0d8c3c4f8709fb24";
+    image = "docker.io/brandawg93/peanut:5.19.1@sha256:d53d8dd2ba6886aa02872c3f84a3ba7af4ff7497902d2658014a97b96f180ada";
     autoStart = true;
 
     environment = {
