@@ -31,6 +31,8 @@ in
       supportedFilesystems = [ "zfs" ];
       zfs = {
         package = pkgs.zfs_unstable;
+        # forceImportRoot helps when the root filesystem is on ZFS
+        # Set to true since we're using ZFS for root
         forceImportRoot = true;
         requestEncryptionCredentials = true;
         extraPools = cfg.mountPoolsAtBoot;
@@ -40,15 +42,18 @@ in
     # Use standard fileSystems configuration for ZFS mounts
     # These are typically defined by disko-config.nix, but we provide defaults
     # Note: disko-config definitions take precedence over these
+    # IMPORTANT: Use "zfsutil" option for legacy mountpoints to avoid race conditions
     fileSystems."/persist" = lib.mkDefault {
       device = cfg.persistDataset;
       fsType = "zfs";
+      options = [ "zfsutil" "X-mount.mkdir" ];
       neededForBoot = true;
     };
 
     fileSystems."/home" = lib.mkDefault {
       device = cfg.homeDataset;
       fsType = "zfs";
+      options = [ "zfsutil" "X-mount.mkdir" ];
       neededForBoot = true;
     };
 

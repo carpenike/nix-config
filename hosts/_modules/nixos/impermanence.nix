@@ -5,6 +5,8 @@
 }:
 let
   cfg = config.modules.system.impermanence;
+  # Check if systemd stage1 is enabled
+  useSystemdInitrd = config.boot.initrd.systemd.enable or false;
 in
 with lib;
 {
@@ -25,10 +27,25 @@ with lib;
   };
 
   config = lib.mkIf cfg.enable {
-    # Rollback root to blank snapshot after boot
-    boot.initrd.postDeviceCommands = lib.mkAfter ''
+    # Rollback root to blank snapshot during initrd
+    # Support both legacy and systemd stage1 initrd
+    boot.initrd.postDeviceCommands = lib.mkIf (!useSystemdInitrd) (lib.mkAfter ''
       zfs rollback -r ${cfg.rootPoolName}@${cfg.rootBlankSnapshotName}
-    '';
+    '');
+
+    # Systemd stage1 rollback service (used when boot.initrd.systemd.enable = true)
+    boot.initrd.systemd.services.rollback = lib.mkIf useSystemdInitrd {
+      description = "Rollback ZFS root to blank snapshot";
+      wantedBy = [ "initrd.target" ];
+      after = [ "zfs-import-rpool.service" ];
+      before = [ "sysroot.mount" ];
+      path = [ config.boot.zfs.package ];
+      unitConfig.DefaultDependencies = "no";
+      serviceConfig.Type = "oneshot";
+      script = ''
+        zfs rollback -r ${cfg.rootPoolName}@${cfg.rootBlankSnapshotName}
+      '';
+    };
 
     # Define persistence paths
     environment.persistence."${cfg.persistPath}" = {
