@@ -91,6 +91,17 @@ in
         };
 
         # =====================================================================
+        # Resource Limits
+        # =====================================================================
+        # Python/AI service needs more memory than the 256MB default
+        # Peak observed: 435MB during document processing
+        resources = {
+          memory = "768M";
+          memoryReservation = "384M";
+          cpus = "1.0";
+        };
+
+        # =====================================================================
         # Backup & DR
         # =====================================================================
         backup = forgeDefaults.mkBackupWithTags "paperless-ai" [ "documents" "paperless-ai" "forge" ];
