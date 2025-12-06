@@ -24,7 +24,7 @@ in
       unstable.minio-client
     ]) ++
     (lib.optionals isX86 [
-      inputs.nix-inspect.packages.${pkgs.system}.default
+      inputs.nix-inspect.packages.${pkgs.stdenv.hostPlatform.system}.default
     ]);
   };
 }

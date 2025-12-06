@@ -37,8 +37,7 @@ in
       uv # Fast Python package manager (includes uvx)
     ]
       ++ lib.optionals cfg.nodejs.enable [
-      nodejs
-      nodePackages.npm
+      nodejs # includes npm and npx
       nodePackages.yarn
     ]
       ++ lib.optionals cfg.go.enable [
