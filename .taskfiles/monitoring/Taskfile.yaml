@@ -1,0 +1,193 @@
+---
+version: "3"
+
+vars:
+  PROMETHEUS_HOST: "forge.holthome.net"
+  PROMETHEUS_PORT: "9090"
+
+tasks:
+  container-limits:
+    desc: Analyze container memory usage vs limits and suggest improvements
+    summary: |
+      Queries Prometheus for container memory metrics and compares them to
+      configured limits. Suggests adjustments for containers that are:
+      - Using too much memory (>80% of limit)
+      - Over-provisioned (using <30% of limit)
+      - Missing limits entirely
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "forge.holthome.net"}}'
+    cmds:
+      - task: :monitoring:_analyze-containers
+        vars:
+          SSH_HOST: "{{.SSH_HOST}}"
+
+  _analyze-containers:
+    internal: true
+    silent: true
+    vars:
+      SSH_HOST: '{{.SSH_HOST}}'
+    cmds:
+      - |
+        ssh {{.SSH_HOST}} 'bash -s' << 'SCRIPT'
+        #!/bin/bash
+        set -euo pipefail
+
+        PROMETHEUS="http://localhost:9090"
+
+        # Colors for output
+        RED='\033[0;31m'
+        YELLOW='\033[1;33m'
+        GREEN='\033[0;32m'
+        BLUE='\033[0;34m'
+        NC='\033[0m' # No Color
+        BOLD='\033[1m'
+
+        echo -e "${BOLD}Container Memory Analysis${NC}"
+        echo "═══════════════════════════════════════════════════════════════════════════════"
+        echo ""
+
+        # Get all containers with memory metrics
+        containers=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+          --data-urlencode 'query=container_memory_usage_bytes' | \
+          jq -r '.data.result[].metric.name' | sort -u)
+
+        # Print header
+        printf "${BOLD}%-20s %10s %10s %10s %10s %10s   %-s${NC}\n" \
+          "CONTAINER" "CURRENT" "AVG(24h)" "MAX(7d)" "LIMIT" "USAGE%" "RECOMMENDATION"
+        echo "───────────────────────────────────────────────────────────────────────────────"
+
+        for container in $containers; do
+          # Query current memory
+          current_bytes=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+            --data-urlencode "query=container_memory_usage_bytes{name=\"$container\"}" | \
+            jq -r '.data.result[0].value[1] // "0"')
+
+          # Query 24h average
+          avg_bytes=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+            --data-urlencode "query=avg_over_time(container_memory_usage_bytes{name=\"$container\"}[24h])" | \
+            jq -r '.data.result[0].value[1] // "0"')
+
+          # Query 7d max
+          max_bytes=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+            --data-urlencode "query=max_over_time(container_memory_usage_bytes{name=\"$container\"}[7d])" | \
+            jq -r '.data.result[0].value[1] // "0"')
+
+          # Query memory limit
+          limit_bytes=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+            --data-urlencode "query=container_memory_limit_bytes{name=\"$container\"}" | \
+            jq -r '.data.result[0].value[1] // "0"')
+
+          # Convert to MB using awk
+          current_mb=$(echo "$current_bytes" | awk '{printf "%.0f", $1/1024/1024}')
+          avg_mb=$(echo "$avg_bytes" | awk '{printf "%.0f", $1/1024/1024}')
+          max_mb=$(echo "$max_bytes" | awk '{printf "%.0f", $1/1024/1024}')
+
+          # Handle limit (could be 0 or very large number meaning unlimited)
+          if [ "$limit_bytes" = "0" ] || [ -z "$limit_bytes" ]; then
+            limit_mb="∞"
+            usage_pct="-"
+            suggested=$(echo "$max_mb" | awk '{printf "%.0f", $1 * 2.5}')
+            [ "$suggested" -lt 128 ] && suggested=128
+            recommendation="${RED}⚠ Add limit: ${suggested}M${NC}"
+          else
+            # Check if limit is effectively unlimited (> 100GB)
+            is_unlimited=$(echo "$limit_bytes" | awk '{print ($1 > 107374182400) ? 1 : 0}')
+            if [ "$is_unlimited" = "1" ]; then
+              limit_mb="∞"
+              usage_pct="-"
+              suggested=$(echo "$max_mb" | awk '{printf "%.0f", $1 * 2.5}')
+              [ "$suggested" -lt 128 ] && suggested=128
+              recommendation="${RED}⚠ Add limit: ${suggested}M${NC}"
+            else
+              limit_mb=$(echo "$limit_bytes" | awk '{printf "%.0f", $1/1024/1024}')
+              usage_pct=$(echo "$max_bytes $limit_bytes" | awk '{printf "%.1f", $1 * 100 / $2}')
+
+              # Determine recommendation based on usage
+              usage_int=$(echo "$usage_pct" | awk -F. '{print $1}')
+              if [ "$usage_int" -ge 80 ]; then
+                new_limit=$(echo "$max_mb" | awk '{printf "%.0f", $1 * 2}')
+                recommendation="${RED}⬆ Increase to ${new_limit}M (high usage)${NC}"
+              elif [ "$usage_int" -le 30 ] && [ "$limit_mb" != "∞" ]; then
+                new_limit=$(echo "$max_mb" | awk '{printf "%.0f", $1 * 2.5}')
+                # Don't suggest going below 128M
+                [ "$new_limit" -lt 128 ] && new_limit=128
+                recommendation="${YELLOW}⬇ Reduce to ${new_limit}M (over-provisioned)${NC}"
+              else
+                recommendation="${GREEN}✓ OK${NC}"
+              fi
+            fi
+          fi
+
+          # Format output
+          printf "%-20s %8sM %8sM %8sM %8s %9s%%   " \
+            "$container" "$current_mb" "$avg_mb" "$max_mb" "${limit_mb}M" "$usage_pct"
+          echo -e "$recommendation"
+        done
+
+        echo ""
+        echo "───────────────────────────────────────────────────────────────────────────────"
+        echo -e "${BOLD}Legend:${NC}"
+        echo -e "  ${GREEN}✓ OK${NC}              - Memory usage within healthy range (30-80% of limit)"
+        echo -e "  ${YELLOW}⬇ Reduce${NC}          - Over-provisioned (using <30% of limit)"
+        echo -e "  ${RED}⬆ Increase${NC}        - High usage (>80% of limit, risk of OOM)"
+        echo -e "  ${RED}⚠ Add limit${NC}       - No memory limit configured"
+        echo ""
+        echo "Suggested limits = max(7d) × 2.5 (provides headroom for spikes)"
+        SCRIPT
+
+  container-summary:
+    desc: Quick summary of container resource usage
+    silent: true
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "forge.holthome.net"}}'
+    cmds:
+      - |
+        ssh {{.SSH_HOST}} 'bash -s' << 'SCRIPT'
+        PROMETHEUS="http://localhost:9090"
+
+        echo "Container Resource Summary"
+        echo "════════════════════════════════════════"
+
+        # Count containers
+        total=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+          --data-urlencode 'query=count(container_memory_usage_bytes)' | \
+          jq -r '.data.result[0].value[1]')
+
+        # Count with limits
+        with_limits=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+          --data-urlencode 'query=count(container_memory_limit_bytes < 107374182400)' | \
+          jq -r '.data.result[0].value[1] // "0"')
+
+        # Total memory used by containers
+        total_mem=$(curl -s -G "$PROMETHEUS/api/v1/query" \
+          --data-urlencode 'query=sum(container_memory_usage_bytes)' | \
+          jq -r '.data.result[0].value[1]')
+        total_mem_gb=$(echo "$total_mem" | awk '{printf "%.2f", $1/1024/1024/1024}')
+
+        echo "Total containers:     $total"
+        echo "With memory limits:   $with_limits"
+        echo "Without limits:       $((total - with_limits))"
+        echo "Total memory usage:   ${total_mem_gb} GB"
+        SCRIPT
+
+  top-memory:
+    desc: Show top 10 containers by memory usage
+    silent: true
+    vars:
+      SSH_HOST: '{{.SSH_HOST | default "forge.holthome.net"}}'
+    cmds:
+      - |
+        ssh {{.SSH_HOST}} 'bash -s' << 'SCRIPT'
+        PROMETHEUS="http://localhost:9090"
+
+        echo "Top 10 Containers by Memory Usage"
+        echo "══════════════════════════════════════════"
+
+        curl -s -G "$PROMETHEUS/api/v1/query" \
+          --data-urlencode 'query=topk(10, container_memory_usage_bytes)' | \
+          jq -r '.data.result[] | "\(.metric.name)\t\(.value[1])"' | \
+          while IFS=$'\t' read -r name bytes; do
+            mb=$(echo "$bytes" | awk '{printf "%.0f", $1/1024/1024}')
+            printf "%-25s %8s MB\n" "$name" "$mb"
+          done
+        SCRIPT

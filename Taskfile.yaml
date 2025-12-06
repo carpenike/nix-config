@@ -18,6 +18,9 @@ includes:
   cooklang:
     taskfile: ".taskfiles/cooklang"
     dir: "{{.ROOT_DIR}}"
+  monitoring:
+    taskfile: ".taskfiles/monitoring"
+    dir: "{{.ROOT_DIR}}"
 
 tasks:
   default:
