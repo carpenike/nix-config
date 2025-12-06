@@ -192,6 +192,10 @@ rg "modules.services.grafana.integrations" --type nix -A 10
 rg "preseed.enable" --type nix -A 5
 rg "restoreMethods" --type nix -A 3
 
+# Discover user/UID allocations (CRITICAL - must be unique)
+rg "uid = [0-9]+" --no-heading | sort -t'=' -k2 -n | tail -20
+rg "gid = [0-9]+" --no-heading | sort -t'=' -k2 -n | tail -20
+
 # Discover LoadCredential patterns (container secrets)
 rg "LoadCredential" --type nix -A 5
 
@@ -218,6 +222,12 @@ From your study, you MUST document these patterns:
 - What port range do services use?
 - How are metrics ports assigned relative to main port?
 - **ALWAYS scan for port conflicts before assigning**
+
+**User/UID conventions:**
+- What UID range do services use? (typically 900-999)
+- Which UIDs are already allocated?
+- **ALWAYS scan for UID conflicts before assigning**
+- For media services, use shared `media` group instead of service-specific group
 
 **Domain patterns:**
 - How are reverse proxy domains constructed?
@@ -962,6 +972,104 @@ image = mkOption {
   # Renovate: datasource=docker depName=ghcr.io/myservice/app
   default = "ghcr.io/myservice/app:v1.2.3@sha256:abc123...";
   description = ''Container image (GHCR preferred). Update via Renovate or manually with crane digest.'';
+};
+```
+
+### User and Group Management (CRITICAL)
+
+**ALWAYS disable DynamicUser and create stable UID/GID for service users.**
+
+#### Why Stable UIDs Matter
+
+- DynamicUser creates random UIDs at runtime - breaks file ownership across rebuilds
+- ZFS datasets, NFS mounts, and backups depend on consistent UID/GID
+- Native NixOS modules often create users conditionally - wrappers must override
+
+#### UID Allocation Process
+
+**1. Scan for existing UIDs BEFORE choosing one:**
+```bash
+# Search for all UID definitions in the repo
+rg "uid = [0-9]+" --no-heading | sort -t'=' -k2 -n | tail -20
+
+# Or check a specific UID
+rg "uid = 918" --no-heading
+```
+
+**2. Choose a UID in the 900-999 range that's not already used.**
+
+Known allocations (as of 2025-06):
+- 918: profilarr
+- 919: autobrr
+- 920: tdarr
+- 921: cross-seed
+- 922: recyclarr
+- 930: pinchflat
+
+**3. Document your allocation in the module:**
+```nix
+uid = mkOption {
+  type = types.int;
+  default = 9XX;  # Replace with your allocated UID
+  description = "UID for <service> user (must be unique across hosts)";
+};
+```
+
+#### Native Module Wrapper Pattern
+
+When wrapping a native NixOS module that conditionally creates users, you **MUST use `lib.mkForce`** to override the native module's user definition:
+
+```nix
+# ❌ WRONG - Native module may also create user, causing conflicts
+users.users.${cfg.user} = {
+  isSystemUser = true;
+  group = cfg.group;
+  uid = cfg.uid;
+};
+
+# ✅ CORRECT - mkForce ensures our definition wins
+users.users.${cfg.user} = lib.mkForce {
+  isSystemUser = true;
+  group = cfg.group;
+  uid = cfg.uid;
+  home = "/var/empty";  # Prevent permission issues with StateDirectory
+  createHome = false;
+};
+
+users.groups.${cfg.group} = lib.mkForce {
+  gid = cfg.gid;
+};
+```
+
+**Why mkForce?** Native modules like `services.pinchflat` often include:
+```nix
+users.users.pinchflat = lib.mkIf (cfg.user == "pinchflat") { ... };
+```
+
+Without mkForce, NixOS will try to merge both definitions, potentially causing:
+- Duplicate user definition errors
+- Missing UID (native module may not set one)
+- Wrong group membership
+
+#### Media Service User Pattern
+
+For services accessing shared media (Plex, Sonarr, Radarr, Pinchflat, etc.):
+
+```nix
+# User definition in module
+users.users.${cfg.user} = lib.mkForce {
+  isSystemUser = true;
+  group = cfg.group;
+  uid = cfg.uid;
+  home = "/var/empty";
+  createHome = false;
+  extraGroups = [ "media" ];  # Access to shared media files
+};
+
+# Host config sets the group to "media"
+modules.services.pinchflat = {
+  group = "media";  # Shared media group instead of service-specific
+  uid = 930;        # Unique, stable UID
 };
 ```
 
@@ -1998,6 +2106,7 @@ You've succeeded when:
 ✓ Gatus contribution added for user-facing endpoints (with alert configuration)
 ✓ healthcheck.enable set for container services
 ✓ nfsMountDependency set for services needing NAS access
+✓ **Stable UID/GID allocated** - scanned repo for conflicts, used mkForce for native module wrappers
 ✓ Validation passes cleanly
 ✓ User can deploy with confidence
 
