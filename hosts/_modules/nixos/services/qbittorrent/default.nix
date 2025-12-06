@@ -173,6 +173,18 @@ in
       example = "media-services";
     };
 
+    macAddress = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = "02:42:ac:11:00:51";
+      description = ''
+        Static MAC address for the container.
+        Required for stable IPv6 link-local addresses when binding to interface.
+        Without this, qBittorrent will fail to start after container restart
+        because it tries to bind to the old IPv6 link-local address.
+      '';
+      example = "02:42:ac:11:00:51";
+    };
+
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
@@ -555,6 +567,10 @@ in
           "--pull=newer" # Automatically pull newer images
           # Force container to run as the specified user:group
           "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+        ] ++ lib.optionals (cfg.macAddress != null) [
+          # Static MAC address ensures stable IPv6 link-local address across restarts
+          # Without this, qBittorrent fails to bind to the previous IPv6 address
+          "--mac-address=${cfg.macAddress}"
         ] ++ lib.optionals (cfg.podmanNetwork != null) [
           # Attach to Podman network for DNS-based service discovery
           "--network=${cfg.podmanNetwork}"

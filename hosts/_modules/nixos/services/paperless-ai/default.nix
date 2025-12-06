@@ -681,9 +681,10 @@ in
           # Use UID:GID (writable paths redirected to /app/data via env vars)
           "--user=${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}"
         ] ++ lib.optionals cfg.healthcheck.enable [
-          # Health check: verify web UI is responding
-          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:3000/)" = 200 ]' ''
-          "--health-interval=0s"
+          # Health check: verify web UI is responding (uses upstream /health endpoint)
+          # Note: Container internally always runs on port 3000, cfg.port is external mapping
+          ''--health-cmd=curl -f http://127.0.0.1:3000/health || exit 1''
+          "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
           "--health-start-period=${cfg.healthcheck.startPeriod}"

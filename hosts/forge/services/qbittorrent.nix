@@ -27,6 +27,13 @@ in
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
+        # Resource limits - qBittorrent with many torrents needs more memory
+        resources = {
+          memory = "4G";
+          memoryReservation = "2G";
+          cpus = "4.0";
+        };
+
         # Enable VueTorrent modern WebUI
         vuetorrent.enable = true;
 
