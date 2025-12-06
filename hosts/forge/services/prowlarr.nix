@@ -29,6 +29,14 @@ in
           caddySecurity = forgeDefaults.caddySecurity.media;
         };
 
+        # Resource limits
+        # Observed usage: ~181MB avg, 211MB peak over 48h
+        resources = {
+          memory = "384M";
+          memoryReservation = "192M";
+          cpus = "1.0";
+        };
+
         # Enable backups
         backup = forgeDefaults.backup;
 
