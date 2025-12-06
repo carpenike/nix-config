@@ -97,7 +97,7 @@ array_has_key() {
 }
 
 # Cleanup trap for interrupt handling (defined early, before main execution)
-# shellcheck disable=SC2317  # Function invoked via trap, not directly
+# shellcheck disable=SC2317,SC2329  # Function invoked via trap, not directly
 cleanup() {
     log_warn "Interrupted! Attempting to stop running backup services..."
 
