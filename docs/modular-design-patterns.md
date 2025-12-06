@@ -42,6 +42,123 @@ Shared services expose dedicated integration points so downstream modules can de
 
 ---
 
+## Thin Orchestrator Pattern (Multi-Service Stacks)
+
+When multiple services work together as a cohesive stack (e.g., observability, monitoring), use a **thin orchestrator** pattern rather than a "god module" that re-exposes all options.
+
+### Anti-Pattern: God Module ❌
+
+Don't create meta-modules that proxy every option from underlying services:
+
+```nix
+# BAD: God module that re-exposes 90% of underlying options
+options.modules.services.observability = {
+  loki = {
+    port = mkOption { ... };
+    retentionDays = mkOption { ... };
+    storagePath = mkOption { ... };
+    # ... 50 more options copied from loki module
+  };
+  grafana = {
+    port = mkOption { ... };
+    oidc = mkOption { ... };
+    # ... 100 more options copied from grafana module
+  };
+};
+```
+
+**Problems**:
+- Dual maintenance burden (options defined twice)
+- Documentation divergence
+- Type synchronization issues
+- Makes underlying modules harder to use directly
+
+### Correct Pattern: Thin Orchestrator ✅
+
+A thin orchestrator only provides:
+1. **Master enable toggle** - Turn the whole stack on/off
+2. **Component toggles** - Enable/disable individual components
+3. **Cross-cutting wiring** - Connections that span services (e.g., Promtail → Loki URL)
+4. **Stack-level concerns** - Auto-discovery, shared alerts
+
+```nix
+# GOOD: Thin orchestrator that wires services together
+options.modules.services.observability = {
+  enable = mkEnableOption "observability stack";
+
+  # Component toggles - no option re-exposure
+  loki.enable = mkOption { type = types.bool; default = cfg.enable; };
+  promtail.enable = mkOption { type = types.bool; default = cfg.enable; };
+  grafana.enable = mkOption { type = types.bool; default = cfg.enable; };
+  prometheus.enable = mkOption { type = types.bool; default = false; };
+
+  # Stack-level concern: auto-discovery of metrics endpoints
+  autoDiscovery.enable = mkOption { type = types.bool; default = true; };
+
+  # Stack-level concern: shared alerting rules
+  alerts.enable = mkOption { type = types.bool; default = true; };
+};
+
+config = mkIf cfg.enable {
+  # Enable individual modules - they configure themselves
+  modules.services.loki.enable = cfg.loki.enable;
+  modules.services.promtail.enable = cfg.promtail.enable;
+  modules.services.grafana.enable = cfg.grafana.enable;
+
+  # Cross-cutting wiring: connect Promtail to Loki
+  modules.services.promtail.lokiUrl = mkIf (cfg.promtail.enable && cfg.loki.enable)
+    "http://127.0.0.1:${toString config.modules.services.loki.port}";
+
+  # Cross-cutting wiring: auto-configure Grafana datasources
+  modules.services.grafana.autoConfigure = {
+    loki = lib.mkDefault cfg.loki.enable;
+    prometheus = lib.mkDefault cfg.prometheus.enable;
+  };
+};
+```
+
+### When to Use Thin Orchestrators
+
+✅ **Use thin orchestrator when**:
+- Multiple services form a logical stack (observability, media automation)
+- Services need wiring between each other
+- You want a simple "enable the whole stack" toggle
+- Cross-cutting concerns like auto-discovery need coordination
+
+❌ **Don't create orchestrators when**:
+- Services are independent (each service module stands alone)
+- No cross-service wiring is needed
+- A simple host-level config suffices
+
+### Reference Implementation
+
+- **Observability Stack**: `hosts/_modules/nixos/services/observability/default.nix`
+  - ~190 lines (vs 876 lines in previous god-module version)
+  - Enables: Loki, Promtail, Grafana, optionally Prometheus
+  - Provides: Auto-discovery of metrics endpoints, stack-level alerts
+  - Wires: Promtail → Loki, Grafana datasources
+
+### Host-Level Customization
+
+Users who need to customize individual services configure them directly:
+
+```nix
+# Host config: Enable stack with thin orchestrator
+modules.services.observability.enable = true;
+
+# Customize individual services directly (not through orchestrator)
+modules.services.loki.retention = 30;
+modules.services.grafana.oidc = { ... };
+modules.services.promtail.extraScrapeConfigs = [ ... ];
+```
+
+This provides the best of both worlds:
+- **Simple enable** for common use cases
+- **Full control** when customization is needed
+- **No option duplication** between modules
+
+---
+
 ## Creating New Service Modules
 
 ### Native vs Container Decision

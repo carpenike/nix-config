@@ -74,15 +74,12 @@ in
         # Enable observability stack to test auto-discovery
         observability = {
           enable = true;
-          prometheus = {
-            enable = true;
-            autoDiscovery.enable = true;
-          };
+          prometheus.enable = true;
+          autoDiscovery.enable = true;
           # Disable other components for this test
           loki.enable = false;
           promtail.enable = false;
           grafana.enable = false;
-          reverseProxy.enable = false;
         };
 
         openssh.enable = true;

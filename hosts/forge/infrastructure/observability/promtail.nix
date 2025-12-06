@@ -3,21 +3,49 @@
 {
   config = {
     # Promtail log shipping and aggregation agent
-    modules.services.observability.promtail = {
+    # Configured directly on the individual module (not through observability meta-module)
+    modules.services.promtail = {
       enable = true;
-      zfsDataset = "tank/services/promtail"; # Give Promtail its own ZFS dataset
-      containerLogSource = "journald"; # Use systemd journal for container logs
-      dropNoisyUnits = [
-        "systemd-logind"
-        "systemd-networkd"
-        "systemd-resolved"
-        "systemd-timesyncd"
-        "NetworkManager"
-        "sshd" # Add sshd to reduce noise from frequent SSH connections
-      ];
+
+      # ZFS configuration
+      zfs = {
+        dataset = "tank/services/promtail";
+        properties = {
+          compression = "zstd";
+          atime = "off";
+          "com.sun:auto-snapshot" = "false"; # Snapshots disabled for Promtail
+        };
+      };
+
+      # Container log source configuration
+      containers = {
+        enable = true;
+        source = "journald"; # Use systemd journal for container logs
+      };
+
+      # Journal configuration with noise reduction
+      journal = {
+        enable = true;
+        maxAge = "12h";
+        dropIdentifiers = [
+          "systemd-logind"
+          "systemd-networkd"
+          "systemd-resolved"
+          "systemd-timesyncd"
+          "NetworkManager"
+          "sshd" # Add sshd to reduce noise from frequent SSH connections
+        ];
+        labels = {
+          job = "systemd-journal";
+          host = "forge";
+          environment = "homelab";
+        };
+      };
+
       # Disable syslog receiver to avoid duplicates (we tail files instead)
       syslog.enable = false;
-      # Enable syslog receiver for external systems
+
+      # Extra scrape configs for Omada relay logs
       extraScrapeConfigs = [
         {
           job_name = "omada-relay-file";

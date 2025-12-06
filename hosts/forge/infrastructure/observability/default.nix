@@ -3,7 +3,7 @@
 {
   # Observability Stack - Centralized monitoring, alerting, logging, and visualization
   # This directory consolidates all observability infrastructure components:
-  # - Prometheus: Metrics collection, storage, and alerting
+  # - Prometheus: Metrics collection, storage, and alerting (configured in prometheus.nix)
   # - Alertmanager: Alert routing and notification delivery
   # - Grafana: Metrics and logs visualization dashboards
   # - Loki: Log aggregation and storage
@@ -17,11 +17,14 @@
     ./promtail.nix
   ];
 
-  # Enable the observability module system
+  # Enable the thin observability orchestrator
+  # This just wires Promtail → Loki and configures Grafana datasources
+  # All service-specific configuration is done directly in the individual *.nix files above
   modules.services.observability = {
     enable = true;
-    # Disable Prometheus in observability module since forge uses legacy configuration
-    # in prometheus.nix (direct services.prometheus config)
+    # Prometheus is configured directly in prometheus.nix using services.prometheus
     prometheus.enable = false;
+    # Enable default stack alerts (Loki/Promtail health)
+    alerts.enable = true;
   };
 }
