@@ -69,6 +69,7 @@
     ./radarr # Radarr movie collection manager
     ./readarr # Readarr book/audiobook collection manager
     ./recyclarr # Recyclarr TRaSH Guides automation
+    ./kometa # Kometa Plex metadata manager (formerly Plex Meta Manager)
     ./sabnzbd # SABnzbd usenet download client
     ./scrypted # Scrypted NVR / automation hub
     ./sonarr

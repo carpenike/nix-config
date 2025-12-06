@@ -44,6 +44,7 @@ let
   litellmEnabled = config.modules.services.litellm.enable or false;
   atticPushEnabled = config.modules.services.attic-push.enable or false;
   pinchflatEnabled = config.modules.services.pinchflat.enable or false;
+  kometaEnabled = config.modules.services.kometa.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -335,6 +336,29 @@ in
           # Tautulli API key for Homepage widget
           # Get from: Tautulli Settings > Web Interface > API
           "tautulli/api-key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs kometaEnabled {
+          # TMDb API key for Kometa metadata lookups
+          # Get from: https://www.themoviedb.org/settings/api
+          "tmdb/api-key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Trakt API credentials for Kometa list integration
+          # Create app at: https://trakt.tv/oauth/applications/new
+          "trakt/client-id" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          "trakt/client-secret" = {
             mode = "0400";
             owner = "root";
             group = "root";
@@ -811,6 +835,22 @@ in
               "HOMEPAGE_VAR_OMADA_PASSWORD=${config.sops.placeholder."omada/homepage-password"}"
               # Mikrotik router widget (always enabled when homepage is enabled)
               "HOMEPAGE_VAR_MIKROTIK_PASSWORD=${config.sops.placeholder."mikrotik/homepage-password"}"
+            ]);
+            mode = "0400"; # root-only readable
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs kometaEnabled {
+          # Kometa environment file for container secrets
+          # Used for Plex, TMDb, and Trakt API credentials
+          "kometa-env" = {
+            content = lib.concatStringsSep "\n" (lib.filter (x: x != "") [
+              "KOMETA_PLEX_URL=http://plex:32400"
+              "KOMETA_PLEX_TOKEN=${config.sops.placeholder."plex/token"}"
+              "KOMETA_TMDB_API_KEY=${config.sops.placeholder."tmdb/api-key"}"
+              "KOMETA_TRAKT_CLIENT_ID=${config.sops.placeholder."trakt/client-id"}"
+              "KOMETA_TRAKT_CLIENT_SECRET=${config.sops.placeholder."trakt/client-secret"}"
             ]);
             mode = "0400"; # root-only readable
             owner = "root";

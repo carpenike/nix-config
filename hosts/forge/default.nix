@@ -66,6 +66,7 @@ in
     ./services/radarr.nix # Radarr movie manager
     ./services/bazarr.nix # Bazarr subtitle manager
     ./services/recyclarr.nix # Recyclarr TRaSH guides automation
+    ./services/kometa.nix # Kometa Plex metadata manager
     ./services/qbittorrent.nix # qBittorrent download client
     ./services/cross-seed.nix # cross-seed torrent automation
     ./services/tqm.nix # tqm torrent lifecycle management
