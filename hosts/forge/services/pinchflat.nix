@@ -23,7 +23,7 @@ in
 
         # Store config/database on ZFS, downloads on NFS
         dataDir = "/var/lib/pinchflat";
-        mediaDir = "/mnt/data/youtube";
+        mediaDir = "/mnt/data/media/youtube";
 
         # User configuration - UID 930, media group for NFS access
         user = "pinchflat";
