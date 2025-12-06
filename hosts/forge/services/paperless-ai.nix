@@ -93,12 +93,12 @@ in
         # =====================================================================
         # Resource Limits
         # =====================================================================
-        # Python/AI service needs more memory than the 256MB default
-        # Peak observed: 435MB during document processing
+        # Python/AI service with 6 gunicorn workers
+        # Each worker can use 300-500MB during document processing
         resources = {
-          memory = "768M";
-          memoryReservation = "384M";
-          cpus = "1.0";
+          memory = "2G";
+          memoryReservation = "1G";
+          cpus = "2.0";
         };
 
         # =====================================================================
