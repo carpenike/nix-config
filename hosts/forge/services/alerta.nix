@@ -108,8 +108,14 @@ in
 
         # Additional Alerta configuration
         extraConfig = ''
+          # Enable proxy header support for proper OIDC callbacks behind Caddy
+          USE_PROXYFIX = True
+
           # Default environment for alerts
           DEFAULT_ENVIRONMENT = 'Production'
+
+          # Allow any environment (Alertmanager webhook may send custom values)
+          ALLOWED_ENVIRONMENTS = ['Production', 'Development', 'Staging', 'Test']
 
           # Alert severity levels (aligned with Alertmanager + Alerta requirements)
           # Must include 'normal' for DEFAULT_NORMAL_SEVERITY

@@ -202,7 +202,7 @@ in
 
       url = mkOption {
         type = types.str;
-        default = "http://127.0.0.1:5000/api/webhooks/prometheus";
+        default = "http://127.0.0.1:5000/webhooks/prometheus";
         description = "Alerta webhook URL for receiving alerts from Alertmanager.";
       };
 

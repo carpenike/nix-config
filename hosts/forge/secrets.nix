@@ -144,6 +144,14 @@ in
             group = "alerta";
           };
 
+          # Alerta API key for Alertmanager webhook authentication
+          # Alertmanager needs to read this to authenticate requests to Alerta
+          "alerta/api_key" = {
+            mode = "0440";
+            owner = "root";
+            group = "alertmanager";
+          };
+
           # Alerta PostgreSQL database password
           # Group-readable so postgresql-provision-databases.service (runs as postgres user)
           # can hash the file for change detection. Alerta user is added to postgres group
@@ -702,6 +710,7 @@ in
             content = ''
               PGPASSWORD=${config.sops.placeholder."postgresql/alerta_password"}
               OAUTH2_CLIENT_SECRET=${config.sops.placeholder."alerta/oidc_client_secret"}
+              ADMIN_KEY=${config.sops.placeholder."alerta/api_key"}
             '';
             mode = "0400";
             owner = "alerta";

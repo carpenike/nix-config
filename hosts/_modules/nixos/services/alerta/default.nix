@@ -263,6 +263,16 @@ in
       '';
     };
 
+    adminKeyFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      description = ''
+        Path to a file containing the admin API key.
+        This key is used for programmatic access (e.g., from Alertmanager) and bypasses
+        normal authentication. The file should contain only the key string.
+      '';
+    };
+
     extraConfig = lib.mkOption {
       type = lib.types.lines;
       default = "";
@@ -446,8 +456,43 @@ in
           ReadWritePaths = [ cfg.dataDir "/var/lib/alerta" ];
 
           # Load environment from SOPS template file
+          # Note: ADMIN_KEY is used by preStart to create the key in the database
           EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
         };
+
+        # Create admin key in database if ADMIN_KEY env var is set
+        # This mimics the Docker entrypoint behavior for native deployments
+        preStart = ''
+                    if [ -n "$ADMIN_KEY" ]; then
+                      echo "Checking/creating admin API key..."
+                      # Check if key already exists
+                      KEY_EXISTS=$(${pkgs.postgresql}/bin/psql -h ${cfg.database.host} -p ${toString cfg.database.port} -U ${cfg.database.user} -d ${cfg.database.name} -tAc "SELECT COUNT(*) FROM keys WHERE key = '$ADMIN_KEY';" 2>/dev/null || echo "0")
+
+                      if [ "$KEY_EXISTS" = "0" ]; then
+                        echo "Creating admin API key in database..."
+                        # Insert the admin key with admin scopes
+                        # The key format follows Alerta's API key structure
+                        ${pkgs.postgresql}/bin/psql -h ${cfg.database.host} -p ${toString cfg.database.port} -U ${cfg.database.user} -d ${cfg.database.name} <<EOF
+          INSERT INTO keys (id, key, "user", scopes, text, expire_time, count, last_used_time, customer)
+          VALUES (
+            'admin-key-' || substr(md5(random()::text), 1, 8),
+            '$ADMIN_KEY',
+            'admin@alerta.io',
+            ARRAY['admin', 'read', 'write'],
+            'Admin key for Alertmanager',
+            NOW() + INTERVAL '10 years',
+            0,
+            NULL,
+            NULL
+          )
+          ON CONFLICT (key) DO NOTHING;
+          EOF
+                        echo "Admin API key created."
+                      else
+                        echo "Admin API key already exists."
+                      fi
+                    fi
+        '';
       };
 
       # Ensure user has a group set (native module doesn't set group by default)

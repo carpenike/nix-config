@@ -44,9 +44,30 @@
   };
 
   # Your own overlays for stable nixpkgs should be declared here
-  nixpkgs-overlays = final: _prev: {
+  nixpkgs-overlays = final: prev: {
     # Custom Caddy build with Cloudflare DNS provider and caddy-security plugins
     # See pkgs/caddy-custom.nix for plugin configuration and hash updates
     caddy = import ../pkgs/caddy-custom.nix { pkgs = final.unstable; };
+
+    # Fix flask-cors version metadata issue
+    # Flask-cors 6.x uses pyproject.toml with dynamic version from git tags.
+    # When built from GitHub archive (not PyPI), the version ends up as 0.0.1
+    # because there's no git metadata. This causes alerta-server to fail loading
+    # plugins with: "flask-cors 0.0.1 ... Requirement.parse('Flask-Cors>=3.0.2')"
+    # Fix by using PyPI source which has correct version in metadata.
+    pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+      (pyFinal: pyPrev: {
+        flask-cors = pyPrev.flask-cors.overridePythonAttrs (old: {
+          # Use PyPI source instead of GitHub archive to get correct version metadata
+          src = pyFinal.fetchPypi {
+            pname = "flask_cors";
+            version = old.version;
+            hash = "sha256-2BvLMfB7CYW+f0hAYkfpJDrO0im3dHIZFgoFWe3WeNs=";
+          };
+          # PyPI source doesn't include tests, so disable check phase
+          doCheck = false;
+        });
+      })
+    ];
   };
 }
