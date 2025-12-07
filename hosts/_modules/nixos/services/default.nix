@@ -40,6 +40,7 @@
     ./litellm # LiteLLM unified AI gateway (native wrapper)
     ./loki # Loki log aggregation server
     ./mealie # Mealie recipe manager
+    ./n8n # n8n workflow automation
     ./nginx
     ./gpu-metrics
     ./node-exporter

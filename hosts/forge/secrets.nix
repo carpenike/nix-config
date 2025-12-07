@@ -29,6 +29,7 @@ let
   zigbeeEnabled = config.modules.services.zigbee2mqtt.enable or false;
   zwaveEnabled = config.modules.services."zwave-js-ui".enable or false;
   mealieEnabled = config.modules.services.mealie.enable or false;
+  n8nEnabled = config.modules.services.n8n.enable or false;
   openWebuiEnabled = config.modules.services.open-webui.enable or false;
   paperlessEnabled = config.modules.services.paperless.enable or false;
   paperlessAiEnabled = config.modules.services.paperless-ai.enable or false;
@@ -537,6 +538,17 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+          };
+        }
+        // optionalAttrs n8nEnabled {
+          # n8n workflow automation secrets
+          # Environment file format: N8N_ENCRYPTION_KEY=<hex-key>
+          # Generate with: echo "N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)"
+          # CRITICAL: This key encrypts stored credentials - MUST be backed up!
+          "n8n/encryption_key_env" = {
+            mode = "0400";
+            owner = "n8n";
+            group = "n8n";
           };
         }
         // optionalAttrs openWebuiEnabled {
