@@ -72,7 +72,7 @@ let
     {
       "priority": "$PRIORITY",
       "title": "$TITLE",
-      "body": "<b>Host:</b> ${config.networking.hostName}\n<b>Duration:</b> ''${DURATION_MIN}m ''${DURATION}s\n\nUpgrade completed successfully."
+      "message": "Host: ${config.networking.hostName}\nDuration: ''${DURATION_MIN}m ''${DURATION}s\n\nUpgrade completed successfully."
     }
     EOF
 
@@ -188,6 +188,8 @@ in
     ];
 
     # Register notification templates
+    # Note: Success notification is handled directly by nixos-upgrade-metrics service
+    # which writes JSON with duration info - no template needed
     modules.notifications.templates = lib.mkIf notificationsEnabled {
       nixos-upgrade-failure = {
         enable = lib.mkDefault true;
@@ -197,15 +199,6 @@ in
           Automatic NixOS upgrade failed on ${config.networking.hostName}.
 
           Check logs with: journalctl -u nixos-upgrade.service -n 100
-        '';
-      };
-
-      nixos-upgrade-success = {
-        enable = lib.mkDefault true;
-        priority = lib.mkDefault "low";
-        title = "✅ NixOS Upgrade Complete";
-        body = ''
-          Automatic NixOS upgrade completed on ${config.networking.hostName}.
         '';
       };
     };
@@ -218,18 +211,30 @@ in
       };
     };
 
+    # Path unit to trigger failure notification
+    systemd.paths."notify-pushover@nixos-upgrade-failure" = lib.mkIf notificationsEnabled {
+      wantedBy = [ "multi-user.target" ];
+      pathConfig = {
+        PathExists = "/run/notify/nixos-upgrade-failure.json";
+      };
+    };
+
     # Extend nixos-upgrade service with metrics and notifications
     systemd.services.nixos-upgrade = {
       # Record start time before upgrade
       preStart = "${preScript}";
 
       # Add failure notifications and metrics
+      # - notify@ sends immediate Pushover notification
+      # - failure-metrics records to Prometheus for dashboards (no duplicate alert)
       onFailure =
         (lib.optionals notificationsEnabled [ "notify@nixos-upgrade-failure.service" ])
         ++ (lib.optionals alertingEnabled [ "nixos-upgrade-failure-metrics.service" ]);
 
-      # Add success notification trigger
-      onSuccess = lib.mkIf notificationsEnabled [ "notify@nixos-upgrade-success.service" ];
+      # Success is handled by nixos-upgrade-metrics.service which:
+      # - Records metrics to Prometheus
+      # - Writes notification JSON with duration info
+      # - Triggers notify-pushover@ via path unit
     };
 
     # Separate service to record metrics after upgrade completes
@@ -263,24 +268,9 @@ in
     };
 
     # Prometheus alerts for upgrade issues
+    # Note: Failure notifications are handled immediately via Pushover (onFailure handler)
+    # These alerts are for observability dashboards and detecting missed upgrades
     modules.alerting.rules = lib.mkIf alertingEnabled {
-      "nixos-upgrade-failed" = {
-        type = "promql";
-        alertname = "NixOSUpgradeFailed";
-        expr = "nixos_upgrade_success == 0";
-        for = "5m";
-        severity = "high";
-        labels = {
-          category = "system";
-          service = "nixos-upgrade";
-        };
-        annotations = {
-          summary = "NixOS upgrade failed on {{ $labels.instance }}";
-          description = "The automatic NixOS upgrade failed. Check journalctl -u nixos-upgrade.service for details.";
-          command = "journalctl -u nixos-upgrade.service -n 100";
-        };
-      };
-
       "nixos-upgrade-slow" = {
         type = "promql";
         alertname = "NixOSUpgradeSlow";
