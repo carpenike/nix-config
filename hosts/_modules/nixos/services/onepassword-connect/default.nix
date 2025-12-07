@@ -129,7 +129,7 @@ in
 
     virtualisation.oci-containers.containers = {
       onepassword-connect-api = podmanLib.mkContainer "onepassword-connect-api" {
-        image = "docker.io/1password/connect-api:1.8.1";
+        image = "docker.io/1password/connect-api:1.8.1@sha256:64ea800cebe2dfce3043d0b53eb90996ec00846d7533b92865d6ff431bf8e810";
         autoStart = true;
         ports = [ "8000:8080" ];
         volumes = [
@@ -140,7 +140,7 @@ in
       };
 
       onepassword-connect-sync = podmanLib.mkContainer "onepassword-connect-sync" {
-        image = "docker.io/1password/connect-sync:1.8.1";
+        image = "docker.io/1password/connect-sync:1.8.1@sha256:d9ba03b9e56ad64dc7f2358bd9132a8ee5c6f0bdd2906a0866a639180777bde0";
         autoStart = true;
         volumes = [
           "${cfg.credentialsFile}:/home/opuser/.op/1password-credentials.json"
