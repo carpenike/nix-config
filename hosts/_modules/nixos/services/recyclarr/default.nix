@@ -453,7 +453,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/recyclarr/recyclarr:latest";
+      default = "ghcr.io/recyclarr/recyclarr:7.5.2@sha256:2550848d43a453f2c6adf3582f2198ac719f76670691d76de0819053103ef2fb";
       description = ''
         Full container image name including tag or digest.
 

@@ -48,7 +48,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/seerr-team/seerr:sha-b66b361";
+      default = "ghcr.io/seerr-team/seerr:sha-b66b361@sha256:1f562fb32eeb765f58661e3cee1001a573f038c5e981bee85539b9aa85473dfe";
       description = ''
         Full container image name including tag or digest.
 

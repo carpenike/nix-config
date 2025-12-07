@@ -37,7 +37,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/autobrr/autobrr:latest";
+      default = "ghcr.io/autobrr/autobrr:v1.70.0@sha256:c691d8ddd5184c155d1732244519f0c09dc44559a7a0da14c6d0dc3edf7fcfb3";
       description = ''
         Full container image name including tag or digest.
 
