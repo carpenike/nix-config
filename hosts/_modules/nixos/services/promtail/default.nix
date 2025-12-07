@@ -366,9 +366,10 @@ in
                 cfg.journal.dropIdentifiers);
               pipeline_stages = [
                 # Promote stable, low-cardinality labels for taxonomy
+                # Use 'environment' to match Prometheus external_labels for cross-system traceability
                 {
                   labels = {
-                    env = "homelab";
+                    environment = "homelab";
                   };
                 }
               ];
@@ -395,6 +396,12 @@ in
                   regex = "podman-(.+)\\.service";
                   target_label = "container";
                 }
+                # Also set 'service' label to match Prometheus alert labels for traceability
+                {
+                  source_labels = [ "__journal__systemd_unit" ];
+                  regex = "podman-(.+)\\.service";
+                  target_label = "service";
+                }
                 {
                   source_labels = [ "__journal__hostname" ];
                   target_label = "host";
@@ -406,9 +413,10 @@ in
               ];
               pipeline_stages = [
                 # Normalize taxonomy
+                # Use 'environment' to match Prometheus external_labels for cross-system traceability
                 {
                   labels = {
-                    env = "homelab";
+                    environment = "homelab";
                   };
                 }
                 # Parse container logs
@@ -456,7 +464,8 @@ in
                 }
               ];
               pipeline_stages = [
-                { labels = { env = "homelab"; }; }
+                # Use 'environment' to match Prometheus external_labels for cross-system traceability
+                { labels = { environment = "homelab"; }; }
                 # Parse container log format
                 {
                   regex = {
@@ -498,7 +507,8 @@ in
                 { source_labels = [ "__syslog_connection_ip_address" ]; target_label = "src_ip"; }
               ];
               pipeline_stages = [
-                { labels = { env = "homelab"; }; }
+                # Use 'environment' to match Prometheus external_labels for cross-system traceability
+                { labels = { environment = "homelab"; }; }
                 # Example drop rule for extremely chatty syslog senders
                 {
                   match = {

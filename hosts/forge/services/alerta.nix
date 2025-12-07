@@ -111,26 +111,45 @@ in
           # Enable proxy header support for proper OIDC callbacks behind Caddy
           USE_PROXYFIX = True
 
-          # Default environment for alerts
+          # Default environment for alerts (when none specified)
           DEFAULT_ENVIRONMENT = 'Production'
 
-          # Allow any environment (Alertmanager webhook may send custom values)
-          ALLOWED_ENVIRONMENTS = ['Production', 'Development', 'Staging', 'Test']
+          # Allow environments: homelab is used by our Prometheus alerts
+          ALLOWED_ENVIRONMENTS = ['Production', 'Development', 'Staging', 'Test', 'homelab']
 
           # Alert severity levels (aligned with Alertmanager + Alerta requirements)
           # Must include 'normal' for DEFAULT_NORMAL_SEVERITY
           # Must include 'indeterminate' for DEFAULT_PREVIOUS_SEVERITY
+          # Custom 'low' and 'medium' added to match Prometheus alerting module severities
           SEVERITY_MAP = {
             'critical': 1,
             'high': 2,
+            'medium': 3,        # Custom: maps to Prometheus 'medium' severity
             'warning': 3,
             'minor': 4,
+            'low': 5,           # Custom: maps to Prometheus 'low' severity
             'informational': 5,
             'indeterminate': 6,
             'normal': 7,
             'debug': 8,
             'ok': 9,
             'unknown': 10
+          }
+
+          # Color map for custom severities in WebUI
+          COLOR_MAP = {
+            'critical': '#FF0000',
+            'high': '#FF4500',
+            'medium': '#FFA500',
+            'warning': '#FFA500',
+            'minor': '#FFFF00',
+            'low': '#87CEEB',
+            'informational': '#00BFFF',
+            'indeterminate': '#808080',
+            'normal': '#00CC00',
+            'debug': '#9D006D',
+            'ok': '#00CC00',
+            'unknown': '#A6A6A6'
           }
 
           # Set default severities to match our severity map
