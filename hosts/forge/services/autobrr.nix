@@ -14,7 +14,6 @@ in
     {
       modules.services.autobrr = {
         enable = true;
-        image = "ghcr.io/autobrr/autobrr:latest";
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 

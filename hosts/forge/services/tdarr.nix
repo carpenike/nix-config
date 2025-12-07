@@ -9,7 +9,6 @@ in
       modules.services.tdarr = {
         # Tdarr - Transcoding automation
         enable = true;
-        image = "ghcr.io/haveagitgat/tdarr:latest";
         nfsMountDependency = "media";
         podmanNetwork = forgeDefaults.podmanNetwork; # Enable DNS resolution for media library access
         healthcheck.enable = true;

@@ -17,7 +17,6 @@ in
         # Seerr - Request management for Plex/Jellyfin/Emby
         # Using official ghcr.io/seerr-team/seerr image
         enable = true;
-        image = "ghcr.io/seerr-team/seerr:sha-b66b361";
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
