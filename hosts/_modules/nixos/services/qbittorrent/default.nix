@@ -188,9 +188,9 @@ in
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
-        memory = "1G";
+        memory = "2G";
         memoryReservation = "512M";
-        cpus = "4.0";
+        cpus = "8.0"; # High CPU for seeding/downloading many torrents
       };
       description = "Resource limits for the container";
     };

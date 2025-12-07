@@ -332,6 +332,7 @@ in
         ports = [
           "9696:9696"
         ];
+        resources = cfg.resources;
         extraOptions = [
           "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
         ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
