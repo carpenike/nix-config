@@ -29,12 +29,7 @@ in
           caddySecurity = forgeDefaults.caddySecurity.media;
         };
 
-        # Resource limits - 7d peak (156M) × 2.5 = 390M
-        resources = {
-          memory = "400M";
-          memoryReservation = "200M";
-          cpus = "1.0";
-        };
+        # Resource limits: use module defaults (256M memory, 1 CPU)
 
         # Enable backups
         backup = forgeDefaults.backup;

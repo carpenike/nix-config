@@ -27,12 +27,7 @@ in
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
-        # Resource limits - based on 7d peak (86M) × 2.5 = 215M, rounded up
-        resources = {
-          memory = "256M";
-          memoryReservation = "128M";
-          cpus = "2.0";
-        };
+        # Resource limits: use module defaults (2G memory, 8 CPUs for heavy torrent workloads)
 
         # Enable VueTorrent modern WebUI
         vuetorrent.enable = true;
