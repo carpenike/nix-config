@@ -324,6 +324,24 @@ in
       };
       users.groups.alertmanager = { };
 
+      # Contribute Alertmanager as a Grafana datasource (contribution pattern)
+      # This enables Grafana to query Alertmanager for active alerts, silences, etc.
+      modules.services.grafana.integrations.alertmanager = lib.mkIf (config.modules.services.grafana.enable or false) {
+        datasources.alertmanager = {
+          name = "Alertmanager";
+          uid = "alertmanager";
+          type = "alertmanager";
+          access = "proxy";
+          url = cfg.alertmanager.url;
+          jsonData = {
+            # Use Prometheus alertmanager implementation (vs Mimir/Cortex)
+            implementation = "prometheus";
+            # Allow Grafana to manage silences via this datasource
+            handleGrafanaManagedAlerts = false;
+          };
+        };
+      };
+
       # Alertmanager configuration using native *_file pattern for secrets
       services.prometheus.alertmanager = {
         enable = true;
