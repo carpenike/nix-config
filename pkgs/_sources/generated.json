@@ -1,4 +1,25 @@
 {
+    "alerta-webui": {
+        "cargoLocks": null,
+        "date": null,
+        "extract": null,
+        "name": "alerta-webui",
+        "passthru": null,
+        "pinned": false,
+        "src": {
+            "deepClone": false,
+            "fetchSubmodules": false,
+            "leaveDotGit": false,
+            "name": null,
+            "owner": "alerta",
+            "repo": "alerta-webui",
+            "rev": "v8.7.1",
+            "sha256": "sha256-dSLzs1rvbHq/z6RuKtqut0nQXTT/4js+5c/7IQBundM=",
+            "sparseCheckout": [],
+            "type": "github"
+        },
+        "version": "v8.7.1"
+    },
     "cooklang-cli": {
         "cargoLocks": null,
         "date": null,

@@ -53,6 +53,7 @@ This directory contains custom Nix package definitions that aren't available in 
 
 | Package | Description |
 |---------|-------------|
+| `alerta-webui` | Web UI for Alerta alert management system |
 | `cooklang-cli` | Cooklang recipe markup parser |
 | `cooklang-federation` | Recipe federation server |
 | `shcopy` | Shell-based file copy utility |

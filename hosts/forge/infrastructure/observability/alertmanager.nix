@@ -25,6 +25,15 @@
       urlSecret = "monitoring/healthchecks-url";
     };
 
+    # Alerta - Alert consolidation and deduplication dashboard
+    # Sends all alerts to Alerta in parallel with Pushover for visual dashboard
+    receivers.alerta = {
+      enable = true;
+      url = "http://127.0.0.1:5000/api/webhooks/prometheus";
+      # Note: No apiKeyFile - using unauthenticated internal webhook
+      # Alerta is internal-only and protected by reverse proxy + OIDC
+    };
+
     # Alert rules are defined co-located with services via modules.alerting.rules
     # This keeps them modular and DRY
     # Example: modules.alerting.rules."sonarr-failure" = { type = "event"; ... };

@@ -45,6 +45,7 @@ let
   atticPushEnabled = config.modules.services.attic-push.enable or false;
   pinchflatEnabled = config.modules.services.pinchflat.enable or false;
   kometaEnabled = config.modules.services.kometa.enable or false;
+  alertaEnabled = config.modules.services.alerta.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -133,6 +134,24 @@ in
             mode = "0440";
             owner = "root";
             group = "alertmanager";
+          };
+        }
+        // optionalAttrs alertaEnabled {
+          # Alerta OIDC client secret (for PocketID authentication)
+          "alerta/oidc_client_secret" = {
+            mode = "0400";
+            owner = "alerta";
+            group = "alerta";
+          };
+
+          # Alerta PostgreSQL database password
+          # Group-readable so postgresql-provision-databases.service (runs as postgres user)
+          # can hash the file for change detection. Alerta user is added to postgres group
+          # to read this file for PGPASSWORD environment variable.
+          "postgresql/alerta_password" = {
+            mode = "0440"; # owner+group read
+            owner = "root";
+            group = "postgres";
           };
         }
         // optionalAttrs dispatcharrEnabled {
@@ -678,6 +697,17 @@ in
       # of OCI containers, as it defers secret injection until system activation time.
       templates =
         { }
+        // optionalAttrs alertaEnabled {
+          "alerta-env" = {
+            content = ''
+              PGPASSWORD=${config.sops.placeholder."postgresql/alerta_password"}
+              OAUTH2_CLIENT_SECRET=${config.sops.placeholder."alerta/oidc_client_secret"}
+            '';
+            mode = "0400";
+            owner = "alerta";
+            group = "alerta";
+          };
+        }
         // optionalAttrs sonarrEnabled {
           "sonarr-env" = {
             content = ''

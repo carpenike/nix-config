@@ -193,6 +193,26 @@ in
       description = "SOPS secret name that contains the Healthchecks.io (or similar) webhook URL for dead man's switch.";
     };
 
+    receivers.alerta = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Enable Alerta webhook receiver for alert consolidation. When enabled, all alerts are sent to both Pushover AND Alerta.";
+      };
+
+      url = mkOption {
+        type = types.str;
+        default = "http://127.0.0.1:5000/api/webhooks/prometheus";
+        description = "Alerta webhook URL for receiving alerts from Alertmanager.";
+      };
+
+      apiKeyFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Path to file containing Alerta API key for webhook authentication. If null, uses unauthenticated webhook.";
+      };
+    };
+
     rules = mkOption {
       type = types.attrsOf ruleSubmodule;
       default = { };
@@ -351,6 +371,13 @@ in
                   continue = true; # Continue to severity-based delivery
                 }
               ]
+              # Optionally route ALL alerts to Alerta for consolidation dashboard
+              # This MUST come before Pushover routes since those have continue=false
+              ++ (lib.optional cfg.receivers.alerta.enable {
+                # Match all alerts (empty matchers = catch-all)
+                receiver = "alerta";
+                continue = true; # Continue to Pushover routes after sending to Alerta
+              })
               ++ [
                 {
                   matchers = [ "severity=\"critical\"" ];
@@ -485,6 +512,25 @@ in
               # infer this from the absence of alerts.
               send_resolved = true;
             }];
+          })
+          # Append the Alerta receiver if configured
+          # Alerta provides alert consolidation and deduplication dashboard
+          ++ (lib.optional cfg.receivers.alerta.enable {
+            name = "alerta";
+            webhook_configs = [
+              ({
+                url = cfg.receivers.alerta.url;
+                send_resolved = true;
+              } // lib.optionalAttrs (cfg.receivers.alerta.apiKeyFile != null) {
+                # Add API key header if configured
+                http_config = {
+                  authorization = {
+                    type = "Key";
+                    credentials_file = cfg.receivers.alerta.apiKeyFile;
+                  };
+                };
+              })
+            ];
           });
         };
       } // {

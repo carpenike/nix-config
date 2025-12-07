@@ -4,7 +4,11 @@ with lib;
 let
   cfg = config.modules.services.caddy;
 
+  # Helper: Check if vhost has a backend configured
+  hasBackend = vhost: vhost.backend != null || vhost.proxyTo != null;
+
   # Helper: Build backend URL from structured config
+  # Returns null if no backend is configured (handle-only mode)
   buildBackendUrl = vhost:
     if vhost.backend != null then
       "${vhost.backend.scheme}://${vhost.backend.host}:${toString vhost.backend.port}"
@@ -12,7 +16,7 @@ let
     # Legacy support: add http:// if no scheme present
       if hasPrefix "http" vhost.proxyTo then vhost.proxyTo else "http://${vhost.proxyTo}"
     else
-      throw "Virtual host '${vhost.hostName}' must specify either 'backend' or 'proxyTo'";
+      null; # Handle-only mode: no reverse_proxy generated
 
   # Helper: Generate TLS transport block for HTTPS backends
   generateTlsTransport = vhost:
@@ -636,6 +640,20 @@ in
             example = "localhost:8080";
           };
 
+          # Handle-only mode for custom routing (SPAs, file servers, etc.)
+          # When true and no backend is specified, no reverse_proxy is generated.
+          # The user must provide complete routing via extraConfig using handle blocks.
+          handleOnly = mkOption {
+            type = types.bool;
+            default = false;
+            description = ''
+              Enable handle-only mode for this virtual host.
+              When enabled with no backend, no reverse_proxy directive is generated.
+              Use extraConfig to provide custom routing via Caddy handle blocks.
+              Useful for SPAs, static file servers, and complex routing scenarios.
+            '';
+          };
+
           httpsBackend = mkOption {
             type = types.bool;
             default = false;
@@ -941,11 +959,11 @@ in
 
     # Validation for virtual hosts
     assertions =
-      # Virtual host validation
+      # Virtual host validation: must have backend OR be in handle-only mode with extraConfig
       (mapAttrsToList
         (name: vhost: {
-          assertion = !vhost.enable || (vhost.backend != null || vhost.proxyTo != null);
-          message = "Virtual host '${name}' must specify either 'backend' or 'proxyTo' when enabled.";
+          assertion = !vhost.enable || hasBackend vhost || (vhost.handleOnly && vhost.extraConfig != "");
+          message = "Virtual host '${name}' must specify either 'backend', 'proxyTo', or use 'handleOnly = true' with 'extraConfig'.";
         })
         cfg.virtualHosts) ++
       (mapAttrsToList
@@ -1004,6 +1022,8 @@ in
                   hasCaddySecurityBypassResources = caddySecurityBypassResources != [ ];
                   hasCaddySecurityBypass = hasCaddySecurityBypassPaths || hasCaddySecurityBypassResources;
 
+                  # Handle-only mode: skip reverse_proxy generation
+                  isHandleOnly = vhost.handleOnly || !hasBackend vhost;
                   backendUrl = buildBackendUrl vhost;
                   tlsTransport = generateTlsTransport vhost;
                   authMatcherName =
@@ -1074,7 +1094,10 @@ in
                     staticApiKeys));
 
                   reverseProxyDirective =
-                    if useCaddySecurity then ''
+                    if isHandleOnly then
+                    # Handle-only mode: no reverse_proxy, user provides routing in extraConfig
+                      ""
+                    else if useCaddySecurity then ''
                                       ${authMatcherName} {
                                         path /caddy-security/* /oauth2/*
                                       }
@@ -1103,9 +1126,9 @@ in
                     }
                     ''}
                       ${caddySecurityBypassConfig}${staticApiKeyConfig}
-                    # Reverse proxy to backend
+                    ${optionalString (!isHandleOnly) "# Reverse proxy to backend"}
                     ${reverseProxyDirective}
-                    ${optionalString (vhost.extraConfig != "") "# Additional site-level directives\n                  ${vhost.extraConfig}"}
+                    ${optionalString (vhost.extraConfig != "") (if isHandleOnly then "# Custom routing (handle-only mode)\n                  ${vhost.extraConfig}" else "# Additional site-level directives\n                  ${vhost.extraConfig}")}
                   }
                 '' else ""
               )
