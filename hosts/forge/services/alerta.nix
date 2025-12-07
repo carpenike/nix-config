@@ -88,6 +88,10 @@ in
         # Admin users (list of email addresses that always have admin privileges)
         adminUsers = [ "ryan@ryanholt.net" ];
 
+        # Admin roles (OIDC roles/groups that grant admin privileges)
+        # Users with "alerta-admins" role in PocketID will be granted admin access
+        adminRoles = [ "alerta-admins" ];
+
         # Reverse proxy configuration for external access
         # The module uses native Caddy config for custom SPA+API serving
         # No Caddy auth needed - Alerta handles OIDC internally
