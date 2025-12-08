@@ -264,6 +264,10 @@ in
   # Define the scrape targets for this instance of the monitoring hub.
   # If the hub were moved to another host, this block would move with it.
   services.prometheus = {
+    # Disable config check at build time because we use runtime secrets
+    # (credentials_file for OnCall metrics auth can't be accessed during nix build)
+    checkConfig = false;
+
     # Wire Prometheus to Alertmanager for alert delivery
     alertmanagers = [{
       static_configs = [{
@@ -281,11 +285,13 @@ in
       {
         job_name = "node";
         # List all hosts that this Prometheus instance should scrape.
+        # `host` label matches Loki's host label for cross-system correlation
+        # `instance` remains FQDN for Prometheus-native patterns
         static_configs = [
-          { targets = [ "127.0.0.1:9100" ]; labels = { instance = "forge.holthome.net"; }; }
+          { targets = [ "127.0.0.1:9100" ]; labels = { instance = "forge.holthome.net"; host = "forge"; }; }
           # Example for when other hosts are added:
-          # { targets = [ "luna.holthome.net:9100" ]; labels = { instance = "luna"; }; }
-          # { targets = [ "nas-1.holthome.net:9100" ]; labels = { instance = "nas-1"; }; }
+          # { targets = [ "luna.holthome.net:9100" ]; labels = { instance = "luna.holthome.net"; host = "luna"; }; }
+          # { targets = [ "nas-1.holthome.net:9100" ]; labels = { instance = "nas-1.holthome.net"; host = "nas-1"; }; }
         ];
       }
 
@@ -293,7 +299,7 @@ in
       {
         job_name = "postgres";
         static_configs = [
-          { targets = [ "127.0.0.1:9187" ]; labels = { instance = "forge.holthome.net"; }; }
+          { targets = [ "127.0.0.1:9187" ]; labels = { instance = "forge.holthome.net"; host = "forge"; }; }
         ];
       }
 
@@ -301,7 +307,7 @@ in
       {
         job_name = "prometheus";
         static_configs = [
-          { targets = [ "127.0.0.1:9090" ]; labels = { instance = "forge.holthome.net"; }; }
+          { targets = [ "127.0.0.1:9090" ]; labels = { instance = "forge.holthome.net"; host = "forge"; }; }
         ];
       }
 
@@ -309,8 +315,22 @@ in
       {
         job_name = "alertmanager";
         static_configs = [
-          { targets = [ "127.0.0.1:9093" ]; labels = { instance = "forge.holthome.net"; }; }
+          { targets = [ "127.0.0.1:9093" ]; labels = { instance = "forge.holthome.net"; host = "forge"; }; }
         ];
+      }
+
+      # Grafana OnCall metrics
+      # OnCall exposes metrics on its main port with Bearer token auth
+      {
+        job_name = "grafana-oncall";
+        metrics_path = "/metrics/";
+        static_configs = [
+          { targets = [ "127.0.0.1:8094" ]; labels = { instance = "forge.holthome.net"; host = "forge"; service = "grafana-oncall"; }; }
+        ];
+        authorization = {
+          type = "Bearer";
+          credentials_file = config.sops.secrets."grafana-oncall/metrics_secret".path;
+        };
       }
     ];
   };

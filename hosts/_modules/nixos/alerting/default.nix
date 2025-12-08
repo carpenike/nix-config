@@ -343,13 +343,15 @@ in
           route = {
             # Default receiver: OnCall if enabled, otherwise Pushover medium
             receiver = if cfg.receivers.oncall.enable then "grafana-oncall" else "pushover-medium";
-            # Optimized grouping strategy for homelab: consolidate alerts by host/job
-            # This reduces notification spam while maintaining visibility
-            group_by = [ "hostname" "job" ];
-            # Increased group_wait to catch cascading failures (e.g., disk full -> service fails)
-            group_wait = "45s";
-            # Allow more time for related alerts to accumulate before sending updates
-            group_interval = "5m";
+            # When OnCall is enabled: minimal grouping - let OnCall handle alert correlation
+            # When OnCall is disabled: group by hostname/job to reduce Pushover spam
+            group_by = if cfg.receivers.oncall.enable then [ "alertname" ] else [ "hostname" "job" ];
+            # Fast delivery to OnCall (it handles its own batching)
+            # Slower for Pushover to catch cascading failures
+            group_wait = if cfg.receivers.oncall.enable then "10s" else "45s";
+            # OnCall: fast resolution delivery (30s) - OnCall does its own grouping
+            # Pushover: batch updates to reduce notification spam (5m)
+            group_interval = if cfg.receivers.oncall.enable then "30s" else "5m";
             # Default repeat interval for medium alerts
             repeat_interval = "6h";
             routes =
@@ -372,7 +374,8 @@ in
                 group_wait = "15s";
                 repeat_interval = "15m";
               }]
-              ++ [
+              # Grouping routes only needed when NOT using OnCall (Pushover needs grouping)
+              ++ (lib.optionals (!cfg.receivers.oncall.enable) [
                 # System/container alerts: group all host-level issues together
                 {
                   matchers = [ "category=~\"system|container\"" ];
@@ -385,32 +388,22 @@ in
                   group_by = [ "hostname" "alertname" "repository" ];
                   continue = true;
                 }
-                # Storage-specific grouping: FIXED - removed 'dataset' to consolidate ZFS alerts
-                # All failing datasets for the same replication path now grouped together
+                # Storage-specific grouping: consolidate ZFS alerts
                 {
                   matchers = [ "category=~\"zfs|syncoid\"" ];
                   group_by = [ "instance" "alertname" "target_host" ];
-                  continue = true; # Continue to severity-based delivery
-                }
-              ]
-              # When OnCall is enabled: critical alerts go to BOTH OnCall and Pushover for redundancy
-              # This ensures we get notified even if OnCall has issues
-              ++ (lib.optionals cfg.receivers.oncall.enable [
-                {
-                  matchers = [ "severity=\"critical\"" ];
-                  receiver = "grafana-oncall";
-                  group_wait = "15s";
-                  repeat_interval = "15m";
-                  continue = true; # Continue to also send to Pushover
-                }
-                {
-                  matchers = [ "severity=\"critical\"" ];
-                  receiver = "pushover-critical";
-                  group_wait = "15s";
-                  repeat_interval = "15m";
-                  continue = false; # Terminal route
+                  continue = true;
                 }
               ])
+              # When OnCall is enabled: ALL alerts go to OnCall (no Pushover redundancy)
+              # OnCall handles escalation via its own Pushover webhook
+              # Meta-monitoring alerts (OnCallDown, etc.) already bypass OnCall above
+              # This eliminates double-notifications while maintaining safety via meta-alerts
+              #
+              # Note: We don't need severity-specific routes here because:
+              # - Default receiver is already grafana-oncall
+              # - OnCall handles escalation policies internally
+              # - Meta-alerts bypass OnCall and go directly to Pushover (configured above)
               # When OnCall is disabled OR for non-critical alerts when OnCall is enabled:
               # Route to appropriate Pushover receiver based on severity
               ++ (lib.optionals (!cfg.receivers.oncall.enable) [

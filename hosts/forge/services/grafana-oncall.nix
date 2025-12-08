@@ -88,10 +88,12 @@ in
         };
 
         # Container resource limits
+        # Engine needs more memory - uwsgi spawns multiple workers
+        # Increased from 512M due to OOM kills at high utilization
         resources = {
-          memory = "512M";
-          memoryReservation = "256M";
-          cpus = "1.0";
+          memory = "1G";
+          memoryReservation = "512M";
+          cpus = "2.0";
         };
 
         # Backup configuration (SQLite + config)

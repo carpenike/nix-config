@@ -38,6 +38,8 @@ let
         allServices;
 
       # Convert to Prometheus scrape_config format
+      # `host` matches Loki's host label for cross-system correlation
+      # `instance` uses FQDN for Prometheus-native patterns
       scrapeConfigs = mapAttrsToList
         (serviceName: service: {
           job_name = "service-${serviceName}";
@@ -45,7 +47,8 @@ let
             targets = [ "${service.metrics.interface or "127.0.0.1"}:${toString service.metrics.port}" ];
             labels = (service.metrics.labels or { }) // {
               service = serviceName;
-              instance = config.networking.hostName;
+              host = config.networking.hostName;
+              instance = "${config.networking.hostName}.${config.networking.domain or "local"}";
             };
           }];
           metrics_path = service.metrics.path or "/metrics";

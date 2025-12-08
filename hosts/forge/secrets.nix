@@ -267,10 +267,11 @@ in
           };
 
           # Grafana OnCall Prometheus metrics exporter secret
+          # Owned by prometheus so Prometheus can scrape OnCall metrics
           "grafana-oncall/metrics_secret" = {
             mode = "0400";
-            owner = "grafana-oncall";
-            group = "grafana-oncall";
+            owner = "prometheus";
+            group = "prometheus";
           };
 
           # Grafana OnCall Alertmanager integration webhook URL
