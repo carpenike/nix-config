@@ -18,6 +18,7 @@ let
   cooklangEnabled = config.modules.services.cooklang.enable or false;
   cooklangFederationEnabled = config.modules.services.cooklangFederation.enable or false;
   grafanaEnabled = config.modules.services.grafana.enable or false;
+  grafanaOncallEnabled = config.modules.services.grafana-oncall.enable or false;
   pocketIdEnabled = config.modules.services.pocketid.enable or false;
   esphomeEnabled = config.modules.services.esphome.enable or false;
   sonarrEnabled = config.modules.services.sonarr.enable or false;
@@ -255,6 +256,29 @@ in
             mode = "0400";
             owner = "grafana";
             group = "grafana";
+          };
+        }
+        // optionalAttrs grafanaOncallEnabled {
+          # Grafana OnCall Django secret key (32+ characters for encryption)
+          "grafana-oncall/secret_key" = {
+            mode = "0400";
+            owner = "grafana-oncall";
+            group = "grafana-oncall";
+          };
+
+          # Grafana OnCall Prometheus metrics exporter secret
+          "grafana-oncall/metrics_secret" = {
+            mode = "0400";
+            owner = "grafana-oncall";
+            group = "grafana-oncall";
+          };
+
+          # Grafana OnCall Alertmanager integration webhook URL
+          # Used by Alertmanager to send alerts to OnCall
+          "grafana-oncall/alertmanager-webhook-url" = {
+            mode = "0400";
+            owner = "alertmanager";
+            group = "alertmanager";
           };
         }
         // optionalAttrs pocketIdEnabled {

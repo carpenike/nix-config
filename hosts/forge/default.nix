@@ -88,6 +88,7 @@ in
     ./services/emqx.nix # Shared EMQX MQTT broker
     ./services/teslamate.nix # TeslaMate telemetry + dashboards
     ./services/frigate.nix # Frigate NVR service
+    ./services/grafana-oncall.nix # Grafana OnCall incident response platform
     ./services/scrypted.nix # Scrypted NVR/automation hub
     ./services/home-assistant.nix # Home Assistant automation platform
     ./services/homepage.nix # Homepage dashboard (LAN only)

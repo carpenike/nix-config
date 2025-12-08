@@ -29,6 +29,7 @@
     ./dnsdist
     ./glances
     ./grafana # Grafana monitoring dashboard
+    ./grafana-oncall # Grafana OnCall incident response platform
     ./haproxy
     ./home-assistant
     ./homepage # Homepage dashboard (native wrapper)

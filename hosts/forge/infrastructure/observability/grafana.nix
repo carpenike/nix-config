@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   domain = config.networking.domain;
@@ -12,6 +12,15 @@ let
     && (config.modules.services.backup.restic.enable or false);
   # Import forge defaults for standardized helpers
   forgeDefaults = import ../../lib/defaults.nix { inherit config lib; };
+
+  # OnCall configuration
+  oncallEnabled = config.modules.services.grafana-oncall.enable or false;
+  oncallApiUrl = "http://127.0.0.1:8094"; # OnCall engine internal URL
+  grafanaInternalUrl = "http://127.0.0.1:3000";
+  # Podman bridge IP - accessible from both host and containers
+  # Required for OnCall plugin: the grafanaUrl in plugin settings is used by both
+  # the plugin backend (on host) and synced to the OnCall engine DB (in container)
+  grafanaPodmanBridgeUrl = "http://10.89.0.1:3000";
 in
 {
   config = lib.mkMerge [
@@ -20,6 +29,10 @@ in
       # Configured directly on the individual module (not through observability meta-module)
       modules.services.grafana = {
         enable = true;
+
+        # Listen on all interfaces so containers (OnCall, etc.) can reach Grafana
+        # Security: Grafana requires OIDC authentication; host firewall will be enabled
+        listenAddress = "0.0.0.0";
 
         # ZFS dataset for persistence
         zfs = {
@@ -146,6 +159,99 @@ in
       # Prometheus service-down alert
       modules.alerting.rules."grafana-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "grafana" "Grafana" "metrics visualization";
+
+      # OnCall plugin auto-installation and configuration
+      # Required for OnCall plugin's service account authentication (Grafana 11+)
+      systemd.services.grafana.environment = lib.mkIf oncallEnabled {
+        # Preinstall the OnCall plugin at Grafana startup
+        GF_PLUGINS_PREINSTALL_SYNC = "grafana-oncall-app";
+        # Enable feature toggle for external service accounts (required for OnCall plugin)
+        GF_FEATURE_TOGGLES_ENABLE = "externalServiceAccounts";
+        # Enable managed service accounts in auth config
+        GF_AUTH_MANAGED_SERVICE_ACCOUNTS_ENABLED = "true";
+      };
+
+      # One-shot service to configure the OnCall plugin after Grafana starts
+      systemd.services.grafana-oncall-plugin-setup = lib.mkIf oncallEnabled {
+        description = "Configure Grafana OnCall plugin";
+        after = [ "grafana.service" "podman-grafana-oncall-engine.service" ];
+        wants = [ "grafana.service" ];
+        requires = [ "grafana.service" ];
+        wantedBy = [ "multi-user.target" ];
+
+        # Wait for Grafana to be ready, then configure the plugin
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          Restart = "on-failure";
+          RestartSec = "30s";
+        };
+
+        path = [ pkgs.curl pkgs.coreutils ];
+
+        script = ''
+          set -euo pipefail
+
+          GRAFANA_URL="${grafanaInternalUrl}"
+          ONCALL_URL="${oncallApiUrl}"
+
+          # Read admin password from sops secret
+          ADMIN_PASSWORD=$(cat ${config.sops.secrets."grafana/admin-password".path})
+
+          echo "Waiting for Grafana to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf "$GRAFANA_URL/api/health" >/dev/null 2>&1; then
+              echo "Grafana is ready"
+              break
+            fi
+            echo "Waiting for Grafana... ($i/30)"
+            sleep 2
+          done
+
+          echo "Waiting for OnCall engine to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf "$ONCALL_URL/health/" >/dev/null 2>&1; then
+              echo "OnCall engine is ready"
+              break
+            fi
+            echo "Waiting for OnCall engine... ($i/30)"
+            sleep 2
+          done
+
+          # Check if plugin is already configured
+          PLUGIN_STATUS=$(curl -sf -u "admin:$ADMIN_PASSWORD" "$GRAFANA_URL/api/plugins/grafana-oncall-app/settings" 2>/dev/null || echo '{"enabled":false}')
+          if echo "$PLUGIN_STATUS" | grep -q '"enabled":true'; then
+            echo "OnCall plugin already enabled, checking connection..."
+            # Trigger a sync to ensure connection is working
+            curl -sf -X POST -u "admin:$ADMIN_PASSWORD" "$GRAFANA_URL/api/plugins/grafana-oncall-app/resources/plugin/sync" || true
+            exit 0
+          fi
+
+          echo "Enabling OnCall plugin..."
+          # stackId=5, orgId=100 are the magic values for OSS/self-hosted OnCall
+          # grafanaUrl uses Podman bridge IP (10.89.0.1) so it's accessible from both:
+          # - Grafana plugin backend (on host)
+          # - OnCall engine container (synced to its DB during install)
+          curl -sf -X POST -u "admin:$ADMIN_PASSWORD" \
+            -H "Content-Type: application/json" \
+            "$GRAFANA_URL/api/plugins/grafana-oncall-app/settings" \
+            -d '{
+              "enabled": true,
+              "jsonData": {
+                "stackId": 5,
+                "orgId": 100,
+                "onCallApiUrl": "'"$ONCALL_URL"'",
+                "grafanaUrl": "${grafanaPodmanBridgeUrl}"
+              }
+            }'
+
+          echo "Installing OnCall plugin backend..."
+          curl -sf -X POST -u "admin:$ADMIN_PASSWORD" \
+            "$GRAFANA_URL/api/plugins/grafana-oncall-app/resources/plugin/install"
+
+          echo "OnCall plugin configured successfully"
+        '';
+      };
     })
   ];
 }

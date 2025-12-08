@@ -1,8 +1,8 @@
-{ ... }:
+{ config, ... }:
 
 {
   # Enable unified Alertmanager-based alerting system
-  # Handles notification routing and delivery (Pushover, etc.)
+  # Handles notification routing and delivery (Pushover, OnCall, etc.)
   # Prometheus configuration lives in monitoring.nix
   modules.alerting = {
     enable = true;
@@ -23,6 +23,14 @@
     # Dead man's switch - Healthchecks.io receiver for Watchdog alert
     receivers.healthchecks = {
       urlSecret = "monitoring/healthchecks-url";
+    };
+
+    # Grafana OnCall receiver: primary notification channel
+    # OnCall handles on-call schedules, escalation policies, and incident management
+    # Pushover is kept as a fallback for critical alerts and meta-monitoring
+    receivers.oncall = {
+      enable = config.modules.services.grafana-oncall.enable;
+      webhookUrlSecret = "grafana-oncall/alertmanager-webhook-url";
     };
 
     # Alert rules are defined co-located with services via modules.alerting.rules

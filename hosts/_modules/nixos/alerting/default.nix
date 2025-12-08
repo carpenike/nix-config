@@ -193,6 +193,20 @@ in
       description = "SOPS secret name that contains the Healthchecks.io (or similar) webhook URL for dead man's switch.";
     };
 
+    receivers.oncall = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Enable Grafana OnCall as a notification receiver.";
+      };
+
+      webhookUrlSecret = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "SOPS secret name that contains the Grafana OnCall Alertmanager integration webhook URL.";
+      };
+    };
+
     rules = mkOption {
       type = types.attrsOf ruleSubmodule;
       default = { };
@@ -327,7 +341,8 @@ in
         enable = true;
         configuration = {
           route = {
-            receiver = "pushover-medium";
+            # Default receiver: OnCall if enabled, otherwise Pushover medium
+            receiver = if cfg.receivers.oncall.enable then "grafana-oncall" else "pushover-medium";
             # Optimized grouping strategy for homelab: consolidate alerts by host/job
             # This reduces notification spam while maintaining visibility
             group_by = [ "hostname" "job" ];
@@ -348,6 +363,15 @@ in
                 group_interval = "1m";
                 repeat_interval = "1m";
               })
+              # Meta-monitoring alerts go directly to Pushover (bypass OnCall to avoid circular dependency)
+              # If OnCall is down, we still want to know about monitoring issues
+              ++ [{
+                matchers = [ "alertname=~\"AlertmanagerDown|OnCallDown|PrometheusDown\"" ];
+                receiver = "pushover-critical";
+                continue = false;
+                group_wait = "15s";
+                repeat_interval = "15m";
+              }]
               ++ [
                 # System/container alerts: group all host-level issues together
                 {
@@ -369,7 +393,27 @@ in
                   continue = true; # Continue to severity-based delivery
                 }
               ]
-              ++ [
+              # When OnCall is enabled: critical alerts go to BOTH OnCall and Pushover for redundancy
+              # This ensures we get notified even if OnCall has issues
+              ++ (lib.optionals cfg.receivers.oncall.enable [
+                {
+                  matchers = [ "severity=\"critical\"" ];
+                  receiver = "grafana-oncall";
+                  group_wait = "15s";
+                  repeat_interval = "15m";
+                  continue = true; # Continue to also send to Pushover
+                }
+                {
+                  matchers = [ "severity=\"critical\"" ];
+                  receiver = "pushover-critical";
+                  group_wait = "15s";
+                  repeat_interval = "15m";
+                  continue = false; # Terminal route
+                }
+              ])
+              # When OnCall is disabled OR for non-critical alerts when OnCall is enabled:
+              # Route to appropriate Pushover receiver based on severity
+              ++ (lib.optionals (!cfg.receivers.oncall.enable) [
                 {
                   matchers = [ "severity=\"critical\"" ];
                   receiver = "pushover-critical";
@@ -398,7 +442,7 @@ in
                   repeat_interval = "12h"; # Low severity should repeat less frequently than medium
                   continue = false; # Terminal route - stop routing after this
                 }
-              ];
+              ]);
           };
 
           # Inhibition rules to prevent redundant alerts
@@ -502,6 +546,19 @@ in
               # Send resolved notifications to signal "OK" state, though most services
               # infer this from the absence of alerts.
               send_resolved = true;
+            }];
+          })
+          # Append the Grafana OnCall receiver if configured
+          # OnCall provides escalation policies, on-call schedules, and incident management
+          ++ (lib.optional (cfg.receivers.oncall.enable && cfg.receivers.oncall.webhookUrlSecret != null) {
+            name = "grafana-oncall";
+            webhook_configs = [{
+              url_file = config.sops.secrets.${cfg.receivers.oncall.webhookUrlSecret}.path;
+              send_resolved = true;
+              # OnCall expects Alertmanager webhook format natively
+              http_config = {
+                follow_redirects = true;
+              };
             }];
           });
         };
