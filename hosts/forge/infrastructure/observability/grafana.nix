@@ -10,6 +10,8 @@ let
   resticEnabled =
     (config.modules.services.backup.enable or false)
     && (config.modules.services.backup.restic.enable or false);
+  # Import forge defaults for standardized helpers
+  forgeDefaults = import ../../lib/defaults.nix { inherit config lib; };
 in
 {
   config = lib.mkMerge [
@@ -112,6 +114,38 @@ in
           targetLocation = "nas-1";
         };
       };
+
+      # Homepage dashboard contribution
+      modules.services.homepage.contributions.grafana = {
+        group = "Monitoring";
+        name = "Grafana";
+        icon = "grafana";
+        href = grafanaUrl;
+        description = "Metrics visualization and dashboards";
+        siteMonitor = "http://127.0.0.1:3000";
+      };
+
+      # Gatus black-box monitoring
+      modules.services.gatus.contributions.grafana = {
+        name = "Grafana";
+        group = "Monitoring";
+        url = grafanaUrl;
+        interval = "60s";
+        conditions = [
+          "[STATUS] == 200"
+          "[RESPONSE_TIME] < 2000"
+        ];
+        alerts = [{
+          type = "pushover";
+          sendOnResolved = true;
+          failureThreshold = 3;
+          successThreshold = 1;
+        }];
+      };
+
+      # Prometheus service-down alert
+      modules.alerting.rules."grafana-service-down" =
+        forgeDefaults.mkSystemdServiceDownAlert "grafana" "Grafana" "metrics visualization";
     })
   ];
 }
