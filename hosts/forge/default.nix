@@ -45,7 +45,6 @@ in
     ./secrets.nix
 
     # Application Services
-    ./services/alerta.nix # Alerta alert consolidation and deduplication
     ./services/postgresql.nix # PostgreSQL database
     ./services/pgbackrest.nix # pgBackRest PostgreSQL backup system
     ./services/dispatcharr.nix # Dispatcharr service

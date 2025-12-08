@@ -32,7 +32,3 @@ fetch.github = "aymanbagabas/shcopy"
 [usage-cli]
 src.github = "jdx/usage"
 fetch.github = "jdx/usage"
-
-[alerta-webui]
-src.github = "alerta/alerta-webui"
-fetch.github = "alerta/alerta-webui"

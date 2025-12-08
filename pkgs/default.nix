@@ -4,7 +4,6 @@
 , ...
 }:
 {
-  alerta-webui = pkgs.callPackage ./alerta-webui.nix { };
   backup-list = pkgs.callPackage ./backup-list.nix { };
   backup-orchestrator = pkgs.callPackage ./backup-orchestrator.nix { };
   backup-status = pkgs.callPackage ./backup-status.nix { };

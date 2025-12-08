@@ -1,4 +1,4 @@
-{ config, ... }:
+{ ... }:
 
 {
   # Enable unified Alertmanager-based alerting system
@@ -23,15 +23,6 @@
     # Dead man's switch - Healthchecks.io receiver for Watchdog alert
     receivers.healthchecks = {
       urlSecret = "monitoring/healthchecks-url";
-    };
-
-    # Alerta - Alert consolidation and deduplication dashboard
-    # Sends all alerts to Alerta in parallel with Pushover for visual dashboard
-    receivers.alerta = {
-      enable = true;
-      url = "http://127.0.0.1:5000/webhooks/prometheus";
-      # API key for webhook authentication - generated via alerta CLI or web UI
-      apiKeyFile = config.sops.secrets."alerta/api_key".path;
     };
 
     # Alert rules are defined co-located with services via modules.alerting.rules

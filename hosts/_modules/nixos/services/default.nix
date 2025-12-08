@@ -3,7 +3,6 @@
 {
   imports = [
     ./adguardhome
-    ./alerta # Alerta alert consolidation and deduplication system
     ./attic.nix
     ./attic-admin.nix
     ./attic-push.nix
