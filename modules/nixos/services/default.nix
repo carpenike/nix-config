@@ -2,6 +2,7 @@
 }:
 {
   imports = [
+    ./actual # Actual Budget personal finance app (native wrapper)
     ./adguardhome
     ./attic.nix
     ./attic-admin.nix

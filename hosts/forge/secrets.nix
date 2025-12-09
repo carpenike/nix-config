@@ -37,6 +37,7 @@ let
   emqxEnabled = config.modules.services.emqx.enable or false;
   crossSeedEnabled = config.modules.services."cross-seed".enable or false;
   sabnzbdEnabled = config.modules.services.sabnzbd.enable or false;
+  actualEnabled = config.modules.services.actual.enable or false;
   autobrrEnabled = config.modules.services.autobrr.enable or false;
   quiEnabled = config.modules.services.qui.enable or false;
   unpackerrEnabled = config.modules.services.unpackerr.enable or false;
@@ -356,6 +357,17 @@ in
             owner = "pinchflat";
             group = "media";
             restartUnits = [ "pinchflat.service" ];
+          };
+        }
+        // optionalAttrs actualEnabled {
+          # Actual Budget OIDC client secret from PocketID
+          # Create client at: id.holthome.net with redirect URI:
+          # https://budget.holthome.net/openid/callback
+          "actual/oidc-client-secret" = {
+            mode = "0400";
+            owner = "actual";
+            group = "actual";
+            restartUnits = [ "actual.service" ];
           };
         }
         // optionalAttrs tautulliEnabled {
