@@ -2,169 +2,186 @@
 
 This directory contains comprehensive documentation for the NixOS configuration system.
 
-## Available Documentation
+## Quick Start
 
-### Architecture
+| Goal | Document |
+|------|----------|
+| **Understand the repo** | [Repository Architecture](./repository-architecture.md) |
+| **Create a new service** | [Modular Design Patterns](./modular-design-patterns.md#creating-new-service-modules) |
+| **Set up backups** | [Backup System Onboarding](./backup-system-onboarding.md#quick-start) |
+| **Bootstrap a new host** | [Bootstrap Quickstart](./bootstrap-quickstart.md) |
+| **Configure monitoring** | [Monitoring Strategy](./monitoring-strategy.md) |
 
-- **[Repository Architecture](./repository-architecture.md)** - ⚡ **Start here** - High-level overview of repository structure
+---
+
+## Architecture
+
+- **[Repository Architecture](./repository-architecture.md)** - ⚡ **Start here**
   - Directory layout and module organization
-  - `lib/` components and injection pattern
+  - `mylib` components and injection pattern
   - Host architecture patterns (single-disk vs two-disk)
   - Key patterns and conventions
 
-- **[Architectural Decision Records (ADRs)](./adr/README.md)** - Design decisions with context and rationale
+- **[Architectural Decision Records (ADRs)](./adr/README.md)** - Design decisions with context
   - [ADR-001: Contributory Infrastructure Pattern](./adr/001-contributory-infrastructure-pattern.md)
   - [ADR-002: Host-Level Defaults Library](./adr/002-host-level-defaults-library.md)
   - [ADR-003: Shared Types for Service Modules](./adr/003-shared-types-for-service-modules.md)
   - [ADR-004: Impermanence Host-Level Control](./adr/004-impermanence-host-level-control.md)
 
-### System Management
+---
 
-- **[Bootstrap Quickstart](./bootstrap-quickstart.md)** - ⚡ **Quick reference** for manually bootstrapping new NixOS hosts
-  - Step-by-step deployment workflow
-  - SOPS secrets integration
-  - Taskfile helper commands
-  - Common issues and solutions
-
-- **[Backup System Onboarding](./backup-system-onboarding.md)** - Complete guide for configuring Restic-based backups with ZFS integration, monitoring, automated testing, and service-specific profiles
-  - Host onboarding procedures
-  - Service backup configurations (UniFi, Omada, 1Password, Attic, System)
-  - Monitoring and alerting setup
-  - Troubleshooting guides
-
-- **[NFS Mount Management](./nfs-mount-management.md)** - DRY-based centralized NFS mount configuration across multiple hosts
-  - Server and share definitions
-  - Profile-based configuration (homelab, performance, reliability, readonly)
-  - Host-specific mount customization
-  - Integration with backup system
-  - Troubleshooting and best practices
-
-### Disaster Recovery & Persistence
-
-- **[Disaster Recovery Preseed Pattern](./disaster-recovery-preseed-pattern.md)** - ⚡ **Automated service restoration** using ZFS Syncoid replication
-  - Multi-tier restore strategy (Syncoid → Local → Restic)
-  - Implementation guide for native and containerized services
-  - Validated for Plex, Loki, Grafana, Sonarr, Radarr, Dispatcharr
-  - Testing procedures and troubleshooting
-
-- **[Persistence Quick Reference](./persistence-quick-reference.md)** - ZFS dataset management and service persistence patterns
-
-- **[Storage Module Guide](./storage-module-guide.md)** - Comprehensive guide for storage configuration
-
-### PostgreSQL & Database
-
-- **[PostgreSQL Auto-Restore (Quick Start)](./postgresql-auto-restore-quickstart.md)** - ⚡ **Automatic disaster recovery** for homelab servers - PostgreSQL restores from backup automatically when you rebuild
-- **[PostgreSQL Auto-Restore (Full Guide)](./postgresql-auto-restore-homelab.md)** - Complete documentation for automatic PostgreSQL restore on server rebuild
-- **[PostgreSQL Preseed Marker Fix](./postgresql-preseed-marker-fix.md)** - Root cause analysis and fix for PostgreSQL preseed marker persistence
-- **[PostgreSQL Repository Selection](./postgresql-preseed-repository-selection.md)** - repo1 (NFS) vs repo2 (R2) comparison and decision guide
-- **[PostgreSQL PITR Guide](./postgresql-pitr-guide.md)** - Manual point-in-time recovery procedures
-- **[PostgreSQL pgBackRest Migration](./postgresql-pgbackrest-migration.md)** - Migration from custom backup scripts to pgBackRest
-- **[PostgreSQL pgBackRest Offsite Backup Setup](./postgresql-offsite-backup-setup.md)** - Setting up Cloudflare R2 offsite backups
-
-### Network Services
-
-- **[AdGuard Modular Config](./adguard-modular-config.md)** - Modular AdGuard Home configuration patterns
-
-- **[DNSdist Shared Config](./dnsdist-shared-config.md)** - DNSdist configuration for shared DNS infrastructure
-
-### Monitoring & Observability
-
-- **[Monitoring Strategy](./monitoring-strategy.md)** - ⚡ **Black-box vs white-box monitoring** principles for homelab services
-  - Decision framework for Gatus vs Prometheus
-  - Service-specific monitoring guidance
-  - Alert routing and configuration strategies
-  - Anti-patterns to avoid
-
-### Module Development
+## Module Development
 
 - **[Modular Design Patterns](./modular-design-patterns.md)** - ⚡ **Required reading for new services**
   - Creating new service modules (native vs container decision)
   - Standardized submodule patterns (reverseProxy, metrics, logging, backup)
-  - Service module architecture and best practices
+  - `mylib.types` shared type definitions
+  - Host-level defaults library patterns
   - Anti-patterns to avoid
 
-### Package Management
+- **[Reverse Proxy Pattern](./reverse-proxy-pattern.md)** - Caddy integration patterns
 
-- **[Package Management Strategy](./package-management-strategy.md)** - Nix package management patterns and strategies
-
-- **[Nix Flake Improvement Plan](./nix-flake-improvement-plan.md)** - Roadmap for flake architecture improvements
-
-### Reference
-
-- **[Shared Config Example](./shared-config-example.md)** - Examples of shared configuration patterns
-
-- **[Analysis Directory](./analysis/)** - Design pattern analysis and architectural decisions
-
-## Quick Links
-
-### Getting Started
-
-1. **Creating a new service**: Read [Modular Design Patterns - Creating New Service Modules](./modular-design-patterns.md#creating-new-service-modules)
-2. **Setting up backups**: Start with [Backup System Onboarding](./backup-system-onboarding.md#quick-start)
-3. **Configuring NFS mounts**: See [NFS Mount Management Quick Start](./nfs-mount-management.md#quick-start)
-4. **Understanding the flake structure**: Review [Nix Flake Improvement Plan](./nix-flake-improvement-plan.md)
-
-### Common Tasks
-
-- **Create a new service module**: [Creating New Service Modules](./modular-design-patterns.md#creating-new-service-modules)
-- **Add monitoring to a service**: [Monitoring Strategy](./monitoring-strategy.md)
-- **Add a new host to backups**: [Host Onboarding](./backup-system-onboarding.md#host-onboarding)
-- **Enable service backups**: [Service Onboarding](./backup-system-onboarding.md#service-onboarding)
-- **Configure NAS mounts**: [NFS Configuration Reference](./nfs-mount-management.md#configuration-reference)
-
-### Troubleshooting
-
-- **Backup issues**: [Backup Troubleshooting](./backup-system-onboarding.md#troubleshooting)
-- **NFS mount problems**: [NFS Troubleshooting](./nfs-mount-management.md#troubleshooting)
-
-## Module Locations
-
-### Host Modules
-
-Located in `/modules/nixos/`:
-
-- **backup.nix** - Comprehensive backup system with Restic and ZFS integration
-- **services/backup-services.nix** - Pre-configured backup profiles for common services
-- **filesystems/nfs/** - Centralized NFS mount management
-- **filesystems/zfs/** - ZFS configuration modules
-
-### Home Modules
-
-Located in `/home/_modules/`:
-
-- Development tools
-- Shell configurations
-- Editor settings
-- Deployment utilities
-
-## Contributing
-
-When adding new features or modules:
-
-1. Update or create relevant documentation in this directory
-2. Follow the existing documentation structure
-3. Include practical examples and troubleshooting sections
-4. Add references to the module source files
-5. Update this README with links to new documentation
-
-## Documentation Standards
-
-All documentation should include:
-
-- **Table of Contents** - For documents longer than 3 sections
-- **Quick Start** - Minimal working example
-- **Configuration Reference** - Complete option documentation
-- **Examples** - Real-world usage patterns
-- **Troubleshooting** - Common issues and solutions
-- **Best Practices** - Recommended patterns
-
-## Related Resources
-
-- [NixOS Manual](https://nixos.org/manual/nixos/stable/)
-- [Nix Pills](https://nixos.org/guides/nix-pills/)
-- [NixOS Wiki](https://nixos.wiki/)
-- [NixOS Discourse](https://discourse.nixos.org/)
+- **[Modular Caddy Config](./modular-caddy-config.md)** - Caddy module architecture
 
 ---
 
-**Last Updated**: 2025-10-08
+## Authentication & Security
+
+- **[Authentication SSO Pattern](./authentication-sso-pattern.md)** - ⚡ **Pocket ID + Caddy Security**
+  - Native OIDC integration
+  - Trusted header auth (auth proxy)
+  - caddySecurity for single-user apps
+  - Hybrid auth patterns
+
+- **[API Key Authentication](./api-key-authentication.md)** - S2S and user API key patterns
+
+- **[Pocket ID Integration](./pocketid-integration-pattern.md)** - Passwordless SSO setup
+
+---
+
+## Backup & Disaster Recovery
+
+- **[Backup System Onboarding](./backup-system-onboarding.md)** - Complete Restic + ZFS guide
+  - Host onboarding procedures
+  - Service backup configurations
+  - ZFS replication (Sanoid/Syncoid)
+  - Monitoring and troubleshooting
+
+- **[Disaster Recovery Preseed Pattern](./disaster-recovery-preseed-pattern.md)** - ⚡ **Automated restoration**
+  - Multi-tier restore strategy (Syncoid → Local → Restic)
+  - Implementation for native and containerized services
+  - Testing procedures
+
+- **[Unified Backup Design Patterns](./unified-backup-design-patterns.md)** - Backup architecture
+
+- **[Preseed Restore Methods Guide](./preseed-restore-methods-guide.md)** - Which restore methods to use
+
+- **[Backup Forge Setup](./backup-forge-setup.md)** - Forge-specific backup configuration
+
+- **[Backup Metrics Reference](./backup-metrics-reference.md)** - Prometheus metrics for backups
+
+---
+
+## Storage & Persistence
+
+- **[Persistence Quick Reference](./persistence-quick-reference.md)** - ZFS dataset patterns
+
+- **[Storage Module Guide](./storage-module-guide.md)** - Declarative ZFS dataset management
+
+- **[ZFS Replication Setup](./zfs-replication-setup.md)** - Forge → NAS replication
+
+- **[NFS Mount Management](./nfs-mount-management.md)** - Centralized NFS configuration
+  - Server and share definitions
+  - Profile-based configuration
+  - Integration with backup system
+
+---
+
+## Monitoring & Observability
+
+- **[Monitoring Strategy](./monitoring-strategy.md)** - ⚡ **Black-box vs white-box**
+  - Gatus (black-box) vs Prometheus (white-box) decisions
+  - Service-specific monitoring guidance
+  - Alert routing strategies
+  - Anti-patterns to avoid
+
+- **[Metrics Pattern Usage](./metrics-pattern-usage.md)** - Prometheus metrics patterns
+
+- **[Structured Logging Framework](./structured-logging-framework.md)** - JSON logging patterns
+
+- **[Notifications](./notifications.md)** - Pushover, ntfy, Healthchecks.io
+
+---
+
+## PostgreSQL
+
+- **[PostgreSQL Auto-Restore](./postgresql-auto-restore-homelab.md)** - Automatic DR for homelab
+- **[PostgreSQL PITR Guide](./postgresql-pitr-guide.md)** - Point-in-time recovery procedures
+- **[PostgreSQL pgBackRest Migration](./postgresql-pgbackrest-migration.md)** - Migration guide
+- **[PostgreSQL Offsite Backup](./postgresql-offsite-backup-setup.md)** - Cloudflare R2 backups
+- **[PostgreSQL Preseed Marker Fix](./postgresql-preseed-marker-fix.md)** - DR troubleshooting
+- **[pgBackRest Multi-Repo Workaround](./pgbackrest-multi-repo-workaround.md)** - Multi-repo config
+- **[pgBackRest Unified Config](./pgbackrest-unified-config.md)** - Configuration patterns
+
+---
+
+## Network Services
+
+- **[AdGuard Modular Config](./adguard-modular-config.md)** - AdGuard Home patterns
+- **[DNSdist Shared Config](./dnsdist-shared-config.md)** - DNS infrastructure
+- **[Cloudflare Tunnel Implementation](./cloudflare-tunnel-implementation.md)** - External access
+
+---
+
+## System Management
+
+- **[Bootstrap Quickstart](./bootstrap-quickstart.md)** - ⚡ New host deployment
+- **[Container Image Management](./container-image-management.md)** - Image pinning and updates
+- **[Custom Package Patterns](./custom-package-patterns.md)** - Creating custom packages
+- **[Package Management Strategy](./package-management-strategy.md)** - Nix package patterns
+
+---
+
+## Service Operations
+
+- **[TeslaMate Operations](./teslamate-operations.md)** - TeslaMate stack management
+- **[UPS Monitoring](./ups-monitoring.md)** - Network UPS Tools configuration
+- **[Resilio Sync](./resilio-sync.md)** - Folder synchronization
+
+---
+
+## Reference
+
+- **[AI Orchestration](./ai_orchestration.md)** - How Copilot, Zen MCP, and Perplexity work together
+- **[Shared Config Example](./shared-config-example.md)** - Configuration patterns
+- **[*arr Services API Key Config](./arr-services-api-key-configuration.md)** - Sonarr/Radarr API keys
+
+### Subdirectories
+
+- **[services/](./services/)** - Service-specific implementation docs
+- **[analysis/](./analysis/)** - Design pattern analysis
+
+---
+
+## Contributing
+
+When adding new documentation:
+
+1. Follow the existing structure and formatting
+2. Include practical examples and troubleshooting sections
+3. Add "Last Updated" date in the header
+4. Update this README with links to new docs
+5. For design decisions, consider creating an ADR
+
+### Documentation Standards
+
+All documentation should include:
+
+- **Quick Start** - Minimal working example
+- **Configuration Reference** - Complete options
+- **Examples** - Real-world usage patterns
+- **Troubleshooting** - Common issues and solutions
+
+---
+
+**Last Updated**: December 9, 2025
