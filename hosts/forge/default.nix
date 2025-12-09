@@ -75,6 +75,7 @@ in
     ./services/unpackerr.nix # Unpackerr archive extraction for Starr apps
     ./services/seerr.nix # Seerr media request management (formerly Overseerr)
     ./services/autobrr.nix # Autobrr IRC announce bot
+    ./services/bichon.nix # Bichon email archiving system
     ./services/profilarr.nix # Profilarr profile sync for *arr services
     ./services/tdarr.nix # Tdarr transcoding automation
     ./services/cooklang.nix # Cooklang recipe management

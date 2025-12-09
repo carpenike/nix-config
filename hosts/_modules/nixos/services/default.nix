@@ -8,6 +8,7 @@
     ./attic-push.nix
     ./autobrr # Autobrr IRC announce bot for torrents
     ./backup # Unified backup management system
+    ./bichon # Bichon email archiving system
     ./backup-integration.nix # Legacy auto-discovery for service backup configurations
     ./bazarr # Bazarr subtitle manager
     ./bind
