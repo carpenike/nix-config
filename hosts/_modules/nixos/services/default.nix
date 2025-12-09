@@ -79,6 +79,7 @@
     ./teslamate # TeslaMate telemetry stack
     ./tautulli # Tautulli Plex monitoring (native wrapper)
     ./tdarr # Tdarr transcoding automation
+    ./thelounge # TheLounge IRC web client (native wrapper)
     ./tqm # tqm fast torrent management for racing
     ./unifi
     ./unpackerr # Unpackerr archive extraction for Starr apps

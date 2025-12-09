@@ -88,6 +88,7 @@ in
     ./services/paperless-ai.nix # Paperless-AI document tagging
     ./services/emqx.nix # Shared EMQX MQTT broker
     ./services/teslamate.nix # TeslaMate telemetry + dashboards
+    ./services/thelounge.nix # TheLounge IRC web client
     ./services/frigate.nix # Frigate NVR service
     ./services/grafana-oncall.nix # Grafana OnCall incident response platform
     ./services/scrypted.nix # Scrypted NVR/automation hub
