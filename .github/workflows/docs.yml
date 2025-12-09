@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 # GitHub Actions workflow for deploying documentation to GitHub Pages
 # Uses MkDocs Material to build a static site from docs/ directory
 
