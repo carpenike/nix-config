@@ -45,23 +45,6 @@ let
     else
       null;
 
-  findReplication = dsPath:
-    if dsPath == "" || dsPath == "." then null
-    else
-      let
-        sanoidDatasets = config.modules.backup.sanoid.datasets;
-        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
-        parentPath =
-          if lib.elem "/" (lib.stringToCharacters dsPath) then
-            lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
-          else
-            "";
-      in
-      if replicationInfo != null then
-        { sourcePath = dsPath; replication = replicationInfo; }
-      else
-        findReplication parentPath;
-
 in
 {
   options.modules.services.cooklangFederation = {
@@ -607,31 +590,10 @@ in
         dataset = cfg.datasetPath;
         mountpoint = cfg.dataDir;
         mainServiceUnit = serviceUnitFile;
-        replicationCfg =
-          let
-            datasetPath = cfg.datasetPath;
-            foundReplication = if datasetPath != null then findReplication datasetPath else null;
-          in
-          if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then null else
-          let
-            datasetSuffix =
-              if foundReplication.sourcePath == datasetPath then
-                ""
-              else
-                lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-          in
-          {
-            targetHost = foundReplication.replication.targetHost;
-            targetDataset =
-              if datasetSuffix == "" then
-                foundReplication.replication.targetDataset
-              else
-                "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-            sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-            sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-            sendOptions = foundReplication.replication.sendOptions or "w";
-            recvOptions = foundReplication.replication.recvOptions or "u";
-          };
+        replicationCfg = storageHelpers.mkReplicationConfig {
+          inherit config;
+          datasetPath = cfg.datasetPath;
+        };
         datasetProperties = {
           recordsize = "16K";
           compression = "zstd";

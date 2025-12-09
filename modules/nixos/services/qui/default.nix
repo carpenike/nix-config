@@ -16,63 +16,8 @@ let
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-qui.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/qui";
 
-  # Recursively find the replication config from the most specific dataset path upwards.
-  # This allows a service dataset (e.g., tank/services/qui) to inherit replication
-  # config from a parent dataset (e.g., tank/services) without duplication.
-  findReplication = dsPath:
-    if dsPath == "" || dsPath == "." then null
-    else
-      let
-        sanoidDatasets = config.modules.backup.sanoid.datasets;
-        # Check if replication is defined for the current path (datasets are flat keys, not nested)
-        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
-        # Determine the parent path for recursion
-        parentPath =
-          if lib.elem "/" (lib.stringToCharacters dsPath) then
-            lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
-          else
-            "";
-      in
-      # If found, return it. Otherwise, recurse to the parent.
-      if replicationInfo != null then
-        { sourcePath = dsPath; replication = replicationInfo; }
-      else if parentPath != "" then
-        findReplication parentPath
-      else
-        null;
-
-  # Execute the search for the current service's dataset
-  foundReplication = findReplication datasetPath;
-
-  # Build the final config attrset to pass to the preseed service.
-  # This only evaluates if replication is found and sanoid is enabled, preventing errors.
-  replicationConfig =
-    if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then
-      null
-    else
-      let
-        # Get the suffix, e.g., "qui" from "tank/services/qui" relative to "tank/services"
-        # Handle exact match case: if source path equals dataset path, suffix is empty
-        datasetSuffix =
-          if foundReplication.sourcePath == datasetPath then
-            ""
-          else
-            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-      in
-      {
-        targetHost = foundReplication.replication.targetHost;
-        # Construct the full target dataset path, e.g., "backup/forge/services/qui"
-        targetDataset =
-          if datasetSuffix == "" then
-            foundReplication.replication.targetDataset
-          else
-            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-        # Pass through sendOptions and recvOptions for syncoid
-        sendOptions = foundReplication.replication.sendOptions or "w";
-        recvOptions = foundReplication.replication.recvOptions or "u";
-      };
+  # Build replication config for preseed (walks up dataset tree to find inherited config)
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
 in
 {
   options.modules.services.qui = {

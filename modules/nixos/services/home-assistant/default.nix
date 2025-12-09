@@ -15,51 +15,8 @@ let
   defaultPort = 8123;
   datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
 
-  # Recursively walk dataset tree to find the closest replication config.
-  findReplication = dsPath:
-    if dsPath == "" || dsPath == "." then null
-    else
-      let
-        sanoidDatasets = (config.modules.backup.sanoid.datasets or { });
-        replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
-        parentPath =
-          if lib.elem "/" (lib.stringToCharacters dsPath) then
-            lib.removeSuffix ("/" + lib.last (lib.splitString "/" dsPath)) dsPath
-          else
-            "";
-      in
-      if replicationInfo != null then
-        { sourcePath = dsPath; replication = replicationInfo; }
-      else
-        findReplication parentPath;
-
-  foundReplication =
-    if config.modules.backup.sanoid.enable or false then
-      findReplication datasetPath
-    else
-      null;
-
-  replicationConfig =
-    if foundReplication == null then null else
-    let
-      datasetSuffix =
-        if foundReplication.sourcePath == datasetPath then
-          ""
-        else
-          lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-    in
-    {
-      targetHost = foundReplication.replication.targetHost;
-      targetDataset =
-        if datasetSuffix == "" then
-          foundReplication.replication.targetDataset
-        else
-          "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-      sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-      sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-      sendOptions = foundReplication.replication.sendOptions or "w";
-      recvOptions = foundReplication.replication.recvOptions or "u";
-    };
+  # Build replication config for preseed (walks up dataset tree to find inherited config)
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
 in
 {
   options.modules.services.home-assistant = {

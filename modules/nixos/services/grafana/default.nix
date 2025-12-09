@@ -29,29 +29,6 @@ let
   # Construct the dataset path for grafana
   datasetPath = "${storageCfg.datasets.parentDataset}/grafana";
 
-  # Recursively find the replication config from the most specific dataset path upwards.
-  findReplication = dsPath:
-    let
-      sanoidDatasets = config.modules.backup.sanoid.datasets;
-      replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
-    in
-    if replicationInfo != null then
-      {
-        sourcePath = dsPath;
-        replication = replicationInfo;
-      }
-    else
-      let
-        parts = lib.splitString "/" dsPath;
-        parentPath = lib.concatStringsSep "/" (lib.init parts);
-      in
-      if parentPath == "" || parts == [ ] then
-        null
-      else
-        findReplication parentPath;
-
-  foundReplication = findReplication datasetPath;
-
   # Shared dashboard provider type so downstream contributions stay consistent
   dashboardProviderType = types.submodule {
     options = {
@@ -71,30 +48,8 @@ let
     };
   };
 
-  # Compute replication config for preseed service
-  replicationConfig =
-    if foundReplication == null || !(config.modules.backup.sanoid.enable or false) then
-      null
-    else
-      let
-        datasetSuffix =
-          if foundReplication.sourcePath == datasetPath then
-            ""
-          else
-            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
-      in
-      {
-        targetHost = foundReplication.replication.targetHost;
-        targetDataset =
-          if datasetSuffix == "" then
-            foundReplication.replication.targetDataset
-          else
-            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
-        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser;
-        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
-        sendOptions = foundReplication.replication.sendOptions or "w";
-        recvOptions = foundReplication.replication.recvOptions or "u";
-      };
+  # Build replication config for preseed (walks up dataset tree to find inherited config)
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
 
   pocketIdEnabled = config.modules.services.pocketid.enable or false;
   oidcProviderName =

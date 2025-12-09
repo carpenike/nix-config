@@ -629,4 +629,110 @@
         };
       });
     };
+
+  /*
+    Recursively find the replication config from the most specific dataset path upwards.
+
+    This allows a service dataset (e.g., tank/services/sonarr) to inherit replication
+    config from a parent dataset (e.g., tank/services) without duplication.
+
+    Arguments:
+      - sanoidDatasets: (attrset) The modules.backup.sanoid.datasets configuration.
+      - datasetPath: (string) The full ZFS dataset path (e.g., "tank/services/sonarr").
+
+    Returns:
+      - attrset { sourcePath, replication } if found
+      - null if no replication config exists in the tree
+  */
+  findReplication = { sanoidDatasets, datasetPath }:
+    let
+      recurse = dsPath:
+        if dsPath == "" || dsPath == "." then null
+        else
+          let
+            # Check if replication is defined for the current path (datasets are flat keys, not nested)
+            replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
+            # Determine the parent path for recursion
+            parentPath =
+              if lib.elem "/" (lib.stringToCharacters dsPath) then
+                lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
+              else
+                "";
+          in
+          # If found, return it. Otherwise, recurse to the parent.
+          if replicationInfo != null then
+            { sourcePath = dsPath; replication = replicationInfo; }
+          else
+            recurse parentPath;
+    in
+    recurse datasetPath;
+
+  /*
+    Build a complete replication config for preseed, given sanoid configuration.
+
+    This is the main entry point for service modules. It finds replication config
+    by walking up the dataset tree and builds the full config attrset.
+
+    Arguments:
+      - config: (config) The full NixOS configuration.
+      - datasetPath: (string) The full ZFS dataset path (e.g., "tank/services/sonarr").
+
+    Returns:
+      - attrset with targetHost, targetDataset, sshUser, sshKeyPath, sendOptions, recvOptions
+      - null if no replication config exists or sanoid is disabled
+  */
+  mkReplicationConfig = { config, datasetPath }:
+    let
+      sanoidDatasets = config.modules.backup.sanoid.datasets or { };
+      sanoidEnabled = config.modules.backup.sanoid.enable or false;
+
+      # Find replication by walking up the dataset tree
+      foundReplication =
+        if datasetPath == null || datasetPath == "" then null
+        else
+          let
+            recurse = dsPath:
+              if dsPath == "" || dsPath == "." then null
+              else
+                let
+                  replicationInfo = (sanoidDatasets.${dsPath} or { }).replication or null;
+                  parentPath =
+                    if lib.elem "/" (lib.stringToCharacters dsPath) then
+                      lib.removeSuffix "/${lib.last (lib.splitString "/" dsPath)}" dsPath
+                    else
+                      "";
+                in
+                if replicationInfo != null then
+                  { sourcePath = dsPath; replication = replicationInfo; }
+                else
+                  recurse parentPath;
+          in
+          recurse datasetPath;
+    in
+    if foundReplication == null || !sanoidEnabled then
+      null
+    else
+      let
+        # Get the suffix, e.g., "sonarr" from "tank/services/sonarr" relative to "tank/services"
+        # Handle exact match case: if source path equals dataset path, suffix is empty
+        datasetSuffix =
+          if foundReplication.sourcePath == datasetPath then
+            ""
+          else
+            lib.removePrefix "${foundReplication.sourcePath}/" datasetPath;
+      in
+      {
+        targetHost = foundReplication.replication.targetHost;
+        # Construct the full target dataset path, e.g., "backup/forge/services/sonarr"
+        targetDataset =
+          if datasetSuffix == "" then
+            foundReplication.replication.targetDataset
+          else
+            "${foundReplication.replication.targetDataset}/${datasetSuffix}";
+        sshUser = foundReplication.replication.targetUser or config.modules.backup.sanoid.replicationUser or "root";
+        sshKeyPath = config.modules.backup.sanoid.sshKeyPath or "/var/lib/zfs-replication/.ssh/id_ed25519";
+        # Pass through sendOptions and recvOptions for syncoid
+        sendOptions = foundReplication.replication.sendOptions or "w";
+        recvOptions = foundReplication.replication.recvOptions or "u";
+      };
 }
