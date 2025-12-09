@@ -102,6 +102,30 @@
       sha256 = "sha256-MKlW8HrkXCYCOeO38F0S4c8mVbsG/VcZ+oGFC70amqQ=";
     };
   };
+  thelounge-theme-dracula = {
+    pname = "thelounge-theme-dracula";
+    version = "4366bdd8d17a35ec9d55e4825ddbbaff1ddc5c5e";
+    src = fetchFromGitHub {
+      owner = "dracula";
+      repo = "thelounge";
+      rev = "4366bdd8d17a35ec9d55e4825ddbbaff1ddc5c5e";
+      fetchSubmodules = false;
+      sha256 = "sha256-n/g8FPJC/pScNmTusv84B/CHrnoZ04fAPrNXBVzs82c=";
+    };
+    date = "2023-09-09";
+  };
+  thelounge-theme-mininapse = {
+    pname = "thelounge-theme-mininapse";
+    version = "e4093e5fac4e383a204a6e895698fb9f37682c31";
+    src = fetchFromGitHub {
+      owner = "MiniDigger";
+      repo = "thelounge-theme-mininapse";
+      rev = "e4093e5fac4e383a204a6e895698fb9f37682c31";
+      fetchSubmodules = false;
+      sha256 = "sha256-UIoEhmYaIjugjq2zRqBRCSet0ow1u/fSbZlo+y9kmJ0=";
+    };
+    date = "2023-08-20";
+  };
   usage-cli = {
     pname = "usage-cli";
     version = "v2.9.0";

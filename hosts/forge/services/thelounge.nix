@@ -8,7 +8,7 @@
 # Access is controlled via PocketID (admin group only).
 # Internal only - no Cloudflare Tunnel.
 
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -35,6 +35,12 @@ in
         # Disable native authentication (use caddySecurity instead)
         public = true;
 
+        # Themes - Dracula and Mininapse (dark minimal)
+        plugins = [
+          pkgs.thelounge-theme-dracula
+          pkgs.thelounge-theme-mininapse
+        ];
+
         # Default IRC network - Libera.Chat (successor to Freenode)
         defaultNetwork = {
           name = "Libera.Chat";
@@ -42,7 +48,7 @@ in
           port = 6697;
           tls = true;
           nick = "holthome";
-          join = "#nixos,#home-assistant";
+          join = "#nixos";
           lockNetwork = false; # Allow adding other networks
         };
 

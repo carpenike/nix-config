@@ -19,5 +19,7 @@
   # nvim = pkgs.callPackage ./nvim.nix _inputs;  # FIXME: References non-existent homes/bjw-s path
   shcopy = pkgs.callPackage ./shcopy.nix { };
   # talhelper = inputs.talhelper.packages.${pkgs.system}.default;
+  thelounge-theme-dracula = pkgs.callPackage ./thelounge-theme-dracula.nix { };
+  thelounge-theme-mininapse = pkgs.callPackage ./thelounge-theme-mininapse.nix { };
   usage = pkgs.callPackage ./usage.nix { };
 }

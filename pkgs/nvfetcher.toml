@@ -32,3 +32,13 @@ fetch.github = "aymanbagabas/shcopy"
 [usage-cli]
 src.github = "jdx/usage"
 fetch.github = "jdx/usage"
+
+[thelounge-theme-dracula]
+src.git = "https://github.com/dracula/thelounge.git"
+src.branch = "master"
+fetch.github = "dracula/thelounge"
+
+[thelounge-theme-mininapse]
+src.git = "https://github.com/MiniDigger/thelounge-theme-mininapse.git"
+src.branch = "master"
+fetch.github = "MiniDigger/thelounge-theme-mininapse"
