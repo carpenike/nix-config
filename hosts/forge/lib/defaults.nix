@@ -46,5 +46,12 @@ import ../../../lib/host-defaults.nix {
       mountPath = "/mnt/nas-backup";
       passwordSecret = "restic/password";
     };
+
+    # Impermanence configuration
+    impermanence = {
+      persistPath = "/persist";
+      rootPoolName = "rpool/local/root";
+      rootBlankSnapshotName = "blank";
+    };
   };
 }

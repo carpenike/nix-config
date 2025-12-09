@@ -241,7 +241,35 @@ in
         mountPoolsAtBoot = [ "rpool" ];
       };
 
-      system.impermanence.enable = true;
+      system.impermanence = {
+        enable = true;
+
+        # =====================================================================
+        # Service data persistence
+        # =====================================================================
+        # Luna uses a single-disk impermanent root. Services that store data
+        # in /var/lib/* need their directories listed here to survive reboots.
+        #
+        # Simple path:
+        #   "/var/lib/myservice"
+        #
+        # With ownership (for services that run as non-root):
+        #   { directory = "/var/lib/myservice"; user = "myservice"; group = "myservice"; mode = "0750"; }
+        # =====================================================================
+        directories = [
+          # Network controllers
+          "/var/lib/omada"
+          "/var/lib/unifi"
+
+          # Reverse proxy (ACME certificates)
+          {
+            directory = "/var/lib/caddy";
+            user = "caddy";
+            group = "caddy";
+            mode = "0750";
+          }
+        ];
+      };
 
       # Backup system disabled for now - needs full configuration
       # backup = {

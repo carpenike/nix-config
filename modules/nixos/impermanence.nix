@@ -1,3 +1,17 @@
+# =============================================================================
+# Impermanence Module with Contributory Pattern
+# =============================================================================
+#
+# This module implements ZFS root rollback and persistence management using
+# the contributory pattern. Services declare their own persistence needs:
+#
+#   modules.system.impermanence.directories = [ "/var/lib/myservice" ];
+#   modules.system.impermanence.files = [ "/etc/myservice.conf" ];
+#
+# Core system paths (logs, SSH keys, NixOS state) are always persisted.
+# Service-specific paths are contributed by individual service modules.
+#
+# =============================================================================
 { lib
 , config
 , pkgs
@@ -7,26 +21,119 @@ let
   cfg = config.modules.system.impermanence;
   # Check if systemd stage1 is enabled
   useSystemdInitrd = config.boot.initrd.systemd.enable or false;
+
+  # Type for persistence directory entries (supports both string and attrset forms)
+  persistenceDirType = lib.types.either lib.types.str (lib.types.submodule {
+    options = {
+      directory = lib.mkOption {
+        type = lib.types.str;
+        description = "Path to the directory to persist";
+      };
+      user = lib.mkOption {
+        type = lib.types.str;
+        default = "root";
+        description = "Owner user";
+      };
+      group = lib.mkOption {
+        type = lib.types.str;
+        default = "root";
+        description = "Owner group";
+      };
+      mode = lib.mkOption {
+        type = lib.types.str;
+        default = "0755";
+        description = "Directory mode";
+      };
+    };
+  });
 in
-with lib;
 {
   options.modules.system.impermanence = {
-    enable = mkEnableOption "system impermanence";
+    enable = lib.mkEnableOption "system impermanence";
+
     rootBlankSnapshotName = lib.mkOption {
       type = lib.types.str;
       default = "blank";
+      description = "Name of the blank ZFS snapshot to rollback to on boot";
     };
+
     rootPoolName = lib.mkOption {
       type = lib.types.str;
       default = "rpool/local/root";
+      description = "ZFS dataset path for the root filesystem";
     };
+
     persistPath = lib.mkOption {
       type = lib.types.str;
       default = "/persist";
+      description = "Path where persistent data is stored";
+    };
+
+    # =========================================================================
+    # Contributory options - services add their paths here
+    # =========================================================================
+
+    directories = lib.mkOption {
+      type = lib.types.listOf persistenceDirType;
+      default = [ ];
+      example = lib.literalExpression ''
+        [
+          "/var/lib/myservice"
+          { directory = "/var/lib/postgres"; user = "postgres"; group = "postgres"; mode = "0750"; }
+        ]
+      '';
+      description = ''
+        Directories to persist across reboots.
+
+        Services should contribute their persistence paths here:
+          modules.system.impermanence.directories = [ "/var/lib/myservice" ];
+
+        For directories requiring specific ownership:
+          modules.system.impermanence.directories = [{
+            directory = "/var/lib/myservice";
+            user = "myservice";
+            group = "myservice";
+            mode = "0750";
+          }];
+      '';
+    };
+
+    files = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "/etc/myservice.conf" ];
+      description = ''
+        Individual files to persist across reboots.
+
+        Services should contribute their persistence paths here:
+          modules.system.impermanence.files = [ "/etc/myservice.conf" ];
+      '';
     };
   };
 
   config = lib.mkIf cfg.enable {
+    # =========================================================================
+    # Core system persistence paths (always needed)
+    # =========================================================================
+
+    modules.system.impermanence.directories = [
+      "/var/log" # Persist logs between reboots for debugging
+      "/var/lib/cache" # Cache files (e.g., restic, nginx, containers)
+      "/var/lib/nixos" # NixOS state (uid/gid maps, etc.)
+    ];
+
+    modules.system.impermanence.files = [
+      # SSH keys are persisted via files option
+      "/etc/ssh/ssh_host_ed25519_key"
+      "/etc/ssh/ssh_host_ed25519_key.pub"
+      "/etc/ssh/ssh_host_rsa_key"
+      "/etc/ssh/ssh_host_rsa_key.pub"
+    ];
+
+    # =========================================================================
+    # ZFS rollback configuration
+    # =========================================================================
+
     # Rollback root to blank snapshot during initrd
     # Support both legacy and systemd stage1 initrd
     boot.initrd.postDeviceCommands = lib.mkIf (!useSystemdInitrd) (lib.mkAfter ''
@@ -47,33 +154,19 @@ with lib;
       '';
     };
 
-    # Define persistence paths
+    # =========================================================================
+    # Persistence configuration (aggregates all contributions)
+    # =========================================================================
+
     environment.persistence."${cfg.persistPath}" = {
       hideMounts = true;
-      directories = [
-        "/var/log" # Persist logs between reboots for debugging
-        "/var/lib/cache" # Cache files (e.g., restic, nginx, containers)
-        "/var/lib/nixos" # NixOS state
-        "/var/lib/omada" # Omada controller data
-        "/var/lib/unifi" # Unifi controller data
-        # Persist Caddy's ACME certificates to avoid Let's Encrypt rate limiting
-        # during frequent rebuilds/DR testing. Caddy still handles automatic renewal.
-        # This also ensures TLS metrics are immediately available on boot.
-        {
-          directory = "/var/lib/caddy";
-          user = "caddy";
-          group = "caddy";
-          mode = "0750";
-        }
-      ];
-      files = [
-        # Machine-id is handled by tmpfiles.rules as a symlink, not persisted directly
-        "/etc/ssh/ssh_host_ed25519_key" # SSH private key
-        "/etc/ssh/ssh_host_ed25519_key.pub" # SSH public key
-        "/etc/ssh/ssh_host_rsa_key" # RSA private key
-        "/etc/ssh/ssh_host_rsa_key.pub" # RSA public key
-      ];
+      directories = cfg.directories;
+      files = cfg.files;
     };
+
+    # =========================================================================
+    # Machine-ID handling
+    # =========================================================================
 
     # Handle machine-id setup in activation script (runs early in boot)
     system.activationScripts.persistMachineId = lib.stringAfter [ "etc" ] ''
@@ -103,6 +196,10 @@ with lib;
       fi
     '';
 
+    # =========================================================================
+    # SSH configuration
+    # =========================================================================
+
     # SSH key management is handled by systemd.tmpfiles.rules and impermanence
     # Remove the conflicting service that tries to manage the same files
     systemd.services.ssh-key-permissions = lib.mkForce { };
@@ -121,9 +218,8 @@ with lib;
       ];
     };
 
-    # Tmpfiles rules to ensure SSH keys are linked (but NOT machine-id, handled separately)
+    # Tmpfiles rules to ensure SSH keys are linked
     systemd.tmpfiles.rules = [
-      # SSH keys can be safely force-linked as they're generated at a known time
       "L+ /etc/ssh/ssh_host_ed25519_key - - - - ${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key"
       "L+ /etc/ssh/ssh_host_ed25519_key.pub - - - - ${cfg.persistPath}/etc/ssh/ssh_host_ed25519_key.pub"
       "L+ /etc/ssh/ssh_host_rsa_key - - - - ${cfg.persistPath}/etc/ssh/ssh_host_rsa_key"

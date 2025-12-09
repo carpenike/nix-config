@@ -54,8 +54,29 @@ let
   resticEnabled =
     (config.modules.services.backup.enable or false)
     && (config.modules.services.backup.restic.enable or false);
+
+  # Impermanence configuration
+  impermanenceConfig = hostConfig.impermanence or {
+    persistPath = "/persist";
+    rootPoolName = "rpool/local/root";
+    rootBlankSnapshotName = "blank";
+  };
 in
 {
+  # =============================================================================
+  # Impermanence Configuration
+  # =============================================================================
+
+  # Persist path for impermanence
+  persistPath = impermanenceConfig.persistPath;
+
+  # Full impermanence settings (for modules.system.impermanence)
+  impermanence = {
+    rootPoolName = impermanenceConfig.rootPoolName;
+    rootBlankSnapshotName = impermanenceConfig.rootBlankSnapshotName;
+    persistPath = impermanenceConfig.persistPath;
+  };
+
   # =============================================================================
   # Container Networking
   # =============================================================================
