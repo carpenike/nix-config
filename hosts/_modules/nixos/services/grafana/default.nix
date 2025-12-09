@@ -424,6 +424,11 @@ in
               access = "proxy";
               url = "http://${config.modules.services.loki.listenAddress or "127.0.0.1"}:${toString (config.modules.services.loki.port or 3100)}";
               isDefault = false;
+              # Increase timeout for large log queries (default is 30s)
+              jsonData = {
+                timeout = 120; # seconds
+                maxLines = 5000;
+              };
             };
           } else { };
 
@@ -537,6 +542,12 @@ in
             } // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
               root_url = "https://${cfg.reverseProxy.hostName}";
             });
+            # Increase dataproxy timeout for slow datasources (Loki large queries)
+            # Default is 30s which is often insufficient for log queries
+            dataproxy = {
+              timeout = 120; # seconds
+              keep_alive_seconds = 120;
+            };
             security = {
               admin_user = cfg.secrets.adminUser;
             } // (lib.optionalAttrs (cfg.secrets.adminPasswordFile != null) {

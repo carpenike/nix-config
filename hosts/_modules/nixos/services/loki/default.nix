@@ -284,6 +284,10 @@ in
               http_listen_port = cfg.port;
               grpc_listen_port = cfg.grpcPort;
               log_level = cfg.logLevel;
+              # Increase HTTP timeouts for large queries from Grafana
+              http_server_read_timeout = "300s";
+              http_server_write_timeout = "300s";
+              http_server_idle_timeout = "120s";
             };
 
             auth_enabled = false;
@@ -335,6 +339,8 @@ in
               ingestion_rate_mb = 4;
               ingestion_burst_size_mb = 6;
               allow_structured_metadata = false; # Required for schema v11
+              # Query timeout - must be >= Grafana dataproxy timeout (120s)
+              query_timeout = "5m";
             };
 
             compactor = {

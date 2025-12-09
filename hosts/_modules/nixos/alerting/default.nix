@@ -343,9 +343,11 @@ in
           route = {
             # Default receiver: OnCall if enabled, otherwise Pushover medium
             receiver = if cfg.receivers.oncall.enable then "grafana-oncall" else "pushover-medium";
-            # When OnCall is enabled: minimal grouping - let OnCall handle alert correlation
+            # When OnCall is enabled: group by alertname + name to preserve per-instance annotations
+            # The 'name' label is used by systemd alerts (unit name), container alerts, etc.
+            # This ensures commonAnnotations.summary is preserved for each distinct alert instance
             # When OnCall is disabled: group by hostname/job to reduce Pushover spam
-            group_by = if cfg.receivers.oncall.enable then [ "alertname" ] else [ "hostname" "job" ];
+            group_by = if cfg.receivers.oncall.enable then [ "alertname" "name" ] else [ "hostname" "job" ];
             # Fast delivery to OnCall (it handles its own batching)
             # Slower for Pushover to catch cascading failures
             group_wait = if cfg.receivers.oncall.enable then "10s" else "45s";

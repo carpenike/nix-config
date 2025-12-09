@@ -344,6 +344,14 @@ in
                   target_label = "app";
                   replacement = "$1";
                 }
+                # Also set 'service' label to match container logs and Prometheus alerts
+                # This enables consistent log queries across systemd and container sources
+                {
+                  source_labels = [ "__journal__systemd_unit" ];
+                  regex = "([^.]+)\\.service";
+                  target_label = "service";
+                  replacement = "$1";
+                }
                 {
                   source_labels = [ "__journal__hostname" ];
                   target_label = "host";
