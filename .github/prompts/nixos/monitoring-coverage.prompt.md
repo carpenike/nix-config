@@ -34,6 +34,8 @@ You are validating monitoring coverage for services in `nix-config`. Confirm tha
 - Summary of verification steps plus any outstanding TODOs (e.g., add dashboard, create credentials).
 
 ## References
+
 - `docs/monitoring-strategy.md`
+- `docs/adr/006-black-box-white-box-monitoring.md` - Gatus vs Prometheus decision framework
 - `hosts/forge/README.md`
 - Existing alert examples under `hosts/forge/services/`

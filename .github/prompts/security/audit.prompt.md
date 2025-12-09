@@ -29,7 +29,9 @@ Provide:
 4. References to relevant docs for each issue.
 
 ## References
+
 - `.github/instructions/security-instructions.md`
+- `docs/adr/008-authentication-priority-framework.md` - Auth pattern decisions
 - `docs/backup-system-onboarding.md`
 - `docs/monitoring-strategy.md`
 - `hosts/forge/README.md`

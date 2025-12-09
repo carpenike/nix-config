@@ -1,8 +1,8 @@
 agent: ask
 description: Scaffold a new NixOS service module with storage, backup, and monitoring integrations
-version: 2.11
+version: 2.12
 last_updated: 2025-12-09
-changelog: "v2.11: Added Central Library Patterns section documenting mylib.types, mylib.storageHelpers (mkReplicationConfig, mkNfsMountConfig, mkPreseedService), and ADR references. Updated references to include repository-architecture.md and ADRs. v2.10: Added Trusted Header Auth pattern (auth proxy) for multi-user apps that accept Remote-User/X-Email headers from proxy (grafana, organizr). Reorganized auth patterns with 6 tiers. Added research checklist for proxy auth support. v2.9: Revised auth priority - prefer disabling native auth + caddySecurity for single-user apps over per-app auth. Native OIDC now only recommended when multi-user authorization matters (user X can do Y). Added Pattern 2 for disable-auth+caddySecurity workflow. Updated decision matrix and examples. v2.8: Added mandatory OIDC/native auth research to Step 0 - always prefer native OIDC over proxy auth. Added hybrid auth pattern (PocketID SSO + API key injection) for services like paperless-ai. Clarified auth decision matrix with priority order. v2.7: Added OIDC/PocketID integration patterns with examples from paperless/mealie/autobrr. Added mylib.monitoring-helpers library documentation for complex alerts. Added healthcheck.enable pattern for container services. Added nfsMountDependency pattern for media services needing NAS access. Added Gatus alert configuration (pushover, thresholds). Expanded forgeDefaults.mkBackupWithTags and backupTags documentation. v2.6: Added mandatory NixOS MCP server research step to check for native packages/modules in both unstable and stable branches BEFORE any other work. Added pkgs.unstable pattern documentation for using newer package versions. Added default Homepage and Gatus contribution requirements for services with web endpoints. v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags."
+changelog: "v2.12: Updated ADR references section with all 9 ADRs (005-009 added). Highlighted ADR-005 (native vs container) and ADR-008 (auth priority) as critical for decision-making. v2.11: Added Central Library Patterns section documenting mylib.types, mylib.storageHelpers (mkReplicationConfig, mkNfsMountConfig, mkPreseedService), and ADR references. Updated references to include repository-architecture.md and ADRs. v2.10: Added Trusted Header Auth pattern (auth proxy) for multi-user apps that accept Remote-User/X-Email headers from proxy (grafana, organizr). Reorganized auth patterns with 6 tiers. Added research checklist for proxy auth support. v2.9: Revised auth priority - prefer disabling native auth + caddySecurity for single-user apps over per-app auth. Native OIDC now only recommended when multi-user authorization matters (user X can do Y). Added Pattern 2 for disable-auth+caddySecurity workflow. Updated decision matrix and examples. v2.8: Added mandatory OIDC/native auth research to Step 0 - always prefer native OIDC over proxy auth. Added hybrid auth pattern (PocketID SSO + API key injection) for services like paperless-ai. Clarified auth decision matrix with priority order. v2.7: Added OIDC/PocketID integration patterns with examples from paperless/mealie/autobrr. Added mylib.monitoring-helpers library documentation for complex alerts. Added healthcheck.enable pattern for container services. Added nfsMountDependency pattern for media services needing NAS access. Added Gatus alert configuration (pushover, thresholds). Expanded forgeDefaults.mkBackupWithTags and backupTags documentation. v2.6: Added mandatory NixOS MCP server research step to check for native packages/modules in both unstable and stable branches BEFORE any other work. Added pkgs.unstable pattern documentation for using newer package versions. Added default Homepage and Gatus contribution requirements for services with web endpoints. v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags."
 ---
 # NixOS Service Module Scaffold
 
@@ -1263,10 +1263,16 @@ in
 ### Architecture Decision Records
 
 For understanding *why* these patterns exist:
+
 - **ADR-001**: Contributory infrastructure pattern
 - **ADR-002**: Host-level defaults library
 - **ADR-003**: Shared types for service modules
 - **ADR-004**: Impermanence host-level control
+- **ADR-005**: Native services over containers ← **Critical for Step 0**
+- **ADR-006**: Black-box vs white-box monitoring
+- **ADR-007**: Multi-tier disaster recovery (preseed)
+- **ADR-008**: Authentication priority framework ← **Critical for auth decisions**
+- **ADR-009**: Thin orchestrator pattern (for multi-service stacks)
 
 See [`docs/adr/README.md`](../../docs/adr/README.md) for the full list.
 

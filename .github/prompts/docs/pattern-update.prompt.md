@@ -27,9 +27,13 @@ You are refreshing repo documentation (e.g., `docs/modular-design-patterns.md`, 
 ## Deliverables
 - Updated documentation file(s) with clear headings, code blocks, and references.
 - Optional diagrams or tables if they clarify the change.
+- **Consider creating an ADR** if the change represents a significant architectural decision (see `docs/adr/README.md` for template).
 - Note of any follow-up tasks (e.g., migrate remaining services).
 
 ## References
+
+- `docs/repository-architecture.md` - High-level structure overview
+- `docs/adr/README.md` - ADR index and template
 - `docs/modular-design-patterns.md`
 - `docs/persistence-quick-reference.md`
 - `docs/monitoring-strategy.md`
