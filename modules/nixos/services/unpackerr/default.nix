@@ -17,11 +17,14 @@
 # Reference: https://unpackerr.zip/docs/
 { lib
 , mylib
+, pkgs
 , config
 , podmanLib
 , ...
 }:
 let
+  # Import pure storage helpers library (not a module argument to avoid circular dependency)
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   # Import shared type definitions (for containerResourcesSubmodule)
   sharedTypes = mylib.types;
 
@@ -29,7 +32,7 @@ let
   notificationsCfg = config.modules.notifications;
   hasCentralizedNotifications = notificationsCfg.enable or false;
   nfsMountName = cfg.nfsMountDependency;
-  nfsMountConfig = if nfsMountName != null then config.modules.storage.nfsMounts.${nfsMountName} or null else null;
+  nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-unpackerr.service";
 
   # Build environment variables for container

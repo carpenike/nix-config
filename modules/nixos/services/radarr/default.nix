@@ -25,10 +25,7 @@ let
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
-  nfsMountConfig =
-    if nfsMountName != null
-    then config.modules.storage.nfsMounts.${nfsMountName} or null
-    else null;
+  nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };

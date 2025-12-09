@@ -735,4 +735,29 @@
         sendOptions = foundReplication.replication.sendOptions or "w";
         recvOptions = foundReplication.replication.recvOptions or "u";
       };
+
+  /*
+    Resolves an NFS mount configuration from a dependency name.
+
+    Given an NFS mount dependency name (e.g., "media"), looks up the corresponding
+    mount configuration from `config.modules.storage.nfsMounts`. Returns null if
+    no dependency is declared or if the mount doesn't exist.
+
+    Arguments:
+      - config: The NixOS configuration object
+      - nfsMountDependency: (string or null) The name of the NFS mount dependency
+
+    Returns:
+      The NFS mount configuration attrset, or null if not found/not declared.
+
+    Example:
+      nfsMountConfig = storageHelpers.mkNfsMountConfig {
+        inherit config;
+        nfsMountDependency = cfg.nfsMountDependency;
+      };
+  */
+  mkNfsMountConfig = { config, nfsMountDependency }:
+    if nfsMountDependency != null
+    then config.modules.storage.nfsMounts.${nfsMountDependency} or null
+    else null;
 }

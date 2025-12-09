@@ -22,9 +22,11 @@
 #     backup = forgeDefaults.backup;
 #   };
 #
-{ config, lib, mylib, ... }:
+{ config, lib, mylib, pkgs, ... }:
 
 let
+  # Import pure storage helpers library (not a module argument to avoid circular dependency)
+  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   cfg = config.modules.services.pinchflat;
   serviceName = "pinchflat";
 
@@ -33,10 +35,7 @@ let
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;
-  nfsMountConfig =
-    if nfsMountName != null
-    then config.modules.storage.nfsMounts.${nfsMountName} or null
-    else null;
+  nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
 in
 {
   options.modules.services.pinchflat = {
