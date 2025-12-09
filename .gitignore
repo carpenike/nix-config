@@ -34,3 +34,6 @@ __pycache__/
 # Task files
 # tasks.json
 # tasks/
+
+# MkDocs build output
+site/

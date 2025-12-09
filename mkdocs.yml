@@ -51,6 +51,10 @@ plugins:
       separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])'
   - tags
 
+# Exclude docs/README.md since index.md is the homepage
+exclude_docs: |
+  /README.md
+
 markdown_extensions:
   # Admonitions (callouts, tips, warnings)
   - admonition
