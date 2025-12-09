@@ -76,6 +76,7 @@
     ./kometa # Kometa Plex metadata manager (formerly Plex Meta Manager)
     ./sabnzbd # SABnzbd usenet download client
     ./scrypted # Scrypted NVR / automation hub
+    ./searxng # SearXNG meta search engine
     ./sonarr
     ./teslamate # TeslaMate telemetry stack
     ./tautulli # Tautulli Plex monitoring (native wrapper)

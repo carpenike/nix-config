@@ -85,6 +85,15 @@ in
           baseUrl = "http://mac-mini.holthome.net:1234/v1";
         };
 
+        # SearXNG web search integration for RAG
+        # SearXNG is deployed locally at port 8888 with JSON format enabled
+        searxng = {
+          enable = true;
+          queryUrl = "http://127.0.0.1:8888/search?q=<query>";
+          resultCount = 5;
+          concurrentRequests = 10;
+        };
+
         reverseProxy = {
           enable = true;
           hostName = serviceDomain;

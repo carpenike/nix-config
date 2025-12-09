@@ -48,6 +48,7 @@ let
   atticPushEnabled = config.modules.services.attic-push.enable or false;
   pinchflatEnabled = config.modules.services.pinchflat.enable or false;
   kometaEnabled = config.modules.services.kometa.enable or false;
+  searxngEnabled = config.modules.services.searxng.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -591,6 +592,14 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+          };
+        }
+        // optionalAttrs searxngEnabled {
+          # SearXNG secret key for CSRF protection (environment file format)
+          "searxng/secret-key" = {
+            mode = "0400";
+            owner = "searx";
+            group = "searx";
           };
         }
         // optionalAttrs litellmEnabled {

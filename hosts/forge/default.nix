@@ -93,6 +93,7 @@ in
     ./services/frigate.nix # Frigate NVR service
     ./services/grafana-oncall.nix # Grafana OnCall incident response platform
     ./services/scrypted.nix # Scrypted NVR/automation hub
+    ./services/searxng.nix # SearXNG meta search engine
     ./services/home-assistant.nix # Home Assistant automation platform
     ./services/homepage.nix # Homepage dashboard (LAN only)
     ./services/zigbee2mqtt.nix # Zigbee2MQTT coordinator service
