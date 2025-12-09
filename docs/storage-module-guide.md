@@ -15,7 +15,7 @@ The NixOS storage module provides declarative ZFS dataset management for service
 └─────────────────────────────────────────┘
                   ↓
 ┌─────────────────────────────────────────┐
-│ storage module (hosts/_modules/nixos/)  │
+│ storage module (modules/nixos/)  │
 │ • Creates service datasets dynamically  │
 │ • Sets ZFS properties per service       │
 │ • Manages mountpoints and permissions   │

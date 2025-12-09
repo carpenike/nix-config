@@ -95,7 +95,7 @@ On system activation, the PostgreSQL module:
 One secret is required:
 
 ```yaml
-# hosts/_modules/nixos/services/dispatcharr/secrets.sops.yaml
+# modules/nixos/services/dispatcharr/secrets.sops.yaml
 dispatcharr:
   db_password: <secure-password>
 ```
@@ -193,7 +193,7 @@ openssl rand -base64 32 > /tmp/db_password
 ### Step 2: Create SOPS Secrets File
 
 ```bash
-cd hosts/_modules/nixos/services/dispatcharr
+cd modules/nixos/services/dispatcharr
 
 # Copy example
 cp secrets.sops.yaml.example secrets.sops.yaml

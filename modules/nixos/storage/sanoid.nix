@@ -489,7 +489,7 @@ in
       # This service was designed to make .zfs/snapshot directories visible for datasets.
       # However, the backup system now uses ZFS clones mounted at /var/lib/backup-snapshots/
       # which completely avoids the .zfs virtual directory, making this service obsolete.
-      # See hosts/_modules/nixos/services/backup/snapshots.nix for the clone-based approach.
+      # See modules/nixos/services/backup/snapshots.nix for the clone-based approach.
 
       # Use a static user for sanoid to allow pre-boot permission delegation
       {

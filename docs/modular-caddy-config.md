@@ -3,7 +3,7 @@
 ## Architecture Overview
 
 The reverse proxy configuration has been refactored to support modular service registration from both:
-- **Service modules** (`hosts/_modules/nixos/services/*/`)
+- **Service modules** (`modules/nixos/services/*/`)
 - **Host-specific configs** (`hosts/*/service.nix`)
 
 This design decouples service registration from the Caddy implementation, preventing circular dependencies and enabling clean separation of concerns.
@@ -38,7 +38,7 @@ The configuration has been enhanced with structured types and security improveme
 ## Key Components
 
 ### 1. Registry Module
-**Location**: `hosts/_modules/nixos/services/reverse-proxy/registry.nix`
+**Location**: `modules/nixos/services/reverse-proxy/registry.nix`
 
 Declares the shared registration interface:
 - `modules.reverseProxy.domain` - Base domain for virtual hosts
@@ -47,7 +47,7 @@ Declares the shared registration interface:
 This module is imported globally, so any config (module or host-level) can register virtual hosts without depending on Caddy.
 
 ### 2. Caddy Module (Updated)
-**Location**: `hosts/_modules/nixos/services/caddy/default.nix`
+**Location**: `modules/nixos/services/caddy/default.nix`
 
 **Changes**:
 - Removed `modules.services.caddy.virtualHosts` option (moved to registry)
@@ -90,10 +90,10 @@ config = registerVirtualHost {
 
 ### Pattern 1: Service Module Registration (Existing)
 
-Service modules in `hosts/_modules/nixos/services/*/` can register directly:
+Service modules in `modules/nixos/services/*/` can register directly:
 
 ```nix
-# hosts/_modules/nixos/services/myservice/default.nix
+# modules/nixos/services/myservice/default.nix
 { config, lib, ... }:
 let
   cfg = config.modules.services.myservice;
@@ -270,11 +270,11 @@ ssh forge.holthome.net 'sudo cat /etc/caddy/Caddyfile'
 
 ## Files Modified
 
-- ✅ **Created**: `hosts/_modules/nixos/services/reverse-proxy/registry.nix`
+- ✅ **Created**: `modules/nixos/services/reverse-proxy/registry.nix`
 - ✅ **Created**: `lib/register-vhost.nix`
-- ✅ **Updated**: `hosts/_modules/nixos/services/caddy/default.nix`
-- ✅ **Updated**: `hosts/_modules/nixos/services/caddy/dns-records.nix`
-- ✅ **Updated**: `hosts/_modules/nixos/services/default.nix`
+- ✅ **Updated**: `modules/nixos/services/caddy/default.nix`
+- ✅ **Updated**: `modules/nixos/services/caddy/dns-records.nix`
+- ✅ **Updated**: `modules/nixos/services/default.nix`
 - ✅ **Updated**: `lib/dns-aggregate.nix`
 - ✅ **Updated**: `hosts/forge/dispatcharr.nix`
 

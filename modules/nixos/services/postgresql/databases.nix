@@ -24,7 +24,7 @@
 # - PUBLIC permissions revoked by default
 # - Password files read server-side (never exposed in /proc or logs)
 #
-# See: hosts/_modules/nixos/services/postgresql/README.md for usage examples
+# See: modules/nixos/services/postgresql/README.md for usage examples
 # - Hash-based change detection prevents unnecessary re-runs
 #
 # MVP Scope (Phase 1):
@@ -714,7 +714,7 @@ in
 {
   # Note: Option definitions have been moved to database-interface.nix
   # This module only implements the provisioning logic (config block)
-  # See: hosts/_modules/nixos/services/postgresql/database-interface.nix
+  # See: modules/nixos/services/postgresql/database-interface.nix
 
   config =
     let

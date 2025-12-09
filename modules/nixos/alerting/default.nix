@@ -1,4 +1,4 @@
-# hosts/_modules/nixos/alerting/default.nix
+# modules/nixos/alerting/default.nix
 { lib, config, pkgs, ... }:
 
 let

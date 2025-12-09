@@ -5,7 +5,7 @@
 #
 # ARCHITECTURE:
 # Uses native NixOS service (not containerized) wrapped with homelab patterns.
-# See hosts/_modules/nixos/services/tautulli/default.nix for module details.
+# See modules/nixos/services/tautulli/default.nix for module details.
 #
 # AUTHENTICATION:
 # Tautulli does NOT support proxy auth bypass. Authentication is handled by

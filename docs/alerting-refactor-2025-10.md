@@ -26,7 +26,7 @@ config = mkIf cfg.enable (
 - Simplified structure to avoid cfg references in config block
 
 **Files Changed:**
-- `hosts/_modules/nixos/alerting/default.nix` (lines 218-329)
+- `modules/nixos/alerting/default.nix` (lines 218-329)
 - Removed unused imports: `filterAttrs`, `mapAttrsToList`, `generators`, `mkAfter`, `recursiveUpdate`, `attrsToList`
 
 ### 2. ✅ Infinite Recursion in monitoring.nix
@@ -87,7 +87,7 @@ payload="$(${pkgs.jq}/bin/jq -n \
 - Uses jq's `--arg` for proper escaping
 
 **Files Changed:**
-- `hosts/_modules/nixos/alerting/default.nix` (lines 89-108)
+- `modules/nixos/alerting/default.nix` (lines 89-108)
 
 ### 4. ✅ Dead Code Removal (lib/notification-helpers.nix)
 **Problem:** 287 lines of unused helper functions that were never imported.
@@ -122,7 +122,7 @@ systemd.services.alertmanager-config = {
 ```
 
 **Files Changed:**
-- `hosts/_modules/nixos/alerting/default.nix` (lines 239-257)
+- `modules/nixos/alerting/default.nix` (lines 239-257)
 - Removed `sops.secrets` ownership declarations from alerting module
 
 ## Medium Priority Issues (Documented)
@@ -205,7 +205,7 @@ After fixes:
 ✅ No recursion errors - configuration evaluates successfully
 
 ### Files Modified Summary
-- ✅ `hosts/_modules/nixos/alerting/default.nix` - Fixed recursion, improved JSON handling, simplified structure
+- ✅ `modules/nixos/alerting/default.nix` - Fixed recursion, improved JSON handling, simplified structure
 - ✅ `hosts/forge/monitoring.nix` - Fixed self-reference in enabledCollectors
 - ✅ `hosts/forge/default.nix` - Re-enabled alerting.nix import
 - ✅ `lib/notification-helpers.nix` - Deleted (dead code)

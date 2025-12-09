@@ -11,7 +11,7 @@ This document outlines the complete design and implementation plan for the *arr 
 ## Completed Work
 
 ### ✅ Prowlarr Module
-**Location**: `hosts/_modules/nixos/services/prowlarr/default.nix`
+**Location**: `modules/nixos/services/prowlarr/default.nix`
 **Status**: **IMPLEMENTED**
 
 - Central indexer manager for all *arr services
@@ -26,7 +26,7 @@ This document outlines the complete design and implementation plan for the *arr 
 The following modules have been **fully designed** by Gemini 2.5 Pro and are ready to be created:
 
 #### 1. Radarr (Movies)
-**File**: `hosts/_modules/nixos/services/radarr/default.nix`
+**File**: `modules/nixos/services/radarr/default.nix`
 **Port**: 7878
 **UID/GID**: 569
 **Key Features**:
@@ -37,7 +37,7 @@ The following modules have been **fully designed** by Gemini 2.5 Pro and are rea
 - caddy-security/PocketID SSO with API endpoint protection
 
 #### 2. Bazarr (Subtitles)
-**File**: `hosts/_modules/nixos/services/bazarr/default.nix`
+**File**: `modules/nixos/services/bazarr/default.nix`
 **Port**: 6767
 **UID/GID**: 570
 **Key Features**:
@@ -48,7 +48,7 @@ The following modules have been **fully designed** by Gemini 2.5 Pro and are rea
 - Volume mounts: `/tv`, `/movies`
 
 #### 3. Lidarr (Music)
-**File**: `hosts/_modules/nixos/services/lidarr/default.nix`
+**File**: `modules/nixos/services/lidarr/default.nix`
 **Port**: 8686
 **UID/GID**: 571
 **Key Features**:
@@ -58,7 +58,7 @@ The following modules have been **fully designed** by Gemini 2.5 Pro and are rea
 - Media group integration
 
 #### 4. Readarr (Books/Audiobooks)
-**File**: `hosts/_modules/nixos/services/readarr/default.nix`
+**File**: `modules/nixos/services/readarr/default.nix`
 **Port**: 8787
 **UID/GID**: 572
 **Key Features**:
@@ -72,7 +72,7 @@ The following modules have been **fully designed** by Gemini 2.5 Pro and are rea
 ### Standardized Pattern
 All modules follow the exact same structure as Sonarr:
 
-1. **Import shared types** from `hosts/_modules/lib/types.nix`
+1. **Import shared types** from `lib/types.nix`
 2. **Storage helpers** for preseed/DR functionality
 3. **ZFS dataset** with 16K recordsize (SQLite optimized)
 4. **Standardized submodules**:
@@ -204,7 +204,7 @@ All services ship logs to Loki via Promtail:
 
 ## Next Steps
 
-1. **Implement Radarr**: Copy generated module to `hosts/_modules/nixos/services/radarr/default.nix`
+1. **Implement Radarr**: Copy generated module to `modules/nixos/services/radarr/default.nix`
 2. **Implement Bazarr**: Copy generated module with special attention to `dependencies` submodule
 3. **Implement Lidarr**: Copy generated module
 4. **Implement Readarr**: Copy generated module
@@ -249,10 +249,10 @@ modules.services.bazarr = {
 ## References
 
 - **Design Patterns**: `/docs/modular-design-patterns.md`
-- **Shared Types**: `/hosts/_modules/lib/types.nix`
-- **Sonarr Reference**: `/hosts/_modules/nixos/services/sonarr/default.nix`
-- **Prowlarr Implementation**: `/hosts/_modules/nixos/services/prowlarr/default.nix`
-- **Storage Helpers**: `/hosts/_modules/storage/helpers-lib.nix`
+- **Shared Types**: `/lib/types.nix`
+- **Sonarr Reference**: `/modules/nixos/services/sonarr/default.nix`
+- **Prowlarr Implementation**: `/modules/nixos/services/prowlarr/default.nix`
+- **Storage Helpers**: `/modules/storage/helpers-lib.nix`
 
 ## Credits
 

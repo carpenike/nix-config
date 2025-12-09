@@ -112,7 +112,7 @@
       services = {
         # PostgreSQL dataset is now managed by the PostgreSQL module's storage-integration.nix
         # to avoid duplicate dataset creation and configuration conflicts.
-        # See: hosts/_modules/nixos/services/postgresql/storage-integration.nix
+        # See: modules/nixos/services/postgresql/storage-integration.nix
 
         # Observability datasets (Prometheus, Loki, Alertmanager) are now managed by their
         # respective service files following the contribution pattern

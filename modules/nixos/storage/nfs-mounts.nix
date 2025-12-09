@@ -1,4 +1,4 @@
-# /hosts/_modules/nixos/storage/nfs-mounts.nix
+# /modules/nixos/storage/nfs-mounts.nix
 { lib, config, ... }:
 # Declarative NFS mount management.
 #

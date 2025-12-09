@@ -7,7 +7,7 @@ The centralized notification system provides a unified interface for sending not
 ## Architecture
 
 ```
-hosts/_modules/nixos/notifications/
+modules/nixos/notifications/
 ├── default.nix          # Main module with unified interface
 ├── pushover.nix         # Pushover backend implementation
 ├── ntfy.nix             # ntfy backend implementation
@@ -622,7 +622,7 @@ Potential future additions:
 
 To add a new notification backend:
 
-1. Create `hosts/_modules/nixos/notifications/yourbackend.nix`
+1. Create `modules/nixos/notifications/yourbackend.nix`
 2. Follow the pattern in `pushover.nix` or `ntfy.nix`
 3. Add options to `default.nix`
 4. Update this documentation

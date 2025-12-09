@@ -227,9 +227,9 @@ Services **MUST NOT** require manual infrastructure configuration:
 
 ### Reference Implementations
 
-- **Web Services**: `hosts/_modules/nixos/services/caddy/default.nix` - Structured backend configuration
-- **Storage Services**: `hosts/_modules/nixos/services/postgresql/` - Resource provisioning patterns
-- **Monitoring**: `hosts/_modules/nixos/services/glances/default.nix` - Reverse proxy integration
+- **Web Services**: `modules/nixos/services/caddy/default.nix` - Structured backend configuration
+- **Storage Services**: `modules/nixos/services/postgresql/` - Resource provisioning patterns
+- **Monitoring**: `modules/nixos/services/glances/default.nix` - Reverse proxy integration
 
 ### Migration Status
 
@@ -253,8 +253,8 @@ See `/docs/service-migration-roadmap.md` for the current status of migrating exi
 | `flake.nix` | Main flake entry point defining inputs, outputs, and system configurations |
 | `lib/mkSystem.nix` | Unified system builder functions for NixOS and Darwin |
 | `lib/podman.nix` | Podman container helpers (mkHealthCheck, mkContainer, resource management) |
-| `hosts/_modules/` | Shared modules organized by scope (common/nixos/darwin) |
-| `hosts/_modules/nixos/services/` | NixOS service modules with reverse proxy integration patterns |
+| `modules/` | Shared modules organized by scope (common/nixos/darwin) |
+| `modules/nixos/services/` | NixOS service modules with reverse proxy integration patterns |
 | `hosts/<hostname>/` | Individual host configurations and secrets |
 | `home/` | Home Manager configurations for user environments |
 | `overlays/` | Package overlays importing from `pkgs/` |
@@ -270,14 +270,14 @@ The configuration uses a sophisticated layered import system that maximizes code
 ```
 Host Configuration → Platform Modules → Common Modules
      ↓                    ↓                ↓
-hosts/luna/         hosts/_modules/    hosts/_modules/
+hosts/luna/         modules/    modules/
                     nixos/             common/
 ```
 
 **Import Order (most specific to most general):**
 1. **Host-specific** (`hosts/<hostname>/`) - Machine-specific settings, hardware config, secrets
-2. **Platform modules** (`hosts/_modules/nixos` or `hosts/_modules/darwin`) - OS-specific services and settings
-3. **Common modules** (`hosts/_modules/common`) - Universal settings for all systems (shells, locale, nix config)
+2. **Platform modules** (`modules/nixos` or `modules/darwin`) - OS-specific services and settings
+3. **Common modules** (`modules/common`) - Universal settings for all systems (shells, locale, nix config)
 
 ### System Builder Pattern
 
@@ -352,8 +352,8 @@ Host Configs → Flake Aggregation → Manual SOPS Update → BIND Server
 
 **Key Components:**
 - `lib/dns-aggregate.nix` - Scans all hosts and collects Caddy virtual hosts
-- `hosts/_modules/common/networking/host-ip.nix` - Each host declares its primary IP via `my.hostIp` option
-- `hosts/_modules/nixos/services/caddy/dns-records.nix` - Per-host DNS record generation
+- `modules/common/networking/host-ip.nix` - Each host declares its primary IP via `my.hostIp` option
+- `modules/nixos/services/caddy/dns-records.nix` - Per-host DNS record generation
 - `.#allCaddyDnsRecords` - Flake output containing aggregated DNS records from entire fleet
 
 **Workflow for DNS Updates:**
@@ -600,7 +600,7 @@ Future versions will include VM testing for critical services:
 # Planned: VM tests for service validation
 checks.x86_64-linux.nginx-service = pkgs.testers.runNixOSTest {
   name = "nginx-behavior-test";
-  nodes.machine.imports = [ ../hosts/_modules/nixos/services/nginx ];
+  nodes.machine.imports = [ ../modules/nixos/services/nginx ];
   testScript = ''
     machine.wait_for_unit("nginx.service")
     machine.succeed("curl --fail http://localhost")

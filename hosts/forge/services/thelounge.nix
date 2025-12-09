@@ -2,7 +2,7 @@
 #
 # Host-specific configuration for TheLounge IRC client on 'forge'.
 # This module consumes the reusable abstraction defined in:
-# hosts/_modules/nixos/services/thelounge/default.nix
+# modules/nixos/services/thelounge/default.nix
 #
 # TheLounge provides a persistent IRC bouncer with web interface.
 # Access is controlled via PocketID (admin group only).

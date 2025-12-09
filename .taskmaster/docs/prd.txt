@@ -60,7 +60,7 @@ This is a personal home lab Nix configuration repository that manages personal d
 ## System Components
 - **Flake.nix**: Central configuration entry point with input management
 - **lib/mkSystem.nix**: Unified system builders for NixOS and Darwin
-- **hosts/_modules/**: Shared modules organized by scope (common/nixos/darwin)
+- **modules/**: Shared modules organized by scope (common/nixos/darwin)
 - **hosts/<hostname>/**: Individual host configurations with secrets and hardware specs
 - **home/**: Home Manager configurations for user environments
 - **overlays/**: Package modifications and customizations

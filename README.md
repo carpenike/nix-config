@@ -199,7 +199,7 @@ Containers are used when:
 
 #### Standardized Submodules
 
-All services use consistent submodule patterns from `hosts/_modules/lib/types.nix`:
+All services use consistent submodule patterns from `lib/types.nix`:
 
 - `reverseProxy` - Caddy integration with TLS and auth
 - `metrics` - Prometheus scrape configuration

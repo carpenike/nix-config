@@ -66,7 +66,7 @@ Integration modules automatically discover and configure services based on these
 
 ### Complete Service Module Pattern
 ```nix
-# hosts/_modules/nixos/services/example/default.nix
+# modules/nixos/services/example/default.nix
 { lib, pkgs, config, ... }:
 let
   cfg = config.modules.services.example;

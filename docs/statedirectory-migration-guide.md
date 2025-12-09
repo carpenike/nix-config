@@ -76,7 +76,7 @@ The system automatically detects service type and applies appropriate pattern:
 
 ### Pattern 1: Native SystemD Service
 
-**Service Module (`hosts/_modules/nixos/services/<service>/default.nix`):**
+**Service Module (`modules/nixos/services/<service>/default.nix`):**
 
 ```nix
 { config, lib, pkgs, ... }:
@@ -208,7 +208,7 @@ backup = {
 
 ## Storage Module Changes
 
-**File:** `hosts/_modules/nixos/storage/datasets.nix`
+**File:** `modules/nixos/storage/datasets.nix`
 
 ### Before (Problematic)
 

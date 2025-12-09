@@ -380,9 +380,9 @@ modules.services.gatus.contributions.myservice = {
 
 ## References
 
-- **Gatus Module**: `hosts/_modules/nixos/services/gatus/default.nix`
+- **Gatus Module**: `modules/nixos/services/gatus/default.nix`
 - **Prometheus Configuration**: `hosts/forge/monitoring.nix`
-- **Alerting Module**: `hosts/_modules/nixos/alerting.nix`
+- **Alerting Module**: `modules/nixos/alerting.nix`
 - **Alert Definitions**: Co-located with services (e.g., `hosts/forge/services/*.nix`)
 
 ---

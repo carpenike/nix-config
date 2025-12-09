@@ -656,7 +656,7 @@ with lib;
         curl
       ];
 
-      # ZFS snapshots are managed by Sanoid (see hosts/_modules/nixos/storage/sanoid.nix)
+      # ZFS snapshots are managed by Sanoid (see modules/nixos/storage/sanoid.nix)
       # Restic backups use .zfs/snapshot path resolution (see backupPrepareCommand below)
       # Legacy zfs-snapshot service removed 2025-10-14 during Sanoid migration
 

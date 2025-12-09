@@ -107,7 +107,7 @@ This directory contains comprehensive documentation for the NixOS configuration 
 
 ### Host Modules
 
-Located in `/hosts/_modules/nixos/`:
+Located in `/modules/nixos/`:
 
 - **backup.nix** - Comprehensive backup system with Restic and ZFS integration
 - **services/backup-services.nix** - Pre-configured backup profiles for common services

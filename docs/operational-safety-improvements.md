@@ -252,10 +252,10 @@ users.groups.restic-backup = {};
 
 ### Changes Summary
 - **Files Modified:** 3
-  - `hosts/_modules/nixos/storage/datasets.nix`
-  - `hosts/_modules/nixos/backup.nix`
-  - `hosts/_modules/nixos/monitoring.nix`
-  - `hosts/_modules/nixos/services/postgresql/default.nix`
+  - `modules/nixos/storage/datasets.nix`
+  - `modules/nixos/backup.nix`
+  - `modules/nixos/monitoring.nix`
+  - `modules/nixos/services/postgresql/default.nix`
 - **Lines Changed:** ~50
 - **Critical Fixes:** 4
 - **New Features:** System user creation, runtime checks

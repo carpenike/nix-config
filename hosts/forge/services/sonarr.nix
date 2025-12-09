@@ -2,7 +2,7 @@
 #
 # Host-specific configuration for the Sonarr service on 'forge'.
 # This module consumes the reusable abstraction defined in:
-# hosts/_modules/nixos/services/sonarr/default.nix
+# modules/nixos/services/sonarr/default.nix
 
 { config, lib, ... }:
 

@@ -520,7 +520,7 @@ basicauth {
 **Tasks**:
 1. ✅ Research completed (this document)
 2. ⬜ Create module structure:
-   - `hosts/_modules/nixos/services/cooklang/default.nix`
+   - `modules/nixos/services/cooklang/default.nix`
 3. ⬜ Implement core options (enable, package, user, directories)
 4. ⬜ Implement systemd service
 5. ⬜ Test basic functionality (service starts, web UI accessible)
@@ -729,8 +729,8 @@ basicauth {
 ## File Locations
 
 ### Module Files
-- `hosts/_modules/nixos/services/cooklang/default.nix` - Main module
-- `hosts/_modules/lib/types.nix` - Shared type definitions (already exists)
+- `modules/nixos/services/cooklang/default.nix` - Main module
+- `lib/types.nix` - Shared type definitions (already exists)
 
 ### Host Configuration
 - `hosts/forge/services/cooklang.nix` - Host-specific config
@@ -787,7 +787,7 @@ basicauth {
 ### Related Patterns
 - [Modular Design Patterns](../modular-design-patterns.md)
 - [Disaster Recovery Preseed Pattern](../disaster-recovery-preseed-pattern.md)
-- [Gatus Module](../../hosts/_modules/nixos/services/gatus/default.nix) - Black-box monitoring reference
+- [Gatus Module](../../modules/nixos/services/gatus/default.nix) - Black-box monitoring reference
 
 ### AI Research
 - **Model Used**: Gemini 2.5 Pro
@@ -815,7 +815,7 @@ This design document should be reviewed before implementation begins. Once appro
 
 The Cooklang module has been successfully implemented with the following components:
 
-1. **Module File**: `hosts/_modules/nixos/services/cooklang/default.nix` (465 lines)
+1. **Module File**: `modules/nixos/services/cooklang/default.nix` (465 lines)
    - Native systemd service configuration
    - Declarative aisle.conf and pantry.conf management
    - Full integration with storage, backup, monitoring, and preseed patterns
@@ -827,7 +827,7 @@ The Cooklang module has been successfully implemented with the following compone
    - Caddy reverse proxy
    - Loki logging integration
 
-3. **Service Registration**: Added to `hosts/_modules/nixos/services/default.nix`
+3. **Service Registration**: Added to `modules/nixos/services/default.nix`
 
 ### What Works
 

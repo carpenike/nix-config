@@ -280,9 +280,9 @@ The unified backup system is implemented and ready for deployment:
 ## Reference Implementation
 
 See the complete implementation in:
-- `hosts/_modules/nixos/services/backup/` - Unified backup module
+- `modules/nixos/services/backup/` - Unified backup module
 - `hosts/forge/default.nix:542-556` - Grafana Sanoid integration example
 - `hosts/forge/backup.nix:121-159` - Migration configuration example
-- `hosts/_modules/lib/types.nix` - Backup submodule type definition
+- `lib/types.nix` - Backup submodule type definition
 
 This unified approach provides enterprise-grade backup management while maintaining the simplicity and directness appropriate for homelab environments.

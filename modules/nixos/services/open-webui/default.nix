@@ -1,4 +1,4 @@
-# hosts/_modules/nixos/services/open-webui/default.nix
+# modules/nixos/services/open-webui/default.nix
 #
 # Native NixOS wrapper for Open WebUI with multi-provider LLM support.
 #

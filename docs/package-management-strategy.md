@@ -57,7 +57,7 @@ home.packages = with pkgs; [
 Declare all GUI apps in your homebrew configuration:
 
 ```nix
-# hosts/_modules/darwin/homebrew.nix or hosts/rymac/default.nix
+# modules/darwin/homebrew.nix or hosts/rymac/default.nix
 homebrew.casks = [
   "discord"
   "slack"

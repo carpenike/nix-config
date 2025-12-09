@@ -125,5 +125,5 @@ The script:
 
 - [lib/dns-aggregate.nix](../../../lib/dns-aggregate.nix) - Flake-level DNS aggregation
 - [lib/dns.nix](../../../lib/dns.nix) - Shared DNS utility functions
-- [hosts/_modules/nixos/services/caddy/dns-records.nix](../../../hosts/_modules/nixos/services/caddy/dns-records.nix) - Per-host generation
+- [modules/nixos/services/caddy/dns-records.nix](../../../modules/nixos/services/caddy/dns-records.nix) - Per-host generation
 - [.taskfiles/nix/Taskfile.yaml](../Taskfile.yaml) - Task runner integration

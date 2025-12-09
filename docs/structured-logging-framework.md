@@ -189,7 +189,7 @@ systemd.services.your-service = {
 
 ### PostgreSQL Pre-Seed Service
 
-**File**: `hosts/_modules/nixos/postgresql-preseed.nix`
+**File**: `modules/nixos/postgresql-preseed.nix`
 **Metrics**: `/var/lib/node_exporter/textfile_collector/postgresql_preseed.prom`
 
 Provides structured logging for disaster recovery database restoration:

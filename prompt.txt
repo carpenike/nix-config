@@ -84,7 +84,7 @@ After deep analysis of both perspectives, here's my refined recommendation:
    checks.x86_64-linux = {
      nginx-basic = pkgs.testers.runNixOSTest {
        name = "nginx-starts";
-       nodes.machine.imports = [ ../hosts/_modules/nixos/services/nginx ];
+       nodes.machine.imports = [ ../modules/nixos/services/nginx ];
        testScript = ''machine.wait_for_unit("nginx.service")'';
      };
    };

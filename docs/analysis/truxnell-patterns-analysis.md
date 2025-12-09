@@ -112,7 +112,7 @@ warnings = [
 ## Implementation Roadmap
 
 ### Phase 1: Profile Architecture (1-2 days)
-1. Create `hosts/_modules/profiles/` directory
+1. Create `modules/profiles/` directory
 2. Extract hardware-specific configs:
    - `hw-x86_64-vm.nix` (for luna, rydev)
    - `hw-aarch64-darwin.nix` (for rymac)
@@ -131,7 +131,7 @@ warnings = [
 
 ### Phase 3: Backup Infrastructure (3-4 days)
 1. Implement `lib/backup-helpers.nix` with `mkRestic` function
-2. Add restic module configuration in `hosts/_modules/nixos/services/restic/`
+2. Add restic module configuration in `modules/nixos/services/restic/`
 3. Configure per-service backups for:
    - 1Password Connect
    - Attic

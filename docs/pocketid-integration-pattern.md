@@ -14,7 +14,7 @@ Pocket ID pairs with the `caddy-security` plugin to provide passwordless SSO for
 
 ## Architecture
 
-1. **Pocket ID Service Module** (`hosts/_modules/nixos/services/pocketid/`)
+1. **Pocket ID Service Module** (`modules/nixos/services/pocketid/`)
    - Exposes the portal at `https://id.${domain}`
    - Stores SMTP + JWT secrets via SOPS
    - Publishes the OIDC discovery document for services that need full OAuth integration

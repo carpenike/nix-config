@@ -34,7 +34,7 @@ This document outlines the phased approach to migrate all service modules to fol
 #### 1.1 Develop the `metrics` Submodule & Generator (Week 1-2)
 
 **Implementation Plan**:
-1. Create `hosts/_modules/lib/types.nix` with standardized submodule definitions
+1. Create `lib/types.nix` with standardized submodule definitions
 2. Implement Prometheus scrape config generator in `observability/default.nix`
 3. Add collection mechanism to scan all services for `metrics` submodules
 

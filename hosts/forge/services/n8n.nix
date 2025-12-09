@@ -2,7 +2,7 @@
 #
 # Host-specific configuration for the n8n workflow automation service on 'forge'.
 # This module consumes the reusable abstraction defined in:
-# hosts/_modules/nixos/services/n8n/default.nix
+# modules/nixos/services/n8n/default.nix
 #
 # ARCHITECTURE:
 # - Native NixOS service (wrapped with homelab patterns)

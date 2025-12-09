@@ -58,13 +58,13 @@ services = {
 services = {
   # PostgreSQL dataset is now managed by the PostgreSQL module's storage-integration.nix
   # to avoid duplicate dataset creation and configuration conflicts.
-  # See: hosts/_modules/nixos/services/postgresql/storage-integration.nix
+  # See: modules/nixos/services/postgresql/storage-integration.nix
 }
 ```
 
 ### Fix 2: Merge Advanced ZFS Properties
 
-**File**: `hosts/_modules/nixos/services/postgresql/storage-integration.nix`
+**File**: `modules/nixos/services/postgresql/storage-integration.nix`
 
 Added the advanced ZFS properties from forge's config to the module:
 
@@ -83,7 +83,7 @@ Added the advanced ZFS properties from forge's config to the module:
 
 ### Fix 3: Move Marker File Outside PGDATA
 
-**File**: `hosts/_modules/nixos/postgresql-preseed.nix`
+**File**: `modules/nixos/postgresql-preseed.nix`
 
 Changed marker location from **inside** PGDATA to **parent directory**:
 
@@ -138,8 +138,8 @@ git diff
 
 # Commit the fixes
 git add hosts/forge/default.nix \
-        hosts/_modules/nixos/services/postgresql/storage-integration.nix \
-        hosts/_modules/nixos/postgresql-preseed.nix
+        modules/nixos/services/postgresql/storage-integration.nix \
+        modules/nixos/postgresql-preseed.nix
 
 git commit -m "fix(forge): resolve PostgreSQL dataset layering and preseed marker issues
 
@@ -298,7 +298,7 @@ Consider these enhancements:
 
 ## References
 
-- Preseed module: `hosts/_modules/nixos/postgresql-preseed.nix`
-- Storage integration: `hosts/_modules/nixos/services/postgresql/storage-integration.nix`
+- Preseed module: `modules/nixos/postgresql-preseed.nix`
+- Storage integration: `modules/nixos/services/postgresql/storage-integration.nix`
 - Forge config: `hosts/forge/default.nix`
-- ZFS dataset module: `hosts/_modules/nixos/storage/datasets.nix`
+- ZFS dataset module: `modules/nixos/storage/datasets.nix`

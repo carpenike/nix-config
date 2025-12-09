@@ -33,7 +33,7 @@ This document summarizes all changes made to the Caddy reverse proxy system base
 ## Files Modified
 
 ### 1. Registry Module (Enhanced)
-**File**: `hosts/_modules/nixos/services/reverse-proxy/registry.nix`
+**File**: `modules/nixos/services/reverse-proxy/registry.nix`
 
 **Major Changes**:
 - Replaced `proxyTo` (string) with structured `backend` config:
@@ -56,7 +56,7 @@ This document summarizes all changes made to the Caddy reverse proxy system base
 - Will continue working but generate deprecation warnings
 
 ### 2. Caddy Module (Enhanced)
-**File**: `hosts/_modules/nixos/services/caddy/default.nix`
+**File**: `modules/nixos/services/caddy/default.nix`
 
 **Major Changes**:
 - Added centralized ACME configuration:

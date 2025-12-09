@@ -1,4 +1,4 @@
-# /hosts/_modules/nixos/storage/default.nix
+# /modules/nixos/storage/default.nix
 { config
 , lib
 , ...

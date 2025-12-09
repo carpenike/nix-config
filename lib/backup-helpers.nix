@@ -1,14 +1,14 @@
 # DEPRECATED: This file is no longer used in the backup system
 #
 # The backup system has been migrated to use Sanoid for ZFS snapshots
-# and the main backup module at hosts/_modules/nixos/backup.nix handles
+# and the main backup module at modules/nixos/backup.nix handles
 # all Restic backup orchestration with .zfs/snapshot path resolution.
 #
 # This file is kept for reference only and is not imported anywhere.
 #
 # Migration date: 2025-10-14
-# See: hosts/_modules/nixos/backup.nix (lines 1691-1760) for current implementation
-# See: hosts/_modules/nixos/storage/sanoid.nix for Sanoid configuration
+# See: modules/nixos/backup.nix (lines 1691-1760) for current implementation
+# See: modules/nixos/storage/sanoid.nix for Sanoid configuration
 #
 # Return a function that takes pkgs and lib to avoid early evaluation
 { pkgs, lib }: {

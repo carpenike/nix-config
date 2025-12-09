@@ -1477,4 +1477,4 @@ The NFS mount management module provides:
 For additional help:
 - Check system logs: `journalctl -u '*.mount' -f`
 - List NFS mounts: `mount | grep nfs`
-- View module source: `/hosts/_modules/nixos/filesystems/nfs/default.nix`
+- View module source: `/modules/nixos/filesystems/nfs/default.nix`

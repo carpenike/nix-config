@@ -1,7 +1,7 @@
 # Standardized Backup Integration for Service Modules
 #
 # This module provides a standardized way for services to integrate with the
-# comprehensive backup system defined in hosts/_modules/nixos/backup.nix.
+# comprehensive backup system defined in modules/nixos/backup.nix.
 # Services can use the backupSubmodule type to define their backup requirements,
 # and this module will automatically configure the appropriate backup jobs.
 #

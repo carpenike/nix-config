@@ -2,7 +2,7 @@
 #
 # Host-specific configuration for the Pinchflat YouTube media manager on 'forge'.
 # This module consumes the reusable abstraction defined in:
-# hosts/_modules/nixos/services/pinchflat/default.nix
+# modules/nixos/services/pinchflat/default.nix
 #
 # Pinchflat downloads YouTube videos based on channel/playlist subscriptions.
 # Media is stored on NFS share at /mnt/data/youtube for access by other services.

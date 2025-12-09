@@ -14,11 +14,11 @@ This document establishes standardized design patterns for NixOS service modules
 
 ### Reference Implementations
 
-- **Web Services**: `hosts/_modules/nixos/services/caddy/default.nix` - Structured backend configuration, security options, automatic DNS record generation
-- **Storage Services**: `hosts/_modules/nixos/services/postgresql/` - Database provisioning, secure credential handling, systemd integration
-- **Observability Services**: `hosts/_modules/nixos/services/loki/default.nix`, `hosts/_modules/nixos/services/promtail/default.nix` - Complete observability stack with standardized patterns
-- **Monitoring Services**: `hosts/_modules/nixos/services/gatus/default.nix` - Black-box monitoring with contributory endpoint system and native Prometheus metrics
-- **Shared Types**: `hosts/_modules/lib/types.nix` - Centralized type definitions for all standardized submodules
+- **Web Services**: `modules/nixos/services/caddy/default.nix` - Structured backend configuration, security options, automatic DNS record generation
+- **Storage Services**: `modules/nixos/services/postgresql/` - Database provisioning, secure credential handling, systemd integration
+- **Observability Services**: `modules/nixos/services/loki/default.nix`, `modules/nixos/services/promtail/default.nix` - Complete observability stack with standardized patterns
+- **Monitoring Services**: `modules/nixos/services/gatus/default.nix` - Black-box monitoring with contributory endpoint system and native Prometheus metrics
+- **Shared Types**: `lib/types.nix` - Centralized type definitions for all standardized submodules
 
 ### Related Documentation
 
@@ -28,7 +28,7 @@ This document establishes standardized design patterns for NixOS service modules
 
 Shared services expose dedicated integration points so downstream modules can declaratively contribute resources without patching implementation details:
 
-- **Grafana** (`hosts/_modules/nixos/services/grafana/default.nix`)
+- **Grafana** (`modules/nixos/services/grafana/default.nix`)
   - Use `modules.services.grafana.integrations.<name>` to bundle datasources, dashboards, and `LoadCredential` entries.
   - Each integration can provide a map of datasources plus dashboard providers, and the module handles YAML provisioning + credential wiring automatically.
   - Example: `modules.services.grafana.integrations.teslamate.datasources.teslamate = { ... };` (see TeslaMate module for a real reference).
@@ -132,7 +132,7 @@ config = mkIf cfg.enable {
 
 ### Reference Implementation
 
-- **Observability Stack**: `hosts/_modules/nixos/services/observability/default.nix`
+- **Observability Stack**: `modules/nixos/services/observability/default.nix`
   - ~190 lines (vs 876 lines in previous god-module version)
   - Enables: Loki, Promtail, Grafana, optionally Prometheus
   - Provides: Auto-discovery of metrics endpoints, stack-level alerts
@@ -259,7 +259,7 @@ modules.services.gatus.contributions.plex = {
 
 #### Step 2: Module Structure
 
-Create your module in `hosts/_modules/nixos/services/<service-name>/`:
+Create your module in `modules/nixos/services/<service-name>/`:
 
 ```nix
 { config, lib, pkgs, ... }:
@@ -651,7 +651,7 @@ If you have existing container-based services:
 
 ## Shared Types Library
 
-All standardized submodule types are centralized in `hosts/_modules/lib/types.nix` to ensure consistency and reusability across services.
+All standardized submodule types are centralized in `lib/types.nix` to ensure consistency and reusability across services.
 
 ### Import Pattern
 ```nix

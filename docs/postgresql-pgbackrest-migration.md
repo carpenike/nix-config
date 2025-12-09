@@ -13,7 +13,7 @@ This document covers the migration from custom `pg-backup-scripts` to industry-s
 - ❌ `pkgs/pg-backup-scripts.nix` (161 lines of custom backup scripts)
 - ❌ `systemd.services.pg-zfs-snapshot` (coordinated PostgreSQL + ZFS snapshots)
 - ❌ `systemd.services.pg-check-stale-backup-label` (backup_label verification)
-- ❌ `hosts/_modules/nixos/services/postgresql/backup-integration.nix` (Restic integration module)
+- ❌ `modules/nixos/services/postgresql/backup-integration.nix` (Restic integration module)
 - ❌ `modules.backup.restic.jobs.postgresql-offsite` (complex snapshot mounting/unmounting logic)
 
 ### Added Components

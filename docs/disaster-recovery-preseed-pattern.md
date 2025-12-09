@@ -535,7 +535,7 @@ Potential improvements to the preseed pattern:
 
 - **Implementation**: `lib/storage-helpers.nix` (mkPreseedService)
 - **Example Modules**:
-  - `hosts/_modules/nixos/services/plex/default.nix`
-  - `hosts/_modules/nixos/services/loki/default.nix`
-  - `hosts/_modules/nixos/services/grafana/default.nix`
+  - `modules/nixos/services/plex/default.nix`
+  - `modules/nixos/services/loki/default.nix`
+  - `modules/nixos/services/grafana/default.nix`
 - **Host Config**: `hosts/forge/default.nix`

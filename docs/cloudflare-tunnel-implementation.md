@@ -37,12 +37,12 @@ This would require:
 
 ### 1. Module Changes
 
-**Caddy Module** (`hosts/_modules/nixos/services/caddy/default.nix`):
+**Caddy Module** (`modules/nixos/services/caddy/default.nix`):
 - Add `cloudflare` submodule to `virtualHosts` options
 - Services opt-in to tunnel exposure declaratively
 - No changes to existing caddy-security, security, or backend logic
 
-**cloudflared Module** (`hosts/_modules/nixos/services/cloudflared/default.nix`):
+**cloudflared Module** (`modules/nixos/services/cloudflared/default.nix`):
 - Replace with declarative implementation
 - Auto-discover services from Caddy virtualHosts
 - Generate `config.yaml` from NixOS options

@@ -20,7 +20,7 @@ This document defines the standardized approach for integrating services with Ca
 Services should register their reverse proxy requirements using this exact pattern:
 
 ```nix
-# In service module (e.g., hosts/_modules/nixos/services/myservice/default.nix)
+# In service module (e.g., modules/nixos/services/myservice/default.nix)
 modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = mkIf cfg.reverseProxy.enable {
   enable = true;
   hostName = "${cfg.reverseProxy.subdomain}.${config.networking.domain or "holthome.net"}";
@@ -476,8 +476,8 @@ The Caddy module automatically integrates with DNS record generation:
 ## Examples
 
 See these reference implementations:
-- **Grafana**: `hosts/_modules/nixos/services/grafana/default.nix`
-- **Loki**: `hosts/_modules/nixos/services/loki/default.nix`
+- **Grafana**: `modules/nixos/services/grafana/default.nix`
+- **Loki**: `modules/nixos/services/loki/default.nix`
 - **Monitoring**: `hosts/forge/monitoring-ui.nix`
 
 This pattern provides type safety, eliminates syntax errors, ensures security by default, and maintains a single, maintainable code path for reverse proxy integration.

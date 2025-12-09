@@ -132,16 +132,16 @@ Read complete files based on service complexity:
 
 ```bash
 # ALWAYS read these baseline examples
-cat hosts/_modules/nixos/services/sonarr/default.nix
-cat hosts/_modules/nixos/services/radarr/default.nix
-cat hosts/_modules/nixos/services/dispatcharr/default.nix
+cat modules/nixos/services/sonarr/default.nix
+cat modules/nixos/services/radarr/default.nix
+cat modules/nixos/services/dispatcharr/default.nix
 
 # IF service needs database/MQTT/Grafana integration:
-cat hosts/_modules/nixos/services/teslamate/default.nix
+cat modules/nixos/services/teslamate/default.nix
 
 # IF service is container-based:
-cat hosts/_modules/nixos/services/scrypted/default.nix
-cat hosts/_modules/nixos/services/teslamate/default.nix
+cat modules/nixos/services/scrypted/default.nix
+cat modules/nixos/services/teslamate/default.nix
 
 # Read host integrations
 cat hosts/forge/services/sonarr.nix
@@ -200,7 +200,7 @@ rg "gid = [0-9]+" --no-heading | sort -t'=' -k2 -n | tail -20
 rg "LoadCredential" --type nix -A 5
 
 # Discover custom type definitions
-rg "types.submodule" --type nix -A 15 hosts/_modules/nixos/services/teslamate/
+rg "types.submodule" --type nix -A 15 modules/nixos/services/teslamate/
 
 # OPTIONAL HOST-LEVEL INTEGRATIONS:
 
@@ -813,7 +813,7 @@ Present refined plan to user for approval.
 ### 3. Implementation (iterative)
 
 Create files in order:
-1. **Module skeleton**: `hosts/_modules/nixos/services/<service>/default.nix`
+1. **Module skeleton**: `modules/nixos/services/<service>/default.nix`
    - Options block (following pattern)
    - Defaults based on pattern study
 
@@ -2008,7 +2008,7 @@ From sonarr/radarr/scrypted, I discovered:
 
 ### 4. Implementation Files
 After user approval:
-- `hosts/_modules/nixos/services/<service>/default.nix`
+- `modules/nixos/services/<service>/default.nix`
 - `hosts/forge/services/<service>.nix`
 - Support files if needed
 
@@ -2122,15 +2122,15 @@ You've succeeded when:
 **Study these patterns (by complexity):**
 
 *Simple services:*
-- `hosts/_modules/nixos/services/dispatcharr/` - Minimal service example
+- `modules/nixos/services/dispatcharr/` - Minimal service example
 
 *Moderate services:*
-- `hosts/_modules/nixos/services/sonarr/` - Complete media service
-- `hosts/_modules/nixos/services/radarr/` - Confirms standard patterns
-- `hosts/_modules/nixos/services/scrypted/` - Container-based service
+- `modules/nixos/services/sonarr/` - Complete media service
+- `modules/nixos/services/radarr/` - Confirms standard patterns
+- `modules/nixos/services/scrypted/` - Container-based service
 
 *Complex services (study for database/MQTT/Grafana):*
-- `hosts/_modules/nixos/services/teslamate/` - **Advanced integration patterns**
+- `modules/nixos/services/teslamate/` - **Advanced integration patterns**
   - PostgreSQL provisioning
   - MQTT/EMQX integration
   - Grafana datasources and dashboards

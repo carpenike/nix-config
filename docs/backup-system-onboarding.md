@@ -166,12 +166,12 @@ This minimal configuration provides:
 
 ### Step 1: Import the Backup Module
 
-The backup module is located at `/hosts/_modules/nixos/backup.nix` and is automatically imported via the default module imports.
+The backup module is located at `/modules/nixos/backup.nix` and is automatically imported via the default module imports.
 
 Verify it's imported:
 
 ```nix
-# In /hosts/_modules/nixos/default.nix
+# In /modules/nixos/default.nix
 {
   imports = [
     # ... other modules
@@ -718,7 +718,7 @@ The backup system includes pre-configured profiles for common homelab services. 
 Import the service backup module (already imported by default):
 
 ```nix
-# In /hosts/_modules/nixos/default.nix
+# In /modules/nixos/default.nix
 imports = [
   ./backup.nix
   ./services/backup-services.nix
@@ -851,7 +851,7 @@ modules.services.backup-services = {
 
 ### Creating Custom Service Profiles
 
-To add a new service profile, edit `/hosts/_modules/nixos/services/backup-services.nix`:
+To add a new service profile, edit `/modules/nixos/services/backup-services.nix`:
 
 ```nix
 # Add to options section
@@ -1937,5 +1937,5 @@ For additional help:
 - Review generated documentation in `/var/lib/backup/docs/`
 - Check structured logs in `/var/log/backup/`
 - Consult Prometheus metrics for system health
-- Review backup module source: `/hosts/_modules/nixos/backup.nix`
+- Review backup module source: `/modules/nixos/backup.nix`
 - See advanced troubleshooting above for systemd sandboxing and SSH issues

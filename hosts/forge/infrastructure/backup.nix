@@ -50,7 +50,7 @@ in
   config = lib.mkMerge [
     {
       # Note: restic-backup user/group created by backup module
-      # (hosts/_modules/nixos/backup.nix - no need to duplicate here)
+      # (modules/nixos/backup.nix - no need to duplicate here)
 
       # PostgreSQL backups via pgBackRest (separate mount for isolation)
       # Hardened for pgBackRest WAL archiving reliability

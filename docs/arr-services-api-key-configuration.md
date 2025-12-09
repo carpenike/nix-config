@@ -49,7 +49,7 @@ radarr:
 
 The module configurations need to be updated to inject these keys via environment variables:
 
-**Sonarr Module** (`hosts/_modules/nixos/services/sonarr/default.nix`):
+**Sonarr Module** (`modules/nixos/services/sonarr/default.nix`):
 ```nix
 environment = {
   TZ = cfg.timezone;
@@ -57,7 +57,7 @@ environment = {
 };
 ```
 
-**Radarr Module** (`hosts/_modules/nixos/services/radarr/default.nix`):
+**Radarr Module** (`modules/nixos/services/radarr/default.nix`):
 ```nix
 environment = {
   TZ = cfg.timezone;

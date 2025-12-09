@@ -1,7 +1,7 @@
 # Cooklang Service - Quick Reference
 
 > **Status**: ✅ Implemented & Reviewed (November 15, 2025)
-> **Module**: `hosts/_modules/nixos/services/cooklang/default.nix`
+> **Module**: `modules/nixos/services/cooklang/default.nix`
 > **Review**: Critical security and reliability improvements applied
 
 ## Overview
@@ -258,7 +258,7 @@ sudo nixos-rebuild switch --flake .
 
 ## File Locations
 
-- **Module**: `hosts/_modules/nixos/services/cooklang/default.nix`
+- **Module**: `modules/nixos/services/cooklang/default.nix`
 - **Host Config**: `hosts/forge/services/cooklang.nix`
 - **Design Doc**: `docs/services/cooklang-module-design.md`
 - **Recipes**: `/data/cooklang/recipes/*.cook`

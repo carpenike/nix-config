@@ -66,7 +66,7 @@ home-assistant = { recordsize = "16K"; compression = "lz4"; };
 lib/
   storage-helpers.nix (Phase 5: preseed functions)
 
-hosts/_modules/nixos/
+modules/nixos/
   storage/
     datasets.nix (Phase 1: core module)
   replication/
@@ -157,7 +157,7 @@ rm -rf /persist/var/lib/sonarr
 ## Implementation Status
 
 **Phase 1: Storage Module** ✅ Complete (2025-01-09)
-- Module: `hosts/_modules/nixos/storage/datasets.nix` (268 lines)
+- Module: `modules/nixos/storage/datasets.nix` (268 lines)
 - Features: Automatic dataset creation, type validation, shell escaping, configurable permissions
 - Code Review: 10/10 (Gemini Pro 2.5) - Production ready
 - Testing: dry-build passes
@@ -248,20 +248,20 @@ zfs destroy tank/persist/sonarr
 ## Files Created/Modified by Phase
 
 ### Phase 1
-- **Create**: `hosts/_modules/nixos/storage/datasets.nix`
-- **Modify**: `hosts/_modules/nixos/default.nix`
+- **Create**: `modules/nixos/storage/datasets.nix`
+- **Modify**: `modules/nixos/default.nix`
 
 ### Phase 2
-- **Create**: `hosts/_modules/nixos/services/sonarr/default.nix` (or modify)
+- **Create**: `modules/nixos/services/sonarr/default.nix` (or modify)
 - **Modify**: `hosts/forge/default.nix` (enable module)
 
 ### Phase 3
 - **Modify**: Multiple service modules
 
 ### Phase 4
-- **Create**: `hosts/_modules/nixos/replication/zfs.nix`
-- **Modify**: `hosts/_modules/nixos/backup.nix` (remove custom snapshots)
-- **Modify**: `hosts/_modules/nixos/notifications/default.nix` (add templates)
+- **Create**: `modules/nixos/replication/zfs.nix`
+- **Modify**: `modules/nixos/backup.nix` (remove custom snapshots)
+- **Modify**: `modules/nixos/notifications/default.nix` (add templates)
 
 ### Phase 5
 - **Modify**: `lib/storage-helpers.nix` (add mkPreseedService)
@@ -269,7 +269,7 @@ zfs destroy tank/persist/sonarr
 - **Modify**: Notification templates
 
 ### Phase 6
-- **Create**: `hosts/_modules/nixos/database/postgresql/pitr.nix`
+- **Create**: `modules/nixos/database/postgresql/pitr.nix`
 - **Modify**: PostgreSQL service configuration
 
 ---
@@ -291,6 +291,6 @@ zfs destroy tank/persist/sonarr
 
 ## Next Action
 
-Start Phase 1: Create `hosts/_modules/nixos/storage/datasets.nix`
+Start Phase 1: Create `modules/nixos/storage/datasets.nix`
 
 See full implementation details in `persistence-implementation-execution-plan.md`

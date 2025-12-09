@@ -1,4 +1,4 @@
-# hosts/_modules/nixos/services/paperless/default.nix
+# modules/nixos/services/paperless/default.nix
 #
 # Paperless-ngx document management system
 #

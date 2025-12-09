@@ -33,7 +33,7 @@ attic cache info homelab
 ### 3. Update Client Configuration
 Copy the public key from step 2 and update the binary cache configuration:
 
-**Edit:** `hosts/_modules/common/binary-cache.nix`
+**Edit:** `modules/common/binary-cache.nix`
 ```nix
 trusted-public-keys = [
   "homelab:PASTE_PUBLIC_KEY_HERE"  # Replace with actual key from attic cache info

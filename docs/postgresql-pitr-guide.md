@@ -1015,7 +1015,7 @@ Following the `storage.datasets` pattern, services don't modify the monolithic P
 Each service can declare its database requirements:
 
 ```nix
-# In your service module (e.g., hosts/_modules/nixos/services/dispatcharr/default.nix)
+# In your service module (e.g., modules/nixos/services/dispatcharr/default.nix)
 modules.services.postgresql.databases = {
   dispatcharr = {
     owner = "dispatcharr";
@@ -1039,7 +1039,7 @@ sops.secrets."dispatcharr/db_password" = {
 ### Complete Example: Immich Service
 
 ```nix
-# hosts/_modules/nixos/services/immich/default.nix
+# modules/nixos/services/immich/default.nix
 { config, lib, pkgs, ... }:
 let
   cfg = config.modules.services.immich;
@@ -1518,7 +1518,7 @@ sudo -u postgres psql -c 'SELECT pg_is_in_recovery();'
 
 ### Configuration Reference
 
-See `hosts/_modules/nixos/services/postgresql/default.nix` for all available options.
+See `modules/nixos/services/postgresql/default.nix` for all available options.
 
 Key option groups:
 
@@ -1552,4 +1552,4 @@ Key option groups:
 
 **Document Version**: 1.0
 **Last Updated**: 2025-10-11
-**Module Version**: hosts/_modules/nixos/services/postgresql v1.0
+**Module Version**: modules/nixos/services/postgresql v1.0
