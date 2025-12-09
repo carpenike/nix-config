@@ -114,18 +114,50 @@ nav:
       - Modular Design: modular-design-patterns.md
       - Monitoring Strategy: monitoring-strategy.md
       - Persistence: persistence-quick-reference.md
+      - Storage Module: storage-module-guide.md
       - Custom Packages: custom-package-patterns.md
+      - Shared Config: shared-config-example.md
+      - Reverse Proxy: reverse-proxy-pattern.md
+      - Structured Logging: structured-logging-framework.md
   - Operations:
       - Backup System: backup-system-onboarding.md
+      - Unified Backup Design: unified-backup-design-patterns.md
       - Disaster Recovery: disaster-recovery-preseed-pattern.md
+      - Preseed Restore Methods: preseed-restore-methods-guide.md
       - NFS Mounts: nfs-mount-management.md
+      - ZFS Replication: zfs-replication-setup.md
       - Notifications: notifications.md
+      - Metrics Patterns: metrics-pattern-usage.md
+      - UPS Monitoring: ups-monitoring.md
   - Infrastructure:
       - Caddy Reverse Proxy: modular-caddy-config.md
       - Authentication/SSO: pocketid-integration-pattern.md
+      - API Key Auth: api-key-authentication.md
       - Cloudflare Tunnels: cloudflare-tunnel-implementation.md
       - Container Images: container-image-management.md
       - DNSdist: dnsdist-shared-config.md
+      - AdGuard: adguard-modular-config.md
+  - Databases:
+      - PostgreSQL PITR: postgresql-pitr-guide.md
+      - PostgreSQL Auto-Restore: postgresql-auto-restore-homelab.md
+      - PostgreSQL Offsite Backup: postgresql-offsite-backup-setup.md
+      - pgBackRest Migration: postgresql-pgbackrest-migration.md
+      - pgBackRest Unified Config: pgbackrest-unified-config.md
+      - pgBackRest Multi-Repo: pgbackrest-multi-repo-workaround.md
+      - PostgreSQL Preseed Fix: postgresql-preseed-marker-fix.md
+  - Services:
+      - Arr Services Implementation: services/arr-services-implementation.md
+      - Arr API Configuration: arr-services-api-key-configuration.md
+      - Cooklang Module Design: services/cooklang-module-design.md
+      - Cooklang Quick Reference: services/cooklang-quick-reference.md
+      - Cooklang Feed Sync: services/cooklang-federation-feed-sync.md
+      - Loki Deployment: services/loki-deployment.md
+      - TeslaMate Operations: teslamate-operations.md
+      - Resilio Sync: resilio-sync.md
   - Reference:
+      - Backup Forge Setup: backup-forge-setup.md
       - Backup Metrics: backup-metrics-reference.md
+      - Package Management: package-management-strategy.md
       - Forge Host: forge-readme.md
+      - AI Orchestration: ai_orchestration.md
+      - Truxnell Patterns Analysis: analysis/truxnell-patterns-analysis.md

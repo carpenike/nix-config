@@ -787,7 +787,7 @@ basicauth {
 ### Related Patterns
 - [Modular Design Patterns](../modular-design-patterns.md)
 - [Disaster Recovery Preseed Pattern](../disaster-recovery-preseed-pattern.md)
-- [Gatus Module](../../modules/nixos/services/gatus/default.nix) - Black-box monitoring reference
+- [Monitoring Strategy](../monitoring-strategy.md) - Black-box vs white-box monitoring
 
 ### AI Research
 - **Model Used**: Gemini 2.5 Pro

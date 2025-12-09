@@ -684,7 +684,7 @@ echo "Destination snapshots:"
 ssh nas-1.holthome.net 'zfs list -t snapshot backup/forge/zfs-recv/home | wc -l'
 ```
 
-> **Note**: For comprehensive ZFS replication documentation, see [Sanoid & Syncoid Setup Guide](./sanoid-syncoid-setup.md)
+> **Note**: For comprehensive ZFS replication documentation, see the [ZFS Replication Setup Guide](./zfs-replication-setup.md).
 
 #### Benefits of Sanoid/Syncoid
 

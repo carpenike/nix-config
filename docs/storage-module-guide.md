@@ -305,4 +305,4 @@ sudo zfs set recordsize=8K tank/services/postgres
 
 - [disko documentation](https://github.com/nix-community/disko)
 - [ZFS recordsize tuning](https://openzfs.github.io/openzfs-docs/Performance%20and%20Tuning/Workload%20Tuning.html)
-- [PostgreSQL restore procedure](./postgresql-restore-procedure.md)
+- [PostgreSQL PITR Guide](./postgresql-pitr-guide.md)

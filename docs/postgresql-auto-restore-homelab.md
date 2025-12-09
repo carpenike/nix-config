@@ -552,6 +552,5 @@ Done! Your homelab PostgreSQL will automatically restore from backup when needed
 
 ## Related Documentation
 
-- [Repository Selection Guide](postgresql-preseed-repository-selection.md) - repo1 vs repo2 comparison
 - [PITR Guide](postgresql-pitr-guide.md) - Point-in-time recovery (manual)
 - [pgBackRest Migration](postgresql-pgbackrest-migration.md) - Backup system setup

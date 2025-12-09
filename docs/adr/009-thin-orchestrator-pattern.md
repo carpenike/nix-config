@@ -159,6 +159,6 @@ modules.services.promtail.extraScrapeConfigs = [ ... ];
 
 ## Related
 
-- [Modular Design Patterns](../modular-design-patterns.md#thin-orchestrator-pattern)
+- [Modular Design Patterns](../modular-design-patterns.md#thin-orchestrator-pattern-multi-service-stacks)
 - [ADR-001: Contributory Infrastructure Pattern](./001-contributory-infrastructure-pattern.md)
 - [ADR-003: Shared Types for Service Modules](./003-shared-types-for-service-modules.md)

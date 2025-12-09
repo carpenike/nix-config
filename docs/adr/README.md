@@ -61,4 +61,3 @@ What is the change that we're proposing?
 
 - [Repository Architecture](../repository-architecture.md) - High-level architecture overview
 - [Modular Design Patterns](../modular-design-patterns.md) - Implementation patterns
-- [Repository Structure Refactor Plan](../repository-structure-refactor-plan.md) - Refactoring history

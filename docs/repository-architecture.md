@@ -281,4 +281,3 @@ in
 - [Modular Design Patterns](./modular-design-patterns.md) - Detailed module patterns
 - [Monitoring Strategy](./monitoring-strategy.md) - Black-box vs white-box monitoring
 - [Backup System Onboarding](./backup-system-onboarding.md) - Backup configuration
-- [Repository Structure Refactor Plan](./repository-structure-refactor-plan.md) - Refactoring history

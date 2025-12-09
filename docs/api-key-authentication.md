@@ -273,4 +273,3 @@ curl -H "X-Api-Key: $MY_API_KEY" https://grafana.holthome.net/api/dashboards
 
 - [caddy-security Documentation](https://authp.github.io/)
 - [go-authcrunch API Key Auth](https://github.com/greenpau/go-authcrunch)
-- [SOPS Secret Management](../secrets/README.md)
