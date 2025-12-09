@@ -132,6 +132,7 @@ nav:
   - Infrastructure:
       - Caddy Reverse Proxy: modular-caddy-config.md
       - Authentication/SSO: pocketid-integration-pattern.md
+      - SSO Pattern Guide: authentication-sso-pattern.md
       - API Key Auth: api-key-authentication.md
       - Cloudflare Tunnels: cloudflare-tunnel-implementation.md
       - Container Images: container-image-management.md

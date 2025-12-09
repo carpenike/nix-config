@@ -16,7 +16,7 @@ This guide provides comprehensive instructions for onboarding new hosts and serv
 - [Service Onboarding](#service-onboarding)
 - [Configuration Reference](#configuration-reference)
 - [Advanced Features](#advanced-features)
-- [Monitoring & Alerting](#monitoring--alerting)
+- [Monitoring & Alerting](#monitoring-alerting)
 - [Troubleshooting](#troubleshooting)
 - [Best Practices](#best-practices)
 

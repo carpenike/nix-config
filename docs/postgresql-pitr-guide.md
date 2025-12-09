@@ -4,11 +4,11 @@
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Onboarding - Initial Setup](#onboarding---initial-setup)
-4. [Daily Operations & Maintenance](#daily-operations--maintenance)
+3. [Onboarding - Initial Setup](#onboarding-initial-setup)
+4. [Daily Operations & Maintenance](#daily-operations-maintenance)
 5. [Backup Management](#backup-management)
 6. [Disaster Recovery](#disaster-recovery)
-7. [Monitoring & Troubleshooting](#monitoring--troubleshooting)
+7. [Monitoring & Troubleshooting](#monitoring-troubleshooting)
 8. [Advanced Topics](#advanced-topics)
 
 ---
