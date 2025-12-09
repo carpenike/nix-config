@@ -10,6 +10,7 @@
 # - Follows modular design patterns: reverse proxy, backup, monitoring
 # - Minimal resource footprint (<50MB RAM)
 { lib
+, mylib
 , pkgs
 , config
 , ...
@@ -18,7 +19,7 @@ let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault;
 
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.pgweb;
 in

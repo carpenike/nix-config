@@ -16,13 +16,14 @@
 #
 # Reference: https://unpackerr.zip/docs/
 { lib
+, mylib
 , config
 , podmanLib
 , ...
 }:
 let
   # Import shared type definitions (for containerResourcesSubmodule)
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.unpackerr;
   notificationsCfg = config.modules.notifications;

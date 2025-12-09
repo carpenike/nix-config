@@ -1,4 +1,5 @@
 { lib
+, mylib
 , pkgs
 , config
 , podmanLib
@@ -8,7 +9,7 @@ let
   # Import pure storage helpers library
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.qui;
   storageCfg = config.modules.storage;

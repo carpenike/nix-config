@@ -1,10 +1,10 @@
 # Attic Binary Cache Server Configuration
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, mylib, ... }:
 
 let
   cfg = config.modules.services.attic;
   # Import shared type definitions
-  sharedTypes = import ../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   # Import storage helpers for preseed functionality
   storageHelpers = import ../storage/helpers-lib.nix { inherit pkgs lib; };
   # Storage configuration for dataset path

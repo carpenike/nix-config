@@ -1,7 +1,7 @@
-{ lib, pkgs, config, podmanLib, ... }:
+{ lib, mylib, pkgs, config, podmanLib, ... }:
 
 let
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   cfg = config.modules.services.scrypted;
   storageCfg = config.modules.storage;

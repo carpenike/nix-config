@@ -1,10 +1,10 @@
-{ config, lib, ... }:
+{ config, lib, mylib, ... }:
 
 let
   inherit (lib) mkOption mkEnableOption mkIf types;
   cfg = config.modules.services.promtail;
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 in
 {
   options.modules.services.promtail = {

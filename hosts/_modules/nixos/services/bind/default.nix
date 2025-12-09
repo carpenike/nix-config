@@ -1,4 +1,5 @@
 { lib
+, mylib
 , pkgs
 , config
 , ...
@@ -6,7 +7,7 @@
 let
   cfg = config.modules.services.bind;
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 in
 {
   imports = [ ./shared.nix ]; # Import the shared options module

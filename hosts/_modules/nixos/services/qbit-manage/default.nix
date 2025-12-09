@@ -1,4 +1,5 @@
 { lib
+, mylib
 , pkgs
 , config
 , ...
@@ -7,7 +8,7 @@ let
   # Import pure storage helpers library
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   # Import shared types
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.qbit-manage;
   notificationsCfg = config.modules.notifications;

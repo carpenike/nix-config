@@ -11,13 +11,14 @@
 # Auth: No native OIDC - use caddySecurity for SSO
 #
 { lib
+, mylib
 , pkgs
 , config
 , podmanLib
 , ...
 }:
 let
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 
   cfg = config.modules.services.paperless-ai;

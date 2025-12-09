@@ -11,13 +11,14 @@
 # Security: Client-side AES-GCM encryption - server never sees plaintext
 #
 { lib
+, mylib
 , pkgs
 , config
 , podmanLib
 , ...
 }:
 let
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 
   cfg = config.modules.services.enclosed;

@@ -1,4 +1,4 @@
-{ lib, pkgs, config, ... }:
+{ lib, mylib, pkgs, config, ... }:
 let
   inherit (lib)
     mkIf
@@ -13,7 +13,7 @@ let
     ;
 
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.cooklangFederation;
   notificationsCfg = config.modules.notifications or { };

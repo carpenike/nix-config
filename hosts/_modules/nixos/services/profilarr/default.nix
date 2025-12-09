@@ -1,4 +1,5 @@
 { lib
+, mylib
 , pkgs
 , config
 , ...
@@ -7,7 +8,7 @@ let
   # Import pure storage helpers library
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Only cfg is needed at top level for mkIf condition
   cfg = config.modules.services.profilarr;

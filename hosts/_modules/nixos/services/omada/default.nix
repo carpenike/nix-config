@@ -1,5 +1,6 @@
 { pkgs
 , lib
+, mylib
 , config
 , podmanLib
 , ...
@@ -13,7 +14,7 @@ let
   omadaTcpPorts = [ 8043 8843 29814 ];
   omadaUdpPorts = [ 29810 ];
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 in
 {

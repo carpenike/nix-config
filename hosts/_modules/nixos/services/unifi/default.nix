@@ -1,5 +1,6 @@
 { pkgs
 , lib
+, mylib
 , config
 , podmanLib
 , ...
@@ -13,7 +14,7 @@ let
   unifiTcpPorts = [ 8080 8443 ];
   unifiUdpPorts = [ 3478 ];
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 in
 {

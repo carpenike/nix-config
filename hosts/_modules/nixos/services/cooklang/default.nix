@@ -11,6 +11,7 @@
 # - Follows modular design patterns: reverse proxy, backup, monitoring, preseed
 # - Minimal resource footprint (<100MB RAM typical)
 { lib
+, mylib
 , pkgs
 , config
 , ...
@@ -21,7 +22,7 @@ let
   # Import storage helpers for preseed service generation
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.cooklang;
   notificationsCfg = config.modules.notifications or { };

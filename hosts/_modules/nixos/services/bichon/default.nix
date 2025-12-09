@@ -14,13 +14,14 @@
 # and use PocketID SSO at the reverse proxy layer instead.
 #
 { lib
+, mylib
 , pkgs
 , config
 , podmanLib
 , ...
 }:
 let
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 
   cfg = config.modules.services.bichon;

@@ -9,6 +9,12 @@
 # Usage in modules:
 #   { config, lib, mylib, ... }:
 #   {
+#     # Access shared types
+#     someOption = lib.mkOption {
+#       type = mylib.types.metricsSubmodule;
+#     };
+#
+#     # Use monitoring helpers
 #     modules.alerting.rules.my-service = [
 #       (mylib.monitoring-helpers.mkServiceDownAlert { ... })
 #     ];
@@ -17,6 +23,10 @@
 { lib }:
 
 {
+  # Shared type definitions for standardized service module patterns
+  # Provides reusable submodule types (metrics, logging, backup, reverseProxy, etc.)
+  types = import ./types.nix { inherit lib; };
+
   # Backup helper functions
   # Note: Currently deprecated - see file for migration details
   backup-helpers = import ./backup-helpers.nix { inherit lib; pkgs = null; };

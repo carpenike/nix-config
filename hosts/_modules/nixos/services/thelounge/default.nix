@@ -17,14 +17,14 @@
 # via the `defaults` object. Additional networks are per-user in their
 # user.json files. Use `lockNetwork = true` to force the default network.
 #
-{ config, lib, ... }:
+{ config, lib, mylib, ... }:
 
 let
   cfg = config.modules.services.thelounge;
   serviceName = "thelounge";
 
   # Import shared types for standard submodules
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # IRC network defaults submodule
   ircNetworkSubmodule = lib.types.submodule {

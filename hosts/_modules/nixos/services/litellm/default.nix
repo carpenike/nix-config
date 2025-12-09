@@ -18,7 +18,7 @@
 # Reference: https://docs.litellm.ai/docs/proxy/deploy
 # SSO Docs: https://docs.litellm.ai/docs/proxy/admin_ui_sso
 #
-{ config, lib, pkgs, podmanLib, ... }:
+{ config, lib, mylib, pkgs, podmanLib, ... }:
 
 let
   inherit (lib)
@@ -42,7 +42,7 @@ let
   internalContainerPort = 4000;
 
   # Import shared types for standardized submodules
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Import storage helpers for preseed functionality
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };

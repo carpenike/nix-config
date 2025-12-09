@@ -12,7 +12,7 @@
 #
 # Reference: Mealie module for OIDC pattern, Gatus for native wrapper pattern
 
-{ config, lib, pkgs, ... }:
+{ config, lib, mylib, pkgs, ... }:
 
 let
   inherit (lib) mkOption mkEnableOption mkIf types mkMerge optional optionalAttrs;
@@ -22,7 +22,7 @@ let
   upstreamServiceName = "open-webui";
 
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Environment file location (separate from main service's RuntimeDirectory
   # to avoid cleanup conflicts when the main service restarts)

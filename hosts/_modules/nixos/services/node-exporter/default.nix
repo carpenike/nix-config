@@ -1,11 +1,12 @@
 { lib
+, mylib
 , config
 , ...
 }:
 let
   cfg = config.modules.services.node-exporter;
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 in
 {
   options.modules.services.node-exporter = {

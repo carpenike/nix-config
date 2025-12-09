@@ -18,13 +18,14 @@
 #   };
 
 { lib
+, mylib
 , config
 , podmanLib
 , ...
 }:
 let
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.it-tools;
   serviceName = "it-tools";

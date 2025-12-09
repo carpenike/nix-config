@@ -1,4 +1,4 @@
-{ lib, pkgs, config, ... }:
+{ lib, mylib, pkgs, config, ... }:
 let
   inherit (lib)
     mkIf
@@ -8,7 +8,7 @@ let
     mkDefault
     types;
 
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   format = pkgs.formats.keyValue { };
 

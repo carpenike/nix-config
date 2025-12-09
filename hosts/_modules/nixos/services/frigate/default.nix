@@ -1,7 +1,7 @@
-{ lib, pkgs, config, ... }:
+{ lib, mylib, pkgs, config, ... }:
 
 let
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
   cfg = config.modules.services.frigate;
   storageCfg = config.modules.storage or { };

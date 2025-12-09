@@ -9,7 +9,7 @@
 # - Declarative provisioning of plugins, datasources, and dashboards
 # - Automatic discovery of Loki and Prometheus services
 #
-{ config, lib, pkgs, ... }:
+{ config, lib, mylib, pkgs, ... }:
 
 let
   inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList;
@@ -18,7 +18,7 @@ let
   serviceName = "grafana";
 
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Import storage helpers for preseed service generation
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };

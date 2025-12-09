@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, mylib, pkgs, ... }:
 let
   inherit (lib)
     literalExpression
@@ -12,7 +12,7 @@ let
     optionalString
     types;
 
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit lib pkgs; };
 
   cfg = config.modules.services.zigbee2mqtt;

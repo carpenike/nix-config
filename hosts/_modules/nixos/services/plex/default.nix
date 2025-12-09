@@ -1,4 +1,5 @@
 { lib
+, mylib
 , pkgs
 , config
 , ...
@@ -6,7 +7,7 @@
 let
   cfg = config.modules.services.plex;
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Import storage helpers for preseed service generation
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };

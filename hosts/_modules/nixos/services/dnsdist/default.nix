@@ -1,11 +1,12 @@
 { lib
+, mylib
 , config
 , ...
 }:
 let
   cfg = config.modules.services.dnsdist;
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 in
 {
   imports = [ ./shared.nix ];

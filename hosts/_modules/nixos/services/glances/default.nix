@@ -1,8 +1,8 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, mylib, pkgs, ... }:
 let
   cfg = config.modules.services.glances;
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 in
 {
   options.modules.services.glances = {

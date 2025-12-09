@@ -17,10 +17,10 @@
 # - Can optionally use PostgreSQL for larger deployments
 # - Integrates with existing Grafana via plugin
 #
-{ config, lib, pkgs, ... }:
+{ config, lib, mylib, pkgs, ... }:
 with lib;
 let
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
 
   cfg = config.modules.services.grafana-oncall;

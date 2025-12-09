@@ -14,14 +14,14 @@
 # Architecture Decision: Native NixOS module wrapper preferred over container.
 # Using pkgs.unstable.n8n for latest version.
 #
-{ config, lib, pkgs, ... }:
+{ config, lib, mylib, pkgs, ... }:
 
 let
   cfg = config.modules.services.n8n;
   serviceName = "n8n";
 
   # Import shared types for standard submodules
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 in
 {
   options.modules.services.n8n = {

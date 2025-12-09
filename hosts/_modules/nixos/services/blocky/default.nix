@@ -1,4 +1,5 @@
 { lib
+, mylib
 , pkgs
 , config
 , ...
@@ -8,7 +9,7 @@ let
   yamlFormat = pkgs.formats.yaml { };
   configFile = yamlFormat.generate "config.yaml" cfg.config;
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 in
 {
   options.modules.services.blocky = {

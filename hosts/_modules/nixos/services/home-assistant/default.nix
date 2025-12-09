@@ -1,9 +1,9 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, mylib, pkgs, ... }:
 let
   inherit (lib) mkEnableOption mkOption mkIf mkMerge mkDefault mkForce types;
 
   storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   cfg = config.modules.services.home-assistant;
   storageCfg = config.modules.storage;

@@ -22,14 +22,14 @@
 #     backup = forgeDefaults.backup;
 #   };
 #
-{ config, lib, ... }:
+{ config, lib, mylib, ... }:
 
 let
   cfg = config.modules.services.pinchflat;
   serviceName = "pinchflat";
 
   # Import shared types for standard submodules
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Look up the NFS mount configuration if a dependency is declared
   nfsMountName = cfg.nfsMountDependency;

@@ -19,14 +19,14 @@
 #       conditions = [ "[STATUS] == 200" ];
 #     };
 #
-{ config, lib, ... }:
+{ config, lib, mylib, ... }:
 
 let
   cfg = config.modules.services.gatus;
   serviceName = "gatus";
 
   # Import shared types for standard submodules
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Endpoint contribution submodule - services can register themselves
   endpointSubmodule = lib.types.submodule ({ name, ... }: {

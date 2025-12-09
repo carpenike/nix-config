@@ -30,7 +30,7 @@
 #     };
 #   };
 
-{ lib, config, ... }:
+{ lib, mylib, config, ... }:
 
 let
   inherit (lib) mkOption mkEnableOption mkIf types mapAttrsToList;
@@ -38,7 +38,7 @@ let
   cfg = config.modules.services.homepage;
 
   # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  sharedTypes = mylib.types;
 
   # Convert contributions to Homepage services.yaml format
   # Groups contributions by their 'group' attribute
