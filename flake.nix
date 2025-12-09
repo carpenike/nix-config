@@ -204,6 +204,8 @@
             ];
 
             shellHook = ''
+              # Ensure Nix-provided mkdocs takes precedence over Homebrew
+              export PATH="${pkgs.python312Packages.mkdocs}/bin:$PATH"
               echo "📚 Documentation development shell"
               echo "   Run 'mkdocs serve' to preview docs at http://127.0.0.1:8000"
               echo "   Run 'mkdocs build' to build static site"
