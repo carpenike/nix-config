@@ -422,15 +422,18 @@ task sops:edit host=forge
 
 ## 📚 Documentation
 
+📖 **Full documentation site**: [https://carpenike.github.io/nix-config/](https://carpenike.github.io/nix-config/)
+
 Key documentation files in `docs/`:
 
 | Document | Description |
 |----------|-------------|
+| [repository-architecture.md](docs/repository-architecture.md) | High-level architecture overview |
 | [modular-design-patterns.md](docs/modular-design-patterns.md) | Service module architecture |
 | [monitoring-strategy.md](docs/monitoring-strategy.md) | Black-box vs white-box monitoring |
 | [backup-system-onboarding.md](docs/backup-system-onboarding.md) | Backup configuration guide |
 | [persistence-quick-reference.md](docs/persistence-quick-reference.md) | ZFS dataset patterns |
-| [custom-package-patterns.md](docs/custom-package-patterns.md) | nvfetcher and package updates |
+| [ADRs](docs/adr/README.md) | Architectural Decision Records |
 
 ---
 

@@ -1,0 +1,131 @@
+# MkDocs Material Configuration for NixOS Homelab Documentation
+# Site: https://carpenike.github.io/nix-config/
+
+site_name: NixOS Homelab Docs
+site_description: Documentation for a declarative NixOS homelab configuration
+site_url: https://carpenike.github.io/nix-config/
+repo_name: carpenike/nix-config
+repo_url: https://github.com/carpenike/nix-config
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2025 Ryan Holt
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - navigation.tabs
+    - navigation.path
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])'
+  - tags
+
+markdown_extensions:
+  # Admonitions (callouts, tips, warnings)
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  # Code highlighting
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  # Tabs
+  - pymdownx.tabbed:
+      alternate_style: true
+  # Task lists
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  # Tables
+  - tables
+  # Table of contents
+  - toc:
+      permalink: true
+      toc_depth: 3
+  # Typography
+  - pymdownx.smartsymbols
+  # Keys (keyboard shortcuts)
+  - pymdownx.keys
+  # Emoji
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/carpenike
+  generator: false
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Bootstrap Quickstart: bootstrap-quickstart.md
+  - Architecture:
+      - Repository Structure: repository-architecture.md
+      - ADRs:
+          - Overview: adr/README.md
+          - "001: Contributory Infrastructure": adr/001-contributory-infrastructure-pattern.md
+          - "002: Host-Level Defaults": adr/002-host-level-defaults-library.md
+          - "003: Shared Types": adr/003-shared-types-for-service-modules.md
+          - "004: Impermanence Control": adr/004-impermanence-host-level-control.md
+          - "005: Native Over Containers": adr/005-native-services-over-containers.md
+          - "006: Black-Box/White-Box Monitoring": adr/006-black-box-white-box-monitoring.md
+          - "007: Multi-Tier DR": adr/007-multi-tier-disaster-recovery.md
+          - "008: Authentication Framework": adr/008-authentication-priority-framework.md
+          - "009: Thin Orchestrator Pattern": adr/009-thin-orchestrator-pattern.md
+  - Patterns:
+      - Modular Design: modular-design-patterns.md
+      - Monitoring Strategy: monitoring-strategy.md
+      - Persistence: persistence-quick-reference.md
+      - Custom Packages: custom-package-patterns.md
+  - Operations:
+      - Backup System: backup-system-onboarding.md
+      - Disaster Recovery: disaster-recovery-preseed-pattern.md
+      - NFS Mounts: nfs-mount-management.md
+      - Notifications: notifications.md
+  - Infrastructure:
+      - Caddy Reverse Proxy: modular-caddy-config.md
+      - Authentication/SSO: pocketid-integration-pattern.md
+      - Cloudflare Tunnels: cloudflare-tunnel-implementation.md
+      - Container Images: container-image-management.md
+      - DNSdist: dnsdist-shared-config.md
+  - Reference:
+      - Backup Metrics: backup-metrics-reference.md
+      - Forge Host: forge-readme.md

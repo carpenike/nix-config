@@ -2,6 +2,26 @@
 
 This directory contains comprehensive documentation for the NixOS configuration system.
 
+📖 **Online documentation**: [https://carpenike.github.io/nix-config/](https://carpenike.github.io/nix-config/)
+
+## Local Development
+
+Preview the documentation locally:
+
+```bash
+# Enter docs development shell
+nix develop .#docs
+
+# Start local server
+mkdocs serve
+# Open http://127.0.0.1:8000
+
+# Build static site
+mkdocs build
+```
+
+---
+
 ## Quick Start
 
 | Goal | Document |

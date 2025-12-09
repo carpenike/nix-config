@@ -192,6 +192,24 @@
             '';
           };
 
+          # Documentation shell for MkDocs development
+          devShells.docs = pkgs.mkShell {
+            nativeBuildInputs = with pkgs; [
+              python312
+              python312Packages.mkdocs
+              python312Packages.mkdocs-material
+              python312Packages.mkdocs-material-extensions
+              python312Packages.pymdown-extensions
+              python312Packages.mkdocs-minify-plugin
+            ];
+
+            shellHook = ''
+              echo "📚 Documentation development shell"
+              echo "   Run 'mkdocs serve' to preview docs at http://127.0.0.1:8000"
+              echo "   Run 'mkdocs build' to build static site"
+            '';
+          };
+
           # Code formatter (nix fmt)
           formatter = pkgs.nixpkgs-fmt;
 
