@@ -27,6 +27,11 @@ This directory contains comprehensive documentation for the NixOS configuration 
   - [ADR-002: Host-Level Defaults Library](./adr/002-host-level-defaults-library.md)
   - [ADR-003: Shared Types for Service Modules](./adr/003-shared-types-for-service-modules.md)
   - [ADR-004: Impermanence Host-Level Control](./adr/004-impermanence-host-level-control.md)
+  - [ADR-005: Native Services Over Containers](./adr/005-native-services-over-containers.md)
+  - [ADR-006: Black-Box vs White-Box Monitoring](./adr/006-black-box-white-box-monitoring.md)
+  - [ADR-007: Multi-Tier Disaster Recovery](./adr/007-multi-tier-disaster-recovery.md)
+  - [ADR-008: Authentication Priority Framework](./adr/008-authentication-priority-framework.md)
+  - [ADR-009: Thin Orchestrator Pattern](./adr/009-thin-orchestrator-pattern.md)
 
 ---
 
