@@ -109,12 +109,18 @@ Preserve:
 - Networking patterns
 - Host-level integration patterns
 - Avoid unnecessary abstractions
+- Use `mylib.types` for shared type definitions
+- Use `mylib.storageHelpers` for replication and NFS patterns
 
 If a tool suggests breaking conventions → override the tool and explain why.
 
 ---
 
 ## Repository Architecture (Critical Context)
+
+### Key Documents (Read First for Context)
+- [`docs/repository-architecture.md`](../docs/repository-architecture.md) - High-level structure overview
+- [`docs/adr/`](../docs/adr/README.md) - Architectural decision records explaining *why*
 
 ### Reference Host: forge
 - **Three-tier architecture**: core → infrastructure → services
@@ -133,7 +139,9 @@ If a tool suggests breaking conventions → override the tool and explain why.
 
 ### The `forgeDefaults` Helper Library
 
-For forge host services, use the centralized defaults library to reduce duplication:
+For forge host services, use the centralized defaults library to reduce duplication.
+
+**Architecture**: `hosts/forge/lib/defaults.nix` is a thin wrapper around the parameterized factory `lib/host-defaults.nix`. New hosts should create similar thin wrappers.
 
 ```nix
 let
@@ -203,6 +211,8 @@ tflint
 - Monitoring: [`docs/monitoring-strategy.md`](../docs/monitoring-strategy.md)
 - Storage & replication pattern: [`hosts/forge/README.md`](../hosts/forge/README.md)
 - Persistence: [`docs/persistence-quick-reference.md`](../docs/persistence-quick-reference.md)
+- Architecture: [`docs/repository-architecture.md`](../docs/repository-architecture.md)
+- Design decisions: [`docs/adr/`](../docs/adr/README.md)
 
 ---
 
@@ -413,9 +423,10 @@ services.myservice = {
 - [ ] Test with "Add a module for [NEW_SERVICE]" scenario
 
 ### Recent Changes
+- 2025-12-09: Added architecture docs and ADRs, documented `mylib.types` and `mylib.storageHelpers` patterns, updated `lib/host-defaults.nix` factory reference.
 - 2025-11-20: Documented instruction stack, added direct doc links, enforced Taskfile-only deployment guidance.
 
-**Last reviewed:** 2025-11-20
+**Last reviewed:** 2025-12-09
 **Next review due:** When next major module added
 
 ---

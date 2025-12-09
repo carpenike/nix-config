@@ -1,8 +1,8 @@
 agent: ask
 description: Scaffold a new NixOS service module with storage, backup, and monitoring integrations
-version: 2.10
-last_updated: 2025-12-05
-changelog: "v2.10: Added Trusted Header Auth pattern (auth proxy) for multi-user apps that accept Remote-User/X-Email headers from proxy (grafana, organizr). Reorganized auth patterns with 6 tiers. Added research checklist for proxy auth support. v2.9: Revised auth priority - prefer disabling native auth + caddySecurity for single-user apps over per-app auth. Native OIDC now only recommended when multi-user authorization matters (user X can do Y). Added Pattern 2 for disable-auth+caddySecurity workflow. Updated decision matrix and examples. v2.8: Added mandatory OIDC/native auth research to Step 0 - always prefer native OIDC over proxy auth. Added hybrid auth pattern (PocketID SSO + API key injection) for services like paperless-ai. Clarified auth decision matrix with priority order. v2.7: Added OIDC/PocketID integration patterns with examples from paperless/mealie/autobrr. Added mylib.monitoring-helpers library documentation for complex alerts. Added healthcheck.enable pattern for container services. Added nfsMountDependency pattern for media services needing NAS access. Added Gatus alert configuration (pushover, thresholds). Expanded forgeDefaults.mkBackupWithTags and backupTags documentation. v2.6: Added mandatory NixOS MCP server research step to check for native packages/modules in both unstable and stable branches BEFORE any other work. Added pkgs.unstable pattern documentation for using newer package versions. Added default Homepage and Gatus contribution requirements for services with web endpoints. v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags."
+version: 2.11
+last_updated: 2025-12-09
+changelog: "v2.11: Added Central Library Patterns section documenting mylib.types, mylib.storageHelpers (mkReplicationConfig, mkNfsMountConfig, mkPreseedService), and ADR references. Updated references to include repository-architecture.md and ADRs. v2.10: Added Trusted Header Auth pattern (auth proxy) for multi-user apps that accept Remote-User/X-Email headers from proxy (grafana, organizr). Reorganized auth patterns with 6 tiers. Added research checklist for proxy auth support. v2.9: Revised auth priority - prefer disabling native auth + caddySecurity for single-user apps over per-app auth. Native OIDC now only recommended when multi-user authorization matters (user X can do Y). Added Pattern 2 for disable-auth+caddySecurity workflow. Updated decision matrix and examples. v2.8: Added mandatory OIDC/native auth research to Step 0 - always prefer native OIDC over proxy auth. Added hybrid auth pattern (PocketID SSO + API key injection) for services like paperless-ai. Clarified auth decision matrix with priority order. v2.7: Added OIDC/PocketID integration patterns with examples from paperless/mealie/autobrr. Added mylib.monitoring-helpers library documentation for complex alerts. Added healthcheck.enable pattern for container services. Added nfsMountDependency pattern for media services needing NAS access. Added Gatus alert configuration (pushover, thresholds). Expanded forgeDefaults.mkBackupWithTags and backupTags documentation. v2.6: Added mandatory NixOS MCP server research step to check for native packages/modules in both unstable and stable branches BEFORE any other work. Added pkgs.unstable pattern documentation for using newer package versions. Added default Homepage and Gatus contribution requirements for services with web endpoints. v2.5: Added container image pinning with SHA256 digest requirement, GHCR registry preference over Docker Hub, port conflict scanning step, and explicit guidance against :latest tags."
 ---
 # NixOS Service Module Scaffold
 
@@ -1174,6 +1174,104 @@ backup = forgeDefaults.mkBackupWithTags "paperless" [ "documents" "paperless" "f
 
 ---
 
+## Central Library Patterns (`mylib`)
+
+The `mylib` library is injected into all modules via `_module.args` in `lib/mkSystem.nix`. It provides shared types, storage helpers, and monitoring utilities.
+
+### Accessing mylib in Modules
+
+```nix
+{ config, lib, pkgs, mylib, ... }:  # mylib must be in function args
+
+let
+  # Shared type definitions for standardized submodules
+  sharedTypes = mylib.types;
+
+  # Storage and replication helpers
+  storageHelpers = mylib.storageHelpers;
+
+  # Monitoring alert helpers
+  monitoringHelpers = mylib.monitoring-helpers;
+in
+```
+
+### Shared Types (`mylib.types`)
+
+**Available types for standardized submodules:**
+- `sharedTypes.reverseProxySubmodule` - Reverse proxy with TLS backend support
+- `sharedTypes.metricsSubmodule` - Prometheus metrics collection
+- `sharedTypes.loggingSubmodule` - Log shipping with multiline parsing
+- `sharedTypes.backupSubmodule` - Backup integration with retention policies
+- `sharedTypes.notificationSubmodule` - Notification channels with escalation
+- `sharedTypes.containerResourcesSubmodule` - Container resource management
+- `sharedTypes.datasetSubmodule` - ZFS dataset configuration
+- `sharedTypes.healthcheckSubmodule` - Container healthcheck configuration
+
+**Usage example:**
+```nix
+reverseProxy = lib.mkOption {
+  type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+  default = null;
+  description = "Reverse proxy configuration";
+};
+
+backup = lib.mkOption {
+  type = lib.types.nullOr sharedTypes.backupSubmodule;
+  default = null;
+  description = "Backup configuration";
+};
+```
+
+### Storage Helpers (`mylib.storageHelpers`)
+
+**Key helpers for ZFS replication and NFS mounts:**
+
+1. **`mkReplicationConfig`** - Walks dataset tree to find inherited replication config:
+```nix
+let
+  datasetPath = "tank/services/${serviceName}";
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+in
+# replicationConfig is null or { sourcePath, replication }
+```
+
+2. **`mkNfsMountConfig`** - Resolves NFS mount dependency:
+```nix
+let
+  nfsMountConfig = storageHelpers.mkNfsMountConfig {
+    inherit config;
+    nfsMountDependency = cfg.nfsMountDependency;
+  };
+in
+# nfsMountConfig is null or the mount configuration object
+```
+
+3. **`mkPreseedService`** - Creates preseed/DR restore service:
+```nix
+(storageHelpers.mkPreseedService {
+  serviceName = serviceName;
+  dataset = datasetPath;
+  mountpoint = cfg.dataDir;
+  mainServiceUnit = "${serviceName}.service";
+  replicationCfg = replicationConfig;
+  resticRepoUrl = cfg.preseed.repositoryUrl;
+  resticPasswordFile = cfg.preseed.passwordFile;
+  restoreMethods = cfg.preseed.restoreMethods;
+})
+```
+
+### Architecture Decision Records
+
+For understanding *why* these patterns exist:
+- **ADR-001**: Contributory infrastructure pattern
+- **ADR-002**: Host-level defaults library
+- **ADR-003**: Shared types for service modules
+- **ADR-004**: Impermanence host-level control
+
+See [`docs/adr/README.md`](../../docs/adr/README.md) for the full list.
+
+---
+
 ## Additional Integration Patterns
 
 ### OIDC/PocketID Integration Pattern
@@ -2153,7 +2251,14 @@ You've succeeded when:
 - `hosts/forge/networking/cloudflared.nix` - Tunnel configuration example
 - `lib/monitoring-helpers.nix` - Prometheus alert template functions (`mylib.monitoring-helpers`)
 
+*Library patterns:*
+- `lib/types.nix` - Shared types (`mylib.types`)
+- `lib/storage-helpers.nix` - Storage and replication helpers (`mylib.storageHelpers`)
+- `lib/host-defaults.nix` - Parameterized factory for host-level defaults
+
 **Reference these docs:**
+- `docs/repository-architecture.md` - **High-level structure overview**
+- `docs/adr/README.md` - **Architectural decision records (ADRs)**
 - `docs/modular-design-patterns.md` - Architecture principles, forgeDefaults patterns
 - `docs/authentication-sso-pattern.md` - **SSO patterns: OIDC, auth proxy, caddySecurity**
 - `docs/persistence-quick-reference.md` - Storage details

@@ -4,6 +4,20 @@ This directory contains comprehensive documentation for the NixOS configuration 
 
 ## Available Documentation
 
+### Architecture
+
+- **[Repository Architecture](./repository-architecture.md)** - ⚡ **Start here** - High-level overview of repository structure
+  - Directory layout and module organization
+  - `lib/` components and injection pattern
+  - Host architecture patterns (single-disk vs two-disk)
+  - Key patterns and conventions
+
+- **[Architectural Decision Records (ADRs)](./adr/README.md)** - Design decisions with context and rationale
+  - [ADR-001: Contributory Infrastructure Pattern](./adr/001-contributory-infrastructure-pattern.md)
+  - [ADR-002: Host-Level Defaults Library](./adr/002-host-level-defaults-library.md)
+  - [ADR-003: Shared Types for Service Modules](./adr/003-shared-types-for-service-modules.md)
+  - [ADR-004: Impermanence Host-Level Control](./adr/004-impermanence-host-level-control.md)
+
 ### System Management
 
 - **[Bootstrap Quickstart](./bootstrap-quickstart.md)** - ⚡ **Quick reference** for manually bootstrapping new NixOS hosts
