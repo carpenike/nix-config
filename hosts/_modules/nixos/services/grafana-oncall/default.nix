@@ -135,10 +135,22 @@ in
       description = "System user for Grafana OnCall data ownership";
     };
 
+    uid = mkOption {
+      type = types.int;
+      default = 957;
+      description = "Static UID for the Grafana OnCall user. Required for container volume permissions.";
+    };
+
     group = mkOption {
       type = types.str;
       default = "grafana-oncall";
       description = "System group for Grafana OnCall data ownership";
+    };
+
+    gid = mkOption {
+      type = types.int;
+      default = 952;
+      description = "Static GID for the Grafana OnCall group. Required for container volume permissions.";
     };
 
     dataDir = mkOption {
@@ -462,14 +474,17 @@ in
         }
       ];
 
-      # Create system user/group
+      # Create system user/group with static UID/GID for container volume permissions
       users.users.${cfg.user} = {
         isSystemUser = true;
+        uid = cfg.uid;
         group = cfg.group;
         home = cfg.dataDir;
         description = "Grafana OnCall service user";
       };
-      users.groups.${cfg.group} = { };
+      users.groups.${cfg.group} = {
+        gid = cfg.gid;
+      };
 
       # ZFS dataset configuration
       modules.storage.datasets.services.grafana-oncall = mkIf (datasetPath != null) {
@@ -486,6 +501,7 @@ in
         "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.dataDir}/data 0750 ${cfg.user} ${cfg.group} - -"
         "d ${cfg.dataDir}/redis 0750 ${cfg.user} ${cfg.group} - -"
+        "d ${cfg.dataDir}/celery 0750 ${cfg.user} ${cfg.group} - -"
       ];
 
       # Create dedicated Podman network for inter-container communication
@@ -498,8 +514,8 @@ in
         image = cfg.redis.image;
         autoStart = true;
 
-        # Use UID:GID since container doesn't have access to host passwd
-        user = "${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}";
+        # Use static UID:GID since container doesn't have access to host passwd
+        user = "${toString cfg.uid}:${toString cfg.gid}";
 
         extraOptions = [
           "--network=${networkName}"
@@ -533,8 +549,8 @@ in
       virtualisation.oci-containers.containers."${serviceName}-migration" = {
         image = cfg.image;
         autoStart = false; # Started by systemd dependency
-        # Use UID:GID since container doesn't have access to host passwd
-        user = "${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}";
+        # Use static UID:GID since container doesn't have access to host passwd
+        user = "${toString cfg.uid}:${toString cfg.gid}";
 
         environment = oncallEnvironment // {
           # Migration doesn't need metrics
@@ -563,8 +579,8 @@ in
       virtualisation.oci-containers.containers."${serviceName}-engine" = {
         image = cfg.image;
         autoStart = true;
-        # Use UID:GID since container doesn't have access to host passwd
-        user = "${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}";
+        # Use static UID:GID since container doesn't have access to host passwd
+        user = "${toString cfg.uid}:${toString cfg.gid}";
 
         dependsOn = [
           "${serviceName}-redis"
@@ -606,8 +622,8 @@ in
       virtualisation.oci-containers.containers."${serviceName}-celery" = {
         image = cfg.image;
         autoStart = true;
-        # Use UID:GID since container doesn't have access to host passwd
-        user = "${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}";
+        # Use static UID:GID since container doesn't have access to host passwd
+        user = "${toString cfg.uid}:${toString cfg.gid}";
 
         dependsOn = [
           "${serviceName}-redis"
@@ -622,6 +638,10 @@ in
 
         volumes = [
           "${cfg.dataDir}/data:/var/lib/oncall"
+          # Mount writable directory for celerybeat-schedule
+          # Celery Beat writes its schedule database to the working directory
+          # but /etc/app is read-only, so we use a separate writable location
+          "${cfg.dataDir}/celery:/var/lib/oncall/celery"
         ];
 
         extraOptions = [
@@ -631,7 +651,9 @@ in
           "--cpus=${cfg.resources.cpus}"
         ];
 
-        cmd = [ "sh" "-c" "./celery_with_exporter.sh" ];
+        # Change working directory to writable location for celerybeat-schedule
+        # and add /etc/app to PYTHONPATH so celery can find the engine module
+        cmd = [ "sh" "-c" "export PYTHONPATH=/etc/app:$PYTHONPATH && cd /var/lib/oncall/celery && /etc/app/celery_with_exporter.sh" ];
       };
 
       # Network service name for dependencies

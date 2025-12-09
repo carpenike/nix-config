@@ -181,8 +181,9 @@ in
               echo "Cleaning up old backup snapshots..."
 
               # Find all backup snapshots older than maxAge
+              # Use 'grep ... || true' to handle case where no backup snapshots exist
               ${pkgs.zfs}/bin/zfs list -H -t snapshot -o name,creation \
-                | grep '@backup-' \
+                | { grep '@backup-' || true; } \
                 | while IFS=$'\t' read -r snapshot creation; do
                   # Calculate age (simplified - just check if older than 1 day for now)
                   snapshot_date=$(echo "$creation" | ${pkgs.coreutils}/bin/cut -d' ' -f1-3)
