@@ -6,7 +6,7 @@ let
   testConfig = nixosSystem {
     inherit system;
     modules = [
-      ../../hosts/_modules/nixos/services/cooklang/default.nix
+      ../../modules/nixos/services/cooklang/default.nix
       ({ lib, ... }: {
         options.modules.storage = lib.mkOption {
           type = lib.types.attrs;

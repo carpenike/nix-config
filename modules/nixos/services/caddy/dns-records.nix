@@ -11,7 +11,7 @@ let
   cfg = config.modules.services.caddy;
 
   # Import shared DNS utilities (relative to repository root)
-  dnsLib = import ../../../../../lib/dns.nix { inherit lib; };
+  dnsLib = import ../../../../lib/dns.nix { inherit lib; };
 
   # Get the host's primary IP address from host configuration
   hostIP = config.my.hostIp or ""; # Empty string if not configured

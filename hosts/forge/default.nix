@@ -12,7 +12,7 @@ in
 {
   imports = [
     # Common modules
-    ../_modules/common/r2-config.nix
+    ../../modules/common/r2-config.nix
 
     # Hardware & Disk Configuration
     (import ./disko-config.nix {

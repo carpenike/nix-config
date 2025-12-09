@@ -66,8 +66,8 @@
             users.ryan = ../home/ryan;
           };
         }
-        ../hosts/_modules/common
-        ../hosts/_modules/nixos
+        ../modules/common
+        ../modules/nixos
         ../hosts/${hostname}
       ];
       specialArgs = {
@@ -110,8 +110,8 @@
             users.ryan = ../home/ryan;
           };
         }
-        ../hosts/_modules/common
-        ../hosts/_modules/darwin
+        ../modules/common
+        ../modules/darwin
         ../hosts/${hostname}
       ];
       specialArgs = {

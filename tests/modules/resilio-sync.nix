@@ -6,7 +6,7 @@ let
   eval = nixosSystem {
     inherit system;
     modules = [
-      ../../hosts/_modules/nixos/services/resilio-sync/default.nix
+      ../../modules/nixos/services/resilio-sync/default.nix
       ({ ... }: {
         config.networking.hostName = "resilio-test";
 
