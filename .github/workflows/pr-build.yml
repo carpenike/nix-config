@@ -42,6 +42,13 @@ jobs:
       - name: Set up Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
 
+      # Cachix - persistent binary cache shared between CI and local machines
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: carpenike
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
       # Check flake health (outdated inputs, etc.)
       - name: Flake health check
         uses: DeterminateSystems/flake-checker-action@main
