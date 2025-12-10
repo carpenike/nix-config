@@ -795,8 +795,11 @@ in
       # =============================================================================
 
       modules.storage.datasets.services.kometa = {
+        mountpoint = cfg.dataDir;
         recordsize = "128K";
         compression = "zstd";
+        owner = cfg.user;
+        group = cfg.group;
       };
 
       # =============================================================================
@@ -829,20 +832,14 @@ in
 
           serviceConfig = {
             Type = "oneshot";
+            # NOTE: Run as root to access SOPS template, then drop privileges in container
+            # This matches the pattern used by recyclarr and other containerized services
             User = "root";
             Group = "root";
 
             # Resource limits
             MemoryMax = "2G";
-            MemoryReservation = "512M";
             CPUQuota = "200%";
-
-            # Security hardening
-            NoNewPrivileges = true;
-            ProtectSystem = "strict";
-            ProtectHome = true;
-            PrivateTmp = true;
-            ReadWritePaths = [ cfg.dataDir ];
 
             EnvironmentFile =
               let
