@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for FlakeHub Cache authentication
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
@@ -42,9 +41,9 @@ jobs:
           extra-conf: |
             extra-platforms = aarch64-linux
 
-      # FlakeHub Cache - zero-config binary cache for Nix (free for open source)
-      - name: Set up FlakeHub Cache
-        uses: DeterminateSystems/flakehub-cache-action@main
+      # Magic Nix Cache - uses GitHub Actions cache for Nix store paths (free, no registration)
+      - name: Set up Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
 
       # Check flake health (outdated inputs, etc.)
       - name: Flake health check
