@@ -37,9 +37,6 @@ jobs:
       # Use Determinate Nix (recommended over nix-installer-action in 2025)
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
-        with:
-          extra-conf: |
-            extra-platforms = aarch64-linux
 
       # Magic Nix Cache - uses GitHub Actions cache for Nix store paths (free, no registration)
       - name: Set up Magic Nix Cache
@@ -52,11 +49,6 @@ jobs:
 
       - name: Nix flake check
         run: nix flake check --keep-going
-
-      # Register binfmt for cross-platform builds (aarch64)
-      - name: Register binfmt
-        run: |
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
       - name: Garbage collect build dependencies
         run: nix-collect-garbage
@@ -74,10 +66,17 @@ jobs:
       - name: Output build failure
         if: failure()
         run: |
-          drv=$(grep "For full logs, run" /tmp/nix-build-err.log | grep -oE "/nix/store/.*.drv")
-          if [ -n "$drv" ]; then
-            nix log "$drv"
-            echo "$drv"
+          if [ -f /tmp/nix-build-err.log ]; then
+            drv=$(grep "For full logs, run" /tmp/nix-build-err.log | grep -oE "/nix/store/.*.drv" || true)
+            if [ -n "$drv" ]; then
+              nix log "$drv"
+              echo "$drv"
+            else
+              echo "Build error log:"
+              cat /tmp/nix-build-err.log
+            fi
+          else
+            echo "No build error log found - failure occurred before build step"
           fi
           exit 1
 
