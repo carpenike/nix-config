@@ -36,7 +36,7 @@ jobs:
           PR_JSON: ${{ toJson(github.event.workflow_run.pull_requests) }}
 
       - name: Download build artifacts
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@v4
         with:
           run-id: ${{ github.event.workflow_run.id }}
           path: artifacts
@@ -75,14 +75,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Generate Token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        uses: actions/create-github-app-token@v2
         id: app-token
         with:
           app-id: ${{ secrets.CARPENIKE_APP_ID }}
           private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
 
       - name: Post summary comment
-        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           header: "CI Report"

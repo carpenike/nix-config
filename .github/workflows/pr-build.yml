@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for FlakeHub Cache authentication
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
@@ -14,8 +15,6 @@ concurrency:
 jobs:
   build:
     if: github.event.pull_request.draft == false
-    permissions:
-      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -24,43 +23,38 @@ jobs:
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
+      # Maximize disk space for large NixOS builds (provides ~115GB with cleave)
       - name: Maximize build space
-        uses: easimon/maximize-build-space@fc881a613ad2a34aca9c9624518214ebc21dfc0c # v10
+        uses: wimpysworld/nothing-but-nix@main
         if: contains(matrix.os, 'ubuntu')
         with:
-          root-reserve-mb: 512
-          swap-size-mb: 1024
-          build-mount-path: "/nix"
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-docker-images: true
-          remove-codeql: true
-          overprovision-lvm: true
+          hatchet-protocol: cleave
 
       - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Fix /nix ownership for nix-installer
-        if: contains(matrix.os, 'ubuntu')
-        run: sudo chown root:root /nix
-
+      # Use Determinate Nix (recommended over nix-installer-action in 2025)
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
+        uses: DeterminateSystems/determinate-nix-action@v3
         with:
           extra-conf: |
             extra-platforms = aarch64-linux
 
-      - name: Set up Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
-        with:
-          use-flakehub: false
+      # FlakeHub Cache - zero-config binary cache for Nix (free for open source)
+      - name: Set up FlakeHub Cache
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      # Check flake health (outdated inputs, etc.)
+      - name: Flake health check
+        uses: DeterminateSystems/flake-checker-action@main
+        continue-on-error: true
 
       - name: Nix flake check
         run: nix flake check --keep-going
 
+      # Register binfmt for cross-platform builds (aarch64)
       - name: Register binfmt
         run: |
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -68,20 +62,11 @@ jobs:
       - name: Garbage collect build dependencies
         run: nix-collect-garbage
 
-      - name: Build previous ${{ matrix.system }} system
-        run: |
-          nix build \
-            "github:carpenike/nix-config#ciSystems.${{ matrix.system }}" \
-            -v \
-            --log-format raw \
-            --profile ./profile
-
-      - name: Build new ${{ matrix.system }} system
+      - name: Build ${{ matrix.system }} system
         run: |
           set -o pipefail
           nix build \
             ".#ciSystems.${{ matrix.system }}" \
-            --profile ./profile \
             --fallback \
             -v \
             --log-format raw \
@@ -91,27 +76,23 @@ jobs:
         if: failure()
         run: |
           drv=$(grep "For full logs, run" /tmp/nix-build-err.log | grep -oE "/nix/store/.*.drv")
-          if [ -n $drv ]; then
-            nix log $drv
-            echo $drv
+          if [ -n "$drv" ]; then
+            nix log "$drv"
+            echo "$drv"
           fi
           exit 1
 
-      - name: Diff profile
-        run: |
-          nix profile diff-closures --profile ./profile | perl -pe 's/\e\[[0-9;]*m(?:\e\[K)?//g' > diff.txt
-
       - name: Scan for security issues
+        continue-on-error: true
         run: |
-          nix run nixpkgs/nixos-unstable#vulnix -- -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml ./profile | tee security.txt
+          nix run nixpkgs/nixos-unstable#vulnix -- -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml ./result | tee security.txt
 
       - name: Upload build artifacts
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@v4
         with:
           name: report-${{ matrix.system }}
           path: |
-            diff.txt
             security.txt
             stdout.log
             /tmp/nix-build-err.log

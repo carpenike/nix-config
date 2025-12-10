@@ -14,30 +14,33 @@ concurrency:
   group: update-nvfetcher
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write  # Required for FlakeHub cache authentication
+
 jobs:
   update-nvfetcher:
     runs-on: ubuntu-latest
     steps:
       - name: Generate Token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        uses: actions/create-github-app-token@v2
         id: app-token
         with:
           app-id: ${{ secrets.CARPENIKE_APP_ID }}
           private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
 
       - name: Checkout repository
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
+        uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: Set up Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
-        with:
-          use-flakehub: false
+      - name: Set up FlakeHub Cache
+        uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Run nvfetcher
         id: run-nvfetcher
@@ -124,7 +127,7 @@ jobs:
       - name: Create Pull Request
         id: create-pull-request
         if: always()
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ steps.app-token.outputs.token }}
           branch: nvfetcher/deps
