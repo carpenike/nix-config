@@ -42,6 +42,7 @@
     ./litellm # LiteLLM unified AI gateway (native wrapper)
     ./loki # Loki log aggregation server
     ./mealie # Mealie recipe manager
+    ./miniflux # Miniflux minimalist RSS reader
     ./n8n # n8n workflow automation
     ./nginx
     ./gpu-metrics

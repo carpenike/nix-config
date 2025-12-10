@@ -30,6 +30,7 @@ let
   zigbeeEnabled = config.modules.services.zigbee2mqtt.enable or false;
   zwaveEnabled = config.modules.services."zwave-js-ui".enable or false;
   mealieEnabled = config.modules.services.mealie.enable or false;
+  minifluxEnabled = config.modules.services.miniflux.enable or false;
   n8nEnabled = config.modules.services.n8n.enable or false;
   openWebuiEnabled = config.modules.services.open-webui.enable or false;
   paperlessEnabled = config.modules.services.paperless.enable or false;
@@ -549,6 +550,23 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+          };
+        }
+        // optionalAttrs minifluxEnabled {
+          # Miniflux RSS reader secrets
+          # Admin credentials file (env format: ADMIN_USERNAME=xxx\nADMIN_PASSWORD=xxx)
+          # Disable adminCredentials.enable after OIDC admin is linked
+          "miniflux/admin_credentials" = {
+            mode = "0400";
+            owner = "miniflux";
+            group = "miniflux";
+          };
+
+          # OIDC client secret from PocketID
+          "miniflux/oidc_client_secret" = {
+            mode = "0400";
+            owner = "miniflux";
+            group = "miniflux";
           };
         }
         // optionalAttrs n8nEnabled {

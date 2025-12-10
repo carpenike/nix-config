@@ -83,6 +83,7 @@ in
     ./services/cooklang-federation.nix # Cooklang federation search service
     ./services/enclosed.nix # Enclosed encrypted note sharing
     ./services/mealie.nix # Mealie recipe manager
+    ./services/miniflux.nix # Miniflux minimalist RSS reader
     ./services/n8n.nix # n8n workflow automation
     ./services/open-webui.nix # Open WebUI AI chat interface
     ./services/paperless.nix # Paperless-ngx document management system
