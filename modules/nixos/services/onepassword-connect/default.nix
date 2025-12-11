@@ -129,7 +129,7 @@ in
 
     virtualisation.oci-containers.containers = {
       onepassword-connect-api = podmanLib.mkContainer "onepassword-connect-api" {
-        image = "docker.io/1password/connect-api:1.8.1@sha256:64ea800cebe2dfce3043d0b53eb90996ec00846d7533b92865d6ff431bf8e810";
+        image = "docker.io/1password/connect-api:1.8.1@sha256:8fe7bcd50c9e73899e0a1aa5aa43421ca75fbceacb33dd07f6418c4116e637a1";
         autoStart = true;
         ports = [ "8000:8080" ];
         volumes = [
