@@ -21,13 +21,8 @@ in
 {
   config = lib.mkMerge [
     {
-      # SOPS secret for OIDC client secret
-      sops.secrets."termix/oidc_client_secret" = {
-        sopsFile = ../secrets.sops.yaml;
-        owner = "termix";
-        group = "termix";
-        mode = "0400";
-      };
+      # Note: OIDC is configured via Termix Admin UI, not environment variables.
+      # Termix stores OIDC config in its SQLite database.
 
       modules.services.termix = {
         enable = true;
@@ -37,15 +32,6 @@ in
 
         # Port 8095 (8080 conflicts with qbittorrent/tqm)
         port = 8095;
-
-        # OIDC authentication via PocketID
-        oidc = {
-          enable = true;
-          serverUrl = "https://id.${config.networking.domain}";
-          clientId = "termix";
-          clientSecretFile = config.sops.secrets."termix/oidc_client_secret".path;
-          autoRedirect = true;
-        };
 
         # Reverse proxy configuration (LAN only - no Cloudflare tunnel)
         reverseProxy = {

@@ -299,10 +299,15 @@ in
         extraOptions =
           [
             "--pull=newer"
-            "--user=${toString cfg.uid}:${toString cfg.gid}"
+            # Note: Container runs as root internally because the entrypoint script
+            # needs to modify nginx config. Security is maintained via:
+            # 1. Container isolation
+            # 2. Localhost-only port binding (127.0.0.1)
+            # 3. OIDC authentication via Caddy reverse proxy
           ]
           ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-            ''--health-cmd=sh -c '[ "$(wget -q -O /dev/null -S http://127.0.0.1:${toString termixPort}/ 2>&1 | grep -c "200 OK")" -gt 0 ]' ''
+            # Use Node.js for healthcheck since container lacks wget/curl
+            ''--health-cmd=node -e "fetch('http://127.0.0.1:${toString termixPort}/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"''
             "--health-interval=${cfg.healthcheck.interval}"
             "--health-timeout=${cfg.healthcheck.timeout}"
             "--health-retries=${toString cfg.healthcheck.retries}"
