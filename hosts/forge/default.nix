@@ -101,6 +101,7 @@ in
     ./services/zigbee2mqtt.nix # Zigbee2MQTT coordinator service
     ./services/zwave-js-ui.nix # Z-Wave JS UI coordinator service
     ./services/esphome.nix # ESPHome dashboard and firmware builder
+    ./services/termix.nix # Termix SSH web terminal
   ];
 
   config = {

@@ -80,6 +80,7 @@
     ./scrypted # Scrypted NVR / automation hub
     ./searxng # SearXNG meta search engine
     ./sonarr
+    ./termix # Termix SSH web terminal
     ./teslamate # TeslaMate telemetry stack
     ./tautulli # Tautulli Plex monitoring (native wrapper)
     ./tdarr # Tdarr transcoding automation
