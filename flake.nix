@@ -164,53 +164,52 @@
         in
         {
           # Development shell for working on nix-config
+          # Tools here are repo-specific; nix/git/home-manager should be system-wide
           devShells.default = pkgs.mkShell {
-            NIX_CONFIG = "extra-experimental-features = nix-command flakes";
-            nativeBuildInputs = with pkgs; [
-              # Nix tools
-              nix
-              home-manager
+            packages = with pkgs; [
+              # Nix linting & formatting (pinned to flake.lock)
               nixpkgs-fmt
               statix
               deadnix
+              nil # Nix LSP for editor/AI diagnostics
 
-              # Version control & CI
-              git
-              just
-              pre-commit
+              # NixOS deployment & diff tools
+              nvd # Diff NixOS generations
+              nix-diff # Detailed derivation diffs
+              nvfetcher # Update custom package sources
+              nix-update # Fix package hashes
 
-              # Secrets management
+              # File search & manipulation (for AI assistants)
+              fd # Fast file finder
+              sd # Simpler sed for search-replace
+              tree # Directory structure overview
+
+              # Task runner
+              go-task
+
+              # Secrets management (only needed in this repo)
               age
               ssh-to-age
               sops
 
-              # Required for pre-commit on Darwin
-              libiconv
-            ];
-
-            shellHook = ''
-              echo "🔧 nix-config development shell"
-              echo "   Run 'just' to see available commands"
-            '';
-          };
-
-          # Documentation shell for MkDocs development
-          devShells.docs = pkgs.mkShell {
-            nativeBuildInputs = with pkgs; [
-              python312
+              # Documentation (mkdocs for this repo's docs/)
               python312Packages.mkdocs
               python312Packages.mkdocs-material
               python312Packages.mkdocs-material-extensions
               python312Packages.pymdown-extensions
               python312Packages.mkdocs-minify-plugin
+            ] ++ lib.optionals pkgs.stdenv.isDarwin [
+              # Required for some tools on Darwin
+              libiconv
+            ] ++ lib.optionals pkgs.stdenv.isLinux [
+              # NixOS rebuild (for remote deployments from Linux)
+              nixos-rebuild
             ];
 
             shellHook = ''
-              # Ensure Nix-provided mkdocs takes precedence over Homebrew
-              export PATH="${pkgs.python312Packages.mkdocs}/bin:$PATH"
-              echo "📚 Documentation development shell"
-              echo "   Run 'mkdocs serve' to preview docs at http://127.0.0.1:8000"
-              echo "   Run 'mkdocs build' to build static site"
+              echo "nix-config devshell"
+              echo "  task          - list available commands"
+              echo "  mkdocs serve  - preview docs at http://127.0.0.1:8000"
             '';
           };
 

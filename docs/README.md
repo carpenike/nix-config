@@ -9,8 +9,8 @@ This directory contains comprehensive documentation for the NixOS configuration 
 Preview the documentation locally:
 
 ```bash
-# Enter docs development shell
-nix develop .#docs
+# Enter the devshell (or use direnv)
+nix develop
 
 # Start local server
 mkdocs serve
