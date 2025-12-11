@@ -251,6 +251,8 @@
           luna = mkSystemLib.mkNixosSystem "x86_64-linux" "luna"; # overlays flake-packages;
           # Forge - new server system
           forge = mkSystemLib.mkNixosSystem "x86_64-linux" "forge"; # overlays flake-packages;
+          # NAS-1 - Secondary NAS / Backup target
+          nas-1 = mkSystemLib.mkNixosSystem "x86_64-linux" "nas-1";
           # Raspberry Pi RV system
           nixpi = mkSystemLib.mkNixosSystem "aarch64-linux" "nixpi"; # overlays flake-packages;
         };
