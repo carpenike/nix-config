@@ -57,6 +57,7 @@ in
     ./services/infrastructure.nix # Infrastructure device widgets (Mikrotik, etc.)
     ./services/it-tools.nix # IT-Tools developer utilities
     ./services/glances.nix # Glances system monitoring
+    ./services/github-runner.nix # GitHub Actions self-hosted runner
     ./services/pgweb.nix # PostgreSQL web management interface
     ./services/pocketid.nix # Pocket ID passkey/OIDC provider
     ./services/qui.nix # qui - Modern qBittorrent web interface with OIDC

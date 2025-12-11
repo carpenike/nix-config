@@ -28,6 +28,7 @@
     ./enclosed # Enclosed encrypted note sharing service
     ./frigate # Frigate NVR wrapper
     ./gatus # Gatus black-box monitoring (replaces Uptime Kuma)
+    ./github-runner # GitHub Actions self-hosted runner
     ./dnsdist
     ./glances
     ./grafana # Grafana monitoring dashboard

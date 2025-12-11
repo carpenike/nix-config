@@ -50,6 +50,7 @@ let
   pinchflatEnabled = config.modules.services.pinchflat.enable or false;
   kometaEnabled = config.modules.services.kometa.enable or false;
   searxngEnabled = config.modules.services.searxng.enable or false;
+  githubRunnerEnabled = config.modules.services.github-runner.enable or false;
   postgresqlEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
@@ -743,6 +744,16 @@ in
         }
         // optionalAttrs quiEnabled {
           "qui/oidc-client-secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs githubRunnerEnabled {
+          # GitHub Actions runner personal access token
+          # Fine-grained PAT with "Self-hosted runners" read+write permission
+          # Create at: https://github.com/settings/tokens?type=beta
+          "github/runner-token" = {
             mode = "0400";
             owner = "root";
             group = "root";

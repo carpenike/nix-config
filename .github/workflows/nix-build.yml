@@ -28,6 +28,9 @@ jobs:
           - system: rydev
             os: ubuntu-latest
           - system: forge
+            # Use self-hosted runner when available, fallback to GitHub runner
+            # To enable: deploy forge with github-runner service, then change to:
+            # os: [self-hosted, nixos, homelab]
             os: ubuntu-latest
           - system: nixos-bootstrap
             os: ubuntu-latest
