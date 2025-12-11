@@ -1,7 +1,8 @@
 name: Build Nix systems
 
 on:
-  push:
+  workflow_dispatch:  # Manual trigger only
+  pull_request:
     branches:
       - main
     paths:
