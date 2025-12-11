@@ -27,6 +27,7 @@
     ./core/users.nix
     ./core/packages.nix
     ./core/hardware.nix
+    ./core/monitoring.nix # node_exporter for Prometheus scraping by forge
 
     # Infrastructure (Cross-cutting operational concerns)
     ./infrastructure/storage.nix # ZFS pool import and management
@@ -34,7 +35,7 @@
     ./infrastructure/zfs-receive.nix # ZFS replication receiver configuration
 
     # Secrets
-    # ./secrets.nix  # TODO: Create when adding SOPS secrets
+    ./secrets.nix
   ];
 
   # =============================================================================

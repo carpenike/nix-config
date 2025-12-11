@@ -4,7 +4,7 @@
 #
 # nas-1 receives ZFS snapshots from:
 # - forge: via syncoid (using zfs-replication user)
-# - nas-0: via TrueNAS replication tasks (uses its own credentials)
+# - nas-0: via syncoid (using zfs-replication user)
 #
 # This file configures the permissions and datasets needed to receive replication.
 
@@ -46,6 +46,11 @@
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
         bookmark,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
         backup/forge/services || true
+
+      # Grant receive permissions for nas-0 backups
+      ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
+        bookmark,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
+        backup/nas-0/zfs-recv || true
 
       echo "ZFS receive permissions applied for zfs-replication user"
     '';
@@ -111,6 +116,28 @@
         $ZFS set recordsize=128K backup/forge/docs
         echo "Created backup/forge/docs dataset"
       fi
+
+      # =======================================================================
+      # nas-0 backup datasets
+      # =======================================================================
+
+      # Create parent dataset for nas-0 if it doesn't exist
+      if ! $ZFS list backup/nas-0 >/dev/null 2>&1; then
+        $ZFS create backup/nas-0
+        $ZFS set compression=lz4 backup/nas-0
+        $ZFS set atime=off backup/nas-0
+        echo "Created backup/nas-0 dataset"
+      fi
+
+      # Create zfs-recv container dataset (canmount=off - children mount, not this)
+      # Mirrors forge's pattern: separates replicated data from potential NFS exports
+      if ! $ZFS list backup/nas-0/zfs-recv >/dev/null 2>&1; then
+        $ZFS create backup/nas-0/zfs-recv
+        $ZFS set canmount=off backup/nas-0/zfs-recv
+        echo "Created backup/nas-0/zfs-recv dataset"
+      fi
+
+      # Child datasets are created automatically by syncoid on first receive
 
       echo "ZFS receive datasets initialized"
     '';

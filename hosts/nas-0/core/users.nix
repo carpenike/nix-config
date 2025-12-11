@@ -1,30 +1,36 @@
-# hosts/nas-1/core/users.nix
+# hosts/nas-0/core/users.nix
 #
-# User configuration for nas-1
-# Minimal users: root, ryan (admin), zfs-replication (for syncoid)
+# User configuration for nas-0
+#
+# Minimal users: root, ryan (admin), zfs-replication (for syncoid to nas-1)
 
 { config, ... }:
 
 {
   # =============================================================================
-  # Admin User
+  # Primary Admin User
   # =============================================================================
 
   users.users.ryan = {
     isNormalUser = true;
     description = "Ryan";
-    extraGroups = [ "wheel" "networkmanager" ];
+    extraGroups = [
+      "wheel" # sudo/doas access
+      "users"
+    ];
+
+    # SSH keys are managed globally via home-manager or modules
     openssh.authorizedKeys.keys = [
-      # TODO: Add your SSH public key
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINhGpVG0XMvWLgKXfvhHMNcu6v+nokkz7WjyLyVcDLLG ryan@holthome.net"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJwzVnOyiwuGBMgaTp8dLnfvuN3VCdBvOXDN0B5UZLAE ryan@holthome.net"
     ];
   };
 
   # =============================================================================
-  # ZFS Replication User
+  # ZFS Replication User (for syncoid to nas-1)
   # =============================================================================
 
-  # This user receives ZFS snapshots from forge via syncoid
+  # This user is used to SEND snapshots to nas-1 for off-site backup
+  # Note: This is the reverse of nas-1's zfs-replication user which RECEIVES
   users.users.zfs-replication = {
     isSystemUser = true;
     group = "zfs-replication";
@@ -32,17 +38,8 @@
     createHome = true;
     # IMPORTANT: Needs a working shell for syncoid (NOT nologin!)
     shell = "/run/current-system/sw/bin/bash";
-    description = "ZFS replication receiver user";
-    openssh.authorizedKeys.keys = [
-      # SSH keys from hosts that replicate TO nas-1
-      # Security restrictions applied, but NO forced command (syncoid needs multiple commands)
-
-      # forge -> nas-1 replication
-      "no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC4aPwHeW7/p2YcKI41srC8X6Cw2D6e5mCbQuVp0USW1 zfs-replication@forge"
-
-      # nas-0 -> nas-1 replication
-      "no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGqQ7u2OJmATpxitJn2gZJrz+aKlaQJG9iaGW9uc/Lhp zfs-replication@nas-0"
-    ];
+    description = "ZFS replication sender user";
+    # SSH key will be created/managed via SOPS for connecting to nas-1
   };
 
   users.groups.zfs-replication = { };

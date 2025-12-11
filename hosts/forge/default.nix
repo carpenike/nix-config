@@ -39,6 +39,7 @@ in
     ./infrastructure/storage.nix # ZFS storage management and Sanoid templates
     ./infrastructure/reverse-proxy.nix # Caddy reverse proxy configuration
     ./infrastructure/monitoring-ui.nix
+    ./infrastructure/nas-monitoring.nix # Prometheus scrape targets + alerts for nas-0/nas-1
     ./infrastructure/observability # Prometheus, Alertmanager, Grafana, Loki, Promtail
 
     # Secrets
