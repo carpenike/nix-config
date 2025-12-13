@@ -398,23 +398,6 @@ in
     };
   };
 
-  # System-wide OOM kill detection
-  # This fires when any process is killed by the kernel due to memory pressure
-  # Often indicates a container exceeded its memory limit
-  modules.alerting.rules."system-oom-kill" = {
-    type = "promql";
-    alertname = "SystemOOMKill";
-    expr = "increase(node_vmstat_oom_kill[5m]) > 0";
-    for = "0m"; # Alert immediately on OOM
-    severity = "critical";
-    labels = { service = "system"; category = "memory"; };
-    annotations = {
-      summary = "OOM kill detected on {{ $labels.instance }}";
-      description = "The kernel killed a process due to memory exhaustion. {{ $value }} OOM kills in the last 5 minutes. Check container_oom_kills_total metric to identify which container was killed, or run 'dmesg | grep -i oom' for details.";
-      runbook = "1) Check container_oom_kills_total metric for the culprit. 2) Run: journalctl -k | grep -i 'out of memory'. 3) Review container memory limits with 'podman stats'. 4) Consider increasing memory limits for affected services.";
-    };
-  };
-
   # Per-container OOM kill detection (cgroup v2)
   # This tells you exactly WHICH container was OOM killed
   modules.alerting.rules."container-oom-killed" = {
