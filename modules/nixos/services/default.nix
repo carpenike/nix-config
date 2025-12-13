@@ -12,6 +12,7 @@
     ./bichon # Bichon email archiving system
     ./backup-integration.nix # Legacy auto-discovery for service backup configurations
     ./bazarr # Bazarr subtitle manager
+    ./beszel # Beszel server monitoring (hub + agent)
     ./bind
     ./blocky
     ./caddy
@@ -45,6 +46,7 @@
     ./mealie # Mealie recipe manager
     ./miniflux # Miniflux minimalist RSS reader
     ./n8n # n8n workflow automation
+    ./netvisor # NetVisor network discovery and visualization
     ./nginx
     ./gpu-metrics
     ./node-exporter

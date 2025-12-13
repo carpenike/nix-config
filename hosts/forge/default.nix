@@ -68,6 +68,7 @@ in
     ./services/prowlarr.nix # Prowlarr indexer manager
     ./services/radarr.nix # Radarr movie manager
     ./services/bazarr.nix # Bazarr subtitle manager
+    ./services/beszel.nix # Beszel server monitoring hub + agent
     ./services/recyclarr.nix # Recyclarr TRaSH guides automation
     ./services/kometa.nix # Kometa Plex metadata manager
     ./services/qbittorrent.nix # qBittorrent download client
@@ -87,6 +88,7 @@ in
     ./services/mealie.nix # Mealie recipe manager
     ./services/miniflux.nix # Miniflux minimalist RSS reader
     ./services/n8n.nix # n8n workflow automation
+    ./services/netvisor.nix # NetVisor network discovery and visualization
     ./services/open-webui.nix # Open WebUI AI chat interface
     ./services/paperless.nix # Paperless-ngx document management system
     ./services/paperless-ai.nix # Paperless-AI document tagging
