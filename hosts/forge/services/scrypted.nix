@@ -69,10 +69,12 @@ in
 
         notifications.enable = true;
 
-        # Resource limits - 7d peak (577M) × 2.5 = 1442M, using 1536M
+        # Resource limits - previous 1536M caused repeated OOM kills (95+ kills in Dec 2025)
+        # Object detection plugins (TensorFlow/OpenCV) spike to 800MB+ per python subprocess
+        # Combined with node.js runtime, 2.5GB provides adequate headroom
         resources = {
-          memory = "1536M";
-          memoryReservation = "768M";
+          memory = "2560M";
+          memoryReservation = "1280M";
           cpus = "4.0";
         };
       };
