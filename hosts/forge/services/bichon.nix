@@ -61,10 +61,11 @@ in
         notifications.enable = true;
 
         # Moderate resources for email archiving + full-text search
-        # Tantivy indexing can be memory-intensive during bulk imports
+        # Tantivy indexing holds index segments in memory (~460MB steady state)
+        # 768MB provides headroom for bulk imports and search operations
         resources = {
-          memory = "512M";
-          memoryReservation = "256M";
+          memory = "768M";
+          memoryReservation = "384M";
           cpus = "1.0";
         };
       };
