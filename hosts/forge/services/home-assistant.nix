@@ -143,6 +143,9 @@ in
         extraPackages = python3Packages:
           with python3Packages;
           [
+            # Pushover notifications
+            pushover-complete
+
             # HomeKit integration
             hap-python
             pychromecast

@@ -85,6 +85,15 @@ Use `strip_thinking: true` by default.
 - `zen.clink` → external CLI (Gemini, Codex, Claude Code)
 - `zen.codereview` / `zen.precommit` → validation when needed
 
+### Beads CLI (bd)
+Use for:
+- Session startup: `bd ready` to find available work
+- Task tracking: Creating, updating, closing issues
+- Dependency management: Linking related work
+- Multi-session context: Understanding work history across sessions
+
+**Always prefer CLI** over creating markdown TODO lists for multi-step work.
+
 ### When NOT to Use Tools
 - When fixing typos or formatting
 - When obvious patterns already exist in the repo
@@ -93,6 +102,50 @@ Use `strip_thinking: true` by default.
 - When existing modules already contain the solution
 
 If a tool is unavailable → fall back to repo patterns, NixOS expertise, or zen.apilookup.
+
+---
+
+## Beads Issue Tracker
+
+This repository uses **Beads** (`bd`) for tracking long-horizon tasks across sessions. Beads gives you persistent memory for complex, multi-session work.
+
+### Session Start
+```bash
+bd onboard          # First time only - follow setup instructions
+bd ready            # See what's ready to work on (no blockers)
+bd list --status open  # See all open issues
+```
+
+### During Work
+- **Discover a bug or TODO?** → File it immediately:
+  ```bash
+  bd create "Found bug in sonarr module" -t bug -p 1
+  ```
+- **Starting work on an issue?** → Update status:
+  ```bash
+  bd update <id> --status in_progress
+  ```
+- **Found related work?** → Link it:
+  ```bash
+  bd dep add <new-id> <parent-id> --type discovered-from
+  ```
+
+### Session End ("Land the Plane")
+1. File issues for any remaining work discovered
+2. Close completed issues: `bd close <id> --reason "Implemented"`
+3. Sync the database: `bd sync`
+4. Commit `.beads/` changes with your other commits
+
+### When to Use Beads
+- ✅ Multi-step refactoring (e.g., "migrate all services to mylib.types")
+- ✅ Complex feature implementation spanning multiple sessions
+- ✅ Tracking discovered work during other tasks
+- ✅ Epic-level planning with child tasks
+
+### When NOT to Use Beads
+- ❌ Simple one-shot fixes
+- ❌ Typo corrections
+- ❌ Single-session work
 
 ---
 
@@ -217,6 +270,17 @@ tflint
 ---
 
 ## Trigger Phrases → Required Workflows
+
+### **"[I'm starting work on something complex]"**
+If work appears to be multi-session or has multiple dependencies:
+1. Check `bd ready` for existing related issues
+2. Offer to create tracking issue if none exists
+3. Suggest dependency structure if appropriate
+
+**Do NOT suggest Beads for**:
+- Typo fixes or single-file edits
+- Configuration tweaks to existing modules
+- Questions or research tasks
 
 ### **"Add a module for [SERVICE]"**
 Use **full 5-step workflow**:
@@ -423,10 +487,11 @@ services.myservice = {
 - [ ] Test with "Add a module for [NEW_SERVICE]" scenario
 
 ### Recent Changes
+- 2025-12-12: Added Beads proactive trigger, positioned as first-class tool in Tool Selection
 - 2025-12-09: Added architecture docs and ADRs, documented `mylib.types` and `mylib.storageHelpers` patterns, updated `lib/host-defaults.nix` factory reference.
 - 2025-11-20: Documented instruction stack, added direct doc links, enforced Taskfile-only deployment guidance.
 
-**Last reviewed:** 2025-12-09
+**Last reviewed:** 2025-12-12
 **Next review due:** When next major module added
 
 ---

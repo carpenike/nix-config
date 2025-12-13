@@ -107,6 +107,13 @@
       url = "github:nix-community/impermanence";
     };
 
+    # Beads - Memory system and issue tracker for AI coding agents
+    # https://github.com/steveyegge/beads
+    beads = {
+      url = "github:steveyegge/beads";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     #################### Personal Repositories ####################
   };
 

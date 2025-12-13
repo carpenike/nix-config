@@ -24,22 +24,47 @@ Without a consistent framework, each service ends up with ad-hoc authentication 
 
 **Establish a priority-ordered authentication framework based on service capabilities.**
 
+### Core Principle
+
+**If a service supports native OIDC, always use it.** Native OIDC provides the best user experience, proper audit trails, and app-level user identity. Only fall back to other patterns when native OIDC is not available.
+
 ### Priority Order
 
 | Priority | Pattern | When to Use | Example |
 |----------|---------|-------------|---------|
-| 1 | **Native OIDC** | Multi-user app with complex roles/permissions | Paperless, Mealie |
-| 2 | **Trusted Header Auth** | Multi-user app supporting auth proxy headers | Grafana, Organizr |
-| 3 | **Disable Auth + caddySecurity** | Single-user/household app (PREFERRED) | Sonarr, Radarr |
+| 1 | **Native OIDC** | **ALWAYS when available** - provides best UX and audit trails | Paperless, Mealie, NetVisor |
+| 2 | **Trusted Header Auth** | No native OIDC, but accepts auth proxy headers | Grafana, Organizr |
+| 3 | **Disable Auth + caddySecurity** | No OIDC/headers, but auth can be disabled | Sonarr, Radarr |
 | 4 | **Hybrid Auth** (SSO + API key) | Auth can't be disabled but has API key | Paperless-AI |
 | 5 | **Built-in Auth Only** | Auth can't be disabled, no alternatives | Plex |
 | 6 | **No Auth** | Internal S2S services only | Webhooks |
 
+### Why Native OIDC First?
+
+- **User identity in app**: App knows who the user is (audit logs, permissions)
+- **No double authentication**: Single login flow, not Caddy + App
+- **Standard protocol**: Well-tested, secure OAuth2/OIDC flows
+- **Refresh tokens**: Sessions managed properly by the app
+
+### Anti-Pattern: Double Authentication ❌
+
+**Never combine native OIDC with caddySecurity.** This creates two login gates:
+
+```nix
+# ❌ WRONG - double authentication
+oidc.enable = true;
+reverseProxy.caddySecurity = forgeDefaults.caddySecurity.admin;
+
+# ✅ CORRECT - native OIDC only
+oidc.enable = true;
+reverseProxy.enable = true;  # No caddySecurity
+```
+
 ### Research Checklist
 
-Before implementing auth for any service, answer these questions:
+Before implementing auth for any service, answer these questions **in order**:
 
-1. **Native OIDC/OAuth2 support?** - Does the app support OpenID Connect?
+1. **Native OIDC/OAuth2 support?** - Does the app support OpenID Connect? **If YES, stop here and use it.**
 2. **Trusted header auth?** - Does it accept `Remote-User`, `X-Email` headers?
 3. **Can auth be disabled?** - Look for `auth.enabled = false`, `DISABLE_AUTH=true`
 4. **API key support?** - Can we inject an API key header to bypass auth?

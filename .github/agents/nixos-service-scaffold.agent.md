@@ -12,10 +12,16 @@ tools:
   - codebase
   - problems
   - githubRepo
+  # NixOS package/option search
   - mcp_nixos/*
+  # GitHub operations (issues, PRs, repos, code search)
   - mcp_github/*
+  # Library documentation lookup
   - mcp_context7/*
+  # Research and reasoning
   - mcp_perplexity/*
+  # Code quality analysis, API lookup, planning
+  - mcp_zen/*
 model: Claude Opus 4
 handoffs:
   - label: Apply Configuration

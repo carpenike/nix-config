@@ -55,6 +55,7 @@ let
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
   r2CredentialsEnabled = resticEnabled || postgresqlEnabled;
+  beszelAgentEnabled = config.modules.services.beszel.agent.enable or false;
 in
 {
   config = {
@@ -139,6 +140,16 @@ in
             mode = "0440";
             owner = "root";
             group = "alertmanager";
+          };
+        }
+        // optionalAttrs beszelAgentEnabled {
+          # Beszel agent SSH key (generated in hub UI)
+          # Used by agent to authenticate with hub for metrics push
+          "beszel/agent-key" = {
+            mode = "0400";
+            owner = "beszel-agent";
+            group = "beszel-agent";
+            restartUnits = [ "beszel-agent.service" ];
           };
         }
         // optionalAttrs dispatcharrEnabled {
