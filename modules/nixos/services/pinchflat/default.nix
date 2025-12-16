@@ -210,23 +210,6 @@ in
         '';
       };
     };
-
-    # Gatus health check contribution
-    healthCheck = {
-      enable = lib.mkEnableOption "Gatus health check contribution" // { default = true; };
-
-      group = lib.mkOption {
-        type = lib.types.str;
-        default = "Media";
-        description = "Gatus group for this service";
-      };
-
-      interval = lib.mkOption {
-        type = lib.types.str;
-        default = "60s";
-        description = "Health check interval";
-      };
-    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -332,17 +315,8 @@ in
       extraConfig = cfg.reverseProxy.extraConfig or "";
     };
 
-    # Gatus health check contribution
-    modules.services.gatus.contributions.${serviceName} = lib.mkIf cfg.healthCheck.enable {
-      name = "Pinchflat";
-      group = cfg.healthCheck.group;
-      url = "http://127.0.0.1:${toString cfg.port}/";
-      interval = cfg.healthCheck.interval;
-      conditions = [
-        "[STATUS] == 200"
-        "[RESPONSE_TIME] < 2000"
-      ];
-    };
+    # NOTE: Gatus contributions should be set in host config,
+    # not auto-generated here. See hosts/forge/README.md for contribution pattern.
 
     # Prometheus scrape target (auto-discovered via observability module)
     # Pinchflat exposes native /metrics endpoint when ENABLE_PROMETHEUS=true

@@ -109,22 +109,38 @@ in
 
         # Enable notifications for service events
         notifications.enable = true;
-
-        # Homepage dashboard integration
-        homepage = {
-          enable = true;
-          name = "Grafana OnCall";
-          description = "Incident Response Platform";
-          icon = "grafana";
-          category = "Monitoring";
-        };
-
-        # Gatus black-box monitoring
-        gatus.enable = true;
       };
     }
 
     (lib.mkIf serviceEnabled {
+      # Homepage dashboard contribution (host-level, not module-level)
+      modules.services.homepage.contributions.grafana-oncall = {
+        group = "Monitoring";
+        name = "Grafana OnCall";
+        icon = "grafana";
+        href = "https://oncall.${domain}";
+        description = "Incident Response Platform";
+      };
+
+      # Gatus black-box monitoring contribution
+      modules.services.gatus.contributions.grafana-oncall = {
+        name = "Grafana OnCall";
+        group = "Monitoring";
+        url = "https://oncall.${domain}/health/";
+        interval = "60s";
+        conditions = [
+          "[STATUS] == 200"
+          "[RESPONSE_TIME] < 2000"
+        ];
+        alerts = [
+          {
+            type = "pushover";
+            failureThreshold = 3;
+            successThreshold = 2;
+          }
+        ];
+      };
+
       # ZFS dataset replication to NAS
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "grafana-oncall";
 

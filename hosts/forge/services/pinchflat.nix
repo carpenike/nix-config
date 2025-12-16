@@ -76,17 +76,22 @@ in
 
         # Enable self-healing restore from backups before service start
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
-
-        # Gatus health check
-        healthCheck = {
-          enable = true;
-          group = "Media";
-          interval = "60s";
-        };
       };
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus health check contribution (host-level)
+      modules.services.gatus.contributions.pinchflat = {
+        name = "Pinchflat";
+        group = "Media";
+        url = "http://127.0.0.1:8945/";
+        interval = "60s";
+        conditions = [
+          "[STATUS] == 200"
+          "[RESPONSE_TIME] < 2000"
+        ];
+      };
+
       # ZFS snapshot and replication configuration for Pinchflat dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
       modules.backup.sanoid.datasets."tank/services/pinchflat" =

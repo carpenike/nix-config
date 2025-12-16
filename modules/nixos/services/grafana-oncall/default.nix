@@ -384,44 +384,6 @@ in
       };
       description = "Notification configuration for service events";
     };
-
-    # Homepage dashboard contribution
-    homepage = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Register with Homepage dashboard";
-      };
-      name = mkOption {
-        type = types.str;
-        default = "Grafana OnCall";
-        description = "Display name on Homepage";
-      };
-      description = mkOption {
-        type = types.str;
-        default = "Incident Response Platform";
-        description = "Service description";
-      };
-      icon = mkOption {
-        type = types.str;
-        default = "grafana";
-        description = "Icon for the Homepage widget";
-      };
-      category = mkOption {
-        type = types.str;
-        default = "Monitoring";
-        description = "Homepage category";
-      };
-    };
-
-    # Gatus monitoring contribution
-    gatus = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Register health endpoint with Gatus";
-      };
-    };
   };
 
   config = mkMerge [
@@ -689,33 +651,8 @@ in
         extraConfig = cfg.reverseProxy.extraConfig or null;
       };
 
-      # Homepage integration
-      modules.services.homepage.contributions.${serviceName} = mkIf (cfg.homepage.enable && cfg.reverseProxy != null) {
-        group = cfg.homepage.category;
-        name = cfg.homepage.name;
-        icon = cfg.homepage.icon;
-        description = cfg.homepage.description;
-        href = "https://${cfg.reverseProxy.hostName}";
-      };
-
-      # Gatus monitoring contribution
-      modules.services.gatus.contributions.grafana-oncall = mkIf (cfg.gatus.enable && cfg.reverseProxy != null) {
-        name = "Grafana OnCall";
-        group = "Monitoring";
-        url = "https://${cfg.reverseProxy.hostName}/health/";
-        interval = "60s";
-        conditions = [
-          "[STATUS] == 200"
-          "[RESPONSE_TIME] < 2000"
-        ];
-        alerts = [
-          {
-            type = "pushover";
-            failureThreshold = 3;
-            successThreshold = 2;
-          }
-        ];
-      };
+      # NOTE: Homepage and Gatus contributions should be set in host config,
+      # not auto-generated here. See hosts/forge/README.md for contribution pattern.
 
       # Backup job registration
       modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
