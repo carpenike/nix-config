@@ -23,7 +23,11 @@ in
   config = lib.mkMerge [
     {
       modules.services.n8n = {
-        enable = true;
+        # FIXME: Temporarily disabled - n8n 1.122.5 in nixpkgs-unstable has broken build
+        # The n8n-editor-ui package fails to build due to vite/rolldown compatibility issues
+        # Re-enable once upstream nixpkgs fixes the package
+        # Tracking: https://github.com/NixOS/nixpkgs/issues/n8n
+        enable = false;
 
         # Core settings
         host = "n8n.holthome.net";
