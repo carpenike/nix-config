@@ -1,6 +1,11 @@
 { hostname, ... }:
 
 {
+  # Increase multicast group membership limit for mDNS discovery.
+  # ESPHome (and other mDNS services) join multicast groups per device.
+  # Default limit (20) is easily exceeded with many IoT devices.
+  boot.kernel.sysctl."net.ipv4.igmp_max_memberships" = 1024;
+
   networking = {
     hostName = hostname;
     hostId = "1b3031e7"; # Preserved from nixos-bootstrap
