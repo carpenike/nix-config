@@ -16,6 +16,12 @@ jobs:
   health:
     runs-on: ubuntu-latest
     steps:
+      # Maximize disk space for large NixOS builds (provides ~115GB with cleave)
+      - name: Maximize build space
+        uses: wimpysworld/nothing-but-nix@main
+        with:
+          hatchet-protocol: cleave
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:

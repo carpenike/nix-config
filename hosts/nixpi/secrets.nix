@@ -15,11 +15,11 @@
         "/etc/ssh/ssh_host_ed25519_key"
       ];
       secrets = {
-        # WiFi passwords
-        "wifi/iot_password" = {
+        # WiFi passwords (flat keys matching secrets.sops.yaml)
+        "IOT_WIFI_PASSWORD" = {
           path = "/run/secrets/wifi_iot_password";
         };
-        "wifi/rvproblems_password" = {
+        "RVPROBLEMS_WIFI_PASSWORD" = {
           path = "/run/secrets/wifi_rvproblems_password";
         };
 
