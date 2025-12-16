@@ -61,6 +61,8 @@ let
     PORT = listenPort;
     HOST = cfg.listen.address;
     DB_CONNECTION_STRING = computedDbConnectionString;
+    # Required since pocket-id 1.16.0
+    FILE_BACKEND = "filesystem";
   } // lib.optionalAttrs metricsEnabled {
     OTEL_METRICS_EXPORTER = "prometheus";
     OTEL_EXPORTER_PROMETHEUS_HOST = cfg.metrics.interface;

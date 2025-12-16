@@ -55,7 +55,7 @@ in
           LOG_JSON = true;
           METRICS_ENABLED = true;
           UI_CONFIG_DISABLED = true;
-          FILE_BACKEND = "fs";
+          FILE_BACKEND = "filesystem";  # Required to be "filesystem", "database", or "s3" in v1.16.0+
           UPLOAD_PATH = "${dataDir}/uploads";
           KEYS_STORAGE = "database";
           KEYS_PATH = "${dataDir}/keys";
