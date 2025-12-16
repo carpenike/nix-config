@@ -85,6 +85,7 @@
     ./termix # Termix SSH web terminal
     ./teslamate # TeslaMate telemetry stack
     ./tautulli # Tautulli Plex monitoring (native wrapper)
+    ./tracearr # Tracearr media server account sharing detection
     ./tdarr # Tdarr transcoding automation
     ./thelounge # TheLounge IRC web client (native wrapper)
     ./tqm # tqm fast torrent management for racing

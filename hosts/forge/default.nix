@@ -95,6 +95,7 @@ in
     ./services/emqx.nix # Shared EMQX MQTT broker
     ./services/teslamate.nix # TeslaMate telemetry + dashboards
     ./services/thelounge.nix # TheLounge IRC web client
+    ./services/tracearr.nix # Tracearr media server account sharing detection
     ./services/frigate.nix # Frigate NVR service
     ./services/grafana-oncall.nix # Grafana OnCall incident response platform
     ./services/scrypted.nix # Scrypted NVR/automation hub
