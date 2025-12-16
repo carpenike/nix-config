@@ -256,16 +256,43 @@
           rydev = mkSystemLib.mkNixosSystem {
             system = "aarch64-linux";
             hostname = "rydev";
-            serviceCategories = [ "infrastructure" "observability" ];
+            serviceCategories = [
+              "infrastructure"
+              "observability"
+            ];
           };
           # Luna - DNS/network infrastructure server
           luna = mkSystemLib.mkNixosSystem {
             system = "x86_64-linux";
             hostname = "luna";
-            serviceCategories = [ "infrastructure" "network" "observability" "auth" "development" ];
+            serviceCategories = [
+              "auth"
+              "development"
+              "infrastructure"
+              "network"
+              "observability"
+            ];
           };
-          # Forge - main homelab server (loads all categories)
-          forge = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "forge"; };
+          # Forge - main homelab server (all categories)
+          forge = mkSystemLib.mkNixosSystem {
+            system = "x86_64-linux";
+            hostname = "forge";
+            serviceCategories = [
+              "ai"
+              "auth"
+              "automotive"
+              "backup"
+              "development"
+              "downloads"
+              "home-automation"
+              "infrastructure"
+              "media"
+              "media-automation"
+              "network"
+              "observability"
+              "productivity"
+            ];
+          };
           # NAS-0 - Primary bulk storage NAS (117TB) - not yet deployed
           nas-0 = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "nas-0"; };
           # NAS-1 - Secondary NAS / Backup target - not yet deployed
@@ -274,7 +301,10 @@
           nixpi = mkSystemLib.mkNixosSystem {
             system = "aarch64-linux";
             hostname = "nixpi";
-            serviceCategories = [ "infrastructure" "observability" ];
+            serviceCategories = [
+              "infrastructure"
+              "observability"
+            ];
           };
         };
 
