@@ -252,17 +252,25 @@
         nixosConfigurations = {
           # Bootstrap deployment - uses minimal builder to avoid compatibility issues
           nixos-bootstrap = mkSystemLib.mkNixosBootstrapSystem "x86_64-linux" "nixos-bootstrap";
-          # Parallels devlab
-          rydev = mkSystemLib.mkNixosSystem { system = "aarch64-linux"; hostname = "rydev"; };
-          # Luna
-          luna = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "luna"; };
-          # Forge - new server system
+          # Parallels devlab - minimal dev environment
+          rydev = mkSystemLib.mkNixosSystem {
+            system = "aarch64-linux";
+            hostname = "rydev";
+            serviceCategories = [ "infrastructure" "observability" ];
+          };
+          # Luna - DNS/network infrastructure server
+          luna = mkSystemLib.mkNixosSystem {
+            system = "x86_64-linux";
+            hostname = "luna";
+            serviceCategories = [ "infrastructure" "network" "observability" "auth" "development" ];
+          };
+          # Forge - main homelab server (loads all categories)
           forge = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "forge"; };
-          # NAS-0 - Primary bulk storage NAS (117TB)
+          # NAS-0 - Primary bulk storage NAS (117TB) - not yet deployed
           nas-0 = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "nas-0"; };
-          # NAS-1 - Secondary NAS / Backup target
+          # NAS-1 - Secondary NAS / Backup target - not yet deployed
           nas-1 = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "nas-1"; };
-          # Raspberry Pi RV system - uses selective category loading
+          # Raspberry Pi RV system
           nixpi = mkSystemLib.mkNixosSystem {
             system = "aarch64-linux";
             hostname = "nixpi";
