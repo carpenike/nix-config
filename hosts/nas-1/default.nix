@@ -10,6 +10,13 @@
 #
 # Architecture: Follows three-tier pattern (core → infrastructure → services)
 # but with minimal services layer since this is a backup appliance.
+#
+# POST-MIGRATION CLEANUP:
+# The following legacy ZFS datasets can be destroyed after migration is stable:
+# - backup/forge/services (stale since 2025-10-14, replaced by zfs-recv/*)
+# - backup/.system/* (TrueNAS Scale leftovers)
+# - backup/cp0 (743GB - appears to be legacy TrueNAS data)
+# Command: zfs destroy -r backup/forge/services backup/.system backup/cp0
 
 { ... }:
 

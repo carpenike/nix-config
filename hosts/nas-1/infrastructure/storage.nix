@@ -104,20 +104,19 @@
       # =========================================================================
       # Forge replicated datasets (prune only)
       # =========================================================================
-      "backup/forge/zfs-recv/home" = {
+      # NOTE: Using recursive=true on the parent dataset to automatically
+      # prune all child datasets (50+ services) without listing each one.
+      # This keeps the config maintainable as forge adds new services.
+      "backup/forge/zfs-recv" = {
         useTemplate = [ "replicated" ];
-        recursive = false;
+        recursive = true; # Prune all child datasets automatically
       };
 
-      "backup/forge/zfs-recv/persist" = {
-        useTemplate = [ "replicated" ];
-        recursive = false;
-      };
-
-      # Services replicated from forge (add as they're configured)
-      # "backup/forge/services/sonarr" = {
+      # Individual datasets that need special handling can override:
+      # "backup/forge/zfs-recv/plex" = {
       #   useTemplate = [ "replicated" ];
       #   recursive = false;
+      #   hourly = 48;  # Keep more hourly snapshots for large dataset
       # };
     };
   };

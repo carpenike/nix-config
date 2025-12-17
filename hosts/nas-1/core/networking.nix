@@ -56,6 +56,7 @@
       22 # SSH
       111 # rpcbind (NFS)
       2049 # NFS
+      9100 # node_exporter (Prometheus scraping from forge)
       # Samba (if needed in future)
       # 139
       # 445
