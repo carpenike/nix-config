@@ -26,12 +26,26 @@
       url = "github:nixos/nixos-hardware";
     };
 
+    #################### Common Dependencies (for follows directives) ####################
+
+    # Systems - shared system type definitions
+    # Direct input allows other flakes to follow it, reducing lock file duplication
+    systems.url = "github:nix-systems/default";
+
+    # Flake-utils - common flake utility functions
+    # Direct input allows beads, nixos-vscode-server, etc. to follow
+    flake-utils = {
+      url = "github:numtide/flake-utils";
+      inputs.systems.follows = "systems";
+    };
+
     # Flake-parts - Simplify Nix Flakes with the module system
-    #
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
+
+    #################### Core Modules ####################
 
     # home-manager - home user+dotfile manager
     # https://github.com/nix-community/home-manager
@@ -60,6 +74,8 @@
     nixvim = {
       url = "github:nix-community/nixvim";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-parts.follows = "flake-parts";
+      inputs.systems.follows = "systems";
     };
 
     # VSCode community extensions
@@ -73,6 +89,7 @@
     nixos-vscode-server = {
       url = "github:nix-community/nixos-vscode-server";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
     };
 
     # Rust toolchain overlay
@@ -97,9 +114,17 @@
 
     # nix-inspect - Interactive tui for inspecting nix configs
     # https://github.com/bluskript/nix-inspect
+    # Has deep transitive deps; we deduplicate what we can via follows
     nix-inspect = {
       url = "github:bluskript/nix-inspect";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.parts.follows = "flake-parts";
+      # Deduplicate nci's transitive dependencies
+      inputs.nci.inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nci.inputs.parts.follows = "flake-parts";
+      inputs.nci.inputs.rust-overlay.follows = "rust-overlay";
+      inputs.nci.inputs.treefmt.inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nci.inputs.dream2nix.inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Impermanence - does not have a nixpkgs input, pure module flake
@@ -112,6 +137,7 @@
     beads = {
       url = "github:steveyegge/beads";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
     };
 
     #################### Personal Repositories ####################

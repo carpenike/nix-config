@@ -84,7 +84,7 @@
         {
           nixpkgs.hostPlatform = system;
           _module.args = {
-            inherit inputs system mylib;
+            inherit inputs system;
           };
         }
         inputs.disko.nixosModules.disko
@@ -111,7 +111,7 @@
         ../hosts/${hostname}
       ];
       specialArgs = {
-        inherit inputs hostname;
+        inherit inputs hostname mylib;
       };
     };
 

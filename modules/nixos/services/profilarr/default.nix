@@ -5,8 +5,8 @@
 , ...
 }:
 let
-  # Import pure storage helpers library
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
 

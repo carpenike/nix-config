@@ -36,8 +36,8 @@ let
   cfg = config.modules.services.searxng;
   serviceName = "searxng";
 
-  # Import storage helpers for preseed
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
 
   # Import shared type definitions
   sharedTypes = mylib.types;

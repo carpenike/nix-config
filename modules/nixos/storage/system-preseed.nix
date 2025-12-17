@@ -1,6 +1,9 @@
 { lib, pkgs, ... }:
 let
-  # Pure helper import; safe at top-level (does not read `config`)
+  # IMPORTANT: Direct import required here - cannot use mylib.storageHelpers
+  # because accessing _module.args.mylib would require config evaluation,
+  # causing infinite recursion. This module runs at top-level before config.
+  # See: https://github.com/NixOS/nixpkgs/blob/master/lib/modules.nix#L297
   storageHelpers = import ./helpers-lib.nix { inherit pkgs lib; };
   mkUnitExt = name: mountpoint: {
     systemd.services."preseed-${name}".unitConfig = {

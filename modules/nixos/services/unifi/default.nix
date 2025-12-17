@@ -15,7 +15,8 @@ let
   unifiUdpPorts = [ 3478 ];
   # Import shared type definitions
   sharedTypes = mylib.types;
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
 in
 {
   options.modules.services.unifi = {

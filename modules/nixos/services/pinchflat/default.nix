@@ -25,8 +25,8 @@
 { config, lib, mylib, pkgs, ... }:
 
 let
-  # Import pure storage helpers library (not a module argument to avoid circular dependency)
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
   cfg = config.modules.services.pinchflat;
   serviceName = "pinchflat";
 

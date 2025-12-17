@@ -2,7 +2,8 @@
 
 let
   sharedTypes = mylib.types;
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit lib pkgs; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
 
   cfg = config.modules.services.esphome;
   storageCfg = config.modules.storage;

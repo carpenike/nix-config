@@ -2,7 +2,8 @@
 
 let
   sharedTypes = mylib.types;
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
   cfg = config.modules.services.scrypted;
   storageCfg = config.modules.storage;
   serviceName = "scrypted";

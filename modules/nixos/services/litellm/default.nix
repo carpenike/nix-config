@@ -44,8 +44,8 @@ let
   # Import shared types for standardized submodules
   sharedTypes = mylib.types;
 
-  # Import storage helpers for preseed functionality
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
 
   storageCfg = config.modules.storage or { };
   datasetsCfg = storageCfg.datasets or { };

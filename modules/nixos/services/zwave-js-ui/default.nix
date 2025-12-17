@@ -11,7 +11,8 @@ let
     types;
 
   sharedTypes = mylib.types;
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit lib pkgs; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
 
   cfg = config.modules.services."zwave-js-ui";
   notificationsCfg = config.modules.notifications;

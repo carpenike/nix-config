@@ -13,7 +13,8 @@ let
     types;
 
   sharedTypes = mylib.types;
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit lib pkgs; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
 
   cfg = config.modules.services.zigbee2mqtt;
   notificationsCfg = config.modules.notifications;

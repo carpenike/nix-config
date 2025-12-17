@@ -5,8 +5,8 @@ let
   cfg = config.modules.services.attic;
   # Import shared type definitions
   sharedTypes = mylib.types;
-  # Import storage helpers for preseed functionality
-  storageHelpers = import ../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
   # Storage configuration for dataset path
   storageCfg = config.modules.storage.datasets or { enable = false; };
   datasetPath =

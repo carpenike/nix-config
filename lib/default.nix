@@ -7,7 +7,7 @@
 # helpers available as first-class arguments in modules (like pkgs and lib).
 #
 # Usage in modules:
-#   { config, lib, mylib, ... }:
+#   { config, lib, mylib, pkgs, ... }:
 #   {
 #     # Access shared types
 #     someOption = lib.mkOption {
@@ -18,6 +18,10 @@
 #     modules.alerting.rules.my-service = [
 #       (mylib.monitoring-helpers.mkServiceDownAlert { ... })
 #     ];
+#
+#     # Use storage helpers (requires pkgs)
+#     storageHelpers = mylib.storageHelpers pkgs;
+#     replicationConfig = storageHelpers.mkReplicationConfig { ... };
 #   }
 
 { lib }:
@@ -48,4 +52,9 @@
   # Monitoring alert template helpers
   # Provides reusable functions for creating consistent Prometheus alert rules
   monitoring-helpers = import ./monitoring-helpers.nix { inherit lib; };
+
+  # Storage helper functions for ZFS datasets, NFS mounts, and preseed services
+  # Usage: storageHelpers = mylib.storageHelpers pkgs;
+  # Functions: mkPreseedService, mkReplicationConfig, mkNfsMountConfig, etc.
+  storageHelpers = pkgs: import ../modules/nixos/storage/helpers-lib.nix { inherit pkgs lib; };
 }

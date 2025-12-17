@@ -23,8 +23,8 @@
 , ...
 }:
 let
-  # Import pure storage helpers library (not a module argument to avoid circular dependency)
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions (for containerResourcesSubmodule)
   sharedTypes = mylib.types;
 

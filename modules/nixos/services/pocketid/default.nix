@@ -9,7 +9,8 @@ let
     types;
 
   sharedTypes = mylib.types;
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
   format = pkgs.formats.keyValue { };
 
   cfg = config.modules.services.pocketid;

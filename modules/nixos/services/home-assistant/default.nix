@@ -2,7 +2,8 @@
 let
   inherit (lib) mkEnableOption mkOption mkIf mkMerge mkDefault mkForce types;
 
-  storageHelpers = import ../../storage/helpers-lib.nix { inherit pkgs lib; };
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
   sharedTypes = mylib.types;
 
   cfg = config.modules.services.home-assistant;

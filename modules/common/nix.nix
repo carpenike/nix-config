@@ -29,6 +29,16 @@
 
       warn-dirty = false;
 
+      # Parallel builds - use all available cores
+      max-jobs = "auto";
+      cores = 0; # 0 = use all cores per derivation
+
+      # HTTP/2 for faster cache downloads
+      http2 = true;
+
+      # Continue building other derivations on failure
+      keep-going = true;
+
       # The default at 10 is rarely enough.
       log-lines = lib.mkDefault 25;
 
