@@ -19,7 +19,8 @@
   systemd.services.zfs-delegate-permissions-receive = {
     description = "Delegate ZFS permissions for receiving ZFS replication";
     wantedBy = [ "multi-user.target" ];
-    after = [ "zfs-import.target" ];
+    after = [ "zfs-import.target" "zfs-init-receive-datasets.service" ];
+    requires = [ "zfs-init-receive-datasets.service" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
