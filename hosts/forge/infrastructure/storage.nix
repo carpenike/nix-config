@@ -1,5 +1,8 @@
 { config, lib, pkgs, ... }:
 
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+in
 {
   # System-level ZFS storage management
   # This file contains:
@@ -55,14 +58,8 @@
         useTemplate = [ "production" ];
         recursive = false;
         replication = {
-          targetHost = "nas-1.holthome.net";
+          inherit (forgeDefaults.replication) targetHost sendOptions recvOptions hostKey targetName targetLocation;
           targetDataset = "backup/forge/zfs-recv/home";
-          sendOptions = "w"; # Raw encrypted send
-          recvOptions = "u"; # Don't mount on receive
-          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-          # Consistent naming for Prometheus metrics
-          targetName = "NFS";
-          targetLocation = "nas-1";
         };
       };
 
@@ -71,14 +68,8 @@
         useTemplate = [ "production" ];
         recursive = false;
         replication = {
-          targetHost = "nas-1.holthome.net";
+          inherit (forgeDefaults.replication) targetHost sendOptions recvOptions hostKey targetName targetLocation;
           targetDataset = "backup/forge/zfs-recv/persist";
-          sendOptions = "w";
-          recvOptions = "u";
-          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-          # Consistent naming for Prometheus metrics
-          targetName = "NFS";
-          targetLocation = "nas-1";
         };
       };
 

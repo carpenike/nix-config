@@ -35,7 +35,8 @@ import ../../../lib/host-defaults.nix {
       targetDataset = "backup/forge/zfs-recv";
       sendOptions = "wp"; # Raw encrypted send with property preservation
       recvOptions = "u"; # Don't mount on receive
-      hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+      # Updated after nas-1 NixOS migration (Dec 2025)
+      hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOdXExnO3O50DdbCmNHpaXUbKveVyuXGajQ6pDTGge9u";
       targetName = "NFS";
       targetLocation = "nas-1";
     };

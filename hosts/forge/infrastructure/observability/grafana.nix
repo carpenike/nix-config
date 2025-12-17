@@ -118,13 +118,8 @@ in
         autosnap = true;
         autoprune = true;
         replication = {
-          targetHost = "nas-1.holthome.net";
+          inherit (forgeDefaults.replication) targetHost sendOptions recvOptions hostKey targetName targetLocation;
           targetDataset = "backup/forge/zfs-recv/grafana";
-          sendOptions = "w";
-          recvOptions = "u";
-          hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-          targetName = "NFS";
-          targetLocation = "nas-1";
         };
       };
 

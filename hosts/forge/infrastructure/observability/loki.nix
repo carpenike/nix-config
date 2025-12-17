@@ -2,6 +2,7 @@
 
 let
   domain = config.networking.domain;
+  forgeDefaults = import ../../lib/defaults.nix { inherit config lib; };
   # Use the new unified backup system (modules.services.backup)
   resticEnabled =
     (config.modules.services.backup.enable or false)
@@ -71,13 +72,8 @@ in
       useTemplate = [ "services" ];
       recursive = false;
       replication = {
-        targetHost = "nas-1.holthome.net";
+        inherit (forgeDefaults.replication) targetHost sendOptions recvOptions hostKey targetName targetLocation;
         targetDataset = "backup/forge/zfs-recv/loki";
-        sendOptions = "w";
-        recvOptions = "u";
-        hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
-        targetName = "NFS";
-        targetLocation = "nas-1";
       };
     };
 

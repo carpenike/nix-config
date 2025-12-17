@@ -78,6 +78,22 @@ in
   };
 
   # =============================================================================
+  # Replication Configuration (exposed for non-service datasets)
+  # =============================================================================
+
+  # Raw replication config for use with system datasets (rpool/safe/home, etc.)
+  # that don't use mkSanoidDataset. Contains all replication parameters.
+  replication = if hasReplication then {
+    targetHost = replication.targetHost;
+    targetDataset = replication.targetDataset;
+    sendOptions = replication.sendOptions or "wp";
+    recvOptions = replication.recvOptions or "u";
+    hostKey = replication.hostKey;
+    targetName = replication.targetName or "NFS";
+    targetLocation = replication.targetLocation or replication.targetHost;
+  } else null;
+
+  # =============================================================================
   # Container Networking
   # =============================================================================
 

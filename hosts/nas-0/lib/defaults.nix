@@ -30,7 +30,8 @@ import ../../../lib/host-defaults.nix {
       targetDataset = "backup/nas-0/zfs-recv";
       sendOptions = "w"; # Raw send (preserves encryption if any)
       recvOptions = "u"; # Don't mount on receive
-      hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHKUPQfbZFiPR7JslbN8Z8CtFJInUnUMAvMuAoVBlllM";
+      # Updated after nas-1 NixOS migration (Dec 2025)
+      hostKey = "nas-1.holthome.net ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOdXExnO3O50DdbCmNHpaXUbKveVyuXGajQ6pDTGge9u";
       targetName = "NAS";
       targetLocation = "nas-1";
     };
