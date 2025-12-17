@@ -15,7 +15,8 @@
     description = "Ryan";
     extraGroups = [ "wheel" "networkmanager" ];
     # Use same SSH key pattern as forge - read from shared ssh.pub file
-    openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../../home/ryan/config/ssh/ssh.pub);
+    # Filter out empty strings that result from trailing newlines
+    openssh.authorizedKeys.keys = builtins.filter (k: k != "") (lib.strings.splitString "\n" (builtins.readFile ../../../home/ryan/config/ssh/ssh.pub));
   };
 
   # =============================================================================
