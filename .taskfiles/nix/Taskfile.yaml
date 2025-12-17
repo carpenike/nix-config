@@ -296,3 +296,45 @@ tasks:
   .prompt_to_continue:
     internal: true
     prompt: Do you want to continue applying this configuration?
+
+  fast-build:
+    desc: Build all CI targets in parallel using nix-fast-build
+    silent: true
+    summary: |
+      Uses nix-fast-build (backed by nix-eval-jobs) to evaluate and build
+      all flake checks and packages in parallel, significantly speeding up CI.
+
+      Args:
+        eval-only: (optional) Only evaluate, don't build
+        skip-cached: (optional) Skip outputs already in binary cache
+
+      Examples:
+        task nix:fast-build                    # Build all checks in parallel
+        task nix:fast-build eval-only=true     # Only evaluate (no builds)
+        task nix:fast-build skip-cached=true   # Skip cached derivations
+    cmds:
+      - |
+        echo "🚀 Running parallel builds with nix-fast-build..."
+        nix-fast-build --flake ".#checks" --no-nom \
+          {{if .eval_only}}--eval-only{{end}} \
+          {{if .skip_cached}}--skip-cached{{end}}
+    preconditions:
+      - sh: which nix-fast-build
+        msg: "nix-fast-build not found. Enter devShell with 'nix develop' first."
+
+  fast-eval:
+    desc: Evaluate all NixOS/Darwin configurations in parallel
+    silent: true
+    summary: |
+      Fast parallel evaluation of all system configurations without building.
+      Useful for catching evaluation errors quickly.
+
+      Examples:
+        task nix:fast-eval
+    cmds:
+      - |
+        echo "🔍 Evaluating all system configurations in parallel..."
+        nix-fast-build --flake ".#ciSystems" --no-nom --eval-only
+    preconditions:
+      - sh: which nix-fast-build
+        msg: "nix-fast-build not found. Enter devShell with 'nix develop' first."

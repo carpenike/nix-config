@@ -211,6 +211,7 @@
               nix-diff # Detailed derivation diffs
               nvfetcher # Update custom package sources
               nix-update # Fix package hashes
+              nix-fast-build # Parallel evaluation and builds for CI
 
               # File search & manipulation (for AI assistants)
               fd # Fast file finder

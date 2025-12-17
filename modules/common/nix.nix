@@ -50,7 +50,11 @@
       builders-use-substitutes = true;
     };
 
-    # Add nixpkgs input to NIX_PATH
+    # Pin nixpkgs registry to flake input for faster `nix shell nixpkgs#<pkg>` etc.
+    # Without this, nix downloads a fresh nixpkgs tarball instead of using the flake's pinned version
+    registry.nixpkgs.flake = inputs.nixpkgs;
+
+    # Add nixpkgs input to NIX_PATH for legacy nix-shell compatibility
     nixPath = [ "nixpkgs=${inputs.nixpkgs.outPath}" ];
 
     # garbage collection
