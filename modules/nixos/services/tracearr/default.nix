@@ -252,6 +252,15 @@ in
         mode = "0750";
       };
 
+      # Create subdirectories for the container's VOLUME declarations
+      # The supervised image declares VOLUME [/data/postgres /data/redis /data/tracearr]
+      # which we must explicitly bind mount to avoid anonymous volumes
+      systemd.tmpfiles.rules = [
+        "d ${cfg.dataDir}/postgres 0750 ${toString cfg.uid} ${toString cfg.gid} -"
+        "d ${cfg.dataDir}/redis 0750 ${toString cfg.uid} ${toString cfg.gid} -"
+        "d ${cfg.dataDir}/tracearr 0750 ${toString cfg.uid} ${toString cfg.gid} -"
+      ];
+
       # Create local users to match container expectations
       users.users.${cfg.user} = {
         uid = cfg.uid;
@@ -277,8 +286,12 @@ in
         # Build environment file with optional MaxMind key
         environmentFiles = lib.optional (cfg.maxmindLicenseKeyFile != null) "/run/tracearr/env";
         volumes = [
-          # The supervised image stores everything under /data
-          "${cfg.dataDir}:/data:rw"
+          # The supervised image declares VOLUME for /data/postgres, /data/redis, /data/tracearr
+          # which creates anonymous volumes that override a simple /data bind mount.
+          # We must explicitly bind mount each subdirectory to ensure data persists to our ZFS dataset.
+          "${cfg.dataDir}/postgres:/data/postgres:rw"
+          "${cfg.dataDir}/redis:/data/redis:rw"
+          "${cfg.dataDir}/tracearr:/data/tracearr:rw"
         ];
         ports = [
           "127.0.0.1:${toString tracearrPort}:3000"
@@ -287,7 +300,8 @@ in
         extraOptions = [
           "--pull=newer"
         ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          ''--health-cmd=curl -f http://127.0.0.1:3000/api/health || exit 1''
+          # Use /health endpoint which returns JSON status of db, redis, geoip, and timescale
+          ''--health-cmd=curl -sf http://127.0.0.1:3000/health > /dev/null''
           "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
