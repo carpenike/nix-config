@@ -60,6 +60,10 @@
   # This pool is NOT managed by disko - it exists from the Ubuntu installation
   boot.zfs.extraPools = [ "backup" ];
 
+  # Force import of pools that were previously used by another system
+  # Required after migration from Ubuntu since hostid changed
+  boot.zfs.forceImportAll = true;
+
   # =============================================================================
   # Impermanence
   # =============================================================================
