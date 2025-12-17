@@ -129,6 +129,10 @@ in
           lower = "04:00";
           upper = "05:00";
         };
+        # Memory limits to prevent OOM-kills during large builds (e.g., n8n peaked at 13.6G)
+        # Forge has 32GB RAM; leave headroom for other services
+        memoryHigh = "24G"; # Soft limit - throttle when exceeded
+        memoryMax = "28G"; # Hard limit - OOM-kill if exceeded
       };
 
       # Explicitly enable ZFS filesystem module

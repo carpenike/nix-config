@@ -25,9 +25,37 @@ let
 
   textfileDir = "/var/lib/node_exporter/textfile_collector";
 
-  # Script to record upgrade start time
+  # Script to record upgrade start time and clean up transient failures
+  #
+  # RATIONALE: When Podman containers restart during switch-to-configuration,
+  # their transient healthcheck timers (created by systemd-run) may fire while
+  # containers are in "starting" state. This causes the healthcheck to return
+  # "unhealthy" (exit code 1), which fails the transient service. The
+  # switch-to-configuration script then sees these failed units and returns
+  # status 4 (NOPERMISSION/failed units), causing the upgrade to "fail" even
+  # though the actual configuration switch succeeded.
+  #
+  # This pre-script:
+  # 1. Records the upgrade start time for metrics
+  # 2. Resets all failed units (especially transient Podman healthcheck services)
+  #
+  # The reset-failed is safe because:
+  # - Transient units are ephemeral and will be recreated by Podman
+  # - Persistent unit failures will reappear if the underlying issue persists
+  # - We're only clearing the "failed" state, not stopping/masking any units
   preScript = pkgs.writeShellScript "nixos-upgrade-pre" ''
+    set -euo pipefail
+
     echo "$(date +%s)" > /run/nixos-upgrade-start-time
+
+    # Reset all failed units to prevent transient healthcheck failures from
+    # causing switch-to-configuration to return status 4
+    echo "Resetting failed systemd units before upgrade..."
+    ${pkgs.systemd}/bin/systemctl reset-failed || true
+
+    # Log any currently running healthcheck timers for debugging
+    HEALTHCHECK_COUNT=$(${pkgs.systemd}/bin/systemctl list-units --all --type=timer 2>/dev/null | grep -c "healthcheck" || echo "0")
+    echo "Found $HEALTHCHECK_COUNT active healthcheck timers"
   '';
 
   # Script to write Prometheus metrics and trigger success notification
@@ -164,6 +192,27 @@ in
       default = 30;
       description = "Upgrade duration (minutes) after which to send high-priority notification";
     };
+
+    memoryHigh = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "24G";
+      description = ''
+        Soft memory limit for the upgrade process. When exceeded, memory allocation
+        is throttled. Set to null to disable. Useful to prevent builds from consuming
+        all system RAM.
+      '';
+    };
+
+    memoryMax = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "28G";
+      description = ''
+        Hard memory limit for the upgrade process. If exceeded, the service will
+        be OOM-killed. Set to null to disable.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -219,10 +268,24 @@ in
       };
     };
 
-    # Extend nixos-upgrade service with metrics and notifications
+    # Extend nixos-upgrade service with metrics, notifications, and OOM protection
     systemd.services.nixos-upgrade = {
-      # Record start time before upgrade
+      # Record start time and reset failed units before upgrade
       preStart = "${preScript}";
+
+      serviceConfig = {
+        # Set OOM score adjustment to prefer killing this service over critical ones
+        # Range: -1000 (never kill) to 1000 (kill first), default is 0
+        # This ensures that if OOM occurs, nixos-upgrade is killed before critical services
+        OOMScoreAdjust = 500;
+      } // lib.optionalAttrs (cfg.memoryHigh != null) {
+        # Memory high threshold - throttle when exceeded (soft limit)
+        # Useful to prevent builds (e.g., n8n peaked at 13.6G) from consuming all RAM
+        MemoryHigh = cfg.memoryHigh;
+      } // lib.optionalAttrs (cfg.memoryMax != null) {
+        # Memory max - absolute limit, OOM-kill if exceeded
+        MemoryMax = cfg.memoryMax;
+      };
 
       # Add failure notifications and metrics
       # - notify@ sends immediate Pushover notification

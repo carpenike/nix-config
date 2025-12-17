@@ -72,6 +72,8 @@ tasks:
       vars:
         - host
     cmds:
+      # Clear any failed transient units (e.g., Podman healthcheck timers) before switch
+      - ssh "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" 'sudo systemctl reset-failed' || true
       - nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}"'
     preconditions:
       - sh: which nix
