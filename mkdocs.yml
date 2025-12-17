@@ -128,6 +128,8 @@ nav:
       - Unified Backup Design: unified-backup-design-patterns.md
       - Disaster Recovery: disaster-recovery-preseed-pattern.md
       - Preseed Restore Methods: preseed-restore-methods-guide.md
+      - Flake Management: flake-management.md
+      - Garbage Collection: nix-garbage-collection.md
       - NFS Mounts: nfs-mount-management.md
       - ZFS Replication: zfs-replication-setup.md
       - Notifications: notifications.md
