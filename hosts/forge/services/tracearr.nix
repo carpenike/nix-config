@@ -38,7 +38,7 @@ in
 
         # Pin container image with digest for reproducibility
         # Renovate will automatically update this
-        image = "ghcr.io/connorgallopo/tracearr:supervised@sha256:5527e61653fe98e690608546138244ab6ac19436f3c09f815d09826b428194cd";
+        image = "ghcr.io/connorgallopo/tracearr:supervised@sha256:93b8234f0856e7ff427cf4a4abdf8fd242504e4d231b5143ccf195c1ddb7198a";
 
         # Enable MaxMind GeoIP for accurate IP geolocation
         maxmindLicenseKeyFile = config.sops.secrets."tracearr/maxmind_license_key".path;
