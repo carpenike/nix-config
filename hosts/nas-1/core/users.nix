@@ -3,7 +3,7 @@
 # User configuration for nas-1
 # Minimal users: root, ryan (admin), zfs-replication (for syncoid)
 
-{ config, ... }:
+{ config, lib, ... }:
 
 {
   # =============================================================================
@@ -14,10 +14,8 @@
     isNormalUser = true;
     description = "Ryan";
     extraGroups = [ "wheel" "networkmanager" ];
-    openssh.authorizedKeys.keys = [
-      # TODO: Add your SSH public key
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINhGpVG0XMvWLgKXfvhHMNcu6v+nokkz7WjyLyVcDLLG ryan@holthome.net"
-    ];
+    # Use same SSH key pattern as forge - read from shared ssh.pub file
+    openssh.authorizedKeys.keys = lib.strings.splitString "\n" (builtins.readFile ../../../home/ryan/config/ssh/ssh.pub);
   };
 
   # =============================================================================
