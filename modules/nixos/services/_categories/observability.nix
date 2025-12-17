@@ -3,15 +3,15 @@
 { ... }:
 {
   imports = [
-    ../beszel         # Server monitoring (hub + agent)
-    ../gatus          # Black-box monitoring / status page
-    ../glances        # System monitoring dashboard
-    ../gpu-metrics    # GPU metrics exporter
-    ../grafana        # Visualization dashboards
+    ../beszel # Server monitoring (hub + agent)
+    ../gatus # Black-box monitoring / status page
+    ../glances # System monitoring dashboard
+    ../gpu-metrics # GPU metrics exporter
+    ../grafana # Visualization dashboards
     ../grafana-oncall # Incident response platform
-    ../loki           # Log aggregation
-    ../node-exporter  # Host metrics exporter
-    ../observability  # Unified observability stack
-    ../promtail       # Log shipping agent
+    ../loki # Log aggregation
+    ../node-exporter # Host metrics exporter
+    ../observability # Unified observability stack
+    ../promtail # Log shipping agent
   ];
 }

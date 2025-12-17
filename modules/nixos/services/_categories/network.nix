@@ -4,8 +4,8 @@
 {
   imports = [
     ../adguardhome # DNS-level ad blocking
-    ../cfdyndns    # Cloudflare dynamic DNS
-    ../omada       # TP-Link Omada controller
-    ../unifi       # Ubiquiti UniFi controller
+    ../cfdyndns # Cloudflare dynamic DNS
+    ../omada # TP-Link Omada controller
+    ../unifi # Ubiquiti UniFi controller
   ];
 }

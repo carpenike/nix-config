@@ -3,7 +3,7 @@
 { ... }:
 {
   imports = [
-    ../litellm    # Unified AI gateway
+    ../litellm # Unified AI gateway
     ../open-webui # AI chat interface
   ];
 }

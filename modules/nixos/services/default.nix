@@ -15,6 +15,6 @@
 { ... }:
 {
   imports = [
-    ./_categories  # Import all service categories
+    ./_categories # Import all service categories
   ];
 }

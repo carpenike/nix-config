@@ -3,11 +3,11 @@
 { ... }:
 {
   imports = [
-    ../attic.nix       # Nix binary cache
+    ../attic.nix # Nix binary cache
     ../attic-admin.nix # Attic administration
-    ../attic-push.nix  # Attic push automation
-    ../github-runner   # GitHub Actions self-hosted runner
-    ../netvisor        # Network discovery/visualization
-    ../pgweb           # PostgreSQL web browser
+    ../attic-push.nix # Attic push automation
+    ../github-runner # GitHub Actions self-hosted runner
+    ../netvisor # Network discovery/visualization
+    ../pgweb # PostgreSQL web browser
   ];
 }

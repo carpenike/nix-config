@@ -4,7 +4,7 @@
 {
   imports = [
     ../dispatcharr # Dispatcharr IPTV management
-    ../profilarr   # Quality profile sync
-    ../recyclarr   # TRaSH Guides automation
+    ../profilarr # Quality profile sync
+    ../recyclarr # TRaSH Guides automation
   ];
 }

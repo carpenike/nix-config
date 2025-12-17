@@ -55,10 +55,10 @@
       # Select which service modules to import
       serviceModules =
         if serviceCategories == null then
-          # Import all services (backward compatible - uses default.nix which imports all)
+        # Import all services (backward compatible - uses default.nix which imports all)
           [ ../modules/nixos/services ]
         else
-          # Import only selected categories
+        # Import only selected categories
           map (cat: categoryModules.${cat}) serviceCategories;
 
       # Select which base module to use

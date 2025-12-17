@@ -4,6 +4,6 @@
 {
   imports = [
     ../onepassword-connect # 1Password Connect API server
-    ../pocketid           # Pocket ID authentication portal
+    ../pocketid # Pocket ID authentication portal
   ];
 }
