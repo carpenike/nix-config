@@ -44,7 +44,7 @@ jobs:
 
       # Cachix - persistent binary cache shared between CI and local machines
       - name: Set up Cachix
-        uses: cachix/cachix-action@v15
+        uses: cachix/cachix-action@v16
         with:
           name: carpenike
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload build artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: report-${{ matrix.system }}
           path: |
