@@ -229,7 +229,7 @@ in
       };
 
       virtualisation.oci-containers.containers.unifi = podmanLib.mkContainer "unifi" {
-        image = "ghcr.io/jacobalberty/unifi-docker:v9.5.21@sha256:e21d932b36ceca1f3cfadb021f207016659bc8f7a59cd1b0d6ecf7ecd7067383";
+        image = "ghcr.io/jacobalberty/unifi-docker:v10.0.162@sha256:896c0ab82d33300694dae82982fd7094497afcbea0be92cadc1e94bfead731d3";
         environment = {
           "TZ" = "America/New_York";
         };
