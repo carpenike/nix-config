@@ -38,8 +38,14 @@ in
           # NixOS deployment (short and memorable)
           naf = "task -d ~/src/nix-config nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net";
           nal = "task -d ~/src/nix-config nix:apply-nixos host=luna NIXOS_DOMAIN=holthome.net";
+          nan1 = "task -d ~/src/nix-config nix:apply-nixos host=nas-1 NIXOS_DOMAIN=holthome.net";
           nbf = "task -d ~/src/nix-config nix:build-forge";
           nbl = "task -d ~/src/nix-config nix:build-luna";
+          nbn1 = "task -d ~/src/nix-config nix:build-nas-1";
+
+          # Darwin deployment
+          dar = "task -d ~/src/nix-config nix:apply-darwin host=rymac";
+          dbr = "task -d ~/src/nix-config nix:build-darwin host=rymac";
 
           # Git shortcuts
           g = "git";
