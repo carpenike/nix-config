@@ -99,6 +99,13 @@ in
                 show_in_sidebar = true;
                 filename = "dashboards/home.yaml";
               };
+              lovelace-mobile = {
+                mode = "yaml";
+                title = "Mobile";
+                icon = "mdi:cellphone";
+                show_in_sidebar = true;
+                filename = "dashboards/mobile.yaml";
+              };
             };
           };
           automation = "!include automations.yaml";
