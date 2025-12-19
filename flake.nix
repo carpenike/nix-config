@@ -190,6 +190,12 @@
               nix-update # Fix package hashes
               nix-fast-build # Parallel evaluation and builds for CI
 
+              # Nix store inspection & debugging
+              nix-tree # TUI to inspect store paths and dependency trees
+              nix-du # Disk usage breakdown for Nix store
+              nix-index # Find which package provides a file (run nix-index first)
+              nurl # Generate Nix fetcher calls from URLs
+
               # File search & manipulation (for AI assistants)
               fd # Fast file finder
               sd # Simpler sed for search-replace

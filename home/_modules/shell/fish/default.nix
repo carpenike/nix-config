@@ -29,6 +29,12 @@ in
 
         shellAliases = {
           backups = "task backup:status";
+
+          # NixOS deployment aliases (work from any directory)
+          nix-apply-forge = "task -d ~/src/nix-config nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net";
+          nix-apply-luna = "task -d ~/src/nix-config nix:apply-nixos host=luna NIXOS_DOMAIN=holthome.net";
+          nix-build-forge = "task -d ~/src/nix-config nix:build-forge";
+          nix-build-luna = "task -d ~/src/nix-config nix:build-luna";
         };
 
         interactiveShellInit = ''
