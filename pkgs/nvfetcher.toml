@@ -42,3 +42,7 @@ fetch.github = "dracula/thelounge"
 src.git = "https://github.com/MiniDigger/thelounge-theme-mininapse.git"
 src.branch = "master"
 fetch.github = "MiniDigger/thelounge-theme-mininapse"
+
+[beads]
+src.github = "steveyegge/beads"
+fetch.github = "steveyegge/beads"

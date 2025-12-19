@@ -1,5 +1,7 @@
 _:
 {
+  modules.development.enable = true;
+
   modules.shell.bash = {
     enable = true;
     launchFishForInteractive = true;

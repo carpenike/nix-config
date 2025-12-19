@@ -112,32 +112,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # nix-inspect - Interactive tui for inspecting nix configs
-    # https://github.com/bluskript/nix-inspect
-    # Has deep transitive deps; we deduplicate what we can via follows
-    nix-inspect = {
-      url = "github:bluskript/nix-inspect";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.parts.follows = "flake-parts";
-      # Deduplicate nci's transitive dependencies
-      inputs.nci.inputs.nixpkgs.follows = "nixpkgs";
-      inputs.nci.inputs.parts.follows = "flake-parts";
-      inputs.nci.inputs.rust-overlay.follows = "rust-overlay";
-      inputs.nci.inputs.treefmt.inputs.nixpkgs.follows = "nixpkgs";
-      inputs.nci.inputs.dream2nix.inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Impermanence - does not have a nixpkgs input, pure module flake
     impermanence = {
       url = "github:nix-community/impermanence";
-    };
-
-    # Beads - Memory system and issue tracker for AI coding agents
-    # https://github.com/steveyegge/beads
-    beads = {
-      url = "github:steveyegge/beads";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
     };
 
     #################### Personal Repositories ####################

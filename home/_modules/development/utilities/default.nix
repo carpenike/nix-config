@@ -1,14 +1,10 @@
 { pkgs
-, inputs
 , lib
 , config
 , ...
 }:
 let
   cfg = config.modules.development;
-  # nix-inspect uses nix-cargo-integration which has issues on aarch64
-  isX86 = pkgs.stdenv.hostPlatform.isx86_64;
-  system = pkgs.stdenv.hostPlatform.system;
 in
 {
   config = lib.mkIf cfg.enable {
@@ -23,14 +19,9 @@ in
       yamllint
       unstable.helm-ls
       unstable.minio-client
-    ]) ++
-    (lib.optionals isX86 [
-      inputs.nix-inspect.packages.${system}.default
-    ]) ++
-    [
       # Beads - Memory system and issue tracker for AI coding agents
       # Provides 'bd' CLI for tracking long-horizon tasks across sessions
-      inputs.beads.packages.${system}.default
-    ];
+      beads
+    ]);
   };
 }
