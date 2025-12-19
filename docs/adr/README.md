@@ -19,6 +19,7 @@ An ADR captures a decision that has significant impact on the architecture, alon
 | [007](./007-multi-tier-disaster-recovery.md) | Multi-Tier Disaster Recovery | Accepted | Preseed pattern with Syncoid → Local → (Restic) priority |
 | [008](./008-authentication-priority-framework.md) | Authentication Priority Framework | Accepted | OIDC → Headers → Disable+Caddy → Built-in auth priority |
 | [009](./009-thin-orchestrator-pattern.md) | Thin Orchestrator Pattern | Accepted | Lightweight stack modules without option re-exposure |
+| [010](./010-cross-module-dependency-patterns.md) | Cross-Module Dependency Patterns | Accepted | Safe patterns for inter-module references with `or false` guards |
 
 ## ADR Template
 

@@ -273,14 +273,7 @@ in
 
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
-        enable = lib.mkDefault true;
-        repository = lib.mkDefault "nas-primary";
-        frequency = lib.mkDefault "daily";
-        tags = lib.mkDefault [ "media" "cross-seed" "config" ];
-        useSnapshots = lib.mkDefault true;
-        zfsDataset = lib.mkDefault "tank/services/cross-seed";
-      };
+      default = null;
       description = "Backup configuration for cross-seed";
     };
 

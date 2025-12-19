@@ -100,6 +100,15 @@ in
       # Service availability alert
       modules.alerting.rules."cross-seed-service-down" =
         forgeDefaults.mkServiceDownAlert "cross-seed" "CrossSeed" "cross-seeding automation";
+
+      # Gatus black-box monitoring contribution
+      modules.services.gatus.contributions.cross-seed = {
+        name = "Cross-Seed";
+        group = "Media";
+        url = "http://127.0.0.1:2468/api/ping";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" ];
+      };
     })
   ];
 }
