@@ -13,17 +13,19 @@
         # Performance
         command_timeout = 500;
 
-        # Beautiful two-line powerline prompt
-        # Using literal powerline glyphs from Nerd Fonts
+        # Powerline prompt with rounded separators
+        # Core segments use powerline transitions
+        # Optional segments (languages, duration) are floating blocks
         format = lib.concatStrings [
           "$os"
           "$username"
-          "[ ](bg:lavender fg:blue)"
+          "[](bg:lavender fg:blue)"
           "$directory"
-          "[ ](bg:mauve fg:lavender)"
+          "[](bg:mauve fg:lavender)"
           "$git_branch"
           "$git_status"
-                    "$python"
+          "[](fg:mauve)"
+          "$python"
           "$nodejs"
           "$golang"
           "$rust"
@@ -39,7 +41,7 @@
         # Fill space between left and right
         fill.symbol = " ";
 
-        # OS icon segment - using official Starship Nerd Font preset icons
+        # OS icon segment
         os = {
           disabled = false;
           style = "bg:blue fg:base";
@@ -48,10 +50,10 @@
             Ubuntu = "";
             Debian = "";
             NixOS = "";
-            Windows = "󰍲";
+            Windows = "󰷒";
             Linux = "";
           };
-          format = "[  $symbol  ]($style)";
+          format = "[](fg:blue)[  $symbol  ]($style)";
         };
 
         # Username
@@ -63,7 +65,7 @@
           format = "[ $user  ]($style)";
         };
 
-        # Directory with folder icon - lavender bg
+        # Directory
         directory = {
           truncation_length = 3;
           truncation_symbol = "…/";
@@ -73,21 +75,21 @@
           format = "[  $path  ]($style)[$read_only]($read_only_style)";
         };
 
-        # Git branch - mauve bg
+        # Git branch
         git_branch = {
           symbol = "󰘬";
           style = "bg:mauve fg:base";
           format = "[  $symbol $branch(:$remote_branch)  ]($style)";
         };
 
-        # Git status - clear icons
+        # Git status
         git_status = {
           style = "bg:mauve fg:base";
           format = "[$all_status$ahead_behind ]($style)";
-          conflicted = "󱧂 ";
-          ahead = "󰜸$count ";
+          conflicted = "󱹂 ";
+          ahead = "󰜷$count ";
           behind = "󰜯$count ";
-          diverged = "󰜸$ahead_count󰜯$behind_count ";
+          diverged = "󰜷$ahead_count󰜯$behind_count ";
           untracked = "󰋗$count ";
           stashed = "󰆓$count ";
           modified = "󰏫$count ";
@@ -96,52 +98,53 @@
           deleted = "󰆴$count ";
         };
 
-        # Python - peach bg
+        # Python - floating peach block
         python = {
           symbol = "󰌠";
           style = "bg:peach fg:base";
-          format = "[](bg:peach fg:mauve)[  $symbol $virtualenv  ]($style)[](fg:peach)";
+          format = " [](fg:peach)[  $symbol $virtualenv  ]($style)[](fg:peach)";
           detect_extensions = ["py"];
           detect_files = ["pyproject.toml" "requirements.txt" "Pipfile"];
         };
 
-        # Node.js - peach bg
+        # Node.js - floating peach block
         nodejs = {
           symbol = "󰎙";
           style = "bg:peach fg:base";
-          format = "[](bg:peach fg:mauve)[  $symbol $version  ]($style)[](fg:peach)";
+          format = " [](fg:peach)[  $symbol $version  ]($style)[](fg:peach)";
           detect_extensions = ["js" "ts" "jsx" "tsx"];
           detect_files = ["package.json"];
         };
 
-        # Go - peach bg
+        # Go - floating peach block
         golang = {
           symbol = "󰟓";
           style = "bg:peach fg:base";
-          format = "[](bg:peach fg:mauve)[  $symbol $version  ]($style)[](fg:peach)";
+          format = " [](fg:peach)[  $symbol $version  ]($style)[](fg:peach)";
         };
 
-        # Rust - peach bg
+        # Rust - floating peach block
         rust = {
           symbol = "󱘗";
           style = "bg:peach fg:base";
-          format = "[](bg:peach fg:mauve)[  $symbol $version  ]($style)[](fg:peach)";
+          format = " [](fg:peach)[  $symbol $version  ]($style)[](fg:peach)";
         };
 
-        # Nix shell - peach bg
+        # Nix shell - floating peach block
         nix_shell = {
-          symbol = "";
+          disabled = true;
+          symbol = "";
           style = "bg:peach fg:base";
           impure_msg = "";
           pure_msg = "pure";
-          format = "[](bg:peach fg:mauve)[  $symbol $state  ]($style)[](fg:peach)";
+          format = " [](fg:peach)[  $symbol $state  ]($style)[](fg:peach)";
         };
 
-        # Command duration - yellow bg
+        # Command duration - floating yellow block
         cmd_duration = {
           min_time = 500;
           style = "bg:yellow fg:base";
-          format = "[](bg:yellow fg:mauve)[  󱎫 $duration  ]($style)[](fg:yellow)";
+          format = " [](fg:yellow)[  󱎫 $duration  ]($style)[](fg:yellow)";
         };
 
         # Time - right side
@@ -149,7 +152,7 @@
           disabled = false;
           time_format = "%H:%M";
           style = "bg:surface1 fg:text";
-          format = "[  󰥔 $time  ]($style)";
+          format = "[  󰥔 $time  ]($style)[](fg:surface1)";
         };
 
         # Prompt character
