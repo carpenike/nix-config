@@ -63,3 +63,7 @@ Link to the repo docs/instructions the assistant must read.
 - `docs/changelog` – changelog/release note helper
 - `docs/pattern-update` – update architecture docs
 - `ci/validation` – run required validation commands
+
+### Related Documentation
+
+- `docs/workarounds.md` – Temporary workarounds and overrides tracking (monthly review)

@@ -330,6 +330,58 @@ tflint
 - Persistence: [`docs/persistence-quick-reference.md`](../docs/persistence-quick-reference.md)
 - Architecture: [`docs/repository-architecture.md`](../docs/repository-architecture.md)
 - Design decisions: [`docs/adr/`](../docs/adr/README.md)
+- **Workarounds**: [`docs/workarounds.md`](../docs/workarounds.md)
+
+---
+
+## Temporary Workarounds & Package Overrides
+
+When upstream packages have bugs, test failures, or missing features, we document and track workarounds systematically.
+
+### Tracking Document
+
+All temporary workarounds are tracked in [`docs/workarounds.md`](../docs/workarounds.md), which includes:
+- Package overrides in `overlays/default.nix`
+- Unstable package usage (`pkgs.unstable.*`)
+- Module-level workarounds
+- Review schedule and upstream issue links
+
+### Comment Convention
+
+When adding a workaround, use this standardized comment format:
+
+```nix
+# WORKAROUND (YYYY-MM-DD): Brief description of the issue
+# Affects: What packages/services are impacted
+# Upstream: https://github.com/... (issue link if available)
+# Check: Condition to re-evaluate (version, date, upstream fix)
+granian = pyPrev.granian.overridePythonAttrs (old: {
+  disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [
+    "tests/test_https.py"
+  ];
+});
+```
+
+### When Adding a Workaround
+
+1. **Add inline comment** in the code with date, reason, and upstream link
+2. **Add entry to `docs/workarounds.md`** with full details
+3. **Reference the tracking doc** in the code comment if complex
+
+### Periodic Review
+
+- Workarounds should be reviewed monthly (see `docs/workarounds.md` for schedule)
+- When updating nixpkgs, check if workarounds can be removed
+- Remove workaround AND its tracking entry when upstream is fixed
+
+### Common Workaround Types
+
+| Type | Location | Example |
+|------|----------|----------|
+| Test failures | `overlays/default.nix` | `disabledTestPaths`, `doCheck = false` |
+| Unstable needed | Service module | `package = pkgs.unstable.foo` |
+| Module bug | Service config | Caddy rewrite rules, env var fixes |
+| Platform issues | `overlays/default.nix` | Remove platform restrictions |
 
 ---
 
@@ -486,6 +538,7 @@ Before considering a module complete:
 ✓ **Integration**: Includes working host example?
 ✓ **Simplicity**: Could another maintainer understand this in 5 minutes?
 ✓ **Reasoning**: Did I synthesize tool input vs. just copying it?
+✓ **Workarounds**: Any overrides documented in `docs/workarounds.md`?
 
 **If ANY checkbox fails → revisit before presenting to user.**
 
@@ -551,6 +604,7 @@ services.myservice = {
 - [ ] Test with "Add a module for [NEW_SERVICE]" scenario
 
 ### Recent Changes
+- 2025-12-19: Added workarounds tracking system (`docs/workarounds.md`) with standardized comment conventions
 - 2025-12-19: Expanded Beads documentation with Git integration, dependency types table, epic workflow example
 - 2025-12-12: Added Beads proactive trigger, positioned as first-class tool in Tool Selection
 - 2025-12-09: Added architecture docs and ADRs, documented `mylib.types` and `mylib.storageHelpers` patterns, updated `lib/host-defaults.nix` factory reference.

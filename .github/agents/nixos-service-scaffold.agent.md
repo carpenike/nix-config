@@ -103,6 +103,23 @@ package = pkgs.unstable.zigbee2mqtt;
 package = pkgs.unstable.pocket-id;
 ```
 
+### Workaround Documentation (If Needed)
+
+If you need to add package overrides, disable tests, or use unstable packages:
+
+1. **Add standardized comment in code:**
+```nix
+# WORKAROUND (YYYY-MM-DD): Brief description
+# Affects: What packages/services are impacted
+# Upstream: https://github.com/... (issue link if available)
+# Check: Condition to re-evaluate (version, date, upstream fix)
+package = pkgs.unstable.service-name;
+```
+
+2. **Add entry to `docs/workarounds.md`** with full details
+
+Reference: `docs/workarounds.md` - Tracks all temporary workarounds for periodic review
+
 ---
 
 ## MANDATORY: Pattern Discovery Phase
@@ -833,4 +850,5 @@ For services with database/MQTT/Grafana:
 ✓ Used mylib.types for standardized submodules
 ✓ Used forgeDefaults helpers for alerts, backup, sanoid
 ✓ Followed ADR guidelines (native > container, auth priority)
+✓ Any workarounds documented in `docs/workarounds.md` with standardized comments
 ✓ Validation passes cleanly

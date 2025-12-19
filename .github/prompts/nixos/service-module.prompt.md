@@ -88,6 +88,23 @@ in
 }
 ```
 
+### Workaround Documentation (If Needed)
+
+If you need to add package overrides, disable tests, or use unstable packages:
+
+1. **Add standardized comment in code:**
+```nix
+# WORKAROUND (YYYY-MM-DD): Brief description
+# Affects: What packages/services are impacted
+# Upstream: https://github.com/... (issue link if available)
+# Check: Condition to re-evaluate (version, date, upstream fix)
+package = pkgs.unstable.service-name;
+```
+
+2. **Add entry to `docs/workarounds.md`** with full details
+
+Reference: `docs/workarounds.md` - Central tracking document for all temporary workarounds, reviewed monthly.
+
 **Document your findings:**
 ```
 NIXOS PACKAGE RESEARCH:
@@ -2211,6 +2228,7 @@ You've succeeded when:
 ✓ healthcheck.enable set for container services
 ✓ nfsMountDependency set for services needing NAS access
 ✓ **Stable UID/GID allocated** - scanned repo for conflicts, used mkForce for native module wrappers
+✓ Any workarounds documented in `docs/workarounds.md` with standardized comments
 ✓ Validation passes cleanly
 ✓ User can deploy with confidence
 
@@ -2270,6 +2288,7 @@ You've succeeded when:
 - `docs/persistence-quick-reference.md` - Storage details
 - `docs/backup-system-onboarding.md` - Backup integration
 - `docs/monitoring-strategy.md` - Monitoring details
+- `docs/workarounds.md` - **Temporary workarounds tracking**
 - `hosts/forge/README.md` - Host architecture, forgeDefaults documentation
 
 ---

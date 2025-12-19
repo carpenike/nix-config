@@ -271,6 +271,61 @@ systemd.services.myservice = {
 
 ---
 
+## Temporary Workarounds & Overrides
+
+When packages have bugs, test failures, or missing features in stable nixpkgs, use these patterns:
+
+### Using Unstable Packages
+
+```nix
+# When stable version is missing features or has bugs
+package = mkOption {
+  type = types.package;
+  default = pkgs.unstable.myservice;  # Use unstable
+  defaultText = lib.literalExpression "pkgs.unstable.myservice";
+  description = "Package to use. Using unstable for [reason].";
+};
+```
+
+### Package Overrides (in overlays/default.nix)
+
+```nix
+# WORKAROUND (2025-12-19): Test failures with Python 3.13
+# Affects: home-assistant (depends on this package)
+# Upstream: https://github.com/example/issue/123
+# Check: When package is updated in nixpkgs
+mypackage = prev.mypackage.overridePythonAttrs (old: {
+  doCheck = false;  # or disabledTestPaths
+});
+```
+
+### Module-Level Workarounds
+
+```nix
+# WORKAROUND (2025-12-19): Upstream OIDC bug missing parameter
+# See: https://github.com/upstream/issues/456
+extraConfig = ''
+  # Fix upstream bug by injecting missing parameter
+  rewrite @missing_param {path}?{query}&param=value
+'';
+```
+
+### Documentation Requirements
+
+1. **Always add inline comment** with:
+   - Date added (`WORKAROUND (YYYY-MM-DD):`)
+   - Brief explanation
+   - Upstream issue link (if exists)
+   - Condition to check for removal
+
+2. **Add entry to `docs/workarounds.md`** for tracking
+
+3. **Review periodically** - workarounds should be removed when upstream fixes land
+
+See [`docs/workarounds.md`](../../docs/workarounds.md) for the complete tracking list.
+
+---
+
 ## Forge Contribution Example
 
 Real module demonstrating the contribution pattern (`hosts/forge/services/cooklang-federation.nix`):
@@ -422,6 +477,7 @@ Before considering a module complete:
 - [ ] Mirrors existing patterns (sonarr, radarr)
 - [ ] Host integration example provided
 - [ ] Can be understood by another maintainer in 5 minutes
+- [ ] Any workarounds documented in `docs/workarounds.md`
 
 ---
 
