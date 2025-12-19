@@ -40,6 +40,10 @@
     ./infrastructure/storage.nix # ZFS pool import and management
     ./infrastructure/nfs.nix # NFS exports for forge
     ./infrastructure/zfs-receive.nix # ZFS replication receiver configuration
+    ./infrastructure/reverse-proxy.nix # Caddy for HTTPS
+
+    # Services
+    ./services/attic.nix # Nix binary cache
 
     # Secrets
     ./secrets.nix

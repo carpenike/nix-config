@@ -1,7 +1,12 @@
 { pkgs
 , config
+, lib
 , ...
 }:
+let
+  inherit (lib) optionalAttrs;
+  atticPushEnabled = config.modules.services.attic-push.enable or false;
+in
 {
   config = {
     environment.systemPackages = [
@@ -54,12 +59,21 @@
           restartUnits = [ "adguardhome.service" ];
           owner = "adguardhome";
         };
-        "attic/jwt-secret" = {
-          restartUnits = [ "atticd.service" ];
-          owner = "attic";
-        };
-        "attic/admin-token" = {
-          mode = "0444";
+        # Attic moved to nas-1 (2025-12-19)
+        # "attic/jwt-secret" = {
+        #   restartUnits = [ "atticd.service" ];
+        #   owner = "attic";
+        # };
+        # "attic/admin-token" = {
+        #   mode = "0444";
+        # };
+      }
+      // optionalAttrs atticPushEnabled {
+        # Attic binary cache push token for automatic cache population
+        "attic/push-token" = {
+          mode = "0400";
+          owner = "root";
+          group = "root";
         };
       };
     };

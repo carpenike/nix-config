@@ -25,9 +25,11 @@
       "https://cache.nixos.org" # Upstream cache
     ];
 
-    trusted-public-keys = lib.optionals config.modules.binaryCache.attic.enable [
-      "homelab:dvj/fuq/zDqPuSkvQeQBj1OB36nh725SZHXXfRQHp+U=" # Homelab cache
-    ] ++ [
+    trusted-public-keys = lib.optionals config.modules.binaryCache.attic.enable ([
+      "homelab:92CMbbyYFZhtH/uOj2mv/SfAcNfRJJqV/gcuBFpRWpk=" # Homelab cache (nas-1)
+    ] ++ lib.optionals pkgs.stdenv.isDarwin [
+      "homelab-darwin:UmQUnjJJ8EBx0BA55x1J9VELI5FfHUtYhlqVmdL/bV4=" # Darwin cache (nas-1)
+    ]) ++ [
       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" # Upstream
     ];
 

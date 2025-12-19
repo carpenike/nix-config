@@ -15,6 +15,7 @@ keys:
   - &luna_temp age125dhdaw3alzhnq9fzcm7qdfpvklm0ps8a36uzhep6velv5r3jc2sxcdyxg
   - &nixpi age1d2exrla649u98f5d390jkp9hfa29w2hqg5zpfyjfq886rfllqdys7ax98k
   - &forge age1awlyc9d8y3f3w35pq0a4pt95uy3u0f2wrp29e0f5wa74feq9wusqpgtdzz
+  - &nas-1 age1lhex9rrgvnwf4eeprkjjmnl6kufdj8rgruxz7236mzscxvfs2emsd8nadk
 
 creation_rules:
   - path_regex: .*\.sops\.yaml$
@@ -27,3 +28,4 @@ creation_rules:
           - *luna_temp
           - *nixpi
           - *forge
+          - *nas-1

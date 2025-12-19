@@ -212,27 +212,35 @@ in
           };
         };
 
-        attic = {
-          enable = true;
-          listenAddress = "127.0.0.1:8081"; # Use different port to avoid UniFi conflict
-          jwtSecretFile = config.sops.secrets."attic/jwt-secret".path;
-          reverseProxy = {
-            enable = true;
-            hostName = "attic.holthome.net";
-            backend = {
-              scheme = "http";
-              host = "127.0.0.1";
-              port = 8081;
-            };
-          };
-          autoPush = {
-            enable = true;
-            cacheName = "homelab";
-          };
-        };
+        # Attic moved to nas-1 (2025-12-19)
+        # attic = {
+        #   enable = true;
+        #   listenAddress = "127.0.0.1:8081";
+        #   jwtSecretFile = config.sops.secrets."attic/jwt-secret".path;
+        #   reverseProxy = {
+        #     enable = true;
+        #     hostName = "attic.holthome.net";
+        #     backend = {
+        #       scheme = "http";
+        #       host = "127.0.0.1";
+        #       port = 8081;
+        #     };
+        #   };
+        #   autoPush = {
+        #     enable = true;
+        #     cacheName = "homelab";
+        #   };
+        # };
 
-        attic-admin = {
+        # attic-admin = {
+        #   enable = true;
+        # };
+
+        # Attic push client - pushes built paths to nas-1's attic cache
+        attic-push = {
           enable = true;
+          cacheName = "homelab";
+          tokenFile = config.sops.secrets."attic/push-token".path;
         };
       };
 
@@ -296,11 +304,12 @@ in
           credentialsFile = config.sops.secrets.onepassword-credentials.path;
         };
 
-        attic = {
-          enable = config.modules.services.attic.enable or false;
-          useZfsSend = false; # Temporarily disable ZFS send to avoid conflicts
-          nasDestination = "backup@nas.holthome.net";
-        };
+        # Attic moved to nas-1 (2025-12-19)
+        # attic = {
+        #   enable = config.modules.services.attic.enable or false;
+        #   useZfsSend = false;
+        #   nasDestination = "backup@nas.holthome.net";
+        # };
 
         system = {
           enable = true;

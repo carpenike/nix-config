@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, ... }:
 
 let
   # Centralized Cloudflare R2 configuration for offsite backups
@@ -116,9 +116,8 @@ in
     my.r2 = r2Config;
 
     modules = {
-      # Disable Attic binary cache - server on luna is unreachable
-      # TODO: Re-enable when attic.holthome.net is back online
-      binaryCache.attic.enable = false;
+      # Attic binary cache enabled - server running on nas-1
+      binaryCache.attic.enable = true;
 
       # Automatic system upgrades from GitHub
       autoUpgrade = {
@@ -168,13 +167,12 @@ in
       services = {
         openssh.enable = true;
 
-        # Attic binary cache auto-push
-        # DISABLED: Waiting for nas-1 rebuild to migrate Attic from luna
-        # attic-push = {
-        #   enable = true;
-        #   cacheName = "homelab";
-        #   tokenFile = config.sops.secrets."attic/push-token".path;
-        # };
+        # Attic binary cache auto-push (nas-1)
+        attic-push = {
+          enable = true;
+          cacheName = "homelab";
+          tokenFile = config.sops.secrets."attic/push-token".path;
+        };
 
         # Caddy reverse proxy
         caddy = {

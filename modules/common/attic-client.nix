@@ -1,27 +1,38 @@
 # Attic Client Configuration
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
-  # Install attic-client on all systems
-  environment.systemPackages = with pkgs; [
-    attic-client
-  ];
+  options.modules.binaryCache.attic = {
+    pushToken = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "SOPS secret path for the attic push token (e.g., 'attic/push-token')";
+    };
+  };
 
-  # Basic attic client configuration for all hosts (read-only access to public cache)
-  environment.etc."attic/config.toml" = lib.mkMerge [
-    {
-      text = ''
-        [default]
-        default-server = "homelab"
+  config = {
+    # Install attic-client on all systems
+    environment.systemPackages = with pkgs; [
+      attic-client
+    ];
 
-        [servers.homelab]
-        url = "https://attic.holthome.net/"
-        # Public cache - no token needed for read access
-      '';
-    }
-    # mode is only supported on NixOS, not nix-darwin
-    (lib.mkIf pkgs.stdenv.isLinux {
-      mode = "0644";
-    })
-  ];
+    # Basic attic client configuration for all hosts
+    # If pushToken is set, use SOPS template; otherwise use static config
+    environment.etc."attic/config.toml" = lib.mkIf (config.modules.binaryCache.attic.pushToken == null) (lib.mkMerge [
+      {
+        text = ''
+          [default]
+          default-server = "homelab"
+
+          [servers.homelab]
+          url = "https://attic.holthome.net/"
+          # Read-only access - no token configured
+        '';
+      }
+      # mode is only supported on NixOS, not nix-darwin
+      (lib.mkIf pkgs.stdenv.isLinux {
+        mode = "0644";
+      })
+    ]);
+  };
 }
