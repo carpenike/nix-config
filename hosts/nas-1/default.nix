@@ -72,11 +72,6 @@
   # Persistent data lives in /persist (rpool/safe/persist)
   modules.system.impermanence.enable = true;
 
-  # NAS-specific persistence (in addition to core system paths)
-  modules.system.impermanence.directories = [
-    "/var/lib/tailscale" # Tailscale machine state
-  ];
-
   # SOPS age key for secret decryption
   modules.system.impermanence.files = [
     "/var/lib/sops-nix/key.txt"
@@ -93,15 +88,6 @@
       PermitRootLogin = "prohibit-password";
       KbdInteractiveAuthentication = false;
     };
-  };
-
-  # =============================================================================
-  # Tailscale
-  # =============================================================================
-
-  services.tailscale = {
-    enable = true;
-    useRoutingFeatures = "client";
   };
 
   # =============================================================================
