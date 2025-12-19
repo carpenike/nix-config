@@ -70,15 +70,15 @@ in
           domain = "holthome.net";
         };
 
-        # BIND disabled - using Mikrotik DNS for holthome.net
-        # Mikrotik handles:
+        # BIND disabled - was used for Kubernetes DNS support
+        # Now using Mikrotik DNS for holthome.net:
         # - DHCP-to-DNS auto-registration for clients
         # - Static entries for infrastructure (forge, nas-1, etc.)
         # AdGuard forwards *.holthome.net queries to Mikrotik (10.10.0.1)
-        bind = {
-          enable = true;
-          shared.enable = true;
-        };
+        # bind = {
+        #   enable = true;
+        #   shared.enable = true;
+        # };
 
         # Note: Disabled blocky in favor of AdGuardHome
         # blocky = {
@@ -117,13 +117,14 @@ in
         #   enable = false;
         # };
 
-        haproxy = {
-          enable = true;
-          shared = {
-            enable = true; # Use shared configuration
-            useDnsDependency = true;
-          };
-        };
+        # Commented out - no longer using Kubernetes
+        # haproxy = {
+        #   enable = true;
+        #   shared = {
+        #     enable = true; # Use shared configuration
+        #     useDnsDependency = true;
+        #   };
+        # };
 
         node-exporter = {
           enable = true;

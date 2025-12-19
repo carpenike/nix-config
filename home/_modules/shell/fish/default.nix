@@ -25,47 +25,77 @@ in
         plugins = [
           { name = "done"; inherit (pkgs.fishPlugins.done) src; }
           { name = "puffer"; inherit (pkgs.fishPlugins.puffer) src; }
+          { name = "autopair"; inherit (pkgs.fishPlugins.autopair) src; }
+          { name = "sponge"; inherit (pkgs.fishPlugins.sponge) src; }
         ];
 
-        shellAliases = {
+        # Use abbreviations instead of aliases for better UX
+        # Abbreviations expand inline, making history cleaner and editable
+        shellAbbrs = {
+          # Backup management
           backups = "task backup:status";
 
-          # NixOS deployment aliases (work from any directory)
-          nix-apply-forge = "task -d ~/src/nix-config nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net";
-          nix-apply-luna = "task -d ~/src/nix-config nix:apply-nixos host=luna NIXOS_DOMAIN=holthome.net";
-          nix-build-forge = "task -d ~/src/nix-config nix:build-forge";
-          nix-build-luna = "task -d ~/src/nix-config nix:build-luna";
+          # NixOS deployment (short and memorable)
+          naf = "task -d ~/src/nix-config nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net";
+          nal = "task -d ~/src/nix-config nix:apply-nixos host=luna NIXOS_DOMAIN=holthome.net";
+          nbf = "task -d ~/src/nix-config nix:build-forge";
+          nbl = "task -d ~/src/nix-config nix:build-luna";
+
+          # Git shortcuts
+          g = "git";
+          ga = "git add";
+          gaa = "git add --all";
+          gc = "git commit";
+          gcm = "git commit -m";
+          gco = "git checkout";
+          gd = "git diff";
+          gds = "git diff --staged";
+          gl = "git log --oneline --graph";
+          gp = "git push";
+          gpl = "git pull";
+          gs = "git status";
+          gsw = "git switch";
+
+          # Common commands
+          "." = "cd ..";
+          ".." = "cd ../..";
+          "..." = "cd ../../..";
+          md = "mkdir -p";
+          rd = "rmdir";
+
+          # Nix shortcuts
+          nrs = "sudo nixos-rebuild switch --flake .";
+          nrt = "sudo nixos-rebuild test --flake .";
+          nfu = "nix flake update";
+          nfc = "nix flake check";
+          ndev = "nix develop";
         };
 
         interactiveShellInit = ''
-          function remove_path
-            if set -l index (contains -i $argv[1] $PATH)
-              set --erase --universal fish_user_paths[$index]
-            end
+          # Only add paths that exist (avoids cluttering PATH)
+          for p in \
+            ${homeDirectory}/.local/bin \
+            ${homeDirectory}/.cargo/bin \
+            ${homeDirectory}/go/bin \
+            /run/wrappers/bin \
+            /etc/profiles/per-user/${username}/bin \
+            /run/current-system/sw/bin \
+            /nix/var/nix/profiles/default/bin \
+            /opt/homebrew/bin
+            test -d $p; and fish_add_path -gm $p
           end
 
-          function update_path
-            if test -d $argv[1]
-              fish_add_path -m $argv[1]
-            else
-              remove_path $argv[1]
-            end
+          # GPG/SSH agent setup
+          if command -q gpgconf
+            set -gx SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket)
+            gpg-connect-agent /bye 2>/dev/null
           end
 
-          # Paths are in reverse priority order
-          update_path /opt/homebrew/bin
-          update_path /nix/var/nix/profiles/default/bin
-          update_path /run/current-system/sw/bin
-          update_path /etc/profiles/per-user/${username}/bin
-          update_path /run/wrappers/bin
-          update_path ${homeDirectory}/go/bin
-          update_path ${homeDirectory}/.cargo/bin
-          update_path ${homeDirectory}/.local/bin
-
-          # Set SSH_AUTH_SOCK for Fish shell
-          set -Ux SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket)
-
-          gpg-connect-agent /bye
+          # Transient prompt function for starship
+          # Shows minimal prompt for previous commands (just the character)
+          function starship_transient_prompt_func
+            starship module character
+          end
         '' + (
           if hasAnyNixShell
           then ''

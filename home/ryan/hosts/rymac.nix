@@ -4,7 +4,7 @@
   modules = {
     deployment.nix.enable = true;
     development.enable = true;
-    kubernetes.enable = true;
+    # kubernetes.enable = true;  # Commented out - no longer using Kubernetes
     security.gnugpg.enable = true;
     security.ssh = {
       enable = true;

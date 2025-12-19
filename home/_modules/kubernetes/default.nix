@@ -1,3 +1,6 @@
+# NOTE: Kubernetes is no longer in use. This module is retained for reference
+# but is not imported (see home/_modules/default.nix). Can be deleted if desired.
+
 { config
 , lib
 , pkgs

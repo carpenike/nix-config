@@ -1,4 +1,5 @@
 { pkgs
+, lib
 , ...
 }:
 {
@@ -9,87 +10,160 @@
       catppuccin.enable = true;
 
       settings = {
-        format = ''
-          $os$time$username($hostname)($kubernetes)($git_branch)($python)($terraform)($golang)
-          $directory$character
-        '';
+        # Performance
+        command_timeout = 500;
 
+        # Beautiful two-line powerline prompt
+        # Using literal powerline glyphs from Nerd Fonts
+        format = lib.concatStrings [
+          "$os"
+          "$username"
+          "[ ](bg:lavender fg:blue)"
+          "$directory"
+          "[ ](bg:mauve fg:lavender)"
+          "$git_branch"
+          "$git_status"
+                    "$python"
+          "$nodejs"
+          "$golang"
+          "$rust"
+          "$nix_shell"
+          "$cmd_duration"
+          "$fill"
+          "[](fg:surface1)"
+          "$time"
+          "\n"
+          "$character"
+        ];
+
+        # Fill space between left and right
+        fill.symbol = " ";
+
+        # OS icon segment - using official Starship Nerd Font preset icons
         os = {
           disabled = false;
-          symbols.Ubuntu = "";
-          symbols.Windows = "";
-          symbols.Macos = "";
-          symbols.Debian = "\uf306";
-          symbols.NixOS = "";
           style = "bg:blue fg:base";
-          format = "[ $symbol ]($style)";
+          symbols = {
+            Macos = "";
+            Ubuntu = "";
+            Debian = "";
+            NixOS = "";
+            Windows = "󰍲";
+            Linux = "";
+          };
+          format = "[  $symbol  ]($style)";
         };
 
-        time = {
-          disabled = false;
-          time_format = "%R"; # Hour:Minute Format
-          style = "bg:blue fg:base bold";
-          format = "[ 󱑍 $time [](fg:blue bg:peach)]($style)";
-        };
-
+        # Username
         username = {
           disabled = false;
           show_always = true;
-          style_user = "bg:peach fg:base bold";
-          style_root = "bg:peach fg:base bold";
-          format = "[ $user [](fg:peach bg:base)]($style)";
+          style_user = "bg:blue fg:base bold";
+          style_root = "bg:red fg:base bold";
+          format = "[ $user  ]($style)";
         };
 
-        hostname = {
-          disabled = false;
-          ssh_only = true;
-          ssh_symbol = "🌐";
-          style = "bg:maroon fg:base bold";
-          format = "[ $ssh_symbol $hostname [](fg:maroon bg:base)]($style)";
-        };
-
-        git_branch = {
-          symbol = "  ";
-          style = " bg:yellow fg:base";
-          format = "[ $symbol$branch(:$remote_branch) [](fg:yellow bg:base)]($style)";
-        };
-
-        kubernetes = {
-          disabled = false;
-          symbol = "󱃾 ";
-          style = "bg:green fg:base";
-          format = "[ $symbol$context \\($namespace\\) [](fg:green bg:base)]($style)";
-        };
-
-        python = {
-          symbol = " ";
-          style = "bg:flamingo fg:base";
-          format = "[ $symbol$pyenv_prefix($version )(\\($virtualenv\\)) [](fg:flamingo bg:base)]($style)";
-        };
-
-        golang = {
-          symbol = " ";
-          style = "bg:flamingo fg:base";
-          format = "[ $symbol($version) [](fg:flamingo bg:base)]($style)";
-        };
-
-        terraform = {
-          symbol = "󱁢 ";
-          style = "bg:flamingo fg:base";
-          format = "[ $symbol$version [](fg:flamingo bg:base)]($style)";
-        };
-
+        # Directory with folder icon - lavender bg
         directory = {
-          truncation_length = 4;
+          truncation_length = 3;
           truncation_symbol = "…/";
-          style = "fg:lavender";
-          format = "[   $path]($style)";
+          style = "bg:lavender fg:base bold";
+          read_only = " 󰌾";
+          read_only_style = "bg:lavender fg:red";
+          format = "[  $path  ]($style)[$read_only]($read_only_style)";
         };
 
-        character = {
-          success_symbol = "[ >](bold green)";
-          error_symbol = "[ ✗](#E84D44)";
+        # Git branch - mauve bg
+        git_branch = {
+          symbol = "󰘬";
+          style = "bg:mauve fg:base";
+          format = "[  $symbol $branch(:$remote_branch)  ]($style)";
         };
+
+        # Git status - clear icons
+        git_status = {
+          style = "bg:mauve fg:base";
+          format = "[$all_status$ahead_behind ]($style)";
+          conflicted = "󱧂 ";
+          ahead = "󰜸$count ";
+          behind = "󰜯$count ";
+          diverged = "󰜸$ahead_count󰜯$behind_count ";
+          untracked = "󰋗$count ";
+          stashed = "󰆓$count ";
+          modified = "󰏫$count ";
+          staged = "󰸞$count ";
+          renamed = "󰑕$count ";
+          deleted = "󰆴$count ";
+        };
+
+        # Python - peach bg
+        python = {
+          symbol = "󰌠";
+          style = "bg:peach fg:base";
+          format = "[](bg:peach fg:mauve)[  $symbol $virtualenv  ]($style)[](fg:peach)";
+          detect_extensions = ["py"];
+          detect_files = ["pyproject.toml" "requirements.txt" "Pipfile"];
+        };
+
+        # Node.js - peach bg
+        nodejs = {
+          symbol = "󰎙";
+          style = "bg:peach fg:base";
+          format = "[](bg:peach fg:mauve)[  $symbol $version  ]($style)[](fg:peach)";
+          detect_extensions = ["js" "ts" "jsx" "tsx"];
+          detect_files = ["package.json"];
+        };
+
+        # Go - peach bg
+        golang = {
+          symbol = "󰟓";
+          style = "bg:peach fg:base";
+          format = "[](bg:peach fg:mauve)[  $symbol $version  ]($style)[](fg:peach)";
+        };
+
+        # Rust - peach bg
+        rust = {
+          symbol = "󱘗";
+          style = "bg:peach fg:base";
+          format = "[](bg:peach fg:mauve)[  $symbol $version  ]($style)[](fg:peach)";
+        };
+
+        # Nix shell - peach bg
+        nix_shell = {
+          symbol = "";
+          style = "bg:peach fg:base";
+          impure_msg = "";
+          pure_msg = "pure";
+          format = "[](bg:peach fg:mauve)[  $symbol $state  ]($style)[](fg:peach)";
+        };
+
+        # Command duration - yellow bg
+        cmd_duration = {
+          min_time = 500;
+          style = "bg:yellow fg:base";
+          format = "[](bg:yellow fg:mauve)[  󱎫 $duration  ]($style)[](fg:yellow)";
+        };
+
+        # Time - right side
+        time = {
+          disabled = false;
+          time_format = "%H:%M";
+          style = "bg:surface1 fg:text";
+          format = "[  󰥔 $time  ]($style)";
+        };
+
+        # Prompt character
+        character = {
+          success_symbol = "[❯](bold green)";
+          error_symbol = "[❯](bold red)";
+          vimcmd_symbol = "[❮](bold mauve)";
+        };
+
+        # Disabled modules
+        kubernetes.disabled = true;
+        aws.disabled = true;
+        gcloud.disabled = true;
+        azure.disabled = true;
       };
     };
   };

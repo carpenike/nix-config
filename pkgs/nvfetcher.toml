@@ -7,25 +7,26 @@ src.git = "https://github.com/cooklang/federation.git"
 src.branch = "main"
 fetch.github = "cooklang/federation"
 
-[kubecolor-catppuccin]
-src.git = "https://github.com/vkhitrin/kubecolor-catppuccin.git"
-src.branch = "main"
-fetch.github = "vkhitrin/kubecolor-catppuccin"
-[kubectl-browse-pvc]
-src.github = "clbx/kubectl-browse-pvc"
-fetch.github = "clbx/kubectl-browse-pvc"
-[kubectl-get-all]
-src.github = "corneliusweig/ketall"
-fetch.github = "corneliusweig/ketall"
-[kubectl-klock]
-src.github = "applejag/kubectl-klock"
-fetch.github = "applejag/kubectl-klock"
-[kubectl-netshoot]
-src.github = "nilic/kubectl-netshoot"
-fetch.github = "nilic/kubectl-netshoot"
-[kubectl-pgo]
-src.github = "CrunchyData/postgres-operator-client"
-fetch.github = "CrunchyData/postgres-operator-client"
+# Kubernetes tools - commented out, no longer using Kubernetes
+# [kubecolor-catppuccin]
+# src.git = "https://github.com/vkhitrin/kubecolor-catppuccin.git"
+# src.branch = "main"
+# fetch.github = "vkhitrin/kubecolor-catppuccin"
+# [kubectl-browse-pvc]
+# src.github = "clbx/kubectl-browse-pvc"
+# fetch.github = "clbx/kubectl-browse-pvc"
+# [kubectl-get-all]
+# src.github = "corneliusweig/ketall"
+# fetch.github = "corneliusweig/ketall"
+# [kubectl-klock]
+# src.github = "applejag/kubectl-klock"
+# fetch.github = "applejag/kubectl-klock"
+# [kubectl-netshoot]
+# src.github = "nilic/kubectl-netshoot"
+# fetch.github = "nilic/kubectl-netshoot"
+# [kubectl-pgo]
+# src.github = "CrunchyData/postgres-operator-client"
+# fetch.github = "CrunchyData/postgres-operator-client"
 [shcopy]
 src.github = "aymanbagabas/shcopy"
 fetch.github = "aymanbagabas/shcopy"

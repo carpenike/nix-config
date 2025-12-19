@@ -1,3 +1,7 @@
+# NOTE: This module is for Kubernetes API server load balancing.
+# Kubernetes is no longer in use - this module is retained for reference but can be deleted.
+# To fully remove: delete this file and remove its import from the haproxy module.
+
 { lib, config, ... }:
 let
   cfg = config.modules.services.haproxy.shared;

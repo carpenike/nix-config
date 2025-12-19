@@ -18,7 +18,16 @@
     };
 
     shell = {
+      # Shell and prompt
       fish.enable = true;
+
+      # Modern CLI tools
+      atuin.enable = true;   # Shell history database
+      bat.enable = true;     # Syntax-highlighted cat
+      direnv.enable = true;  # Per-directory environments
+      eza.enable = true;     # Modern ls with git integration
+      fzf.enable = true;     # Fuzzy finder
+      zoxide.enable = true;  # Smart cd
 
       git = {
         enable = true;

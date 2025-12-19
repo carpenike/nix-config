@@ -9,12 +9,13 @@
   backup-status = pkgs.callPackage ./backup-status.nix { };
   beads = pkgs.callPackage ./beads.nix { };
   syncoid-list = pkgs.callPackage ./syncoid-list.nix { };
-  kubecolor-catppuccin = pkgs.callPackage ./kubecolor-catppuccin.nix { };
-  kubectl-browse-pvc = pkgs.callPackage ./kubectl-browse-pvc.nix { };
-  kubectl-get-all = pkgs.callPackage ./kubectl-get-all.nix { };
-  kubectl-klock = pkgs.callPackage ./kubectl-klock.nix { };
-  kubectl-netshoot = pkgs.callPackage ./kubectl-netshoot.nix { };
-  kubectl-pgo = pkgs.callPackage ./kubectl-pgo.nix { };
+  # Kubernetes tools - commented out, no longer using Kubernetes
+  # kubecolor-catppuccin = pkgs.callPackage ./kubecolor-catppuccin.nix { };
+  # kubectl-browse-pvc = pkgs.callPackage ./kubectl-browse-pvc.nix { };
+  # kubectl-get-all = pkgs.callPackage ./kubectl-get-all.nix { };
+  # kubectl-klock = pkgs.callPackage ./kubectl-klock.nix { };
+  # kubectl-netshoot = pkgs.callPackage ./kubectl-netshoot.nix { };
+  # kubectl-pgo = pkgs.callPackage ./kubectl-pgo.nix { };
   cooklang-cli = pkgs.callPackage ./cooklang-cli.nix { };
   cooklang-federation = pkgs.callPackage ./cooklang-federation.nix { };
   # nvim = pkgs.callPackage ./nvim.nix _inputs;  # FIXME: References non-existent homes/bjw-s path

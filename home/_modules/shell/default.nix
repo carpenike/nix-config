@@ -2,19 +2,16 @@
 }:
 {
   imports = [
-    # Uncomment modules as they are created with enable options
-    # ./atuin
-    # ./bat
+    ./atuin
+    ./bat
     ./bash
-    # ./btop
-    # ./doggo
-    # ./eza
+    ./direnv
+    ./eza
     ./fish
+    ./fzf
     ./git
-    # ./go-task
-    # ./mise
     ./starship
     ./utilities
-    # ./zoxide
+    ./zoxide
   ];
 }

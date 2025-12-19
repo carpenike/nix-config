@@ -9,7 +9,7 @@
     ./development
     ./editor
     ./infrastructure
-    ./kubernetes
+    # ./kubernetes  # Commented out - no longer using Kubernetes
     ./security
     ./shell
     ./themes

@@ -291,6 +291,22 @@ tasks:
         echo "      Phase 1: Install nixos-bootstrap (activates impermanence on first boot)"
         echo "      Phase 2: Deploy full config (SOPS works with restored SSH keys)"
         echo ""
+        echo "⚡ NIXOS-ANYWHERE workflow (kexec - no ISO needed):"
+        echo "  Use when target runs ANY Linux with SSH (cloud VPS, existing install):"
+        echo "  1. Ensure SSH access: ssh root@TARGET_IP"
+        echo "  2. Run: task bootstrap:nixos-anywhere host=HOSTNAME ip=TARGET_IP"
+        echo "  3. Wait for reboot, extract SSH key: task bootstrap:extract-ssh-key host=HOSTNAME"
+        echo "  4. Deploy full config: task nix:apply-nixos host=HOSTNAME"
+        echo ""
+        echo "🔀 KEXEC-ONLY workflow (boot to installer, then use remote-install):"
+        echo "  Use when you want kexec convenience but need remote-install features (DR, custom install):"
+        echo "  1. Ensure SSH access: ssh root@TARGET_IP (or user with sudo)"
+        echo "  2. Kexec to installer: task bootstrap:kexec-to-installer ip=TARGET_IP"
+        echo "     (copies your SSH key to root, then kexecs)"
+        echo "  3. Wait ~2min, test SSH: ssh root@TARGET_IP"
+        echo "  4. Run: task bootstrap:remote-install host=HOSTNAME ssh_user=root"
+        echo "     (or with DR: task bootstrap:remote-install host=HOSTNAME ssh_user=root RECOVER=true)"
+        echo ""
         echo "⚙️  Manual workflow (if you prefer local install):"
         echo "  1. Boot LiveCD, set password: sudo passwd nixos"
         echo "  2. Set hostid and format:"
@@ -309,10 +325,210 @@ tasks:
         echo "  • See full docs for details"
         echo ""
         echo "👤 Users:"
-        echo "  • LiveCD: nixos (temporary, for remote disk setup)"
+        echo "  • LiveCD/kexec installer: root (or nixos on official ISO)"
         echo "  • After install: ryan (created by nixos-bootstrap, has sudo)"
         echo ""
         echo "📋 Available tasks:"
-        echo "  task bootstrap:extract-ssh-key host=HOSTNAME  - Extract SSH key remotely (uses ryan@host)"
+        echo "  task bootstrap:extract-ssh-key host=HOSTNAME  - Extract SSH key remotely"
+        echo "  task bootstrap:remote-install host=HOSTNAME   - Install from LiveCD/kexec installer"
+        echo "  task bootstrap:kexec-to-installer ip=IP       - Boot any Linux into NixOS installer"
+        echo "  task bootstrap:nixos-anywhere host=H ip=IP    - Full install via kexec (no ISO)"
         echo "  task bootstrap:quickstart                     - Show this help"
         echo ""
+
+  nixos-anywhere:
+    desc: Install NixOS via nixos-anywhere (kexec, no ISO required)
+    silent: true
+    summary: |
+      Uses nixos-anywhere to install NixOS on a target running any Linux with SSH.
+      This uses kexec to boot into NixOS installer without needing physical access or ISO.
+
+      ⚠️  This will WIPE ALL DATA on target disks!
+
+      Args:
+        host: Target hostname from flake (required)
+        ip: Target IP address (required)
+        ssh_user: SSH user (default: root)
+        build_on_remote: Build on target instead of locally (default: false)
+
+      Examples:
+        task bootstrap:nixos-anywhere host=forge ip=192.168.1.100
+        task bootstrap:nixos-anywhere host=luna ip=10.0.0.50 ssh_user=admin
+        task bootstrap:nixos-anywhere host=forge ip=192.168.1.100 build_on_remote=true
+
+      Prerequisites:
+        - Target running any x86_64 Linux with SSH and kexec support
+        - Root access (or passwordless sudo)
+        - Wired network (wifi not supported)
+
+      Notes:
+        - Builds locally by default (faster for slow targets)
+        - Uses nixos-bootstrap config (not full host config)
+        - Follow up with: task nix:apply-nixos host=HOSTNAME
+    vars:
+      ssh_user: '{{.ssh_user | default "root"}}'
+      build_on_remote: '{{.build_on_remote | default "false"}}'
+    requires:
+      vars:
+        - host
+        - ip
+    cmds:
+      - |
+        set -euo pipefail
+
+        echo "🚀 nixos-anywhere installation for {{.host}} at {{.ip}}" >&2
+        echo "" >&2
+        echo "⚠️  WARNING: This will WIPE ALL DATA on target disks!" >&2
+        echo "   Target: {{.ssh_user}}@{{.ip}}" >&2
+        echo "   Config: nixos-bootstrap (minimal, follow up with full deploy)" >&2
+        echo "" >&2
+        read -p "Type 'yes' to continue: " confirm
+        if [ "$confirm" != "yes" ]; then
+          echo "❌ Aborted" >&2
+          exit 1
+        fi
+
+        echo "" >&2
+        echo "📦 Running nixos-anywhere..." >&2
+
+        build_flag=""
+        if [ "{{.build_on_remote}}" = "true" ]; then
+          echo "  Building on remote target" >&2
+          build_flag="--build-on-remote"
+        else
+          echo "  Building locally, copying closure to target" >&2
+        fi
+
+        nix run github:nix-community/nixos-anywhere -- \
+          --flake ".#nixos-bootstrap" \
+          --target-host "{{.ssh_user}}@{{.ip}}" \
+          $build_flag
+
+        echo "" >&2
+        echo "✅ nixos-anywhere completed!" >&2
+        echo "" >&2
+        echo "📝 Next steps:" >&2
+        echo "  1. Wait for system to reboot (~2-3 minutes)" >&2
+        echo "  2. Extract SSH key: task bootstrap:extract-ssh-key host={{.host}}" >&2
+        echo "  3. Add age key to .sops.yaml and re-encrypt: task sops:re-encrypt" >&2
+        echo "  4. Deploy full config: task nix:apply-nixos host={{.host}}" >&2
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+
+  kexec-to-installer:
+    desc: Boot target into NixOS installer via kexec (no installation)
+    silent: true
+    summary: |
+      Uses kexec to boot any Linux machine into a NixOS installer environment.
+      This is useful when you want to use your own installation process (e.g., remote-install)
+      but don't have physical access to boot a LiveCD.
+
+      After kexec, the machine will be in the same state as if you booted a NixOS ISO.
+      You can then run: task bootstrap:remote-install host=HOSTNAME
+
+      Args:
+        ip: Target IP address (required)
+        ssh_user: SSH user (default: root)
+
+      Examples:
+        task bootstrap:kexec-to-installer ip=192.168.1.100
+        task bootstrap:kexec-to-installer ip=10.0.0.50 ssh_user=admin
+
+      Prerequisites:
+        - Target running any x86_64 Linux with SSH and kexec support
+        - Root access (or passwordless sudo)
+        - At least 1GB RAM (installer runs in RAM)
+
+      Authentication after kexec:
+        The kexec installer imports SSH keys from /root/.ssh/authorized_keys on the
+        original system. If root had your SSH key, you can SSH as root after kexec.
+        If not, the task will set up your key before kexec.
+
+      After kexec completes:
+        - SSH as root@IP (uses your SSH key)
+        - Run: task bootstrap:remote-install host=HOSTNAME ssh_user=root
+    vars:
+      ssh_user: '{{.ssh_user | default "root"}}'
+    requires:
+      vars:
+        - ip
+    cmds:
+      - |
+        set -euo pipefail
+
+        echo "🚀 Kexec to NixOS installer at {{.ip}}" >&2
+        echo "" >&2
+        echo "This will:" >&2
+        echo "  1. Set up SSH key for root (so you can SSH after kexec)" >&2
+        echo "  2. Download NixOS kexec image" >&2
+        echo "  3. Reboot target into NixOS installer (runs in RAM)" >&2
+        echo "  4. Leave you with SSH access as root" >&2
+        echo "" >&2
+        echo "⚠️  The current OS will be replaced in memory (data on disk is safe until you format)" >&2
+        echo "" >&2
+        read -p "Type 'yes' to continue: " confirm
+        if [ "$confirm" != "yes" ]; then
+          echo "❌ Aborted" >&2
+          exit 1
+        fi
+
+        echo "" >&2
+
+        # Step 1: Ensure root has our SSH key (kexec installer imports /root/.ssh/authorized_keys)
+        echo "🔑 Setting up SSH key for root (will persist into kexec installer)..." >&2
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          "{{.ssh_user}}@{{.ip}}" \
+          "set -euo pipefail
+           # Get our current SSH public key
+           mkdir -p /root/.ssh
+           chmod 700 /root/.ssh
+           # Add the key that's being used for this connection
+           # This ensures the same key works after kexec
+           if [ ! -f /root/.ssh/authorized_keys ] || ! grep -q '$(cat ~/.ssh/id_ed25519.pub 2>/dev/null || cat ~/.ssh/id_rsa.pub 2>/dev/null || echo "")' /root/.ssh/authorized_keys 2>/dev/null; then
+             echo 'Adding SSH key to root authorized_keys...'
+           fi"
+
+        # Copy our SSH key to root's authorized_keys
+        echo "  Copying your SSH public key to target..." >&2
+        ssh_pub_key=$(cat ~/.ssh/id_ed25519.pub 2>/dev/null || cat ~/.ssh/id_rsa.pub 2>/dev/null || echo "")
+        if [ -n "$ssh_pub_key" ]; then
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "{{.ssh_user}}@{{.ip}}" \
+            "mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo '$ssh_pub_key' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys && sort -u /root/.ssh/authorized_keys -o /root/.ssh/authorized_keys"
+          echo "  ✅ SSH key configured for root" >&2
+        else
+          echo "  ⚠️  No SSH public key found locally, hoping root already has one configured" >&2
+        fi
+
+        echo "" >&2
+        echo "📦 Downloading and running kexec..." >&2
+
+        # Download and run kexec
+        kexec_url="https://github.com/nix-community/nixos-images/releases/download/nixos-unstable/nixos-kexec-installer-noninteractive-x86_64-linux.tar.gz"
+
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          "{{.ssh_user}}@{{.ip}}" \
+          "set -euo pipefail
+           echo '📥 Downloading NixOS kexec image...'
+           curl -L '$kexec_url' | tar -xzf- -C /root
+           echo '🔄 Executing kexec (connection will drop)...'
+           /root/kexec/run"
+
+        echo "" >&2
+        echo "✅ Kexec initiated! Connection dropped as expected." >&2
+        echo "" >&2
+        echo "⏳ Wait ~1-2 minutes for the installer to boot..." >&2
+        echo "" >&2
+        echo "📝 Next steps:" >&2
+        echo "  1. Test SSH: ssh root@{{.ip}}" >&2
+        echo "  2. Run installation: task bootstrap:remote-install host=HOSTNAME ssh_user=root" >&2
+        echo "     Or with DR: task bootstrap:remote-install host=HOSTNAME ssh_user=root RECOVER=true" >&2
+        echo "" >&2
+        echo "💡 The installer has:" >&2
+        echo "   - Your SSH key (copied before kexec)" >&2
+        echo "   - Full Nix tooling available" >&2
+        echo "   - Disks untouched until you run disko" >&2
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
