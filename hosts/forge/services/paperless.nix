@@ -11,9 +11,9 @@ let
   dataset = "tank/services/paperless";
   dataDir = "/var/lib/paperless";
   pocketIdIssuer = "https://id.${domain}";
-  # Listen on all interfaces so containers can connect via host.containers.internal
-  # External access is controlled by Caddy reverse proxy
-  listenAddr = "0.0.0.0";
+  # Bind to localhost only - no container dependencies identified
+  # External access via Caddy reverse proxy
+  listenAddr = "127.0.0.1";
   listenPort = 28981;
   # Use multiple workers to prevent single-request blocking
   # Granian workers can hang under certain conditions (known NixOS issue)

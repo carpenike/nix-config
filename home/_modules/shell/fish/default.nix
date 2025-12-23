@@ -79,15 +79,17 @@ in
 
         interactiveShellInit = ''
           # Only add paths that exist (avoids cluttering PATH)
+          # Order matters: fish_add_path -gm moves to front, so last listed = first in PATH
+          # /run/wrappers/bin MUST be last to ensure setuid wrappers (doas, etc.) are found first
           for p in \
-            ${homeDirectory}/.local/bin \
-            ${homeDirectory}/.cargo/bin \
-            ${homeDirectory}/go/bin \
-            /run/wrappers/bin \
-            /etc/profiles/per-user/${username}/bin \
-            /run/current-system/sw/bin \
+            /opt/homebrew/bin \
             /nix/var/nix/profiles/default/bin \
-            /opt/homebrew/bin
+            /run/current-system/sw/bin \
+            /etc/profiles/per-user/${username}/bin \
+            ${homeDirectory}/go/bin \
+            ${homeDirectory}/.cargo/bin \
+            ${homeDirectory}/.local/bin \
+            /run/wrappers/bin
             test -d $p; and fish_add_path -gm $p
           end
 

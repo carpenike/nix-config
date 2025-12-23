@@ -26,9 +26,15 @@ in
       enable = true;
 
       initExtra = lib.mkIf cfg.launchFishForInteractive ''
-        # Launch fish for interactive sessions, but not for VS Code Remote SSH
+        # Launch fish for interactive sessions, but not for VS Code terminals
         # or other non-interactive contexts that need POSIX shell compatibility
-        if [[ $- == *i* ]] && [[ -z "''${VSCODE_RESOLVING_ENVIRONMENT:-}" ]] && [[ -z "''${INSIDE_EMACS:-}" ]]; then
+        # - VSCODE_RESOLVING_ENVIRONMENT: set during VS Code Remote SSH init
+        # - TERM_PROGRAM=vscode: set in VS Code integrated terminals
+        # - INSIDE_EMACS: set in Emacs shell buffers
+        if [[ $- == *i* ]] && \
+           [[ -z "''${VSCODE_RESOLVING_ENVIRONMENT:-}" ]] && \
+           [[ "''${TERM_PROGRAM:-}" != "vscode" ]] && \
+           [[ -z "''${INSIDE_EMACS:-}" ]]; then
             exec fish
         fi
       '';

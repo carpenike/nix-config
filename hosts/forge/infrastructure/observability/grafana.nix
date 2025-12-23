@@ -30,9 +30,9 @@ in
       modules.services.grafana = {
         enable = true;
 
-        # Listen on all interfaces so containers (OnCall, etc.) can reach Grafana
-        # Security: Grafana requires OIDC authentication; host firewall will be enabled
-        listenAddress = "0.0.0.0";
+        # Bind to podman bridge IP only - accessible from host (Caddy) and containers (OnCall)
+        # Not exposed on main network interface or future IoT VLAN
+        listenAddress = "10.89.0.1";
 
         # ZFS dataset for persistence
         zfs = {
@@ -50,7 +50,7 @@ in
           hostName = "grafana.${domain}";
           backend = {
             scheme = "http";
-            host = "127.0.0.1";
+            host = "10.89.0.1";  # Must match listenAddress (podman bridge)
             port = 3000;
           };
           # No Caddy auth - Grafana uses OIDC authentication instead

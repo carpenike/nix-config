@@ -14,6 +14,15 @@
     firewall.enable = false;
     domain = "holthome.net";
 
+    # VLAN 30: Wireless network for Home Assistant mDNS device discovery
+    # Allows HA to directly communicate with devices on the wireless VLAN
+    vlans.wireless = {
+      id = 30;
+      interface = "enp8s0";
+    };
+
+    interfaces.wireless.useDHCP = true;
+
     # REMOVED 2025-11-01: These /etc/hosts entries are no longer needed.
     # The TLS certificate exporter was rewritten to read cert files directly from disk
     # instead of making network connections via openssl s_client. All intra-host
