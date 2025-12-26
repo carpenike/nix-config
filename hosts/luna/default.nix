@@ -236,12 +236,12 @@ in
         #   enable = true;
         # };
 
-        # Attic push client - pushes built paths to nas-1's attic cache
-        attic-push = {
-          enable = true;
-          cacheName = "homelab";
-          tokenFile = config.sops.secrets."attic/push-token".path;
-        };
+        # Attic push client - DISABLED (not functional, causes multi-hour delays)
+        # attic-push = {
+        #   enable = true;
+        #   cacheName = "homelab";
+        #   tokenFile = config.sops.secrets."attic/push-token".path;
+        # };
       };
 
       # Explicitly enable ZFS filesystem module

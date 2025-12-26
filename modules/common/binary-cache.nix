@@ -9,7 +9,7 @@
   options.modules.binaryCache = {
     attic.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false; # Disabled by default - attic cache not currently functional
       description = "Whether to use the Attic binary cache (attic.holthome.net)";
     };
   };

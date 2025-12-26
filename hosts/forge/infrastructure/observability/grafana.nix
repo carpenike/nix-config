@@ -16,7 +16,8 @@ let
   # OnCall configuration
   oncallEnabled = config.modules.services.grafana-oncall.enable or false;
   oncallApiUrl = "http://127.0.0.1:8094"; # OnCall engine internal URL
-  grafanaInternalUrl = "http://127.0.0.1:3000";
+  # Use podman bridge IP - Grafana is bound to 10.89.0.1, not localhost
+  grafanaInternalUrl = "http://10.89.0.1:3000";
   # Podman bridge IP - accessible from both host and containers
   # Required for OnCall plugin: the grafanaUrl in plugin settings is used by both
   # the plugin backend (on host) and synced to the OnCall engine DB (in container)
