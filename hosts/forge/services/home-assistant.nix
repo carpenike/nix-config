@@ -73,7 +73,7 @@ in
             packages = "!include_dir_named packages";
           };
           http = {
-            server_host = [ "0.0.0.0" "::" ];
+            # server_host removed: deprecated in 2026.6.0, HA now binds all interfaces by default
             server_port = 8123;
             use_x_forwarded_for = true;
             trusted_proxies = [
