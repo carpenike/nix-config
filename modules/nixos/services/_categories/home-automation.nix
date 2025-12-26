@@ -6,6 +6,7 @@
     ../emqx # MQTT broker
     ../esphome # ESPHome firmware builder/dashboard
     ../frigate # NVR with object detection
+    ../go2rtc # Camera streaming relay (RTSP/WebRTC)
     ../home-assistant # Home automation hub
     ../scrypted # NVR / automation bridge
     ../zigbee2mqtt # Zigbee gateway

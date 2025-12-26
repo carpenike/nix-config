@@ -97,6 +97,7 @@ in
     ./services/thelounge.nix # TheLounge IRC web client
     ./services/tracearr.nix # Tracearr media server account sharing detection
     ./services/frigate.nix # Frigate NVR service
+    ./services/go2rtc.nix # go2rtc camera streaming relay (Scrypted → WebRTC → HA)
     ./services/grafana-oncall.nix # Grafana OnCall incident response platform
     ./services/scrypted.nix # Scrypted NVR/automation hub
     ./services/searxng.nix # SearXNG meta search engine
@@ -116,8 +117,8 @@ in
     my.r2 = r2Config;
 
     modules = {
-      # Attic binary cache enabled - server running on nas-1
-      binaryCache.attic.enable = true;
+      # Attic binary cache disabled - not currently functional
+      # binaryCache.attic.enable = true;
 
       # Automatic system upgrades from GitHub
       autoUpgrade = {
@@ -167,12 +168,12 @@ in
       services = {
         openssh.enable = true;
 
-        # Attic binary cache auto-push (nas-1)
-        attic-push = {
-          enable = true;
-          cacheName = "homelab";
-          tokenFile = config.sops.secrets."attic/push-token".path;
-        };
+        # Attic binary cache auto-push - DISABLED (not functional, causes multi-hour delays)
+        # attic-push = {
+        #   enable = true;
+        #   cacheName = "homelab";
+        #   tokenFile = config.sops.secrets."attic/push-token".path;
+        # };
 
         # Caddy reverse proxy
         caddy = {
