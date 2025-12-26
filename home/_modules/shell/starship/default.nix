@@ -9,6 +9,10 @@
       package = pkgs.unstable.starship;
       catppuccin.enable = true;
 
+      # Disable starship for bash - VS Code terminals use bash and starship's
+      # complex escape sequences interfere with VS Code Copilot's terminal parsing
+      enableBashIntegration = false;
+
       settings = {
         # Performance
         command_timeout = 500;

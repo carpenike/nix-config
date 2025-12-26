@@ -53,9 +53,4 @@ in
     "loki" # Loki log storage
     "promtail" # Promtail positions file
   ];
-
-  system.activationScripts.postActivation.text = ''
-    # Must match what is in /etc/shells
-    chsh -s /run/current-system/sw/bin/bash ryan
-  '';
 }

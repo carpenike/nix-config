@@ -25,7 +25,13 @@ in
     programs.bash = {
       enable = true;
 
-      initExtra = lib.mkIf cfg.launchFishForInteractive ''
+      # Simple, VS Code Copilot-friendly prompt
+      # No fancy escape sequences that confuse terminal parsers
+      initExtra = ''
+        # Simple prompt for VS Code compatibility
+        # Shows user@host:directory$ without complex escape sequences
+        PS1='\u@\h:\w\$ '
+      '' + lib.optionalString cfg.launchFishForInteractive ''
         # Launch fish for interactive sessions, but not for VS Code terminals
         # or other non-interactive contexts that need POSIX shell compatibility
         # - VSCODE_RESOLVING_ENVIRONMENT: set during VS Code Remote SSH init
