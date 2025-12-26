@@ -256,6 +256,7 @@ in
         };
         auth = cfg.reverseProxy.auth;
         security = cfg.reverseProxy.security;
+        caddySecurity = cfg.reverseProxy.caddySecurity;
         extraConfig = cfg.reverseProxy.extraConfig;
       };
 
