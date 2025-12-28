@@ -43,7 +43,9 @@ in
           ];
         };
 
-        # Radarr configuration - HD Bluray + WEB quality profile
+        # Radarr configuration - SQP-1 2160p (Streaming Quality Profile)
+        # Optimized for high-quality streaming with Dolby Vision support
+
         radarr.radarr-main = {
           baseUrl = "http://radarr:7878";
           apiKeyFile = config.sops.secrets."radarr/api-key".path;
@@ -59,8 +61,8 @@ in
 
           templates = [
             "radarr-quality-definition-movie"
-            "radarr-quality-profile-hd-bluray-web"
-            "radarr-custom-formats-hd-bluray-web"
+            "radarr-quality-profile-sqp-1-2160p"
+            "radarr-custom-formats-sqp-1-2160p"
           ];
         };
 
