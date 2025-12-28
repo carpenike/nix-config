@@ -31,6 +31,12 @@ in
         # Simple prompt for VS Code compatibility
         # Shows user@host:directory$ without complex escape sequences
         PS1='\u@\h:\w\$ '
+
+        # Load Home Assistant bearer token for development/scripting
+        # Token is managed via SOPS and readable only by the user
+        if [[ -r "/run/secrets/home-assistant/bearer-token" ]]; then
+          export HA_BEARER_TOKEN="$(cat /run/secrets/home-assistant/bearer-token)"
+        fi
       '' + lib.optionalString cfg.launchFishForInteractive ''
         # Launch fish for interactive sessions, but not for VS Code terminals
         # or other non-interactive contexts that need POSIX shell compatibility

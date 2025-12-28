@@ -182,6 +182,14 @@ in
             owner = "root";
             group = "root";
           };
+
+          # Bearer token for development/scripting (VS Code, Copilot, etc.)
+          # Readable by ryan for interactive use
+          "home-assistant/bearer-token" = {
+            mode = "0400";
+            owner = "ryan";
+            group = "users";
+          };
         }
         // optionalAttrs caddyEnabled {
           # Cloudflare API token for Caddy DNS-01 ACME challenges

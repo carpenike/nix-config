@@ -230,6 +230,8 @@ in
             beautifulsoup4
             androidtvremote2
             pysmlight
+            ephem
+            aiowaqi
 
           ];
 
