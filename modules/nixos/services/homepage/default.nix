@@ -53,7 +53,7 @@ let
           # Filter contributions for this group
           groupContributions = lib.filterAttrs (_: c: c.group == group) contributions;
           # Convert each contribution to Homepage service format
-          mkService = name: contrib: {
+          mkService = _name: contrib: {
             "${contrib.name}" = {
               inherit (contrib) icon href description;
             } // lib.optionalAttrs (contrib.widget != null) {

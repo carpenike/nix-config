@@ -28,7 +28,6 @@ let
 
   # Service unit names for systemd dependencies
   serverServiceUnit = "${backend}-${serviceName}-server.service";
-  daemonServiceUnit = "${backend}-${serviceName}-daemon.service";
 
   # Default dataset path based on storage module configuration
   defaultDatasetPath =

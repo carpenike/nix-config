@@ -16,12 +16,5 @@ rules:
 
   line-length: disable
 
-  braces:
-    min-spaces-inside: 0
-    max-spaces-inside: 1
-
-  brackets:
-    min-spaces-inside: 0
-    max-spaces-inside: 0
-
-  indentation: enable
+  # GitHub workflows and config files commonly omit document-start
+  document-start: disable

@@ -183,34 +183,63 @@
         in
         {
           # Pre-commit hooks configuration (git-hooks.nix)
+          # See: https://github.com/cachix/git-hooks.nix
           pre-commit = {
             check.enable = true; # Adds a check to CI
             settings = {
               hooks = {
-                # Nix formatting - matches CI (nix fmt --check)
+                # ===== Nix Formatting & Linting =====
+                # Matches CI (nix fmt --check)
                 nixpkgs-fmt.enable = true;
 
-                # Nix linting
                 statix = {
                   enable = true;
                   settings.config = "statix.toml";
                 };
                 deadnix = {
                   enable = true;
-                  settings.exclude = [ "pkgs/_sources/generated.nix" ];
+                  # Exclude generated files from analysis
+                  excludes = [ "^pkgs/_sources/generated\\.nix$" ];
+                  settings = {
+                    # Don't flag standard NixOS module patterns like { config, lib, pkgs, ... }:
+                    # These unused args are required for proper nixpkgs callPackage/module semantics
+                    noLambdaPatternNames = true;
+                  };
                 };
 
-                # YAML linting
+                # ===== Shell Script Linting =====
+                # Catches common shell scripting errors in backup-orchestrator.sh, etc.
+                shellcheck = {
+                  enable = true;
+                  excludes = [ "^tmp/" ];
+                };
+
+                # ===== Python Linting =====
+                # Fast linting for scripts/ Python files (ruff is 10-100x faster than flake8)
+                ruff = {
+                  enable = true;
+                  excludes = [ "^tmp/" ];
+                };
+                # Python formatting (runs after ruff --fix)
+                ruff-format = {
+                  enable = true;
+                  excludes = [ "^tmp/" ];
+                };
+
+                # ===== Configuration File Validation =====
                 yamllint = {
                   enable = true;
                   settings.configPath = ".github/lint/.yamllint.yaml";
                 };
+                check-json.enable = true;
+                check-toml.enable = true;
 
-                # General file hygiene (built-in hooks)
+                # ===== General File Hygiene =====
                 trim-trailing-whitespace.enable = true;
                 end-of-file-fixer.enable = true;
 
-                # Security - detect secrets
+                # ===== Security =====
+                # Detect secrets before they're committed
                 gitleaks = {
                   enable = true;
                   name = "gitleaks";
@@ -219,11 +248,11 @@
                 };
               };
 
-              # Exclude patterns
+              # Global exclude patterns
               excludes = [
-                "^tmp/"
-                "^site/"
-                "^result"
+                "^tmp/" # Temporary/scratch files
+                "^site/" # Generated mkdocs site
+                "^result" # Nix build outputs
               ];
             };
           };
@@ -237,6 +266,10 @@
               statix
               deadnix
               nil # Nix LSP for editor/AI diagnostics
+
+              # Shell & Python linting (for scripts/)
+              shellcheck # Shell script static analysis
+              ruff # Fast Python linter (replaces flake8/pylint)
 
               # Security scanning
               gitleaks # Detect hardcoded secrets

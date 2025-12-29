@@ -41,7 +41,7 @@ config = lib.mkIf cfg.enable {
     assertion = config.modules.services.postgresql.enable or false;
     message = "dispatcharr requires postgresql to be enabled";
   }];
-  
+
   # Service configuration...
 };
 ```
@@ -56,12 +56,12 @@ Use when: Integration is opt-in but requires both services when enabled.
 
 ```nix
 # modules/nixos/services/teslamate/default.nix
-options.modules.services.teslamate.grafanaIntegration.enable = 
+options.modules.services.teslamate.grafanaIntegration.enable =
   lib.mkEnableOption "Grafana dashboard integration";
 
 config = lib.mkIf cfg.enable {
   assertions = [{
-    assertion = !cfg.grafanaIntegration.enable || 
+    assertion = !cfg.grafanaIntegration.enable ||
                 (config.modules.services.grafana.enable or false);
     message = "teslamate grafanaIntegration requires grafana to be enabled";
   }];
@@ -88,12 +88,12 @@ config = lib.mkIf cfg.enable {
   # Component toggles only - no option re-exposure
   modules.services.loki.enable = lib.mkDefault cfg.enableLoki;
   modules.services.promtail.enable = lib.mkDefault cfg.enablePromtail;
-  
+
   # Cross-cutting coordination
-  modules.services.promtail.lokiUrl = lib.mkIf 
+  modules.services.promtail.lokiUrl = lib.mkIf
     (config.modules.services.loki.enable or false)
     "http://localhost:3100";
-    
+
   # Datasource registration
   modules.services.grafana.integrations.loki = lib.mkIf
     (config.modules.services.loki.enable or false)
@@ -115,7 +115,7 @@ Use when: Services share resources requiring mutual exclusion or coordination.
 # modules/nixos/services/qbit-manage/default.nix
 config = lib.mkIf cfg.enable {
   # Only manage torrents if tqm isn't already doing it
-  settings.manageTorrents = lib.mkDefault 
+  settings.manageTorrents = lib.mkDefault
     !(config.modules.services.tqm.enable or false);
 };
 ```

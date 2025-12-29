@@ -1025,7 +1025,7 @@ in
           let
             # Generate configuration for each virtual host
             vhostConfigs = filter (s: s != "") (mapAttrsToList
-              (name: vhost:
+              (_name: vhost:
                 let
                   useBasicAuth = vhost.auth != null;
                   useCaddySecurity = vhost.caddySecurity != null && vhost.caddySecurity.enable;

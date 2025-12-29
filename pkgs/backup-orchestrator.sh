@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034  # Variables accessed via eval in array_size() function appear unused
 set -euo pipefail
 
 # Pre-Deployment Backup Orchestrator
 # Triggers all backup systems (Sanoid, Syncoid, Restic, pgBackRest) before major deployments
 # Version: 2.0 (incorporating Gemini Pro critical feedback)
-
-# shellcheck disable=SC2034  # Variables accessed via eval in array_size() function appear unused
 
 # Color output for better readability
 RED='\033[0;31m'
