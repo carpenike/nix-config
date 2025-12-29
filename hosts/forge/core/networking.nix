@@ -16,12 +16,19 @@
 
     # VLAN 30: Wireless network for Home Assistant mDNS device discovery
     # Allows HA to directly communicate with devices on the wireless VLAN
+    # Uses static IP to prevent Mikrotik from registering dynamic DNS for this interface
     vlans.wireless = {
       id = 30;
       interface = "enp8s0";
     };
 
-    interfaces.wireless.useDHCP = true;
+    interfaces.wireless = {
+      useDHCP = false;
+      ipv4.addresses = [{
+        address = "10.30.0.30";
+        prefixLength = 24;
+      }];
+    };
 
     # REMOVED 2025-11-01: These /etc/hosts entries are no longer needed.
     # The TLS certificate exporter was rewritten to read cert files directly from disk

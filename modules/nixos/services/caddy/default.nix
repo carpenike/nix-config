@@ -235,13 +235,20 @@ let
       innerBlock = concatStringsSep "\n\n" innerSections;
       securityBody = if innerBlock == "" then "" else indentLines innerBlock;
       orderLine = optionalString sec.orderAuthenticateBeforeRespond "  order authenticate before respond\n\n";
+      # Generate default_bind directive if bindAddresses is configured
+      defaultBindLine = if cfg.bindAddresses != [ ] then
+        "  default_bind ${concatStringsSep " " cfg.bindAddresses}\n\n"
+      else "";
     in
     if sec.enable then ''
       {
-      ${orderLine}  security {
+      ${orderLine}${defaultBindLine}  security {
       ${securityBody}
         }
-      }'' else "";
+      }'' else if cfg.bindAddresses != [ ] then ''
+      {
+      ${defaultBindLine}}
+      '' else "";
 in
 {
   imports = [
@@ -261,6 +268,20 @@ in
       type = types.str;
       default = config.networking.domain or "holthome.net";
       description = "Base domain for auto-generated virtual hosts (legacy support). The 'hostName' option in each virtual host is now preferred.";
+    };
+
+    bindAddresses = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      example = [ "127.0.0.1" "10.20.0.30" ];
+      description = ''
+        List of IP addresses Caddy should bind to. When non-empty, generates a
+        `default_bind` directive in the global options block. Empty list (default)
+        means Caddy binds to all interfaces.
+
+        Use this to restrict Caddy to specific network interfaces, for example
+        to prevent access from secondary VLANs.
+      '';
     };
 
     security = mkOption {

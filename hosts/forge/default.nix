@@ -179,6 +179,9 @@ in
         caddy = {
           enable = true;
           # Domain defaults to networking.domain (holthome.net)
+          # Bind only to main interface and localhost - prevents wireless clients on VLAN 30
+          # from bypassing router ACLs by accessing Caddy directly via 10.30.0.30
+          bindAddresses = [ "127.0.0.1" "10.20.0.30" ];
         };
 
         # Media management services
