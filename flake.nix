@@ -117,6 +117,13 @@
       url = "github:nix-community/impermanence";
     };
 
+    # git-hooks.nix - Pre-commit hooks in Nix
+    # https://github.com/cachix/git-hooks.nix
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     #################### Personal Repositories ####################
   };
 
@@ -139,10 +146,12 @@
         "x86_64-linux"
         "aarch64-linux"
       ];
-      imports = [ ];
+      imports = [
+        inputs.git-hooks.flakeModule
+      ];
 
       # Per-system outputs (packages, devShells, formatter, checks)
-      perSystem = { system, ... }:
+      perSystem = { config, system, ... }:
         let
           # Use nixpkgs with our overlays applied
           pkgs = import inputs.nixpkgs {
@@ -173,6 +182,52 @@
             allPackages;
         in
         {
+          # Pre-commit hooks configuration (git-hooks.nix)
+          pre-commit = {
+            check.enable = true; # Adds a check to CI
+            settings = {
+              hooks = {
+                # Nix formatting - matches CI (nix fmt --check)
+                nixpkgs-fmt.enable = true;
+
+                # Nix linting
+                statix = {
+                  enable = true;
+                  settings.config = "statix.toml";
+                };
+                deadnix = {
+                  enable = true;
+                  settings.exclude = [ "pkgs/_sources/generated.nix" ];
+                };
+
+                # YAML linting
+                yamllint = {
+                  enable = true;
+                  settings.configPath = ".github/lint/.yamllint.yaml";
+                };
+
+                # General file hygiene (built-in hooks)
+                trim-trailing-whitespace.enable = true;
+                end-of-file-fixer.enable = true;
+
+                # Security - detect secrets
+                gitleaks = {
+                  enable = true;
+                  name = "gitleaks";
+                  entry = "${pkgs.gitleaks}/bin/gitleaks protect --staged --redact --verbose";
+                  pass_filenames = false;
+                };
+              };
+
+              # Exclude patterns
+              excludes = [
+                "^tmp/"
+                "^site/"
+                "^result"
+              ];
+            };
+          };
+
           # Development shell for working on nix-config
           # Tools here are repo-specific; nix/git/home-manager should be system-wide
           devShells.default = pkgs.mkShell {
@@ -182,6 +237,9 @@
               statix
               deadnix
               nil # Nix LSP for editor/AI diagnostics
+
+              # Security scanning
+              gitleaks # Detect hardcoded secrets
 
               # NixOS deployment & diff tools
               nvd # Diff NixOS generations
@@ -224,9 +282,12 @@
             ];
 
             shellHook = ''
+              ${config.pre-commit.installationScript}
+              echo ""
               echo "nix-config devshell"
               echo "  task          - list available commands"
               echo "  mkdocs serve  - preview docs at http://127.0.0.1:8000"
+              echo "  pre-commit hooks installed ✓"
             '';
           };
 
