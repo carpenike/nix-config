@@ -49,71 +49,121 @@ let
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
 
-  # Generate YAML configuration for recyclarr manually to preserve !env_var tags
-  # pkgs.formats.yaml quotes strings starting with !, so we build YAML directly
+  # YAML configuration generation using pkgs.formats.yaml with post-processing
+  # to unquote !env_var tags (following Home-Assistant module pattern)
+  yamlFormat = pkgs.formats.yaml { };
 
-  # Helper to generate instance YAML
-  mkInstanceYaml = service: name: inst:
+  # Build instance config as Nix attrset (will be converted to YAML properly)
+  mkInstanceConfig = service: name: inst:
     let
       envVarName = lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] name) + "_${lib.toUpper service}_API_KEY";
 
-      deleteOldCF = lib.optionalString inst.deleteOldCustomFormats ''
-        delete_old_custom_formats: true
-      '';
+      # Base config with API key using !env_var tag (will be quoted, then unquoted by sed)
+      baseConfig = {
+        base_url = inst.baseUrl;
+        api_key = "!env_var ${envVarName}";
+      };
+
+      # Optional: delete_old_custom_formats
+      deleteOldCF = lib.optionalAttrs inst.deleteOldCustomFormats {
+        delete_old_custom_formats = true;
+      };
 
       # Media naming for Sonarr
-      sonarrMediaNaming = lib.optionalString (service == "sonarr" && inst.mediaNaming != null) (
-        let mn = inst.mediaNaming; in ''
-          media_naming:
-          ${lib.optionalString (mn.series != null) "        series: \"${mn.series}\""}
-          ${lib.optionalString (mn.season != null) "        season: \"${mn.season}\""}
-          ${lib.optionalString (mn.episodes != null) ''
-                  episodes:
-                    rename: ${if mn.episodes.rename then "true" else "false"}
-          ${lib.optionalString (mn.episodes.standard != null) "          standard: \"${mn.episodes.standard}\""}
-          ${lib.optionalString (mn.episodes.daily != null) "          daily: \"${mn.episodes.daily}\""}
-          ${lib.optionalString (mn.episodes.anime != null) "          anime: \"${mn.episodes.anime}\""}''}
-        ''
+      sonarrMediaNaming = lib.optionalAttrs (service == "sonarr" && inst.mediaNaming != null) (
+        let mn = inst.mediaNaming; in {
+          media_naming = lib.filterAttrs (_: v: v != null) ({
+            series = mn.series;
+            season = mn.season;
+          } // lib.optionalAttrs (mn.episodes != null) {
+            episodes = lib.filterAttrs (_: v: v != null) {
+              rename = mn.episodes.rename;
+              standard = mn.episodes.standard;
+              daily = mn.episodes.daily;
+              anime = mn.episodes.anime;
+            };
+          });
+        }
       );
 
       # Media naming for Radarr
-      radarrMediaNaming = lib.optionalString (service == "radarr" && inst.mediaNaming != null) (
-        let mn = inst.mediaNaming; in ''
-          media_naming:
-          ${lib.optionalString (mn.folder != null) "        folder: \"${mn.folder}\""}
-                  movie:
-                    rename: ${if mn.movie.rename then "true" else "false"}
-          ${lib.optionalString (mn.movie.standard != null) "          standard: \"${mn.movie.standard}\""}
-        ''
+      radarrMediaNaming = lib.optionalAttrs (service == "radarr" && inst.mediaNaming != null) (
+        let mn = inst.mediaNaming; in {
+          media_naming = lib.filterAttrs (_: v: v != null) ({
+            folder = mn.folder;
+          } // lib.optionalAttrs (mn.movie != null) {
+            movie = lib.filterAttrs (_: v: v != null) {
+              rename = mn.movie.rename;
+              standard = mn.movie.standard;
+            };
+          });
+        }
       );
 
-      templates = lib.optionalString (inst.templates != [ ]) ''
-              include:
-        ${lib.concatMapStringsSep "\n" (t: "      - template: ${t}") inst.templates}'';
+      # Templates as include list
+      templates = lib.optionalAttrs (inst.templates != [ ]) {
+        include = map (t: { template = t; }) inst.templates;
+      };
 
-      customFormats = lib.optionalString (inst.customFormats != [ ]) ''
-              custom_formats:
-        ${lib.concatMapStringsSep "\n" (cf: "      - ${cf}") inst.customFormats}'';
+      # Custom formats - convert our submodule structure to Recyclarr YAML structure
+      customFormats = lib.optionalAttrs (inst.customFormats != [ ]) {
+        custom_formats = map (cf:
+          if builtins.isString cf then cf
+          else {
+            trash_ids = cf.trash_ids or [];
+          } // lib.optionalAttrs (cf.assign_scores_to or [] != []) {
+            assign_scores_to = map (score:
+              { name = score.name; }
+              // lib.optionalAttrs (score.score or null != null) { score = score.score; }
+            ) cf.assign_scores_to;
+          }
+        ) inst.customFormats;
+      };
 
-      qualityProfiles = lib.optionalString (inst.qualityProfiles != [ ]) ''
-              quality_profiles:
-        ${lib.concatMapStringsSep "\n" (qp: "      - ${qp}") inst.qualityProfiles}'';
+      # Quality profiles - convert submodule structure to Recyclarr YAML
+      qualityProfiles = lib.optionalAttrs (inst.qualityProfiles != [ ]) {
+        quality_profiles = map (qp:
+          if builtins.isString qp then qp
+          else
+            { name = qp.name; }
+            // lib.optionalAttrs (qp.min_format_score or 0 != 0) {
+              min_format_score = qp.min_format_score;
+            }
+            // lib.optionalAttrs (qp.reset_unmatched_scores or true) {
+              reset_unmatched_scores = { enabled = true; };
+            }
+            // lib.optionalAttrs (qp.upgrade or null != null) {
+              upgrade = {
+                allowed = qp.upgrade.allowed;
+                until_quality = qp.upgrade.until_quality;
+                until_score = qp.upgrade.until_score;
+              };
+            }
+        ) inst.qualityProfiles;
+      };
     in
-    ''
-          ${name}:
-            base_url: ${inst.baseUrl}
-            api_key: !env_var ${envVarName}
-            ${deleteOldCF}
-            ${if service == "sonarr" then sonarrMediaNaming else radarrMediaNaming}
-      ${templates}${customFormats}${qualityProfiles}'';
+    baseConfig
+    // deleteOldCF
+    // (if service == "sonarr" then sonarrMediaNaming else radarrMediaNaming)
+    // templates
+    // customFormats
+    // qualityProfiles;
 
-  configFile = pkgs.writeText "recyclarr.yml" ''
-    ${lib.optionalString (cfg.sonarr != {}) ''
-    sonarr:
-    ${lib.concatStringsSep "\n" (lib.mapAttrsToList (mkInstanceYaml "sonarr") cfg.sonarr)}''}
-    ${lib.optionalString (cfg.radarr != {}) ''
-    radarr:
-    ${lib.concatStringsSep "\n" (lib.mapAttrsToList (mkInstanceYaml "radarr") cfg.radarr)}''}
+  # Build the full config as Nix attrset
+  fullConfig =
+    lib.optionalAttrs (cfg.sonarr != {}) {
+      sonarr = lib.mapAttrs (mkInstanceConfig "sonarr") cfg.sonarr;
+    }
+    // lib.optionalAttrs (cfg.radarr != {}) {
+      radarr = lib.mapAttrs (mkInstanceConfig "radarr") cfg.radarr;
+    };
+
+  # Generate YAML using pkgs.formats.yaml, then unquote !env_var tags with sed
+  # This follows the pattern from nixpkgs home-assistant module
+  configFile = pkgs.runCommand "recyclarr.yml" { preferLocalBuild = true; } ''
+    cp ${yamlFormat.generate "recyclarr.yml" fullConfig} $out
+    # Unquote YAML tags like '!env_var FOO' -> !env_var FOO
+    sed -i -e "s/'\!\([a-z_]\+\) \(.*\)'/\!\1 \2/g" $out
   '';
 
   # Instance submodule definition (shared between sonarr and radarr)
@@ -192,8 +242,9 @@ let
                   };
 
                   score = lib.mkOption {
-                    type = lib.types.int;
-                    description = "Score to assign to this custom format in the quality profile";
+                    type = lib.types.nullOr lib.types.int;
+                    default = null;
+                    description = "Score to assign to this custom format (null = use TRaSH guide default)";
                     example = 100;
                   };
                 };

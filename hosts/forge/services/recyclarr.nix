@@ -43,8 +43,14 @@ in
           ];
         };
 
-        # Radarr configuration - SQP-1 2160p (Streaming Quality Profile)
-        # Optimized for high-quality streaming with Dolby Vision support
+        # Radarr configuration - SQP-1 profiles for both 1080p and 4K
+        # Uses Streaming Quality Profiles optimized for high-quality content
+        # - SQP-1 (2160p): 4K content with Dolby Vision support
+        # - SQP-1 (1080p): Standard HD content, Bluray + WEB sources
+        #
+        # After sync, assign movies to profiles in Radarr UI:
+        # - "SQP-1 (2160p)" for 4K content
+        # - "SQP-1 (1080p)" for 1080p content
 
         radarr.radarr-main = {
           baseUrl = "http://radarr:7878";
@@ -60,10 +66,53 @@ in
           # - File Names: {Movie CleanTitle} {(Release Year)} {tmdb-{TmdbId}} - {edition-{Edition Tags}} {[MediaInfo 3D]}{[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{[MediaInfo VideoDynamicRangeType]}{[Mediainfo VideoCodec]}{-Release Group}
 
           templates = [
-            "radarr-quality-definition-movie"
-            "radarr-quality-profile-sqp-1-2160p"
+            # Streaming-optimized quality definitions (file sizes)
+            "radarr-quality-definition-sqp-streaming"
+
+            # SQP-1 2160p (4K) profile - most stringent, top-tier groups
+            # Using -default variant (standard DV/HDR support, no IMAX-E prioritization)
+            "radarr-quality-profile-sqp-1-2160p-default"
             "radarr-custom-formats-sqp-1-2160p"
+
+            # SQP-1 1080p profile - most stringent HD, Bluray + WEB sources
+            "radarr-quality-profile-sqp-1-1080p"
+            "radarr-custom-formats-sqp-1-1080p"
           ];
+
+          # Optional: Prefer special movie versions (Remaster, Criterion, IMAX)
+          # These custom formats add positive scores to preferred release versions
+          customFormats = [
+            {
+              trash_ids = [
+                # Movie Versions - uncomment to prefer these releases
+                "570bc9ebecd92723d2d21500f4be314c" # Remaster
+                "eca37840c13c6ef2dd0262b141a5482f" # 4K Remaster
+                "e0c07d59beb37348e975a930d5e50319" # Criterion Collection
+                "9d27d9d2181838f76dee150882bdc58c" # Masters of Cinema
+                "db9b4c4b53d312a3ca5f1378f6440fc9" # Vinegar Syndrome
+                "957d0f44b592285f26449575e8b1167e" # Special Edition
+                "9f6cbff8cfe4ebbc1bde14c7b7bec0de" # IMAX Enhanced
+              ];
+              assign_scores_to = [
+                { name = "SQP-1 (1080p)"; }
+                { name = "SQP-1 (2160p)"; }
+              ];
+            }
+          ];
+
+          # Quality profile settings - uncomment min_format_score if you have limited indexers
+          # qualityProfiles = [
+          #   {
+          #     name = "SQP-1 (1080p)";
+          #     min_format_score = 10;  # Accept releases scoring ≥10
+          #     reset_unmatched_scores = true;
+          #   }
+          #   {
+          #     name = "SQP-1 (2160p)";
+          #     min_format_score = 10;
+          #     reset_unmatched_scores = true;
+          #   }
+          # ];
         };
 
         # Enable backups
