@@ -107,39 +107,45 @@ let
 
       # Custom formats - convert our submodule structure to Recyclarr YAML structure
       customFormats = lib.optionalAttrs (inst.customFormats != [ ]) {
-        custom_formats = map (cf:
-          if builtins.isString cf then cf
-          else {
-            trash_ids = cf.trash_ids or [];
-          } // lib.optionalAttrs (cf.assign_scores_to or [] != []) {
-            assign_scores_to = map (score:
-              { name = score.name; }
-              // lib.optionalAttrs (score.score or null != null) { score = score.score; }
-            ) cf.assign_scores_to;
-          }
-        ) inst.customFormats;
+        custom_formats = map
+          (cf:
+            if builtins.isString cf then cf
+            else {
+              trash_ids = cf.trash_ids or [ ];
+            } // lib.optionalAttrs (cf.assign_scores_to or [ ] != [ ]) {
+              assign_scores_to = map
+                (score:
+                  { name = score.name; }
+                    // lib.optionalAttrs (score.score or null != null) { score = score.score; }
+                )
+                cf.assign_scores_to;
+            }
+          )
+          inst.customFormats;
       };
 
       # Quality profiles - convert submodule structure to Recyclarr YAML
       qualityProfiles = lib.optionalAttrs (inst.qualityProfiles != [ ]) {
-        quality_profiles = map (qp:
-          if builtins.isString qp then qp
-          else
-            { name = qp.name; }
-            // lib.optionalAttrs (qp.min_format_score or 0 != 0) {
-              min_format_score = qp.min_format_score;
-            }
-            // lib.optionalAttrs (qp.reset_unmatched_scores or true) {
-              reset_unmatched_scores = { enabled = true; };
-            }
-            // lib.optionalAttrs (qp.upgrade or null != null) {
-              upgrade = {
-                allowed = qp.upgrade.allowed;
-                until_quality = qp.upgrade.until_quality;
-                until_score = qp.upgrade.until_score;
-              };
-            }
-        ) inst.qualityProfiles;
+        quality_profiles = map
+          (qp:
+            if builtins.isString qp then qp
+            else
+              { name = qp.name; }
+              // lib.optionalAttrs (qp.min_format_score or 0 != 0) {
+                min_format_score = qp.min_format_score;
+              }
+              // lib.optionalAttrs (qp.reset_unmatched_scores or true) {
+                reset_unmatched_scores = { enabled = true; };
+              }
+              // lib.optionalAttrs (qp.upgrade or null != null) {
+                upgrade = {
+                  allowed = qp.upgrade.allowed;
+                  until_quality = qp.upgrade.until_quality;
+                  until_score = qp.upgrade.until_score;
+                };
+              }
+          )
+          inst.qualityProfiles;
       };
     in
     baseConfig
@@ -151,10 +157,11 @@ let
 
   # Build the full config as Nix attrset
   fullConfig =
-    lib.optionalAttrs (cfg.sonarr != {}) {
-      sonarr = lib.mapAttrs (mkInstanceConfig "sonarr") cfg.sonarr;
-    }
-    // lib.optionalAttrs (cfg.radarr != {}) {
+    lib.optionalAttrs (cfg.sonarr != { })
+      {
+        sonarr = lib.mapAttrs (mkInstanceConfig "sonarr") cfg.sonarr;
+      }
+    // lib.optionalAttrs (cfg.radarr != { }) {
       radarr = lib.mapAttrs (mkInstanceConfig "radarr") cfg.radarr;
     };
 

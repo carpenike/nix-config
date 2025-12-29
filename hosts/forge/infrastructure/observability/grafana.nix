@@ -54,7 +54,7 @@ in
           hostName = "grafana.${domain}";
           backend = {
             scheme = "http";
-            host = "10.89.0.1";  # Must match listenAddress (podman bridge)
+            host = "10.89.0.1"; # Must match listenAddress (podman bridge)
             port = 3000;
           };
           # No Caddy auth - Grafana uses OIDC authentication instead

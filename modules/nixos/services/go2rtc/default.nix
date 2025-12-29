@@ -194,13 +194,15 @@ in
       services.go2rtc = {
         enable = true;
         package = cfg.package;
-        settings = lib.recursiveUpdate {
-          api.listen = ":${toString cfg.apiPort}";
-          rtsp.listen = ":${toString cfg.rtspPort}";
-          webrtc.listen = ":${toString cfg.webrtcPort}";
-          streams = cfg.streams;
-          ffmpeg.bin = "${pkgs.ffmpeg}/bin/ffmpeg";
-        } cfg.extraSettings;
+        settings = lib.recursiveUpdate
+          {
+            api.listen = ":${toString cfg.apiPort}";
+            rtsp.listen = ":${toString cfg.rtspPort}";
+            webrtc.listen = ":${toString cfg.webrtcPort}";
+            streams = cfg.streams;
+            ffmpeg.bin = "${pkgs.ffmpeg}/bin/ffmpeg";
+          }
+          cfg.extraSettings;
       };
 
       # Ensure go2rtc user exists for proper ownership

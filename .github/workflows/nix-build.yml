@@ -67,7 +67,7 @@ jobs:
           }
 
           [[ "$GLOBAL" == "true" || "$LUNA" == "true" ]] && add_system "luna" "ubuntu-latest"
-          [[ "$GLOBAL" == "true" || "$RYDEV" == "true" ]] && add_system "rydev" "ubuntu-latest"
+          [[ "$GLOBAL" == "true" || "$RYDEV" == "true" ]] && add_system "rydev" "ubuntu-24.04-arm"
           [[ "$GLOBAL" == "true" || "$FORGE" == "true" ]] && add_system "forge" "ubuntu-latest"
           [[ "$GLOBAL" == "true" || "$NIXOS_BOOTSTRAP" == "true" ]] && add_system "nixos-bootstrap" "ubuntu-latest"
           [[ "$GLOBAL" == "true" || "$NIXPI" == "true" ]] && add_system "nixpi" "ubuntu-24.04-arm"

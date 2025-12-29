@@ -29,8 +29,8 @@ in
       ls = "eza";
       ll = "eza -l";
       la = "eza -la";
-      lt = "eza --tree --level=2";   # Tree with 2-level depth limit
-      lt3 = "eza --tree --level=3";  # 3 levels if needed
+      lt = "eza --tree --level=2"; # Tree with 2-level depth limit
+      lt3 = "eza --tree --level=3"; # 3 levels if needed
       l = "eza -l";
     };
   };

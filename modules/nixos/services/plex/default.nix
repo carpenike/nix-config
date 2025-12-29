@@ -343,9 +343,13 @@ in
         (lib.mkIf (cfg.openFirewall && cfg.openFirewallDiscovery) {
           allowedTCPPorts = [ 32469 ]; # DLNA
           allowedUDPPorts = [
-            1900  # DLNA/SSDP discovery
-            5353  # Bonjour/mDNS
-            32410 32411 32412 32413 32414  # GDM network discovery
+            1900 # DLNA/SSDP discovery
+            5353 # Bonjour/mDNS
+            32410
+            32411
+            32412
+            32413
+            32414 # GDM network discovery
           ];
         })
       ];

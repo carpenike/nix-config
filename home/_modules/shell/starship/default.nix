@@ -107,8 +107,8 @@
           symbol = "󰌠";
           style = "bg:peach fg:base";
           format = " [](fg:peach)[  $symbol $virtualenv  ]($style)[](fg:peach)";
-          detect_extensions = ["py"];
-          detect_files = ["pyproject.toml" "requirements.txt" "Pipfile"];
+          detect_extensions = [ "py" ];
+          detect_files = [ "pyproject.toml" "requirements.txt" "Pipfile" ];
         };
 
         # Node.js - floating peach block
@@ -116,8 +116,8 @@
           symbol = "󰎙";
           style = "bg:peach fg:base";
           format = " [](fg:peach)[  $symbol $version  ]($style)[](fg:peach)";
-          detect_extensions = ["js" "ts" "jsx" "tsx"];
-          detect_files = ["package.json"];
+          detect_extensions = [ "js" "ts" "jsx" "tsx" ];
+          detect_files = [ "package.json" ];
         };
 
         # Go - floating peach block

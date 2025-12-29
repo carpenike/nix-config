@@ -236,9 +236,10 @@ let
       securityBody = if innerBlock == "" then "" else indentLines innerBlock;
       orderLine = optionalString sec.orderAuthenticateBeforeRespond "  order authenticate before respond\n\n";
       # Generate default_bind directive if bindAddresses is configured
-      defaultBindLine = if cfg.bindAddresses != [ ] then
-        "  default_bind ${concatStringsSep " " cfg.bindAddresses}\n\n"
-      else "";
+      defaultBindLine =
+        if cfg.bindAddresses != [ ] then
+          "  default_bind ${concatStringsSep " " cfg.bindAddresses}\n\n"
+        else "";
     in
     if sec.enable then ''
       {
@@ -248,7 +249,7 @@ let
       }'' else if cfg.bindAddresses != [ ] then ''
       {
       ${defaultBindLine}}
-      '' else "";
+    '' else "";
 in
 {
   imports = [
