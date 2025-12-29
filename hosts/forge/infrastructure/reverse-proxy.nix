@@ -14,11 +14,19 @@ in
   # This file handles host-specific operational concerns.
 
   # Configure Caddy to load environment files with API tokens and auth credentials
-  systemd.services.caddy.serviceConfig = {
-    EnvironmentFile = [
-      "/run/secrets/rendered/caddy-env"
-      "-/run/caddy/monitoring-auth.env"
-    ];
+  # Also ensure Caddy waits for PocketID if it's enabled (prevents OAuth race condition)
+  systemd.services.caddy = {
+    serviceConfig = {
+      EnvironmentFile = [
+        "/run/secrets/rendered/caddy-env"
+        "-/run/caddy/monitoring-auth.env"
+      ];
+    };
+    # Wait for PocketID to be ready before starting Caddy
+    # This prevents caddy-security from failing to initialize the OAuth identity provider
+    # due to PocketID not being available during startup
+    after = lib.optionals pocketIdEnabled [ "pocket-id.service" ];
+    wants = lib.optionals pocketIdEnabled [ "pocket-id.service" ];
   };
 
   # Separate service to fix Caddy certificate permissions
