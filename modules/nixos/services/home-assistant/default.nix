@@ -177,6 +177,46 @@ in
         description = "Restore method order for preseeding the dataset.";
       };
     };
+
+    openFirewall = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for Home Assistant.
+
+        Opens the main HTTP port (cfg.port, default 8123).
+
+        For HomeKit support, use homekit.openFirewall instead which
+        manages the HomeKit-specific port range.
+
+        Note: If using reverse proxy (Caddy) for external access, you
+        may not need to open the main port directly.
+      '';
+    };
+
+    homekit = {
+      openFirewall = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Whether to open firewall ports for HomeKit bridge integration.
+
+          Opens TCP ports 21063-21068 for HomeKit accessory pairing and control.
+          Required for iOS devices to discover and control Home Assistant
+          via the HomeKit integration.
+        '';
+      };
+      startPort = mkOption {
+        type = types.port;
+        default = 21063;
+        description = "First port in the HomeKit port range.";
+      };
+      endPort = mkOption {
+        type = types.port;
+        default = 21068;
+        description = "Last port in the HomeKit port range.";
+      };
+    };
   };
 
   config = mkMerge [
@@ -305,6 +345,11 @@ in
       };
 
       users.groups.hass = { };
+
+      # Firewall rules for LAN access (opt-in)
+      networking.firewall.allowedTCPPorts =
+        lib.optional cfg.openFirewall cfg.port
+        ++ lib.optionals cfg.homekit.openFirewall (lib.range cfg.homekit.startPort cfg.homekit.endPort);
 
       modules.notifications.templates = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         "home-assistant-failure" = {

@@ -71,6 +71,23 @@ in
       description = "Port for WebRTC connections.";
     };
 
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for go2rtc.
+
+        Opens: apiPort (TCP), rtspPort (TCP), webrtcPort (TCP/UDP)
+
+        Required for:
+        - LAN clients accessing RTSP streams directly
+        - WebRTC connections from browsers
+        - API access from other hosts
+
+        If using only via reverse proxy (Caddy), leave disabled.
+      '';
+    };
+
     streams = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       default = { };
@@ -243,6 +260,12 @@ in
         owner = "go2rtc";
         group = "go2rtc";
         mode = "0750";
+      };
+
+      # Firewall rules for LAN access (opt-in)
+      networking.firewall = lib.mkIf cfg.openFirewall {
+        allowedTCPPorts = [ cfg.apiPort cfg.rtspPort cfg.webrtcPort ];
+        allowedUDPPorts = [ cfg.webrtcPort ]; # WebRTC uses UDP
       };
 
       # Reverse proxy registration

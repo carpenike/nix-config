@@ -15,6 +15,10 @@ in
       modules.services.plex = {
         enable = true;
 
+        # Open firewall for LAN streaming (DLNA, mDNS discovery)
+        openFirewall = true;
+        openFirewallDiscovery = true;
+
         # Reverse proxy integration via Caddy
         reverseProxy = {
           enable = true;

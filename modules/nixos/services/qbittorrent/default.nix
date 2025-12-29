@@ -107,6 +107,24 @@ in
       example = 61144;
     };
 
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for qBittorrent.
+
+        Opens torrentPort for both TCP and UDP (peer connections and DHT).
+
+        Note: The WebUI port is not opened by this option; it should be
+        accessed via reverse proxy (Caddy) for security.
+
+        Required for:
+        - Incoming peer connections
+        - DHT (distributed hash table) for peer discovery
+        - Better torrent performance and connectivity
+      '';
+    };
+
     podmanNetwork = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -459,6 +477,13 @@ in
         owner = "qbittorrent";
         group = "qbittorrent";
         mode = "0750"; # Allow group read access for backup systems
+      };
+
+      # Firewall rules for torrent port (opt-in)
+      # Note: WebUI port is NOT opened - access via reverse proxy (Caddy)
+      networking.firewall = lib.mkIf cfg.openFirewall {
+        allowedTCPPorts = [ cfg.torrentPort ];
+        allowedUDPPorts = [ cfg.torrentPort ]; # DHT uses UDP
       };
 
       # Create local users to match container UIDs

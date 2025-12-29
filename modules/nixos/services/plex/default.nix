@@ -61,6 +61,44 @@ in
       '';
     };
 
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for direct Plex access.
+
+        Opens: main port (cfg.port, default 32400) TCP
+        Optionally: additional ports for GDM, DLNA, Roku, network discovery
+
+        Note: When using reverse proxy (Caddy), this is typically NOT needed
+        for external access. Only enable if you need:
+        - Direct LAN client access (Smart TVs, game consoles)
+        - DLNA discovery and streaming
+        - Plex's GDM network discovery
+        - Roku direct connection
+
+        For security, consider leaving disabled if all clients use the
+        reverse proxy URL (https://plex.yourdomain.com).
+      '';
+    };
+
+    openFirewallDiscovery = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Whether to open additional ports for Plex network discovery.
+
+        Opens:
+        - 1900 UDP: DLNA/SSDP discovery
+        - 5353 UDP: Bonjour/mDNS
+        - 32410-32414 UDP: GDM network discovery (Plex clients)
+        - 32469 TCP: DLNA media streaming
+
+        Only needed when openFirewall is also true and you want
+        automatic device discovery on the local network.
+      '';
+    };
+
     # Standardized integration submodules
     reverseProxy = lib.mkOption {
       type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
@@ -287,9 +325,30 @@ in
         };
       };
 
-      # Firewall - localhost only
-      networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ]
-        ++ lib.optional (cfg.metrics != null && cfg.metrics.enable) cfg.metrics.port;
+      # Firewall configuration
+      # By default, only localhost access (for reverse proxy)
+      # With openFirewall: direct LAN access to main port
+      # With openFirewallDiscovery: DLNA, GDM, and Bonjour discovery
+      networking.firewall = lib.mkMerge [
+        # Always allow localhost access (for Caddy reverse proxy)
+        {
+          interfaces.lo.allowedTCPPorts = [ cfg.port ]
+            ++ lib.optional (cfg.metrics != null && cfg.metrics.enable) cfg.metrics.port;
+        }
+        # Direct LAN access (opt-in)
+        (lib.mkIf cfg.openFirewall {
+          allowedTCPPorts = [ cfg.port ];
+        })
+        # Network discovery ports (opt-in, requires openFirewall)
+        (lib.mkIf (cfg.openFirewall && cfg.openFirewallDiscovery) {
+          allowedTCPPorts = [ 32469 ]; # DLNA
+          allowedUDPPorts = [
+            1900  # DLNA/SSDP discovery
+            5353  # Bonjour/mDNS
+            32410 32411 32412 32413 32414  # GDM network discovery
+          ];
+        })
+      ];
 
       # Optional systemd resource limits and file creation permissions
       systemd.services.plex.serviceConfig = lib.mkMerge [

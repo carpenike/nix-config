@@ -21,6 +21,9 @@ in
         # BitTorrent port (migrated from k8s)
         torrentPort = 61144;
 
+        # Open firewall for incoming peer connections and DHT
+        openFirewall = true;
+
         # Downloads directory on NFS (category-based structure already exists)
         # /mnt/data/qb/downloads/{sonarr,radarr,lidarr,readarr,prowlarr}
         nfsMountDependency = "media";

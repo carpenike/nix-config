@@ -77,6 +77,16 @@ in
           memoryReservation = "1280M";
           cpus = "4.0";
         };
+
+        # HomeKit firewall - open mDNS and HAP ports for Apple Home app access
+        homekit = {
+          openFirewall = true;
+          hapPorts = [
+            34428 # Front Door
+            47163 # Driveway
+            43205 # Patio
+          ];
+        };
       };
     }
 

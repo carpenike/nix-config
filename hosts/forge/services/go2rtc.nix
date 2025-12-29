@@ -29,6 +29,9 @@ in
         rtspPort = 8554;
         webrtcPort = 8555;
 
+        # Open firewall for RTSP/WebRTC streaming (Home Assistant access)
+        openFirewall = true;
+
         # Camera streams from Scrypted Rebroadcast Plugin
         # Scrypted runs on host network, so localhost works
         streams = {

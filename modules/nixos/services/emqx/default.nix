@@ -290,6 +290,27 @@ in
 
     };
 
+    openFirewall = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for EMQX MQTT broker.
+
+        Opens:
+        - MQTT TCP port (listeners.mqtt.port, default 1883)
+        - MQTT WebSocket port (listeners.websocket.port, default 8083) if websocket.enable
+        - Dashboard port (dashboard.port, default 18083) if dashboard.enable
+
+        Required for:
+        - IoT devices connecting to MQTT broker
+        - Home Assistant and other integrations
+        - Web clients using WebSocket MQTT
+
+        Note: Dashboard is typically accessed via reverse proxy; consider
+        leaving dashboard on localhost and using Caddy for secure access.
+      '';
+    };
+
     users = mkOption {
       type = types.listOf mqttUserType;
       default = [ ];
@@ -680,6 +701,15 @@ in
             extraConfig = cfg.dashboard.reverseProxy.extraConfig;
           }
         );
+
+        # Firewall rules for LAN access (opt-in)
+        # MQTT clients (IoT devices, Home Assistant) need direct access
+        networking.firewall = mkIf cfg.openFirewall {
+          allowedTCPPorts =
+            [ cfg.listeners.mqtt.port ]
+            ++ lib.optional cfg.listeners.websocket.enable cfg.listeners.websocket.port
+            ++ lib.optional cfg.dashboard.enable cfg.dashboard.port;
+        };
 
         # NOTE: Service alerts are defined at host level (e.g., hosts/forge/services/emqx.nix)
         # to keep modules portable and not assume Prometheus availability

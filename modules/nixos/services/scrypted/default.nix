@@ -223,6 +223,60 @@ in
       description = "HTTPS port exposed by Scrypted.";
     };
 
+    openFirewall = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for Scrypted.
+
+        Opens httpPort and httpsPort for TCP connections.
+
+        Note: This does NOT open HomeKit ports. Use homekit.openFirewall
+        for HomeKit/mDNS access from Apple devices.
+
+        Required for:
+        - Direct access to Scrypted web interface (without reverse proxy)
+        - API access from other services
+      '';
+    };
+
+    homekit = {
+      openFirewall = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Whether to open firewall ports for HomeKit access.
+
+          Opens:
+          - UDP 5353 (mDNS) - Required for HomeKit device discovery
+          - TCP ports for HAP (HomeKit Accessory Protocol)
+
+          Required for:
+          - Apple Home app to discover and control Scrypted accessories
+          - HomeKit Secure Video streaming
+
+          Note: Each HomeKit accessory in Scrypted uses its own HAP port.
+          Configure these ports in Scrypted's HomeKit plugin settings,
+          then add them to homekit.hapPorts.
+        '';
+      };
+
+      hapPorts = lib.mkOption {
+        type = lib.types.listOf lib.types.port;
+        default = [ ];
+        description = ''
+          List of HAP (HomeKit Accessory Protocol) TCP ports to open.
+
+          Each camera/accessory in Scrypted that's exposed to HomeKit uses
+          its own HAP port. These are configurable in Scrypted's HomeKit
+          plugin settings under each accessory.
+
+          Add the port numbers you've configured in Scrypted here.
+        '';
+        example = [ 43929 47649 46523 ];
+      };
+    };
+
     dnsServers = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "1.1.1.1" "8.8.8.8" ];
@@ -393,6 +447,24 @@ in
           ++ lib.optionals cfg.nvr.enable [
             "d ${cfg.nvr.path} 0750 ${cfg.nvr.owner} ${cfg.nvr.group} -"
           ];
+
+        # Firewall rules for Scrypted (opt-in)
+        # Web interface ports are optional (access via reverse proxy recommended)
+        # HomeKit ports required for Apple Home app integration
+        networking.firewall = lib.mkMerge [
+          # Main Scrypted ports (when openFirewall = true)
+          (lib.mkIf cfg.openFirewall {
+            allowedTCPPorts = [ cfg.httpPort cfg.httpsPort ];
+          })
+
+          # HomeKit ports (when homekit.openFirewall = true)
+          (lib.mkIf cfg.homekit.openFirewall {
+            # mDNS is required for HomeKit device discovery
+            allowedUDPPorts = [ 5353 ];
+            # HAP (HomeKit Accessory Protocol) ports - each camera/accessory needs one
+            allowedTCPPorts = cfg.homekit.hapPorts;
+          })
+        ];
 
         virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
           image = cfg.image;

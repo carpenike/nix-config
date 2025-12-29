@@ -20,6 +20,9 @@ in
         dataDir = dataDir;
         datasetPath = dataset;
         allowAnonymous = false;
+
+        # Open firewall for MQTT clients (IoT devices on LAN)
+        openFirewall = true;
         timezone = config.time.timeZone or "UTC";
         dashboard = {
           enable = true;

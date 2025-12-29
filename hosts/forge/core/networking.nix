@@ -10,9 +10,16 @@
     hostName = hostname;
     hostId = "1b3031e7"; # Preserved from nixos-bootstrap
     useDHCP = true;
-    # Firewall disabled; per-service modules will declare their own rules
-    firewall.enable = false;
     domain = "holthome.net";
+
+    # Firewall enabled - services opt-in via openFirewall options
+    firewall = {
+      enable = true;
+      # Allow ICMP ping for network diagnostics
+      allowPing = true;
+      # Log denied packets for debugging (can be disabled once stable)
+      logRefusedConnections = true;
+    };
 
     # VLAN 30: Wireless network for Home Assistant mDNS device discovery
     # Allows HA to directly communicate with devices on the wireless VLAN

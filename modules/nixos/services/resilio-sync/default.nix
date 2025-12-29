@@ -192,6 +192,24 @@ in
       description = "Static listening port for peer connections (0 = random).";
     };
 
+    openFirewall = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for Resilio Sync.
+
+        Opens listeningPort for both TCP and UDP (peer connections).
+
+        Note: Only effective when listeningPort is set to a non-zero value.
+        The Web UI port is NOT opened - access it via SSH tunnel or
+        reverse proxy if needed.
+
+        Required for:
+        - Incoming peer connections from other Resilio nodes
+        - Better sync performance with direct connections
+      '';
+    };
+
     storagePath = mkOption {
       type = types.str;
       default = "/var/lib/resilio-sync";
@@ -324,6 +342,13 @@ in
         httpPass = if cfg.webUI.enable then cfg.webUI.password else "";
         apiKey = cfg.apiKey;
         sharedFolders = sharedFolders;
+      };
+
+      # Firewall rules for peer connections (opt-in)
+      # Only effective when listeningPort is non-zero (static port)
+      networking.firewall = mkIf (cfg.openFirewall && cfg.listeningPort != 0) {
+        allowedTCPPorts = [ cfg.listeningPort ];
+        allowedUDPPorts = [ cfg.listeningPort ];
       };
 
       systemd.services.resilio.after = mkAfter cfg.afterUnits;
