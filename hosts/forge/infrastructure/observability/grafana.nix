@@ -35,6 +35,9 @@ in
         # Not exposed on main network interface or future IoT VLAN
         listenAddress = "10.89.0.1";
 
+        # Open firewall for container access (podman bridge interfaces)
+        openFirewall = true;
+
         # ZFS dataset for persistence
         zfs = {
           dataset = "tank/services/grafana";

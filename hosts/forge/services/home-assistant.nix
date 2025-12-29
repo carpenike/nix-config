@@ -34,6 +34,10 @@ in
         enable = true;
         package = unstablePkgs.home-assistant;
 
+        # Firewall rules for LAN integrations
+        homekit.openFirewall = true; # HomeKit bridge ports 21063-21068
+        sonos.openFirewall = true;   # Sonos callback port 1400
+
         reverseProxy = {
           enable = true;
           hostName = haHostname;

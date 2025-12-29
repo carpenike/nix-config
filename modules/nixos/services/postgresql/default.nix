@@ -305,6 +305,17 @@ in
           description = "Addresses to listen on (comma-separated)";
         };
 
+        openFirewall = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = ''
+            Whether to open firewall ports for PostgreSQL.
+
+            Opens the PostgreSQL port (cfg.port, default 5432) on all interfaces
+            including podman bridge interfaces so containers can reach the database.
+          '';
+        };
+
         maxConnections = lib.mkOption {
           type = lib.types.int;
           default = 100;
@@ -1196,6 +1207,10 @@ in
             ReadWritePaths = lib.optionals (cfg.backup.walArchive.enable or false) [ cfg.walArchiveDir ];
           };
         };
+
+        # Firewall rules for PostgreSQL (opt-in)
+        # Opens port on all interfaces including podman bridges for container access
+        networking.firewall.allowedTCPPorts = lib.optional cfg.openFirewall cfg.port;
       })
 
       # PostgreSQL readiness-wait service

@@ -85,6 +85,8 @@ in
             34428 # Front Door
             47163 # Driveway
             43205 # Patio
+            44467 # Additional HAP accessory
+            21064 # Additional HAP accessory
           ];
         };
       };

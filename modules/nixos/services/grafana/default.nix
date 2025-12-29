@@ -76,6 +76,17 @@ in
       description = "Port for Grafana to listen on";
     };
 
+    openFirewall = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Whether to open firewall ports for Grafana.
+
+        Opens the Grafana port (cfg.port, default 3000) on all interfaces
+        including podman bridge interfaces so containers can reach Grafana.
+      '';
+    };
+
     listenAddress = mkOption {
       type = types.str;
       default = "127.0.0.1";
@@ -619,5 +630,11 @@ in
         group = "grafana";
       }
     ))
+
+    # Firewall rules for Grafana (opt-in)
+    # Opens port on all interfaces including podman bridges for container access
+    (mkIf (cfg.enable && cfg.openFirewall) {
+      networking.firewall.allowedTCPPorts = [ cfg.port ];
+    })
   ];
 }

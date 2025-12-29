@@ -42,6 +42,9 @@ in
         # Security: Restrict to specific interfaces instead of all interfaces
         listenAddresses = "127.0.0.1,10.88.0.1";
 
+        # Open firewall for container access (podman bridge interfaces)
+        openFirewall = true;
+
         # Memory settings (tune based on available RAM)
         sharedBuffers = "256MB"; # 25% of RAM for dedicated DB
         effectiveCacheSize = "1GB"; # ~50% of available RAM

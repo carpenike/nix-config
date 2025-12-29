@@ -217,6 +217,19 @@ in
         description = "Last port in the HomeKit port range.";
       };
     };
+
+    sonos = {
+      openFirewall = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Whether to open firewall ports for Sonos speaker integration.
+
+          Opens TCP port 1400 which Sonos speakers use to send callbacks
+          and notifications to Home Assistant.
+        '';
+      };
+    };
   };
 
   config = mkMerge [
@@ -349,7 +362,8 @@ in
       # Firewall rules for LAN access (opt-in)
       networking.firewall.allowedTCPPorts =
         lib.optional cfg.openFirewall cfg.port
-        ++ lib.optionals cfg.homekit.openFirewall (lib.range cfg.homekit.startPort cfg.homekit.endPort);
+        ++ lib.optionals cfg.homekit.openFirewall (lib.range cfg.homekit.startPort cfg.homekit.endPort)
+        ++ lib.optional cfg.sonos.openFirewall 1400;
 
       modules.notifications.templates = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         "home-assistant-failure" = {
