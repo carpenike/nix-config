@@ -68,7 +68,20 @@ in
     webrtcPort = lib.mkOption {
       type = lib.types.port;
       default = 8555;
-      description = "Port for WebRTC connections.";
+      description = "Port for WebRTC signaling connections.";
+    };
+
+    webrtcIcePorts = {
+      start = lib.mkOption {
+        type = lib.types.port;
+        default = 50000;
+        description = "Start of UDP port range for WebRTC ICE candidates.";
+      };
+      end = lib.mkOption {
+        type = lib.types.port;
+        default = 50100;
+        description = "End of UDP port range for WebRTC ICE candidates.";
+      };
     };
 
     openFirewall = lib.mkOption {
@@ -77,7 +90,8 @@ in
       description = ''
         Whether to open firewall ports for go2rtc.
 
-        Opens: apiPort (TCP), rtspPort (TCP), webrtcPort (TCP/UDP)
+        Opens: apiPort (TCP), rtspPort (TCP), webrtcPort (TCP/UDP),
+        and webrtcIcePorts range (UDP) for WebRTC ICE candidates.
 
         Required for:
         - LAN clients accessing RTSP streams directly
@@ -198,7 +212,12 @@ in
           {
             api.listen = ":${toString cfg.apiPort}";
             rtsp.listen = ":${toString cfg.rtspPort}";
-            webrtc.listen = ":${toString cfg.webrtcPort}";
+            webrtc = {
+              listen = ":${toString cfg.webrtcPort}";
+              # Constrain ICE candidate ports to a known range for firewall rules
+              # Format: stun:server:port or host:port-range
+              candidates = [ "stun:8555" ":${toString cfg.webrtcIcePorts.start}-${toString cfg.webrtcIcePorts.end}" ];
+            };
             streams = cfg.streams;
             ffmpeg.bin = "${pkgs.ffmpeg}/bin/ffmpeg";
           }
@@ -267,7 +286,10 @@ in
       # Firewall rules for LAN access (opt-in)
       networking.firewall = lib.mkIf cfg.openFirewall {
         allowedTCPPorts = [ cfg.apiPort cfg.rtspPort cfg.webrtcPort ];
-        allowedUDPPorts = [ cfg.webrtcPort ]; # WebRTC uses UDP
+        # WebRTC ICE candidates use UDP on a configurable port range
+        allowedUDPPortRanges = [
+          { from = cfg.webrtcIcePorts.start; to = cfg.webrtcIcePorts.end; }
+        ];
       };
 
       # Reverse proxy registration
