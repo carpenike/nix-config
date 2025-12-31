@@ -6,6 +6,20 @@
   # Default limit (20) is easily exceeded with many IoT devices.
   boot.kernel.sysctl."net.ipv4.igmp_max_memberships" = 1024;
 
+  # Disable reverse path filtering to allow asymmetric routing
+  #
+  # With multiple interfaces on overlapping networks (10.20.0.0/16 on enp8s0
+  # and 10.30.0.0/16 on wireless VLAN), responses to packets may legitimately
+  # go out a different interface than they came in. rp_filter=2 (strict mode)
+  # drops such packets, breaking connectivity for services like WebSockets.
+  #
+  # Setting to 0 (disabled) on interfaces where asymmetric routing is expected.
+  # The firewall still provides security; rp_filter is supplementary.
+  boot.kernel.sysctl."net.ipv4.conf.all.rp_filter" = 0;
+  boot.kernel.sysctl."net.ipv4.conf.default.rp_filter" = 0;
+  boot.kernel.sysctl."net.ipv4.conf.enp8s0.rp_filter" = 0;
+  boot.kernel.sysctl."net.ipv4.conf.wireless.rp_filter" = 0;
+
   # Enable iproute2 for policy routing table definitions
   networking.iproute2 = {
     enable = true;
