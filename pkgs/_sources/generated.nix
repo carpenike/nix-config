@@ -3,104 +3,37 @@
 {
   beads = {
     pname = "beads";
-    version = "v0.30.6";
+    version = "v0.42.0";
     src = fetchFromGitHub {
       owner = "steveyegge";
       repo = "beads";
-      rev = "v0.30.6";
+      rev = "v0.42.0";
       fetchSubmodules = false;
-      sha256 = "sha256-ImxTgBy/aMPsL9O+/VDq86me66LWhM1FZaAHW3WaJwM=";
+      sha256 = "sha256-3t+pm7vuFj3PH1oCJ/AnwbGupqleimNQnP2bRSBHrSg=";
     };
   };
   cooklang-cli = {
     pname = "cooklang-cli";
-    version = "v0.19.0";
+    version = "v0.19.2";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
-      rev = "v0.19.0";
+      rev = "v0.19.2";
       fetchSubmodules = false;
-      sha256 = "sha256-yNUiwMzCAj5aXuQIzfzpy2GylhB37CuSmyHsyxcmKXM=";
+      sha256 = "sha256-kqfbqyShQQSnYOWu6zk/0srb3AXRttWDCmQWhSsoB5I=";
     };
   };
   cooklang-federation = {
     pname = "cooklang-federation";
-    version = "36d5dbb86095e0a331d2e76deb520107ded0c84d";
+    version = "9ad17a63f4c5a0e05eb8caa79932b853bb71560d";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "federation";
-      rev = "36d5dbb86095e0a331d2e76deb520107ded0c84d";
+      rev = "9ad17a63f4c5a0e05eb8caa79932b853bb71560d";
       fetchSubmodules = false;
-      sha256 = "sha256-Jg8sn7ytT5AWGsOpoE7V9jlqPgec3sQygYQv4zeOv3w=";
+      sha256 = "sha256-vEsLsuSfIctxulJ51TnO66QgsAajKZ40wf8ZOH+creU=";
     };
-    date = "2025-11-20";
-  };
-  kubecolor-catppuccin = {
-    pname = "kubecolor-catppuccin";
-    version = "1d4c2888f7de077e1a837a914a1824873d16762d";
-    src = fetchFromGitHub {
-      owner = "vkhitrin";
-      repo = "kubecolor-catppuccin";
-      rev = "1d4c2888f7de077e1a837a914a1824873d16762d";
-      fetchSubmodules = false;
-      sha256 = "sha256-gTneUh6yMcH6dVKrH00G61a+apasu9tiMyYjvNdOiOw=";
-    };
-    date = "2024-05-24";
-  };
-  kubectl-browse-pvc = {
-    pname = "kubectl-browse-pvc";
-    version = "v1.3.0";
-    src = fetchFromGitHub {
-      owner = "clbx";
-      repo = "kubectl-browse-pvc";
-      rev = "v1.3.0";
-      fetchSubmodules = false;
-      sha256 = "sha256-8O36JLNfrh+/9JqJjeeSEO88uYkoo6OXCraK385tGvM=";
-    };
-  };
-  kubectl-get-all = {
-    pname = "kubectl-get-all";
-    version = "v1.3.8";
-    src = fetchFromGitHub {
-      owner = "corneliusweig";
-      repo = "ketall";
-      rev = "v1.3.8";
-      fetchSubmodules = false;
-      sha256 = "sha256-Mau57mXS78fHyeU0OOz3Tms0WNu7HixfAZZL3dmcj3w=";
-    };
-  };
-  kubectl-klock = {
-    pname = "kubectl-klock";
-    version = "v0.8.2";
-    src = fetchFromGitHub {
-      owner = "applejag";
-      repo = "kubectl-klock";
-      rev = "v0.8.2";
-      fetchSubmodules = false;
-      sha256 = "sha256-Ajq3/JUnaIcz6FnC2nP9H/+oKJXQSca+mRpPSkG/xY0=";
-    };
-  };
-  kubectl-netshoot = {
-    pname = "kubectl-netshoot";
-    version = "v0.1.0";
-    src = fetchFromGitHub {
-      owner = "nilic";
-      repo = "kubectl-netshoot";
-      rev = "v0.1.0";
-      fetchSubmodules = false;
-      sha256 = "sha256-6IQmD2tJ1qdjeJqOnHGSpfNg6rxDRmdW9a9Eon/EdsM=";
-    };
-  };
-  kubectl-pgo = {
-    pname = "kubectl-pgo";
-    version = "v0.5.3";
-    src = fetchFromGitHub {
-      owner = "CrunchyData";
-      repo = "postgres-operator-client";
-      rev = "v0.5.3";
-      fetchSubmodules = false;
-      sha256 = "sha256-QaOa8L86YaR1GJ5+iNQO/T83yLzqWTngBr0UzovQ9yg=";
-    };
+    date = "2025-12-29";
   };
   shcopy = {
     pname = "shcopy";
@@ -139,13 +72,13 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v2.10.0";
+    version = "v2.11.0";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v2.10.0";
+      rev = "v2.11.0";
       fetchSubmodules = false;
-      sha256 = "sha256-r24bRHLGmpRBbn+LzkDTlOO4O8DIsfXGee4p2MDghiM=";
+      sha256 = "sha256-AFfI843y1fKdw2f4alz7WoeMQR2IPWDJ3SofCCMJVpQ=";
     };
   };
 }
