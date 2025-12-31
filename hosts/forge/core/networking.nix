@@ -33,7 +33,15 @@
       useDHCP = false;
       ipv4.addresses = [{
         address = "10.30.0.30";
-        prefixLength = 16; # IoT VLAN is 10.30.0.0/16, needed for broadcast from 10.30.100.x devices
+        prefixLength = 16;
+      }];
+      ipv4.routes = [{
+        # Route all IoT VLAN traffic through the gateway, not direct
+        # This prevents routing conflicts when replying to clients that
+        # arrived via the main interface but have 10.30.x.x addresses
+        address = "10.30.0.0";
+        prefixLength = 16;
+        via = "10.30.0.1";
       }];
     };
 
