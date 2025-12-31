@@ -6,6 +6,17 @@
   # Default limit (20) is easily exceeded with many IoT devices.
   boot.kernel.sysctl."net.ipv4.igmp_max_memberships" = 1024;
 
+  # Enable iproute2 for policy routing table definitions
+  networking.iproute2 = {
+    enable = true;
+    rttablesExtraConfig = ''
+      # Table for traffic originating from the main interface
+      # Used to prevent asymmetric routing when IoT VLAN clients
+      # connect to services on the main IP
+      100 main-out
+    '';
+  };
+
   networking = {
     hostName = hostname;
     hostId = "1b3031e7"; # Preserved from nixos-bootstrap
@@ -21,9 +32,9 @@
       logRefusedConnections = true;
     };
 
-    # VLAN 30: Wireless network for Home Assistant mDNS device discovery
-    # Allows HA to directly communicate with devices on the wireless VLAN
-    # Uses static IP to prevent Mikrotik from registering dynamic DNS for this interface
+    # VLAN 30: Wireless/IoT network for Home Assistant device discovery
+    # Required for receiving UDP broadcasts from devices like WeatherFlow Tempest
+    # and Sonos speakers that broadcast on the IoT VLAN (10.30.0.0/16)
     vlans.wireless = {
       id = 30;
       interface = "enp8s0";
@@ -33,15 +44,9 @@
       useDHCP = false;
       ipv4.addresses = [{
         address = "10.30.0.30";
+        # /16 is required to receive broadcasts from devices across the IoT VLAN
+        # (e.g., WeatherFlow at 10.30.100.148 broadcasting to 255.255.255.255)
         prefixLength = 16;
-      }];
-      ipv4.routes = [{
-        # Route all IoT VLAN traffic through the gateway, not direct
-        # This prevents routing conflicts when replying to clients that
-        # arrived via the main interface but have 10.30.x.x addresses
-        address = "10.30.0.0";
-        prefixLength = 16;
-        via = "10.30.0.1";
       }];
     };
 
@@ -61,5 +66,33 @@
     #   127.0.0.1 iptv.holthome.net
     #   127.0.0.1 plex.holthome.net
     # '';
+  };
+
+  # Policy routing to fix asymmetric routing with IoT VLAN
+  #
+  # Problem: When a client on 10.30.x.x connects to forge's main IP (10.20.0.30),
+  # the reply packets would normally go out the wireless interface (because
+  # 10.30.0.0/16 is on-link there) instead of through the default gateway.
+  # This causes asymmetric routing which breaks connectivity.
+  #
+  # Solution: Traffic originating FROM 10.20.0.30 uses a separate routing table
+  # that only has the default gateway, ensuring replies go back the same way.
+  systemd.services.policy-routing-main = {
+    description = "Policy routing for main interface";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = [
+        "/run/current-system/sw/bin/ip route add default via 10.20.0.1 dev enp8s0 table main-out"
+        "/run/current-system/sw/bin/ip rule add from 10.20.0.30 table main-out priority 100"
+      ];
+      ExecStop = [
+        "/run/current-system/sw/bin/ip rule del from 10.20.0.30 table main-out priority 100"
+        "/run/current-system/sw/bin/ip route del default via 10.20.0.1 dev enp8s0 table main-out"
+      ];
+    };
   };
 }
