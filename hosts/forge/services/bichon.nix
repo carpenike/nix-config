@@ -33,7 +33,7 @@ in
       modules.services.bichon = {
         enable = true;
         dataDir = dataDir;
-        image = "rustmailer/bichon:0.2.1@sha256:4dac9d10dac09420ad0ed61ef75508f7dd23fba8d0ef2c20c01712dc4623e720";
+        image = "rustmailer/bichon:0.2.2@sha256:f72878ab33e38a26376a49e4afb9e943b61cf86ad03287018351c74dd70d2359";
         publicUrl = "https://${serviceDomain}";
         encryptPasswordFile = config.sops.secrets."bichon/encrypt-password".path;
 
