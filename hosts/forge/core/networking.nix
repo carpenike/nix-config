@@ -1,6 +1,10 @@
 { hostname, ... }:
 
 {
+  # Enable IP forwarding for container networking
+  # Containers on bridge networks need the host to forward packets to external networks
+  boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+
   # Increase multicast group membership limit for mDNS discovery.
   # ESPHome (and other mDNS services) join multicast groups per device.
   # Default limit (20) is easily exceeded with many IoT devices.
