@@ -82,8 +82,9 @@ in
             server_port = 8123;
             use_x_forwarded_for = true;
             trusted_proxies = [
-              "127.0.0.1" # Caddy reverse proxy
+              "127.0.0.1" # Caddy reverse proxy (loopback)
               "::1" # IPv6 loopback (localhost resolution)
+              "10.20.0.30" # Caddy reverse proxy (main interface binding)
               "10.88.0.0/16" # Podman container network
             ];
             ip_ban_enabled = true;
