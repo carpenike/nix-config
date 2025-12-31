@@ -306,7 +306,9 @@ in
               "--cpus=${cfg.resources.cpus}"
             ])
             ++ (lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-              "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/status || exit 1"
+              # Use /login endpoint instead of /api/v1/status - the status API tries to reach
+              # external services (Plex, Sonarr, etc.) and times out if they're unreachable
+              "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:5055/login || exit 1"
               "--health-interval=${cfg.healthcheck.interval}"
               "--health-timeout=${cfg.healthcheck.timeout}"
               "--health-retries=${toString cfg.healthcheck.retries}"
