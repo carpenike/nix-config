@@ -65,7 +65,7 @@ in
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 969;
+      default = 963;
       description = ''
         Static GID for the ESPHome group. Required for container mode to ensure
         consistent file ownership on host volumes.
