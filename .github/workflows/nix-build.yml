@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write  # Required for FlakeHub Cache authentication
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
@@ -101,12 +100,6 @@ jobs:
       # Use Determinate Nix (recommended over nix-installer-action in 2025)
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
-
-      # Magic Nix Cache - uses GitHub Actions cache for Nix store paths (free, no registration)
-      - name: Set up Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
-        with:
-          use-flakehub: false
 
       # Cachix - persistent binary cache shared between CI and local machines
       - name: Set up Cachix
