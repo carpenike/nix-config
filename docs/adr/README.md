@@ -14,7 +14,7 @@ An ADR captures a decision that has significant impact on the architecture, alon
 | [002](./002-host-level-defaults-library.md) | Host-Level Defaults Library | Accepted | Parameterized factory for host-specific helper functions |
 | [003](./003-shared-types-for-service-modules.md) | Shared Types for Service Modules | Accepted | Centralized type definitions via `mylib.types` |
 | [004](./004-impermanence-host-level-control.md) | Impermanence Host-Level Control | Accepted | Hosts control service persistence, not modules |
-| [005](./005-native-services-over-containers.md) | Native Services Over Containers | Accepted | Prefer NixOS modules over OCI containers when available |
+| [005](./005-native-services-over-containers.md) | Native Services Over Containers | Accepted | Prefer NixOS modules; when containers needed, use home-operations images |
 | [006](./006-black-box-white-box-monitoring.md) | Black-Box vs White-Box Monitoring | Accepted | Gatus for availability, Prometheus for internals |
 | [007](./007-multi-tier-disaster-recovery.md) | Multi-Tier Disaster Recovery | Accepted | Preseed pattern with Syncoid → Local → (Restic) priority |
 | [008](./008-authentication-priority-framework.md) | Authentication Priority Framework | Accepted | OIDC → Headers → Disable+Caddy → Built-in auth priority |
