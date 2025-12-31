@@ -49,6 +49,7 @@
     {
       matchDatasources: [
         'github-releases',
+        'github-tags',
       ],
       pinDigests: false,
       semanticCommits: 'enabled',
@@ -58,6 +59,18 @@
       labels: [
         'dependencies',
         'nix',
+      ],
+    },
+    {
+      // Go modules (e.g., Caddy plugins)
+      matchDatasources: ['go'],
+      semanticCommits: 'enabled',
+      commitMessagePrefix: 'feat(go):',
+      commitMessageTopic: '{{depName}}',
+      commitMessageExtra: 'to {{newVersion}}',
+      labels: [
+        'dependencies',
+        'go',
       ],
     },
     {
@@ -75,26 +88,68 @@
   customManagers: [
     {
       customType: 'regex',
-      description: 'Docker images in nix files',
+      description: 'Docker images in nix files (with registry prefix)',
       managerFilePatterns: [
         '/\\.nix$/',
       ],
       matchStrings: [
-        // Match container images with registry/org/repo:tag format
-        'image\\s*=\\s*"(?<depName>(?:[a-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._-]+/[a-z0-9._-]+):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?";?',
+        // Match container images with explicit registry: ghcr.io/org/repo:tag, docker.io/org/repo:tag, lscr.io/org/repo:tag
+        'image\\s*=\\s*"(?<depName>(?:ghcr\\.io|docker\\.io|lscr\\.io|quay\\.io)[/][a-z0-9._-]+/[a-z0-9._-]+):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?";?',
       ],
       datasourceTemplate: 'docker',
     },
     {
       customType: 'regex',
-      description: 'GitHub releases in nix fetchzip/fetchurl',
+      description: 'Docker images in nix files (Docker Hub shorthand org/repo:tag)',
       managerFilePatterns: [
         '/\\.nix$/',
       ],
       matchStrings: [
+        // Match Docker Hub shorthand images WITHOUT registry prefix: teslamate/teslamate:2.2.0
+        // Excludes lines that already have a registry prefix (ghcr.io, docker.io, etc.)
+        'image\\s*=\\s*"(?<depName>(?!ghcr\\.io|docker\\.io|lscr\\.io|quay\\.io)[a-z0-9._-]+/[a-z0-9._-]+):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?";?',
+      ],
+      datasourceTemplate: 'docker',
+    },
+    {
+      customType: 'regex',
+      description: 'GitHub releases in nix fetchzip/fetchurl (releases/download)',
+      managerFilePatterns: [
+        '/\\.nix$/',
+      ],
+      matchStrings: [
+        // Match: https://github.com/owner/repo/releases/download/vX.Y.Z/file.zip
         'url\\s*=\\s*"https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/v(?<currentValue>[^/]+)/[^"]+";',
       ],
       datasourceTemplate: 'github-releases',
+      versioningTemplate: 'semver',
+    },
+    {
+      customType: 'regex',
+      description: 'GitHub archive URLs in nix fetchzip (archive/refs/tags)',
+      managerFilePatterns: [
+        '/\\.nix$/',
+      ],
+      matchStrings: [
+        // Match: https://github.com/owner/repo/archive/refs/tags/vX.Y.Z.tar.gz
+        'url\\s*=\\s*"https://github\\.com/(?<depName>[^/]+/[^/]+)/archive/refs/tags/v(?<currentValue>[^.]+\\.[^.]+\\.[^.]+)\\.tar\\.gz";',
+      ],
+      datasourceTemplate: 'github-releases',
+      versioningTemplate: 'semver',
+    },
+    {
+      customType: 'regex',
+      description: 'fetchFromGitHub with version in Nix packages',
+      managerFilePatterns: [
+        '/\\.nix$/',
+      ],
+      matchStrings: [
+        // Match buildGoModule/buildPythonApplication pattern with version and fetchFromGitHub
+        // Captures: version = "X.Y.Z"; ... owner = "owner"; repo = "repo"; rev = "vX.Y.Z" or "v${version}"
+        '(?s)version\\s*=\\s*"(?<currentValue>[^"]+)"[^}]*?fetchFromGitHub\\s*\\{[^}]*?owner\\s*=\\s*"(?<ownerName>[^"]+)"[^}]*?repo\\s*=\\s*"(?<repoName>[^"]+)"',
+      ],
+      datasourceTemplate: 'github-releases',
+      depNameTemplate: '{{ownerName}}/{{repoName}}',
       versioningTemplate: 'semver',
     },
     {
@@ -104,11 +159,27 @@
         '/\\.nix$/',
       ],
       matchStrings: [
+        // Match: # renovate: depName=... datasource=... versioning=...
+        //        value = "X.Y.Z"
         '(?m:^[ \\t]*?# ?renovate: depName=(?<depName>\\S+)( datasource=(?<datasource>\\S+))?( versioning=(?<versioning>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n[ \\t ]*?\\S+ = "?(?<currentValue>[^" ]+?)";?$)',
       ],
       datasourceTemplate: '{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}',
       versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}',
       extractVersionTemplate: '{{#if extractVersion}}{{{extractVersion}}}{{else}}^(?<version>.*)${{/if}}',
+    },
+    {
+      customType: 'regex',
+      description: 'Go module plugins (Caddy, etc.)',
+      managerFilePatterns: [
+        '/\\.nix$/',
+      ],
+      matchStrings: [
+        // Match: # renovate: depName=github.com/owner/repo datasource=go
+        //        "github.com/owner/repo@vX.Y.Z"
+        '# ?renovate: depName=(?<depName>github\\.com/[^\\s]+) datasource=go\\n\\s*"github\\.com/[^@]+@v(?<currentValue>[^"]+)"',
+      ],
+      datasourceTemplate: 'go',
+      versioningTemplate: 'semver',
     },
   ],
 }

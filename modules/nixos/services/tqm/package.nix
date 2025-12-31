@@ -8,6 +8,7 @@
 
 buildGoModule rec {
   pname = "tqm";
+  # renovate: depName=autobrr/tqm datasource=github-releases
   version = "1.17.0";
 
   src = fetchFromGitHub {
