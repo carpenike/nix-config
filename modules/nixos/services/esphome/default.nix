@@ -42,6 +42,36 @@ in
       description = "Local HTTP port used by the ESPHome dashboard.";
     };
 
+    user = lib.mkOption {
+      type = lib.types.str;
+      default = "esphome";
+      description = "System user to run ESPHome service.";
+    };
+
+    uid = lib.mkOption {
+      type = lib.types.int;
+      default = 969;
+      description = ''
+        Static UID for the ESPHome user. Required for container mode to ensure
+        consistent file ownership on host volumes.
+      '';
+    };
+
+    group = lib.mkOption {
+      type = lib.types.str;
+      default = "esphome";
+      description = "System group to run ESPHome service.";
+    };
+
+    gid = lib.mkOption {
+      type = lib.types.int;
+      default = 969;
+      description = ''
+        Static GID for the ESPHome group. Required for container mode to ensure
+        consistent file ownership on host volumes.
+      '';
+    };
+
     image = lib.mkOption {
       type = lib.types.str;
       default = "ghcr.io/home-operations/esphome:2025.12.3@sha256:d000147ad5598dbcabe59be0426b0b52b095d7f51b5e2a97addf68072218581f";
@@ -204,16 +234,21 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
-        owner = "esphome";
-        group = "esphome";
+        owner = cfg.user;
+        group = cfg.group;
         mode = "0770";
       };
 
-      users.groups.esphome = { };
-      users.users.esphome = {
+      # Create local user/group for file ownership on host volumes
+      # Container runs with --user to match these UIDs
+      users.groups.${cfg.group} = {
+        gid = cfg.gid;
+      };
+
+      users.users.${cfg.user} = {
+        uid = cfg.uid;
         isSystemUser = true;
-        group = "esphome";
-        home = cfg.dataDir;
+        group = cfg.group;
         description = "ESPHome service account";
       };
 
@@ -221,7 +256,7 @@ in
       # expected ownership. Other containerized services achieve this via their
       # tmpfiles entries, so mirror that behavior here with a recursive rule.
       systemd.tmpfiles.rules = [
-        "Z ${cfg.dataDir} 0770 esphome esphome - -"
+        "Z ${cfg.dataDir} 0770 ${cfg.user} ${cfg.group} - -"
       ];
 
       modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
@@ -252,18 +287,22 @@ in
           "${toString esphomePort}:${toString esphomePort}"
         ];
         resources = cfg.resources;
-        extraOptions =
-          (lib.optionals cfg.hostNetwork [ "--network=host" ])
-          ++ (lib.optionals (!cfg.hostNetwork && cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ])
-          ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-            # Match upstream: curl --fail http://localhost:6052/version -A "HealthCheck"
-            "--health-cmd=curl --fail --silent http://127.0.0.1:${toString esphomePort}/version -A HealthCheck || exit 1"
-            "--health-interval=${cfg.healthcheck.interval}"
-            "--health-timeout=${cfg.healthcheck.timeout}"
-            "--health-retries=${toString cfg.healthcheck.retries}"
-            "--health-start-period=${cfg.healthcheck.startPeriod}"
-            "--health-on-failure=${cfg.healthcheck.onFailure}"
-          ];
+        extraOptions = [
+          "--pull=newer"
+          # Run container as the host esphome user for proper file ownership
+          "--user=${toString cfg.uid}:${toString cfg.gid}"
+        ]
+        ++ (lib.optionals cfg.hostNetwork [ "--network=host" ])
+        ++ (lib.optionals (!cfg.hostNetwork && cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ])
+        ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+          # Match upstream: curl --fail http://localhost:6052/version -A "HealthCheck"
+          "--health-cmd=curl --fail --silent http://127.0.0.1:${toString esphomePort}/version -A HealthCheck || exit 1"
+          "--health-interval=${cfg.healthcheck.interval}"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
+        ];
       };
 
       systemd.services.${mainServiceUnit} = lib.mkMerge [

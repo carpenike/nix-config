@@ -30,7 +30,7 @@ let
   cfg = config.modules.services.it-tools;
   serviceName = "it-tools";
   backend = config.virtualisation.oci-containers.backend;
-  containerPort = 80; # IT-Tools listens on port 80 inside the container
+  containerPort = 8080; # home-operations IT-Tools image listens on port 8080
   domain = config.networking.domain or null;
   defaultHostname = if domain == null || domain == "" then "it-tools.local" else "it-tools.${domain}";
 in
