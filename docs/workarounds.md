@@ -150,6 +150,18 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Upstream** | https://github.com/BerriAI/litellm |
 | **Check** | LiteLLM updates, specifically SSO handling |
 
+### Plex - VA-API Hardware Transcoding Disabled (Native Mode)
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2025-12-31 |
+| **Location** | `modules/nixos/services/plex/default.nix` (native mode config section) |
+| **Reason** | Plex's FHS sandbox bundles older glibc that lacks `__isoc23_sscanf` symbol present in NixOS's libva.so (built against glibc 2.38+). Including `/run/opengl-driver/lib` in LD_LIBRARY_PATH causes Plex to crash with "Error relocating /run/opengl-driver/lib/libva.so.2: __isoc23_sscanf: symbol not found" |
+| **Workaround** | In native mode: LD_LIBRARY_PATH excludes `/run/opengl-driver/lib`, only includes `/run/opengl-driver/lib/dri`. Hardware transcoding (VA-API) is unavailable; software transcoding works. |
+| **Upstream** | https://github.com/NixOS/nixpkgs/issues/468070 |
+| **Check** | When nixpkgs #468070 is resolved, or Plex updates their bundled glibc |
+| **Solution Available** | Set `modules.services.plex.deploymentMode = "container"` to use `ghcr.io/home-operations/plex` (Ubuntu 24.04 base with matching glibc). VA-API hardware transcoding works in container mode. |
+
 ---
 
 ## Custom Packages with doCheck=false
