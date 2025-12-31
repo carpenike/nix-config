@@ -39,7 +39,8 @@
       semanticCommits: 'enabled',
       commitMessagePrefix: 'feat(containers):',
       commitMessageTopic: '{{depName}}',
-      commitMessageExtra: 'to {{newVersion}}',
+      // Use newVersion when available, otherwise show digest update
+      commitMessageExtra: '{{#if newVersion}}to {{newVersion}}{{else}}digest to {{newDigestShort}}{{/if}}',
       labels: [
         'dependencies',
         'containers',
