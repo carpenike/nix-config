@@ -15,6 +15,25 @@ in
       modules.services.plex = {
         enable = true;
 
+        # Use container mode for VA-API hardware transcoding
+        # Native mode has glibc mismatch that breaks VA-API (nixpkgs #468070)
+        deploymentMode = "container";
+
+        # Hardware acceleration - works in container mode!
+        accelerationDevices = [ "/dev/dri" ];
+
+        # Container networking and media access
+        podmanNetwork = forgeDefaults.podmanNetwork;
+        nfsMountDependency = "media";
+
+        # Container-specific settings
+        container = {
+          # Advertise URL for remote access (Plex apps need this)
+          advertiseUrl = "https://plex.holthome.net:443";
+          # Skip auth for local networks
+          allowedNetworks = [ "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16" ];
+        };
+
         # Open firewall for LAN streaming (DLNA, mDNS discovery)
         openFirewall = true;
         openFirewallDiscovery = true;
@@ -138,7 +157,7 @@ in
           severity = "critical";
           category = "availability";
           summary = "Plex is down on {{ $labels.instance }}";
-          description = "Plex healthcheck failing. Check service: systemctl status plex.service";
+          description = "Plex healthcheck failing. Check service: systemctl status podman-plex.service";
         };
 
         # Healthcheck staleness alert using forgeDefaults helper

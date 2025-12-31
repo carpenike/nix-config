@@ -70,7 +70,7 @@ in
     container = {
       image = lib.mkOption {
         type = lib.types.str;
-        default = "ghcr.io/home-operations/plex:1.42.2.10156-f737b826c";
+        default = "ghcr.io/home-operations/plex:1.42.2.10156@sha256:9ad8a3506e1d8ebda873a668603c1a2c10e6887969564561be669efd65ae8871";
         description = ''
           Container image for Plex (home-operations).
           Pin to specific version with digest for immutability.
@@ -200,10 +200,30 @@ in
       description = "System user to run Plex service";
     };
 
+    uid = lib.mkOption {
+      type = lib.types.int;
+      default = 193;
+      description = ''
+        Static UID for the Plex user. Required for container mode to ensure
+        consistent file ownership on host volumes. Default matches common
+        NixOS Plex installations.
+      '';
+    };
+
     group = lib.mkOption {
       type = lib.types.str;
       default = "plex";
       description = "System group to run Plex service";
+    };
+
+    gid = lib.mkOption {
+      type = lib.types.int;
+      default = 193;
+      description = ''
+        Static GID for the Plex group. Required for container mode to ensure
+        consistent file ownership on host volumes. Default matches common
+        NixOS Plex installations.
+      '';
     };
 
     accelerationDevices = lib.mkOption {
@@ -677,17 +697,19 @@ in
     # CONTAINER MODE CONFIGURATION
     # =========================================================================
     (lib.mkIf (cfg.enable && isContainerMode) {
-      # Create local user to match container UID for file ownership
+      # Create local user for file ownership on host volumes
+      # We run the container with --user to match this UID:GID, ensuring
+      # the container process can read/write to /var/lib/plex on the host.
       users.users.${cfg.user} = {
-        uid = lib.mkDefault 65534; # nobody in container
-        group = cfg.group;
+        uid = cfg.uid;
         isSystemUser = true;
+        group = cfg.group;
         description = "Plex service user (container mode)";
         extraGroups = [ "media" "render" "video" ];
       };
 
-      users.groups.${cfg.group} = lib.mkIf (cfg.group != "media") {
-        gid = lib.mkDefault 65534;
+      users.groups.${cfg.group} = lib.mkIf (cfg.group != "media" && cfg.group != "nogroup") {
+        gid = cfg.gid;
       };
 
       # Plex container using home-operations image
@@ -730,14 +752,18 @@ in
 
         extraOptions = [
           "--pull=newer"
+          # Run container as the host plex user (not container's nobody:nogroup)
+          # This ensures proper file ownership on /var/lib/plex
+          "--user=${toString cfg.uid}:${toString cfg.gid}"
           # GPU passthrough for hardware transcoding (VA-API)
           # This is the main reason to use container mode - it works!
         ] ++ lib.optionals (cfg.accelerationDevices != [ ]) (
           lib.concatMap (dev: [ "--device=${dev}:${dev}" ]) cfg.accelerationDevices
         ) ++ lib.optionals (cfg.accelerationDevices != [ ]) [
           # Add video and render groups for GPU access
-          "--group-add=video"
-          "--group-add=render"
+          # Use GIDs because --user mode looks up groups inside the container
+          "--group-add=${toString config.users.groups.video.gid}"
+          "--group-add=${toString config.users.groups.render.gid}"
         ] ++ lib.optionals (cfg.container.healthcheck != null && cfg.container.healthcheck.enable) [
           # Health check using Plex web interface
           ''--health-cmd=curl -fsS http://127.0.0.1:32400/web/index.html >/dev/null''
