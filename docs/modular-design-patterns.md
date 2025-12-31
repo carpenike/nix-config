@@ -1,5 +1,7 @@
 # Modular Design Patterns
 
+**Last Updated**: 2025-12-31
+
 This document establishes standardized design patterns for NixOS service modules based on the refined Caddy and PostgreSQL reference implementations. Following these patterns ensures consistency, maintainability, and type safety across the entire infrastructure configuration.
 
 ## Design Philosophy
@@ -267,11 +269,11 @@ Create your module in `modules/nixos/services/<service-name>/`:
 let
   cfg = config.modules.services.<service-name>;
 
-  # Import shared types for consistency
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  # Use mylib for shared types (injected via _module.args)
+  sharedTypes = mylib.types;
 
-  # Storage helpers for ZFS dataset management
-  storageHelpers = import ../../../lib/storage-helpers.nix { inherit lib; };
+  # Storage helpers for ZFS dataset management (requires pkgs)
+  storageHelpers = mylib.storageHelpers pkgs;
 in
 {
   options.modules.services.<service-name> = {
@@ -651,11 +653,14 @@ If you have existing container-based services:
 
 ## Shared Types Library
 
-All standardized submodule types are centralized in `lib/types.nix` to ensure consistency and reusability across services.
+All standardized submodule types are centralized in `lib/types/` (with `lib/types.nix` as compatibility wrapper) to ensure consistency and reusability across services.
 
 ### Import Pattern
 ```nix
-# Import shared type definitions in service modules
+# Preferred: Use mylib (injected via _module.args)
+sharedTypes = mylib.types;
+
+# Alternative: Direct import (for non-module contexts)
 sharedTypes = import ../../../lib/types.nix { inherit lib; };
 ```
 
@@ -974,8 +979,8 @@ let
   inherit (lib) mkOption mkEnableOption mkIf types;
   cfg = config.modules.services.<service>;
   serviceName = "<service>";
-  # Import shared type definitions
-  sharedTypes = import ../../../lib/types.nix { inherit lib; };
+  # Use mylib for shared types (injected via _module.args)
+  sharedTypes = mylib.types;
 in
 {
   options.modules.services.<service> = {
@@ -1411,18 +1416,18 @@ ls -ld /var/lib/<service>  # Should still be drwxr-x---
 
 Reusable helper functions in `lib/` for common patterns:
 
-- `lib/types.nix` - ✅ **Implemented** - Shared type definitions
-- `lib/podman.nix` - ✅ **Implemented** - Container configuration helpers
-- `lib/security.nix` - Security hardening templates
-- `lib/monitoring.nix` - Metrics and logging configuration
-- `lib/backup.nix` - Backup job generation
+- `lib/types.nix` - ✅ **Implemented** - Shared type definitions (split into `lib/types/*.nix`)
+- `lib/monitoring-helpers.nix` - ✅ **Implemented** - Metrics and alert configuration
+- `lib/backup-helpers.nix` - ✅ **Implemented** - Backup job generation
+- `lib/caddy-helpers.nix` - ✅ **Implemented** - Reverse proxy configuration
+- `modules/nixos/storage/helpers-lib.nix` - ✅ **Implemented** - Storage/preseed helpers (via `mylib.storageHelpers pkgs`)
 
 ## Migration Strategy
 
 ### Phase 1: Documentation and Standards ✅ **COMPLETED**
 1. ✅ Document patterns (this document)
-2. ✅ Update CLAUDE.md with pattern requirements
-3. ✅ Create helper libraries (`lib/types.nix`, `lib/podman.nix`)
+2. ✅ Update copilot-instructions.md with pattern requirements
+3. ✅ Create helper libraries (`lib/types.nix`, `lib/types/*.nix`)
 
 ### Phase 2: Infrastructure Implementation ✅ **COMPLETED**
 1. ✅ Implement shared type definitions (`lib/types.nix`)

@@ -42,7 +42,7 @@ specialArgs = {
 Backup configuration generators for Restic and ZFS.
 
 ```nix
-mylib.backup.mkResticJob {
+mylib.backup-helpers.mkResticJob {
   name = "myservice";
   paths = [ "/var/lib/myservice" ];
   repository = "primary";
@@ -54,7 +54,7 @@ mylib.backup.mkResticJob {
 Reverse proxy configuration builders for Caddy.
 
 ```nix
-mylib.caddy.mkVirtualHost {
+mylib.caddy-helpers.mkVirtualHost {
   domain = "app.example.com";
   backend = "localhost:8080";
   auth = "pocketid";
@@ -93,13 +93,13 @@ mylib.registerVhost {
 Prometheus alert rule generators for consistent monitoring.
 
 ```nix
-mylib.monitoring.mkServiceDownAlert {
+mylib.monitoring-helpers.mkServiceDownAlert {
   job = "myservice";
   severity = "critical";
   for = "2m";
 }
 
-mylib.monitoring.mkHighMemoryAlert {
+mylib.monitoring-helpers.mkHighMemoryAlert {
   job = "myservice";
   threshold = 90;
 }
@@ -121,13 +121,13 @@ in
   config = lib.mkIf cfg.enable {
     # Use mylib helpers
     modules.alerting.rules."myapp-down" =
-      mylib.monitoring.mkServiceDownAlert {
+      mylib.monitoring-helpers.mkServiceDownAlert {
         job = "myapp";
         severity = "high";
       };
 
     modules.services.caddy.virtualHosts.myapp =
-      mylib.caddy.mkVirtualHost {
+      mylib.caddy-helpers.mkVirtualHost {
         domain = "myapp.holthome.net";
         backend = "localhost:${toString cfg.port}";
       };
@@ -142,7 +142,7 @@ in
 
 {
   modules.backup.restic.jobs = {
-    critical-data = mylib.backup.mkResticJob {
+    critical-data = mylib.backup-helpers.mkResticJob {
       name = "critical";
       paths = [ "/persist/important" ];
       tags = [ "critical" "daily" ];

@@ -1,5 +1,7 @@
 # PostgreSQL Point-in-Time Recovery (PITR) Guide
 
+**Last Updated**: 2025-12-31
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -1537,7 +1539,6 @@ Key option groups:
 
 ### Internal Documentation
 
-- Implementation Status: `/docs/IMPLEMENTATION-STATUS.md`
 - Storage Module: `/docs/persistence-quick-reference.md`
 - Backup System: `/docs/backup-metrics-reference.md`
 

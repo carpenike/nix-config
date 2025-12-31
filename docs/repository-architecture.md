@@ -1,6 +1,6 @@
 # Repository Architecture
 
-**Last Updated**: December 9, 2025
+**Last Updated**: 2025-12-31
 
 This document describes the high-level architecture of the NixOS configuration repository, including directory structure, module patterns, and key design decisions.
 
@@ -15,8 +15,17 @@ nix-config/
 │
 ├── lib/                   # Shared library functions
 │   ├── default.nix        # Exports mylib (types, helpers, etc.)
-│   ├── types.nix          # Shared type definitions for service modules
+│   ├── types.nix          # Compatibility wrapper → types/default.nix
+│   ├── types/             # Shared type definitions (split by concern)
+│   │   ├── default.nix    # Re-exports all types
+│   │   ├── reverse-proxy.nix
+│   │   ├── metrics.nix
+│   │   ├── backup.nix
+│   │   └── ...            # logging, storage, container, etc.
 │   ├── host-defaults.nix  # Parameterized factory for host-specific defaults
+│   ├── monitoring-helpers.nix  # Prometheus alert helpers
+│   ├── backup-helpers.nix      # Backup configuration helpers
+│   ├── caddy-helpers.nix       # Reverse proxy helpers
 │   ├── mkSystem.nix       # NixOS/Darwin system builders
 │   └── ...
 │
@@ -59,15 +68,15 @@ All shared library functions are exposed via `mylib`, injected into every module
 # In lib/default.nix
 {
   types = import ./types.nix { inherit lib; };
-  storageHelpers = import ../modules/nixos/storage/helpers-lib.nix { inherit lib pkgs; };
+  storageHelpers = pkgs: import ../modules/nixos/storage/helpers-lib.nix { inherit pkgs lib; };
   # ...
 }
 
 # In any module
-{ lib, mylib, ... }:
+{ lib, mylib, pkgs, ... }:
 let
   sharedTypes = mylib.types;
-  storageHelpers = mylib.storageHelpers;
+  storageHelpers = mylib.storageHelpers pkgs;  # Note: requires pkgs argument
 in
 { ... }
 ```

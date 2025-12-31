@@ -1,6 +1,6 @@
 # Disaster Recovery Preseed Pattern
 
-**Last Updated**: 2025-11-10
+**Last Updated**: 2025-12-31
 **Status**: Active - Production Pattern
 **Architecture**: ZFS Syncoid-based Multi-tier Restoration
 
@@ -100,8 +100,8 @@ Every service module with preseed support follows this structure:
 let
   cfg = config.modules.services.servicename;
 
-  # Import storage helpers for mkPreseedService
-  storageHelpers = import ../../../../lib/storage-helpers.nix { inherit lib pkgs; };
+  # Use mylib for storage helpers (injected via _module.args)
+  storageHelpers = mylib.storageHelpers pkgs;
   helpers-lib = storageHelpers.mkHelpers {
     inherit config;
     serviceName = "servicename";
@@ -533,7 +533,7 @@ Potential improvements to the preseed pattern:
 
 ## References
 
-- **Implementation**: `lib/storage-helpers.nix` (mkPreseedService)
+- **Implementation**: `modules/nixos/storage/helpers-lib.nix` (mkPreseedService, via `mylib.storageHelpers pkgs`)
 - **Example Modules**:
   - `modules/nixos/services/plex/default.nix`
   - `modules/nixos/services/loki/default.nix`

@@ -47,7 +47,7 @@
 
 - **Multi-System Management**: NixOS servers (homelab, cloud), macOS workstations, and unified user environments
 - **Three-Tier Architecture**: Clear separation between core OS, infrastructure, and application services
-- **43+ Managed Services**: Media automation, home automation, AI/LLM, monitoring, and more on the `forge` host
+- **60+ Managed Services**: Media automation, home automation, AI/LLM, monitoring, and more on the `forge` host
 - **Enterprise Patterns**: Declarative backups with Restic + pgBackRest, Prometheus/Grafana observability, Gatus status pages
 - **Secure by Default**: SOPS-encrypted secrets, PocketID SSO, Caddy reverse proxy with automatic TLS
 - **ZFS-First Storage**: Per-service datasets with optimized recordsizes, Sanoid snapshots, Syncoid replication
@@ -63,17 +63,23 @@
 ├── flake.lock                # Locked dependency versions for reproducibility
 ├── Taskfile.yaml             # Task runner commands for operations
 │
+├── modules/                  # Reusable NixOS/Darwin modules
+│   ├── common/               # Cross-platform modules
+│   ├── darwin/               # macOS-specific modules
+│   └── nixos/                # NixOS-specific modules (85+ service modules)
+│       └── services/         # Service modules
+│
+├── lib/                      # Shared library functions (mylib)
+│   ├── types.nix             # Shared type definitions
+│   ├── monitoring-helpers.nix
+│   ├── backup-helpers.nix
+│   └── ...                   # Other helper libraries
+│
 ├── hosts/                    # Host-specific configurations
-│   ├── _modules/             # Reusable NixOS/Darwin modules
-│   │   ├── common/           # Cross-platform modules
-│   │   ├── darwin/           # macOS-specific modules
-│   │   ├── nixos/            # NixOS-specific modules (70+ service modules)
-│   │   └── lib/              # Shared type definitions and helpers
-│   │
 │   ├── forge/                # Primary homelab server (NixOS)
 │   │   ├── core/             # OS-level: boot, networking, users
 │   │   ├── infrastructure/   # Cross-cutting: storage, backup, observability
-│   │   ├── services/         # 43+ application services
+│   │   ├── services/         # 60+ application services
 │   │   └── lib/              # Host-specific helpers (forgeDefaults)
 │   │
 │   ├── luna/                 # Secondary server (NixOS)
@@ -267,7 +273,7 @@ task backup:orchestrate
 
 | Host | Platform | Hardware | Role |
 |------|----------|----------|------|
-| `forge` | NixOS | Intel i9-9900K, 32GB RAM, GTX 1080 Ti + Intel UHD 630, 2×NVMe (ZFS mirror) | Primary homelab (43+ services) |
+| `forge` | NixOS | Intel i9-9900K, 32GB RAM, GTX 1080 Ti + Intel UHD 630, 2×NVMe (ZFS mirror) | Primary homelab (60+ services) |
 | `nas-0` | TrueNAS | Intel i3-7100, 64GB RAM, 28×HDD (14 mirrored vdevs, 117TB) | Primary storage, NFS exports |
 | `nas-1` | NixOS | Intel i3-7100, 32GB RAM, 4×HDD (RAIDZ1, 51TB raw) | Backup target, ZFS replication |
 | `luna` | NixOS | Intel Celeron J3455, 8GB RAM, 128GB SSD | Infrastructure services |

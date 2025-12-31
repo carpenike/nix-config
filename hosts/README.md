@@ -74,7 +74,7 @@
 
 | Host | IP | Hardware | Storage | Role |
 |------|-----|----------|---------|------|
-| `forge` | 10.20.0.30 | Intel i9-9900K (8C/16T), 32GB RAM | 2×NVMe (ZFS mirror: `rpool` 476GB, `tank` 928GB) | Primary homelab server, 43+ services |
+| `forge` | 10.20.0.30 | Intel i9-9900K (8C/16T), 32GB RAM | 2×NVMe (ZFS mirror: `rpool` 476GB, `tank` 928GB) | Primary homelab server, 60+ services |
 | `nas-0` | 10.20.0.10 | Intel i3-7100 (2C/4T), 64GB RAM | 28×HDD in 14 mirrored vdevs (`tank` 117TB) | Primary storage, NFS exports |
 | `nas-1` | 10.20.0.11 | Intel i3-7100 (2C/4T), 32GB RAM | 4×HDD RAIDZ1 (`backup` 51TB) | Backup target, ZFS replication |
 | `luna` | 10.20.0.15 | Intel Celeron J3455 (4C), 8GB RAM | 128GB SATA SSD (`rpool` 118GB) | Infrastructure services |
@@ -107,7 +107,7 @@
   - `rpool`: 476GB NVMe mirror (OS, impermanence)
   - `tank`: 928GB NVMe mirror (service data, per-service datasets)
 
-**Role**: Runs 43+ services including Plex, Home Assistant, Frigate, *arr stack, Prometheus/Grafana, and more.
+**Role**: Runs 60+ services including Plex, Home Assistant, Frigate, *arr stack, Prometheus/Grafana, and more.
 
 **Network Mounts**:
 - `/mnt/media` → nas-0:/mnt/tank/media (media library)
@@ -238,16 +238,10 @@
 
 ```text
 hosts/
-├── _modules/           # Reusable NixOS/Darwin modules (70+ modules)
-│   ├── common/         # Cross-platform modules
-│   ├── darwin/         # macOS-specific modules
-│   ├── nixos/          # NixOS-specific modules
-│   └── lib/            # Shared types and helpers
-│
 ├── forge/              # Primary homelab server
 │   ├── core/           # Boot, networking, users
 │   ├── infrastructure/ # Storage, backup, observability
-│   ├── services/       # 43+ application services
+│   ├── services/       # 60+ application services
 │   └── lib/            # Host-specific helpers (forgeDefaults)
 │
 ├── luna/               # Infrastructure services host

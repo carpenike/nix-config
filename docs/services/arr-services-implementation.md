@@ -1,6 +1,6 @@
 # *arr Services Module Implementation Plan
 
-**Date**: 2025-11-06
+**Last Updated**: 2025-12-31
 **Status**: Design Complete, Ready for Implementation
 **Collaborators**: GitHub Copilot + Gemini 2.5 Pro
 
@@ -252,7 +252,7 @@ modules.services.bazarr = {
 - **Shared Types**: `/lib/types.nix`
 - **Sonarr Reference**: `/modules/nixos/services/sonarr/default.nix`
 - **Prowlarr Implementation**: `/modules/nixos/services/prowlarr/default.nix`
-- **Storage Helpers**: `/modules/storage/helpers-lib.nix`
+- **Storage Helpers**: `/modules/nixos/storage/helpers-lib.nix`
 
 ## Credits
 

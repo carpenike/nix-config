@@ -1,8 +1,8 @@
 # Persistence Implementation - Quick Reference
 
-This is a condensed reference for the persistence implementation. For full details, see:
-- **Execution Plan**: `persistence-implementation-execution-plan.md`
-- **Status Tracker**: `IMPLEMENTATION-STATUS.md`
+**Last Updated**: 2025-12-31
+
+This is a condensed reference for the persistence implementation.
 
 ---
 
@@ -264,7 +264,7 @@ zfs destroy tank/persist/sonarr
 - **Modify**: `modules/nixos/notifications/default.nix` (add templates)
 
 ### Phase 5
-- **Modify**: `lib/storage-helpers.nix` (add mkPreseedService)
+- **Modify**: `modules/nixos/storage/helpers-lib.nix` (add mkPreseedService)
 - **Modify**: Service modules (add preseed integration)
 - **Modify**: Notification templates
 
@@ -292,5 +292,3 @@ zfs destroy tank/persist/sonarr
 ## Next Action
 
 Start Phase 1: Create `modules/nixos/storage/datasets.nix`
-
-See full implementation details in `persistence-implementation-execution-plan.md`

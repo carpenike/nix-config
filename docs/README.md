@@ -52,6 +52,7 @@ mkdocs build
   - [ADR-007: Multi-Tier Disaster Recovery](./adr/007-multi-tier-disaster-recovery.md)
   - [ADR-008: Authentication Priority Framework](./adr/008-authentication-priority-framework.md)
   - [ADR-009: Thin Orchestrator Pattern](./adr/009-thin-orchestrator-pattern.md)
+  - [ADR-010: Cross-Module Dependency Patterns](./adr/010-cross-module-dependency-patterns.md)
 
 ---
 
