@@ -34,6 +34,8 @@ jobs:
 
       - name: Set up Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
+        with:
+          use-flakehub: false
 
       - name: Run flake freshness policy
         uses: DeterminateSystems/flake-checker-action@main
