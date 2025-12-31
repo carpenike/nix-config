@@ -15,7 +15,7 @@ buildGoModule rec {
     owner = "autobrr";
     repo = "tqm";
     rev = "v${version}";
-    hash = "sha256-4zbv8VoCf95xteGdgMiS+cw/nawoYwzksSXXKK0r06M=";
+    hash = "sha256-bGvcZMKop5QTE84KichJ/vuhRTQ9YKEe/AANMV4wOGo=";
   };
 
   vendorHash = "sha256-IUAqY4w0Akm1lJJU5fZkVQpc5fWUx/88+hAinwZN3y4=";
