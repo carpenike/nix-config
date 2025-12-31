@@ -260,15 +260,20 @@
     "nas-high-memory" = {
       type = "promql";
       alertname = "NASHighMemory";
+      # ZFS ARC aggressively uses RAM for caching but releases it under pressure.
+      # Standard (1 - MemAvailable/MemTotal) is misleading because MemAvailable
+      # already accounts for some reclaimable memory but not ARC specifically.
+      # This query adds ARC size back to available memory for accurate pressure detection.
+      # Alert fires only when ACTUAL memory pressure exists (non-ARC usage > 90%).
       expr = ''
-        (1 - (node_memory_MemAvailable_bytes{instance=~"nas-.*"} / node_memory_MemTotal_bytes)) > 0.90
+        (1 - ((node_memory_MemAvailable_bytes{instance=~"nas-.*"} + node_zfs_arc_size{instance=~"nas-.*"}) / node_memory_MemTotal_bytes{instance=~"nas-.*"})) > 0.90
       '';
       for = "10m";
       severity = "high";
       labels = { service = "system"; category = "performance"; };
       annotations = {
-        summary = "High memory usage on {{ $labels.instance }}";
-        description = "Memory usage is {{ $value | humanizePercentage }}. ZFS ARC may need tuning.";
+        summary = "High memory usage on {{ $labels.instance }} (excluding ZFS ARC)";
+        description = "Non-ARC memory usage is {{ $value | humanizePercentage }}. This excludes reclaimable ZFS ARC cache.";
         command = "ssh {{ $labels.instance }} free -h && cat /proc/spl/kstat/zfs/arcstats | grep c_";
       };
     };

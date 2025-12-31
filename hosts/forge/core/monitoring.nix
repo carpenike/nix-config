@@ -83,11 +83,13 @@
     };
 
     # High memory usage
+    # Note: NAS instances use the ZFS-aware NASHighMemory alert in nas-monitoring.nix
+    # which accounts for ARC cache being reclaimable under pressure
     "high-memory-usage" = {
       type = "promql";
       alertname = "HighMemoryUsage";
       expr = ''
-        (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.90
+        (1 - (node_memory_MemAvailable_bytes{instance!~"nas-.*"} / node_memory_MemTotal_bytes{instance!~"nas-.*"})) > 0.90
       '';
       for = "10m";
       severity = "high";

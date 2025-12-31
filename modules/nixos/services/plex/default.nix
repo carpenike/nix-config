@@ -705,7 +705,8 @@ in
         isSystemUser = true;
         group = cfg.group;
         description = "Plex service user (container mode)";
-        extraGroups = [ "media" "render" "video" ];
+        # Include node-exporter group for healthcheck metrics writing
+        extraGroups = [ "media" "render" "video" "node-exporter" ];
       };
 
       users.groups.${cfg.group} = lib.mkIf (cfg.group != "media" && cfg.group != "nogroup") {
