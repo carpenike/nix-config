@@ -18,9 +18,8 @@ in
       modules.services.it-tools = {
         enable = true;
 
-        # Pin container image with digest for immutability
+        # Uses default home-operations image from module
         # Renovate bot can be configured to automate updates
-        image = "corentinth/it-tools:latest@sha256:8b8128748339583ca951af03dfe02a9a4d7363f61a216226fc28030731a5a61f";
 
         # Reverse proxy configuration for LAN access via Caddy
         # No authentication required - open access on local network

@@ -46,17 +46,13 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "corentinth/it-tools:latest@sha256:8b8128748339583ca951af03dfe02a9a4d7363f61a216226fc28030731a5a61f";
+      default = "ghcr.io/home-operations/it-tools:2024.10.22@sha256:7f26ae8d7a4a58b8d70b685cba5cbaa54d7df876d9f8bae702207f45b06d9b7c";
       description = ''
-        Full container image name including tag and digest for immutability.
-
-        Best practices:
-        - Pin to specific version tags with digests
-        - Use Renovate bot to automate version updates
-
-        Note: IT-Tools uses rolling releases, so pinning with digest is important.
+        Container image for IT-Tools (home-operations).
+        Pin to specific version with digest for immutability.
+        Use Renovate bot to automate version updates.
       '';
-      example = "corentinth/it-tools:latest@sha256:...";
+      example = "ghcr.io/home-operations/it-tools:2024.10.22@sha256:...";
     };
 
     hostname = lib.mkOption {

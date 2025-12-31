@@ -70,8 +70,12 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/home-operations/readarr:latest";
-      description = "Full container image name for Readarr.";
+      default = "ghcr.io/home-operations/readarr:0.4.18.2805@sha256:8f7551205fbdccd526db23a38a6fba18b0f40726e63bb89be0fb2333ff4ee4cd";
+      description = ''
+        Container image for Readarr (home-operations).
+        Pin to specific version with digest for immutability.
+        Use Renovate bot to automate version updates.
+      '';
     };
 
     mediaGroup = lib.mkOption {

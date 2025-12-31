@@ -70,8 +70,12 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/home-operations/lidarr:latest";
-      description = "Full container image name for Lidarr.";
+      default = "ghcr.io/home-operations/lidarr:3.1.1.4876@sha256:0982783dcc1ede8d45458ffc1d0d96607503035d743f6d18f9c2676a765d5dfe";
+      description = ''
+        Container image for Lidarr (home-operations).
+        Pin to specific version with digest for immutability.
+        Use Renovate bot to automate version updates.
+      '';
     };
 
     mediaGroup = lib.mkOption {
