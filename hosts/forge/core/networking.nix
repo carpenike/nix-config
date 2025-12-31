@@ -82,17 +82,20 @@
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
+    path = [ "/run/current-system/sw" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = [
-        "/run/current-system/sw/bin/ip route add default via 10.20.0.1 dev enp8s0 table main-out"
-        "/run/current-system/sw/bin/ip rule add from 10.20.0.30 table main-out priority 100"
-      ];
-      ExecStop = [
-        "/run/current-system/sw/bin/ip rule del from 10.20.0.30 table main-out priority 100"
-        "/run/current-system/sw/bin/ip route del default via 10.20.0.1 dev enp8s0 table main-out"
-      ];
     };
+    # Use 'replace' for route (idempotent) and delete-before-add for rule
+    script = ''
+      ip route replace default via 10.20.0.1 dev enp8s0 table main-out
+      ip rule del from 10.20.0.30 table main-out priority 100 2>/dev/null || true
+      ip rule add from 10.20.0.30 table main-out priority 100
+    '';
+    preStop = ''
+      ip rule del from 10.20.0.30 table main-out priority 100 2>/dev/null || true
+      ip route del default via 10.20.0.1 dev enp8s0 table main-out 2>/dev/null || true
+    '';
   };
 }
