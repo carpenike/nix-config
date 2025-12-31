@@ -2,6 +2,7 @@
 , mylib
 , pkgs
 , config
+, podmanLib
 , ...
 }:
 let
@@ -20,10 +21,164 @@ let
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+
+  # Container mode helpers
+  isContainerMode = cfg.deploymentMode == "container";
+  isNativeMode = cfg.deploymentMode == "native";
+  containerServiceUnit = "${config.virtualisation.oci-containers.backend}-plex.service";
+  nativeServiceUnit = "plex.service";
+  mainServiceUnit = if isContainerMode then containerServiceUnit else nativeServiceUnit;
+
+  # NFS mount configuration lookup (for container mode media access)
+  nfsMountName = cfg.nfsMountDependency;
+  nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
 in
 {
   options.modules.services.plex = {
     enable = lib.mkEnableOption "Plex Media Server";
+
+    # =========================================================================
+    # DEPLOYMENT MODE
+    # =========================================================================
+    # Choose between native NixOS module or Podman container deployment.
+    # Container mode is recommended when VA-API hardware transcoding is needed,
+    # as the native mode has a glibc version mismatch issue (nixpkgs #468070).
+    # =========================================================================
+
+    deploymentMode = lib.mkOption {
+      type = lib.types.enum [ "native" "container" ];
+      default = "native";
+      description = ''
+        Deployment mode for Plex Media Server.
+
+        - native: Uses NixOS services.plex module with bubblewrap sandbox.
+          Note: VA-API hardware transcoding is currently broken due to
+          glibc version mismatch (nixpkgs #468070). Software transcoding works.
+
+        - container: Uses Podman container from home-operations/containers.
+          VA-API hardware transcoding works because the container uses
+          Ubuntu 24.04 with matching glibc. Recommended for hardware transcoding.
+      '';
+    };
+
+    # =========================================================================
+    # CONTAINER-SPECIFIC OPTIONS
+    # =========================================================================
+    # These options only apply when deploymentMode = "container"
+    # =========================================================================
+
+    container = {
+      image = lib.mkOption {
+        type = lib.types.str;
+        default = "ghcr.io/home-operations/plex:1.42.2.10156-f737b826c";
+        description = ''
+          Container image for Plex (home-operations).
+          Pin to specific version with digest for immutability.
+          Use Renovate bot to automate version updates.
+        '';
+        example = "ghcr.io/home-operations/plex:1.42.2.10156-f737b826c@sha256:...";
+      };
+
+      claimToken = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Plex claim token for initial server setup.
+          Get one from https://plex.tv/claim (valid for 4 minutes).
+          Only needed for first-time setup; can be removed after.
+        '';
+      };
+
+      advertiseUrl = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "URL to advertise to Plex.tv for external access";
+        example = "https://plex.example.com:443";
+      };
+
+      allowedNetworks = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = "Networks that don't require authentication";
+        example = [ "192.168.1.0/24" "10.0.0.0/8" ];
+      };
+
+      purgeCodecs = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Purge codecs folder on startup (useful after Plex updates)";
+      };
+
+      preferences = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        default = { };
+        description = ''
+          Additional Plex preferences to set via PLEX_PREFERENCE_* env vars.
+          Format: { PreferenceKey = "value"; } becomes PLEX_PREFERENCE_1="PreferenceKey=value"
+        '';
+        example = { TranscoderTempDirectory = "/transcode"; };
+      };
+
+      resources = lib.mkOption {
+        type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
+        default = {
+          memory = "4G";
+          memoryReservation = "2G";
+          cpus = "4.0";
+        };
+        description = "Container resource limits";
+      };
+
+      healthcheck = lib.mkOption {
+        type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+        default = {
+          enable = true;
+          interval = "30s";
+          timeout = "10s";
+          retries = 3;
+          startPeriod = "120s";
+          onFailure = "kill";
+        };
+        description = "Container healthcheck configuration";
+      };
+
+      timezone = lib.mkOption {
+        type = lib.types.str;
+        default = "America/New_York";
+        description = "Timezone for the container";
+      };
+    };
+
+    nfsMountDependency = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the NFS mount defined in `modules.storage.nfsMounts` to use for media.
+        This will automatically set `mediaDir` and systemd dependencies.
+        Primarily used in container mode for media library access.
+      '';
+      example = "media";
+    };
+
+    mediaDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/mnt/media";
+      description = "Path to media library (used in container mode for volume mount)";
+    };
+
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach this container to (container mode only).
+        Enables DNS resolution to other containers on the same network.
+      '';
+      example = "media-services";
+    };
+
+    # =========================================================================
+    # SHARED OPTIONS (both modes)
+    # =========================================================================
 
     package = lib.mkPackageOption pkgs "plex" { };
 
@@ -114,9 +269,11 @@ in
 
     logging = lib.mkOption {
       type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      # Note: journalUnit is set dynamically in config based on deploymentMode
+      # Native mode: plex.service, Container mode: podman-plex.service
       default = {
         enable = true;
-        journalUnit = "plex.service";
+        journalUnit = null; # Set dynamically in config section based on deploymentMode
         labels = {
           service = "plex";
           service_type = "media_server";
@@ -262,17 +419,14 @@ in
   };
 
   config = lib.mkMerge [
+    # =========================================================================
+    # SHARED CONFIGURATION (both native and container modes)
+    # =========================================================================
     (lib.mkIf cfg.enable {
-      # Core Plex service using NixOS built-in module
-      services.plex = {
-        enable = true;
-        package = cfg.package;
-        dataDir = cfg.dataDir;
-        openFirewall = false; # Prefer reverse proxy exposure
-        user = cfg.user;
-        group = cfg.group;
-        accelerationDevices = cfg.accelerationDevices;
-      };
+      # Set journalUnit dynamically based on deployment mode for log shipping
+      modules.services.plex.logging.journalUnit = lib.mkIf (cfg.logging != null && cfg.logging.enable) (
+        lib.mkDefault mainServiceUnit
+      );
 
       # Auto-register with Caddy reverse proxy if enabled
       modules.services.caddy.virtualHosts.plex = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
@@ -289,15 +443,36 @@ in
         auth = cfg.reverseProxy.auth;
         security = cfg.reverseProxy.security;
 
-        # Caddy-specific headers for Plex compatibility
+        # Plex-specific reverse_proxy block directives
+        # Best practices: https://caddyserver.com/docs/caddyfile/directives/reverse_proxy
+        reverseProxyBlock = ''
+          # Forward client IP for Plex remote access and geo-location
+          header_up X-Real-IP {remote_host}
+          header_up X-Forwarded-For {remote_host}
+          header_up X-Forwarded-Proto {scheme}
+
+          # Streaming optimization: disable buffering for immediate media delivery
+          # -1 = low-latency mode: flush immediately after each write, don't cancel on client disconnect
+          flush_interval -1
+
+          # Large buffer for high-bitrate 4K/HDR streaming bursts
+          # Default is too small for media; 8MB handles transcoded chunks efficiently
+          transport http {
+            response_header_timeout 0
+            read_timeout 0
+            write_timeout 0
+          }
+        '';
+
+        # Site-level Caddy directives
         extraConfig = lib.concatStringsSep "\n" [
-          # Enable gzip for static assets (safe at site level)
+          # Enable gzip for static web assets (Caddy automatically skips compressed media)
           "encode gzip"
         ]
         + (if (cfg.reverseProxy.extraConfig or "") != "" then "\n" + cfg.reverseProxy.extraConfig else "");
       };
 
-      # ZFS dataset auto-registration
+      # ZFS dataset auto-registration (shared between both modes)
       # Permissions must be set explicitly for ZFS mounts (StateDirectory doesn't apply to pre-mounted directories)
       modules.storage.datasets.services.plex = lib.mkIf (cfg.zfs.dataset != null) {
         recordsize = cfg.zfs.recordsize;
@@ -305,13 +480,12 @@ in
         mountpoint = cfg.dataDir;
         properties = cfg.zfs.properties;
         # Explicit permissions for ZFS-mounted datasets
-        # StateDirectory only works for directories created by systemd, not pre-existing mounts
         owner = cfg.user;
         group = cfg.group;
         mode = "0750"; # rwxr-x--- allows backup user (group member) to read
       };
 
-      # Backup auto-registration
+      # Backup auto-registration (shared between both modes)
       modules.backup.restic.jobs.plex = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
         enable = true;
         repository = cfg.backup.repository;
@@ -325,10 +499,7 @@ in
         };
       };
 
-      # Firewall configuration
-      # By default, only localhost access (for reverse proxy)
-      # With openFirewall: direct LAN access to main port
-      # With openFirewallDiscovery: DLNA, GDM, and Bonjour discovery
+      # Firewall configuration (shared between both modes)
       networking.firewall = lib.mkMerge [
         # Always allow localhost access (for Caddy reverse proxy)
         {
@@ -354,12 +525,59 @@ in
         })
       ];
 
+      # Create /transcode directory for Plex transcoding (both modes)
+      systemd.tmpfiles.rules = [
+        "d /transcode 0755 ${cfg.user} ${cfg.group} - -"
+      ];
+
+      # Automatically set mediaDir from the NFS mount configuration if specified
+      modules.services.plex.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
+
+      # Validations (shared)
+      assertions = [
+        {
+          assertion = (cfg.accelerationDevices == [ ]) || (config.hardware.graphics.enable or false);
+          message = "Hardware acceleration requires hardware.graphics.enable = true";
+        }
+        {
+          assertion = cfg.monitoring.prometheus.enable -> (config.services.prometheus.exporters.node.enable or false);
+          message = "Prometheus metrics export requires Node Exporter to be enabled";
+        }
+        {
+          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
+          message = "Plex preseed.enable requires preseed.repositoryUrl to be set.";
+        }
+        {
+          assertion = cfg.preseed.enable -> (cfg.preseed.passwordFile != null);
+          message = "Plex preseed.enable requires preseed.passwordFile to be set.";
+        }
+        # Container mode validations
+        {
+          assertion = isContainerMode -> (nfsMountName == null || nfsMountConfig != null);
+          message = "Plex nfsMountDependency '${toString nfsMountName}' does not exist in modules.storage.nfsMounts.";
+        }
+      ];
+    })
+
+    # =========================================================================
+    # NATIVE MODE CONFIGURATION
+    # =========================================================================
+    (lib.mkIf (cfg.enable && isNativeMode) {
+      # Core Plex service using NixOS built-in module
+      services.plex = {
+        enable = true;
+        package = cfg.package;
+        dataDir = cfg.dataDir;
+        openFirewall = false; # Prefer reverse proxy exposure
+        user = cfg.user;
+        group = cfg.group;
+        accelerationDevices = cfg.accelerationDevices;
+      };
+
       # Optional systemd resource limits and file creation permissions
       systemd.services.plex.serviceConfig = lib.mkMerge [
         # File creation permissions: UMask 0027 ensures files created by service are 640 (rw-r-----)
         # This allows restic-backup user (member of plex group) to read data
-        # Note: Directory ownership is managed by tmpfiles for ZFS-mounted datasets,
-        # since StateDirectory only works for directories created by systemd.
         {
           StateDirectory = "plex";
           StateDirectoryMode = "0750";
@@ -386,19 +604,18 @@ in
         })
       ];
 
-      # Fix VA-API library mismatch: avoid injecting system libva into Plex FHS runtime
-      # Override upstream LD_LIBRARY_PATH and point only to driver directory; set LIBVA envs
+      # WORKAROUND (2025-12-31): VA-API library mismatch in native mode
+      # The NixOS system libva is built with glibc 2.38+ which has __isoc23_sscanf symbol
+      # not available in Plex's bundled FHS glibc. This breaks hardware transcoding.
+      # Upstream: https://github.com/NixOS/nixpkgs/issues/468070
+      # Only expose the driver directory to avoid loading incompatible libva.so
       systemd.services.plex.environment = {
         LD_LIBRARY_PATH = lib.mkForce "/run/opengl-driver/lib/dri";
         LIBVA_DRIVER_NAME = config.modules.common.intelDri.driver or "iHD";
         LIBVA_DRIVERS_PATH = "/run/opengl-driver/lib/dri";
       };
 
-      # Note: ownership/mode handled by storage module tmpfiles after mount
-
-      # Ensure Plex waits for its dataDir mount (prevents race on ZFS mounts) - merged above
-
-      # Healthcheck service exporting Prometheus textfile metrics
+      # Healthcheck service exporting Prometheus textfile metrics (native mode)
       systemd.services.plex-healthcheck = lib.mkIf cfg.monitoring.enable {
         description = "Plex healthcheck exporter";
         after = [ "plex.service" ];
@@ -449,41 +666,180 @@ in
         };
       };
 
-
       # Ensure plex user can read shared media group mounts, access GPU, and write metrics
       users.users.plex.extraGroups = lib.mkIf (config.users.users ? plex) (
         [ "media" "node-exporter" ]
         ++ lib.optionals (cfg.accelerationDevices != [ ]) [ "render" ]
       );
-
-      # Validations
-      assertions = [
-        {
-          assertion = (cfg.accelerationDevices == [ ]) || (config.hardware.graphics.enable or false);
-          message = "Hardware acceleration requires hardware.graphics.enable = true";
-        }
-        {
-          assertion = cfg.monitoring.prometheus.enable -> (config.services.prometheus.exporters.node.enable or false);
-          message = "Prometheus metrics export requires Node Exporter to be enabled";
-        }
-        {
-          assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
-          message = "Plex preseed.enable requires preseed.repositoryUrl to be set.";
-        }
-        {
-          assertion = cfg.preseed.enable -> (cfg.preseed.passwordFile != null);
-          message = "Plex preseed.enable requires preseed.passwordFile to be set.";
-        }
-      ];
     })
 
-    # Add the preseed service itself
+    # =========================================================================
+    # CONTAINER MODE CONFIGURATION
+    # =========================================================================
+    (lib.mkIf (cfg.enable && isContainerMode) {
+      # Create local user to match container UID for file ownership
+      users.users.${cfg.user} = {
+        uid = lib.mkDefault 65534; # nobody in container
+        group = cfg.group;
+        isSystemUser = true;
+        description = "Plex service user (container mode)";
+        extraGroups = [ "media" "render" "video" ];
+      };
+
+      users.groups.${cfg.group} = lib.mkIf (cfg.group != "media") {
+        gid = lib.mkDefault 65534;
+      };
+
+      # Plex container using home-operations image
+      virtualisation.oci-containers.containers.plex = podmanLib.mkContainer "plex" {
+        image = cfg.container.image;
+
+        environment = lib.filterAttrs (_: v: v != null) ({
+          TZ = cfg.container.timezone;
+          # Plex claim token for initial setup
+          PLEX_CLAIM_TOKEN = cfg.container.claimToken;
+          # Advertise URL for external access
+          PLEX_ADVERTISE_URL = cfg.container.advertiseUrl;
+          # Allowed networks (no auth required)
+          PLEX_NO_AUTH_NETWORKS =
+            if cfg.container.allowedNetworks != [ ]
+            then lib.concatStringsSep "," cfg.container.allowedNetworks
+            else null;
+          # Purge codecs on startup
+          PLEX_PURGE_CODECS = if cfg.container.purgeCodecs then "true" else null;
+        } // (lib.listToAttrs (lib.imap1
+          (i: pref:
+            lib.nameValuePair "PLEX_PREFERENCE_${toString i}" "${pref.name}=${pref.value}"
+          )
+          (lib.mapAttrsToList (name: value: { inherit name value; }) cfg.container.preferences))));
+
+        volumes = [
+          # Config directory - home-operations uses /config which maps to
+          # /config/Library/Application Support/Plex Media Server internally
+          "${cfg.dataDir}:/config:rw"
+          # Transcode directory
+          "/transcode:/transcode:rw"
+          # Media library (if configured)
+        ] ++ lib.optional (nfsMountConfig != null || cfg.mediaDir != "/mnt/media") "${cfg.mediaDir}:/data:ro";
+
+        ports = [
+          "${toString cfg.port}:32400"
+        ];
+
+        resources = cfg.container.resources;
+
+        extraOptions = [
+          "--pull=newer"
+          # GPU passthrough for hardware transcoding (VA-API)
+          # This is the main reason to use container mode - it works!
+        ] ++ lib.optionals (cfg.accelerationDevices != [ ]) (
+          lib.concatMap (dev: [ "--device=${dev}:${dev}" ]) cfg.accelerationDevices
+        ) ++ lib.optionals (cfg.accelerationDevices != [ ]) [
+          # Add video and render groups for GPU access
+          "--group-add=video"
+          "--group-add=render"
+        ] ++ lib.optionals (cfg.container.healthcheck != null && cfg.container.healthcheck.enable) [
+          # Health check using Plex web interface
+          ''--health-cmd=curl -fsS http://127.0.0.1:32400/web/index.html >/dev/null''
+          "--health-interval=${cfg.container.healthcheck.interval}"
+          "--health-timeout=${cfg.container.healthcheck.timeout}"
+          "--health-retries=${toString cfg.container.healthcheck.retries}"
+          "--health-start-period=${cfg.container.healthcheck.startPeriod}"
+          "--health-on-failure=${cfg.container.healthcheck.onFailure}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
+        ];
+      };
+
+      # Systemd service dependencies for container
+      systemd.services."${config.virtualisation.oci-containers.backend}-plex" = lib.mkMerge [
+        # Podman network dependency
+        (lib.mkIf (cfg.podmanNetwork != null) {
+          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        })
+        # NFS mount dependency
+        (lib.mkIf (nfsMountConfig != null) {
+          requires = [ nfsMountConfig.mountUnitName ];
+          after = [ nfsMountConfig.mountUnitName ];
+        })
+        # ZFS mount dependency
+        (lib.mkIf (cfg.zfs.dataset != null) {
+          unitConfig = {
+            RequiresMountsFor = [ cfg.dataDir ];
+            After = [ "zfs-mount.service" "zfs-service-datasets.service" ];
+          };
+        })
+        # Preseed dependency
+        (lib.mkIf cfg.preseed.enable {
+          wants = [ "preseed-plex.service" ];
+          after = [ "preseed-plex.service" ];
+        })
+        # Failure notifications
+        (lib.mkIf (config.modules.notifications.enable or false) {
+          unitConfig.OnFailure = [ "notify@plex-failure:%n.service" ];
+        })
+      ];
+
+      # Healthcheck service for container mode (Prometheus textfile metrics)
+      systemd.services.plex-healthcheck = lib.mkIf cfg.monitoring.enable {
+        description = "Plex healthcheck exporter (container mode)";
+        after = [ containerServiceUnit ];
+        requires = [ containerServiceUnit ];
+        path = with pkgs; [ curl coreutils ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = cfg.user;
+          Group = cfg.group;
+          PrivateTmp = true;
+          ProtectSystem = "strict";
+          NoNewPrivileges = true;
+          ReadWritePaths = lib.mkIf cfg.monitoring.prometheus.enable [ cfg.monitoring.prometheus.metricsDir ];
+        };
+        script = ''
+                  set -euo pipefail
+                  METRICS_DIR=${cfg.monitoring.prometheus.metricsDir}
+                  METRICS_FILE="$METRICS_DIR/plex.prom"
+                  TMP="$METRICS_FILE.tmp"
+
+                  STATUS=0
+                  if curl -fsS -m 10 "${cfg.monitoring.endpoint}" >/dev/null; then
+                    STATUS=1
+                  fi
+
+                  TS=$(date +%s)
+                  mkdir -p "$METRICS_DIR"
+                  cat > "$TMP" <<EOF
+          # HELP plex_up Plex health status (1=up, 0=down)
+          # TYPE plex_up gauge
+          plex_up{hostname="${config.networking.hostName}"} $STATUS
+
+          # HELP plex_last_check_timestamp Last healthcheck timestamp
+          # TYPE plex_last_check_timestamp gauge
+          plex_last_check_timestamp{hostname="${config.networking.hostName}"} $TS
+          EOF
+                  mv "$TMP" "$METRICS_FILE"
+        '';
+      };
+
+      systemd.timers.plex-healthcheck = lib.mkIf cfg.monitoring.enable {
+        description = "Timer for Plex healthcheck (container mode)";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = cfg.monitoring.interval;
+          Persistent = true;
+          RandomizedDelaySec = "30s";
+        };
+      };
+    })
+
+    # Add the preseed service itself (works for both native and container modes)
     (lib.mkIf (cfg.enable && cfg.preseed.enable) (
       storageHelpers.mkPreseedService {
         serviceName = "plex";
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
-        mainServiceUnit = "plex.service";
+        mainServiceUnit = mainServiceUnit; # Dynamic based on deployment mode
         replicationCfg = replicationConfig;
         datasetProperties = {
           recordsize = cfg.zfs.recordsize;
