@@ -37,6 +37,7 @@ in
         # Firewall rules for LAN integrations
         homekit.openFirewall = true; # HomeKit bridge ports 21063-21068
         sonos.openFirewall = true; # Sonos callback port 1400
+        weatherflow.openFirewall = true; # WeatherFlow Tempest UDP port 50222
 
         reverseProxy = {
           enable = true;

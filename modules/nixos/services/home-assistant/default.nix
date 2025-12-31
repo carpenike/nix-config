@@ -230,6 +230,20 @@ in
         '';
       };
     };
+
+    weatherflow = {
+      openFirewall = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Whether to open firewall ports for WeatherFlow Tempest integration.
+
+          Opens UDP port 50222 which the WeatherFlow Tempest hub uses to
+          broadcast weather data on the local network. Required for the
+          local-only WeatherFlow integration to receive real-time updates.
+        '';
+      };
+    };
   };
 
   config = mkMerge [
@@ -364,6 +378,10 @@ in
         lib.optional cfg.openFirewall cfg.port
         ++ lib.optionals cfg.homekit.openFirewall (lib.range cfg.homekit.startPort cfg.homekit.endPort)
         ++ lib.optional cfg.sonos.openFirewall 1400;
+
+      # UDP ports for IoT integrations
+      networking.firewall.allowedUDPPorts =
+        lib.optional cfg.weatherflow.openFirewall 50222;
 
       modules.notifications.templates = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
         "home-assistant-failure" = {
