@@ -164,7 +164,7 @@ in
         type = lib.types.package;
         default = pkgs.fetchzip {
           url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.31.2/vuetorrent.zip";
-          hash = "sha256-4QJyTV6gDN/jZeG5108Ssuxpd4B/1cC7+V78SHU1xVk=";
+          hash = "sha256-Z766fpjcZw4tfJwE1FoNJ/ykDWEFEESqD2zAQXI7tSM=";
           stripRoot = false;
         };
         description = ''
