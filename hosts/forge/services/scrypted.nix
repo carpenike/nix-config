@@ -71,11 +71,11 @@ in
 
         # Resource limits - previous 1536M caused repeated OOM kills (95+ kills in Dec 2025)
         # Object detection plugins (TensorFlow/OpenCV) spike to 800MB+ per python subprocess
-        # Combined with node.js runtime, 3GB provides adequate headroom
-        # Updated 2025-12-31: Increased from 2560M to 3072M (90% usage triggered alert)
+        # Combined with node.js runtime, 4GB provides adequate headroom
+        # Updated 2025-12-31: Increased from 2560M to 4096M (sustained high usage)
         resources = {
-          memory = "3072M";
-          memoryReservation = "1536M";
+          memory = "4096M";
+          memoryReservation = "2048M";
           cpus = "4.0";
         };
 
