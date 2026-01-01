@@ -208,6 +208,7 @@ in
             adb-shell
             pywaze
             caldav
+            vobject # CalDAV iCal parsing (required by caldav integration)
             pyatv
             radios
             kegtron-ble
