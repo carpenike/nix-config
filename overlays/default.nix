@@ -85,6 +85,22 @@
               langchain-community = pyPrev.langchain-community.overridePythonAttrs (_old: {
                 doCheck = false;
               });
+
+              # WORKAROUND (2025-01-01): extract-msg beautifulsoup4 version constraint too strict
+              # Package requires beautifulsoup4<4.14 but nixpkgs has 4.14.3
+              # Affects: open-webui (indirect dependency)
+              # Check: When extract-msg is updated to allow newer beautifulsoup4
+              extract-msg = pyPrev.extract-msg.overridePythonAttrs (old: {
+                dependencies = builtins.filter (dep: !(prev.lib.hasPrefix "beautifulsoup4" (dep.pname or ""))) (old.dependencies or [ ]) ++ [ pyPrev.beautifulsoup4 ];
+              });
+
+              # WORKAROUND (2025-01-01): weatherflow4py marshmallow version constraint too strict
+              # Package requires marshmallow<4.0.0 but nixpkgs has 4.1.0
+              # Affects: home-assistant
+              # Check: When weatherflow4py is updated to allow newer marshmallow
+              weatherflow4py = pyPrev.weatherflow4py.overridePythonAttrs (old: {
+                dependencies = builtins.filter (dep: !(prev.lib.hasPrefix "marshmallow" (dep.pname or ""))) (old.dependencies or [ ]) ++ [ pyPrev.marshmallow ];
+              });
             })
           ];
         })
@@ -145,6 +161,14 @@
         # Check: When extract-msg is updated to allow newer beautifulsoup4
         extract-msg = pyPrev.extract-msg.overridePythonAttrs (old: {
           dependencies = builtins.filter (dep: !(prev.lib.hasPrefix "beautifulsoup4" (dep.pname or ""))) (old.dependencies or [ ]) ++ [ pyPrev.beautifulsoup4 ];
+        });
+
+        # WORKAROUND (2025-01-01): weatherflow4py marshmallow version constraint too strict
+        # Package requires marshmallow<4.0.0 but nixpkgs has 4.1.0
+        # Affects: home-assistant
+        # Check: When weatherflow4py is updated to allow newer marshmallow
+        weatherflow4py = pyPrev.weatherflow4py.overridePythonAttrs (old: {
+          dependencies = builtins.filter (dep: !(prev.lib.hasPrefix "marshmallow" (dep.pname or ""))) (old.dependencies or [ ]) ++ [ pyPrev.marshmallow ];
         });
       })
     ];
