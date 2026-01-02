@@ -223,6 +223,13 @@ in
         assertion = nfsMountName == null || nfsMountConfig != null;
         message = "Pinchflat nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
       }
+      {
+        assertion = config.users.groups ? media;
+        message = ''
+          Pinchflat requires the 'media' group but it is not defined.
+          Enable modules.users.sharedGroups.enable = true on this host.
+        '';
+      }
     ];
 
     # Enable the native NixOS Pinchflat service
@@ -254,11 +261,6 @@ in
       extraGroups = lib.optionals (cfg.group != "media") [ "media" ];
       home = "/var/empty";
       description = "Pinchflat YouTube media manager service user";
-    };
-
-    # Ensure media group exists (shared with other media services)
-    users.groups.media = {
-      gid = lib.mkDefault 65537; # Shared media group
     };
 
     # Override systemd service for ZFS and NFS dependencies

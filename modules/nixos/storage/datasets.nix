@@ -216,11 +216,13 @@ in
 
   config = lib.mkIf cfg.enable {
     # Create datasets via systemd service
-    # This runs after ZFS pool import (zfs-import.target) but before services need them
+    # This runs after ZFS pool import (zfs-import.target) and user creation (systemd-sysusers.service)
+    # but before services need them (local-fs.target)
     systemd.services.zfs-service-datasets = {
       description = "Create ZFS datasets for service isolation";
       wantedBy = [ "multi-user.target" ];
-      after = [ "zfs-import.target" ];
+      after = [ "zfs-import.target" "systemd-sysusers.service" ];
+      before = [ "local-fs.target" ];
 
       serviceConfig = {
         Type = "oneshot";
@@ -295,6 +297,13 @@ in
                 echo "Creating mount directory: ${mountpoint}"
                 mkdir -p "${mountpoint}"
               fi
+              ${lib.optionalString (datasetConfig.owner != "root" || datasetConfig.group != "root") ''
+              # Apply ownership immediately after directory creation
+              # This is authoritative - tmpfiles serves as backup layer only
+              echo "Setting ownership: ${datasetConfig.owner}:${datasetConfig.group} mode ${datasetConfig.mode}"
+              chown "${datasetConfig.owner}:${datasetConfig.group}" "${mountpoint}"
+              chmod "${datasetConfig.mode}" "${mountpoint}"
+              ''}
             ''}
 
             echo ""
@@ -359,6 +368,13 @@ in
                 echo "Creating mount directory: ${mountpoint}"
                 mkdir -p "${mountpoint}"
               fi
+              ${lib.optionalString (serviceConfig.owner != "root" || serviceConfig.group != "root") ''
+              # Apply ownership immediately after directory creation
+              # This is authoritative - tmpfiles serves as backup layer only
+              echo "Setting ownership: ${serviceConfig.owner}:${serviceConfig.group} mode ${serviceConfig.mode}"
+              chown "${serviceConfig.owner}:${serviceConfig.group}" "${mountpoint}"
+              chmod "${serviceConfig.mode}" "${mountpoint}"
+              ''}
             ''}
 
             echo ""
@@ -369,9 +385,16 @@ in
       '';
     };
 
-    # Generate tmpfiles rules to ensure directories exist
-    # For native systemd services: Permissions are managed by StateDirectoryMode
-    # For OCI containers: Permissions are managed via tmpfiles (they don't support StateDirectory)
+    # Generate tmpfiles rules as BACKUP layer for ownership
+    # Primary ownership is applied in zfs-service-datasets.service immediately after
+    # dataset creation. These tmpfiles rules serve as:
+    # 1. Safety net if zfs-service-datasets runs before sysusers (shouldn't happen with ordering)
+    # 2. Correction layer if permissions are manually changed
+    # 3. Documentation of intended ownership in NixOS configuration
+    #
+    # For native systemd services: StateDirectory may also manage permissions, but
+    # it cannot change ownership of pre-existing directories (like ZFS mountpoints).
+    # For OCI containers: They don't support StateDirectory, so tmpfiles is the backup.
     systemd.tmpfiles.rules = lib.flatten (
       # Service datasets
       (lib.mapAttrsToList
@@ -441,5 +464,38 @@ in
         message = "All service mountpoints must be absolute paths (starting with /), 'none', 'legacy', or null";
       }
     ];
+
+    # Warn about datasets with root ownership that have real mountpoints
+    # Root ownership is usually unintentional for service datasets
+    warnings =
+      let
+        # Service datasets with root owner and a real mountpoint
+        rootOwnedServices = lib.filterAttrs
+          (_name: cfg:
+            cfg.owner == "root" &&
+            cfg.mountpoint != null &&
+            cfg.mountpoint != "none" &&
+            cfg.mountpoint != "legacy"
+          )
+          cfg.services;
+
+        # Utility datasets with root owner and a real mountpoint
+        rootOwnedUtility = lib.filterAttrs
+          (_name: cfg:
+            cfg.owner == "root" &&
+            cfg.mountpoint != "none" &&
+            cfg.mountpoint != "legacy"
+          )
+          cfg.utility;
+
+        serviceWarnings = lib.mapAttrsToList
+          (name: _: "ZFS dataset '${name}' has owner=root - this is usually unintentional. Set 'owner' to the service user.")
+          rootOwnedServices;
+
+        utilityWarnings = lib.mapAttrsToList
+          (name: _: "ZFS utility dataset '${name}' has owner=root with a real mountpoint - verify this is intentional.")
+          rootOwnedUtility;
+      in
+      serviceWarnings ++ utilityWarnings;
   };
 }

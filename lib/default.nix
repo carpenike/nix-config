@@ -57,4 +57,9 @@
   # Usage: storageHelpers = mylib.storageHelpers pkgs;
   # Functions: mkPreseedService, mkReplicationConfig, mkNfsMountConfig, etc.
   storageHelpers = pkgs: import ../modules/nixos/storage/helpers-lib.nix { inherit pkgs lib; };
+
+  # Service UID/GID Registry
+  # Centralized static UID/GID assignments for all service accounts
+  # Ensures consistent ownership across ZFS datasets, containers, and NFS shares
+  serviceUids = import ./service-uids.nix { };
 }

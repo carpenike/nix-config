@@ -32,11 +32,9 @@ in
     gid = 1000;
   };
 
-  # Shared media group for *arr services and download clients
-  # GID 65537 (993 was taken by alertmanager)
-  users.groups.media = {
-    gid = 65537;
-  };
+  # Enable shared service groups (media, etc.) from centralized module
+  # This replaces the inline users.groups.media definition
+  modules.users.sharedGroups.enable = true;
 
   # Add postgres user to restic-backup group for R2 secret access
   # and node-exporter group for metrics file write access
