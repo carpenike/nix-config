@@ -130,7 +130,8 @@ let
     in
     mapAttrs (_: transforms: concatStrings (unique transforms)) (foldl' accumulate { } (attrValues cfg.virtualHosts));
 
-  securityBlock =
+  # Generates the global options block containing server settings, security config, etc.
+  globalOptionsBlock =
     let
       sec = cfg.security;
 
@@ -240,20 +241,21 @@ let
         if cfg.bindAddresses != [ ] then
           "  default_bind ${concatStringsSep " " cfg.bindAddresses}\n\n"
         else "";
-      # Generate trusted_proxies directive for proper X-Forwarded-For handling
-      trustedProxiesLine =
+      # Generate servers block with trusted_proxies for proper X-Forwarded-For handling
+      # trusted_proxies must be inside a servers block, not at the global level
+      serversBlock =
         if cfg.trustedProxies != [ ] then
-          "  trusted_proxies ${concatStringsSep " " cfg.trustedProxies}\n\n"
+          "  servers {\n    trusted_proxies static ${concatStringsSep " " cfg.trustedProxies}\n  }\n\n"
         else "";
     in
     if sec.enable then ''
       {
-      ${orderLine}${defaultBindLine}${trustedProxiesLine}  security {
+      ${orderLine}${defaultBindLine}${serversBlock}  security {
       ${securityBody}
         }
       }'' else if cfg.bindAddresses != [ ] || cfg.trustedProxies != [ ] then ''
       {
-      ${defaultBindLine}${trustedProxiesLine}}
+      ${defaultBindLine}${serversBlock}}
     '' else "";
 in
 {
@@ -1177,7 +1179,7 @@ in
               )
               cfg.virtualHosts);
           in
-          concatStringsSep "\n\n" (filter (s: s != "") ([ securityBlock ] ++ vhostConfigs));
+          concatStringsSep "\n\n" (filter (s: s != "") ([ globalOptionsBlock ] ++ vhostConfigs));
       in
       {
         enable = true;
