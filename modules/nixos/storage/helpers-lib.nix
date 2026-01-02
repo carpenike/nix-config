@@ -74,16 +74,22 @@
         ''}
       '';
     in
-    assert lib.assertMsg (filteredMethods != [ ])
-      (
-        "mkPreseedService for \"" + serviceName + "\" requires restoreMethods to include at least one supported method"
-      );
-    assert lib.assertMsg (order != [ ])
-      (
-        "mkPreseedService for \"" + serviceName
-        + "\" includes \"restic\" without configured repository/password; either configure Restic or remove it from restoreMethods"
-      );
     {
+      # Use NixOS module assertions instead of top-level asserts to avoid
+      # infinite recursion when this helper is called from within mkIf blocks.
+      # Top-level asserts are evaluated eagerly at function call time, but
+      # NixOS assertions are deferred until config evaluation.
+      assertions = [
+        {
+          assertion = filteredMethods != [ ];
+          message = "mkPreseedService for \"${serviceName}\" requires restoreMethods to include at least one supported method";
+        }
+        {
+          assertion = order != [ ];
+          message = "mkPreseedService for \"${serviceName}\" includes \"restic\" without configured repository/password; either configure Restic or remove it from restoreMethods";
+        }
+      ];
+
       systemd.services."preseed-${serviceName}" = {
         description = "Pre-seed data for ${serviceName} service";
         # Aggregate under storage-preseed target for clearer boot phase orchestration

@@ -9,6 +9,7 @@
     ./impermanence.nix
     ./nix.nix
     ./users.nix
+    ./shared-groups.nix # Shared service groups (media, etc.)
     ./systemd.nix
     ./filesystems
     ./hardware
