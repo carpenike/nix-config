@@ -44,7 +44,8 @@
           ctranslate2 = prev.ctranslate2.overrideAttrs (old: {
             postPatch = (old.postPatch or "") + ''
               # Add missing #include <cstdint> to cxxopts.hpp for C++20 compatibility
-              sed -i '/#include <optional>/a #include <cstdint>' third_party/cxxopts/include/cxxopts.hpp
+              # Insert after the #ifndef guard and before other includes
+              sed -i '/#ifndef CXXOPTS_HPP_INCLUDED/a #include <cstdint>' third_party/cxxopts/include/cxxopts.hpp
             '';
           });
 
@@ -74,6 +75,14 @@
               # Upstream: https://github.com/Mause/duckdb_engine/issues/XXX
               # Check: When duckdb-engine >= 0.18.0 or test suite is fixed
               duckdb-engine = pyPrev.duckdb-engine.overridePythonAttrs (_old: {
+                doCheck = false;
+              });
+
+              # WORKAROUND (2025-01-01): langchain-community tests require network access
+              # Tests try to connect to api.smith.langchain.com which fails in Nix sandbox
+              # Affects: open-webui
+              # Check: When langchain-community tests are fixed to not require network
+              langchain-community = pyPrev.langchain-community.overridePythonAttrs (_old: {
                 doCheck = false;
               });
             })
@@ -119,6 +128,14 @@
         # Affects: open-webui (via langchain-community)
         # Check: When duckdb-engine >= 0.18.0 or test suite is fixed
         duckdb-engine = pyPrev.duckdb-engine.overridePythonAttrs (_old: {
+          doCheck = false;
+        });
+
+        # WORKAROUND (2025-01-01): langchain-community tests require network access
+        # Tests try to connect to api.smith.langchain.com which fails in Nix sandbox
+        # Affects: open-webui
+        # Check: When langchain-community tests are fixed to not require network
+        langchain-community = pyPrev.langchain-community.overridePythonAttrs (_old: {
           doCheck = false;
         });
 
