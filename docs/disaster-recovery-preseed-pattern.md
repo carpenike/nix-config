@@ -220,8 +220,8 @@ in {
 
     # Preseed service generation
     (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      let
-        preseedService = helpers-lib.mkPreseedService {
+      lib.mkMerge [
+        helpers-lib.mkPreseedService {
           serviceName = "servicename";
           dataset = datasetPath;
           mountpoint = cfg.mountpoint;
@@ -236,18 +236,16 @@ in {
           hasCentralizedNotifications = config.modules.notifications.enable or false;
           owner = "servicename";
           group = "servicename";
-        };
-      in {
-        systemd.services = preseedService.systemd.services;
+        }
 
-        # Add preseed dependency to main service
-        systemd.services.servicename = {
-          after = [ "preseed-servicename.service" ];
-          wants = [ "preseed-servicename.service" ];
-        };
-
-        assertions = preseedService.assertions;
-      }
+        # Add preseed dependency to the main service unit
+        {
+          systemd.services.servicename = {
+            after = [ "preseed-servicename.service" ];
+            wants = [ "preseed-servicename.service" ];
+          };
+        }
+      ]
     ))
   ];
 }
@@ -304,6 +302,8 @@ The `mkPreseedService` helper function accepts:
 | `hasCentralizedNotifications` | bool | Whether to send notifications |
 | `owner` | string | Dataset owner user |
 | `group` | string | Dataset owner group |
+
+> 💡 `mkPreseedService` automatically emits Prometheus textfile metrics (`zfs_preseed_*`) and, when `hasCentralizedNotifications = true`, uses the shared `notify@` infrastructure to announce successes or failures.
 
 ## Service Coverage
 

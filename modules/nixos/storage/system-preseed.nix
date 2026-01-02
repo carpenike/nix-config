@@ -29,7 +29,7 @@ in
         resticPasswordFile = null;
         resticEnvironmentFile = null;
         resticPaths = [ "/persist" ];
-        restoreMethods = [ "syncoid" "local" "restic" ];
+        restoreMethods = [ "syncoid" "local" ];
         hasCentralizedNotifications = false;
         owner = "root";
         group = "root";
@@ -48,7 +48,7 @@ in
         resticPasswordFile = null;
         resticEnvironmentFile = null;
         resticPaths = [ "/home" ];
-        restoreMethods = [ "syncoid" "local" "restic" ];
+        restoreMethods = [ "syncoid" "local" ];
         hasCentralizedNotifications = false;
         owner = "root";
         group = "root";

@@ -55,7 +55,12 @@
       # Validate and normalize restore methods list
       validMethods = [ "syncoid" "local" "restic" ];
       orderRaw = lib.unique restoreMethods;
-      order = builtins.filter (m: lib.elem m validMethods) orderRaw;
+      resticConfigured =
+        resticRepoUrl != null && resticRepoUrl != ""
+        && resticPasswordFile != null && resticPasswordFile != "";
+      filteredMethods = builtins.filter (m: lib.elem m validMethods) orderRaw;
+      order = builtins.filter (m: m != "restic" || resticConfigured) filteredMethods;
+      resticConfiguredFlag = if resticConfigured then "true" else "false";
 
       # Method enable checks are computed inline in script; remove unused bindings
 
@@ -69,6 +74,15 @@
         ''}
       '';
     in
+    assert lib.assertMsg (filteredMethods != [ ])
+      (
+        "mkPreseedService for \"" + serviceName + "\" requires restoreMethods to include at least one supported method"
+      );
+    assert lib.assertMsg (order != [ ])
+      (
+        "mkPreseedService for \"" + serviceName
+        + "\" includes \"restic\" without configured repository/password; either configure Restic or remove it from restoreMethods"
+      );
     {
       systemd.services."preseed-${serviceName}" = {
         description = "Pre-seed data for ${serviceName} service";
@@ -394,6 +408,10 @@
 
                   # Restore method: Restic backup restore (with retry)
                   restore_restic() {
+                    if [ "${resticConfiguredFlag}" != "true" ]; then
+                      echo "Restic restore not configured for ${serviceName}; skipping."
+                      return 1
+                    fi
                     echo "restore_method=restic" >> "$PROGRESS_MARKER"
                     echo "Attempting Restic restore from repository '${resticRepoUrl}'..."
 
