@@ -17,5 +17,7 @@ pkgs.caddy.withPlugins {
     # renovate: depName=github.com/greenpau/caddy-security datasource=go
     "github.com/greenpau/caddy-security@v1.1.31"
   ];
-  hash = "sha256-jVL3AR0EzAg35M+U5dCdcUNFPgLNOsmzUmzqqttVZwk=";
+  # WORKAROUND (2025-01-01): Hash updated after plugin version changes
+  # Run `nix build .#caddy` with lib.fakeHash to get new hash when plugins update
+  hash = "sha256-YEQyOoO9bWascA99l8PAxdTQ6XHYkpPsVdi0+SQfwZo=";
 }

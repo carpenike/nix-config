@@ -36,6 +36,18 @@
             '';
           });
 
+          # WORKAROUND (2025-01-01): ctranslate2 missing #include <cstdint> in cxxopts.hpp
+          # C++20/GCC 14 requires explicit cstdint include for uint8_t
+          # Affects: open-webui (via faster-whisper -> ctranslate2)
+          # Upstream: https://github.com/OpenNMT/CTranslate2/issues/XXX
+          # Check: When ctranslate2 >= 4.7.0 or upstream fixes cxxopts
+          ctranslate2 = prev.ctranslate2.overrideAttrs (old: {
+            postPatch = (old.postPatch or "") + ''
+              # Add missing #include <cstdint> to cxxopts.hpp for C++20 compatibility
+              sed -i '/#include <optional>/a #include <cstdint>' third_party/cxxopts/include/cxxopts.hpp
+            '';
+          });
+
           pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
             (_pyFinal: pyPrev: {
               # WORKAROUND (2025-12-19): aio-georss-client test failure with Python 3.13
@@ -55,6 +67,15 @@
                   "tests/test_https.py"
                 ];
               });
+
+              # WORKAROUND (2025-01-01): duckdb-engine tests fail with pg_collation error
+              # Tests use SQLAlchemy reflection that queries pg_collation which doesn't exist in DuckDB
+              # Affects: open-webui (via langchain-community)
+              # Upstream: https://github.com/Mause/duckdb_engine/issues/XXX
+              # Check: When duckdb-engine >= 0.18.0 or test suite is fixed
+              duckdb-engine = pyPrev.duckdb-engine.overridePythonAttrs (_old: {
+                doCheck = false;
+              });
             })
           ];
         })
@@ -69,17 +90,44 @@
     # See pkgs/caddy-custom.nix for plugin configuration and hash updates
     caddy = import ../pkgs/caddy-custom.nix { pkgs = final.unstable; };
 
-    # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
-    # Tests use self-signed certs that fail SSL verification during build
-    # Affects: paperless-ngx (uses granian as ASGI server)
-    # Check: When granian is updated in stable nixpkgs
-    # See: docs/workarounds.md for full tracking
+    # WORKAROUND (2025-01-01): ctranslate2 missing #include <cstdint> in cxxopts.hpp
+    # C++20/GCC 14 requires explicit cstdint include for uint8_t
+    # Affects: open-webui (via faster-whisper -> ctranslate2)
+    # Check: When ctranslate2 >= 4.7.0 or upstream fixes cxxopts
+    ctranslate2 = prev.ctranslate2.overrideAttrs (old: {
+      postPatch = (old.postPatch or "") + ''
+        # Add missing #include <cstdint> to cxxopts.hpp for C++20 compatibility
+        sed -i '/#include <optional>/a #include <cstdint>' third_party/cxxopts/include/cxxopts.hpp
+      '';
+    });
+
     pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
       (_pyFinal: pyPrev: {
+        # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
+        # Tests use self-signed certs that fail SSL verification during build
+        # Affects: paperless-ngx (uses granian as ASGI server)
+        # Check: When granian is updated in stable nixpkgs
+        # See: docs/workarounds.md for full tracking
         granian = pyPrev.granian.overridePythonAttrs (old: {
           disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [
             "tests/test_https.py"
           ];
+        });
+
+        # WORKAROUND (2025-01-01): duckdb-engine tests fail with pg_collation error
+        # Tests use SQLAlchemy reflection that queries pg_collation which doesn't exist in DuckDB
+        # Affects: open-webui (via langchain-community)
+        # Check: When duckdb-engine >= 0.18.0 or test suite is fixed
+        duckdb-engine = pyPrev.duckdb-engine.overridePythonAttrs (_old: {
+          doCheck = false;
+        });
+
+        # WORKAROUND (2025-01-01): extract-msg beautifulsoup4 version constraint too strict
+        # Package requires beautifulsoup4<4.14 but nixpkgs has 4.14.3
+        # Affects: open-webui (indirect dependency)
+        # Check: When extract-msg is updated to allow newer beautifulsoup4
+        extract-msg = pyPrev.extract-msg.overridePythonAttrs (old: {
+          dependencies = builtins.filter (dep: !(prev.lib.hasPrefix "beautifulsoup4" (dep.pname or ""))) (old.dependencies or [ ]) ++ [ pyPrev.beautifulsoup4 ];
         });
       })
     ];
