@@ -240,15 +240,20 @@ let
         if cfg.bindAddresses != [ ] then
           "  default_bind ${concatStringsSep " " cfg.bindAddresses}\n\n"
         else "";
+      # Generate trusted_proxies directive for proper X-Forwarded-For handling
+      trustedProxiesLine =
+        if cfg.trustedProxies != [ ] then
+          "  trusted_proxies ${concatStringsSep " " cfg.trustedProxies}\n\n"
+        else "";
     in
     if sec.enable then ''
       {
-      ${orderLine}${defaultBindLine}  security {
+      ${orderLine}${defaultBindLine}${trustedProxiesLine}  security {
       ${securityBody}
         }
-      }'' else if cfg.bindAddresses != [ ] then ''
+      }'' else if cfg.bindAddresses != [ ] || cfg.trustedProxies != [ ] then ''
       {
-      ${defaultBindLine}}
+      ${defaultBindLine}${trustedProxiesLine}}
     '' else "";
 in
 {
@@ -282,6 +287,22 @@ in
 
         Use this to restrict Caddy to specific network interfaces, for example
         to prevent access from secondary VLANs.
+      '';
+    };
+
+    trustedProxies = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      example = [ "private_ranges" "192.168.1.0/24" ];
+      description = ''
+        List of trusted proxy IP ranges for X-Forwarded-For header processing.
+        When non-empty, generates a `trusted_proxies` directive in the global options.
+
+        Use "private_ranges" for RFC 1918 addresses (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+        plus loopback (127.0.0.0/8, ::1) and link-local (169.254.0.0/16, fe80::/10).
+
+        Without this, reverse-proxied services see the Caddy server IP instead of
+        the actual client IP in X-Forwarded-For headers.
       '';
     };
 

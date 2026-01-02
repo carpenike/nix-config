@@ -182,6 +182,9 @@ in
           # Bind only to main interface and localhost - prevents wireless clients on VLAN 30
           # from bypassing router ACLs by accessing Caddy directly via 10.30.0.30
           bindAddresses = [ "127.0.0.1" "10.20.0.30" ];
+          # Trust private network ranges for X-Forwarded-For header processing
+          # Ensures backend services see real client IPs instead of Caddy's IP
+          trustedProxies = [ "private_ranges" ];
         };
 
         # Media management services
