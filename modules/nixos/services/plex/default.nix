@@ -467,8 +467,13 @@ in
         # Best practices: https://caddyserver.com/docs/caddyfile/directives/reverse_proxy
         reverseProxyBlock = ''
           # Forward client IP for Plex remote access and geo-location
-          header_up X-Real-IP {remote_host}
-          header_up X-Forwarded-For {remote_host}
+          # Traffic flow:
+          # - External: Client → Cloudflare → cloudflared → Caddy → Plex
+          #   CF-Connecting-IP contains real client IP
+          # - LAN: Client → Caddy → Plex
+          #   No CF-Connecting-IP, remote_host is real client IP
+          header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+          header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
           header_up X-Forwarded-Proto {scheme}
 
           # Streaming optimization: disable buffering for immediate media delivery
