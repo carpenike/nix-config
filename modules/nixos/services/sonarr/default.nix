@@ -10,6 +10,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.sonarr;
 
   cfg = config.modules.services.sonarr;
   notificationsCfg = config.modules.notifications;
@@ -42,8 +44,8 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "568";
-      description = "User account under which Sonarr runs.";
+      default = toString serviceIds.uid;
+      description = "User account under which Sonarr runs (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {

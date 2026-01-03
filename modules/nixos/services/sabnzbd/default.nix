@@ -10,6 +10,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.sabnzbd;
 
   cfg = config.modules.services.sabnzbd;
   notificationsCfg = config.modules.notifications;
@@ -37,8 +39,8 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "916";
-      description = "User account under which SABnzbd runs.";
+      default = toString serviceIds.uid;
+      description = "User account under which SABnzbd runs (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {

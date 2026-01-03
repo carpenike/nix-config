@@ -10,6 +10,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.dispatcharr;
 
   cfg = config.modules.services.dispatcharr;
   notificationsCfg = config.modules.notifications;
@@ -158,14 +160,14 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "569";
-      description = "User ID to own the data directory (dispatcharr:dispatcharr in container)";
+      default = toString serviceIds.uid;
+      description = "User ID to own the data directory (from lib/service-uids.nix)";
     };
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "569";
-      description = "Group ID to own the data directory";
+      default = toString serviceIds.gid;
+      description = "Group ID to own the data directory (from lib/service-uids.nix)";
     };
 
     image = lib.mkOption {

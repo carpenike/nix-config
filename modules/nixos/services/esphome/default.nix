@@ -4,6 +4,8 @@ let
   sharedTypes = mylib.types;
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.esphome;
 
   cfg = config.modules.services.esphome;
   storageCfg = config.modules.storage;
@@ -50,11 +52,8 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 969;
-      description = ''
-        Static UID for the ESPHome user. Required for container mode to ensure
-        consistent file ownership on host volumes.
-      '';
+      default = serviceIds.uid;
+      description = "Static UID for the ESPHome user (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {
@@ -65,11 +64,8 @@ in
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 963;
-      description = ''
-        Static GID for the ESPHome group. Required for container mode to ensure
-        consistent file ownership on host volumes.
-      '';
+      default = serviceIds.gid;
+      description = "Static GID for the ESPHome group (from lib/service-uids.nix).";
     };
 
     image = lib.mkOption {

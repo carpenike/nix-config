@@ -28,6 +28,9 @@
 , ...
 }:
 let
+  # Service UID/GID from centralized registry
+  serviceIds = mylib.serviceUids.kometa;
+
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
@@ -807,6 +810,7 @@ in
       # =============================================================================
 
       users.users.kometa = {
+        uid = serviceIds.uid;
         isSystemUser = true;
         group = cfg.group;
         home = "/var/empty";

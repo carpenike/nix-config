@@ -3,6 +3,8 @@
 
 let
   cfg = config.modules.services.attic;
+  # Service UID/GID from centralized registry
+  serviceIds = mylib.serviceUids.attic;
   # Import shared type definitions
   sharedTypes = mylib.types;
   # Storage helpers via mylib injection (centralized import)
@@ -159,6 +161,7 @@ in
       });
       # Create attic user and group
       users.users.attic = {
+        uid = serviceIds.uid;
         description = "Attic binary cache server";
         group = "attic";
         home = cfg.dataDir;
@@ -166,7 +169,9 @@ in
         isSystemUser = true;
       };
 
-      users.groups.attic = { };
+      users.groups.attic = {
+        gid = serviceIds.gid;
+      };
 
       # Attic server configuration
       environment.etc."atticd/config.toml".text = ''

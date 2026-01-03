@@ -27,6 +27,8 @@
 let
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.pinchflat;
   cfg = config.modules.services.pinchflat;
   serviceName = "pinchflat";
 
@@ -79,8 +81,8 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 930;
-      description = "UID for pinchflat user (must be unique and consistent across hosts)";
+      default = serviceIds.uid;
+      description = "UID for pinchflat user (from lib/service-uids.nix)";
     };
 
     group = lib.mkOption {

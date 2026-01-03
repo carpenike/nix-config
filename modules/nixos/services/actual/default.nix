@@ -17,6 +17,8 @@
 let
   cfg = config.modules.services.actual;
   serviceName = "actual";
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.actual;
 
   # Import shared types for standard submodules
   sharedTypes = mylib.types;
@@ -40,14 +42,14 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 932;
-      description = "UID for Actual service user (stable for ZFS)";
+      default = serviceIds.uid;
+      description = "UID for Actual service user (from lib/service-uids.nix)";
     };
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 932;
-      description = "GID for Actual service group (stable for ZFS)";
+      default = serviceIds.gid;
+      description = "GID for Actual service group (from lib/service-uids.nix)";
     };
 
     dataDir = lib.mkOption {

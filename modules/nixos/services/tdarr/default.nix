@@ -10,6 +10,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.tdarr;
 
   # Only cfg is needed at top level for mkIf condition
   cfg = config.modules.services.tdarr;
@@ -44,8 +46,8 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "920";
-      description = "User account under which Tdarr runs.";
+      default = toString serviceIds.uid;
+      description = "User account under which Tdarr runs (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {

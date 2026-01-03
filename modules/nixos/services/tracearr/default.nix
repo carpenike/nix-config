@@ -25,6 +25,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.tracearr;
 
   cfg = config.modules.services.tracearr;
   notificationsCfg = config.modules.notifications;
@@ -76,8 +78,8 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 937;
-      description = "UID for the Tracearr service user";
+      default = serviceIds.uid;
+      description = "UID for the Tracearr service user (from lib/service-uids.nix)";
     };
 
     group = lib.mkOption {
@@ -88,8 +90,8 @@ in
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 937;
-      description = "GID for the Tracearr service group";
+      default = serviceIds.gid;
+      description = "GID for the Tracearr service group (from lib/service-uids.nix)";
     };
 
     timezone = lib.mkOption {

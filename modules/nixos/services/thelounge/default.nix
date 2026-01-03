@@ -22,6 +22,8 @@
 let
   cfg = config.modules.services.thelounge;
   serviceName = "thelounge";
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.thelounge;
 
   # Import shared types for standard submodules
   sharedTypes = mylib.types;
@@ -111,14 +113,14 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 931;
-      description = "UID for TheLounge service user (stable for ZFS)";
+      default = serviceIds.uid;
+      description = "UID for TheLounge service user (from lib/service-uids.nix)";
     };
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 931;
-      description = "GID for TheLounge service group (stable for ZFS)";
+      default = serviceIds.gid;
+      description = "GID for TheLounge service group (from lib/service-uids.nix)";
     };
 
     dataDir = lib.mkOption {

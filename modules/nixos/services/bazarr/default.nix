@@ -10,6 +10,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.bazarr;
 
   cfg = config.modules.services.bazarr;
   notificationsCfg = config.modules.notifications;
@@ -34,8 +36,8 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "914";
-      description = "User account under which Bazarr runs.";
+      default = toString serviceIds.uid;
+      description = "User account under which Bazarr runs (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {

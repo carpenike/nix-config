@@ -23,6 +23,11 @@ let
   cfg = config.modules.services.beszel;
   sharedTypes = mylib.types;
 
+  # Import UIDs from centralized registry
+  serviceIds = mylib.serviceUids;
+  hubIds = serviceIds.beszel;
+  agentIds = serviceIds.beszel-agent;
+
   # Hub configuration
   hubCfg = cfg.hub;
   hubServiceName = "beszel";
@@ -77,14 +82,14 @@ in
 
       uid = lib.mkOption {
         type = lib.types.int;
-        default = 934;
-        description = "UID for the Beszel service user";
+        default = hubIds.uid;
+        description = "UID for the Beszel service user (from lib/service-uids.nix)";
       };
 
       gid = lib.mkOption {
         type = lib.types.int;
-        default = 934;
-        description = "GID for the Beszel service group";
+        default = hubIds.gid;
+        description = "GID for the Beszel service group (from lib/service-uids.nix)";
       };
 
       # Environment configuration
@@ -211,14 +216,14 @@ in
 
       uid = lib.mkOption {
         type = lib.types.int;
-        default = 936;
-        description = "UID for the Beszel agent user";
+        default = agentIds.uid;
+        description = "UID for the Beszel agent user (from lib/service-uids.nix)";
       };
 
       gid = lib.mkOption {
         type = lib.types.int;
-        default = 936;
-        description = "GID for the Beszel agent group";
+        default = agentIds.gid;
+        description = "GID for the Beszel agent group (from lib/service-uids.nix)";
       };
 
       # Key can be provided via file or environment

@@ -18,6 +18,9 @@
 let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault;
 
+  # Service UID/GID from centralized registry
+  serviceIds = mylib.serviceUids.pgweb;
+
   # Import shared type definitions
   sharedTypes = mylib.types;
 
@@ -168,12 +171,15 @@ in
 
       # Create system user and group
       users.users.pgweb = {
+        uid = serviceIds.uid;
         isSystemUser = true;
         group = "pgweb";
         description = "Pgweb service user";
       };
 
-      users.groups.pgweb = { };
+      users.groups.pgweb = {
+        gid = serviceIds.gid;
+      };
 
       # Allow pgweb user to read password file if specified
       systemd.services.pgweb.serviceConfig.LoadCredential =

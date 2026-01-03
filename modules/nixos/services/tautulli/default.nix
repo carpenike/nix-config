@@ -25,6 +25,9 @@
 let
   inherit (lib) mkIf mkMerge mkEnableOption mkOption mkDefault;
 
+  # Service UID/GID from centralized registry
+  serviceIds = mylib.serviceUids.tautulli;
+
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
@@ -217,12 +220,15 @@ in
 
       # Create static user for tautulli (instead of default "plexpy")
       users.users.tautulli = {
+        uid = serviceIds.uid;
         isSystemUser = true;
         group = "tautulli";
         description = "Tautulli service user";
       };
 
-      users.groups.tautulli = { };
+      users.groups.tautulli = {
+        gid = serviceIds.gid;
+      };
 
       # Health check timer (uses curl to verify web UI)
       systemd.timers.tautulli-healthcheck = mkIf cfg.healthcheck.enable {

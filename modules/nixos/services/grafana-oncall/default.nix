@@ -23,6 +23,8 @@ let
   sharedTypes = mylib.types;
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.grafana-oncall;
 
   cfg = config.modules.services.grafana-oncall;
   storageCfg = config.modules.storage or { };
@@ -101,8 +103,8 @@ in
 
     uid = mkOption {
       type = types.int;
-      default = 957;
-      description = "Static UID for the Grafana OnCall user. Required for container volume permissions.";
+      default = serviceIds.uid;
+      description = "Static UID for the Grafana OnCall user (from lib/service-uids.nix).";
     };
 
     group = mkOption {
@@ -113,8 +115,8 @@ in
 
     gid = mkOption {
       type = types.int;
-      default = 952;
-      description = "Static GID for the Grafana OnCall group. Required for container volume permissions.";
+      default = serviceIds.gid;
+      description = "Static GID for the Grafana OnCall group (from lib/service-uids.nix).";
     };
 
     dataDir = mkOption {

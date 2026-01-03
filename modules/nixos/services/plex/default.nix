@@ -9,6 +9,8 @@ let
   cfg = config.modules.services.plex;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.plex;
 
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
@@ -202,11 +204,10 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 193;
+      default = serviceIds.uid;
       description = ''
-        Static UID for the Plex user. Required for container mode to ensure
-        consistent file ownership on host volumes. Default matches common
-        NixOS Plex installations.
+        Static UID for the Plex user (from lib/service-uids.nix). Required for
+        container mode to ensure consistent file ownership on host volumes.
       '';
     };
 
@@ -218,11 +219,10 @@ in
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 193;
+      default = serviceIds.gid;
       description = ''
-        Static GID for the Plex group. Required for container mode to ensure
-        consistent file ownership on host volumes. Default matches common
-        NixOS Plex installations.
+        Static GID for the Plex group (from lib/service-uids.nix). Required for
+        container mode to ensure consistent file ownership on host volumes.
       '';
     };
 
@@ -692,10 +692,9 @@ in
       };
 
       # Ensure plex user can read shared media group mounts, access GPU, and write metrics
-      users.users.plex.extraGroups = lib.mkIf (config.users.users ? plex) (
-        [ "media" "node-exporter" ]
-        ++ lib.optionals (cfg.accelerationDevices != [ ]) [ "render" ]
-      );
+      # Extra groups defined in centralized registry (lib/service-uids.nix)
+      users.users.plex.extraGroups = lib.mkIf (config.users.users ? plex)
+        serviceIds.extraGroups;
     })
 
     # =========================================================================
@@ -710,8 +709,8 @@ in
         isSystemUser = true;
         group = cfg.group;
         description = "Plex service user (container mode)";
-        # Include node-exporter group for healthcheck metrics writing
-        extraGroups = [ "media" "render" "video" "node-exporter" ];
+        # Extra groups defined in centralized registry (lib/service-uids.nix)
+        extraGroups = serviceIds.extraGroups;
       };
 
       users.groups.${cfg.group} = lib.mkIf (cfg.group != "media" && cfg.group != "nogroup") {

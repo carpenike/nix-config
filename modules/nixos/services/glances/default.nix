@@ -1,6 +1,8 @@
 { config, lib, mylib, pkgs, ... }:
 let
   cfg = config.modules.services.glances;
+  # Service UID/GID from centralized registry
+  serviceIds = mylib.serviceUids.glances;
   # Import shared type definitions
   sharedTypes = mylib.types;
 in
@@ -83,11 +85,14 @@ in
 
     # Create user for glances
     users.users.glances = {
+      uid = serviceIds.uid;
       isSystemUser = true;
       group = "glances";
     };
 
-    users.groups.glances = { };
+    users.groups.glances = {
+      gid = serviceIds.gid;
+    };
 
     # Auto-register with Caddy reverse proxy if configured
     modules.services.caddy.virtualHosts.glances = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {

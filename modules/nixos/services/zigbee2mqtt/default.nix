@@ -15,6 +15,8 @@ let
   sharedTypes = mylib.types;
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.zigbee2mqtt;
 
   cfg = config.modules.services.zigbee2mqtt;
   notificationsCfg = config.modules.notifications;
@@ -75,7 +77,7 @@ in
 
     extraGroups = mkOption {
       type = types.listOf types.str;
-      default = [ "dialout" ];
+      default = serviceIds.extraGroups;
       description = "Extra groups assigned to the Zigbee2MQTT user (dialout required for USB adapters).";
     };
 

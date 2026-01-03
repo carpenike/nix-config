@@ -16,6 +16,8 @@ let
   sharedTypes = mylib.types;
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.netvisor;
 
   cfg = config.modules.services.netvisor;
   notificationsCfg = config.modules.notifications or { };
@@ -81,14 +83,14 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 935;
-      description = "UID for the netvisor user.";
+      default = serviceIds.uid;
+      description = "UID for the Netvisor service user (from lib/service-uids.nix)";
     };
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 935;
-      description = "GID for the netvisor group.";
+      default = serviceIds.gid;
+      description = "GID for the Netvisor service group (from lib/service-uids.nix)";
     };
 
     # Data directory

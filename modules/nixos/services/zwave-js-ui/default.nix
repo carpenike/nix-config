@@ -13,6 +13,8 @@ let
   sharedTypes = mylib.types;
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids."zwave-js-ui";
 
   cfg = config.modules.services."zwave-js-ui";
   notificationsCfg = config.modules.notifications;
@@ -138,7 +140,7 @@ in
 
     extraGroups = mkOption {
       type = types.listOf types.str;
-      default = [ "dialout" ];
+      default = serviceIds.extraGroups;
       description = "Extra groups assigned to the service user (dialout recommended for USB adapters).";
     };
 

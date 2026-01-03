@@ -10,6 +10,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.readarr;
 
   cfg = config.modules.services.readarr;
   notificationsCfg = config.modules.notifications;
@@ -42,14 +44,14 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "911"; # Default linuxserver.io PUID
-      description = "User ID to own the data directory (readarr:readarr in container)";
+      default = toString serviceIds.uid;
+      description = "User ID to own the data directory (from lib/service-uids.nix)";
     };
 
     group = lib.mkOption {
       type = lib.types.str;
-      default = "911"; # Default linuxserver.io PGID
-      description = "Group ID to own the data directory";
+      default = toString serviceIds.gid;
+      description = "Group ID to own the data directory (from lib/service-uids.nix)";
     };
 
     mediaDir = lib.mkOption {

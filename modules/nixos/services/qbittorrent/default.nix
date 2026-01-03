@@ -10,6 +10,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.qbittorrent;
 
   cfg = config.modules.services.qbittorrent;
   notificationsCfg = config.modules.notifications;
@@ -39,8 +41,8 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "915";
-      description = "User account under which qBittorrent runs.";
+      default = toString serviceIds.uid;
+      description = "User account under which qBittorrent runs (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {

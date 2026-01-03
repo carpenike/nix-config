@@ -2,6 +2,9 @@
 let
   inherit (lib) mkEnableOption mkOption mkIf mkMerge mkDefault mkForce types;
 
+  # Service UID/GID from centralized registry
+  serviceIds = mylib.serviceUids.home-assistant;
+
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
   sharedTypes = mylib.types;
@@ -365,13 +368,16 @@ in
 
       # Ensure native Home Assistant account follows repo-wide conventions
       users.users.hass = {
+        uid = mkForce serviceIds.uid;
         home = mkForce "/var/empty";
         createHome = mkForce false;
         isSystemUser = mkForce true;
         group = mkDefault "hass";
       };
 
-      users.groups.hass = { };
+      users.groups.hass = {
+        gid = mkForce serviceIds.gid;
+      };
 
       # Firewall rules for LAN access (opt-in)
       networking.firewall.allowedTCPPorts =

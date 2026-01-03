@@ -9,6 +9,8 @@ let
   storageHelpers = mylib.storageHelpers pkgs;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.cross-seed;
 
   cfg = config.modules.services.cross-seed;
   notificationsCfg = config.modules.notifications;
@@ -97,8 +99,8 @@ in
 
     user = lib.mkOption {
       type = lib.types.str;
-      default = "921";
-      description = "User account under which cross-seed runs.";
+      default = toString serviceIds.uid;
+      description = "User account under which cross-seed runs (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {
@@ -337,7 +339,7 @@ in
       modules.services.cross-seed.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
 
       users.groups.${cfg.group} = lib.mkIf (cfg.group == "media") {
-        gid = 65537; # Shared media group (993 was taken by alertmanager)
+        gid = mylib.serviceUids.mediaGroup.gid; # Shared media group from centralized registry
       };
 
       users.users.cross-seed = {

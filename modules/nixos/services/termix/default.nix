@@ -16,6 +16,8 @@
 let
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.termix;
 
   # Import shared type definitions
   sharedTypes = mylib.types;
@@ -59,14 +61,14 @@ in
 
     uid = lib.mkOption {
       type = lib.types.int;
-      default = 933;
-      description = "UID for the Termix service user.";
+      default = serviceIds.uid;
+      description = "UID for the Termix service user (from lib/service-uids.nix).";
     };
 
     gid = lib.mkOption {
       type = lib.types.int;
-      default = 933;
-      description = "GID for the Termix service group.";
+      default = serviceIds.gid;
+      description = "GID for the Termix service group (from lib/service-uids.nix).";
     };
 
     port = lib.mkOption {

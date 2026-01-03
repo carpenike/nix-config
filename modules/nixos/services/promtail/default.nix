@@ -5,6 +5,8 @@ let
   cfg = config.modules.services.promtail;
   # Import shared type definitions
   sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.promtail;
 in
 {
   options.modules.services.promtail = {
@@ -281,8 +283,8 @@ in
 
   config = mkIf cfg.enable {
     # Note: Using NixOS built-in promtail user/group from services.promtail
-    # Adding systemd-journal group access for log reading
-    users.users.promtail.extraGroups = [ "systemd-journal" ];
+    # Extra groups defined in centralized registry (lib/service-uids.nix)
+    users.users.promtail.extraGroups = serviceIds.extraGroups;
 
     # ZFS dataset configuration
     # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
