@@ -7,9 +7,9 @@
     src = fetchFromGitHub {
       owner = "steveyegge";
       repo = "beads";
-      rev = "v0.42.0";
+      rev = "v0.43.0";
       fetchSubmodules = false;
-      sha256 = "sha256-3t+pm7vuFj3PH1oCJ/AnwbGupqleimNQnP2bRSBHrSg=";
+      sha256 = "sha256-uc+3IK6CKmXx82WobEnb4Lin2EG2VLcbIJdq0H5U3Xc=";
     };
   };
   cooklang-cli = {
