@@ -6,10 +6,11 @@ applyTo:
 ---
 
 # NixOS Module Development Instructions
-**Version 2.0 | Updated: 2025-11-20**
+**Version 2.1 | Updated: 2026-01-03**
 
 ## Recent Changes
 
+- 2026-01-03: Added centralized `mylib.serviceUids` requirement for all UID/GID assignments.
 - 2025-11-20: Added doc links, forge contribution example, and Taskfile-focused workflow reminders.
 
 These instructions apply specifically to NixOS configuration files in this homelab repository.
@@ -159,18 +160,44 @@ environment.persistence."/persist" = {
 
 ### 5. User/Group Management
 
+**CRITICAL: Use centralized service-uids registry for all UIDs/GIDs.**
+
+The `lib/service-uids.nix` registry ensures:
+- Stable UIDs across rebuilds (ZFS ownership consistency)
+- Correct container PUID/PGID mappings
+- NFS share compatibility
+- Backup permission preservation
+
 ```nix
-users.users.myservice = {
-  isSystemUser = true;
-  group = "myservice";
-  home = "/var/lib/myservice";
-};
+{ lib, mylib, ... }:
+let
+  # Import from centralized registry
+  serviceIds = mylib.serviceUids.myservice;
+in
+{
+  users.users.myservice = {
+    uid = serviceIds.uid;
+    isSystemUser = true;
+    group = serviceIds.groupName or "myservice";
+    home = "/var/lib/myservice";
+    # Use centralized extraGroups (media, render, dialout, etc.)
+    extraGroups = serviceIds.extraGroups;
+  };
 
-users.groups.myservice = {};
-
-# If needs access to other services
-users.users.myservice.extraGroups = [ "video" "render" ];
+  users.groups.myservice.gid = serviceIds.gid;
+}
 ```
+
+**When adding a new service:**
+1. Add entry to `lib/service-uids.nix` with uid, gid, description, extraGroups
+2. Use `mylib.serviceUids.servicename` in your module
+3. For shared media access, use `gid = mylib.serviceUids.mediaGroup.gid`
+
+**Available shared groups** (from `mylib.serviceUids.sharedGroups`):
+- `media` (65537) - arr stack, Plex, download clients
+- `render` (303) - GPU hardware transcoding
+- `dialout` (27) - USB/serial devices (zigbee, zwave)
+- `node-exporter` (989) - Prometheus textfile metrics
 
 ### 6. Service Definition
 

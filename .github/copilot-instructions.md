@@ -228,6 +228,7 @@ Preserve:
 - Avoid unnecessary abstractions
 - Use `mylib.types` for shared type definitions
 - Use `mylib.storageHelpers` for replication and NFS patterns
+- Use `mylib.serviceUids` for all user/group UID/GID assignments
 
 If a tool suggests breaking conventions → override the tool and explain why.
 
@@ -604,13 +605,14 @@ services.myservice = {
 - [ ] Test with "Add a module for [NEW_SERVICE]" scenario
 
 ### Recent Changes
+- 2026-01-03: Added `mylib.serviceUids` requirement for all UID/GID assignments, updated nixos-instructions.md with centralized registry pattern
 - 2025-12-19: Added workarounds tracking system (`docs/workarounds.md`) with standardized comment conventions
 - 2025-12-19: Expanded Beads documentation with Git integration, dependency types table, epic workflow example
 - 2025-12-12: Added Beads proactive trigger, positioned as first-class tool in Tool Selection
 - 2025-12-09: Added architecture docs and ADRs, documented `mylib.types` and `mylib.storageHelpers` patterns, updated `lib/host-defaults.nix` factory reference.
 - 2025-11-20: Documented instruction stack, added direct doc links, enforced Taskfile-only deployment guidance.
 
-**Last reviewed:** 2025-12-19
+**Last reviewed:** 2026-01-03
 **Next review due:** When next major module added
 
 ---
