@@ -32,6 +32,21 @@ in
       description = "Persistent configuration directory mounted at /config inside the container.";
     };
 
+    cacheDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/var/cache/esphome";
+      description = ''
+        Directory for PlatformIO/ESPHome build cache. Mounted at /cache inside the container.
+        The home-operations ESPHome image uses this for:
+        - PLATFORMIO_CORE_DIR=/cache/pio
+        - ESPHOME_BUILD_PATH=/cache/build
+        - ESPHOME_DATA_DIR=/cache/data
+
+        This is separate from dataDir (/config) to allow excluding from backups while
+        keeping firmware compilation fast between rebuilds.
+      '';
+    };
+
     secretsFile = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
@@ -253,6 +268,8 @@ in
       # tmpfiles entries, so mirror that behavior here with a recursive rule.
       systemd.tmpfiles.rules = [
         "Z ${cfg.dataDir} 0770 ${cfg.user} ${cfg.group} - -"
+        # Cache directory for PlatformIO builds (can grow large, excluded from backups)
+        "d ${cfg.cacheDir} 0770 ${cfg.user} ${cfg.group} - -"
       ];
 
       modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
@@ -277,6 +294,7 @@ in
         };
         volumes = [
           "${cfg.dataDir}:/config:rw"
+          "${cfg.cacheDir}:/cache:rw"
           "/etc/localtime:/etc/localtime:ro"
         ];
         ports = lib.optionals (!cfg.hostNetwork) [
