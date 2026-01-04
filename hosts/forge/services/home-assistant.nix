@@ -239,6 +239,7 @@ in
             pysmlight
             ephem
             aiowaqi
+            wled
 
           ];
 

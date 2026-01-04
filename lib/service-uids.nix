@@ -531,9 +531,9 @@
   };
 
   home-assistant = {
-    uid = 550;
-    gid = 550;
-    description = "Home Assistant home automation (not yet deployed)";
+    uid = 286;
+    gid = 286;
+    description = "Home Assistant home automation";
     extraGroups = [ "dialout" ]; # USB device access
   };
 
@@ -566,9 +566,9 @@
   };
 
   pgweb = {
-    uid = 653;
-    gid = 653;
-    description = "Pgweb PostgreSQL browser (not yet deployed)";
+    uid = 985;
+    gid = 979;
+    description = "Pgweb PostgreSQL browser";
     extraGroups = [ ];
   };
 

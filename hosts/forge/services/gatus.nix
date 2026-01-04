@@ -86,6 +86,9 @@ in
         mountpoint = "/var/lib/gatus";
         recordsize = "16K"; # Optimal for SQLite
         compression = "lz4";
+        owner = "gatus";
+        group = "gatus";
+        mode = "0750";
       };
 
       # ZFS snapshot and replication configuration

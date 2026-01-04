@@ -103,6 +103,9 @@ in
         mountpoint = "/var/lib/beszel";
         recordsize = "16K"; # Optimal for SQLite/PocketBase
         compression = "zstd";
+        owner = "beszel";
+        group = "beszel";
+        mode = "0750";
       };
 
       # ZFS snapshot and replication configuration

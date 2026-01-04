@@ -475,9 +475,9 @@ in
         properties = {
           "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
         };
-        # Ownership matches the container user/group
+        # Ownership matches the container user/group (user's primary group is media)
         owner = "qbittorrent";
-        group = "qbittorrent";
+        group = cfg.group; # Use configured group (defaults to "media")
         mode = "0750"; # Allow group read access for backup systems
       };
 

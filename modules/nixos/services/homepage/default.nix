@@ -405,6 +405,9 @@ in
       recordsize = "128K"; # Default for general purpose use
       compression = "zstd";
       properties = cfg.zfs.properties;
+      owner = serviceName;
+      group = serviceName;
+      mode = "0750";
     };
 
     systemd.services.homepage-dashboard = {

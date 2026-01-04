@@ -385,18 +385,14 @@ in
               recordsize = "16K";
               compression = "zstd";
               properties = { "com.sun:auto-snapshot" = "true"; };
+              # Always specify ownership for clarity and to avoid warnings
+              # When dataDirUnderVarLib, StateDirectory also manages permissions
+              owner = cfg.user;
+              group = cfg.group;
+              mode = "0750";
             };
-            permissionAttrs =
-              if dataDirUnderVarLib then
-                { }
-              else
-                {
-                  owner = cfg.user;
-                  group = cfg.group;
-                  mode = "0750";
-                };
           in
-          baseDataset // permissionAttrs;
+          baseDataset;
 
         modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
           enable = true;

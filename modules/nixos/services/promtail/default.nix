@@ -287,10 +287,13 @@ in
     users.users.promtail.extraGroups = serviceIds.extraGroups;
 
     # ZFS dataset configuration
-    # Permissions are managed by systemd StateDirectoryMode, not tmpfiles
+    # Explicit ownership required even when StateDirectory is used
     modules.storage.datasets.services.promtail = mkIf (cfg.zfs.dataset != null) {
       mountpoint = cfg.dataDir;
       properties = cfg.zfs.properties;
+      owner = "promtail";
+      group = "promtail";
+      mode = "0750";
     };
 
     # Promtail service configuration
