@@ -597,4 +597,82 @@ in
       Persistent = true;
     };
   };
+
+  # =============================================================================
+  # Post-Replication Property Fixup for nas-1
+  # =============================================================================
+  #
+  # After syncoid replicates datasets to nas-1, child datasets inherit canmount=on
+  # and mountpoint properties from forge. This causes zfs-mount.service failures
+  # on nas-1 because it tries to mount datasets at /var/lib/* paths that don't exist.
+  #
+  # This service SSHs to nas-1 immediately after syncoid completes and sets
+  # canmount=noauto on any replicated datasets that have canmount=on.
+  #
+  # This is better than a daily timer because:
+  # - No vulnerability window where reboot could trigger unwanted mounts
+  # - Property fixup happens atomically with replication
+  # - Immediate feedback on replication success
+  #
+  # Reference: https://github.com/jimsalterjrs/sanoid/issues/972
+
+  systemd.services.syncoid-post-fixup-nas1 = {
+    description = "Fix canmount properties on nas-1 after ZFS replication";
+    # Run after the syncoid target completes (all replication jobs)
+    after = [ "syncoid.target" ];
+    wantedBy = [ "syncoid.target" ];
+    # Only run if SSH key exists
+    unitConfig.ConditionPathExists = [ (toString config.sops.secrets."zfs-replication/ssh-key".path) ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      User = "zfs-replication";
+      Group = "zfs-replication";
+      # Use the same SSH key as syncoid
+      Environment = "SSH_AUTH_SOCK=";
+    };
+
+    script = ''
+      set -euo pipefail
+
+      SSH_KEY="${config.sops.secrets."zfs-replication/ssh-key".path}"
+      TARGET_HOST="nas-1.holthome.net"
+      TARGET_USER="zfs-replication"
+
+      # Define parent datasets to process
+      PARENTS="backup/forge/zfs-recv backup/forge/services"
+
+      echo "[$(date -Iseconds)] Running post-replication canmount fixup on $TARGET_HOST"
+
+      # SSH to nas-1 and fix canmount properties
+      ${pkgs.openssh}/bin/ssh -i "$SSH_KEY" \
+        -o StrictHostKeyChecking=accept-new \
+        -o BatchMode=yes \
+        -o ConnectTimeout=30 \
+        "$TARGET_USER@$TARGET_HOST" << 'EOF'
+      set -euo pipefail
+
+      ZFS="/run/current-system/sw/bin/zfs"
+      FIXED=0
+
+      for parent in backup/forge/zfs-recv backup/forge/services; do
+        if $ZFS list "$parent" >/dev/null 2>&1; then
+          # Process all child datasets (skip the parent itself with tail -n +2)
+          for ds in $($ZFS list -H -o name -t filesystem -r "$parent" | tail -n +2); do
+            current=$($ZFS get -H -o value canmount "$ds")
+            if [ "$current" = "on" ]; then
+              echo "Setting canmount=noauto on $ds"
+              $ZFS set canmount=noauto "$ds"
+              FIXED=$((FIXED + 1))
+            fi
+          done
+        fi
+      done
+
+      echo "Fixed canmount on $FIXED dataset(s)"
+      EOF
+
+      echo "[$(date -Iseconds)] Post-replication fixup complete"
+    '';
+  };
 }

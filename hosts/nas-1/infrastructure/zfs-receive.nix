@@ -155,8 +155,12 @@
   # By default canmount=on, which causes ZFS to try mounting these read-only
   # datasets at boot, conflicting with local paths on nas-1.
   #
-  # This service sets canmount=noauto on all child datasets to prevent this.
-  # We run it daily to catch newly replicated datasets.
+  # PRIMARY DEFENSE: forge runs syncoid-post-fixup-nas1 immediately after
+  # replication completes, setting canmount=noauto on new datasets.
+  #
+  # SECONDARY DEFENSE (this service): Boot-time and hourly fixup catches any
+  # datasets that were missed (e.g., if forge's post-hook failed) and also
+  # sets org.openzfs.systemd:ignore to tell systemd mount-generator to skip them.
   systemd.services.zfs-disable-recv-automount = {
     description = "Prevent replicated ZFS datasets from auto-mounting";
     wantedBy = [ "multi-user.target" ];
@@ -171,6 +175,7 @@
 
       # Set canmount=noauto on all child datasets under zfs-recv parents
       # This prevents them from mounting to /var/lib/* or other paths inherited from source
+      # Also set org.openzfs.systemd:ignore=on to tell systemd mount-generator to skip them
 
       for parent in backup/forge/zfs-recv backup/nas-0/zfs-recv backup/forge/services; do
         if $ZFS list "$parent" >/dev/null 2>&1; then
@@ -181,6 +186,12 @@
               echo "Setting canmount=noauto on $ds"
               $ZFS set canmount=noauto "$ds"
             fi
+            # Defense-in-depth: tell systemd to ignore these datasets entirely
+            ignore=$($ZFS get -H -o value org.openzfs.systemd:ignore "$ds" 2>/dev/null || echo "-")
+            if [ "$ignore" != "on" ]; then
+              echo "Setting org.openzfs.systemd:ignore=on on $ds"
+              $ZFS set org.openzfs.systemd:ignore=on "$ds" 2>/dev/null || true
+            fi
           done
         fi
       done
@@ -189,12 +200,13 @@
     '';
   };
 
-  # Run the mount prevention daily to catch newly replicated datasets
+  # Run the mount prevention hourly (reduced from daily for faster catch-up)
+  # Primary fixup happens via forge's syncoid-post-fixup-nas1 immediately after replication
   systemd.timers.zfs-disable-recv-automount = {
-    description = "Daily check for new replicated datasets needing canmount=noauto";
+    description = "Hourly check for new replicated datasets needing canmount=noauto";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnCalendar = "daily";
+      OnCalendar = "hourly";
       Persistent = true;
     };
   };
