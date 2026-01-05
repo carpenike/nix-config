@@ -217,12 +217,14 @@ in
   config = lib.mkIf cfg.enable {
     # Create datasets via systemd service
     # This runs after ZFS pool import (zfs-import.target) and user creation (systemd-sysusers.service)
-    # but before services need them (local-fs.target)
+    # Services that need these datasets explicitly depend on zfs-service-datasets.service
     systemd.services.zfs-service-datasets = {
       description = "Create ZFS datasets for service isolation";
       wantedBy = [ "multi-user.target" ];
       after = [ "zfs-import.target" "systemd-sysusers.service" ];
-      before = [ "local-fs.target" ];
+      # Note: Do NOT add "before = [ local-fs.target ]" - it creates a cycle:
+      # zfs-service-datasets -> local-fs.target -> sysinit.target -> zfs-service-datasets
+      # Services needing ZFS datasets already explicitly depend on zfs-service-datasets.service
 
       serviceConfig = {
         Type = "oneshot";

@@ -86,9 +86,10 @@
       # Create zfs-recv container dataset (canmount=off - children mount, not this)
       if ! $ZFS list backup/forge/zfs-recv >/dev/null 2>&1; then
         $ZFS create backup/forge/zfs-recv
-        $ZFS set canmount=off backup/forge/zfs-recv
         echo "Created backup/forge/zfs-recv dataset"
       fi
+      # Always ensure canmount=off on the parent (idempotent)
+      $ZFS set canmount=off backup/forge/zfs-recv
 
       # Create services container dataset
       if ! $ZFS list backup/forge/services >/dev/null 2>&1; then
@@ -134,14 +135,68 @@
       # Mirrors forge's pattern: separates replicated data from potential NFS exports
       if ! $ZFS list backup/nas-0/zfs-recv >/dev/null 2>&1; then
         $ZFS create backup/nas-0/zfs-recv
-        $ZFS set canmount=off backup/nas-0/zfs-recv
         echo "Created backup/nas-0/zfs-recv dataset"
       fi
+      # Always ensure canmount=off on the parent (idempotent)
+      $ZFS set canmount=off backup/nas-0/zfs-recv
 
       # Child datasets are created automatically by syncoid on first receive
 
       echo "ZFS receive datasets initialized"
     '';
+  };
+
+  # =============================================================================
+  # Prevent Replicated Datasets from Auto-Mounting to Conflicting Paths
+  # =============================================================================
+
+  # Child datasets under zfs-recv inherit their mountpoint from the source (forge).
+  # For example, backup/forge/zfs-recv/grafana has mountpoint=/var/lib/grafana.
+  # By default canmount=on, which causes ZFS to try mounting these read-only
+  # datasets at boot, conflicting with local paths on nas-1.
+  #
+  # This service sets canmount=noauto on all child datasets to prevent this.
+  # We run it daily to catch newly replicated datasets.
+  systemd.services.zfs-disable-recv-automount = {
+    description = "Prevent replicated ZFS datasets from auto-mounting";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "zfs-import.target" "zfs-init-receive-datasets.service" ];
+    requires = [ "zfs-init-receive-datasets.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      ZFS="${config.boot.zfs.package}/bin/zfs"
+
+      # Set canmount=noauto on all child datasets under zfs-recv parents
+      # This prevents them from mounting to /var/lib/* or other paths inherited from source
+
+      for parent in backup/forge/zfs-recv backup/nas-0/zfs-recv backup/forge/services; do
+        if $ZFS list "$parent" >/dev/null 2>&1; then
+          echo "Processing $parent..."
+          for ds in $($ZFS list -H -o name -t filesystem -r "$parent" | tail -n +2); do
+            current=$($ZFS get -H -o value canmount "$ds")
+            if [ "$current" = "on" ]; then
+              echo "Setting canmount=noauto on $ds"
+              $ZFS set canmount=noauto "$ds"
+            fi
+          done
+        fi
+      done
+
+      echo "ZFS receive datasets mount prevention complete"
+    '';
+  };
+
+  # Run the mount prevention daily to catch newly replicated datasets
+  systemd.timers.zfs-disable-recv-automount = {
+    description = "Daily check for new replicated datasets needing canmount=noauto";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "daily";
+      Persistent = true;
+    };
   };
 
   # =============================================================================
