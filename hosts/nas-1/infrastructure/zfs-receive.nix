@@ -39,18 +39,19 @@
       # - rollback: Allow rollback during replication errors
       # - hold: Place holds on snapshots during transfer
       # - bookmark: Manage bookmarks for resumable sends
+      # - canmount: Allow post-replication fixup to set canmount=noauto
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
+        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
         backup/forge/zfs-recv || true
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
+        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
         backup/forge/services || true
 
       # Grant receive permissions for nas-0 backups
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
+        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
         backup/nas-0/zfs-recv || true
 
       echo "ZFS receive permissions applied for zfs-replication user"
