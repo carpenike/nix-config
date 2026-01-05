@@ -79,6 +79,21 @@ in
       example = "media-services";
     };
 
+    extraHosts = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      description = ''
+        Extra /etc/hosts entries for the container.
+
+        Useful for overriding DNS resolution when containers need to reach
+        host services via internal bridge IPs (hairpin NAT workaround).
+      '';
+      example = {
+        "id.holthome.net" = "10.89.0.1";
+        "auth.example.com" = "10.89.0.1";
+      };
+    };
+
     port = lib.mkOption {
       type = lib.types.port;
       default = 7476;
@@ -502,7 +517,9 @@ in
             "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
           ] ++ lib.optionals (cfg.podmanNetwork != null) [
             "--network=${cfg.podmanNetwork}"
-          ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+          ] ++ lib.optionals (cfg.extraHosts != { }) (
+            lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts
+          ) ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
             "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:${toString cfg.port}/health || exit 1"
             "--health-interval=${cfg.healthcheck.interval}"
             "--health-timeout=${cfg.healthcheck.timeout}"

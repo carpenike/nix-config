@@ -73,6 +73,12 @@ in
         # Podman network for media services communication
         podmanNetwork = "media-services"; # Enable DNS resolution to qBittorrent and other media services
 
+        # Hairpin NAT workaround: container can't reach 10.20.0.30, so override DNS
+        # to point id.holthome.net to the podman bridge IP where Caddy also listens
+        extraHosts = {
+          "id.${domain}" = "10.89.0.1";
+        };
+
         # Resource limits - 7d peak (12M) × 2.5 = 128M minimum
         resources = {
           memory = "128M";
