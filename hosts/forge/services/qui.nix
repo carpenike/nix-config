@@ -19,10 +19,11 @@
 # 1. In qui UI → Instance Settings, enable "Local filesystem access" on qBittorrent instance
 # 2. Go to Cross-Seed → Rules → Hardlink/Reflink Mode
 # 3. Enable "Hardlink mode" for the qBittorrent instance
-# 4. Set base directory to "/mnt/media/cross-seeds" (on same filesystem as downloads)
-# 5. Configure directory preset (flat, by-tracker, or by-instance)
-# 6. Add indexers in Cross-Seed → Indexers (import from Prowlarr)
-# 7. Enable desired cross-seed sources: RSS Automation, Seeded Search, Completion Search
+# 4. Set base directory to "/data/qb/cross-seeds" (on same filesystem as /data/qb/downloads)
+# 5. Configure directory preset: "By Tracker" recommended
+# 6. Categories: "Add .cross category suffix" to prevent *arr import loops
+# 7. Add indexers in Cross-Seed → Indexers (import from Prowlarr)
+# 8. Enable desired cross-seed sources: RSS Automation, Seeded Search, Completion Search
 #
 # Post-Deployment Steps:
 # 1. Access https://qui.holthome.net
@@ -87,8 +88,10 @@ in
 
         # Volume mounts for cross-seed hardlink mode
         # qui needs filesystem access to create hardlinks for cross-seeded torrents
+        # Mount /mnt/data as /data to match qBittorrent's internal paths
         extraVolumes = [
-          "/mnt/media:/mnt/media:rw" # Media library - must be writable for hardlink creation
+          "/mnt/data:/data:rw" # qBittorrent downloads at /data/qb/downloads
+          "/mnt/media:/mnt/media:rw" # Media library for hardlink destination
         ];
 
         # Hairpin NAT workaround: container can't reach 10.20.0.30, so override DNS
