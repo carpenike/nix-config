@@ -55,19 +55,20 @@
     # Node Exporter Availability
     # =========================================================================
 
-    "nas-0-exporter-down" = {
-      type = "promql";
-      alertname = "NAS0ExporterDown";
-      expr = ''up{job="nas-0"} == 0'';
-      for = "2m";
-      severity = "critical";
-      labels = { service = "nas-0"; category = "availability"; };
-      annotations = {
-        summary = "NAS-0 node exporter is down";
-        description = "Cannot collect metrics from nas-0.holthome.net:9100. Check network connectivity and node_exporter service.";
-        command = "ssh nas-0 systemctl status prometheus-node-exporter";
-      };
-    };
+    # DISABLED (2026-01-05): nas-0 is currently offline for maintenance
+    # "nas-0-exporter-down" = {
+    #   type = "promql";
+    #   alertname = "NAS0ExporterDown";
+    #   expr = ''up{job="nas-0"} == 0'';
+    #   for = "2m";
+    #   severity = "critical";
+    #   labels = { service = "nas-0"; category = "availability"; };
+    #   annotations = {
+    #     summary = "NAS-0 node exporter is down";
+    #     description = "Cannot collect metrics from nas-0.holthome.net:9100. Check network connectivity and node_exporter service.";
+    #     command = "ssh nas-0 systemctl status prometheus-node-exporter";
+    #   };
+    # };
 
     "nas-1-exporter-down" = {
       type = "promql";
