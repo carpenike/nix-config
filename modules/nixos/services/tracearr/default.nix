@@ -76,8 +76,8 @@ in
       type = lib.types.str;
       default =
         if cfg.deploymentMode == "external"
-        then "ghcr.io/connorgallopo/tracearr:latest"
-        else "ghcr.io/connorgallopo/tracearr:supervised";
+        then "ghcr.io/connorgallopo/tracearr:1.4.0@sha256:4e70a43844c4bccab7e06d0703551f0cb7398a07a2a636de5366bd7b312c65c0  "
+        else "ghcr.io/connorgallopo/tracearr:supervised-1.4.0@sha256:7f6a3f2c1d149c0f20325832aac5e121d2bcbf57bc0a31f5e1a0958d501ee905";
       defaultText = lib.literalExpression ''
         if deploymentMode == "external"
         then "ghcr.io/connorgallopo/tracearr:latest"
