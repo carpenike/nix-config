@@ -7,9 +7,9 @@
     src = fetchFromGitHub {
       owner = "steveyegge";
       repo = "beads";
-      rev = "v0.42.0";
+      rev = "v0.43.0";
       fetchSubmodules = false;
-      sha256 = "sha256-3t+pm7vuFj3PH1oCJ/AnwbGupqleimNQnP2bRSBHrSg=";
+      sha256 = "sha256-uc+3IK6CKmXx82WobEnb4Lin2EG2VLcbIJdq0H5U3Xc=";
     };
   };
   cooklang-cli = {
@@ -18,9 +18,9 @@
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
-      rev = "v0.19.2";
+      rev = "v0.19.3";
       fetchSubmodules = false;
-      sha256 = "sha256-kqfbqyShQQSnYOWu6zk/0srb3AXRttWDCmQWhSsoB5I=";
+      sha256 = "sha256-qfsyEHQnOfJYqgZi5QxiGJX1pbXx7oR7qzBEwTYH7oY=";
     };
   };
   cooklang-federation = {
