@@ -49,6 +49,7 @@ in
     ./services/actual.nix # Actual Budget personal finance
     ./services/postgresql.nix # PostgreSQL database
     ./services/pgbackrest.nix # pgBackRest PostgreSQL backup system
+    ./services/redis.nix # Redis caching/session storage for services
     ./services/dispatcharr.nix # Dispatcharr service
     ./services/plex.nix # Plex media server
     ./services/pinchflat.nix # Pinchflat YouTube media manager

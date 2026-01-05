@@ -1,7 +1,12 @@
 # hosts/forge/services/cross-seed.nix
 #
-# Host-specific configuration for the cross-seed service on 'forge'.
-# cross-seed automates finding cross-seeds across multiple torrent trackers.
+# DEPRECATED: Cross-seed functionality has been migrated to qui's built-in cross-seeding.
+# See hosts/forge/services/qui.nix for the new cross-seed configuration.
+#
+# This service is disabled but kept for reference during the migration period.
+# After confirming qui cross-seeding works correctly, this file can be removed.
+#
+# To re-enable if needed: set enable = true below
 
 { config, lib, ... }:
 
@@ -13,7 +18,9 @@ in
   config = lib.mkMerge [
     {
       modules.services.cross-seed = {
-        enable = true;
+        # DISABLED: Migrated to qui's built-in cross-seeding
+        # qui provides hardlink mode which is more efficient than cross-seed's inject mode
+        enable = false;
 
         # Pure API mode: inject torrents directly via qBittorrent API
         # No NFS mount needed - all operations via API

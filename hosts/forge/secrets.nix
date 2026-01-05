@@ -45,6 +45,7 @@ let
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
   tautulliEnabled = config.modules.services.tautulli.enable or false;
+  tracearrEnabled = config.modules.services.tracearr.enable or false;
   litellmEnabled = config.modules.services.litellm.enable or false;
   atticPushEnabled = config.modules.services.attic-push.enable or false;
   pinchflatEnabled = config.modules.services.pinchflat.enable or false;
@@ -470,6 +471,38 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+          };
+        }
+        // optionalAttrs tracearrEnabled {
+          # MaxMind GeoIP license key for IP geolocation
+          "tracearr/maxmind_license_key" = {
+            mode = "0400";
+            owner = "tracearr";
+            group = "tracearr";
+          };
+
+          # Database password for external PostgreSQL
+          # group=postgres and mode=0440 required so postgresql-provision-databases can read it
+          "tracearr/db_password" = {
+            mode = "0440";
+            owner = "tracearr";
+            group = "postgres";
+          };
+
+          # JWT secret for authentication tokens (external mode)
+          # Generate with: openssl rand -hex 32
+          "tracearr/jwt_secret" = {
+            mode = "0400";
+            owner = "tracearr";
+            group = "tracearr";
+          };
+
+          # Cookie secret for session management (external mode)
+          # Generate with: openssl rand -hex 32
+          "tracearr/cookie_secret" = {
+            mode = "0400";
+            owner = "tracearr";
+            group = "tracearr";
           };
         }
         // optionalAttrs zigbeeEnabled {

@@ -338,25 +338,38 @@ let
   # Reassign ownership of all functions shipped by a given extension to the target database role
   # This mimics "ALTER EXTENSION ... OWNER" (not available on this cluster) so that application roles
   # can manage extension-provided functions (e.g., TeslaMate altering ll_to_earth search_path)
+  # Also handles procedures (prokind = 'p') separately since they use ALTER PROCEDURE
   mkExtensionFunctionOwnershipSQL = ext: owner: ''
     DO $reassign_extension_function_owners$
     DECLARE
       func RECORD;
       owner_name CONSTANT text := ${quoteSqlString owner};
+      alter_cmd text;
     BEGIN
       FOR func IN
         SELECT
           n.nspname AS schema_name,
           p.proname,
-          pg_get_function_identity_arguments(p.oid) AS arguments
+          pg_get_function_identity_arguments(p.oid) AS arguments,
+          p.prokind  -- 'f' = function, 'p' = procedure, 'a' = aggregate, 'w' = window
         FROM pg_proc p
         JOIN pg_namespace n ON n.oid = p.pronamespace
         JOIN pg_depend d ON d.objid = p.oid AND d.deptype = 'e'
         JOIN pg_extension e ON e.oid = d.refobjid
         WHERE e.extname = ${quoteSqlString ext}
       LOOP
+        -- Use the correct ALTER command based on prokind
+        IF func.prokind = 'p' THEN
+          alter_cmd := 'ALTER PROCEDURE %I.%I(%s) OWNER TO %s;';
+        ELSIF func.prokind = 'a' THEN
+          alter_cmd := 'ALTER AGGREGATE %I.%I(%s) OWNER TO %s;';
+        ELSE
+          -- 'f' (function) and 'w' (window function) use ALTER FUNCTION
+          alter_cmd := 'ALTER FUNCTION %I.%I(%s) OWNER TO %s;';
+        END IF;
+
         EXECUTE format(
-          'ALTER FUNCTION %I.%I(%s) OWNER TO %s;',
+          alter_cmd,
           func.schema_name,
           func.proname,
           func.arguments,

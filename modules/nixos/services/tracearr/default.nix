@@ -10,8 +10,17 @@
 # - Stream map visualization
 # - Tautulli/Jellystat history import
 #
-# Uses the "supervised" all-in-one image which bundles TimescaleDB + Redis + App
-# Secrets are auto-generated on first run and persisted.
+# Deployment Modes:
+# - embedded (default): Uses "supervised" all-in-one image with bundled TimescaleDB + Redis
+# - external: Uses standard image with external PostgreSQL (TimescaleDB) and Redis
+#
+# For external mode, set:
+#   deploymentMode = "external";
+#   database.host = "host.containers.internal";
+#   database.passwordFile = <sops secret path>;
+#   redis.url = "redis://host.containers.internal:6379/0";
+#
+# TimescaleDB extension MUST be enabled on the external PostgreSQL database.
 
 { lib
 , mylib
@@ -40,28 +49,63 @@ let
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+
+  # Determine if using external databases
+  useExternalDatabases = cfg.deploymentMode == "external";
 in
 {
   options.modules.services.tracearr = {
     enable = lib.mkEnableOption "Tracearr - account sharing detection for media servers";
 
+    deploymentMode = lib.mkOption {
+      type = lib.types.enum [ "embedded" "external" ];
+      default = "embedded";
+      description = ''
+        Deployment mode for Tracearr:
+
+        - embedded: Uses the "supervised" all-in-one image with bundled TimescaleDB and Redis.
+          Simpler setup but less flexible. Recommended for testing or standalone deployments.
+
+        - external: Uses the standard image with external PostgreSQL (with TimescaleDB extension)
+          and Redis. Recommended for production when you have centralized database infrastructure.
+          Requires database.host, database.passwordFile, and redis.url to be configured.
+      '';
+    };
+
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/connorgallopo/tracearr:supervised";
+      default =
+        if cfg.deploymentMode == "external"
+        then "ghcr.io/connorgallopo/tracearr:latest"
+        else "ghcr.io/connorgallopo/tracearr:supervised";
+      defaultText = lib.literalExpression ''
+        if deploymentMode == "external"
+        then "ghcr.io/connorgallopo/tracearr:latest"
+        else "ghcr.io/connorgallopo/tracearr:supervised"
+      '';
       description = ''
-        Tracearr container image. The "supervised" tag bundles TimescaleDB, Redis,
+        Tracearr container image.
+
+        For deploymentMode = "embedded": Use the "supervised" tag which bundles TimescaleDB, Redis,
         and the Tracearr application in a single container.
 
-        Pin to a specific digest for reproducibility:
-        "ghcr.io/connorgallopo/tracearr:supervised@sha256:..."
+        For deploymentMode = "external": Use the "latest" tag (standard image) which connects
+        to external PostgreSQL and Redis via DATABASE_URL and REDIS_URL environment variables.
+
+        Pin to a specific digest for reproducibility.
       '';
-      example = "ghcr.io/connorgallopo/tracearr:supervised@sha256:5527e61653fe98e690608546138244ab6ac19436f3c09f815d09826b428194cd";
+      example = "ghcr.io/connorgallopo/tracearr:latest@sha256:...";
     };
 
     dataDir = lib.mkOption {
       type = lib.types.path;
       default = "/var/lib/tracearr";
-      description = "Path to Tracearr data directory (stores TimescaleDB, Redis, and app data)";
+      description = ''
+        Path to Tracearr data directory.
+
+        For embedded mode: stores TimescaleDB, Redis, and app data.
+        For external mode: stores only app data (GeoIP databases, secrets, etc.).
+      '';
     };
 
     port = lib.mkOption {
@@ -118,14 +162,111 @@ in
       description = "Log level for the Tracearr application";
     };
 
+    # External database configuration (used when deploymentMode = "external")
+    database = {
+      host = lib.mkOption {
+        type = lib.types.str;
+        default = "host.containers.internal";
+        description = ''
+          PostgreSQL host address for external database mode.
+          Default uses Podman's host alias so containers can reach the host PostgreSQL.
+        '';
+      };
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 5432;
+        description = "PostgreSQL port";
+      };
+
+      name = lib.mkOption {
+        type = lib.types.str;
+        default = "tracearr";
+        description = "Database name (must have TimescaleDB extension enabled)";
+      };
+
+      user = lib.mkOption {
+        type = lib.types.str;
+        default = "tracearr";
+        description = "Database user";
+      };
+
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to file containing database password for external mode.
+          Required when deploymentMode = "external".
+        '';
+      };
+
+      manageDatabase = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether to automatically provision the PostgreSQL database via
+          modules.services.postgresql.databases when deploymentMode = "external".
+          Set to false if managing the database manually.
+        '';
+      };
+    };
+
+    # Security secrets (required for external mode, auto-generated for embedded)
+    secrets = {
+      jwtSecretFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to file containing JWT secret for authentication (32 hex chars).
+          Required when deploymentMode = "external".
+          Generate with: openssl rand -hex 32
+        '';
+        example = "config.sops.secrets.\"tracearr/jwt_secret\".path";
+      };
+
+      cookieSecretFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to file containing cookie secret for sessions (32 hex chars).
+          Required when deploymentMode = "external".
+          Generate with: openssl rand -hex 32
+        '';
+        example = "config.sops.secrets.\"tracearr/cookie_secret\".path";
+      };
+    };
+
+    redis = {
+      url = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Redis URL for external mode (e.g., "redis://host.containers.internal:6379/0").
+          Required when deploymentMode = "external".
+        '';
+        example = "redis://host.containers.internal:6379/0";
+      };
+    };
+
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
-        memory = "1G"; # TimescaleDB + Redis + App need more memory
-        memoryReservation = "512M";
-        cpus = "2.0";
+        memory = if cfg.deploymentMode == "external" then "512M" else "1G";
+        memoryReservation = if cfg.deploymentMode == "external" then "256M" else "512M";
+        cpus = if cfg.deploymentMode == "external" then "1.0" else "2.0";
       };
-      description = "Resource limits for the container (includes embedded TimescaleDB and Redis)";
+      defaultText = lib.literalExpression ''
+        {
+          # External mode uses less resources (no embedded databases)
+          memory = if deploymentMode == "external" then "512M" else "1G";
+          memoryReservation = if deploymentMode == "external" then "256M" else "512M";
+          cpus = if deploymentMode == "external" then "1.0" else "2.0";
+        }
+      '';
+      description = ''
+        Resource limits for the container.
+        External mode requires fewer resources since databases run separately.
+      '';
     };
 
     healthcheck = lib.mkOption {
@@ -135,9 +276,20 @@ in
         interval = "30s";
         timeout = "10s";
         retries = 3;
-        startPeriod = "120s"; # TimescaleDB needs time to initialize
+        # External mode starts faster (no database initialization)
+        startPeriod = if cfg.deploymentMode == "external" then "30s" else "120s";
         onFailure = "kill";
       };
+      defaultText = lib.literalExpression ''
+        {
+          enable = true;
+          interval = "30s";
+          timeout = "10s";
+          retries = 3;
+          startPeriod = if deploymentMode == "external" then "30s" else "120s";
+          onFailure = "kill";
+        }
+      '';
       description = "Container healthcheck configuration";
     };
 
@@ -155,9 +307,13 @@ in
         enable = lib.mkDefault true;
         repository = lib.mkDefault "nas-primary";
         frequency = lib.mkDefault "daily";
-        tags = lib.mkDefault [ "media" "tracearr" "monitoring" "timescaledb" ];
-        # Enable ZFS snapshots for database consistency
-        useSnapshots = lib.mkDefault true;
+        tags = lib.mkDefault (
+          if cfg.deploymentMode == "external"
+          then [ "media" "tracearr" "monitoring" ]
+          else [ "media" "tracearr" "monitoring" "timescaledb" ]
+        );
+        # Enable ZFS snapshots only for embedded mode (includes databases)
+        useSnapshots = lib.mkDefault (cfg.deploymentMode == "embedded");
         zfsDataset = lib.mkDefault "tank/services/tracearr";
         excludePatterns = lib.mkDefault [
           "**/*.log"
@@ -219,6 +375,22 @@ in
           assertion = !cfg.preseed.enable || cfg.preseed.repositoryUrl != "";
           message = "Tracearr preseed.enable requires preseed.repositoryUrl to be set.";
         }
+        {
+          assertion = cfg.deploymentMode == "embedded" || cfg.database.passwordFile != null;
+          message = "Tracearr external mode requires database.passwordFile to be set.";
+        }
+        {
+          assertion = cfg.deploymentMode == "embedded" || cfg.redis.url != null;
+          message = "Tracearr external mode requires redis.url to be set.";
+        }
+        {
+          assertion = cfg.deploymentMode == "embedded" || cfg.secrets.jwtSecretFile != null;
+          message = "Tracearr external mode requires secrets.jwtSecretFile to be set (generate with: openssl rand -hex 32).";
+        }
+        {
+          assertion = cfg.deploymentMode == "embedded" || cfg.secrets.cookieSecretFile != null;
+          message = "Tracearr external mode requires secrets.cookieSecretFile to be set (generate with: openssl rand -hex 32).";
+        }
       ];
 
       # Automatically register with Caddy reverse proxy if enabled
@@ -241,10 +413,18 @@ in
         extraConfig = cfg.reverseProxy.extraConfig;
       };
 
+      # Provision PostgreSQL database with TimescaleDB when using external mode
+      modules.services.postgresql.databases.tracearr = lib.mkIf (useExternalDatabases && cfg.database.manageDatabase) {
+        owner = cfg.database.user;
+        ownerPasswordFile = cfg.database.passwordFile;
+        extensions = [ "timescaledb" ];
+      };
+
       # Declare dataset requirements for per-service ZFS isolation
       modules.storage.datasets.services.tracearr = {
         mountpoint = cfg.dataDir;
-        recordsize = "16K"; # Optimal for PostgreSQL/TimescaleDB
+        # Use smaller recordsize for external mode (less data stored locally)
+        recordsize = if useExternalDatabases then "128K" else "16K";
         compression = "zstd";
         properties = {
           "com.sun:auto-snapshot" = "true";
@@ -254,14 +434,19 @@ in
         mode = "0750";
       };
 
-      # Create subdirectories for the container's VOLUME declarations
-      # The supervised image declares VOLUME [/data/postgres /data/redis /data/tracearr]
-      # which we must explicitly bind mount to avoid anonymous volumes
-      systemd.tmpfiles.rules = [
-        "d ${cfg.dataDir}/postgres 0750 ${toString cfg.uid} ${toString cfg.gid} -"
-        "d ${cfg.dataDir}/redis 0750 ${toString cfg.uid} ${toString cfg.gid} -"
-        "d ${cfg.dataDir}/tracearr 0750 ${toString cfg.uid} ${toString cfg.gid} -"
-      ];
+      # Create subdirectories based on deployment mode
+      # Embedded mode: needs postgres, redis, tracearr subdirs for container VOLUMEs
+      # External mode: only needs tracearr subdir for app data
+      systemd.tmpfiles.rules =
+        if useExternalDatabases then [
+          "d ${cfg.dataDir}/tracearr 0750 ${toString cfg.uid} ${toString cfg.gid} -"
+        ] else [
+          # The supervised image declares VOLUME [/data/postgres /data/redis /data/tracearr]
+          # Let container manage ownership internally (don't set explicit uid/gid)
+          "d ${cfg.dataDir}/postgres 0750 - - -"
+          "d ${cfg.dataDir}/redis 0750 - - -"
+          "d ${cfg.dataDir}/tracearr 0750 - - -"
+        ];
 
       # Create local users to match container expectations
       users.users.${cfg.user} = {
@@ -277,24 +462,35 @@ in
         gid = cfg.gid;
       };
 
-      # Tracearr container configuration (supervised all-in-one)
+      # Tracearr container configuration
       virtualisation.oci-containers.containers.tracearr = podmanLib.mkContainer "tracearr" {
         image = cfg.image;
         environment = {
           TZ = cfg.timezone;
           LOG_LEVEL = cfg.logLevel;
           # Port is fixed at 3000 inside container, mapped externally
+        } // lib.optionalAttrs useExternalDatabases {
+          # Redis URL can be passed directly (no secrets)
+          REDIS_URL = cfg.redis.url;
+          # DATABASE_URL is set via environment file to avoid exposing password in process list
         };
-        # Build environment file with optional MaxMind key
-        environmentFiles = lib.optional (cfg.maxmindLicenseKeyFile != null) "/run/tracearr/env";
-        volumes = [
-          # The supervised image declares VOLUME for /data/postgres, /data/redis, /data/tracearr
-          # which creates anonymous volumes that override a simple /data bind mount.
-          # We must explicitly bind mount each subdirectory to ensure data persists to our ZFS dataset.
-          "${cfg.dataDir}/postgres:/data/postgres:rw"
-          "${cfg.dataDir}/redis:/data/redis:rw"
-          "${cfg.dataDir}/tracearr:/data/tracearr:rw"
-        ];
+        # Build environment file with optional MaxMind key and database password
+        environmentFiles =
+          lib.optional (cfg.maxmindLicenseKeyFile != null) "/run/tracearr/env"
+          ++ lib.optional useExternalDatabases "/run/tracearr/db-env";
+        volumes =
+          if useExternalDatabases then [
+            # External mode: only mount app data directory
+            "${cfg.dataDir}/tracearr:/data/tracearr:rw"
+          ] else [
+            # Embedded mode: mount all data directories for supervised image
+            # The supervised image declares VOLUME for /data/postgres, /data/redis, /data/tracearr
+            # which creates anonymous volumes that override a simple /data bind mount.
+            # We must explicitly bind mount each subdirectory to ensure data persists to our ZFS dataset.
+            "${cfg.dataDir}/postgres:/data/postgres:rw"
+            "${cfg.dataDir}/redis:/data/redis:rw"
+            "${cfg.dataDir}/tracearr:/data/tracearr:rw"
+          ];
         ports = [
           "127.0.0.1:${toString tracearrPort}:3000"
         ];
@@ -314,6 +510,41 @@ in
 
       # Create environment file with MaxMind license key if provided
       systemd.services."${config.virtualisation.oci-containers.backend}-tracearr" = lib.mkMerge [
+        # Base configuration for external mode: load database and security credentials
+        (lib.mkIf useExternalDatabases {
+          serviceConfig.LoadCredential = lib.mkMerge [
+            (lib.mkIf (cfg.database.passwordFile != null) [
+              "db_password:${cfg.database.passwordFile}"
+            ])
+            (lib.mkIf (cfg.secrets.jwtSecretFile != null) [
+              "jwt_secret:${cfg.secrets.jwtSecretFile}"
+            ])
+            (lib.mkIf (cfg.secrets.cookieSecretFile != null) [
+              "cookie_secret:${cfg.secrets.cookieSecretFile}"
+            ])
+          ];
+          preStart = lib.mkBefore ''
+            install -d -m 700 /run/tracearr
+            # Build environment file with DATABASE_URL, JWT_SECRET, and COOKIE_SECRET
+            {
+              ${lib.optionalString (cfg.database.passwordFile != null) ''
+                # Generate DATABASE_URL with substituted password
+                DB_PASS="$(cat "$CREDENTIALS_DIRECTORY/db_password")"
+                printf "DATABASE_URL=postgresql://${cfg.database.user}:%s@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}\n" "$DB_PASS"
+              ''}
+              ${lib.optionalString (cfg.secrets.jwtSecretFile != null) ''
+                JWT_SECRET="$(cat "$CREDENTIALS_DIRECTORY/jwt_secret")"
+                printf "JWT_SECRET=%s\n" "$JWT_SECRET"
+              ''}
+              ${lib.optionalString (cfg.secrets.cookieSecretFile != null) ''
+                COOKIE_SECRET="$(cat "$CREDENTIALS_DIRECTORY/cookie_secret")"
+                printf "COOKIE_SECRET=%s\n" "$COOKIE_SECRET"
+              ''}
+            } > /run/tracearr/db-env
+            chmod 600 /run/tracearr/db-env
+          '';
+        })
+        # MaxMind GeoIP license key handling
         (lib.mkIf (cfg.maxmindLicenseKeyFile != null) {
           serviceConfig.LoadCredential = [
             "maxmind_license_key:${cfg.maxmindLicenseKeyFile}"

@@ -239,6 +239,20 @@ in
       example = [ "/usr/local/bin/sonarr" "/home/user/scripts" ];
     };
 
+    extraVolumes = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = ''
+        Additional volume mounts for the qui container.
+
+        Use this to provide qui with access to the media filesystem for
+        cross-seed hardlink/reflink mode, which requires local filesystem access.
+
+        Format: "/host/path:/container/path[:options]"
+      '';
+      example = [ "/mnt/media:/mnt/media:ro" ];
+    };
+
     checkForUpdates = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -502,7 +516,7 @@ in
 
           volumes = [
             "${cfg.dataDir}:/config"
-          ];
+          ] ++ cfg.extraVolumes;
 
           ports = [
             "${toString cfg.port}:${toString cfg.port}"

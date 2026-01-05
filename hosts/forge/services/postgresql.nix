@@ -122,7 +122,16 @@ in
       # The custom module's listenAddresses may not be taking effect, so we force it here
       services.postgresql.settings = {
         listen_addresses = pkgs.lib.mkForce "127.0.0.1,10.88.0.1";
+        # TimescaleDB requires shared_preload_libraries
+        shared_preload_libraries = "timescaledb";
       };
+
+      # Add TimescaleDB extension package to PostgreSQL
+      # Required for tracearr (media account sharing detection) database
+      # mkForce overrides the base package set in the module
+      services.postgresql.package = lib.mkForce (pkgs.postgresql_16.withPackages (ps: [
+        ps.timescaledb
+      ]));
 
       # Override authentication to allow container connections from Podman bridge
       # GPT-5 recommendation: Use password-based auth (scram-sha-256) for network connections

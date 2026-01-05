@@ -3,6 +3,11 @@
 # Host-specific configuration for Tracearr on 'forge'.
 # Tracearr provides account sharing detection and monitoring for Plex, Jellyfin, and Emby.
 #
+# Architecture: External Database Mode
+# - PostgreSQL with TimescaleDB extension (managed by forge's PostgreSQL)
+# - Redis for caching/sessions (shared forge Redis instance, DB index 0)
+# - Standard tracearr image (not supervised all-in-one)
+#
 # Features:
 # - Session tracking with IP geolocation (via MaxMind GeoIP)
 # - Sharing detection rules (impossible travel, simultaneous locations, device velocity, etc.)
@@ -22,26 +27,39 @@ in
 {
   config = lib.mkMerge [
     {
-      # SOPS secrets for Tracearr
-      # Add to hosts/forge/secrets.sops.yaml:
-      #   tracearr:
-      #     maxmind_license_key: <your-maxmind-license-key>
-      sops.secrets."tracearr/maxmind_license_key" = {
-        sopsFile = ../secrets.sops.yaml;
-        owner = "tracearr";
-        group = "tracearr";
-        mode = "0400";
-      };
-
       modules.services.tracearr = {
         enable = true;
 
-        # Pin container image with digest for reproducibility
-        # Renovate will automatically update this
-        image = "ghcr.io/connorgallopo/tracearr:supervised@sha256:7f6a3f2c1d149c0f20325832aac5e121d2bcbf57bc0a31f5e1a0958d501ee905";
+        # Use external database mode (centralized PostgreSQL + Redis)
+        deploymentMode = "external";
+
+        # Use standard image (not supervised all-in-one)
+        # Pin with digest for reproducibility; Renovate will update
+        image = "ghcr.io/connorgallopo/tracearr:latest";
 
         # Enable MaxMind GeoIP for accurate IP geolocation
         maxmindLicenseKeyFile = config.sops.secrets."tracearr/maxmind_license_key".path;
+
+        # External PostgreSQL configuration (forge's centralized instance)
+        # TimescaleDB extension is enabled on the database
+        database = {
+          host = "host.containers.internal"; # Podman bridge to host
+          port = 5432;
+          name = "tracearr";
+          user = "tracearr";
+          passwordFile = config.sops.secrets."tracearr/db_password".path;
+          manageDatabase = true; # Auto-provision via postgresql module
+        };
+
+        # Security secrets (required for external mode)
+        # These are used by the tracearr web server for authentication/sessions
+        secrets = {
+          jwtSecretFile = config.sops.secrets."tracearr/jwt_secret".path;
+          cookieSecretFile = config.sops.secrets."tracearr/cookie_secret".path;
+        };
+
+        # External Redis configuration (forge's centralized instance)
+        redis.url = "redis://host.containers.internal:6379/0";
 
         healthcheck.enable = true;
 
@@ -52,7 +70,7 @@ in
           hostName = "tracearr.holthome.net";
         };
 
-        # Enable backups via the custom backup module integration
+        # Enable backups (external mode only backs up app data, not databases)
         backup = forgeDefaults.backup;
 
         # Enable failure notifications via Pushover
@@ -60,6 +78,21 @@ in
 
         # Enable self-healing restore from backups before service start
         preseed = forgeDefaults.preseed;
+      };
+
+      # Provision tracearr database in centralized PostgreSQL
+      # TimescaleDB extension enables time-series capabilities for session tracking
+      modules.services.postgresql.databases.tracearr = {
+        owner = "tracearr";
+        ownerPasswordFile = config.sops.secrets."tracearr/db_password".path;
+        extensions = [ "timescaledb" ];
+        # Grafana datasource for tracearr dashboards (optional)
+        grafanaDatasources = [{
+          name = "Tracearr";
+          timescaleDB = true;
+          folder = "Media";
+          dashboards = [ ];
+        }];
       };
     }
 

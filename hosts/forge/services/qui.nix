@@ -3,6 +3,7 @@
 # qui provides a modern React-based web interface for qBittorrent with:
 # - Multi-instance support (manage multiple qBittorrent servers)
 # - Client proxy feature (eliminates auth thrashing for Sonarr/Radarr/autobrr)
+# - Built-in cross-seeding with hardlink/reflink support
 # - Built-in qBittorrent backup/restore
 # - Native OIDC authentication (integrates with PocketID)
 # - Prometheus metrics
@@ -14,6 +15,15 @@
 # - Reverse Proxy: Caddy (https://qui.holthome.net)
 # - Backup: Restic + Sanoid snapshots
 #
+# Cross-Seed Setup (replaces standalone cross-seed daemon):
+# 1. In qui UI → Instance Settings, enable "Local filesystem access" on qBittorrent instance
+# 2. Go to Cross-Seed → Rules → Hardlink/Reflink Mode
+# 3. Enable "Hardlink mode" for the qBittorrent instance
+# 4. Set base directory to "/mnt/media/cross-seeds" (on same filesystem as downloads)
+# 5. Configure directory preset (flat, by-tracker, or by-instance)
+# 6. Add indexers in Cross-Seed → Indexers (import from Prowlarr)
+# 7. Enable desired cross-seed sources: RSS Automation, Seeded Search, Completion Search
+#
 # Post-Deployment Steps:
 # 1. Access https://qui.holthome.net
 # 2. Authenticate via PocketID OIDC
@@ -22,8 +32,10 @@
 #    client_secret = "/run/secrets/oidc_client_secret"
 # 4. Restart qui service: systemctl restart podman-qui.service
 # 5. Add qBittorrent instance (localhost:8080 with credentials)
-# 6. Create client proxy API keys in Settings → Client Proxy Keys
-# 7. Update Sonarr/Radarr/autobrr to use qui proxy URLs
+# 6. Enable Local filesystem access for the instance
+# 7. Create client proxy API keys in Settings → Client Proxy Keys
+# 8. Update Sonarr/Radarr/autobrr to use qui proxy URLs
+# 9. Configure cross-seed hardlink mode (see above)
 
 { config, lib, ... }:
 
@@ -72,6 +84,12 @@ in
 
         # Podman network for media services communication
         podmanNetwork = "media-services"; # Enable DNS resolution to qBittorrent and other media services
+
+        # Volume mounts for cross-seed hardlink mode
+        # qui needs filesystem access to create hardlinks for cross-seeded torrents
+        extraVolumes = [
+          "/mnt/media:/mnt/media:rw" # Media library - must be writable for hardlink creation
+        ];
 
         # Hairpin NAT workaround: container can't reach 10.20.0.30, so override DNS
         # to point id.holthome.net to the podman bridge IP where Caddy also listens
