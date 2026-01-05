@@ -3,7 +3,7 @@
 {
   beads = {
     pname = "beads";
-    version = "v0.43.0";
+    version = "v0.44.0";
     src = fetchFromGitHub {
       owner = "steveyegge";
       repo = "beads";
@@ -14,7 +14,7 @@
   };
   cooklang-cli = {
     pname = "cooklang-cli";
-    version = "v0.19.2";
+    version = "v0.19.3";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
