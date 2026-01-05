@@ -499,7 +499,8 @@ in
           "--pull=newer"
         ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           # Use /health endpoint which returns JSON status of db, redis, geoip, and timescale
-          ''--health-cmd=curl -sf http://127.0.0.1:3000/health > /dev/null''
+          # Note: Using wget instead of curl because tracearr image doesn't include curl
+          ''--health-cmd=wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1''
           "--health-interval=${cfg.healthcheck.interval}"
           "--health-timeout=${cfg.healthcheck.timeout}"
           "--health-retries=${toString cfg.healthcheck.retries}"
