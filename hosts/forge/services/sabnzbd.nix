@@ -57,6 +57,14 @@ in
         enableHttpsVerification = true; # SECURITY: MITM protection for updates/RSS
         cacheLimit = "2G"; # forge has 32GB RAM, can afford 2G cache
         bandwidthPercent = 90; # 90% to leave headroom for Plex/SSH
+
+        # Increase memory limit to accommodate cache + 7z extraction overhead
+        # Default 1G is too low when cacheLimit=2G and extracting large archives
+        resources = {
+          memory = "4G"; # 2G cache + extraction overhead + safety margin
+          memoryReservation = "1G";
+          cpus = "4.0";
+        };
         queueLimit = 50; # Higher limit for bulk *arr operations
         logLevel = 1; # Info level for operational visibility
 
