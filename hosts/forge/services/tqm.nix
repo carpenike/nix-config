@@ -1,7 +1,22 @@
 # hosts/forge/services/tqm.nix
 #
-# Host-specific configuration for tqm (torrent lifecycle management) on 'forge'.
-# tqm automates torrent cleanup, relabeling, and ratio management.
+# ============================================================================
+# DEPRECATED: Migrated to qui Automations (January 2026)
+# ============================================================================
+# TQM functionality has been replaced by qui's built-in Automations feature.
+# qui provides the same torrent lifecycle management with:
+#   - Visual rule builder with Preview mode
+#   - Real-time rule evaluation (vs scheduled timers)
+#   - Better cross-seed awareness
+#   - Integrated with qBittorrent WebUI
+#
+# Configure rules in qui UI: Settings → Automations
+#
+# KEEPING THIS FILE FOR REFERENCE during migration validation.
+# Delete after confirming qui Automations work correctly (Feb 2026).
+# ============================================================================
+#
+# Original purpose: torrent lifecycle management (cleanup, relabeling, ratio management)
 #
 # ARCHITECTURE NOTE:
 # tqm is a stateless utility that runs as scheduled oneshot systemd timers.
@@ -22,15 +37,10 @@
   config = lib.mkMerge [
     {
       modules.services.tqm = {
-        # tqm - Comprehensive torrent lifecycle management
-        # GEMINI PRO OPTIMIZED CONFIGURATION (Nov 2025)
-        # Based on deep analysis of 421 torrent environment:
-        # - 77% BTN (landof.tv) torrents requiring careful ratio management
-        # - 67% under 1.0 ratio (283 torrents) - strategic removal needed
-        # - 422GB stalled downloads - quarantine approach
-        # - Phased implementation: tag first, remove later
-        # Reference: https://github.com/autobrr/tqm
-        enable = true;
+        # DISABLED: Migrated to qui Automations (January 2026)
+        # See deprecation notice at top of file.
+        # Original config preserved below for reference during migration.
+        enable = false;
 
         client = {
           type = "qbittorrent";
