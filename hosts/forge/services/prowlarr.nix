@@ -16,7 +16,7 @@ in
         enable = true;
 
         # Pin container image to specific version with digest
-        image = "ghcr.io/home-operations/prowlarr:2.3.1.5238@sha256:4394dff2311238bf5c31e006872122ed4e5f6bf042d33528d80acd44a09c57f7";
+        image = "ghcr.io/home-operations/prowlarr:2.3.2.5245@sha256:7bdb5470232e8bdf2cf3cd9de60fb1d7180062386163a6c5ad4ea4d2aeddad70";
 
         # Attach to media services network for DNS resolution
         podmanNetwork = forgeDefaults.podmanNetwork;
