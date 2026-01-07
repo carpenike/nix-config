@@ -93,6 +93,9 @@ in
       delta=y
       compress-type=lz4
       compress-level=3
+      # Increase I/O timeout for NFS repository operations (default 60s)
+      # Helps with occasional NFS stale handle/timing issues during expire
+      io-timeout=300
 
       [main]
       pg1-path=/var/lib/postgresql/16
@@ -902,17 +905,20 @@ in
       };
     };
 
-    # Full backup stale (>27 hours)
+    # Full backup stale - only alert if ALL repos are stale (>27 hours)
+    # Single repo failure is expected occasionally with NFS and self-heals
     "pgbackrest-full-backup-stale" = {
       type = "promql";
       alertname = "PgBackRestFullBackupStale";
-      expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"}) > 97200";
+      # Alert only when the MINIMUM age across all repos exceeds threshold
+      # This means ALL repos have stale backups, not just one
+      expr = "min(time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"}) > 97200";
       for = "1h";
       severity = "high";
       labels = { service = "pgbackrest"; category = "backup"; };
       annotations = {
-        summary = "pgBackRest full backup is stale (>27h) on {{ $labels.instance }}";
-        description = "Last full backup for repo {{ $labels.repo_key }} was {{ $value | humanizeDuration }} ago. Daily full backups should complete within 27 hours.";
+        summary = "pgBackRest full backups stale on ALL repos (>27h) on {{ $labels.instance }}";
+        description = "All backup repositories have stale full backups. Check both NFS (repo1) and R2 (repo2) connectivity.";
       };
     };
 
