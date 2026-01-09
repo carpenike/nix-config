@@ -276,15 +276,16 @@ in
 
       virtualisation.oci-containers.containers.bazarr = podmanLib.mkContainer "bazarr" {
         image = cfg.image;
-        environment = (lib.mkIf cfg.dependencies.sonarr.enable {
-          SONARR_URL = cfg.dependencies.sonarr.url;
-        }) // (lib.mkIf cfg.dependencies.radarr.enable {
-          RADARR_URL = cfg.dependencies.radarr.url;
-        }) // {
-          PUID = cfg.user;
-          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-          TZ = cfg.timezone;
-        };
+        environment =
+          (lib.optionalAttrs cfg.dependencies.sonarr.enable {
+            SONARR_URL = cfg.dependencies.sonarr.url;
+          }) // (lib.optionalAttrs cfg.dependencies.radarr.enable {
+            RADARR_URL = cfg.dependencies.radarr.url;
+          }) // {
+            PUID = cfg.user;
+            PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+            TZ = cfg.timezone;
+          };
         environmentFiles = [
           # API keys are injected via a templated environment file
           # to avoid evaluation-time errors with builtins.readFile
