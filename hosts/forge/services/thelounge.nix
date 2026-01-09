@@ -32,8 +32,11 @@ in
         # Override default port to avoid conflicts (mealie uses 9000 internally)
         port = port;
 
-        # Disable native authentication (use caddySecurity instead)
-        public = true;
+        # Use private mode for persistent user accounts and IRC sessions
+        # NOTE: After deploy, create user with: sudo thelounge add <username>
+        # The user will then authenticate through TheLounge's native login
+        # (caddySecurity still protects the endpoint from public internet)
+        public = false;
 
         # Themes - Dracula and Mininapse (dark minimal)
         plugins = [
@@ -53,6 +56,8 @@ in
         };
 
         # Reverse proxy configuration for external access via Caddy
+        # No PocketID - TheLounge has its own native authentication
+        # which is required for persistent IRC bouncer functionality
         reverseProxy = {
           enable = true;
           hostName = hostName;
@@ -60,8 +65,6 @@ in
             host = "127.0.0.1";
             port = port;
           };
-          # Admin-only access via PocketID
-          caddySecurity = forgeDefaults.caddySecurity.admin;
         };
 
         # Backup configuration

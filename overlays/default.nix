@@ -115,6 +115,17 @@
     # See pkgs/caddy-custom.nix for plugin configuration and hash updates
     caddy = import ../pkgs/caddy-custom.nix { pkgs = final.unstable; };
 
+    # WORKAROUND (2026-01-09): thelounge sqlite3 native module removed in postInstall
+    # nixpkgs thelounge package builds sqlite3 correctly but then deletes the build/
+    # directory in postInstall, breaking the native module at runtime
+    # Error: "[ERROR] Unable to load sqlite3 module"
+    # Affects: Message history persistence (scrollback not saved between restarts)
+    # Upstream: https://github.com/NixOS/nixpkgs (should file bug)
+    # Check: When nixpkgs thelounge package removes the erroneous postInstall rm
+    thelounge = prev.thelounge.overrideAttrs (_old: {
+      postInstall = ""; # Don't delete the sqlite3 build directory!
+    });
+
     # WORKAROUND (2025-01-01): ctranslate2 missing #include <cstdint> in cxxopts.hpp
     # C++20/GCC 14 requires explicit cstdint include for uint8_t
     # Affects: open-webui (via faster-whisper -> ctranslate2)

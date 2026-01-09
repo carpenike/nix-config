@@ -2,8 +2,8 @@
 
 This document tracks temporary workarounds, package overrides, and unstable package usage that should be periodically reviewed. These exist due to upstream bugs, missing features in stable, or test failures in the Nix build sandbox.
 
-**Last Reviewed**: 2025-12-19
-**Next Review**: 2025-01-19 (monthly)
+**Last Reviewed**: 2026-01-09
+**Next Review**: 2026-02-09 (monthly)
 
 ---
 
@@ -18,6 +18,19 @@ When reviewing workarounds:
 ---
 
 ## Package Overrides (overlays/default.nix)
+
+### thelounge - sqlite3 Native Module Fix
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-01-09 |
+| **Affects** | `thelounge` (stable overlay) |
+| **Reason** | nixpkgs thelounge package builds sqlite3 native module correctly, then deletes the `build/` directory in `postInstall`, breaking the module at runtime |
+| **Error** | `[ERROR] Unable to load sqlite3 module. See https://github.com/mapbox/node-sqlite3/wiki/Binaries` |
+| **Workaround** | `postInstall = "";` (remove the erroneous `rm -r .../sqlite3/build/`) |
+| **Check Version** | Any thelounge update in nixpkgs |
+| **Upstream** | https://github.com/NixOS/nixpkgs - should file bug report |
+| **Impact** | Without fix: message history (scrollback) not persisted between restarts |
 
 ### granian - HTTPS Test Disabled
 

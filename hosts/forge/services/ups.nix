@@ -95,7 +95,7 @@ in
   systemd.services.upsdrv = {
     after = [ "network-online.target" ] ++ lib.optional serviceEnabled "ups-inject-secrets.service";
     wants = [ "network-online.target" ];
-    requires = lib.optional serviceEnabled [ "ups-inject-secrets.service" ];
+    requires = lib.optionals serviceEnabled [ "ups-inject-secrets.service" ];
   };
 
   # Export UPS metrics to Prometheus via node_exporter textfile collector
@@ -358,12 +358,8 @@ in
       "--memory=256m"
       "--memory-reservation=128m"
       "--cpus=0.5"
-      # Health check - matches upstream: /api/ping endpoint, 30s interval, 3s timeout, 5s start
-      "--health-cmd=wget --no-verbose --tries=1 --spider --no-check-certificate http://127.0.0.1:${toString peanutPort}/api/ping || exit 1"
-      "--health-interval=30s"
-      "--health-timeout=3s"
-      "--health-retries=3"
-      "--health-start-period=5s"
+      # Image has built-in healthcheck using exec form (no shell needed)
+      # as of commit b5fe006 (Jan 2026): CMD ["node", "healthcheck.mjs"]
     ];
   };
 
@@ -438,5 +434,16 @@ in
       url = "http://127.0.0.1:${toString peanutPort}";
       key = "apc"; # UPS name in NUT
     };
+  };
+
+  # Gatus endpoint for PeaNUT web UI availability (external/user-perspective check)
+  modules.services.gatus.contributions.peanut = lib.mkIf serviceEnabled {
+    name = "PeaNUT";
+    group = "Infrastructure";
+    url = "http://127.0.0.1:${toString peanutPort}/api/ping";
+    interval = "60s";
+    conditions = [
+      "[STATUS] == 200"
+    ];
   };
 }
