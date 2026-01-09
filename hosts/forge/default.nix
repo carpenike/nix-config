@@ -63,6 +63,7 @@ in
     ./services/pgweb.nix # PostgreSQL web management interface
     ./services/pocketid.nix # Pocket ID passkey/OIDC provider
     ./services/qui.nix # qui - Modern qBittorrent web interface with OIDC
+    ./services/qui-auto-recheck.nix # Auto-recheck cross-seeded torrents with missingFiles
     ./services/cloudflare-tunnel.nix # Cloudflare Tunnel for external access
     ./services/litellm.nix # LiteLLM unified AI gateway
     ./services/sonarr.nix # Sonarr TV series management
