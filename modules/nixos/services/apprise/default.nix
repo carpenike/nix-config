@@ -275,6 +275,14 @@ in
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
 
+          # Create subdirectories before container starts
+          # tmpfiles.rules are processed at boot, but may not run before this service
+          preStart = lib.mkAfter ''
+            install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}/config
+            install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}/attach
+            install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${cfg.dataDir}/plugin
+          '';
+
           serviceConfig = {
             Restart = "always";
             RestartSec = "10s";
