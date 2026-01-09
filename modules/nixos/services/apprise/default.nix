@@ -40,7 +40,9 @@ in
 
     image = mkOption {
       type = types.str;
-      default = "caronc/apprise:v1.9.5@sha256:3bde5d985e65924c3ef7ae218172e18028a9ddcb3f71d2cced3a757fbf1d0a3d";
+      # Note: Container version (1.3.0) differs from Python apprise package version (1.9.5)
+      # The apprise-api container is versioned independently
+      default = "docker.io/caronc/apprise:1.3.0@sha256:e365025a7bf1fed39ef66b5f22c9855d500ee7bdea27441365e5b95ea972e843";
       description = "Container image for Apprise API";
     };
 
