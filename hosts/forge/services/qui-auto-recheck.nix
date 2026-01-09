@@ -64,27 +64,28 @@ in
         API_KEY=$(cat ${config.sops.secrets."qui/api-key".path})
         INSTANCE_ID=1
 
-        # Phase 1: Resume any stoppedDL torrents from previous runs
+        # Phase 1: Resume any stopped torrents from previous runs
         # This catches torrents where recheck finished after our previous 30s wait
-        echo "[$(date -Iseconds)] Checking for stoppedDL torrents to resume (from previous runs)..."
+        # stoppedDL = incomplete (needs cross-file pieces), stoppedUP = complete (ready to seed)
+        echo "[$(date -Iseconds)] Checking for stopped torrents to resume (from previous runs)..."
 
-        STOPPED_DL_HASHES=$(curl -sf "$QUI_URL/api/instances/$INSTANCE_ID/torrents" \
+        STOPPED_HASHES=$(curl -sf "$QUI_URL/api/instances/$INSTANCE_ID/torrents" \
           -H "X-API-Key: $API_KEY" | \
-          jq -r '.torrents[] | select(.state == "stoppedDL") | .hash' || true)
+          jq -r '.torrents[] | select(.state == "stoppedDL" or .state == "stoppedUP") | .hash' || true)
 
-        if [ -n "$STOPPED_DL_HASHES" ]; then
-          STOPPED_ARRAY=$(echo "$STOPPED_DL_HASHES" | jq -R -s 'split("\n") | map(select(length > 0))')
+        if [ -n "$STOPPED_HASHES" ]; then
+          STOPPED_ARRAY=$(echo "$STOPPED_HASHES" | jq -R -s 'split("\n") | map(select(length > 0))')
           STOPPED_COUNT=$(echo "$STOPPED_ARRAY" | jq 'length')
-          echo "[$(date -Iseconds)] Found $STOPPED_COUNT stoppedDL torrents. Resuming..."
+          echo "[$(date -Iseconds)] Found $STOPPED_COUNT stopped torrents. Resuming..."
 
           curl -sf -X POST "$QUI_URL/api/instances/$INSTANCE_ID/torrents/bulk-action" \
             -H "X-API-Key: $API_KEY" \
             -H "Content-Type: application/json" \
             -d "{\"action\": \"resume\", \"hashes\": $STOPPED_ARRAY}" > /dev/null
 
-          echo "[$(date -Iseconds)] Resumed $STOPPED_COUNT stoppedDL torrents."
+          echo "[$(date -Iseconds)] Resumed $STOPPED_COUNT stopped torrents."
         else
-          echo "[$(date -Iseconds)] No stoppedDL torrents found."
+          echo "[$(date -Iseconds)] No stopped torrents found."
         fi
 
         # Phase 2: Find and recheck torrents with missingFiles state
@@ -115,11 +116,12 @@ in
         sleep 30
 
         # Phase 3: Resume any torrents that finished recheck and are now stopped
+        # stoppedDL = incomplete (needs cross-file pieces), stoppedUP = complete (ready to seed)
         echo "[$(date -Iseconds)] Checking for stopped torrents to resume..."
 
         STOPPED_HASHES=$(curl -sf "$QUI_URL/api/instances/$INSTANCE_ID/torrents" \
           -H "X-API-Key: $API_KEY" | \
-          jq -r '.torrents[] | select(.state == "stoppedDL") | .hash' || true)
+          jq -r '.torrents[] | select(.state == "stoppedDL" or .state == "stoppedUP") | .hash' || true)
 
         if [ -z "$STOPPED_HASHES" ]; then
           echo "[$(date -Iseconds)] No stopped torrents found. Done."
