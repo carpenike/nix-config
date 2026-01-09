@@ -26,18 +26,12 @@ in
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
-        # Configure dependencies on Sonarr and Radarr
-        # API keys are automatically injected via SOPS templates
-        # Use container names for DNS resolution within media-services network
+        # Systemd dependencies ensure Sonarr/Radarr start before Bazarr
+        # API keys and URLs must be configured in Bazarr web UI: Settings -> Sonarr/Radarr
+        # Use container hostnames: sonarr:8989 and radarr:7878 (DNS via media-services network)
         dependencies = {
-          sonarr = {
-            enable = true;
-            url = "http://sonarr:8989";
-          };
-          radarr = {
-            enable = true;
-            url = "http://radarr:7878";
-          };
+          sonarr.enable = true;
+          radarr.enable = true;
         };
 
         # Reverse proxy configuration for external access

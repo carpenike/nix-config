@@ -61,31 +61,19 @@ in
         type = lib.types.submodule {
           options = {
             enable = lib.mkEnableOption "Sonarr integration";
-            url = lib.mkOption {
-              type = lib.types.str;
-              description = "URL for the Sonarr API.";
-              example = "http://localhost:8989";
-            };
-            # apiKeyFile is no longer needed; the key is injected via environmentFiles
           };
         };
         default = { enable = false; };
-        description = "Configuration for connecting to Sonarr.";
+        description = "Enable systemd dependency on Sonarr (ensures Sonarr starts first). API keys must be configured in Bazarr web UI.";
       };
       radarr = lib.mkOption {
         type = lib.types.submodule {
           options = {
             enable = lib.mkEnableOption "Radarr integration";
-            url = lib.mkOption {
-              type = lib.types.str;
-              description = "URL for the Radarr API.";
-              example = "http://localhost:7878";
-            };
-            # apiKeyFile is no longer needed; the key is injected via environmentFiles
           };
         };
         default = { enable = false; };
-        description = "Configuration for connecting to Radarr.";
+        description = "Enable systemd dependency on Radarr (ensures Radarr starts first). API keys must be configured in Bazarr web UI.";
       };
     };
 
@@ -276,21 +264,11 @@ in
 
       virtualisation.oci-containers.containers.bazarr = podmanLib.mkContainer "bazarr" {
         image = cfg.image;
-        environment =
-          (lib.optionalAttrs cfg.dependencies.sonarr.enable {
-            SONARR_URL = cfg.dependencies.sonarr.url;
-          }) // (lib.optionalAttrs cfg.dependencies.radarr.enable {
-            RADARR_URL = cfg.dependencies.radarr.url;
-          }) // {
-            PUID = cfg.user;
-            PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-            TZ = cfg.timezone;
-          };
-        environmentFiles = [
-          # API keys are injected via a templated environment file
-          # to avoid evaluation-time errors with builtins.readFile
-          config.sops.templates."bazarr-env".path
-        ];
+        environment = {
+          PUID = cfg.user;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          TZ = cfg.timezone;
+        };
         volumes = [
           "${cfg.dataDir}:/config:rw"
           "${cfg.tvDir}:/tv:rw"

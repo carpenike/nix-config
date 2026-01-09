@@ -24,7 +24,6 @@ let
   sonarrEnabled = config.modules.services.sonarr.enable or false;
   radarrEnabled = config.modules.services.radarr.enable or false;
   prowlarrEnabled = config.modules.services.prowlarr.enable or false;
-  bazarrEnabled = config.modules.services.bazarr.enable or false;
   recyclarrEnabled = config.modules.services.recyclarr.enable or false;
   teslamateEnabled = config.modules.services.teslamate.enable or false;
   zigbeeEnabled = config.modules.services.zigbee2mqtt.enable or false;
@@ -872,17 +871,8 @@ in
             group = "root";
           };
         }
-        // optionalAttrs bazarrEnabled {
-          "bazarr-env" = {
-            content = ''
-              SONARR_API_KEY=${config.sops.placeholder."sonarr/api-key"}
-              RADARR_API_KEY=${config.sops.placeholder."radarr/api-key"}
-            '';
-            mode = "0400"; # root-only readable
-            owner = "root";
-            group = "root";
-          };
-        }
+        # bazarr-env removed - Bazarr doesn't auto-configure from environment variables
+        # API keys must be configured manually in Bazarr web UI: Settings -> Sonarr/Radarr
         // optionalAttrs recyclarrEnabled {
           "recyclarr-env" = {
             content = ''
