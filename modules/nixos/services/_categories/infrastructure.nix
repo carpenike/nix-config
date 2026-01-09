@@ -3,6 +3,7 @@
 { ... }:
 {
   imports = [
+    ../apprise # Notification gateway
     ../bind # DNS server
     ../blocky # DNS proxy/blocker
     ../caddy # Reverse proxy (primary)

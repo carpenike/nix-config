@@ -356,6 +356,13 @@
     extraGroups = [ ];
   };
 
+  apprise = {
+    uid = 938;
+    gid = 938;
+    description = "Apprise API notification gateway";
+    extraGroups = [ ];
+  };
+
   grafana-oncall = {
     uid = 957;
     gid = 952;

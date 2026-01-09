@@ -98,6 +98,7 @@ in
     ./services/teslamate.nix # TeslaMate telemetry + dashboards
     ./services/thelounge.nix # TheLounge IRC web client
     ./services/tracearr.nix # Tracearr media server account sharing detection
+    ./services/apprise.nix # Apprise notification gateway
     ./services/frigate.nix # Frigate NVR service
     ./services/go2rtc.nix # go2rtc camera streaming relay (Scrypted → WebRTC → HA)
     ./services/grafana-oncall.nix # Grafana OnCall incident response platform
