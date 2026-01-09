@@ -57,6 +57,7 @@ let
     || (config.services.postgresql.enable or false);
   r2CredentialsEnabled = resticEnabled || postgresqlEnabled;
   beszelAgentEnabled = config.modules.services.beszel.agent.enable or false;
+  upsEnabled = config.power.ups.enable or false;
 in
 {
   config = {
@@ -806,6 +807,24 @@ in
           # Fine-grained PAT with "Self-hosted runners" read+write permission
           # Create at: https://github.com/settings/tokens?type=beta
           "github/runner-token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs upsEnabled {
+          # UPS monitoring SNMP community string (replaces hardcoded 'public')
+          # Change from default 'public' for improved security
+          # Configure on APC Network Management Card: Configuration -> Network -> SNMP
+          "ups/snmp-community" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # UPS monitoring password for upsmon user
+          # Used for local upsd communication in standalone mode
+          "ups/upsmon-password" = {
             mode = "0400";
             owner = "root";
             group = "root";
