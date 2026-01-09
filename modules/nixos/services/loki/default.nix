@@ -49,8 +49,8 @@ in
     resources = mkOption {
       type = types.attrsOf types.str;
       default = {
-        MemoryMax = "512M";
-        MemoryReservation = "256M";
+        MemoryMax = "1G";
+        MemoryReservation = "512M";
         CPUQuota = "50%";
       };
       description = "Resource limits for the Loki systemd service";

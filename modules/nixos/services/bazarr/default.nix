@@ -103,8 +103,8 @@ in
     resources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
-        memory = "256M";
-        memoryReservation = "128M";
+        memory = "1G";
+        memoryReservation = "512M";
         cpus = "1.0";
       };
       description = "Resource limits for the container";
