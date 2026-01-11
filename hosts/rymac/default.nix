@@ -36,6 +36,7 @@
         "obsidian"
         "orbstack"
         "plex"
+        "spotify"
         "tableplus"
         "transmit"
         "microsoft-edge"
