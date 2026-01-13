@@ -9,7 +9,7 @@
 buildGoModule rec {
   pname = "tqm";
   # renovate: depName=autobrr/tqm datasource=github-releases
-  version = "1.18.0";
+  version = "1.19.0";
 
   src = fetchFromGitHub {
     owner = "autobrr";
