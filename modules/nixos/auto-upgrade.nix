@@ -7,6 +7,14 @@
 # - Success/failure notifications via Pushover
 # - Prometheus metrics for upgrade duration and status
 # - Slow upgrade alerts (configurable threshold)
+# - Tolerates transient unit failures (exit code 4) during switch
+#
+# Exit Code Handling:
+#   Code 0: Complete success
+#   Code 4: Configuration applied, but transient units failed (treated as success)
+#           This commonly occurs when Podman healthcheck services fire during container
+#           restart and the container is still in "starting" state.
+#   Other:  Real failure
 #
 # Usage:
 #   modules.autoUpgrade = {
@@ -39,6 +47,9 @@ let
   # 1. Records the upgrade start time for metrics
   # 2. Resets all failed units (especially transient Podman healthcheck services)
   #
+  # Note: We also set SuccessExitStatus=4 to treat exit code 4 as success, since
+  # it specifically means "configuration applied but some transient units failed."
+  #
   # The reset-failed is safe because:
   # - Transient units are ephemeral and will be recreated by Podman
   # - Persistent unit failures will reappear if the underlying issue persists
@@ -59,6 +70,8 @@ let
   '';
 
   # Script to write Prometheus metrics and trigger success notification
+  # Note: This runs for both exit code 0 (clean success) and exit code 4
+  # (config applied but transient units failed) since we set SuccessExitStatus=4
   postSuccessScript = pkgs.writeShellScript "nixos-upgrade-post-success" ''
         set -uf
 
@@ -66,6 +79,14 @@ let
         END_TIME=$(date +%s)
         DURATION=$((END_TIME - START_TIME))
         DURATION_MIN=$((DURATION / 60))
+
+        # Check for transient unit failures (indicates exit code 4 scenario)
+        TRANSIENT_FAILURES=0
+        FAILED_UNITS=$(${pkgs.systemd}/bin/systemctl list-units --failed --no-legend 2>/dev/null | grep -c "." || echo "0")
+        if [ "$FAILED_UNITS" -gt 0 ]; then
+          TRANSIENT_FAILURES=1
+          echo "Note: Upgrade completed with $FAILED_UNITS transient unit failure(s) (exit code 4)"
+        fi
 
         # Write Prometheus metrics
         cat > "${textfileDir}/nixos_upgrade.prom.tmp" << EOF
@@ -80,6 +101,10 @@ let
     # HELP nixos_upgrade_success Whether last upgrade succeeded (1=success, 0=failure)
     # TYPE nixos_upgrade_success gauge
     nixos_upgrade_success 1
+
+    # HELP nixos_upgrade_transient_failures Whether transient unit failures occurred (exit code 4)
+    # TYPE nixos_upgrade_transient_failures gauge
+    nixos_upgrade_transient_failures $TRANSIENT_FAILURES
     EOF
         mv "${textfileDir}/nixos_upgrade.prom.tmp" "${textfileDir}/nixos_upgrade.prom"
 
@@ -128,6 +153,10 @@ let
     # HELP nixos_upgrade_success Whether last upgrade succeeded (1=success, 0=failure)
     # TYPE nixos_upgrade_success gauge
     nixos_upgrade_success 0
+
+    # HELP nixos_upgrade_transient_failures Whether transient unit failures occurred (exit code 4)
+    # TYPE nixos_upgrade_transient_failures gauge
+    nixos_upgrade_transient_failures 0
     EOF
         mv "${textfileDir}/nixos_upgrade.prom.tmp" "${textfileDir}/nixos_upgrade.prom"
 
@@ -273,7 +302,30 @@ in
       # Record start time and reset failed units before upgrade
       preStart = "${preScript}";
 
+      # Clean up transient healthcheck failures after upgrade completes
+      # This runs regardless of exit code and resets failed transient units
+      postStop = ''
+        # Reset transient healthcheck services that may have failed during container restarts
+        # These are created by systemd-run and have long hex names
+        ${pkgs.systemd}/bin/systemctl reset-failed 2>/dev/null || true
+
+        # Log final state for debugging
+        FAILED_COUNT=$(${pkgs.systemd}/bin/systemctl list-units --failed --no-legend 2>/dev/null | wc -l || echo "0")
+        if [ "$FAILED_COUNT" -gt 0 ]; then
+          echo "Note: $FAILED_COUNT systemd units currently in failed state after upgrade"
+          ${pkgs.systemd}/bin/systemctl list-units --failed --no-legend 2>/dev/null || true
+        fi
+      '';
+
       serviceConfig = {
+        # Treat exit code 4 as success
+        # Exit code 4 from switch-to-configuration means "configuration applied successfully,
+        # but some transient units failed." This commonly occurs when Podman healthcheck
+        # services (created via systemd-run) fire while containers are still in "starting"
+        # state during container restarts. Since the configuration itself was applied
+        # correctly, we treat this as success for auto-upgrade purposes.
+        SuccessExitStatus = "4";
+
         # Set OOM score adjustment to prefer killing this service over critical ones
         # Range: -1000 (never kill) to 1000 (kill first), default is 0
         # This ensures that if OOM occurs, nixos-upgrade is killed before critical services
