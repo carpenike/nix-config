@@ -13,12 +13,12 @@
             "name": null,
             "owner": "steveyegge",
             "repo": "beads",
-            "rev": "v0.46.0",
-            "sha256": "sha256-PMzLKb0pYKiXdiEXBFe6N4FZ3AaNfvBRZlQBKijtldc=",
+            "rev": "v0.47.1",
+            "sha256": "sha256-DwIR/r1TJnpVd/CT1E2OTkAjU7k9/KHbcVwg5zziFVg=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.46.0"
+        "version": "v0.47.1"
     },
     "cooklang-cli": {
         "cargoLocks": null,
