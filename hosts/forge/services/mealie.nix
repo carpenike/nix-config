@@ -60,13 +60,13 @@ in
           configurationUrl = "${pocketIdIssuer}/.well-known/openid-configuration";
           clientId = "mealie";
           clientSecretFile = config.sops.secrets."mealie/oidc_client_secret".path;
-          providerName = "Holthome SSO";
+          providerName = "PocketID";
           userClaim = "email";
           nameClaim = "name";
           groupsClaim = "groups";
           userGroup = "family";
           adminGroup = "admins";
-          scopes = [ "openid" "profile" "email" ];
+          scopes = [ "openid" "profile" "email" "groups" ]; # Added groups scope
           signupEnabled = false;
           autoRedirect = true;
           rememberMe = true;
