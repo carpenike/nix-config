@@ -214,6 +214,24 @@ in
       description = "Optional Podman network to attach to.";
     };
 
+    extraHosts = mkOption {
+      type = types.attrsOf types.str;
+      default = { };
+      description = ''
+        Extra /etc/hosts entries for the container.
+
+        Useful for overriding DNS resolution when containers need to reach
+        host services via internal bridge IPs (hairpin NAT workaround).
+
+        Example: When using PocketID SSO, the container needs to reach
+        id.holthome.net but public DNS points to Cloudflare. Use this to
+        point to the Podman bridge IP where Caddy listens internally.
+      '';
+      example = {
+        "id.holthome.net" = "10.89.0.1";
+      };
+    };
+
     resources = mkOption {
       type = types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
@@ -619,6 +637,9 @@ in
         resources = cfg.resources;
         extraOptions = [ "--pull=newer" ]
           ++ lib.optionals (cfg.podmanNetwork != null) [ "--network=${cfg.podmanNetwork}" ]
+          ++ lib.optionals (cfg.extraHosts != { }) (
+          lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts
+        )
           ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
           ''--health-cmd=python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/api/app/about', timeout=5)" || exit 1''
           "--health-interval=${cfg.healthcheck.interval}"

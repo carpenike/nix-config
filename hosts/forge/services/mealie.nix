@@ -72,6 +72,13 @@ in
           rememberMe = true;
         };
 
+        # Override DNS for id.holthome.net to use internal Podman bridge IP
+        # Required because the container can't reach Cloudflare-proxied domains
+        # via hairpin NAT. Caddy listens on 10.89.0.1 for internal HTTPS traffic.
+        extraHosts = {
+          "id.holthome.net" = "10.89.0.1";
+        };
+
         openai = {
           enable = true;
           apiKeyFile = config.sops.secrets."mealie/openai_api_key".path;
