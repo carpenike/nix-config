@@ -51,6 +51,16 @@ in
         };
 
         # =====================================================================
+        # Container Network Configuration
+        # =====================================================================
+        # Override DNS for id.holthome.net to use internal Podman bridge IP
+        # Required because the container can't reach Cloudflare-proxied domains
+        # via hairpin NAT. Caddy listens on 10.89.0.1 for internal HTTPS traffic.
+        extraHosts = {
+          "id.holthome.net" = "10.89.0.1";
+        };
+
+        # =====================================================================
         # SSO Configuration (PocketID - OAuth2 Generic for Admin UI)
         # NOTE: JWT API auth is enterprise-only; we only use Admin UI SSO
         # =====================================================================
@@ -78,10 +88,16 @@ in
           store_model_in_db = true;
         };
 
+        litellmSettings = {
+          drop_params = true;
+          set_verbose = false;
+        };
+
         # =====================================================================
         # Model Configuration
         # =====================================================================
-        # Azure OpenAI deployments
+        # Azure OpenAI/AI Foundry deployments
+        # API key is set via AZURE_API_KEY in environmentFile (SOPS secret: litellm/provider-keys)
         models = [
           # GPT-4o - Latest GPT-4 multimodal
           {
@@ -228,11 +244,6 @@ in
           routing_strategy = "simple-shuffle";
           num_retries = 2;
           timeout = 300;
-        };
-
-        litellmSettings = {
-          drop_params = true;
-          set_verbose = false;
         };
 
         # =====================================================================
