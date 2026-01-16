@@ -240,6 +240,9 @@ in
             ephem
             aiowaqi
             wled
+            boto3
+            aiosqlite
+            aiofile
 
           ];
 
@@ -259,6 +262,14 @@ in
       # Service availability alert (native systemd service)
       modules.alerting.rules."home-assistant-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "home-assistant" "HomeAssistant" "home automation";
+
+      # LLM Vision integration requires /media path (hardcoded in the integration)
+      # Create symlink from /media to /mnt/media and ensure snapshots directory exists
+      systemd.tmpfiles.rules = [
+        "L+ /media - - - - /mnt/media"
+        "d /mnt/media/llmvision 0755 hass hass -"
+        "d /mnt/media/llmvision/snapshots 0755 hass hass -"
+      ];
     })
   ];
 }
