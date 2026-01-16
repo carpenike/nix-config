@@ -135,13 +135,6 @@ in
               api_key = "!env_var SECRET_MSFT_TTS_API_KEY";
             }
           ];
-          amcrest = [
-            {
-              host = "10.50.50.101";
-              username = "admin";
-              password = "!env_var SECRET_AMCREST_PASSWORD";
-            }
-          ];
         };
 
         # Backup using forgeDefaults helper with home automation tags
