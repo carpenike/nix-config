@@ -343,6 +343,80 @@ in
       };
     };
 
+    mqtt = {
+      enable = lib.mkEnableOption "MQTT integration for publishing events to Home Assistant";
+
+      server = lib.mkOption {
+        type = lib.types.str;
+        default = "mqtt://127.0.0.1:1883";
+        description = ''
+          MQTT broker URL (mqtt:// or mqtts://).
+
+          NOTE: This is for documentation only. Scrypted MQTT plugin settings
+          must be configured manually in the Scrypted web UI.
+        '';
+      };
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 1883;
+        description = ''
+          MQTT broker port.
+
+          NOTE: This is for documentation only. Scrypted MQTT plugin settings
+          must be configured manually in the Scrypted web UI.
+        '';
+      };
+
+      username = lib.mkOption {
+        type = lib.types.str;
+        default = "scrypted";
+        description = ''
+          Username for MQTT broker authentication.
+
+          This value IS used to provision the EMQX user when registerEmqxIntegration is true.
+          You must also enter this username in the Scrypted MQTT plugin settings.
+        '';
+      };
+
+      passwordFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to SOPS secret containing the MQTT password.
+
+          This value IS used to provision the EMQX user when registerEmqxIntegration is true.
+          You must also enter this password in the Scrypted MQTT plugin settings.
+        '';
+      };
+
+      topicPrefix = lib.mkOption {
+        type = lib.types.str;
+        default = "scrypted";
+        description = ''
+          Base topic prefix for Scrypted MQTT messages.
+
+          NOTE: This is for documentation only. Scrypted MQTT plugin settings
+          must be configured manually in the Scrypted web UI.
+        '';
+      };
+
+      registerEmqxIntegration = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Automatically provision MQTT user + ACLs via the EMQX integration module.";
+      };
+
+      allowedTopics = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ "scrypted/#" "homeassistant/#" ];
+        description = ''
+          Topic filters granted to the Scrypted MQTT user when registering with EMQX.
+          Default includes scrypted/# for device events and homeassistant/# for HA discovery.
+        '';
+      };
+    };
+
     reverseProxy = lib.mkOption {
       type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
       default = null;
@@ -533,6 +607,31 @@ in
           preBackupScript = cfg.backup.preBackupScript;
           postBackupScript = cfg.backup.postBackupScript;
         };
+
+        # EMQX MQTT integration - auto-register user and ACLs
+        modules.services.emqx.integrations.${serviceName} = lib.mkIf
+          (cfg.mqtt.enable && cfg.mqtt.registerEmqxIntegration && cfg.mqtt.passwordFile != null)
+          {
+            users = [
+              {
+                username = cfg.mqtt.username;
+                passwordFile = cfg.mqtt.passwordFile;
+                tags = [ "scrypted" "nvr" "cameras" ];
+              }
+            ];
+            acls = [
+              {
+                permission = "allow";
+                action = "pubsub";
+                subject = {
+                  kind = "user";
+                  value = cfg.mqtt.username;
+                };
+                topics = cfg.mqtt.allowedTopics;
+                comment = "Scrypted publishes camera events and subscribes for HA discovery";
+              }
+            ];
+          };
       }
 
       # Add the preseed service itself

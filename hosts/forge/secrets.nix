@@ -43,6 +43,7 @@ let
   unpackerrEnabled = config.modules.services.unpackerr.enable or false;
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
+  scryptedEnabled = config.modules.services.scrypted.enable or false;
   tautulliEnabled = config.modules.services.tautulli.enable or false;
   tracearrEnabled = config.modules.services.tracearr.enable or false;
   litellmEnabled = config.modules.services.litellm.enable or false;
@@ -577,6 +578,15 @@ in
             mode = "0400";
             owner = "zwave-js-ui";
             group = "zwave-js-ui";
+          };
+        }
+        // optionalAttrs scryptedEnabled {
+          # Scrypted MQTT password for Home Assistant integration
+          # Scrypted runs as root in the container, so root ownership is appropriate
+          "scrypted/mqtt_password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
           };
         }
         // optionalAttrs mealieEnabled {

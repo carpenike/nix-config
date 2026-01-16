@@ -92,6 +92,19 @@ in
             21064 # Additional HAP accessory
           ];
         };
+
+        # MQTT integration with EMQX broker for Home Assistant
+        # NOTE: This provisions the EMQX user/ACLs. You must ALSO configure the
+        # MQTT plugin in Scrypted's web UI with the same broker/username/password.
+        mqtt = {
+          enable = true;
+          server = "mqtt://127.0.0.1:1883";
+          username = "scrypted";
+          passwordFile = config.sops.secrets."scrypted/mqtt_password".path;
+          topicPrefix = "scrypted";
+          # registerEmqxIntegration = true; # default - auto-registers user + ACLs
+          # Default topics: scrypted/# and homeassistant/# for HA discovery
+        };
       };
     }
 
