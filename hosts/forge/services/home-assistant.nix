@@ -62,7 +62,7 @@ in
           default_config = { };
           homeassistant = {
             name = "Home";
-            internal_url = "https://${haHostname}";
+            internal_url = "http://127.0.0.1:8123";
             external_url = "https://${haHostname}";
             latitude = "!env_var SECRET_ZONE_HOME_LATITUDE";
             longitude = "!env_var SECRET_ZONE_HOME_LONGITUDE";
