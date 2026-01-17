@@ -8,7 +8,7 @@ rustPlatform.buildRustPackage {
   inherit (src) version;
   inherit (src) src;
 
-  cargoHash = "sha256-gGBboChD9bgxGtSQck4UaokVf4yY0F/o7ifTClkScEQ=";
+  cargoHash = "sha256-jPoDiAAY6tGEYiRDrBETUZNXGfJ72n1m1zjjyrsXuBQ=";
 
   patches = [
     ./patches/cooklang-federation-normalize-field-query.patch
