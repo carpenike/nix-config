@@ -165,7 +165,7 @@ in
       package = lib.mkOption {
         type = lib.types.package;
         default = pkgs.fetchzip {
-          url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.31.2/vuetorrent.zip";
+          url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.31.3/vuetorrent.zip";
           hash = "sha256-Z766fpjcZw4tfJwE1FoNJ/ykDWEFEESqD2zAQXI7tSM=";
           stripRoot = false;
         };
