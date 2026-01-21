@@ -504,6 +504,13 @@
     extraGroups = [ ];
   };
 
+  tududi = {
+    uid = 996;
+    gid = 996;
+    description = "Tududi productivity and task management";
+    extraGroups = [ ];
+  };
+
   # ============================================================================
   # SERVICES NOT YET DEPLOYED (placeholders for future use)
   # These use idealized allocations - update when actually deployed
