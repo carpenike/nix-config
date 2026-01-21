@@ -34,12 +34,12 @@
             "name": null,
             "owner": "cooklang",
             "repo": "CookCLI",
-            "rev": "v0.19.3",
-            "sha256": "sha256-qfsyEHQnOfJYqgZi5QxiGJX1pbXx7oR7qzBEwTYH7oY=",
+            "rev": "v0.20.0",
+            "sha256": "sha256-kGjeyw3E6hYcEOcGugW+mgvXGJ38pFp+z9vAMJqPTVE=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.19.3"
+        "version": "v0.20.0"
     },
     "cooklang-federation": {
         "cargoLocks": null,
@@ -139,11 +139,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v2.12.0",
-            "sha256": "sha256-BibWMzxkfpF0dVWD04o5CJQfrthrWnYxUFanbS3kEEM=",
+            "rev": "v2.13.1",
+            "sha256": "sha256-zlIgt46SZpxZHYDB2mM7Egh4y5w1uzE3JA3An4D2p9g=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v2.12.0"
+        "version": "v2.13.1"
     }
 }
