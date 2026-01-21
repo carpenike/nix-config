@@ -53,7 +53,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "chrisvel/tududi:latest@sha256:5212ca3fb5309cab626cd3b3f0f85182685b4a6df4d1030b18349824255057a5";
+      default = "chrisvel/tududi:0.88.4@sha256:dfbcee5ee58274c45e01287459a4725b9b6198cf4a6e7634f7fac89b8e525778";
       description = ''
         Full container image name including tag and digest.
 
