@@ -237,6 +237,10 @@ in
             aiosqlite
             aiofile
             httpx-auth
+            ics
+            recurring-ical-events
+            arrow
+            icalendar
 
           ];
 
