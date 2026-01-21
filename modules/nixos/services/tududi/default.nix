@@ -17,7 +17,6 @@ let
   notificationsCfg = config.modules.notifications;
   storageCfg = config.modules.storage;
   hasCentralizedNotifications = notificationsCfg.enable or false;
-  tududiPort = 3002;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-tududi.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/tududi";
 
@@ -32,6 +31,12 @@ in
       type = lib.types.path;
       default = "/var/lib/tududi";
       description = "Path to Tududi data directory";
+    };
+
+    port = lib.mkOption {
+      type = lib.types.port;
+      default = 3005;
+      description = "Port for the Tududi web interface (host port mapping)";
     };
 
     user = lib.mkOption {
@@ -126,7 +131,7 @@ in
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
         enable = true;
-        port = 3002;
+        port = 3005;
         path = "/";
         labels = {
           service_type = "productivity";
@@ -256,7 +261,7 @@ in
         backend = {
           scheme = "http";
           host = "127.0.0.1";
-          port = tududiPort;
+          port = cfg.port;
         };
 
         # Authentication configuration from shared types
@@ -314,7 +319,7 @@ in
           "${cfg.dataDir}/uploads:/app/backend/uploads:rw,Z"
         ];
         ports = [
-          "${toString tududiPort}:3002"
+          "${toString cfg.port}:3002"
         ];
         resources = cfg.resources;
         extraOptions = [

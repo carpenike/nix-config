@@ -62,7 +62,7 @@ in
         icon = "tududi";
         href = "https://tududi.holthome.net";
         description = "Task and project management";
-        siteMonitor = "http://localhost:3002";
+        siteMonitor = "http://localhost:3005";
       };
 
       # Gatus monitoring contribution
