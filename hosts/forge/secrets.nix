@@ -46,6 +46,7 @@ let
   scryptedEnabled = config.modules.services.scrypted.enable or false;
   tautulliEnabled = config.modules.services.tautulli.enable or false;
   tracearrEnabled = config.modules.services.tracearr.enable or false;
+  tududiEnabled = config.modules.services.tududi.enable or false;
   litellmEnabled = config.modules.services.litellm.enable or false;
   atticPushEnabled = config.modules.services.attic-push.enable or false;
   pinchflatEnabled = config.modules.services.pinchflat.enable or false;
@@ -504,6 +505,23 @@ in
             mode = "0400";
             owner = "tracearr";
             group = "tracearr";
+          };
+        }
+        // optionalAttrs tududiEnabled {
+          # Initial admin password for Tududi
+          # Generate with: openssl rand -base64 32
+          "tududi/admin_password" = {
+            mode = "0400";
+            owner = "tududi";
+            group = "tududi";
+          };
+
+          # Django session secret for Tududi
+          # Generate with: openssl rand -hex 64
+          "tududi/session_secret" = {
+            mode = "0400";
+            owner = "tududi";
+            group = "tududi";
           };
         }
         // optionalAttrs zigbeeEnabled {

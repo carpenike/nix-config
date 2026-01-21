@@ -19,5 +19,6 @@
     ../searxng # Meta search engine
     ../termix # SSH web terminal
     ../thelounge # IRC web client
+    ../tududi # Task and productivity management
   ];
 }
