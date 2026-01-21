@@ -13,7 +13,7 @@ in
 rustPlatform.buildRustPackage rec {
   inherit (packageData) pname src;
   version = lib.strings.removePrefix "v" packageData.version;
-  cargoHash = "sha256-HTCSdA1FjVO/lE/c6MIhBdAqt+B3rlhT+XbhIxyo/N4=";
+  cargoHash = "sha256-x3rts2NXc8weIdWuJgXyt+nWPry4OnT6UvbQfbYJB+U=";
 
   meta = {
     homepage = "https://usage.jdx.dev";
