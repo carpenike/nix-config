@@ -236,6 +236,7 @@ in
             boto3
             aiosqlite
             aiofile
+            httpx-auth
 
           ];
 
