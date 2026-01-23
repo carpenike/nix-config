@@ -90,4 +90,5 @@ config = lib.mkIf cfg.enable {
 ## Related
 
 - [ADR-003: Shared Types](./003-shared-types-for-service-modules.md) - Types for contribution options
+- [ADR-011: Service Factory and Module Architecture](./011-service-factory-module-architecture.md) - Two-layer pattern for factory services
 - [Modular Design Patterns](../modular-design-patterns.md) - Implementation details

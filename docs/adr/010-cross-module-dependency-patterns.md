@@ -239,4 +239,5 @@ options.modules.services.media = {
 
 - [ADR-001: Contributory Infrastructure Pattern](./001-contributory-infrastructure-pattern.md) - Foundation for contributions
 - [ADR-009: Thin Orchestrator Pattern](./009-thin-orchestrator-pattern.md) - Constraints on orchestrators
+- [ADR-011: Service Factory and Module Architecture](./011-service-factory-module-architecture.md) - Why modules exist (service registry namespace)
 - [Modular Design Patterns](../modular-design-patterns.md) - Implementation details
