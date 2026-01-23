@@ -1,8 +1,8 @@
 # ADR-008: Authentication Priority Framework
 
 **Status**: Accepted
-**Date**: 2025-12-09
-**Context**: SSO and authentication patterns for homelab services
+**Date**: December 9, 2025
+**Context**: NixOS homelab SSO and authentication patterns
 
 ## Context
 

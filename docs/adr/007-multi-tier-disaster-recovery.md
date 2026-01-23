@@ -1,8 +1,8 @@
 # ADR-007: Multi-Tier Disaster Recovery (Preseed Pattern)
 
 **Status**: Accepted
-**Date**: 2025-12-09
-**Context**: Automated service restoration strategy
+**Date**: December 9, 2025
+**Context**: NixOS homelab automated service restoration
 
 ## Context
 

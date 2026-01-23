@@ -1,8 +1,8 @@
 # ADR-006: Black-Box vs White-Box Monitoring Strategy
 
 **Status**: Accepted
-**Date**: 2025-12-09
-**Context**: Monitoring architecture for homelab services
+**Date**: December 9, 2025
+**Context**: NixOS homelab monitoring architecture
 
 ## Context
 
@@ -88,7 +88,7 @@ Early implementations used a single monitoring tool for both purposes, leading t
 │Prom   │   │ unit monitoring │
 │scrape │   └─────────────────┘
 └───────┘
-```text
+```
 
 ## Examples
 

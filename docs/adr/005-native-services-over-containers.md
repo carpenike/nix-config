@@ -1,8 +1,8 @@
 # ADR-005: Native Services Over Containers
 
 **Status**: Accepted
-**Date**: 2025-12-09
-**Context**: Service implementation strategy
+**Date**: December 9, 2025
+**Context**: NixOS homelab service implementation strategy
 
 ## Context
 

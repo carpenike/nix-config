@@ -1,8 +1,8 @@
 # ADR-009: Thin Orchestrator Pattern for Service Stacks
 
 **Status**: Accepted
-**Date**: 2025-12-09
-**Context**: Module design for multi-service stacks
+**Date**: December 9, 2025
+**Context**: NixOS homelab module design for multi-service stacks
 
 ## Context
 
@@ -162,3 +162,4 @@ modules.services.promtail.extraScrapeConfigs = [ ... ];
 - [Modular Design Patterns](../modular-design-patterns.md#thin-orchestrator-pattern-multi-service-stacks)
 - [ADR-001: Contributory Infrastructure Pattern](./001-contributory-infrastructure-pattern.md)
 - [ADR-003: Shared Types for Service Modules](./003-shared-types-for-service-modules.md)
+- [ADR-011: Service Factory and Module Architecture](./011-service-factory-module-architecture.md) - Explains why modules provide service registry
