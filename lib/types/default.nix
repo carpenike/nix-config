@@ -47,7 +47,6 @@ let
   containerTypes = import ./container.nix { inherit lib; };
   resourcesTypes = import ./resources.nix { inherit lib; };
   authTypes = import ./auth.nix { inherit lib; };
-  serviceSpecTypes = import ./service-spec.nix { inherit lib; };
 in
 {
   # Re-export all types from their respective modules
@@ -61,5 +60,4 @@ in
   inherit (containerTypes) containerResourcesSubmodule;
   inherit (resourcesTypes) systemdResourcesSubmodule;
   inherit (authTypes) staticApiKeySubmodule;
-  inherit (serviceSpecTypes) serviceSpecSubmodule validateServiceSpec;
 }
