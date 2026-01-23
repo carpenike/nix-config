@@ -468,30 +468,34 @@ in
             volumes =
               (lib.optional (!validatedSpec.skipDefaultConfigMount) "${cfg.dataDir}:/config:rw")
                 ++ (if validatedSpec.volumes != null then validatedSpec.volumes cfg else [ ]);
-            ports = [
-              "${toString cfg.port}:${toString (validatedSpec.containerPort or cfg.port)}"
-            ];
+            # Note: containerPort defaults to null, so use explicit if/else since Nix 'or'
+            # doesn't treat null as falsy (toString null = "")
+            ports =
+              let containerPort = if validatedSpec.containerPort != null then validatedSpec.containerPort else cfg.port;
+              in [ "${toString cfg.port}:${toString containerPort}" ];
             resources = cfg.resources;
-            extraOptions = [
-              "--umask=0027"
-              "--pull=newer"
-              "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-            ]
-            ++ lib.optionals (nfsMountConfig != null && category.hasNfsMount) [
-              "--group-add=${toString config.users.groups.${cfg.mediaGroup or "media"}.gid}"
-            ]
-            ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-              ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString (validatedSpec.containerPort or cfg.port)}${validatedSpec.healthEndpoint or "/"}" = 200 ]' ''
-              "--health-interval=${cfg.healthcheck.interval}"
-              "--health-timeout=${cfg.healthcheck.timeout}"
-              "--health-retries=${toString cfg.healthcheck.retries}"
-              "--health-start-period=${cfg.healthcheck.startPeriod}"
-              "--health-on-failure=${cfg.healthcheck.onFailure}"
-            ]
-            ++ lib.optionals (cfg.podmanNetwork or null != null) [
-              "--network=${cfg.podmanNetwork}"
-            ]
-            ++ (if validatedSpec.extraOptions != null then validatedSpec.extraOptions { inherit cfg config; } else [ ]);
+            extraOptions =
+              let containerPort = if validatedSpec.containerPort != null then validatedSpec.containerPort else cfg.port;
+              in [
+                "--umask=0027"
+                "--pull=newer"
+                "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+              ]
+              ++ lib.optionals (nfsMountConfig != null && category.hasNfsMount) [
+                "--group-add=${toString config.users.groups.${cfg.mediaGroup or "media"}.gid}"
+              ]
+              ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+                ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString containerPort}${validatedSpec.healthEndpoint or "/"}" = 200 ]' ''
+                "--health-interval=${cfg.healthcheck.interval}"
+                "--health-timeout=${cfg.healthcheck.timeout}"
+                "--health-retries=${toString cfg.healthcheck.retries}"
+                "--health-start-period=${cfg.healthcheck.startPeriod}"
+                "--health-on-failure=${cfg.healthcheck.onFailure}"
+              ]
+              ++ lib.optionals (cfg.podmanNetwork or null != null) [
+                "--network=${cfg.podmanNetwork}"
+              ]
+              ++ (if validatedSpec.extraOptions != null then validatedSpec.extraOptions { inherit cfg config; } else [ ]);
           } // (validatedSpec.containerOverrides or { }));
 
           # Systemd dependencies
@@ -501,8 +505,8 @@ in
               after = [ "podman-network-${cfg.podmanNetwork}.service" ];
             })
             (lib.mkIf (nfsMountConfig != null) {
-              after = [ nfsMountConfig.systemdUnit ];
-              bindsTo = [ nfsMountConfig.systemdUnit ];
+              requires = [ nfsMountConfig.mountUnitName ];
+              after = [ nfsMountConfig.mountUnitName ];
             })
             # Failure notification hook
             (lib.mkIf (notificationsCfg.enable or false && cfg.notifications != null && cfg.notifications.enable) {
