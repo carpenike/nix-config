@@ -20,6 +20,7 @@ An ADR captures a decision that has significant impact on the architecture, alon
 | [008](./008-authentication-priority-framework.md) | Authentication Priority Framework | Accepted | OIDC → Headers → Disable+Caddy → Built-in auth priority |
 | [009](./009-thin-orchestrator-pattern.md) | Thin Orchestrator Pattern | Accepted | Lightweight stack modules without option re-exposure |
 | [010](./010-cross-module-dependency-patterns.md) | Cross-Module Dependency Patterns | Accepted | Safe patterns for inter-module references with `or false` guards |
+| [011](./011-service-factory-module-architecture.md) | Service Factory and Module Architecture | Accepted | Two-layer architecture: factory for mechanics, modules for service registry |
 
 ## ADR Template
 
