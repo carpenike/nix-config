@@ -1,3 +1,11 @@
+# qBittorrent - BitTorrent download client with VueTorrent WebUI
+#
+# Factory-based implementation with extensive customization for:
+# - VueTorrent alternative WebUI
+# - Declarative INI configuration generation
+# - BitTorrent port with TCP/UDP support
+# - MAC address for stable IPv6 link-local
+#
 { lib
 , mylib
 , pkgs
@@ -5,100 +13,74 @@
 , podmanLib
 , ...
 }:
+
 let
-  # Storage helpers via mylib injection (centralized import)
-  storageHelpers = mylib.storageHelpers pkgs;
-  # Import shared type definitions
-  sharedTypes = mylib.types;
-  # Import service UIDs from centralized registry
-  serviceIds = mylib.serviceUids.qbittorrent;
-
-  cfg = config.modules.services.qbittorrent;
-  notificationsCfg = config.modules.notifications;
-  storageCfg = config.modules.storage;
-  hasCentralizedNotifications = notificationsCfg.enable or false;
-  qbittorrentPort = 8080; # WebUI port (internal to container)
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-qbittorrent.service";
-  datasetPath = "${storageCfg.datasets.parentDataset}/qbittorrent";
-  configFile = "${cfg.dataDir}/qBittorrent/qBittorrent.conf";
-
-  # Look up the NFS mount configuration if a dependency is declared
-  nfsMountName = cfg.nfsMountDependency;
-  nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
-
-  # Build replication config for preseed (walks up dataset tree to find inherited config)
-  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  # VueTorrent package (pinned for reproducibility)
+  vuetorrentPackage = pkgs.fetchzip {
+    url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.31.3/vuetorrent.zip";
+    hash = "sha256-Z766fpjcZw4tfJwE1FoNJ/ykDWEFEESqD2zAQXI7tSM=";
+    stripRoot = false;
+  };
 in
-{
-  options.modules.services.qbittorrent = {
-    enable = lib.mkEnableOption "qbittorrent";
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/qbittorrent";
-      description = "Path to qBittorrent data directory (config only)";
+  name = "qbittorrent";
+  description = "BitTorrent download client with VueTorrent WebUI";
+
+  spec = {
+    port = 8080;
+    image = "lscr.io/linuxserver/qbittorrent:5.0.2";
+    category = "downloads";
+    displayName = "qBittorrent";
+    function = "torrent";
+
+    healthEndpoint = "/api/v2/app/version";
+    startPeriod = "60s";
+
+    metricsPath = "/api/v2/app/version";
+
+    # Note: ZFS properties are configured at host level, not in spec
+    # The host file sets: modules.storage.datasets.services.qbittorrent = { recordsize = "16K"; ... }
+
+    resources = {
+      memory = "2G";
+      memoryReservation = "512M";
+      cpus = "8.0";
     };
 
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = toString serviceIds.uid;
-      description = "User account under which qBittorrent runs (from lib/service-uids.nix).";
+    # Container needs to run as root for LSIO entrypoint (handles PUID/PGID)
+    runAsRoot = true;
+
+    # Environment variables
+    environment = { cfg, config, ... }: {
+      PUID = cfg.user;
+      PGID = toString config.users.groups.${cfg.group}.gid;
+      TZ = cfg.timezone;
+      UMASK = "002";
+      WEBUI_PORT = "8080";
     };
 
-    group = lib.mkOption {
-      type = lib.types.str;
-      default = "media"; # shared media group (GID 65537)
-      description = "Group under which qBittorrent runs.";
-    };
+    # Volumes - add VueTorrent if enabled
+    volumes = cfg:
+      [ "${cfg.dataDir}:/config:rw" ]
+      ++ lib.optionals (cfg.vuetorrent.enable or false) [
+        "${vuetorrentPackage}/vuetorrent:/vuetorrent:ro"
+      ];
 
-    # This option is now automatically configured by nfsMountDependency
-    downloadsDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/mnt/downloads"; # Kept for standalone use, but will be overridden
-      description = "Path to downloads directory. Set automatically by nfsMountDependency.";
-    };
+    # Extra podman options
+    extraOptions = { cfg, config }: [
+      "--umask=0027"
+    ] ++ lib.optionals (cfg.macAddress != null) [
+      "--mac-address=${cfg.macAddress}"
+    ];
 
-    nfsMountDependency = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = ''
-        Name of the NFS mount defined in `modules.storage.nfsMounts` to use for downloads.
-        This will automatically set `downloadsDir` and systemd dependencies.
-      '';
-      example = "media";
-    };
+    # Config generator for INI file
+    hasConfigGenerator = true;
+  };
 
-    image = lib.mkOption {
-      type = lib.types.str;
-      default = "lscr.io/linuxserver/qbittorrent:5.0.2";
-      description = ''
-        Full container image name including tag or digest.
-
-        Best practices:
-        - Pin to specific version tags (e.g., "5.0.2")
-        - Use digest pinning for immutability (e.g., "5.0.2@sha256:...")
-        - Avoid 'latest' tag for production systems
-
-        Use Renovate bot to automate version updates with digest pinning.
-
-        When updating qBittorrent version, verify VueTorrent compatibility:
-        https://github.com/VueTorrent/VueTorrent#compatibility
-      '';
-      example = "lscr.io/linuxserver/qbittorrent:5.0.2@sha256:f3ad4f59e6e5e4a...";
-    };
-
-    mediaGroup = lib.mkOption {
-      type = lib.types.str;
-      default = "media";
-      description = "Group with permissions to the downloads directory, for NFS access.";
-    };
-
-    timezone = lib.mkOption {
-      type = lib.types.str;
-      default = "America/New_York";
-      description = "Timezone for the container";
-    };
-
+  # Service-specific options
+  extraOptions = {
     torrentPort = lib.mkOption {
       type = lib.types.port;
       default = 6881;
@@ -109,66 +91,11 @@ in
       example = 61144;
     };
 
-    openFirewall = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = ''
-        Whether to open firewall ports for qBittorrent.
-
-        Opens torrentPort for both TCP and UDP (peer connections and DHT).
-
-        Note: The WebUI port is not opened by this option; it should be
-        accessed via reverse proxy (Caddy) for security.
-
-        Required for:
-        - Incoming peer connections
-        - DHT (distributed hash table) for peer discovery
-        - Better torrent performance and connectivity
-      '';
-    };
-
-    podmanNetwork = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = ''
-        Name of the Podman network to attach this container to.
-        Enables DNS resolution to other containers on the same network.
-        Network must be defined in `modules.virtualization.podman.networks`.
-      '';
-      example = "media-services";
-    };
-
-    macAddress = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = "02:42:ac:11:00:51";
-      description = ''
-        Static MAC address for the container.
-        Required for stable IPv6 link-local addresses when binding to interface.
-        Without this, qBittorrent will fail to start after container restart
-        because it tries to bind to the old IPv6 link-local address.
-      '';
-      example = "02:42:ac:11:00:51";
-    };
-
-    resources = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = {
-        memory = "2G";
-        memoryReservation = "512M";
-        cpus = "8.0"; # High CPU for seeding/downloading many torrents
-      };
-      description = "Resource limits for the container";
-    };
-
     vuetorrent = {
       enable = lib.mkEnableOption "VueTorrent alternative WebUI";
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.fetchzip {
-          url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.31.3/vuetorrent.zip";
-          hash = "sha256-Z766fpjcZw4tfJwE1FoNJ/ykDWEFEESqD2zAQXI7tSM=";
-          stripRoot = false;
-        };
+        default = vuetorrentPackage;
         description = ''
           VueTorrent package to mount into the container.
 
@@ -176,120 +103,6 @@ in
           Update the URL and hash together when upgrading.
 
           Check compatibility: https://github.com/VueTorrent/VueTorrent#compatibility
-        '';
-      };
-    };
-
-    healthcheck = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
-      default = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "60s";
-        onFailure = "kill";
-      };
-      description = "Container healthcheck configuration. Uses Podman native health checks with automatic restart on failure.";
-    };
-
-    # Standardized reverse proxy integration
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration for qBittorrent web interface";
-    };
-
-    # Standardized metrics collection pattern
-    metrics = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.metricsSubmodule;
-      default = {
-        enable = true;
-        port = 8080;
-        path = "/api/v2/app/version";
-        labels = {
-          service_type = "download_client";
-          exporter = "qbittorrent";
-          function = "torrent";
-        };
-      };
-      description = "Prometheus metrics collection configuration for qBittorrent";
-    };
-
-    # Standardized logging integration
-    logging = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.loggingSubmodule;
-      default = {
-        enable = true;
-        journalUnit = "podman-qbittorrent.service";
-        labels = {
-          service = "qbittorrent";
-          service_type = "download_client";
-        };
-      };
-      description = "Log shipping configuration for qBittorrent logs";
-    };
-
-    # Standardized backup integration
-    backup = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = null;
-      description = ''
-        Backup configuration for qBittorrent configuration.
-
-        qBittorrent stores configuration in a SQLite database and config files.
-        Only the config directory is backed up - downloads are transient and excluded.
-
-        Recommended settings:
-        - useSnapshots: true (for SQLite consistency)
-        - recordsize: 16K (optimal for SQLite)
-      '';
-    };
-
-    # Standardized notifications
-    notifications = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = {
-        enable = true;
-        channels = {
-          onFailure = [ "media-alerts" ];
-        };
-        events = {
-          onFailure = {
-            title = "qBittorrent Failed";
-            body = "qBittorrent container has failed on ${config.networking.hostName}";
-            priority = "critical";
-          };
-        };
-      };
-      description = "Notification channels and events for qBittorrent";
-    };
-
-    preseed = {
-      enable = lib.mkEnableOption "automatic data restore before service start";
-      repositoryUrl = lib.mkOption {
-        type = lib.types.str;
-        description = "Restic repository URL for restore operations";
-      };
-      passwordFile = lib.mkOption {
-        type = lib.types.path;
-        description = "Path to Restic password file";
-      };
-      environmentFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = "Optional environment file for Restic (e.g., for B2 credentials)";
-      };
-      restoreMethods = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
-        default = [ "syncoid" "local" "restic" ];
-        description = ''
-          Order and selection of restore methods to attempt. Methods are tried
-          sequentially until one succeeds. Examples:
-          - [ "syncoid" "local" "restic" ] - Default, try replication first
-          - [ "local" "restic" ] - Skip replication, try local snapshots first
-          - [ "restic" ] - Restic-only (for air-gapped systems)
-          - [ "local" "restic" "syncoid" ] - Local-first for quick recovery
         '';
       };
     };
@@ -315,7 +128,6 @@ in
           "Session\\AnonymousModeEnabled" = "true";
           "Session\\AsyncIOThreadsCount" = "10";
           "Session\\BTProtocol" = "TCP";
-          # No predefined categories - let *arr services, tqm, and cross-seed create them as needed
           "Session\\DefaultSavePath" = "/data/qb/downloads/";
           "Session\\DHTEnabled" = "false";
           "Session\\DisableAutoTMMByDefault" = "false";
@@ -332,12 +144,10 @@ in
           "Session\\Interface" = "eth0";
           "Session\\LSDEnabled" = "false";
           "Session\\PeXEnabled" = "false";
-          "Session\\Port" = toString cfg.torrentPort;
           "Session\\QueueingSystemEnabled" = "true";
           "Session\\ResumeDataStorageType" = "SQLite";
           "Session\\SSL\\Port" = "57024";
           "Session\\ShareLimitAction" = "Stop";
-          # No predefined tags - let tqm, cross-seed, and other tools create them dynamically
           "Session\\TempPath" = "/data/qb/incomplete/";
           "Session\\UseAlternativeGlobalSpeedLimit" = "false";
           "Session\\UseOSCache" = "true";
@@ -368,7 +178,6 @@ in
           "Bittorrent\\Encryption" = "0";
           "Bittorrent\\LSD" = "false";
           "Bittorrent\\PeX" = "false";
-          "Connection\\PortRangeMin" = toString cfg.torrentPort;
           "Connection\\ResolvePeerCountries" = "true";
           "Connection\\UPnP" = "false";
           "Connection\\alt_speeds_on" = "false";
@@ -417,276 +226,42 @@ in
     };
   };
 
-  config = lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      # Validate NFS mount dependency if specified
-      assertions =
-        (lib.optional (nfsMountName != null) {
-          assertion = nfsMountConfig != null;
-          message = "qBittorrent nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
-        })
-        ++ (lib.optional (cfg.backup != null && cfg.backup.enable) {
-          assertion = cfg.backup.repository != null;
-          message = "qBittorrent backup.enable requires backup.repository to be set.";
-        })
-        ++ (lib.optional cfg.preseed.enable {
-          assertion = cfg.preseed.repositoryUrl != "";
-          message = "qBittorrent preseed.enable requires preseed.repositoryUrl to be set.";
-        })
-        ++ (lib.optional cfg.preseed.enable {
-          assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
-          message = "qBittorrent preseed.enable requires preseed.passwordFile to be set.";
-        });
+  # Service-specific configuration
+  extraConfig = cfg: {
+    # Add torrent port to extraPorts with TCP/UDP
+    modules.services.qbittorrent.extraPorts = [
+      { port = cfg.torrentPort; protocol = "both"; container = true; }
+    ];
 
-      # Auto-configure downloadsDir from NFS mount configuration
-      modules.services.qbittorrent.downloadsDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
-
-      # Integrate with centralized Caddy reverse proxy if configured
-      modules.services.caddy.virtualHosts.qbittorrent = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
-
-        # Use structured backend configuration from shared types
-        backend = {
-          scheme = "http"; # qBittorrent uses HTTP locally
-          host = "127.0.0.1";
-          port = qbittorrentPort;
-        };
-
-        # Authentication configuration from shared types
-        auth = cfg.reverseProxy.auth;
-
-        # PocketID / caddy-security configuration
-        caddySecurity = cfg.reverseProxy.caddySecurity;
-
-        # Security configuration from shared types
-        security = cfg.reverseProxy.security;
-
-        extraConfig = cfg.reverseProxy.extraConfig;
-      };
-
-      # Declare dataset requirements for per-service ZFS isolation
-      # This integrates with the storage.datasets module to automatically
-      # create tank/services/qbittorrent with appropriate ZFS properties
-      modules.storage.datasets.services.qbittorrent = {
-        mountpoint = cfg.dataDir;
-        recordsize = "16K"; # Optimal for SQLite databases
-        compression = "zstd"; # Better compression for text/config files
-        properties = {
-          "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
-        };
-        # Ownership matches the container user/group (user's primary group is media)
-        owner = "qbittorrent";
-        group = cfg.group; # Use configured group (defaults to "media")
-        mode = "0750"; # Allow group read access for backup systems
-      };
-
-      # Firewall rules for torrent port (opt-in)
-      # Note: WebUI port is NOT opened - access via reverse proxy (Caddy)
-      networking.firewall = lib.mkIf cfg.openFirewall {
-        allowedTCPPorts = [ cfg.torrentPort ];
-        allowedUDPPorts = [ cfg.torrentPort ]; # DHT uses UDP
-      };
-
-      # Create local users to match container UIDs
-      # This ensures proper file ownership on the host
-      users.users.qbittorrent = {
-        uid = lib.mkDefault (lib.toInt cfg.user);
-        group = cfg.group; # Use configured group (defaults to "media")
-        isSystemUser = true;
-        description = "qBittorrent service user";
-        # Add to media group for NFS access if dependency is set
-        extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
-      };
-
-      # qBittorrent container configuration
-      virtualisation.oci-containers.containers.qbittorrent = podmanLib.mkContainer "qbittorrent" {
-        image = cfg.image;
-        environment = {
-          PUID = cfg.user;
-          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
-          TZ = cfg.timezone;
-          UMASK = "002"; # Ensure group-writable files for *arr services to read
-          WEBUI_PORT = toString qbittorrentPort;
-        };
-        volumes = [
-          "${cfg.dataDir}:/config:rw"
-          "${cfg.downloadsDir}:/data:rw" # Unified mount point for hardlinks (TRaSH Guides best practice)
-        ] ++ lib.optionals cfg.vuetorrent.enable [
-          "${cfg.vuetorrent.package}/vuetorrent:/vuetorrent:ro"
-        ];
-        ports = [
-          "${toString qbittorrentPort}:${toString qbittorrentPort}"
-          "${toString cfg.torrentPort}:${toString cfg.torrentPort}/tcp" # BitTorrent port
-          "${toString cfg.torrentPort}:${toString cfg.torrentPort}/udp" # BitTorrent DHT port
-        ];
-        resources = cfg.resources;
-        extraOptions = [
-          # Podman-level umask ensures container process creates files with group-readable permissions
-          # This allows restic-backup user (member of qbittorrent group) to read data
-          "--umask=0027" # Creates directories with 750 and files with 640
-          "--pull=newer" # Automatically pull newer images
-          # Force container to run as the specified user:group
-          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-        ] ++ lib.optionals (cfg.macAddress != null) [
-          # Static MAC address ensures stable IPv6 link-local address across restarts
-          # Without this, qBittorrent fails to bind to the previous IPv6 address
-          "--mac-address=${cfg.macAddress}"
-        ] ++ lib.optionals (cfg.podmanNetwork != null) [
-          # Attach to Podman network for DNS-based service discovery
-          "--network=${cfg.podmanNetwork}"
-        ] ++ lib.optionals (nfsMountConfig != null) [
-          # Add media group to container so process can write to group-owned NFS mount
-          "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
-        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          # Define the health check on the container itself
-          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString qbittorrentPort}/api/v2/app/version)" = 200 ]' ''
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-          # When unhealthy, take configured action (default: kill so systemd can restart)
-          "--health-on-failure=${cfg.healthcheck.onFailure}"
-        ];
-      };
-
-      # Standardized systemd integration for container restart behavior
-      systemd.services."${mainServiceUnit}" = lib.mkMerge [
-        (lib.mkIf (nfsMountConfig != null) {
-          requires = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
-          after = [ "${config.virtualisation.oci-containers.backend}-media.mount" ];
-        })
-        (lib.mkIf (cfg.podmanNetwork != null) {
-          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-        })
-        {
-          # Service should remain stopped if explicitly stopped by admin
-          unitConfig = {
-            # If the service fails, automatically restart it
-            # But if it's stopped manually (systemctl stop), keep it stopped
-            StartLimitBurst = 5;
-            StartLimitIntervalSec = 300;
-          };
-          serviceConfig = {
-            Restart = "on-failure";
-            RestartSec = "30s";
-            # Add NFS mount dependency if configured
-            RequiresMountsFor = lib.optional (nfsMountConfig != null) nfsMountConfig.localPath;
-          };
-          # Generator runs before main service, checks if config missing
-          # For manual config regeneration: rm /var/lib/qbittorrent/qBittorrent/qBittorrent.conf && systemctl restart qbittorrent-config-generator.service podman-qbittorrent.service
-          wants = [ "qbittorrent-config-generator.service" ]
-            ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
-          after = [ "qbittorrent-config-generator.service" ]
-            ++ lib.optionals cfg.preseed.enable [ "qbittorrent-preseed.service" ];
-        }
-      ];
-
-      # Declarative Initial Seeding: Generate config on-demand before service starts
-      # Generator service is triggered by main service's wants/after dependencies
-
-      # Config generator service - creates config only if missing
-      # This preserves WebUI changes while ensuring correct initial configuration
-      # To reset to Nix defaults: delete config file and restart this service
-      systemd.services.qbittorrent-config-generator = {
-        description = "Generate qBittorrent configuration if missing";
-        before = [ mainServiceUnit ];
-        serviceConfig = {
-          Type = "oneshot";
-          User = cfg.user;
-          Group = cfg.group;
-          ExecStart = pkgs.writeShellScript "generate-qb-config" ''
-                      set -eu
-                      CONFIG_FILE="${configFile}"
-                      CONFIG_DIR=$(dirname "$CONFIG_FILE")
-
-                      # Only generate if config doesn't exist
-                      if [ ! -f "$CONFIG_FILE" ]; then
-                        echo "Config missing, generating from Nix settings..."
-                        mkdir -p "$CONFIG_DIR"
-
-                        # Generate config using toINI
-                        cat > "$CONFIG_FILE" << 'EOF'
-            ${lib.generators.toINI {} cfg.settings}
-            EOF
-
-                        chmod 640 "$CONFIG_FILE"
-                        echo "Configuration generated at $CONFIG_FILE"
-                      else
-                        echo "Config exists at $CONFIG_FILE, preserving existing file"
-                      fi
-          '';
-        };
-      };
-
-      # NOTE: Health monitoring is now handled by Podman's native healthcheck timer
-      # with --health-on-failure=kill to trigger systemd restart on unhealthy state.
-      # The previous external systemd timer pattern is no longer needed.
-
-      # Notifications for service failures (centralized pattern)
-      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        "qbittorrent-failure" = {
-          enable = lib.mkDefault true;
-          priority = lib.mkDefault "high";
-          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: qBittorrent</font></b>'';
-          body = lib.mkDefault ''
-            <b>Host:</b> ''${hostname}
-            <b>Service:</b> <code>''${serviceName}</code>
-
-            The qBittorrent torrent download client has entered a failed state.
-
-            <b>Quick Actions:</b>
-            1. Check logs:
-               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-            2. Restart service:
-               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-          '';
-        };
-      };
-
-      # Backup integration using standardized restic pattern
-      modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-        qbittorrent = {
-          enable = true;
-          # Configuration directory only - downloads are transient and not backed up
-          paths = [ cfg.dataDir ];
-          repository = cfg.backup.repository;
-          frequency = cfg.backup.frequency;
-          tags = cfg.backup.tags;
-          excludePatterns = cfg.backup.excludePatterns;
-          # Use ZFS snapshots for consistent backups of SQLite databases
-          useSnapshots = cfg.backup.useSnapshots;
-          zfsDataset = cfg.backup.zfsDataset;
-          # Ensure service stops before backup for data consistency
-          preBackupServices = [ mainServiceUnit ];
-        };
-      };
-
-    })
-
-    # Add the preseed service using the standard helper
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        serviceName = "qbittorrent";
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig; # Pass the auto-discovered replication config
-        datasetProperties = {
-          recordsize = "16K"; # Optimal for application data
-          compression = "zstd"; # Better compression for config files
-          "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots for this dataset
-        };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        hasCentralizedNotifications = hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
+    # Inject torrent port into settings dynamically
+    modules.services.qbittorrent.settings = lib.mkMerge [
+      {
+        BitTorrent."Session\\Port" = toString cfg.torrentPort;
+        Preferences."Connection\\PortRangeMin" = toString cfg.torrentPort;
       }
-    ))
-  ];
+    ];
+
+    # Config generator script for INI file
+    modules.services.qbittorrent.configGenerator.script = ''
+            set -eu
+            CONFIG_FILE="${cfg.dataDir}/qBittorrent/qBittorrent.conf"
+            CONFIG_DIR=$(dirname "$CONFIG_FILE")
+
+            # Only generate if config doesn't exist
+            if [ ! -f "$CONFIG_FILE" ]; then
+              echo "Config missing, generating from Nix settings..."
+              mkdir -p "$CONFIG_DIR"
+
+              # Generate config using toINI
+              cat > "$CONFIG_FILE" << 'INIEOF'
+      ${lib.generators.toINI { } cfg.settings}
+      INIEOF
+
+              chmod 640 "$CONFIG_FILE"
+              echo "Configuration generated at $CONFIG_FILE"
+            else
+              echo "Config exists at $CONFIG_FILE, preserving existing file"
+            fi
+    '';
+  };
 }
