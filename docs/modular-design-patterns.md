@@ -161,6 +161,110 @@ This provides the best of both worlds:
 
 ---
 
+## Service Factory and Module Architecture
+
+For containerized services, we use a **service factory pattern** with a deliberate two-layer architecture. See [ADR-011: Service Factory and Module Architecture](./adr/011-service-factory-module-architecture.md) for the full rationale.
+
+### Architecture Overview
+
+```
+lib/service-factory.nix           →  Factory: container mechanics (image, volumes, health checks)
+modules/nixos/services/X/         →  Module: service registry (enable option, spec, cross-service discovery)
+hosts/Y/services/X.nix            →  Host: instantiation (enables service, storage, backup, alerts)
+```
+
+### Why Two Layers?
+
+The module layer's primary value is providing a **queryable service registry** via the NixOS option namespace. Over 20 places in the codebase check `config.modules.services.X.enable`:
+
+```nix
+# Cross-service dependencies
+config.modules.services.qbittorrent.enable or false  # qbit-manage → qbittorrent
+config.modules.services.postgresql.enable or false   # dispatcharr assertion
+config.modules.services.grafana.enable or false      # auto-integration
+
+# Observability auto-wiring
+config.modules.services.loki.enable or false         # grafana datasource
+config.modules.services.pocketid.enable or false     # OIDC integration
+```
+
+Without the module layer, there would be no queryable namespace for cross-service discovery.
+
+### Layer Responsibilities
+
+| Layer | Responsibility | Lines |
+|-------|----------------|-------|
+| **Factory** | Container mechanics: image, volumes, health checks, networking, labels | ~200 |
+| **Module** | Service registry: `enable` option, spec definition, factory invocation | ~30-50 |
+| **Host** | Instantiation: enables service, configures storage/backup/alerts | ~50-100 |
+
+### Example: Factory-Based Container Service
+
+**Module** (`modules/nixos/services/sonarr/default.nix`):
+```nix
+{ config, lib, mylib, ... }:
+let
+  cfg = config.modules.services.sonarr;
+  factory = mylib.serviceFactory { inherit config lib; };
+in
+{
+  options.modules.services.sonarr = {
+    enable = lib.mkEnableOption "sonarr media manager";
+    # Minimal options - factory handles the rest
+  };
+
+  config = lib.mkIf cfg.enable (factory.mkService {
+    name = "sonarr";
+    spec = {
+      image = "ghcr.io/home-operations/sonarr:latest";
+      ports = [ { host = 8989; container = 8989; } ];
+      # ... full spec
+    };
+  });
+}
+```
+
+**Host** (`hosts/forge/services/sonarr.nix`):
+```nix
+{ config, lib, ... }:
+let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  serviceEnabled = config.modules.services.sonarr.enable or false;
+in
+{
+  config = lib.mkMerge [
+    { modules.services.sonarr.enable = true; }
+
+    (lib.mkIf serviceEnabled {
+      # Co-located infrastructure
+      modules.storage.datasets.services.sonarr = { ... };
+      modules.backup.sanoid.datasets."tank/services/sonarr" = forgeDefaults.mkSanoidDataset "sonarr";
+      modules.alerting.rules."sonarr-service-down" = forgeDefaults.mkServiceDownAlert "sonarr" "Sonarr" "media manager";
+    })
+  ];
+}
+```
+
+### When to Use the Factory
+
+✅ **Use service factory when**:
+- Container-based service (OCI image)
+- Service follows common patterns (single container, HTTP port, health check)
+- Needs standard integrations (Prometheus labels, health monitoring)
+
+❌ **Don't use factory when**:
+- Native NixOS service available (prefer wrapping native module)
+- Complex multi-container setup (use custom configuration)
+- Service has unusual requirements not covered by factory
+
+### Related Documentation
+
+- [ADR-011: Service Factory and Module Architecture](./adr/011-service-factory-module-architecture.md)
+- [ADR-010: Cross-Module Dependency Patterns](./adr/010-cross-module-dependency-patterns.md)
+- `lib/service-factory.nix` - Factory implementation
+
+---
+
 ## Creating New Service Modules
 
 ### Native vs Container Decision

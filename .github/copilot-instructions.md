@@ -291,6 +291,7 @@ rg "alerts/"
 
 ### Preferred Patterns
 - **Native over containers** unless compelling reason
+- **Two-layer architecture for containers**: Use service factory (`lib/service-factory.nix`) with module layer for service registry - see [ADR-011](../docs/adr/011-service-factory-module-architecture.md)
 - **Standardized submodules**: reverseProxy, metrics, logging, backup, notifications
 - **Auto-registration**: services register themselves with infrastructure
 - **Docs first**: cross-check the relevant guide before inventing new patterns – see [`docs/monitoring-strategy.md`](../docs/monitoring-strategy.md), [`docs/backup-system-onboarding.md`](../docs/backup-system-onboarding.md), [`docs/persistence-quick-reference.md`](../docs/persistence-quick-reference.md)
@@ -605,6 +606,7 @@ services.myservice = {
 - [ ] Test with "Add a module for [NEW_SERVICE]" scenario
 
 ### Recent Changes
+- 2026-01-23: Added ADR-011 documenting service factory and module architecture (two-layer pattern for queryable service registry)
 - 2026-01-03: Added `mylib.serviceUids` requirement for all UID/GID assignments, updated nixos-instructions.md with centralized registry pattern
 - 2025-12-19: Added workarounds tracking system (`docs/workarounds.md`) with standardized comment conventions
 - 2025-12-19: Expanded Beads documentation with Git integration, dependency types table, epic workflow example
@@ -612,7 +614,7 @@ services.myservice = {
 - 2025-12-09: Added architecture docs and ADRs, documented `mylib.types` and `mylib.storageHelpers` patterns, updated `lib/host-defaults.nix` factory reference.
 - 2025-11-20: Documented instruction stack, added direct doc links, enforced Taskfile-only deployment guidance.
 
-**Last reviewed:** 2026-01-03
+**Last reviewed:** 2026-01-23
 **Next review due:** When next major module added
 
 ---
