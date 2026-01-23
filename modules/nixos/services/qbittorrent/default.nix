@@ -30,7 +30,9 @@ mylib.mkContainerService {
 
   spec = {
     port = 8080;
-    image = "lscr.io/linuxserver/qbittorrent:5.0.2";
+    # Default to home-operations image per ADR-005
+    # Host can override with pinned digest
+    image = "ghcr.io/home-operations/qbittorrent:5.1.4";
     category = "downloads";
     displayName = "qBittorrent";
     function = "torrent";
@@ -49,15 +51,12 @@ mylib.mkContainerService {
       cpus = "8.0";
     };
 
-    # Container needs to run as root for LSIO entrypoint (handles PUID/PGID)
-    runAsRoot = true;
+    # home-operations images run as non-root user directly (via --user flag)
+    # No PUID/PGID needed - those are for LinuxServer.io style images
+    runAsRoot = false;
 
-    # Environment variables
+    # Environment variables (TZ handled by factory, PUID/PGID not needed)
     environment = { cfg, config, ... }: {
-      PUID = cfg.user;
-      PGID = toString config.users.groups.${cfg.group}.gid;
-      TZ = cfg.timezone;
-      UMASK = "002";
       WEBUI_PORT = "8080";
     };
 

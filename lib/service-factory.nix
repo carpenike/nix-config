@@ -543,10 +543,14 @@ in
           # Container
           virtualisation.oci-containers.containers.${name} = podmanLib.mkContainer name ({
             image = cfg.image;
+            # Environment variables:
+            # - PUID/PGID only for runAsRoot containers (LinuxServer.io style)
+            # - home-operations images use --user flag instead (runAsRoot = false)
             environment = {
+              TZ = cfg.timezone;
+            } // lib.optionalAttrs validatedSpec.runAsRoot {
               PUID = cfg.user;
               PGID = toString config.users.groups.${cfg.group}.gid;
-              TZ = cfg.timezone;
               UMASK = "002";
             } // (if validatedSpec.environment != null then validatedSpec.environment { inherit cfg config usesExternalAuth; } else { });
             environmentFiles = validatedSpec.environmentFiles or [ ];

@@ -136,18 +136,21 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "lscr.io/linuxserver/sabnzbd:latest";
+      default = "ghcr.io/home-operations/sabnzbd:latest";
       description = ''
         Full container image name including tag or digest.
 
+        Per ADR-005, home-operations images are preferred. They run as the
+        user specified via --user flag (not PUID/PGID environment variables).
+
         Best practices:
-        - Pin to specific version tags (e.g., "4.2.3-ls195")
-        - Use digest pinning for immutability (e.g., "4.2.3-ls195@sha256:...")
+        - Pin to specific version tags (e.g., "4.5.1")
+        - Use digest pinning for immutability (e.g., "4.5.1@sha256:...")
         - Avoid 'latest' tag for production systems
 
         Use Renovate bot to automate version updates with digest pinning.
       '';
-      example = "lscr.io/linuxserver/sabnzbd:4.2.3-ls195@sha256:f3ad4f59e6e5e4a...";
+      example = "ghcr.io/home-operations/sabnzbd:4.5.1@sha256:f3ad4f59e6e5e4a...";
     };
 
     mediaGroup = lib.mkOption {
@@ -546,10 +549,8 @@ in
       virtualisation.oci-containers.containers.sabnzbd = podmanLib.mkContainer "sabnzbd" {
         image = cfg.image;
         environment = {
-          PUID = cfg.user;
-          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          # home-operations images use --user flag for user mapping (not PUID/PGID)
           TZ = cfg.timezone;
-          UMASK = "002"; # Ensure group-writable files for *arr services to read
         };
         environmentFiles = lib.optionals (cfg.apiKeyFile != null) [
           # Inject API key via sops template for declarative secret management
