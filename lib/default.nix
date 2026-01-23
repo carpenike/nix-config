@@ -22,9 +22,17 @@
 #     # Use storage helpers (requires pkgs)
 #     storageHelpers = mylib.storageHelpers pkgs;
 #     replicationConfig = storageHelpers.mkReplicationConfig { ... };
+#
+#     # Use service factory for container services (Helm-like pattern)
+#     # See lib/service-factory.nix for full documentation
 #   }
 
 { lib }:
+
+let
+  # Import the service factory module
+  serviceFactory = import ./service-factory.nix { inherit lib; };
+in
 
 {
   # Shared type definitions for standardized service module patterns
@@ -62,4 +70,22 @@
   # Centralized static UID/GID assignments for all service accounts
   # Ensures consistent ownership across ZFS datasets, containers, and NFS shares
   serviceUids = import ./service-uids.nix { };
+
+  # =============================================================================
+  # Service Factory Functions (Helm-like patterns)
+  # =============================================================================
+  # These factory functions dramatically reduce boilerplate by generating complete
+  # NixOS module definitions from concise service specifications.
+  #
+  # See lib/service-factory.nix for comprehensive documentation and examples.
+
+  # Main factory for container services (sonarr, radarr, etc.)
+  # Generates options, config, users, ZFS datasets, Caddy registration, etc.
+  inherit (serviceFactory) mkContainerService;
+
+  # Factory for native (non-container) services
+  inherit (serviceFactory) mkNativeServiceOptions;
+
+  # Service category defaults (media, productivity, infrastructure, etc.)
+  inherit (serviceFactory) categoryDefaults;
 }
