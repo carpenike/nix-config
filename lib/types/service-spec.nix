@@ -278,6 +278,24 @@ in
         function = mkOption { type = types.nullOr types.str; default = null; };
         webUI = mkOption { type = types.bool; default = true; };
         healthEndpoint = mkOption { type = types.nullOr types.str; default = null; };
+        healthCommand = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "Custom health check command (overrides default curl-based check)";
+        };
+        healthcheck = mkOption {
+          type = types.nullOr (types.submodule {
+            options = {
+              interval = mkOption { type = types.str; default = "30s"; };
+              timeout = mkOption { type = types.str; default = "10s"; };
+              retries = mkOption { type = types.int; default = 3; };
+              startPeriod = mkOption { type = types.str; default = "300s"; };
+              onFailure = mkOption { type = types.str; default = "kill"; };
+            };
+          });
+          default = null;
+          description = "Override healthcheck settings from spec (vs runtime cfg)";
+        };
         metricsPath = mkOption { type = types.str; default = "/metrics"; };
         startPeriod = mkOption { type = types.str; default = "120s"; };
         containerPort = mkOption { type = types.nullOr types.port; default = null; };

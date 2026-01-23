@@ -588,14 +588,31 @@ in
               ++ lib.optionals (nfsMountConfig != null && category.hasNfsMount) [
                 "--group-add=${toString config.users.groups.${cfg.mediaGroup or "media"}.gid}"
               ]
-              ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-                ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString containerPort}${validatedSpec.healthEndpoint or "/"}" = 200 ]' ''
-                "--health-interval=${cfg.healthcheck.interval}"
-                "--health-timeout=${cfg.healthcheck.timeout}"
-                "--health-retries=${toString cfg.healthcheck.retries}"
-                "--health-start-period=${cfg.healthcheck.startPeriod}"
-                "--health-on-failure=${cfg.healthcheck.onFailure}"
-              ]
+              ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) (
+                let
+                  # Use custom health command if provided in spec, otherwise default to curl-based check
+                  healthCmd =
+                    if validatedSpec.healthCommand or null != null
+                    then validatedSpec.healthCommand
+                    else ''sh -c '[ "$(curl -sL -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString containerPort}${validatedSpec.healthEndpoint or "/"})" = 200 ]' '';
+                  # Use spec-level healthcheck overrides if provided, otherwise use cfg defaults
+                  specHealthcheck = validatedSpec.healthcheck or { };
+                  interval = specHealthcheck.interval or cfg.healthcheck.interval;
+                  timeout = specHealthcheck.timeout or cfg.healthcheck.timeout;
+                  retries = specHealthcheck.retries or cfg.healthcheck.retries;
+                  startPeriod = specHealthcheck.startPeriod or cfg.healthcheck.startPeriod;
+                  onFailure = specHealthcheck.onFailure or cfg.healthcheck.onFailure;
+                in
+                [
+                  # -L follows redirects (308/301/302) which *arr apps use for /ping endpoint
+                  "--health-cmd=${healthCmd}"
+                  "--health-interval=${interval}"
+                  "--health-timeout=${timeout}"
+                  "--health-retries=${toString retries}"
+                  "--health-start-period=${startPeriod}"
+                  "--health-on-failure=${onFailure}"
+                ]
+              )
               ++ lib.optionals (cfg.podmanNetwork or null != null) [
                 "--network=${cfg.podmanNetwork}"
               ]

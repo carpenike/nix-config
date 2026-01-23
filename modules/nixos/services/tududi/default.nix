@@ -25,8 +25,17 @@ mylib.mkContainerService {
 
     displayName = "Tududi";
     function = "task_management";
-    healthEndpoint = "/";
+    healthEndpoint = "/api/health";
+    healthCommand = "wget -q --spider http://127.0.0.1:3002/api/health";
     metricsPath = "/";
+
+    # Match upstream healthcheck settings
+    healthcheck = {
+      interval = "60s";
+      timeout = "3s";
+      retries = 2;
+      startPeriod = "10s";
+    };
 
     zfsRecordSize = "16K";
     zfsCompression = "lz4";
