@@ -42,6 +42,9 @@ in
           port = 9084; # qui uses 9074, so use 9084 for autobrr
         };
 
+        # Config generator with SOPS secrets injection
+        configGenerator.environmentFile = config.sops.templates."autobrr-env".path;
+
         reverseProxy = {
           enable = true;
           hostName = "autobrr.holthome.net";

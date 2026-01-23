@@ -371,6 +371,16 @@ let
           default = null;
           description = "Script to generate initial configuration (runs as oneshot before main service)";
         };
+        environmentFile = lib.mkOption {
+          type = lib.types.nullOr lib.types.path;
+          default = null;
+          description = ''
+            Path to environment file for the config generator service.
+            Typically a SOPS template containing secrets needed during config generation.
+            The secrets are available as environment variables in the generator script.
+          '';
+          example = ''config.sops.templates."servicename-env".path'';
+        };
       };
     }
     // extraOptions;
@@ -658,6 +668,8 @@ in
               User = cfg.user;
               Group = cfg.group;
               ExecStart = pkgs.writeShellScript "generate-${name}-config" cfg.configGenerator.script;
+            } // lib.optionalAttrs (cfg.configGenerator.environmentFile != null) {
+              EnvironmentFile = cfg.configGenerator.environmentFile;
             };
           };
 
