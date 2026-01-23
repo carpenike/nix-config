@@ -281,6 +281,7 @@ in
         zfsProperties = mkOption { type = types.attrsOf types.str; default = { }; };
         useZfsSnapshots = mkOption { type = types.bool; default = true; };
         backupExcludePatterns = mkOption { type = types.listOf types.str; default = [ ]; };
+        hasConfigGenerator = mkOption { type = types.bool; default = false; };
         environment = mkOption { type = types.nullOr (types.functionTo (types.attrsOf types.str)); default = null; };
         volumes = mkOption { type = types.nullOr (types.functionTo (types.listOf types.str)); default = null; };
         extraOptions = mkOption { type = types.nullOr (types.functionTo (types.listOf types.str)); default = null; };

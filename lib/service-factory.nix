@@ -297,6 +297,81 @@ let
         description = "Podman network to attach this container to";
         example = "media-services";
       };
+
+      # Download client specific options (sabnzbd, qbittorrent, etc.)
+      downloadsDir = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = if category.hasNfsMount then "/mnt/downloads" else null;
+        description = "Path to downloads directory (separate from mediaDir for download clients)";
+      };
+
+      openFirewall = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Whether to open firewall ports for this service.
+          Opens extraPorts for both TCP and UDP.
+          Note: The WebUI port is NOT opened - access via reverse proxy.
+        '';
+      };
+
+      extraPorts = lib.mkOption {
+        type = lib.types.listOf (lib.types.submodule {
+          options = {
+            port = lib.mkOption {
+              type = lib.types.port;
+              description = "Port number";
+            };
+            protocol = lib.mkOption {
+              type = lib.types.enum [ "tcp" "udp" "both" ];
+              default = "both";
+              description = "Protocol (tcp, udp, or both)";
+            };
+            container = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Whether to map this port to the container";
+            };
+          };
+        });
+        default = [ ];
+        description = "Additional ports beyond the main WebUI port (e.g., torrent port)";
+        example = [{ port = 6881; protocol = "both"; }];
+      };
+
+      macAddress = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Static MAC address for the container.
+          Required for stable IPv6 link-local addresses when binding to interface.
+        '';
+        example = "02:42:ac:11:00:51";
+      };
+
+      apiKeyFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file containing the service API key (via SOPS).
+          When set, enables declarative API key management.
+        '';
+        example = "config.sops.secrets.\"servicename/api-key\".path";
+      };
+
+      # Config generator support
+      configGenerator = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = spec.hasConfigGenerator or false;
+          description = "Enable config generator service that creates initial config if missing";
+        };
+        script = lib.mkOption {
+          type = lib.types.nullOr lib.types.lines;
+          default = null;
+          description = "Script to generate initial configuration (runs as oneshot before main service)";
+        };
+      };
     }
     // extraOptions;
 
@@ -455,6 +530,16 @@ in
             gid = lib.mkDefault serviceIds.gid;
           };
 
+          # Firewall rules for extraPorts (opt-in via openFirewall)
+          networking.firewall = lib.mkIf (cfg.openFirewall && cfg.extraPorts != [ ]) {
+            allowedTCPPorts = lib.flatten (map
+              (p: lib.optional (p.protocol == "tcp" || p.protocol == "both") p.port)
+              cfg.extraPorts);
+            allowedUDPPorts = lib.flatten (map
+              (p: lib.optional (p.protocol == "udp" || p.protocol == "both") p.port)
+              cfg.extraPorts);
+          };
+
           # Container
           virtualisation.oci-containers.containers.${name} = podmanLib.mkContainer name ({
             image = cfg.image;
@@ -467,12 +552,24 @@ in
             environmentFiles = validatedSpec.environmentFiles or [ ];
             volumes =
               (lib.optional (!validatedSpec.skipDefaultConfigMount) "${cfg.dataDir}:/config:rw")
+                ++ (lib.optional (cfg.downloadsDir or null != null && category.hasNfsMount) "${cfg.downloadsDir}:/data:rw")
                 ++ (if validatedSpec.volumes != null then validatedSpec.volumes cfg else [ ]);
             # Note: containerPort defaults to null, so use explicit if/else since Nix 'or'
             # doesn't treat null as falsy (toString null = "")
             ports =
-              let containerPort = if validatedSpec.containerPort != null then validatedSpec.containerPort else cfg.port;
-              in [ "${toString cfg.port}:${toString containerPort}" ];
+              let
+                containerPort = if validatedSpec.containerPort != null then validatedSpec.containerPort else cfg.port;
+                # Build extra port mappings from extraPorts
+                extraPortMappings = lib.flatten (map
+                  (p:
+                    if p.container then
+                      (lib.optional (p.protocol == "tcp" || p.protocol == "both") "${toString p.port}:${toString p.port}/tcp")
+                        ++ (lib.optional (p.protocol == "udp" || p.protocol == "both") "${toString p.port}:${toString p.port}/udp")
+                    else [ ]
+                  )
+                  (cfg.extraPorts or [ ]));
+              in
+              [ "${toString cfg.port}:${toString containerPort}" ] ++ extraPortMappings;
             resources = cfg.resources;
             extraOptions =
               let containerPort = if validatedSpec.containerPort != null then validatedSpec.containerPort else cfg.port;
@@ -480,6 +577,9 @@ in
                 "--umask=0027"
                 "--pull=newer"
                 "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+              ]
+              ++ lib.optionals (cfg.macAddress or null != null) [
+                "--mac-address=${cfg.macAddress}"
               ]
               ++ lib.optionals (nfsMountConfig != null && category.hasNfsMount) [
                 "--group-add=${toString config.users.groups.${cfg.mediaGroup or "media"}.gid}"
@@ -517,7 +617,24 @@ in
               wants = [ "preseed-${name}.service" ];
               after = [ "preseed-${name}.service" ];
             })
+            # Config generator dependency
+            (lib.mkIf (cfg.configGenerator.enable or false) {
+              wants = [ "${name}-config-generator.service" ];
+              after = [ "${name}-config-generator.service" ];
+            })
           ];
+
+          # Config generator service (creates initial config if missing)
+          systemd.services."${name}-config-generator" = lib.mkIf (cfg.configGenerator.enable && cfg.configGenerator.script != null) {
+            description = "Generate ${name} configuration if missing";
+            before = [ mainServiceUnit ];
+            serviceConfig = {
+              Type = "oneshot";
+              User = cfg.user;
+              Group = cfg.group;
+              ExecStart = pkgs.writeShellScript "generate-${name}-config" cfg.configGenerator.script;
+            };
+          };
 
           # Default notification template
           modules.notifications.templates."${name}-failure" =
