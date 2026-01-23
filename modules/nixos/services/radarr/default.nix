@@ -1,8 +1,3 @@
-# modules/nixos/services/radarr/default.nix
-#
-# Radarr - Movie collection manager
-# Factory-based implementation: ~80 lines vs 410 lines (80% reduction)
-#
 { lib
 , mylib
 , pkgs
@@ -10,54 +5,405 @@
 , podmanLib
 , ...
 }:
+let
+  # Storage helpers via mylib injection (centralized import)
+  storageHelpers = mylib.storageHelpers pkgs;
+  # Import shared type definitions
+  sharedTypes = mylib.types;
+  # Import service UIDs from centralized registry
+  serviceIds = mylib.serviceUids.radarr;
 
-mylib.mkContainerService {
-  inherit lib mylib pkgs config podmanLib;
+  cfg = config.modules.services.radarr;
+  notificationsCfg = config.modules.notifications;
+  storageCfg = config.modules.storage;
+  hasCentralizedNotifications = notificationsCfg.enable or false;
+  radarrPort = 7878;
+  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-radarr.service";
+  datasetPath = "${storageCfg.datasets.parentDataset}/radarr";
+  usesExternalAuth =
+    cfg.reverseProxy != null
+    && cfg.reverseProxy.enable
+    && (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable);
 
-  name = "radarr";
-  description = "Movie collection manager";
+  # Look up the NFS mount configuration if a dependency is declared
+  nfsMountName = cfg.nfsMountDependency;
+  nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
 
-  spec = {
-    # Core service configuration
-    port = 7878;
-    image = "ghcr.io/home-operations/radarr:latest";
-    category = "media";
-    displayName = "Radarr";
-    function = "movies";
+  # Build replication config for preseed (walks up dataset tree to find inherited config)
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+in
+{
+  options.modules.services.radarr = {
+    enable = lib.mkEnableOption "Radarr";
 
-    # Health check - Radarr has /ping endpoint
-    healthEndpoint = "/ping";
-    startPeriod = "300s"; # Longer startup for media indexing
-
-    # ZFS tuning for SQLite database
-    zfsRecordSize = "16K";
-    zfsCompression = "zstd";
-
-    # Metrics endpoint
-    metricsPath = "/api/v3/health";
-
-    # Resource limits
-    resources = {
-      memory = "512M";
-      memoryReservation = "256M";
-      cpus = "2.0";
+    dataDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/var/lib/radarr";
+      description = "Path to Radarr data directory";
     };
 
-    # Environment - external auth when behind authenticated proxy
-    environment = { usesExternalAuth, ... }: {
-      RADARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
+    user = lib.mkOption {
+      type = lib.types.str;
+      default = toString serviceIds.uid;
+      description = "User account under which Radarr runs (from lib/service-uids.nix).";
     };
 
-    # Additional volumes - unified media mount (TRaSH Guides best practice)
-    volumes = cfg: [
-      "${cfg.mediaDir}:/data:rw"
-    ];
+    group = lib.mkOption {
+      type = lib.types.str;
+      default = "media"; # shared media group (GID 65537)
+      description = "Group under which Radarr runs.";
+    };
+
+    # This option is now automatically configured by nfsMountDependency
+    mediaDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/mnt/media"; # Kept for standalone use, but will be overridden
+      description = "Path to media library. Set automatically by nfsMountDependency.";
+    };
+
+    nfsMountDependency = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the NFS mount defined in `modules.storage.nfsMounts` to use for media.
+        This will automatically set `mediaDir` and systemd dependencies.
+      '';
+      example = "media";
+    };
+
+    podmanNetwork = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Name of the Podman network to attach this container to.
+        Enables DNS resolution to other containers on the same network.
+        Network must be defined in `modules.virtualization.podman.networks`.
+      '';
+      example = "media-services";
+    };
+
+    image = lib.mkOption {
+      type = lib.types.str;
+      default = "ghcr.io/home-operations/radarr:latest";
+      description = ''
+        Full container image name including tag or digest.
+
+        Best practices:
+        - Pin to specific version tags (e.g., "5.2.6-ls153")
+        - Use digest pinning for immutability (e.g., "5.2.6-ls153@sha256:...")
+        - Avoid 'latest' tag for production systems
+
+        Use Renovate bot to automate version updates with digest pinning.
+      '';
+      example = "ghcr.io/linuxserver/radarr:5.2.6-ls153@sha256:f3ad4f59e6e5e4a...";
+    };
+
+    mediaGroup = lib.mkOption {
+      type = lib.types.str;
+      default = "media";
+      description = "Group with permissions to the media library, for NFS access.";
+    };
+
+    timezone = lib.mkOption {
+      type = lib.types.str;
+      default = "America/New_York";
+      description = "Timezone for the container";
+    };
+
+    resources = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
+      default = {
+        memory = "512M";
+        memoryReservation = "256M";
+        cpus = "2.0";
+      };
+      description = "Resource limits for the container";
+    };
+
+    healthcheck = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      default = {
+        enable = true;
+        interval = "30s";
+        timeout = "10s";
+        retries = 3;
+        startPeriod = "300s";
+        onFailure = "kill";
+      };
+      description = "Container healthcheck configuration. Uses Podman native health checks with automatic restart on failure.";
+    };
+
+    # Standardized reverse proxy integration
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for Radarr web interface";
+    };
+
+    # Standardized metrics collection pattern
+    metrics = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      default = {
+        enable = true;
+        port = 7878;
+        path = "/metrics"; # Radarr exposes a native Prometheus endpoint
+        labels = {
+          service_type = "media_management";
+          exporter = "radarr";
+          function = "movies";
+        };
+      };
+      description = "Prometheus metrics collection configuration for Radarr";
+    };
+
+    # Standardized logging integration
+    logging = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.loggingSubmodule;
+      default = {
+        enable = true;
+        journalUnit = "podman-radarr.service";
+        labels = {
+          service = "radarr";
+          service_type = "media_management";
+        };
+      };
+      description = "Log shipping configuration for Radarr logs";
+    };
+
+    # Standardized backup integration
+    backup = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      default = lib.mkIf cfg.enable {
+        enable = lib.mkDefault true;
+        repository = lib.mkDefault "nas-primary";
+        frequency = lib.mkDefault "daily";
+        tags = lib.mkDefault [ "media" "radarr" "config" ];
+        # CRITICAL: Enable ZFS snapshots for SQLite database consistency
+        useSnapshots = lib.mkDefault true;
+        zfsDataset = lib.mkDefault "tank/services/radarr";
+        excludePatterns = lib.mkDefault [
+          "**/*.log" # Exclude log files
+          "**/cache/**" # Exclude cache directories
+          "**/logs/**" # Exclude additional log directories
+        ];
+      };
+      description = "Backup configuration for Radarr";
+    };
+
+    # Standardized notifications
+    notifications = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.notificationSubmodule;
+      default = {
+        enable = true;
+        channels = {
+          onFailure = [ "media-alerts" ];
+        };
+        customMessages = {
+          failure = "Radarr media management failed on ${config.networking.hostName}";
+        };
+      };
+      description = "Notification configuration for Radarr service events";
+    };
+
+    preseed = {
+      enable = lib.mkEnableOption "automatic data restore before service start";
+      repositoryUrl = lib.mkOption {
+        type = lib.types.str;
+        description = "Restic repository URL for restore operations";
+      };
+      passwordFile = lib.mkOption {
+        type = lib.types.path;
+        description = "Path to Restic password file";
+      };
+      environmentFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Optional environment file for Restic (e.g., for B2 credentials)";
+      };
+      restoreMethods = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
+        default = [ "syncoid" "local" "restic" ];
+        description = ''
+          Order and selection of restore methods to attempt. Methods are tried
+          sequentially until one succeeds.
+        '';
+      };
+    };
   };
 
-  # Extra config: SOPS template for API key (referenced from host's secrets.nix)
-  extraConfig = _cfg: {
-    virtualisation.oci-containers.containers.radarr.environmentFiles = [
-      config.sops.templates."radarr-env".path
-    ];
-  };
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      # Validate NFS mount dependency if specified
+      assertions =
+        (lib.optional (nfsMountName != null) {
+          assertion = nfsMountConfig != null;
+          message = "Radarr nfsMountDependency '${nfsMountName}' does not exist in modules.storage.nfsMounts.";
+        })
+        ++ (lib.optional (cfg.backup != null && cfg.backup.enable) {
+          assertion = cfg.backup.repository != null;
+          message = "Radarr backup.enable requires backup.repository to be set (use primaryRepo.name from host config).";
+        })
+        ++ (lib.optional cfg.preseed.enable {
+          assertion = cfg.preseed.repositoryUrl != "";
+          message = "Radarr preseed.enable requires preseed.repositoryUrl to be set.";
+        })
+        ++ (lib.optional cfg.preseed.enable {
+          assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
+          message = "Radarr preseed.enable requires preseed.passwordFile to be set.";
+        });
+
+      # Automatically set mediaDir from the NFS mount configuration
+      modules.services.radarr.mediaDir = lib.mkIf (nfsMountConfig != null) (lib.mkDefault nfsMountConfig.localPath);
+
+      # Automatically register with Caddy reverse proxy if enabled
+      modules.services.caddy.virtualHosts.radarr = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+        enable = true;
+        hostName = cfg.reverseProxy.hostName;
+        backend = {
+          scheme = "http";
+          host = "127.0.0.1";
+          port = radarrPort;
+        };
+        auth = cfg.reverseProxy.auth;
+        caddySecurity = cfg.reverseProxy.caddySecurity;
+        security = cfg.reverseProxy.security;
+        extraConfig = cfg.reverseProxy.extraConfig;
+      };
+
+      # Declare dataset requirements for per-service ZFS isolation
+      modules.storage.datasets.services.radarr = {
+        mountpoint = cfg.dataDir;
+        recordsize = "16K"; # Optimal for SQLite databases
+        compression = "zstd";
+        properties = {
+          "com.sun:auto-snapshot" = "true";
+        };
+        owner = cfg.user; # Use configured user
+        group = cfg.group; # Use configured group
+        mode = "0750";
+      };
+
+      # Create local users to match container UIDs
+      users.users.radarr = {
+        uid = lib.mkDefault (lib.toInt cfg.user);
+        group = cfg.group; # Use configured group (defaults to "media")
+        isSystemUser = true;
+        description = "Radarr service user";
+        # Add to media group for NFS access if dependency is set
+        extraGroups = lib.optional (nfsMountName != null) cfg.mediaGroup;
+      };
+
+      # Group is expected to be pre-defined (e.g., media group with GID 65537)
+      # users.groups.radarr removed - use shared media group instead
+
+      # Radarr container configuration
+      virtualisation.oci-containers.containers.radarr = podmanLib.mkContainer "radarr" {
+        image = cfg.image;
+        environment = {
+          PUID = cfg.user;
+          PGID = toString config.users.groups.${cfg.group}.gid; # Resolve group name to GID
+          TZ = cfg.timezone;
+          UMASK = "002"; # Ensure group-writable files on shared media
+          RADARR__AUTH__METHOD = if usesExternalAuth then "External" else "None";
+        };
+        environmentFiles = [
+          # Pre-generated API key for declarative configuration
+          # Allows Bazarr and other services to integrate from first startup
+          # See: https://wiki.servarr.com/radarr/environment-variables
+          config.sops.templates."radarr-env".path
+        ];
+        volumes = [
+          "${cfg.dataDir}:/config:rw"
+          "${cfg.mediaDir}:/data:rw" # Unified mount point for hardlinks (TRaSH Guides best practice)
+        ];
+        ports = [
+          "${toString radarrPort}:7878"
+        ];
+        resources = cfg.resources;
+        extraOptions = [
+          "--umask=0027"
+          "--pull=newer"
+          "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
+        ] ++ lib.optionals (nfsMountConfig != null) [
+          # Add media group to container so process can write to group-owned NFS mount
+          "--group-add=${toString config.users.groups.${cfg.mediaGroup}.gid}"
+        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+          ''--health-cmd=sh -c '[ "$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:7878/ping)" = 200 ]' ''
+          "--health-interval=${cfg.healthcheck.interval}"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+          # When unhealthy, take configured action (default: kill so systemd can restart)
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
+        ] ++ lib.optionals (cfg.podmanNetwork != null) [
+          "--network=${cfg.podmanNetwork}"
+        ];
+      };
+
+      # Add systemd dependencies for the NFS mount, Podman network, and preseed service
+      systemd.services."${config.virtualisation.oci-containers.backend}-radarr" = lib.mkMerge [
+        # Add Podman network dependency if configured
+        (lib.mkIf (cfg.podmanNetwork != null) {
+          requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+        })
+        (lib.mkIf (nfsMountConfig != null) {
+          requires = [ nfsMountConfig.mountUnitName ];
+          after = [ nfsMountConfig.mountUnitName ];
+        })
+        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+          unitConfig.OnFailure = [ "notify@radarr-failure:%n.service" ];
+        })
+        (lib.mkIf cfg.preseed.enable {
+          wants = [ "preseed-radarr.service" ];
+          after = [ "preseed-radarr.service" ];
+        })
+      ];
+
+      # Register notification template
+      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        "radarr-failure" = {
+          enable = lib.mkDefault true;
+          priority = lib.mkDefault "high";
+          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Radarr</font></b>'';
+          body = lib.mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
+
+            The Radarr service has entered a failed state.
+
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+          '';
+        };
+      };
+    })
+
+    # Add the preseed service itself
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
+        serviceName = "radarr";
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = mainServiceUnit;
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticEnvironmentFile = cfg.preseed.environmentFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        hasCentralizedNotifications = hasCentralizedNotifications;
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
+  ];
 }

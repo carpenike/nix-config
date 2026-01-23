@@ -18,10 +18,6 @@ in
         # Pin container image to specific version with digest
         image = "ghcr.io/home-operations/prowlarr:2.3.2.5245@sha256:e2459e199564ab852c6e677e951cef36c172a8e71a0e1c90665631b5a0c57438";
 
-        # Prowlarr is an indexer manager - it doesn't need access to downloads/media directories
-        downloadsDir = null;
-        mediaDir = null;
-
         # Attach to media services network for DNS resolution
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
