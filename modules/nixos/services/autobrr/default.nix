@@ -58,6 +58,10 @@ mylib.mkContainerService {
     # Container configuration
     runAsRoot = false; # Uses --user flag, not PUID/PGID
 
+    # Autobrr doesn't need NFS mount for downloads - it's an IRC announce bot
+    # that monitors channels and triggers other clients, not a download client itself
+    volumes = _cfg: [ ];
+
     # Health check endpoint
     healthEndpoint = "/api/healthz/liveness";
 
