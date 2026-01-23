@@ -60,9 +60,13 @@ mylib.mkContainerService {
       WEBUI_PORT = "8080";
     };
 
-    # Volumes - add VueTorrent if enabled
+    # Volumes - config, downloads (via NFS), and optional VueTorrent
+    # Note: downloadsDir is auto-set from nfsMountDependency when not explicitly set
     volumes = cfg:
       [ "${cfg.dataDir}:/config:rw" ]
+      ++ lib.optionals (cfg.downloadsDir or null != null) [
+        "${cfg.downloadsDir}:/data:rw"
+      ]
       ++ lib.optionals (cfg.vuetorrent.enable or false) [
         "${vuetorrentPackage}/vuetorrent:/vuetorrent:ro"
       ];

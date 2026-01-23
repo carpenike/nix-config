@@ -494,6 +494,10 @@ in
             # Auto-set mediaDir from NFS mount
             mediaDir = lib.mkIf (nfsMountConfig != null)
               (lib.mkDefault nfsMountConfig.localPath);
+
+            # Auto-set downloadsDir from NFS mount (download clients use same path as mediaDir)
+            downloadsDir = lib.mkIf (nfsMountConfig != null)
+              (lib.mkDefault nfsMountConfig.localPath);
           };
 
           assertions = mkStandardAssertions { inherit cfg name nfsMountConfig category; };

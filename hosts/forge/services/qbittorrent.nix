@@ -27,6 +27,7 @@ in
         # Downloads directory on NFS (category-based structure already exists)
         # /mnt/data/qb/downloads/{sonarr,radarr,lidarr,readarr,prowlarr}
         nfsMountDependency = "media";
+        downloadsDir = "/mnt/data"; # Explicit: NFS mount localPath
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 

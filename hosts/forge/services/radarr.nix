@@ -29,7 +29,8 @@ in
           hostName = "radarr.holthome.net";
 
           # Protect via Pocket ID + caddy-security; grant media role via claim mapping
-          caddySecurity = forgeDefaults.caddySecurity.media;
+          # API bypass for /api, /feed, /ping - protected by Radarr's built-in API key auth
+          caddySecurity = forgeDefaults.caddySecurity.mediaWithApiBypass;
         };
 
         # Enable backups

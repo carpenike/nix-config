@@ -32,7 +32,8 @@ in
 
           # Protect via Pocket ID + caddy-security; grant "media" role when the
           # upstream claim exposes the media group membership.
-          caddySecurity = forgeDefaults.caddySecurity.media;
+          # API bypass for /api, /feed, /ping - protected by Sonarr's built-in API key auth
+          caddySecurity = forgeDefaults.caddySecurity.mediaWithApiBypass;
         };
 
         # Enable backups via the custom backup module integration.

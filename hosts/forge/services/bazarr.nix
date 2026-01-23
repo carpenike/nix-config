@@ -40,7 +40,8 @@ in
           hostName = "bazarr.holthome.net";
 
           # Protect via Pocket ID + caddy-security; use media claim for authorization
-          caddySecurity = forgeDefaults.caddySecurity.media;
+          # API bypass for /api - protected by Bazarr's built-in API key auth
+          caddySecurity = forgeDefaults.caddySecurity.mediaWithApiBypass;
         };
 
         # Enable backups

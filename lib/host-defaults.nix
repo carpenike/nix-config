@@ -166,6 +166,23 @@ in
       ];
     };
 
+    # Media services with API bypass: for *arr services that have built-in API key auth
+    # Bypasses authentication for /api, /feed, /ping paths which are protected by the
+    # service's native API key mechanism. Required for:
+    # - External tools (LunaSea, Ombi, Overseerr)
+    # - Inter-service communication (Prowlarr → Sonarr/Radarr)
+    # - Calendar subscriptions (/feed/v3/calendar.ics)
+    # - Health monitoring (/ping - intentionally unauthenticated per upstream)
+    mediaWithApiBypass = {
+      enable = true;
+      portal = "pocketid";
+      policy = "media";
+      claimRoles = [
+        { claim = "groups"; value = "media"; role = "media"; }
+      ];
+      bypassPaths = [ "/api" "/feed" "/ping" ];
+    };
+
     # Admin services: requires "admin" group membership
     admin = {
       enable = true;

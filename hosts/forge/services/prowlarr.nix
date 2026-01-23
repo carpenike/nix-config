@@ -30,7 +30,8 @@ in
         reverseProxy = {
           enable = true;
           hostName = "prowlarr.holthome.net";
-          caddySecurity = forgeDefaults.caddySecurity.media;
+          # API bypass for /api, /feed, /ping - protected by Prowlarr's built-in API key auth
+          caddySecurity = forgeDefaults.caddySecurity.mediaWithApiBypass;
         };
 
         # Resource limits: use module defaults (256M memory, 1 CPU)

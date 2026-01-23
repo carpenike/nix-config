@@ -19,7 +19,8 @@ in
         # Use unified /data mount (same as Sonarr/Radarr/qBittorrent for hardlinks)
         # Structure: /mnt/data/sab/{incomplete,complete/{sonarr,radarr,readarr,lidarr}}
         # This allows all services to see the same paths for atomic moves/hardlinks
-        nfsMountDependency = "media"; # Use shared NFS mount (auto-configures downloadsDir to /mnt/data)
+        nfsMountDependency = "media";
+        downloadsDir = "/mnt/data"; # Explicit: NFS mount localPath (factory default is /mnt/downloads)
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
