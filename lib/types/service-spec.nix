@@ -128,6 +128,16 @@ in
         '';
       };
 
+      runAsRoot = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Whether the container must start as root (UID 0).
+          Set to true for containers whose entrypoint needs to chown files before dropping privileges.
+          When false (default), the container runs as the service user for better security.
+        '';
+      };
+
       resources = mkOption {
         type = types.nullOr (types.submodule {
           options = {
@@ -275,6 +285,7 @@ in
         environmentFiles = mkOption { type = types.listOf types.str; default = [ ]; };
         containerOverrides = mkOption { type = types.attrsOf types.anything; default = { }; };
         skipDefaultConfigMount = mkOption { type = types.bool; default = false; };
+        runAsRoot = mkOption { type = types.bool; default = false; };
         resources = mkOption { type = types.nullOr (types.attrsOf types.str); default = null; };
         zfsRecordSize = mkOption { type = types.str; default = "128K"; };
         zfsCompression = mkOption { type = types.str; default = "zstd"; };

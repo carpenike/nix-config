@@ -552,7 +552,9 @@ in
             environmentFiles = validatedSpec.environmentFiles or [ ];
             volumes =
               (lib.optional (!validatedSpec.skipDefaultConfigMount) "${cfg.dataDir}:/config:rw")
-                ++ (lib.optional (cfg.downloadsDir or null != null && category.hasNfsMount) "${cfg.downloadsDir}:/data:rw")
+                # Only add downloadsDir:/data if spec doesn't define its own volumes
+                # (spec.volumes typically handles the /data mount differently, e.g., mediaDir:/data for *arr services)
+                ++ (lib.optional (cfg.downloadsDir or null != null && category.hasNfsMount && validatedSpec.volumes == null) "${cfg.downloadsDir}:/data:rw")
                 ++ (if validatedSpec.volumes != null then validatedSpec.volumes cfg else [ ]);
             # Note: containerPort defaults to null, so use explicit if/else since Nix 'or'
             # doesn't treat null as falsy (toString null = "")
@@ -576,6 +578,8 @@ in
               in [
                 "--umask=0027"
                 "--pull=newer"
+              ]
+              ++ lib.optionals (!validatedSpec.runAsRoot) [
                 "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
               ]
               ++ lib.optionals (cfg.macAddress or null != null) [

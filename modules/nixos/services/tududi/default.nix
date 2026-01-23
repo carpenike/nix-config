@@ -32,6 +32,7 @@ mylib.mkContainerService {
     zfsCompression = "lz4";
     useZfsSnapshots = true;
     skipDefaultConfigMount = true;
+    runAsRoot = true; # Container entrypoint needs to chown files before dropping privileges
 
     resources = {
       memory = "512M";
