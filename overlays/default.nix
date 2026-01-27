@@ -50,7 +50,38 @@
           });
 
           pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-            (_pyFinal: pyPrev: {
+            (pyFinal: pyPrev: {
+              # CUSTOM PACKAGE (2026-01-26): thermoworks-cloud
+              # Python API client for ThermoWorks Cloud devices (Signals BBQ thermometer, etc.)
+              # Required by: home-assistant thermoworks_cloud integration
+              # Upstream: https://github.com/a2hill/python-thermoworks-cloud
+              # Check: When thermoworks-cloud lands in nixpkgs
+              thermoworks-cloud = pyFinal.buildPythonPackage rec {
+                pname = "thermoworks-cloud";
+                version = "0.1.12";
+                pyproject = true;
+
+                src = pyFinal.fetchPypi {
+                  pname = "thermoworks_cloud";
+                  inherit version;
+                  hash = "sha256-6PNBuLOS1i6pVjswoOPYORgzC2/wFwIJFh3zE9PFpxw=";
+                };
+
+                build-system = [
+                  pyFinal.setuptools
+                  pyFinal.setuptools-scm
+                ];
+                dependencies = [ pyFinal.aiohttp ];
+                doCheck = false;
+                pythonImportsCheck = [ "thermoworks_cloud" ];
+
+                meta = with prev.lib; {
+                  description = "Python API client for ThermoWorks Cloud devices";
+                  homepage = "https://github.com/a2hill/python-thermoworks-cloud";
+                  license = licenses.gpl3;
+                };
+              };
+
               # WORKAROUND (2025-12-19): aio-georss-client test failure with Python 3.13
               # Tests fail in test_feed.py due to Python 3.13 compatibility issues
               # Check: When aio-georss-client is updated or Python 3.14 releases
@@ -138,7 +169,38 @@
     });
 
     pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-      (_pyFinal: pyPrev: {
+      (pyFinal: pyPrev: {
+        # CUSTOM PACKAGE (2026-01-26): thermoworks-cloud
+        # Python API client for ThermoWorks Cloud devices (Signals BBQ thermometer, etc.)
+        # Required by: home-assistant thermoworks_cloud integration
+        # Upstream: https://github.com/a2hill/python-thermoworks-cloud
+        # Check: When thermoworks-cloud lands in nixpkgs
+        thermoworks-cloud = pyFinal.buildPythonPackage rec {
+          pname = "thermoworks-cloud";
+          version = "0.1.12";
+          pyproject = true;
+
+          src = pyFinal.fetchPypi {
+            pname = "thermoworks_cloud";
+            inherit version;
+            hash = "sha256-6PNBuLOS1i6pVjswoOPYORgzC2/wFwIJFh3zE9PFpxw=";
+          };
+
+          build-system = [
+            pyFinal.setuptools
+            pyFinal.setuptools-scm
+          ];
+          dependencies = [ pyFinal.aiohttp ];
+          doCheck = false;
+          pythonImportsCheck = [ "thermoworks_cloud" ];
+
+          meta = with prev.lib; {
+            description = "Python API client for ThermoWorks Cloud devices";
+            homepage = "https://github.com/a2hill/python-thermoworks-cloud";
+            license = licenses.gpl3;
+          };
+        };
+
         # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
         # Tests use self-signed certs that fail SSL verification during build
         # Affects: paperless-ngx (uses granian as ASGI server)

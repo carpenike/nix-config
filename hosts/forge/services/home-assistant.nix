@@ -241,6 +241,8 @@ in
             recurring-ical-events
             arrow
             icalendar
+            thermoworks-cloud
+            pydub
 
           ];
 
