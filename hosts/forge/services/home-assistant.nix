@@ -7,7 +7,11 @@ let
   recorderDatabase = "home_assistant";
   recorderUser = "hass_recorder";
   haDataDir = "/var/lib/home-assistant";
-  mediaShare = "/mnt/media";
+  # Media library is on NAS at /mnt/data/media (NFS mount from nas.holthome.net:/mnt/tank/share)
+  # HA-generated media (LLM Vision, Chime TTS, etc.) is co-located inside the HA data dir
+  # for atomic ZFS backups - a single snapshot captures all HA state including generated media
+  mediaShare = "/mnt/data/media";
+  localMediaDir = "${haDataDir}/media"; # Co-located with HA state for atomic backups
   allowlistedDirs = [ haDataDir mediaShare ];
   unstablePkgs = pkgs.unstable;
   dataset = "tank/services/home-assistant";
@@ -26,6 +30,8 @@ in
       systemd.services.home-assistant = {
         wants = lib.mkAfter [ "postgresql.service" ];
         after = lib.mkAfter [ "postgresql.service" ];
+        # Add ffprobe to PATH for Chime TTS integration
+        path = [ pkgs.ffmpeg ];
       };
     })
 
@@ -62,7 +68,7 @@ in
           default_config = { };
           homeassistant = {
             name = "Home";
-            internal_url = "http://127.0.0.1:8123";
+            internal_url = "https://${haHostname}";
             external_url = "https://${haHostname}";
             latitude = "!env_var SECRET_ZONE_HOME_LATITUDE";
             longitude = "!env_var SECRET_ZONE_HOME_LONGITUDE";
@@ -73,9 +79,23 @@ in
             currency = "USD";
             allowlist_external_dirs = allowlistedDirs;
             media_dirs = {
-              media = mediaShare;
+              media = mediaShare; # NAS media library (movies, tv, music, etc.)
+              local = localMediaDir; # Local media (LLM Vision snapshots, generated content)
             };
             packages = "!include_dir_named packages";
+            # Auth providers - trusted_networks must come before homeassistant
+            # Allows localhost connections (e.g., from Caddy, internal services) to bypass login
+            auth_providers = [
+              {
+                type = "trusted_networks";
+                trusted_networks = [
+                  "127.0.0.1" # IPv4 localhost
+                  "::1" # IPv6 localhost
+                  "10.20.0.30" # Server IP
+                ];
+              }
+              { type = "homeassistant"; } # Standard login for all other connections
+            ];
           };
           http = {
             # server_host removed: deprecated in 2026.6.0, HA now binds all interfaces by default
@@ -129,12 +149,6 @@ in
             purge_keep_days = 30;
             db_max_retries = 10;
           };
-          tts = [
-            {
-              platform = "microsoft";
-              api_key = "!env_var SECRET_MSFT_TTS_API_KEY";
-            }
-          ];
         };
 
         # Backup using forgeDefaults helper with home automation tags
@@ -243,6 +257,7 @@ in
             icalendar
             thermoworks-cloud
             pydub
+            pycsspeechtts
 
           ];
 
@@ -263,12 +278,26 @@ in
       modules.alerting.rules."home-assistant-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "home-assistant" "HomeAssistant" "home automation";
 
+      # All HA-generated media is co-located in ${haDataDir}/media for atomic ZFS backups
       # LLM Vision integration requires /media path (hardcoded in the integration)
-      # Create symlink from /media to /mnt/media and ensure snapshots directory exists
+      # Create symlink from /media to the co-located media directory
       systemd.tmpfiles.rules = [
-        "L+ /media - - - - /mnt/media"
-        "d /mnt/media/llmvision 0755 hass hass -"
-        "d /mnt/media/llmvision/snapshots 0755 hass hass -"
+        "L+ /media - - - - ${localMediaDir}"
+        # Base media directory for HA-generated content
+        "d ${localMediaDir} 0755 hass hass -"
+        # LLM Vision directories
+        "d ${localMediaDir}/llmvision 0755 hass hass -"
+        "d ${localMediaDir}/llmvision/snapshots 0755 hass hass -"
+        # Chime TTS directories - downloaded/temp must be inside media_dirs path
+        # See: https://nimroddolev.github.io/chime_tts/docs/documentation/configuration/
+        "d ${localMediaDir}/sounds 0755 hass hass -"
+        "d ${localMediaDir}/sounds/temp 0755 hass hass -"
+        "d ${localMediaDir}/sounds/temp/chime_tts 0755 hass hass -"
+        "d ${localMediaDir}/sounds/temp/chime_tts/chimes 0755 hass hass -"
+        # Chime TTS say_url folder (uses www, not media)
+        "d ${haDataDir}/www/chime_tts 0755 hass hass -"
+        # Chime TTS custom chimes folder (can be anywhere readable)
+        "d ${haDataDir}/chimes 0755 hass hass -"
       ];
     })
   ];
