@@ -47,7 +47,10 @@ let
           preBackupScript = if (service.backup.preBackupScript or null) != null then service.backup.preBackupScript else "";
           postBackupScript = if (service.backup.postBackupScript or null) != null then service.backup.postBackupScript else "";
           frequency = service.backup.frequency or "daily";
-          resources = service.backup.resources or cfg.performance.resources;
+          # Handle null resources properly - use global defaults if null or not set
+          resources =
+            let res = service.backup.resources or null;
+            in if res != null then res else cfg.performance.resources;
 
           # ZFS snapshot integration
           useSnapshots = service.backup.useSnapshots or false;

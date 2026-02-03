@@ -97,6 +97,40 @@ in
         description = "ZFS dataset for snapshot-based backups";
         example = "tank/services/myservice";
       };
+
+      resources = mkOption {
+        type = types.nullOr (types.submodule {
+          options = {
+            memory = mkOption {
+              type = types.str;
+              default = "512M";
+              description = "Maximum memory limit for backup process (systemd MemoryMax)";
+              example = "1G";
+            };
+
+            memoryReservation = mkOption {
+              type = types.str;
+              default = "256M";
+              description = "Memory reservation for backup process (systemd MemoryLow)";
+              example = "512M";
+            };
+
+            cpus = mkOption {
+              type = types.str;
+              default = "1.0";
+              description = "CPU quota for backup process (fraction of one core)";
+              example = "2.0";
+            };
+          };
+        });
+        default = null;
+        description = "Resource limits for the backup job. If null, uses global defaults from backup.performance.resources";
+        example = {
+          memory = "1G";
+          memoryReservation = "512M";
+          cpus = "2.0";
+        };
+      };
     };
   };
 }
