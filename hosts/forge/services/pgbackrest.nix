@@ -549,14 +549,19 @@ in
       script = ''
         set -euo pipefail
 
+        # Exclude hidden directories that may be created if something treats PGDATA as home
+        # WORKAROUND (2026-02-02): Some process created .config/.local in PGDATA
+        # These cause "unable to sync missing path" errors on NFS
+        EXCLUDE_OPTS="--exclude=.config --exclude=.local"
+
         echo "[$(date -Iseconds)] Starting full backup to repo1 (NFS)..."
-        pgbackrest --stanza=main --type=full --repo=1 backup
+        pgbackrest --stanza=main --type=full --repo=1 $EXCLUDE_OPTS backup
         echo "[$(date -Iseconds)] Repo1 backup completed"
 
         echo "[$(date -Iseconds)] Starting full backup to repo2 (R2)..."
         # Repo2 configuration read from /etc/pgbackrest.conf
         # Now includes WAL archiving for complete offsite PITR capability
-        pgbackrest --stanza=main --type=full --repo=2 backup
+        pgbackrest --stanza=main --type=full --repo=2 $EXCLUDE_OPTS backup
         echo "[$(date -Iseconds)] Full backup to both repos completed"
       '';
     };
@@ -582,14 +587,17 @@ in
       script = ''
         set -euo pipefail
 
+        # Exclude hidden directories that may be created if something treats PGDATA as home
+        EXCLUDE_OPTS="--exclude=.config --exclude=.local"
+
         echo "[$(date -Iseconds)] Starting incremental backup to repo1 (NFS)..."
-        pgbackrest --stanza=main --type=incr --repo=1 backup
+        pgbackrest --stanza=main --type=incr --repo=1 $EXCLUDE_OPTS backup
         echo "[$(date -Iseconds)] Repo1 backup completed"
 
         echo "[$(date -Iseconds)] Starting incremental backup to repo2 (R2)..."
         # Repo2 configuration read from /etc/pgbackrest.conf
         # Now includes WAL archiving for complete offsite PITR capability
-        pgbackrest --stanza=main --type=incr --repo=2 backup
+        pgbackrest --stanza=main --type=incr --repo=2 $EXCLUDE_OPTS backup
         echo "[$(date -Iseconds)] Incremental backup to both repos completed"
       '';
     };

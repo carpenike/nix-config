@@ -26,6 +26,14 @@ in
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
+        # Resource limits - increased from default 256M due to memory alert
+        # Bazarr uses ~230M under normal load, 512M provides headroom
+        resources = {
+          memory = "512M";
+          memoryReservation = "256M";
+          cpus = "1.0";
+        };
+
         # Systemd dependencies ensure Sonarr/Radarr start before Bazarr
         # API keys and URLs must be configured in Bazarr web UI: Settings -> Sonarr/Radarr
         # Use container hostnames: sonarr:8989 and radarr:7878 (DNS via media-services network)
