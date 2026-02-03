@@ -37,7 +37,14 @@ in
         };
 
         # Enable backups via the custom backup module integration.
-        backup = forgeDefaults.backup;
+        # Increased memory from default 512M to 1G - Sonarr's 1.3GB dataset
+        # caused OOM kills during restic indexing (2026-02-03)
+        backup = forgeDefaults.backup // {
+          resources = {
+            memory = "1G";
+            memoryReservation = "512M";
+          };
+        };
 
         # Enable failure notifications via the custom notifications module.
         notifications.enable = true;
