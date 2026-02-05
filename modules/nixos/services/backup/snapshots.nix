@@ -37,6 +37,7 @@ let
         # This works with BindsTo= on the backup service to trigger cleanup
         unitConfig = {
           StopWhenUnneeded = true;
+          CollectMode = "inactive-or-failed";
         };
         serviceConfig = {
           Type = "oneshot";
@@ -46,19 +47,46 @@ let
           ExecStart = pkgs.writeShellScript "create-snapshot-${jobName}" ''
             set -euo pipefail
 
-            # CRITICAL: Create lock file to signal syncoid that backup is in progress
-            # This prevents "dataset is busy" errors during replication
             LOCK_DIR="/run/lock/backup-active"
             DATASET_LOCK="$LOCK_DIR/${lib.strings.replaceStrings ["/"] ["-"] dataset}"
-            mkdir -p "$LOCK_DIR"
-            touch "$DATASET_LOCK"
-            echo "Created backup lock at $DATASET_LOCK"
 
-            # Check if dataset exists
+            # Helper function to clean up all resources on any error
+            # Cleans in reverse order of creation to handle partial failures
+            cleanup_on_error() {
+              echo "Error occurred, cleaning up partial state and lock file"
+              ${pkgs.zfs}/bin/zfs unmount "${cloneName}" 2>/dev/null || true
+              ${pkgs.zfs}/bin/zfs destroy "${cloneName}" 2>/dev/null || true
+              ${pkgs.zfs}/bin/zfs destroy "${dataset}@${snapshotName}" 2>/dev/null || true
+              rm -f "$DATASET_LOCK"
+              exit 1
+            }
+            trap cleanup_on_error ERR
+
+            # Check if dataset exists BEFORE creating lock
             if ! ${pkgs.zfs}/bin/zfs list "${dataset}" >/dev/null 2>&1; then
               echo "Dataset ${dataset} does not exist, skipping snapshot"
-              rm -f "$DATASET_LOCK"  # Clean up lock if dataset doesn't exist
               exit 0
+            fi
+
+            # Create lock file FIRST to prevent races with syncoid
+            # This ensures we have exclusive access before any state modifications
+            mkdir -p "$LOCK_DIR"
+            if ! touch "$DATASET_LOCK"; then
+              echo "Failed to create lock file $DATASET_LOCK"
+              exit 1
+            fi
+            echo "Created backup lock at $DATASET_LOCK"
+
+            # Now, with lock held, clean up any stale state from previous failed runs
+            # This makes the script idempotent and prevents "dataset already exists" errors
+            if ${pkgs.zfs}/bin/zfs list "${cloneName}" >/dev/null 2>&1; then
+              echo "Cleaning up stale clone ${cloneName}"
+              ${pkgs.zfs}/bin/zfs unmount "${cloneName}" 2>/dev/null || true
+              ${pkgs.zfs}/bin/zfs destroy "${cloneName}" || true
+            fi
+            if ${pkgs.zfs}/bin/zfs list -t snapshot "${dataset}@${snapshotName}" >/dev/null 2>&1; then
+              echo "Cleaning up stale snapshot ${dataset}@${snapshotName}"
+              ${pkgs.zfs}/bin/zfs destroy "${dataset}@${snapshotName}" || true
             fi
 
             # Create snapshot
@@ -126,10 +154,7 @@ let
           TimeoutStopSec = "120s";
         };
 
-        # Ensure snapshot is cleaned up on failure
-        unitConfig = {
-          CollectMode = "inactive-or-failed";
-        };
+        # Note: unitConfig.StopWhenUnneeded and CollectMode are set above
       };
     };
 
@@ -180,15 +205,17 @@ in
 
               echo "Cleaning up old backup snapshots..."
 
+              # Calculate cutoff timestamp for max age
+              max_age_seconds=$(${pkgs.coreutils}/bin/date -d "now - ${snapshotsCfg.retentionPolicy.maxAge}" +%s)
+
               # Find all backup snapshots older than maxAge
+              # Use -p for parsable (UNIX epoch) timestamps - locale independent
               # Use 'grep ... || true' to handle case where no backup snapshots exist
-              ${pkgs.zfs}/bin/zfs list -H -t snapshot -o name,creation \
+              ${pkgs.zfs}/bin/zfs list -H -p -t snapshot -o name,creation \
                 | { grep '@backup-' || true; } \
-                | while IFS=$'\t' read -r snapshot creation; do
-                  # Calculate age (simplified - just check if older than 1 day for now)
-                  snapshot_date=$(echo "$creation" | ${pkgs.coreutils}/bin/cut -d' ' -f1-3)
-                  if ${pkgs.coreutils}/bin/date -d "$snapshot_date + ${snapshotsCfg.retentionPolicy.maxAge}" '+%s' -lt $(${pkgs.coreutils}/bin/date '+%s') 2>/dev/null; then
-                    echo "Destroying old snapshot: $snapshot"
+                | while IFS=$'\t' read -r snapshot creation_timestamp; do
+                  if [ "$creation_timestamp" -lt "$max_age_seconds" ]; then
+                    echo "Destroying old snapshot: $snapshot (created $(date -d @$creation_timestamp))"
                     ${pkgs.zfs}/bin/zfs destroy "$snapshot" || true
                   fi
                 done
