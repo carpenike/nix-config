@@ -137,6 +137,8 @@ in
         # Forge has 32GB RAM; leave headroom for other services
         memoryHigh = "24G"; # Soft limit - throttle when exceeded
         memoryMax = "28G"; # Hard limit - OOM-kill if exceeded
+        # Forge's large closure exhausts the default 1024 fd soft limit during evaluation
+        limitNOFILE = 524288;
       };
 
       # Explicitly enable ZFS filesystem module

@@ -242,6 +242,17 @@ in
         be OOM-killed. Set to null to disable.
       '';
     };
+
+    limitNOFILE = lib.mkOption {
+      type = lib.types.nullOr (lib.types.either lib.types.ints.positive lib.types.str);
+      default = null;
+      example = 524288;
+      description = ''
+        File descriptor limit for the upgrade process. Large closures can exhaust
+        the default soft limit (1024) during nix build evaluation, causing
+        "Too many open files" errors. Set to null to use the systemd default.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -337,6 +348,11 @@ in
       } // lib.optionalAttrs (cfg.memoryMax != null) {
         # Memory max - absolute limit, OOM-kill if exceeded
         MemoryMax = cfg.memoryMax;
+      } // lib.optionalAttrs (cfg.limitNOFILE != null) {
+        # Raise file descriptor limit for large closures
+        # The default soft limit (1024) can be too low for nix build evaluation
+        # on hosts with large dependency graphs, causing "Too many open files"
+        LimitNOFILE = cfg.limitNOFILE;
       };
 
       # Add failure notifications and metrics
