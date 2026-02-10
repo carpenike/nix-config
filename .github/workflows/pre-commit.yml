@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# Mirrors local pre-commit hooks in CI to catch issues when hooks are skipped.
+# Covers: shellcheck, yamllint, ruff, check-json, check-toml, gitleaks,
+# trailing whitespace, and end-of-file fixers.
+# Nix-specific linting (nixpkgs-fmt, statix, deadnix) is handled by nix-lint.yml.
+
+name: Pre-commit Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    name: Pre-commit hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Run pre-commit hooks via Nix devshell
+        run: |
+          # Enter the devshell and run pre-commit against all files
+          # This mirrors exactly the hooks configured in flake.nix
+          nix develop --command bash -c '
+            pre-commit run --all-files --show-diff-on-failure \
+              --color=always \
+              2>&1
+          '
