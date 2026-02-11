@@ -21,7 +21,7 @@ buildGoModule rec {
   doCheck = false;
 
   # vendorHash must be updated manually when Go dependencies change
-  vendorHash = "sha256-pY5m5ODRgqghyELRwwxOr+xlW41gtJWLXaW53GlLaFw=";
+  vendorHash = "sha256-RyOxrW0C+2E+ULhGeF2RbUhaUFt58sux7neHPei5QJI=";
 
   nativeBuildInputs = [ pkgs.git ];
 
