@@ -13,12 +13,12 @@
             "name": null,
             "owner": "steveyegge",
             "repo": "beads",
-            "rev": "v0.47.1",
-            "sha256": "sha256-DwIR/r1TJnpVd/CT1E2OTkAjU7k9/KHbcVwg5zziFVg=",
+            "rev": "v0.49.6",
+            "sha256": "sha256-zopOpBqaHC2t+tGYtrHyalOUsFDZai2NmZZOKJs2vfQ=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.47.1"
+        "version": "v0.49.6"
     },
     "cooklang-cli": {
         "cargoLocks": null,
@@ -34,16 +34,16 @@
             "name": null,
             "owner": "cooklang",
             "repo": "CookCLI",
-            "rev": "v0.20.0",
-            "sha256": "sha256-kGjeyw3E6hYcEOcGugW+mgvXGJ38pFp+z9vAMJqPTVE=",
+            "rev": "v0.22.0",
+            "sha256": "sha256-zDpyhdXQ1ZlaN2hAi+OrZ4cJR5CsoYd+AcSOQEUXFwQ=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.20.0"
+        "version": "v0.22.0"
     },
     "cooklang-federation": {
         "cargoLocks": null,
-        "date": "2026-01-16",
+        "date": "2026-01-24",
         "extract": null,
         "name": "cooklang-federation",
         "passthru": null,
@@ -55,12 +55,12 @@
             "name": null,
             "owner": "cooklang",
             "repo": "federation",
-            "rev": "727bedd8bb00683fc679de2935abbba5cae25aae",
-            "sha256": "sha256-XG9tSycX4lPjHEVQrBgWXloQVGS1JWu5m/eZG/RvAyU=",
+            "rev": "dc94a8a54452fd5beee9e1718e20d10f1f23a267",
+            "sha256": "sha256-p50vAX6ZdfpBfVgBBB6BAYX8G3WCrWPccJ2GBt9gCkM=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "727bedd8bb00683fc679de2935abbba5cae25aae"
+        "version": "dc94a8a54452fd5beee9e1718e20d10f1f23a267"
     },
     "shcopy": {
         "cargoLocks": null,
@@ -139,11 +139,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v2.13.1",
-            "sha256": "sha256-zlIgt46SZpxZHYDB2mM7Egh4y5w1uzE3JA3An4D2p9g=",
+            "rev": "v2.16.1",
+            "sha256": "sha256-HPBZ4fNAD3dflXEXfP6eAroJpZDvLZd8qSTcSmKaxxE=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v2.13.1"
+        "version": "v2.16.1"
     }
 }

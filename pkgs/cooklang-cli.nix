@@ -11,7 +11,7 @@ let
     pname = "cooklang-tailwind-assets";
     inherit (src) version;
     inherit (src) src;
-    npmDepsHash = "sha256-HxC9Tf+PZvvETuNqm1W3jaZx7SpYXlxZlI8FwGouK+s=";
+    npmDepsHash = "sha256-KnVtLFD//Nq7ilu6bY6zrlLpyrHVmwxxojOzlu7DdLQ=";
     npmBuildScript = "build-css";
     installPhase = ''
       runHook preInstall
@@ -25,7 +25,7 @@ rustPlatform.buildRustPackage {
   inherit (src) version;
   inherit (src) src;
 
-  cargoHash = "sha256-SUnpv53UQiawGNdQLJCjpxzmbMV8eZq2ycRMnWJxVLc=";
+  cargoHash = "sha256-pe0GU1y6unRozG6XwpWeD8E+fmpWukIIoFCV1hp6VKI=";
 
   nativeBuildInputs = [ pkgs.perl ];
 

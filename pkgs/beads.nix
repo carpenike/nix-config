@@ -21,9 +21,10 @@ buildGoModule rec {
   doCheck = false;
 
   # vendorHash must be updated manually when Go dependencies change
-  vendorHash = "sha256-pY5m5ODRgqghyELRwwxOr+xlW41gtJWLXaW53GlLaFw=";
+  vendorHash = "sha256-RyOxrW0C+2E+ULhGeF2RbUhaUFt58sux7neHPei5QJI=";
 
-  nativeBuildInputs = [ pkgs.git ];
+  nativeBuildInputs = [ pkgs.git pkgs.pkg-config ];
+  buildInputs = [ pkgs.icu ];
 
   meta = with lib; {
     description = "beads (bd) - An issue tracker designed for AI-supervised coding workflows";

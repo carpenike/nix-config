@@ -188,6 +188,7 @@ These are custom package definitions where tests are disabled:
 | beads | `pkgs/beads.nix` | Tests require network/fixtures |
 | cooklang-federation | `pkgs/cooklang-federation.nix` | Rust tests require fixtures |
 | cooklang-cli | `pkgs/cooklang-cli.nix` | Rust tests require fixtures |
+| usage | `pkgs/usage.nix` | 4 test failures in complete_word test suite (v2.16.1) |
 | kubectl-* | `pkgs/kubectl-*.nix` | Go tests require k8s cluster |
 
 **Note**: Most of these are intentional for custom packages where tests aren't meaningful in the Nix sandbox.

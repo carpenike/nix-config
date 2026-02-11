@@ -1,5 +1,5 @@
 diff --git a/src/crawler/mod.rs b/src/crawler/mod.rs
-index 1630af0..3ec17de 100644
+index e8a0586..5a1f3a8 100644
 --- a/src/crawler/mod.rs
 +++ b/src/crawler/mod.rs
 @@ -7,6 +7,7 @@ pub mod scheduler;
@@ -8,9 +8,9 @@ index 1630af0..3ec17de 100644
  use crate::db::{self, models::*, DbPool};
 +use crate::indexer::search::SearchIndex;
  use crate::error::{Error, Result};
+ use crate::indexer::parse_cooklang_full;
  use crate::utils::validation;
- use fetcher::{Fetcher, RateLimiter};
-@@ -21,6 +22,7 @@ pub struct Crawler {
+@@ -33,6 +34,7 @@ pub struct Crawler {
      fetcher: Fetcher,
      rate_limiters: Arc<Mutex<HashMap<String, Arc<RateLimiter>>>>,
      config: CrawlerConfig,
@@ -18,7 +18,7 @@ index 1630af0..3ec17de 100644
  }
 
  impl Crawler {
-@@ -31,9 +33,14 @@ impl Crawler {
+@@ -43,9 +45,14 @@ impl Crawler {
              fetcher,
              rate_limiters: Arc::new(Mutex::new(HashMap::new())),
              config,
@@ -33,21 +33,29 @@ index 1630af0..3ec17de 100644
      /// Crawl a single feed by URL
      pub async fn crawl_feed(&self, pool: &DbPool, feed_url: &str) -> Result<CrawlResult> {
          info!("Crawling feed: {}", feed_url);
-@@ -144,10 +151,12 @@ impl Crawler {
-         // Process entries
+@@ -157,18 +164,29 @@ impl Crawler {
          let mut new_recipes = 0;
          let mut updated_recipes = 0;
+         let mut skipped_recipes = 0;
 +        let mut indexed_recipe_ids = Vec::new();
 
          for entry in parsed_feed.entries {
              match self.process_entry(pool, feed.id, &entry).await {
--                Ok(is_new) => {
-+                Ok((recipe_id, is_new)) => {
+-                Ok(ProcessResult::New) => new_recipes += 1,
+-                Ok(ProcessResult::Updated) => updated_recipes += 1,
+-                Ok(ProcessResult::Skipped) => skipped_recipes += 1,
++                Ok((ProcessResult::New, recipe_id)) => {
++                    new_recipes += 1;
 +                    indexed_recipe_ids.push(recipe_id);
-                     if is_new {
-                         new_recipes += 1;
-                     } else {
-@@ -160,6 +169,10 @@ impl Crawler {
++                }
++                Ok((ProcessResult::Updated, recipe_id)) => {
++                    updated_recipes += 1;
++                    indexed_recipe_ids.push(recipe_id);
++                }
++                Ok((ProcessResult::Skipped, _)) => skipped_recipes += 1,
+                 Err(e) => {
+                     warn!("Failed to process entry {}: {}", entry.id, e);
+                 }
              }
          }
 
@@ -58,23 +66,54 @@ index 1630af0..3ec17de 100644
          // Mark feed as active (reset error count)
          db::feeds::update_feed_status(pool, feed.id, "active", 0, None).await?;
 
-@@ -180,7 +193,7 @@ impl Crawler {
+@@ -190,7 +208,7 @@ impl Crawler {
          pool: &DbPool,
          feed_id: i64,
          entry: &ParsedEntry,
--    ) -> Result<bool> {
-+    ) -> Result<(i64, bool)> {
+-    ) -> Result<ProcessResult> {
++    ) -> Result<(ProcessResult, i64)> {
          // Skip entries without enclosure URL (no .cook file)
          let enclosure_url = entry
              .enclosure_url
-@@ -219,7 +232,48 @@ impl Crawler {
-             if is_new { "new" } else { "updated" }
-         );
+@@ -249,7 +267,7 @@ impl Crawler {
 
--        Ok(is_new)
-+        Ok((recipe.id, is_new))
-+    }
-+
+         if !should_fetch {
+             // Entry hasn't changed based on feed timestamp, skip fetch entirely
+-            return Ok(ProcessResult::Skipped);
++            return Ok((ProcessResult::Skipped, 0));
+         }
+
+         // Extract domain for rate limiting
+@@ -296,7 +314,7 @@ impl Crawler {
+                             entry.updated.as_ref(),
+                         )
+                         .await?;
+-                        return Ok(ProcessResult::Skipped);
++                        return Ok((ProcessResult::Skipped, 0));
+                     }
+                     Err(e) => {
+                         warn!(
+@@ -368,7 +386,7 @@ impl Crawler {
+                 }
+
+                 debug!("Updated recipe {}: {}", recipe.id, recipe.title);
+-                ProcessResult::Updated
++                (ProcessResult::Updated, recipe.id)
+             }
+             None => {
+                 // Determine image URL: prefer feed entry image, fallback to Cooklang metadata
+@@ -413,13 +431,54 @@ impl Crawler {
+                 }
+
+                 debug!("Created new recipe {}: {}", recipe.id, recipe.title);
+-                ProcessResult::New
++                (ProcessResult::New, recipe.id)
+             }
+         };
+
+         Ok(result)
+     }
+
 +    async fn index_recipes(&self, pool: &DbPool, recipe_ids: &[i64]) -> Result<()> {
 +        let Some(search_index) = &self.search_index else {
 +            return Ok(());
@@ -114,14 +153,16 @@ index 1630af0..3ec17de 100644
 +        search_index.reload()?;
 +
 +        Ok(())
-     }
-
++    }
++
      async fn apply_rate_limit(&self, domain: &str) {
+         let mut limiters = self.rate_limiters.lock().await;
+
 diff --git a/src/github/indexer.rs b/src/github/indexer.rs
-index 64b2ac9..54b408e 100644
+index 258d235..9581ac6 100644
 --- a/src/github/indexer.rs
 +++ b/src/github/indexer.rs
-@@ -251,10 +251,13 @@ impl GitHubIndexer {
+@@ -252,10 +252,13 @@ impl GitHubIndexer {
                      &tags,
                      &ingredients,
                  )?;
@@ -136,7 +177,7 @@ index 64b2ac9..54b408e 100644
 
          // Update GitHub feed with latest commit SHA
 diff --git a/src/indexer/schema.rs b/src/indexer/schema.rs
-index a30066e..e9c56e9 100644
+index 55685dc..489cc54 100644
 --- a/src/indexer/schema.rs
 +++ b/src/indexer/schema.rs
 @@ -41,11 +41,11 @@ impl RecipeSchema {
@@ -156,7 +197,7 @@ index a30066e..e9c56e9 100644
          // File path (searchable, stored) - for GitHub recipes
          let file_path = schema_builder.add_text_field("file_path", TEXT | STORED);
 diff --git a/src/indexer/search.rs b/src/indexer/search.rs
-index ea43215..ff43b7a 100644
+index 7b3d058..d11d957 100644
 --- a/src/indexer/search.rs
 +++ b/src/indexer/search.rs
 @@ -1,4 +1,4 @@
@@ -186,17 +227,7 @@ index ea43215..ff43b7a 100644
 
  pub struct SearchIndex {
      index: Index,
-@@ -88,6 +100,9 @@ impl SearchIndex {
-     ) -> Result<()> {
-         debug!("Indexing recipe: {}", recipe.id);
-
-+        // Remove existing document for this recipe to avoid duplicates
-+        writer.delete_term(Term::from_field_i64(self.schema.id, recipe.id));
-+
-         let mut doc = doc!(
-             self.schema.id => recipe.id,
-             self.schema.title => recipe.title.clone(),
-@@ -188,19 +203,33 @@ impl SearchIndex {
+@@ -196,19 +208,33 @@ impl SearchIndex {
              ],
          );
 
@@ -238,7 +269,7 @@ index ea43215..ff43b7a 100644
          // Execute search
          let top_docs = searcher
              .search(&*tantivy_query, &TopDocs::with_limit(limit + offset))
-@@ -271,6 +300,116 @@ impl SearchIndex {
+@@ -279,6 +305,116 @@ impl SearchIndex {
 
          Ok(())
      }
@@ -356,10 +387,10 @@ index ea43215..ff43b7a 100644
 
  #[cfg(test)]
 diff --git a/src/main.rs b/src/main.rs
-index ccfc8fa..73ef213 100644
+index 93a9b49..1cb1c41 100644
 --- a/src/main.rs
 +++ b/src/main.rs
-@@ -127,14 +127,24 @@ async fn serve(mut settings: Settings, port: Option<u16>, host: Option<String>)
+@@ -133,14 +133,24 @@ async fn serve(mut settings: Settings, port: Option<u16>, host: Option<String>)
      let search_index = SearchIndex::new(&index_path)?;
      info!("Search index initialized at {:?}", index_path);
 
@@ -386,7 +417,7 @@ index ccfc8fa..73ef213 100644
          settings.crawler.interval_seconds,
      ));
      let _scheduler_handle = scheduler.start();
-@@ -143,9 +153,6 @@ async fn serve(mut settings: Settings, port: Option<u16>, host: Option<String>)
+@@ -149,9 +159,6 @@ async fn serve(mut settings: Settings, port: Option<u16>, host: Option<String>)
          settings.crawler.interval_seconds
      );
 
