@@ -198,8 +198,6 @@
                 };
                 deadnix = {
                   enable = true;
-                  # Exclude generated files from analysis
-                  excludes = [ "^pkgs/_sources/generated\\.nix$" ];
                   settings = {
                     # Don't flag standard NixOS module patterns like { config, lib, pkgs, ... }:
                     # These unused args are required for proper nixpkgs callPackage/module semantics
@@ -209,22 +207,13 @@
 
                 # ===== Shell Script Linting =====
                 # Catches common shell scripting errors in backup-orchestrator.sh, etc.
-                shellcheck = {
-                  enable = true;
-                  excludes = [ "^tmp/" ];
-                };
+                shellcheck.enable = true;
 
                 # ===== Python Linting =====
                 # Fast linting for scripts/ Python files (ruff is 10-100x faster than flake8)
-                ruff = {
-                  enable = true;
-                  excludes = [ "^tmp/" ];
-                };
+                ruff.enable = true;
                 # Python formatting (runs after ruff --fix)
-                ruff-format = {
-                  enable = true;
-                  excludes = [ "^tmp/" ];
-                };
+                ruff-format.enable = true;
 
                 # ===== Configuration File Validation =====
                 yamllint = {
@@ -253,6 +242,7 @@
                 "^tmp/" # Temporary/scratch files
                 "^site/" # Generated mkdocs site
                 "^result" # Nix build outputs
+                "^pkgs/_sources/" # nvfetcher-generated files
               ];
             };
           };
