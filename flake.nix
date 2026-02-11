@@ -271,6 +271,9 @@
               shellcheck # Shell script static analysis
               ruff # Fast Python linter (replaces flake8/pylint)
 
+              # Pre-commit (Python CLI needed to run hooks from git-hooks.nix)
+              pre-commit
+
               # Security scanning
               gitleaks # Detect hardcoded secrets
 
