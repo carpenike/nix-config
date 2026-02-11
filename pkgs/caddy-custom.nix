@@ -13,7 +13,7 @@
 pkgs.caddy.withPlugins {
   plugins = [
     # renovate: depName=github.com/caddy-dns/cloudflare datasource=go
-    "github.com/caddy-dns/cloudflare@v0.2.2"
+    "github.com/caddy-dns/cloudflare@v0.2.3"
     # renovate: depName=github.com/greenpau/caddy-security datasource=go
     "github.com/greenpau/caddy-security@v1.1.31"
   ];
