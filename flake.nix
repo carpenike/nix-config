@@ -318,7 +318,20 @@
           };
 
           # Code formatter (nix fmt)
-          formatter = pkgs.nixpkgs-fmt;
+          # Wraps nixpkgs-fmt to exclude nvfetcher-generated files that use
+          # their own formatting style and would cause CI failures.
+          formatter = pkgs.writeShellScriptBin "nixpkgs-fmt" ''
+            # Filter out nvfetcher-generated files, pass the rest to nixpkgs-fmt
+            args=()
+            for arg in "$@"; do
+              case "$arg" in
+                -*)           args+=("$arg") ;;   # pass flags through
+                */pkgs/_sources/*) ;;              # skip generated files
+                *)            args+=("$arg") ;;   # keep other paths
+              esac
+            done
+            exec ${pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt "''${args[@]}"
+          '';
 
           # Custom packages - available via 'nix build .#<name>'
           # Filtered to only packages available on the current system
