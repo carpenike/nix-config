@@ -43,7 +43,11 @@ in
       ++ lib.optionals cfg.go.enable [
       go
       gopls
-      gotools
+      gotools # goimports, godoc, etc.
+      golangci-lint # meta-linter aggregating many Go linters
+      go-tools # staticcheck and related analysis tools
+      goose # database migration CLI (pressly/goose)
+      delve # Go debugger (dlv)
     ]
       ++ lib.optionals cfg.rust.enable [
       rustup
