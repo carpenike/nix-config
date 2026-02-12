@@ -76,6 +76,18 @@ When reviewing workarounds:
 | **Check Version** | Any kubectl-view-secret update |
 | **Upstream** | Check if fixed in nixpkgs |
 
+### inetutils - Darwin Build Failure (format-security)
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-02-12 |
+| **Affects** | stable overlay (Darwin only) |
+| **Reason** | inetutils 2.7 gnulib `openat-die.c` triggers `-Werror,-Wformat-security` on newer macOS clang |
+| **Workaround** | `NIX_CFLAGS_COMPILE += -Wno-error=format-security` (Darwin only) |
+| **Check Version** | inetutils > 2.7 or nixpkgs gnulib patch |
+| **Upstream** | https://github.com/NixOS/nixpkgs/issues/ (gnulib compat) |
+| **Impact** | Without fix: home-manager fails to build on macOS (inetutils is a dependency for `hostname`) |
+
 ---
 
 ## Unstable Package Usage

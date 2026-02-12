@@ -142,6 +142,17 @@
   # Your own overlays for stable nixpkgs should be declared here
   # NOTE: Temporary workarounds should be documented in docs/workarounds.md
   nixpkgs-overlays = final: prev: {
+    # WORKAROUND (2026-02-12): inetutils 2.7 fails to build on Darwin
+    # gnulib openat-die.c triggers -Werror,-Wformat-security on newer clang
+    # Affects: home-manager (depends on inetutils for hostname)
+    # Upstream: https://github.com/NixOS/nixpkgs/issues/ (gnulib compat)
+    # Check: When inetutils > 2.7 or nixpkgs patches gnulib
+    inetutils = prev.inetutils.overrideAttrs (old: prev.lib.optionalAttrs final.stdenv.isDarwin {
+      env = (old.env or { }) // {
+        NIX_CFLAGS_COMPILE = toString ((old.env.NIX_CFLAGS_COMPILE or "") + " -Wno-error=format-security");
+      };
+    });
+
     # Custom Caddy build with Cloudflare DNS provider and caddy-security plugins
     # See pkgs/caddy-custom.nix for plugin configuration and hash updates
     caddy = import ../pkgs/caddy-custom.nix { pkgs = final.unstable; };
