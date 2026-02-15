@@ -3,7 +3,7 @@
 {
   beads = {
     pname = "beads";
-    version = "v0.49.6";
+    version = "v0.50.3";
     src = fetchFromGitHub {
       owner = "steveyegge";
       repo = "beads";
