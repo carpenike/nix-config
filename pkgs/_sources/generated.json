@@ -1,6 +1,6 @@
 {
     "beads": {
-        "cargoLocks": null,
+        "cargoLock": null,
         "date": null,
         "extract": null,
         "name": "beads",
@@ -13,15 +13,15 @@
             "name": null,
             "owner": "steveyegge",
             "repo": "beads",
-            "rev": "v0.49.6",
-            "sha256": "sha256-zopOpBqaHC2t+tGYtrHyalOUsFDZai2NmZZOKJs2vfQ=",
+            "rev": "v0.55.4",
+            "sha256": "sha256-HTcmGKn2NNoBEg5yRsnVIATNdte5Xw8E86D09e1X5nk=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.49.6"
+        "version": "v0.55.4"
     },
     "cooklang-cli": {
-        "cargoLocks": null,
+        "cargoLock": null,
         "date": null,
         "extract": null,
         "name": "cooklang-cli",
@@ -34,15 +34,15 @@
             "name": null,
             "owner": "cooklang",
             "repo": "CookCLI",
-            "rev": "v0.22.0",
-            "sha256": "sha256-zDpyhdXQ1ZlaN2hAi+OrZ4cJR5CsoYd+AcSOQEUXFwQ=",
+            "rev": "v0.23.0",
+            "sha256": "sha256-j86Qv+aGG67lcm+BzwY7E7xde/KN91eoqlIA1IQEy88=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.22.0"
+        "version": "v0.23.0"
     },
     "cooklang-federation": {
-        "cargoLocks": null,
+        "cargoLock": null,
         "date": "2026-01-24",
         "extract": null,
         "name": "cooklang-federation",
@@ -63,7 +63,7 @@
         "version": "dc94a8a54452fd5beee9e1718e20d10f1f23a267"
     },
     "shcopy": {
-        "cargoLocks": null,
+        "cargoLock": null,
         "date": null,
         "extract": null,
         "name": "shcopy",
@@ -84,7 +84,7 @@
         "version": "v0.1.5"
     },
     "thelounge-theme-dracula": {
-        "cargoLocks": null,
+        "cargoLock": null,
         "date": "2023-09-09",
         "extract": null,
         "name": "thelounge-theme-dracula",
@@ -105,7 +105,7 @@
         "version": "4366bdd8d17a35ec9d55e4825ddbbaff1ddc5c5e"
     },
     "thelounge-theme-mininapse": {
-        "cargoLocks": null,
+        "cargoLock": null,
         "date": "2023-08-20",
         "extract": null,
         "name": "thelounge-theme-mininapse",
@@ -126,7 +126,7 @@
         "version": "e4093e5fac4e383a204a6e895698fb9f37682c31"
     },
     "usage-cli": {
-        "cargoLocks": null,
+        "cargoLock": null,
         "date": null,
         "extract": null,
         "name": "usage-cli",
@@ -139,11 +139,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v2.16.1",
-            "sha256": "sha256-HPBZ4fNAD3dflXEXfP6eAroJpZDvLZd8qSTcSmKaxxE=",
+            "rev": "v2.18.0",
+            "sha256": "sha256-605IvofbErtpfsNoIY8G4xafVC0ChFuxy9p60UCDnvk=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v2.16.1"
+        "version": "v2.18.0"
     }
 }
