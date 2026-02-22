@@ -187,6 +187,17 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Check** | When nixpkgs #468070 is resolved, or Plex updates their bundled glibc |
 | **Solution Available** | Set `modules.services.plex.deploymentMode = "container"` to use `ghcr.io/home-operations/plex` (Ubuntu 24.04 base with matching glibc). VA-API hardware transcoding works in container mode. |
 
+### NFS Media Mount - Soft Mount to Prevent System Freeze
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-02-21 |
+| **Location** | `hosts/forge/infrastructure/storage.nix` (nfsMounts.media) |
+| **Reason** | Previous `hard` mount (default) caused full system freeze on 2026-02-21 when NAS became temporarily unreachable during midnight backup storm. All processes touching `/mnt/data` entered uninterruptible D-state, cascading to a complete host hang requiring hard reboot. |
+| **Workaround** | Changed to `soft,timeo=150,retrans=3`. NFS ops now return EIO after ~45s instead of blocking forever. Media services may see transient I/O errors during NAS blips. |
+| **Check** | If NFS reliability becomes an issue (data corruption from partial writes), consider switching back to `hard` with `timeo=300` and adding a systemd watchdog. |
+| **Tradeoff** | `soft` mount risks returning EIO on transient network issues, which could cause media service errors. This is far safer than `hard`-mount freezes that require physical intervention. |
+
 ---
 
 ## Custom Packages with doCheck=false

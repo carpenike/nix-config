@@ -69,6 +69,13 @@ in
           # CRITICAL: Enable ZFS snapshots for SQLite database consistency
           useSnapshots = true;
           zfsDataset = "tank/services/plex";
+          # Plex backup data is large; default 512M causes repeated OOM kills
+          # (restic-backup-service-plex killed at ~467MB RSS on 2026-02-21)
+          resources = {
+            memory = "2G";
+            memoryReservation = "1G";
+            cpus = "2.0";
+          };
           # Exclude non-critical directories and security-sensitive files
           excludePatterns = [
             "**/Plex Media Server/Cache/**"

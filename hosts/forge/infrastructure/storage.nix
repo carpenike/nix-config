@@ -135,7 +135,11 @@ in
       localPath = "/mnt/data"; # Mount point for shared NAS data (contains media/, backups/, etc.)
       group = "media";
       mode = "02775"; # setgid bit ensures new files inherit media group
-      mountOptions = [ "nfsvers=4.2" "timeo=60" "retry=5" "rw" "noatime" ];
+      # WORKAROUND (2026-02-21): Add soft mount to prevent system freeze on NAS unreachable
+      # Previous hard mount caused uninterruptible D-state cascade (full host freeze 2026-02-21)
+      # With soft, NFS ops return EIO on timeout instead of blocking forever.
+      # timeo=150 = 15 seconds (in deciseconds), retrans=3 = 3 retries before EIO.
+      mountOptions = [ "nfsvers=4.2" "soft" "timeo=150" "retrans=3" "rw" "noatime" ];
     };
   };
 

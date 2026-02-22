@@ -66,6 +66,10 @@ let
           User = "restic-backup";
           Group = "restic-backup";
 
+          # Place all backup jobs in a shared slice to cap aggregate resource usage
+          # Prevents backup storms from saturating host memory/CPU
+          Slice = "restic-backups.slice";
+
           # Restic exit codes: 0=success, 3=warning (some files couldn't be read but backup succeeded)
           # We treat warnings as success since the backup itself succeeded
           SuccessExitStatus = [ 3 ];
@@ -316,6 +320,17 @@ in
       wantedBy = [ "multi-user.target" ];
     };
 
+    # Resource control slice for all restic backup jobs
+    # Caps aggregate memory and CPU so a midnight stampede of ~30 daily jobs
+    # cannot saturate the host even when timers overlap.
+    systemd.slices.restic-backups = {
+      description = "Restic backup resource control";
+      sliceConfig = {
+        MemoryMax = "4G";
+        CPUQuota = "200%";
+      };
+    };
+
     # Create systemd services for all backup jobs and notification templates
     systemd.services = lib.mkMerge [
       # Backup job services
@@ -442,7 +457,9 @@ in
             timerConfig = {
               OnCalendar = jobConfig.frequency;
               Persistent = true;
-              RandomizedDelaySec = "30m"; # Spread backup load
+              # Spread ~30 daily backup jobs over a 4-hour window (00:00–04:00)
+              # Previous 30m window caused a midnight stampede that saturated NFS I/O
+              RandomizedDelaySec = "4h";
             };
           };
         })

@@ -59,6 +59,13 @@ in
           useSnapshots = true;
           zfsDataset = dataset;
           tags = [ "scrypted" "config" ];
+          # Scrypted backup data is large; default 512M causes repeated OOM kills
+          # (restic-backup-service-scrypted killed at ~498MB RSS on 2026-02-21)
+          resources = {
+            memory = "2G";
+            memoryReservation = "1G";
+            cpus = "2.0";
+          };
           excludePatterns = [
             "${nvrPath}/**"
             "/tmp/**"
