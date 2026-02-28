@@ -17,7 +17,7 @@ let
   mainServiceUnit = "${serviceAttrName}.service";
 
   # renovate: depName=adriankumpf/teslamate datasource=github-releases
-  teslamateDashboardsVersion = "2.2.0";
+  teslamateDashboardsVersion = "3.0.0";
   teslamateDashboardsSrc = pkgs.fetchzip {
     url = "https://github.com/adriankumpf/teslamate/archive/refs/tags/v${teslamateDashboardsVersion}.tar.gz";
     sha256 = "sha256-M4Bte5MCZGzKJoFcXzTVLFRHmgqVjR5TyQb5bTeEBws=";
