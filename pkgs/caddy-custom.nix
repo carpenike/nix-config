@@ -15,7 +15,7 @@ pkgs.caddy.withPlugins {
     # renovate: depName=github.com/caddy-dns/cloudflare datasource=go
     "github.com/caddy-dns/cloudflare@v0.2.3"
     # renovate: depName=github.com/greenpau/caddy-security datasource=go
-    "github.com/greenpau/caddy-security@v1.1.31"
+    "github.com/greenpau/caddy-security@v1.1.36"
   ];
   # WORKAROUND (2025-01-01): Hash updated after plugin version changes
   # Run `nix build .#caddy` with lib.fakeHash to get new hash when plugins update
