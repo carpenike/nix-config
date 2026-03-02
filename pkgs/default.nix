@@ -18,6 +18,7 @@
   # kubectl-pgo = pkgs.callPackage ./kubectl-pgo.nix { };
   cooklang-cli = pkgs.callPackage ./cooklang-cli.nix { };
   cooklang-federation = pkgs.callPackage ./cooklang-federation.nix { };
+  worldmonitor = pkgs.callPackage ../modules/nixos/services/worldmonitor/package.nix { };
   # nvim = pkgs.callPackage ./nvim.nix _inputs;  # FIXME: References non-existent homes/bjw-s path
   shcopy = pkgs.callPackage ./shcopy.nix { };
   # talhelper = inputs.talhelper.packages.${pkgs.system}.default;

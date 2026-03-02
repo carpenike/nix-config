@@ -132,6 +132,17 @@
               weatherflow4py = pyPrev.weatherflow4py.overridePythonAttrs (_old: {
                 pythonRelaxDeps = [ "marshmallow" ];
               });
+
+              # WORKAROUND (2026-03-02): ics 0.7.2 test_gehol hits RecursionError
+              # tests/test.py::TestFunctional::test_gehol exceeds max recursion depth
+              # Affects: home-assistant (depends on ics for calendar integrations)
+              # Upstream: https://github.com/ics-py/ics-py/issues
+              # Check: When ics > 0.7.2 or upstream fixes the gehol test
+              ics = pyPrev.ics.overridePythonAttrs (old: {
+                disabledTests = (old.disabledTests or [ ]) ++ [
+                  "test_gehol"
+                ];
+              });
             })
           ];
         })

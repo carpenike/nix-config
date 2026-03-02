@@ -111,6 +111,7 @@ in
     ./services/zwave-js-ui.nix # Z-Wave JS UI coordinator service
     ./services/esphome.nix # ESPHome dashboard and firmware builder
     ./services/termix.nix # Termix SSH web terminal
+    ./services/worldmonitor.nix # World Monitor real-time intelligence dashboard
   ];
 
   config = {

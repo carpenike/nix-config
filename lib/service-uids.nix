@@ -628,6 +628,13 @@
     extraGroups = [ ];
   };
 
+  worldmonitor = {
+    uid = 940;
+    gid = 940;
+    description = "World Monitor real-time intelligence dashboard";
+    extraGroups = [ ];
+  };
+
   # ============================================================================
   # NEXT AVAILABLE UIDs (for new deployments)
   # ============================================================================

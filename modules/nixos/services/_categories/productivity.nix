@@ -20,5 +20,6 @@
     ../termix # SSH web terminal
     ../thelounge # IRC web client
     ../tududi # Task and productivity management
+    ../worldmonitor # Real-time global intelligence dashboard
   ];
 }

@@ -19,5 +19,5 @@ pkgs.caddy.withPlugins {
   ];
   # WORKAROUND (2025-01-01): Hash updated after plugin version changes
   # Run `nix build .#caddy` with lib.fakeHash to get new hash when plugins update
-  hash = "sha256-sm6tKUw5vOgBewjdknDUn8DDP5SsNBQzPa+BafeuLew=";
+  hash = "sha256-x3MIZdbY+f7Ea9wPbnDpiavEWj2IVUJTJok0MZpwW/M=";
 }
