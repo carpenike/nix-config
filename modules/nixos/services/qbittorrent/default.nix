@@ -17,7 +17,7 @@
 let
   # VueTorrent package (pinned for reproducibility)
   vuetorrentPackage = pkgs.fetchzip {
-    url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.31.3/vuetorrent.zip";
+    url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.32.0/vuetorrent.zip";
     hash = "sha256-mthdc2pXLKTjDv7iTxbwFJuT/lHTQcT1QtzxaZFuXBo=";
     stripRoot = false;
   };
