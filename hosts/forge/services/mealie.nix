@@ -22,7 +22,7 @@ in
         enable = true;
         dataDir = dataDir;
         datasetPath = dataset;
-        image = "ghcr.io/mealie-recipes/mealie:v3.11.0@sha256:d99fc2844c04288526d6cbecc9ac1b6c32d8ea6054236d56857107bbaf70ea5c";
+        image = "ghcr.io/mealie-recipes/mealie:v3.12.0@sha256:8d962f611390a1cca667eed32a29e9467e9c01c523e2db3ad00f667372067f9d";
         listenAddress = listenAddr;
         listenPort = listenPortNumber;
         allowSignup = false;
