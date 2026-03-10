@@ -267,7 +267,7 @@ in
       # Upstream: https://github.com/mbentley/docker-omada-controller/blob/master/KNOWN_ISSUES.md#your-system-does-not-support-avx-or-armv82-a
       # Check: Re-evaluate if luna is replaced with AVX-capable hardware, or if upstream ships a MongoDB 7 option for v6+
       virtualisation.oci-containers.containers.omada = podmanLib.mkContainer "omada" {
-        image = "docker.io/mbentley/omada-controller:5.15.24.18@sha256:fe5137d1d1a873ed23077d65f083d68d5622e1bb937420414eec79369c2d4221";
+        image = "docker.io/mbentley/omada-controller:5.15.24.18@sha256:20d13294aebbd1d8ea08949b551976a924ad229a35d469ed4bdf9a725ded9857";
         environment = {
           "TZ" = "America/New_York";
           # Using embedded MongoDB (default behavior when MONGO_EXTERNAL is not set)
