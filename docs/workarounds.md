@@ -187,6 +187,17 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Check** | When nixpkgs #468070 is resolved, or Plex updates their bundled glibc |
 | **Solution Available** | Set `modules.services.plex.deploymentMode = "container"` to use `ghcr.io/home-operations/plex` (Ubuntu 24.04 base with matching glibc). VA-API hardware transcoding works in container mode. |
 
+### Omada Controller - Pinned to v5.x (No AVX on Luna)
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-03-10 |
+| **Location** | `modules/nixos/services/omada/default.nix` (container image) |
+| **Reason** | Luna's Intel Celeron J3455 (Apollo Lake) lacks AVX instruction support. Omada Controller v6.x ships MongoDB 8 which requires AVX. Container exits immediately with `ERROR: your system does not support AVX`. |
+| **Workaround** | Pinned to `omada-controller:5.15.24.18` (last v5.x release, uses MongoDB 7 which has no AVX requirement) |
+| **Upstream** | https://github.com/mbentley/docker-omada-controller/blob/master/KNOWN_ISSUES.md#your-system-does-not-support-avx-or-armv82-a |
+| **Check** | If luna is replaced with AVX-capable hardware, or if upstream offers a v6+ image with MongoDB 7 |
+
 ### NFS Media Mount - Soft Mount to Prevent System Freeze
 
 | Field | Value |

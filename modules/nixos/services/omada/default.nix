@@ -262,8 +262,12 @@ in
       };
 
       # Omada Controller with embedded MongoDB
+      # WORKAROUND (2026-03-10): Pinned to v5.x because luna's Celeron J3455 lacks AVX
+      # Affects: Omada Controller on luna (any non-AVX host)
+      # Upstream: https://github.com/mbentley/docker-omada-controller/blob/master/KNOWN_ISSUES.md#your-system-does-not-support-avx-or-armv82-a
+      # Check: Re-evaluate if luna is replaced with AVX-capable hardware, or if upstream ships a MongoDB 7 option for v6+
       virtualisation.oci-containers.containers.omada = podmanLib.mkContainer "omada" {
-        image = "docker.io/mbentley/omada-controller:6.1.0.19@sha256:ae11f51e773d9c17f8578b951ced11253b2ef7cfa9c8d46ef99ecdcd8cc25278";
+        image = "docker.io/mbentley/omada-controller:5.15.24.18@sha256:fe5137d1d1a873ed23077d65f083d68d5622e1bb937420414eec79369c2d4221";
         environment = {
           "TZ" = "America/New_York";
           # Using embedded MongoDB (default behavior when MONGO_EXTERNAL is not set)
