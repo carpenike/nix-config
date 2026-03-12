@@ -86,6 +86,42 @@
     '';
   };
 
+  # Logrotate for rsyslog-managed files (not handled by journald)
+  # Without this, /var/log/messages grows unbounded (reached 205GB)
+  services.logrotate.settings = {
+    rsyslog-messages = {
+      files = [ "/var/log/messages" "/var/log/warn" ];
+      rotate = 4;
+      frequency = "weekly";
+      compress = true;
+      delaycompress = true;
+      missingok = true;
+      notifempty = true;
+      postrotate = "systemctl kill -s HUP syslog.service || true";
+      su = "root root";
+    };
+    rsyslog-stats = {
+      files = [ "/var/log/rsyslog-stats.log" ];
+      rotate = 2;
+      frequency = "weekly";
+      compress = true;
+      missingok = true;
+      notifempty = true;
+      su = "root root";
+    };
+    omada-logs = {
+      files = [ "/var/log/omada-relay.log" "/var/log/omada-raw.log" ];
+      rotate = 4;
+      frequency = "weekly";
+      compress = true;
+      delaycompress = true;
+      missingok = true;
+      notifempty = true;
+      postrotate = "systemctl kill -s HUP syslog.service || true";
+      su = "root root";
+    };
+  };
+
   # Fix journald startup race condition with impermanence bind mounts
   # Ensure journald waits for /var/log to be properly mounted before starting
   systemd.services.systemd-journald.unitConfig.RequiresMountsFor = [ "/var/log/journal" ];

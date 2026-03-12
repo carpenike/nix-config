@@ -12,6 +12,20 @@ let
   cfg = config.modules.services.backup;
   snapshotsCfg = cfg.snapshots or { };
 
+  # Parse duration string (e.g., "24h", "7d", "30m") to seconds
+  # GNU date -d doesn't understand abbreviations like "24h", so we convert in Nix
+  parseDurationToSeconds = str:
+    let
+      match = builtins.match "([0-9]+)(m|h|d)" str;
+      amount = lib.toInt (builtins.elemAt match 0);
+      unit = builtins.elemAt match 1;
+      multiplier = { "m" = 60; "h" = 3600; "d" = 86400; }.${unit};
+    in
+    assert match != null;
+    toString (amount * multiplier);
+
+  maxAgeSeconds = parseDurationToSeconds snapshotsCfg.retentionPolicy.maxAge;
+
   # Get services that need snapshot-coordinated backups from centralized job list
   servicesNeedingSnapshots = lib.filterAttrs
     (_name: job:
@@ -205,8 +219,9 @@ in
 
               echo "Cleaning up old backup snapshots..."
 
-              # Calculate cutoff timestamp for max age
-              max_age_seconds=$(${pkgs.coreutils}/bin/date -d "now - ${snapshotsCfg.retentionPolicy.maxAge}" +%s)
+              # Calculate cutoff timestamp using arithmetic (avoids date -d parsing issues)
+              now=$(${pkgs.coreutils}/bin/date +%s)
+              max_age_seconds=$((now - ${maxAgeSeconds}))
 
               # Find all backup snapshots older than maxAge
               # Use -p for parsable (UNIX epoch) timestamps - locale independent
@@ -215,7 +230,7 @@ in
                 | { grep '@backup-' || true; } \
                 | while IFS=$'\t' read -r snapshot creation_timestamp; do
                   if [ "$creation_timestamp" -lt "$max_age_seconds" ]; then
-                    echo "Destroying old snapshot: $snapshot (created $(date -d @$creation_timestamp))"
+                    echo "Destroying old snapshot: $snapshot (created $(${pkgs.coreutils}/bin/date -d @"$creation_timestamp"))"
                     ${pkgs.zfs}/bin/zfs destroy "$snapshot" || true
                   fi
                 done

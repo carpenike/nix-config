@@ -35,8 +35,8 @@ in
   #   * Point-in-Time Recovery (PITR) capable
   #   * Primary recovery source (fastest)
   #
-  # - Repo2 (Cloudflare R2): Offsite DR + continuous WAL archiving
-  #   * 30-day retention
+  # - Repo2 (Cloudflare R2): Offsite DR + daily WAL archiving
+  #   * 7-day retention (reduced from 30 to control storage growth)
   #   * Point-in-Time Recovery (PITR) capable
   #   * Geographic redundancy
   #   * Cost-effective (R2 has zero egress fees)
@@ -71,8 +71,8 @@ in
       repo2-s3-endpoint=${config.my.r2.endpoint}
       repo2-s3-region=auto
       repo2-s3-uri-style=path
-      repo2-retention-full=30
-    repo2-retention-archive=30
+      repo2-retention-full=7
+    repo2-retention-archive=7
       # Credentials will be substituted by pgbackrest-config-generator service
       repo2-s3-key=__R2_ACCESS_KEY_ID__
       repo2-s3-key-secret=__R2_SECRET_ACCESS_KEY__
@@ -592,13 +592,38 @@ in
 
         echo "[$(date -Iseconds)] Starting incremental backup to repo1 (NFS)..."
         pgbackrest --stanza=main --type=incr --repo=1 $EXCLUDE_OPTS backup
-        echo "[$(date -Iseconds)] Repo1 backup completed"
+        echo "[$(date -Iseconds)] Repo1 incremental backup completed"
 
-        echo "[$(date -Iseconds)] Starting incremental backup to repo2 (R2)..."
-        # Repo2 configuration read from /etc/pgbackrest.conf
-        # Now includes WAL archiving for complete offsite PITR capability
+        # Note: R2 incrementals run on a separate daily schedule to control storage growth
+        # Hourly incrementals to R2 caused ~81GB/day upload and ~3TB accumulated storage
+      '';
+    };
+
+    # Daily incremental backup to R2 only (offsite DR)
+    # Separated from hourly NFS incrementals to control R2 storage costs
+    pgbackrest-incr-r2-backup = {
+      description = "pgBackRest daily incremental backup to R2";
+      after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
+      wants = [ "postgresql.service" ];
+      path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.systemd ];
+
+      unitConfig = {
+        RequiresMountsFor = [ "/mnt/nas-postgresql" ];
+        OnSuccess = "pgbackrest-metrics.service";
+      };
+      serviceConfig = hardenedServiceConfig // {
+        Type = "oneshot";
+        User = "postgres";
+        Group = "postgres";
+        IPAddressDeny = [ "169.254.169.254" ];
+      };
+      script = ''
+        set -euo pipefail
+        EXCLUDE_OPTS="--exclude=.config --exclude=.local"
+
+        echo "[$(date -Iseconds)] Starting daily incremental backup to repo2 (R2)..."
         pgbackrest --stanza=main --type=incr --repo=2 $EXCLUDE_OPTS backup
-        echo "[$(date -Iseconds)] Incremental backup to both repos completed"
+        echo "[$(date -Iseconds)] R2 incremental backup completed"
       '';
     };
 
@@ -625,9 +650,9 @@ in
     };
 
     # Differential backup
-    # Differential backups removed - simplified to daily full + hourly incremental
-    # Reduces backup window contention and operational complexity
-    # Retention still appropriate: 7 daily fulls + hourly incrementals
+    # Differential backups removed - simplified to daily full + hourly incremental (NFS)
+    # R2 gets daily full + daily incremental to control storage costs
+    # Retention: 7 daily fulls + incrementals for both repos
   };
 
   # pgBackRest backup timers
@@ -662,8 +687,18 @@ in
       };
     };
 
+    pgbackrest-incr-r2-backup = {
+      description = "pgBackRest daily incremental backup to R2 timer";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "14:00"; # Daily at 2 PM (offset from full backup at 2 AM)
+        Persistent = true;
+        RandomizedDelaySec = "15m";
+      };
+    };
+
     # Differential backup timer removed - using simplified schedule
-    # Daily full (2 AM) + Hourly incremental is sufficient for homelab
+    # Daily full (2 AM) + Hourly NFS incremental + Daily R2 incremental (2 PM)
   };
 
 

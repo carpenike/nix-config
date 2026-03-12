@@ -40,8 +40,13 @@ in
           # No caddySecurity since Termix has native OIDC
         };
 
-        # Enable backups
-        backup = forgeDefaults.backup;
+        # Enable backups (increased memory: default 512M triggers OOM during index loading)
+        backup = forgeDefaults.backup // {
+          resources = {
+            memory = "1G";
+            memoryReservation = "512M";
+          };
+        };
 
         # Enable failure notifications
         notifications.enable = true;
