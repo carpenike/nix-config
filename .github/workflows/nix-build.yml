@@ -19,6 +19,9 @@ concurrency:
 
 jobs:
   # Determine which hosts need to be built based on changed files
+  # NOTE: rymac (darwinConfigurations) is not built in CI because GitHub Actions
+  # lacks free macOS ARM runners. Breakage from flake updates won't be caught
+  # until a local build. Consider adding a macos-latest runner if budget allows.
   changes:
     runs-on: ubuntu-latest
     outputs:

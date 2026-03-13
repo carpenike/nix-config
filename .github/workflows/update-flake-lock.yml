@@ -34,7 +34,7 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Update flake.lock
-        uses: DeterminateSystems/update-flake-lock@main
+        uses: DeterminateSystems/update-flake-lock@v28
         id: update
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -53,6 +53,17 @@ jobs:
       - name: Verify flake evaluates
         if: steps.update.outputs.pull-request-number != ''
         run: nix flake check --no-build
+
+      - name: Close PR on flake check failure
+        if: failure() && steps.update.outputs.pull-request-number != ''
+        run: |
+          gh pr comment "${{ steps.update.outputs.pull-request-number }}" \
+            --body "❌ \`nix flake check\` failed against the updated lock file. Closing this PR — please investigate manually.
+
+          [View workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+          gh pr close "${{ steps.update.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: Enable auto-merge
         if: steps.update.outputs.pull-request-number != ''
