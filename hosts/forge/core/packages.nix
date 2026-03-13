@@ -12,6 +12,9 @@
     # ZFS utilities
     pkgs.zfs
 
+    # Disk health monitoring
+    pkgs.smartmontools
+
     # Backup orchestration (runs on host)
     pkgs.backup-orchestrator
 

@@ -115,5 +115,76 @@
         description = "Service is in failed state. Check: systemctl status {{ $labels.name }}";
       };
     };
+
+    # Critical memory pressure - host is nearly out of memory
+    # Fires at 95% (vs HighMemoryUsage at 90%) for immediate attention
+    "memory-pressure-critical" = {
+      type = "promql";
+      alertname = "MemoryPressureCritical";
+      expr = ''
+        (1 - (node_memory_MemAvailable_bytes{instance!~"nas-.*"} / node_memory_MemTotal_bytes{instance!~"nas-.*"})) > 0.95
+      '';
+      for = "5m";
+      severity = "critical";
+      labels = { service = "system"; category = "performance"; };
+      annotations = {
+        summary = "Critical memory pressure on {{ $labels.instance }}";
+        description = "Memory usage is {{ $value | humanizePercentage }}. OOM kills imminent. Investigate immediately.";
+        command = "ps aux --sort=-%mem | head -20";
+      };
+    };
+
+    # NFS mount errors - detect stale or errored NFS mounts
+    # Critical for backup reliability (restic, pgBackRest depend on NFS)
+    "nfs-mount-error" = {
+      type = "promql";
+      alertname = "NFSMountError";
+      expr = ''
+        node_filesystem_device_error{fstype="nfs4"} > 0
+      '';
+      for = "5m";
+      severity = "high";
+      labels = { service = "system"; category = "storage"; };
+      annotations = {
+        summary = "NFS mount error on {{ $labels.mountpoint }} on {{ $labels.instance }}";
+        description = "NFS filesystem at {{ $labels.mountpoint }} has device errors. Backups may be failing silently. Check: mount | grep nfs";
+      };
+    };
+
+    # NFS mount disappeared - filesystem was expected but is gone
+    "nfs-mount-missing" = {
+      type = "promql";
+      alertname = "NFSMountMissing";
+      expr = ''
+        absent(node_filesystem_avail_bytes{mountpoint="/mnt/nas-backup"}) == 1
+        and on() (node_time_seconds - node_boot_time_seconds) > 600
+      '';
+      for = "15m";
+      severity = "high";
+      labels = { service = "system"; category = "storage"; };
+      annotations = {
+        summary = "NFS backup mount missing on {{ $labels.instance }}";
+        description = "The /mnt/nas-backup mount is not present. Restic backups will fail. Check NAS connectivity and automount.";
+      };
+    };
+
+    # Systemd timer not firing - detect timers that stopped triggering
+    # Uses node_systemd_timer_last_trigger_seconds from node_exporter
+    # Excludes transient/ephemeral timers (podman healthchecks have hash names)
+    "systemd-timer-stale" = {
+      type = "promql";
+      alertname = "SystemdTimerStale";
+      expr = ''
+        (time() - node_systemd_timer_last_trigger_seconds{name!~".*[0-9a-f]{64}.*"}) > 86400 * 2
+        and node_systemd_unit_state{name=~".*\\.timer", state="active"} == 1
+      '';
+      for = "30m";
+      severity = "medium";
+      labels = { service = "system"; category = "systemd"; };
+      annotations = {
+        summary = "Systemd timer {{ $labels.name }} hasn't fired in 2+ days on {{ $labels.instance }}";
+        description = "Timer {{ $labels.name }} last triggered {{ $value | humanizeDuration }} ago. Check: systemctl list-timers {{ $labels.name }}";
+      };
+    };
   };
 }

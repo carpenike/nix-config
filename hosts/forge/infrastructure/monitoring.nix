@@ -377,6 +377,87 @@ let
     chmod 644 "''${METRICS_FILE}"
     log_debug "Metrics exported successfully to $METRICS_FILE"
   '';
+
+  # SMART disk health metrics exporter
+  # Monitors NVMe and SATA drives for pre-failure indicators
+  smartMetricsScript = pkgs.writeShellScriptBin "export-smart-metrics" ''
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PATH="${lib.makeBinPath [ pkgs.smartmontools pkgs.coreutils pkgs.bash pkgs.gnugrep pkgs.gawk ]}"
+
+    METRICS_FILE="/var/lib/node_exporter/textfile_collector/smart.prom"
+    TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
+
+    {
+      echo "# HELP smart_device_healthy SMART overall health assessment (1=PASSED, 0=FAILED)"
+      echo "# TYPE smart_device_healthy gauge"
+      echo "# HELP smart_temperature_celsius Current drive temperature in Celsius"
+      echo "# TYPE smart_temperature_celsius gauge"
+      echo "# HELP smart_power_on_hours Total power-on hours"
+      echo "# TYPE smart_power_on_hours gauge"
+      echo "# HELP smart_reallocated_sectors Count of reallocated sectors (SATA)"
+      echo "# TYPE smart_reallocated_sectors gauge"
+      echo "# HELP smart_media_errors NVMe media and data integrity errors"
+      echo "# TYPE smart_media_errors gauge"
+      echo "# HELP smart_percentage_used NVMe percentage of rated lifetime used"
+      echo "# TYPE smart_percentage_used gauge"
+      echo "# HELP smart_available_spare NVMe available spare percentage"
+      echo "# TYPE smart_available_spare gauge"
+      echo "# HELP smart_critical_warning NVMe critical warning flags (0=none)"
+      echo "# TYPE smart_critical_warning gauge"
+
+      # Iterate over block devices (skip partitions, loopbacks, zram)
+      for dev in /dev/nvme[0-9]n[0-9] /dev/sd[a-z]; do
+        [ -b "$dev" ] || continue
+        devname=$(basename "$dev")
+
+        # Get SMART health
+        health_output=$(smartctl -H "$dev" 2>/dev/null || true)
+        if echo "$health_output" | grep -qi "PASSED\|OK"; then
+          echo "smart_device_healthy{device=\"$devname\"} 1"
+        elif echo "$health_output" | grep -qi "FAILED"; then
+          echo "smart_device_healthy{device=\"$devname\"} 0"
+        fi
+
+        # NVMe drives
+        if [[ "$dev" == /dev/nvme* ]]; then
+          smart_json=$(smartctl -A -j "$dev" 2>/dev/null || true)
+          if [ -n "$smart_json" ]; then
+            temp=$(echo "$smart_json" | awk -F': ' '/"temperature"/{found=1} found && /"current"/{print $2; exit}' | tr -d ' ,')
+            poh=$(echo "$smart_json" | awk -F': ' '/"power_on_hours"/{found=1} found && /"raw".*"value"/{print $2; exit}' | tr -d ' ,')
+            media_err=$(echo "$smart_json" | awk -F': ' '/"media_errors"/{found=1} found && /"raw".*"value"/{print $2; exit}' | tr -d ' ,')
+            pct_used=$(echo "$smart_json" | awk -F': ' '/"percentage_used"/{found=1} found && /"raw".*"value"/{print $2; exit}' | tr -d ' ,')
+            avail_spare=$(echo "$smart_json" | awk -F': ' '/"available_spare"/{found=1} found && /"raw".*"value"/{print $2; exit}' | tr -d ' ,')
+            crit_warn=$(echo "$smart_json" | awk -F': ' '/"critical_warning"/{found=1} found && /"raw".*"value"/{print $2; exit}' | tr -d ' ,')
+
+            [ -n "$temp" ] && echo "smart_temperature_celsius{device=\"$devname\"} $temp"
+            [ -n "$poh" ] && echo "smart_power_on_hours{device=\"$devname\"} $poh"
+            [ -n "$media_err" ] && echo "smart_media_errors{device=\"$devname\"} $media_err"
+            [ -n "$pct_used" ] && echo "smart_percentage_used{device=\"$devname\"} $pct_used"
+            [ -n "$avail_spare" ] && echo "smart_available_spare{device=\"$devname\"} $avail_spare"
+            [ -n "$crit_warn" ] && echo "smart_critical_warning{device=\"$devname\"} $crit_warn"
+          fi
+        fi
+
+        # SATA drives
+        if [[ "$dev" == /dev/sd* ]]; then
+          smart_output=$(smartctl -A "$dev" 2>/dev/null || true)
+          if [ -n "$smart_output" ]; then
+            temp=$(echo "$smart_output" | awk '/Temperature_Celsius/{print $10}')
+            poh=$(echo "$smart_output" | awk '/Power_On_Hours/{print $10}')
+            realloc=$(echo "$smart_output" | awk '/Reallocated_Sector/{print $10}')
+
+            [ -n "$temp" ] && echo "smart_temperature_celsius{device=\"$devname\"} $temp"
+            [ -n "$poh" ] && echo "smart_power_on_hours{device=\"$devname\"} $poh"
+            [ -n "$realloc" ] && echo "smart_reallocated_sectors{device=\"$devname\"} $realloc"
+          fi
+        fi
+      done
+    } > "$TMP_METRICS_FILE"
+
+    mv "$TMP_METRICS_FILE" "$METRICS_FILE"
+    chmod 644 "$METRICS_FILE"
+  '';
 in
 {
   imports = [
@@ -672,4 +753,104 @@ in
 
   # Ensure node-exporter can access /dev/dri and systemd journal for TLS monitoring
   users.users.node-exporter.extraGroups = [ "render" "systemd-journal" "caddy" ];
+
+  # SMART disk health monitoring
+  # Textfile collector for NVMe/SATA drive health metrics
+  systemd.services.smart-metrics-exporter = {
+    description = "SMART Disk Health Metrics Exporter for Prometheus";
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root"; # smartctl requires root
+      ExecStart = "${smartMetricsScript}/bin/export-smart-metrics";
+    };
+  };
+
+  systemd.timers.smart-metrics-exporter = {
+    description = "Run SMART metrics exporter every 5 minutes";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "2m";
+      OnUnitActiveSec = "5m";
+      Unit = "smart-metrics-exporter.service";
+    };
+  };
+
+  # SMART disk health alerts
+  modules.alerting.rules."smart-disk-unhealthy" = {
+    type = "promql";
+    alertname = "SmartDiskUnhealthy";
+    expr = "smart_device_healthy == 0";
+    for = "1m";
+    severity = "critical";
+    labels = { service = "system"; category = "hardware"; };
+    annotations = {
+      summary = "SMART health check FAILED for {{ $labels.device }} on {{ $labels.instance }}";
+      description = "Disk {{ $labels.device }} has failed its SMART self-assessment. Immediate replacement recommended. Check: smartctl -a /dev/{{ $labels.device }}";
+    };
+  };
+
+  modules.alerting.rules."smart-nvme-media-errors" = {
+    type = "promql";
+    alertname = "SmartNVMeMediaErrors";
+    expr = "smart_media_errors > 0";
+    for = "5m";
+    severity = "high";
+    labels = { service = "system"; category = "hardware"; };
+    annotations = {
+      summary = "NVMe media errors detected on {{ $labels.device }} on {{ $labels.instance }}";
+      description = "{{ $value }} media/data integrity errors on {{ $labels.device }}. Monitor for growth — may indicate drive degradation.";
+    };
+  };
+
+  modules.alerting.rules."smart-nvme-wear-high" = {
+    type = "promql";
+    alertname = "SmartNVMeWearHigh";
+    expr = "smart_percentage_used > 80";
+    for = "1h";
+    severity = "medium";
+    labels = { service = "system"; category = "hardware"; };
+    annotations = {
+      summary = "NVMe drive {{ $labels.device }} is {{ $value }}% worn on {{ $labels.instance }}";
+      description = "Drive {{ $labels.device }} has used {{ $value }}% of its rated write endurance. Plan replacement when approaching 100%.";
+    };
+  };
+
+  modules.alerting.rules."smart-nvme-spare-low" = {
+    type = "promql";
+    alertname = "SmartNVMeSpareLow";
+    expr = "smart_available_spare < 20";
+    for = "5m";
+    severity = "high";
+    labels = { service = "system"; category = "hardware"; };
+    annotations = {
+      summary = "NVMe spare capacity low on {{ $labels.device }} on {{ $labels.instance }}";
+      description = "Available spare is {{ $value }}% on {{ $labels.device }}. Drive reliability is degrading.";
+    };
+  };
+
+  modules.alerting.rules."smart-nvme-critical-warning" = {
+    type = "promql";
+    alertname = "SmartNVMeCriticalWarning";
+    expr = "smart_critical_warning > 0";
+    for = "1m";
+    severity = "critical";
+    labels = { service = "system"; category = "hardware"; };
+    annotations = {
+      summary = "NVMe critical warning on {{ $labels.device }} on {{ $labels.instance }}";
+      description = "NVMe controller has raised a critical warning flag on {{ $labels.device }}. Immediate attention required. Check: smartctl -a /dev/{{ $labels.device }}";
+    };
+  };
+
+  modules.alerting.rules."smart-temperature-high" = {
+    type = "promql";
+    alertname = "SmartTemperatureHigh";
+    expr = "smart_temperature_celsius > 70";
+    for = "10m";
+    severity = "high";
+    labels = { service = "system"; category = "hardware"; };
+    annotations = {
+      summary = "Disk {{ $labels.device }} temperature is {{ $value }}°C on {{ $labels.instance }}";
+      description = "Drive temperature exceeds safe threshold. Check case ventilation and ambient temperature.";
+    };
+  };
 }
