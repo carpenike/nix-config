@@ -965,11 +965,12 @@ in
       };
     };
 
-    # Incremental backup stale (>2 hours)
+    # Incremental backup stale (>2 hours) - repo1 only
+    # Repo2 (R2) uses daily incrementals so is excluded from this hourly check
     "pgbackrest-incremental-backup-stale" = {
       type = "promql";
       alertname = "PgBackRestIncrementalBackupStale";
-      expr = "(time() - pgbackrest_backup_last_good_completion_seconds{type=\"incr\"}) > 7200";
+      expr = ''(time() - pgbackrest_backup_last_good_completion_seconds{type="incr",repo_key="1"}) > 7200'';
       for = "30m";
       severity = "high";
       labels = { service = "pgbackrest"; category = "backup"; };
