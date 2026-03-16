@@ -108,79 +108,9 @@ in
   # Note: ZFS collector disabled due to kernel hangs when snapshot unmount operations are pending.
   # The ZFS collector calls statfs() which can block indefinitely in zfsctl_snapshot_unmount_delay().
   # We use custom textfile collectors for critical ZFS metrics instead.
-
-  # Consolidated services.prometheus configuration
-  services.prometheus = {
-    # Host-specific node exporter overrides
-    exporters.node = {
-      # Note: monitoring-agent.nix enables [ "systemd" ], monitoring module adds "textfile"
-      enabledCollectors = lib.mkForce [ "systemd" "textfile" ];
-    };
-
-    # PostgreSQL Performance Monitoring via postgres_exporter
-    exporters.postgres = {
-      enable = true;
-      port = 9187;
-      # Use peer authentication as postgres user (no password needed)
-      runAsLocalSuperUser = true;
-      # DataSourceName not needed when using runAsLocalSuperUser
-
-      # Custom queries for forge-specific monitoring
-      extraFlags = [
-        "--auto-discover-databases"
-        "--exclude-databases=template0,template1"
-      ];
-    };
-
-    # Wire Prometheus to Alertmanager for alert delivery
-    alertmanagers = [{
-      static_configs = [{
-        targets = [ "127.0.0.1:9093" ];
-      }];
-      scheme = "http";
-    }];
-
-    # Load alert rules from the alerting module
-    # Rules are co-located with services and automatically aggregated
-    ruleFiles = [ config.modules.alerting.prometheus.ruleFilePath ];
-
-    scrapeConfigs = [
-      # Node exporter (system metrics + textfile collectors)
-      {
-        job_name = "node";
-        # List all hosts that this Prometheus instance should scrape.
-        static_configs = [
-          { targets = [ "127.0.0.1:9100" ]; labels = { instance = "forge.holthome.net"; }; }
-          # Example for when other hosts are added:
-          # { targets = [ "luna.holthome.net:9100" ]; labels = { instance = "luna"; }; }
-          # { targets = [ "nas-1.holthome.net:9100" ]; labels = { instance = "nas-1"; }; }
-        ];
-      }
-
-      # PostgreSQL exporter (database performance metrics)
-      {
-        job_name = "postgres";
-        static_configs = [
-          { targets = [ "127.0.0.1:9187" ]; labels = { instance = "forge.holthome.net"; }; }
-        ];
-      }
-
-      # Prometheus self-monitoring
-      {
-        job_name = "prometheus";
-        static_configs = [
-          { targets = [ "127.0.0.1:9090" ]; labels = { instance = "forge.holthome.net"; }; }
-        ];
-      }
-
-      # Alertmanager monitoring
-      {
-        job_name = "alertmanager";
-        static_configs = [
-          { targets = [ "127.0.0.1:9093" ]; labels = { instance = "forge.holthome.net"; }; }
-        ];
-      }
-    ];
+  services.prometheus.exporters.node = {
+    # Note: monitoring-agent.nix enables [ "systemd" ], monitoring module adds "textfile"
+    enabledCollectors = lib.mkForce [ "systemd" "textfile" ];
   };
 
   # Enable host-level GPU metrics
