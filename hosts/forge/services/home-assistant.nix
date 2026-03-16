@@ -144,10 +144,30 @@ in
           };
           recorder = {
             db_url = "!env_var HA_POSTGRES_URL";
-            commit_interval = 1;
+            commit_interval = 5;
             auto_purge = true;
-            purge_keep_days = 30;
+            purge_keep_days = 14;
             db_max_retries = 10;
+            exclude = {
+              domains = [
+                "automation"
+                "script"
+                "scene"
+                "group"
+              ];
+              entity_globs = [
+                "sensor.bermuda_*"
+                "device_tracker.bermuda_*"
+                "switch.mikrotik_*"
+                "sensor.mikrotik_*"
+                "switch.adguard_client_*"
+                "switch.adguard_home_*"
+                "switch.adaptive_lighting_*"
+                "sensor.thermal_comfort_*"
+                "sensor.*_switch_*_temperature"
+                "switch.permit_join*"
+              ];
+            };
           };
         };
 
