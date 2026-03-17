@@ -2,6 +2,7 @@
 {
   home.packages = with pkgs; [
     # Cloud infrastructure tools
+    azure-cli
     cloudflared
 
     # Kubernetes cluster management
