@@ -114,7 +114,7 @@ jobs:
 
       # Cachix - persistent binary cache shared between CI and local machines
       - name: Set up Cachix
-        uses: cachix/cachix-action@v16
+        uses: cachix/cachix-action@v17
         with:
           name: carpenike
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
