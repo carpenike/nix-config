@@ -31,15 +31,16 @@
       ];
       casks = [
         "anylist"
-        "discord"
+        "copilot-cli"
+        # "discord" -- self-updating
         "halloy"
         "obsidian"
-        "orbstack"
-        "plex"
-        "spotify"
-        "tableplus"
-        "transmit"
-        "microsoft-edge"
+        "signal"
+        # "orbstack" -- self-updating, license management better standalone
+        # "plex" -- self-updating
+        # "spotify" -- self-updating
+        # "tableplus" -- self-updating, license tied to install
+        # "transmit" -- self-updating, Panic manages updates well
         "gpg-suite-pinentry"
       ];
       masApps = { };

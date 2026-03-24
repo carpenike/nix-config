@@ -14,6 +14,6 @@
 
     # Other infrastructure tools
     terraform
-    packer
+    # packer  # temporarily disabled - segfaults building from source on aarch64-darwin
   ];
 }

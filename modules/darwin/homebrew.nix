@@ -22,7 +22,7 @@ _:
       "jordanbaird-ice"
       "raycast"
       "shottr"
-      "slack"
+      # "slack" -- self-updating, remove from Homebrew management
     ];
     masApps = {
       "Caffeinated" = 1362171212;

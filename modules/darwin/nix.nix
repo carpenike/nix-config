@@ -14,4 +14,9 @@ _:
   };
 
   # nix-daemon is now managed unconditionally by nix-darwin when nix.enable is on
+
+  nix.settings = {
+    trusted-users = [ "root" "ryan" ];
+    ssl-cert-file = "/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt";
+  };
 }
