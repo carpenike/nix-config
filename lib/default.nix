@@ -39,10 +39,6 @@ in
   # Provides reusable submodule types (metrics, logging, backup, reverseProxy, etc.)
   types = import ./types.nix { inherit lib; };
 
-  # Backup helper functions
-  # Note: Currently deprecated - see file for migration details
-  backup-helpers = import ./backup-helpers.nix { inherit lib; pkgs = null; };
-
   # Caddy reverse proxy configuration helpers
   caddy-helpers = import ./caddy-helpers.nix { inherit lib; };
 

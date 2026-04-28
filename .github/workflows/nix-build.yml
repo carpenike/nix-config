@@ -9,6 +9,10 @@ on:
       # Only trigger on actual Nix changes, NOT workflow changes
       - "**.nix"
       - "flake.lock"
+      # nvfetcher writes JSON/lock data here that flows into pkgs/ derivations.
+      # Without this, nvfetcher digest-only updates can change the closure
+      # (e.g., a Caddy plugin bump) without triggering a build.
+      - "pkgs/_sources/**"
 
 permissions:
   contents: read
