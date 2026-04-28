@@ -19,7 +19,11 @@ pkgs.caddy.withPlugins {
   ];
   # WORKAROUND (2025-01-01): Hash updated after plugin version changes
   # Run `nix build .#caddy` with lib.fakeHash to get new hash when plugins update
-  # Updated 2026-04-28: nixpkgs caddy.withPlugins source bundle drift (same plugin
-  # versions, but the underlying derivation now produces a different vendor hash).
-  hash = "sha256-KvAIO5JR7LDGvgZvl5E1GFts0ux1qEu/0u66r1zAjls=";
+  # Updated 2026-04-28 (2nd time): the source bundle drifted again after the
+  # 14:17 UTC `update-flake-lock` workflow bumped nixpkgs, which shifted
+  # caddy's Go vendor closure. Plugin versions and caddy version are still
+  # identical — the only thing that changed is the upstream packaging.
+  # Long-term: switch to a hash-less builder or accept that every nixpkgs
+  # bump that touches the caddy package will require a hash refresh here.
+  hash = "sha256-3c0AYH1OJvciUfi+xY2ULzIK4fn4+CEyF7ZncZoJm3c=";
 }
