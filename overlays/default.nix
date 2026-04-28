@@ -90,6 +90,39 @@
                 meta = old.meta // { broken = false; };
               });
 
+              # WORKAROUND (2026-04-28): aiounittest disabled on Python 3.14 in nixpkgs
+              # Upstream nixpkgs marks aiounittest 1.5.0 as `disabled = pythonAtLeast "3.14"`
+              # because its own test suite fails on 3.14. The library itself works fine
+              # at runtime - the package is a legacy pre-3.8 async-test shim that
+              # IsolatedAsyncioTestCase superseded years ago, but several home-assistant
+              # transitive deps still list it as a check input.
+              # Without this override, the entire forge/luna closure fails to evaluate
+              # whenever python3 default is 3.14.
+              # Affects: home-assistant (transitive test dep)
+              # Upstream: https://github.com/kwarunek/aiounittest/issues/28
+              # Check: When aiounittest > 1.5.0 lands or nixpkgs un-disables.
+              aiounittest = pyPrev.aiounittest.overridePythonAttrs (old: {
+                disabled = false;
+                doCheck = false;
+                doInstallCheck = false;
+                meta = (old.meta or { }) // { broken = false; };
+              });
+
+              # WORKAROUND (2026-04-28): httpx-auth tests use 6-byte HMAC keys in
+              # tests/oauth2/implicit/* fixtures. On Python 3.14, the bundled pyjwt
+              # raises `jwt.warnings.InsecureKeyLengthWarning` (HMAC key < 32 bytes),
+              # and the test suite's filterwarnings config promotes it to an error,
+              # so all ~30 OAuth2 implicit-flow tests fail. Runtime behavior is
+              # unaffected — only the test fixtures are short.
+              # Affects: home-assistant (transitive dep)
+              # Upstream: https://github.com/Colin-b/httpx_auth (fixtures need longer keys)
+              # Check: When httpx-auth > 0.23.1 fixes the test fixtures or pyjwt
+              # downgrades the warning back to a soft warning on 3.14.
+              httpx-auth = pyPrev.httpx-auth.overridePythonAttrs (_old: {
+                doCheck = false;
+                doInstallCheck = false;
+              });
+
               # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
               # Tests use self-signed certs that fail SSL verification during build
               # Affects: home-assistant (uses granian indirectly)
