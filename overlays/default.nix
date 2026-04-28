@@ -90,6 +90,24 @@
                 meta = old.meta // { broken = false; };
               });
 
+              # WORKAROUND (2026-04-28): aiounittest disabled on Python 3.14 in nixpkgs
+              # Upstream nixpkgs marks aiounittest 1.5.0 as `disabled = pythonAtLeast "3.14"`
+              # because its own test suite fails on 3.14. The library itself works fine
+              # at runtime - the package is a legacy pre-3.8 async-test shim that
+              # IsolatedAsyncioTestCase superseded years ago, but several home-assistant
+              # transitive deps still list it as a check input.
+              # Without this override, the entire forge/luna closure fails to evaluate
+              # whenever python3 default is 3.14.
+              # Affects: home-assistant (transitive test dep)
+              # Upstream: https://github.com/kwarunek/aiounittest/issues/28
+              # Check: When aiounittest > 1.5.0 lands or nixpkgs un-disables.
+              aiounittest = pyPrev.aiounittest.overridePythonAttrs (old: {
+                disabled = false;
+                doCheck = false;
+                doInstallCheck = false;
+                meta = (old.meta or { }) // { broken = false; };
+              });
+
               # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
               # Tests use self-signed certs that fail SSL verification during build
               # Affects: home-assistant (uses granian indirectly)

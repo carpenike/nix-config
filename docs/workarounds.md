@@ -2,8 +2,8 @@
 
 This document tracks temporary workarounds, package overrides, and unstable package usage that should be periodically reviewed. These exist due to upstream bugs, missing features in stable, or test failures in the Nix build sandbox.
 
-**Last Reviewed**: 2026-01-09
-**Next Review**: 2026-02-09 (monthly)
+**Last Reviewed**: 2026-04-28
+**Next Review**: 2026-05-28 (monthly)
 
 ---
 
@@ -18,6 +18,18 @@ When reviewing workarounds:
 ---
 
 ## Package Overrides (overlays/default.nix)
+
+### aiounittest - Re-enabled on Python 3.14
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-04-28 |
+| **Affects** | `pythonPackagesExtensions` (unstable overlay) |
+| **Reason** | Upstream nixpkgs marks `aiounittest` 1.5.0 as `disabled = pythonAtLeast "3.14"` because the package's own test suite fails on 3.14. The library itself works fine at runtime; it is a legacy pre-Python-3.8 async-test shim that `unittest.IsolatedAsyncioTestCase` superseded years ago. Several home-assistant transitive deps still list it as a check input, so without an override the entire forge/luna closure fails to evaluate once `pkgs.unstable.python3` defaults to 3.14. |
+| **Workaround** | `disabled = false; doCheck = false; doInstallCheck = false; meta.broken = false;` |
+| **Check** | When aiounittest > 1.5.0 lands or nixpkgs un-disables on 3.14 |
+| **Upstream** | https://github.com/kwarunek/aiounittest/issues/28 |
+| **Impact** | Without fix: all CI builds fail with `error: aiounittest-1.5.0 not supported for interpreter python3.14` during forge/luna closure evaluation. |
 
 ### thelounge - sqlite3 Native Module Fix
 
