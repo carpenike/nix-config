@@ -1,7 +1,7 @@
 name: Update nvfetcher
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
   schedule:
     - cron: '0 5 * * *'  # Daily at 5 AM UTC
   push:
@@ -26,7 +26,9 @@ jobs:
         uses: actions/create-github-app-token@v3
         id: app-token
         with:
-          app-id: ${{ secrets.CARPENIKE_APP_ID }}
+          # `client-id` accepts both Client IDs and legacy App IDs.
+          # Our `CARPENIKE_APP_ID` secret stores an App ID; the action handles it.
+          client-id: ${{ secrets.CARPENIKE_APP_ID }}
           private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
 
       - name: Checkout repository

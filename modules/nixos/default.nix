@@ -1,54 +1,17 @@
-{ lib
-, ...
-}: {
+# Backwards-compatible NixOS module entry point.
+#
+# Imports everything from base.nix plus the full services tree. This is the
+# legacy "all services" path used by hosts that don't pass `serviceCategories`
+# in mkNixosSystem (currently: nixos-bootstrap, nas-0, nas-1).
+#
+# Hosts that opt into selective category loading import `base.nix` directly
+# from `lib/mkSystem.nix` and then add the categories they need.
+#
+# This wrapper exists so we have a single source of truth (base.nix) for the
+# OS-level concerns and don't drift between the two entry points.
+{ ... }: {
   imports = [
-    ./auto-upgrade.nix
-    ./doas.nix
-    ./impermanence.nix
-    ./nix.nix
-    ./users.nix
-    ./shared-groups.nix # Shared service groups (media, etc.)
-    ./systemd.nix
-    ./filesystems
-    ./hardware
-    ./virtualization # Podman network and container infrastructure
+    ./base.nix
     ./services
-    ./services/attic.nix
-    # FIXME: Circular dependency - database-interface.nix defines options.modules.services.postgresql.databases
-    # but postgresql/default.nix defines options.modules.services.postgresql as attrsOf submodule
-    # These conflict - need to move databases option inside the submodule
-    # ./services/postgresql/database-interface.nix  # PostgreSQL database interface (option declaration only)
-    ./postgresql-preseed.nix # PostgreSQL automatic pre-seeding for new servers
-    ./backup.nix
-    ./services/backup-services.nix
-    ./monitoring.nix
-    ./alerting # New Alertmanager-based alerting system
-    ./notifications
-    ./system-notifications.nix
-    ./storage # Import storage module (includes datasets.nix and nfs-mounts.nix)
   ];
-
-  documentation.nixos.enable = false;
-
-  # Increase open file limit for sudoers
-  security.pam.loginLimits = [
-    {
-      domain = "@wheel";
-      item = "nofile";
-      type = "soft";
-      value = "524288";
-    }
-    {
-      domain = "@wheel";
-      item = "nofile";
-      type = "hard";
-      value = "1048576";
-    }
-  ];
-
-  system = {
-    # Use mkDefault so individual hosts can override this value
-    # Each host should set its stateVersion to the NixOS version it was first installed with
-    stateVersion = lib.mkDefault "23.11";
-  };
 }

@@ -1,7 +1,7 @@
 # Caddy Helper Functions for DRY Service Registration
 #
-# Provides specialized helpers following the backup-helpers.nix pattern
-# to reduce boilerplate and enforce consistent security configurations.
+# Provides specialized helpers for Caddy reverse-proxy configuration to reduce
+# boilerplate and enforce consistent security configurations.
 #
 # Usage:
 #   let
