@@ -20,7 +20,11 @@ let
   teslamateDashboardsVersion = "3.0.0";
   teslamateDashboardsSrc = pkgs.fetchzip {
     url = "https://github.com/adriankumpf/teslamate/archive/refs/tags/v${teslamateDashboardsVersion}.tar.gz";
-    sha256 = "sha256-M4Bte5MCZGzKJoFcXzTVLFRHmgqVjR5TyQb5bTeEBws=";
+    # WORKAROUND (2026-04-28): GitHub re-packs archive tarballs occasionally,
+    # breaking pinned hashes for fetchzip without any upstream version change.
+    # If a future re-pack drifts again, swap to fetchFromGitHub (git checkout)
+    # which is more stable, or pin to a release asset with a stable digest.
+    sha256 = "sha256-VWolbrAGEBFZCf0SFNS3rd5h6i5GzX6958OA35kxuQ4=";
   };
   defaultDashboardsPath = "${teslamateDashboardsSrc}/grafana/dashboards";
   grafanaCredentialName = "teslamate-db-password";
