@@ -31,6 +31,18 @@ When reviewing workarounds:
 | **Upstream** | https://github.com/kwarunek/aiounittest/issues/28 |
 | **Impact** | Without fix: all CI builds fail with `error: aiounittest-1.5.0 not supported for interpreter python3.14` during forge/luna closure evaluation. |
 
+### httpx-auth - Test Suite Disabled on Python 3.14
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-04-28 |
+| **Affects** | `pythonPackagesExtensions` (unstable overlay) |
+| **Reason** | The `httpx-auth` test suite (`tests/oauth2/implicit/*`) uses 6-byte HMAC keys in its OAuth2 fixtures. On Python 3.14 the bundled pyjwt raises `jwt.warnings.InsecureKeyLengthWarning` for HMAC keys shorter than 32 bytes, and the project's `filterwarnings` config promotes it to an error, causing ~30 tests to fail. Runtime is unaffected — only the test fixtures are too short. |
+| **Workaround** | `doCheck = false; doInstallCheck = false;` |
+| **Check** | When httpx-auth > 0.23.1 fixes its fixtures, or pyjwt downgrades the warning |
+| **Upstream** | https://github.com/Colin-b/httpx_auth |
+| **Impact** | Without fix: forge build fails (home-assistant transitive closure cannot be built). |
+
 ### thelounge - sqlite3 Native Module Fix
 
 | Field | Value |

@@ -108,6 +108,21 @@
                 meta = (old.meta or { }) // { broken = false; };
               });
 
+              # WORKAROUND (2026-04-28): httpx-auth tests use 6-byte HMAC keys in
+              # tests/oauth2/implicit/* fixtures. On Python 3.14, the bundled pyjwt
+              # raises `jwt.warnings.InsecureKeyLengthWarning` (HMAC key < 32 bytes),
+              # and the test suite's filterwarnings config promotes it to an error,
+              # so all ~30 OAuth2 implicit-flow tests fail. Runtime behavior is
+              # unaffected — only the test fixtures are short.
+              # Affects: home-assistant (transitive dep)
+              # Upstream: https://github.com/Colin-b/httpx_auth (fixtures need longer keys)
+              # Check: When httpx-auth > 0.23.1 fixes the test fixtures or pyjwt
+              # downgrades the warning back to a soft warning on 3.14.
+              httpx-auth = pyPrev.httpx-auth.overridePythonAttrs (_old: {
+                doCheck = false;
+                doInstallCheck = false;
+              });
+
               # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
               # Tests use self-signed certs that fail SSL verification during build
               # Affects: home-assistant (uses granian indirectly)
