@@ -116,12 +116,13 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      # Cachix - persistent binary cache shared between CI and local machines
-      - name: Set up Cachix
-        uses: cachix/cachix-action@v17
-        with:
-          name: carpenike
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      # NOTE: We previously used cachix/cachix-action@v17 to push CI builds to
+      # carpenike.cachix.org, but it became a frequent failure mode every time
+      # cachix.org returned 502s during the `cachix use` setup step (their API
+      # is not highly available). carpenike.cachix.org is still listed as a
+      # nixConfig.extra-substituter in flake.nix, so existing cached paths
+      # continue to be fetched - we just no longer push from CI. Most build
+      # output is also covered by cache.garnix.io and nix-community.cachix.org.
 
       # Check flake health (outdated inputs, etc.).
       - name: Flake health check
