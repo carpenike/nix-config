@@ -1,9 +1,15 @@
 name: Flake Health
 
+# Daily full-closure validation for the heavy hosts (forge + luna) which are
+# NOT built per-PR because their closures exceed the 6-hour runner ceiling.
+# This is the canonical answer to "did the latest flake.lock break the heavy
+# hosts" without making every PR pay the build cost. See nix-build.yml for
+# the per-PR (light hosts only) path.
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 8 * * *'
+    - cron: '0 8 * * *'  # daily at 08:00 UTC
 
 concurrency:
   group: flake-health
@@ -14,13 +20,30 @@ permissions:
 
 jobs:
   health:
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - forge   # heavy: ~50 services incl. HA, Plex, Postgres, Caddy
+          - luna    # heavy: auth + DNS stack
     runs-on: ubuntu-latest
+    name: ${{ matrix.host }} closure
     steps:
-      # Maximize disk space for large NixOS builds (provides ~115GB with cleave)
-      - name: Maximize build space
-        uses: wimpysworld/nothing-but-nix@main
+      # Free disk space (~115GB usable). endersonmenezes/free-disk-space@v3
+      # is the actively-maintained successor to wimpysworld/nothing-but-nix.
+      - name: Free disk space
+        uses: endersonmenezes/free-disk-space@v3
         with:
-          hatchet-protocol: cleave
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          remove_tool_cache: true
+          remove_swap: true
+          remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
+          remove_packages_one_command: true
+          remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle /usr/lib/jvm /home/runner/.rust /usr/local/.ghcup"
+          rm_cmd: "rmz"
+          rmz_version: "3.1.1"
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -31,28 +54,41 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
+      # Cachix push (non-fatal) - populates the binary cache so that the
+      # `task nix:apply-nixos host=<heavy>` workflow on the homelab can pull
+      # most of the closure rather than rebuilding everything.
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v17
+        continue-on-error: true
+        with:
+          name: carpenike
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
       - name: Run flake freshness policy
         uses: DeterminateSystems/flake-checker-action@main
         with:
           nixpkgs-keys: nixpkgs,nixpkgs-unstable
 
-      - name: Build forge closure
+      - name: Build ${{ matrix.host }} closure
         run: |
-          nix build .#ciSystems.forge \
+          nix build .#ciSystems.${{ matrix.host }} \
             --profile ./profile \
             --fallback \
             -v \
             --log-format raw
 
       - name: Run vulnix
+        continue-on-error: true
         run: |
-          nix run nixpkgs/nixos-unstable#vulnix -- -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml ./profile | tee security.txt
+          nix run nixpkgs/nixos-unstable#vulnix -- \
+            -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml \
+            ./profile | tee security.txt
 
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: flake-health
+          name: flake-health-${{ matrix.host }}
           path: |
             security.txt
             profile
