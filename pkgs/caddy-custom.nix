@@ -20,8 +20,6 @@ pkgs.caddy.withPlugins {
   # WORKAROUND (2025-01-01): Hash updated after plugin version changes.
   # Updated 2026-04-29: combined bump of caddy-security v1.1.31 → v1.1.62
   # AND caddy-dns/cloudflare v0.2.3 → v0.2.4 (the v0.2.4 part already
-  # landed via PR #376). Set to fakeHash here because the *combined*
-  # source bundle hash differs from either individual bump's hash; CI
-  # will print the real value, which we then commit.
-  hash = lib.fakeHash;
+  # landed via PR #376). Hash captured from CI fakeHash probe on this PR.
+  hash = "sha256-eacR0fi+m/l5zRu4griQ0YTRnT8UdflKgzXaZ6Eh5+k=";
 }
