@@ -30,7 +30,7 @@ buildGoModule rec {
   # Set to lib.fakeHash temporarily — CI on this PR will print the
   # expected value, which we then commit. (Refresh after every nvfetcher
   # bump that produces a different go.sum.)
-  vendorHash = lib.fakeHash;
+  vendorHash = "sha256-Rn1MnasYUOBbIgjFx0E6R2Zak6la1VajDkHqoiFpHtw=";
 
   nativeBuildInputs = [ pkgs.git pkgs.pkg-config ];
   buildInputs = [ pkgs.icu ];
