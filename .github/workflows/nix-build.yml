@@ -21,6 +21,31 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
   cancel-in-progress: true
 
+# ---------------------------------------------------------------------------
+# Host classification
+# ---------------------------------------------------------------------------
+# Hosts split into two tiers based on closure size and whether their full
+# system build fits inside GitHub's 6-hour ubuntu-latest ceiling from cold:
+#
+#   light  - rydev, nixpi, nixos-bootstrap, nas-0, nas-1
+#            Small closures, fit comfortably in <90 min from cold cache.
+#            Built on every PR that touches their files (or globally
+#            shared paths like lib/, modules/, overlays/, pkgs/).
+#
+#   heavy  - forge, luna
+#            Large closures (forge has ~50 services incl. Home Assistant,
+#            Plex, Postgres, custom Caddy etc; luna runs the auth+DNS
+#            stack). Cold rebuilds exceed the 6h runner ceiling.
+#            NOT built per-PR. Validated by:
+#              1. `nix flake check --no-build` (eval-time only) on every PR
+#                 - catches type errors, missing options, eval failures
+#              2. Scheduled `Flake Health` workflow which does a full
+#                 closure build of forge (and can be extended to luna)
+#              3. The actual `task nix:apply-nixos host=<heavy>` command
+#                 which builds the closure on the target host where the
+#                 Nix store cache is naturally warm
+# ---------------------------------------------------------------------------
+
 jobs:
   # Determine which hosts need to be built based on changed files
   # NOTE: rymac (darwinConfigurations) is not built in CI because GitHub Actions
@@ -30,6 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      heavy_changed: ${{ steps.set-matrix.outputs.heavy_changed }}
     steps:
       - uses: actions/checkout@v6
 
@@ -72,6 +98,9 @@ jobs:
           NAS_0: ${{ steps.filter.outputs.nas-0 }}
           NAS_1: ${{ steps.filter.outputs.nas-1 }}
         run: |
+          # Only LIGHT hosts go in the per-PR build matrix.
+          # forge and luna are heavy and validated separately - see header
+          # comment at the top of this file for the rationale.
           MATRIX="["
           add_system() {
             local system=$1 os=$2
@@ -79,17 +108,49 @@ jobs:
             MATRIX+="{\"system\":\"$system\",\"os\":\"$os\"}"
           }
 
-          [[ "$GLOBAL" == "true" || "$LUNA" == "true" ]] && add_system "luna" "ubuntu-latest"
           [[ "$GLOBAL" == "true" || "$RYDEV" == "true" ]] && add_system "rydev" "ubuntu-24.04-arm"
-          [[ "$GLOBAL" == "true" || "$FORGE" == "true" ]] && add_system "forge" "ubuntu-latest"
           [[ "$GLOBAL" == "true" || "$NIXOS_BOOTSTRAP" == "true" ]] && add_system "nixos-bootstrap" "ubuntu-latest"
           [[ "$GLOBAL" == "true" || "$NIXPI" == "true" ]] && add_system "nixpi" "ubuntu-24.04-arm"
           [[ "$GLOBAL" == "true" || "$NAS_0" == "true" ]] && add_system "nas-0" "ubuntu-latest"
           [[ "$GLOBAL" == "true" || "$NAS_1" == "true" ]] && add_system "nas-1" "ubuntu-latest"
 
           MATRIX+="]"
-          echo "Building systems: $MATRIX"
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "Building light systems: $MATRIX"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+          # Track if heavy hosts were touched - reported as a notice on
+          # the PR summary so the author knows their change wasn't built.
+          HEAVY_CHANGED="false"
+          if [[ "$GLOBAL" == "true" || "$LUNA" == "true" || "$FORGE" == "true" ]]; then
+            HEAVY_CHANGED="true"
+          fi
+          echo "heavy_changed=$HEAVY_CHANGED" >> "$GITHUB_OUTPUT"
+
+  # `nix flake check --no-build` runs once for the whole flake, catching
+  # eval-time issues that would affect heavy hosts even when we're not
+  # closure-building them per-PR. Cheap (<2 min), so always run.
+  flake-check:
+    runs-on: ubuntu-latest
+    needs: changes
+    steps:
+      - uses: actions/checkout@v6
+      - uses: DeterminateSystems/determinate-nix-action@v3
+      - name: Nix flake check (eval only)
+        run: nix flake check --no-build
+      - name: Note skipped heavy hosts
+        if: ${{ needs.changes.outputs.heavy_changed == 'true' }}
+        run: |
+          {
+            echo "## ⚠️ Heavy hosts changed but not built per-PR"
+            echo ""
+            echo "This PR touches files affecting \`forge\` and/or \`luna\`."
+            echo "Per-PR closure builds for those hosts exceed GitHub Actions'"
+            echo "6-hour runner ceiling. Validation paths used instead:"
+            echo ""
+            echo "- \`nix flake check --no-build\` (eval) - this job ✅"
+            echo "- Scheduled \`Flake Health\` workflow - full forge + luna closure"
+            echo "- \`task nix:apply-nixos host=<host>\` - build on the target"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   nix-build:
     needs: changes
@@ -100,12 +161,25 @@ jobs:
         include: ${{ fromJson(needs.changes.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
-      # Maximize disk space for large NixOS builds (provides ~115GB with cleave)
-      - name: Maximize build space
-        uses: wimpysworld/nothing-but-nix@main
+      # Free disk space for large NixOS builds.
+      # endersonmenezes/free-disk-space@v3 is the actively-maintained successor
+      # to wimpysworld/nothing-but-nix and easimon/maximize-build-space; same
+      # speedup with finer-grained knobs and uses `rmz` for fast deletion.
+      # (Mirrors the configuration used in colemickens/nixcfg, 2026-04-28.)
+      - name: Free disk space
+        uses: endersonmenezes/free-disk-space@v3
         if: contains(matrix.os, 'ubuntu')
         with:
-          hatchet-protocol: cleave
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          remove_tool_cache: true
+          remove_swap: true
+          remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
+          remove_packages_one_command: true
+          remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle /usr/lib/jvm /home/runner/.rust /usr/local/.ghcup"
+          rm_cmd: "rmz"
+          rmz_version: "3.1.1"
 
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -116,21 +190,21 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
 
-      # NOTE: We previously used cachix/cachix-action@v17 to push CI builds to
-      # carpenike.cachix.org, but it became a frequent failure mode every time
-      # cachix.org returned 502s during the `cachix use` setup step (their API
-      # is not highly available). carpenike.cachix.org is still listed as a
-      # nixConfig.extra-substituter in flake.nix, so existing cached paths
-      # continue to be fetched - we just no longer push from CI. Most build
-      # output is also covered by cache.garnix.io and nix-community.cachix.org.
+      # Cachix - read existing cached paths AND push new ones if the build
+      # produces something useful. Wrapped in continue-on-error because
+      # cachix.org has had recurring 502s on the `cachix use` setup step,
+      # and a transient cache outage should never fail the actual build.
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v17
+        continue-on-error: true
+        with:
+          name: carpenike
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       # Check flake health (outdated inputs, etc.).
       - name: Flake health check
         uses: DeterminateSystems/flake-checker-action@main
         continue-on-error: true
-
-      - name: Nix flake check
-        run: nix flake check --no-build
 
       - name: Garbage collect build dependencies
         run: nix-collect-garbage
@@ -182,16 +256,21 @@ jobs:
     if: ${{ always() }}
     needs:
       - changes
+      - flake-check
       - nix-build
     name: Nix Build Successful
     runs-on: ubuntu-latest
     steps:
+      - name: Check flake-check status
+        if: ${{ needs.flake-check.result != 'success' }}
+        run: |
+          echo "❌ flake-check did not succeed (result: ${{ needs.flake-check.result }})"
+          exit 1
       - name: Check if any builds were needed
         if: ${{ needs.changes.outputs.matrix == '[]' }}
         run: |
-          echo "✅ No hosts affected by this change - skipping builds"
+          echo "✅ No light hosts affected by this change - flake-check only"
           exit 0
-
       - name: Check matrix status
         if: ${{ needs.changes.outputs.matrix != '[]' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         run: exit 1
