@@ -14,7 +14,7 @@
 buildPythonApplication rec {
   pname = "qbit_manage";
   # renovate: depName=StuffAnThings/qbit_manage datasource=github-releases
-  version = "4.6.6";
+  version = "4.7.0";
 
   src = fetchFromGitHub {
     owner = "StuffAnThings";
