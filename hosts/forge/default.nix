@@ -122,6 +122,19 @@ in
     # Centralized R2 configuration accessible to all services
     my.r2 = r2Config;
 
+    # Throttle nix builds on forge to prevent OOM during large rebuilds.
+    # Forge has 32GB RAM and a baseline of ~22GB consumed by services
+    # (Plex, HA, Postgres, Scrypted, etc), leaving only ~10GB for builds.
+    # The global default of `max-jobs = auto` (= 16 on this host) + `cores = 0`
+    # (= use all cores per derivation) caused 100+ concurrent compilers and
+    # OOM-killed Plex on 2026-05-01.
+    # Cap to 4 parallel derivations × 4 cores each = 16 concurrent compile
+    # threads, which fits comfortably in the available memory headroom.
+    nix.settings = {
+      max-jobs = lib.mkForce 4;
+      cores = lib.mkForce 4;
+    };
+
     modules = {
       # Attic binary cache disabled - not currently functional
       # binaryCache.attic.enable = true;
@@ -137,8 +150,8 @@ in
         };
         # Memory limits to prevent OOM-kills during large builds (e.g., n8n peaked at 13.6G)
         # Forge has 32GB RAM; leave headroom for other services
-        memoryHigh = "24G"; # Soft limit - throttle when exceeded
-        memoryMax = "28G"; # Hard limit - OOM-kill if exceeded
+        memoryHigh = "16G"; # Soft limit - throttle when exceeded (lowered from 24G after 2026-05-01 OOM)
+        memoryMax = "20G"; # Hard limit - OOM-kill if exceeded (lowered from 28G)
         # Forge's large closure exhausts the default 1024 fd soft limit during evaluation
         limitNOFILE = 524288;
       };
