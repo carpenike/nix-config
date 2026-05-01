@@ -252,14 +252,9 @@ in
     };
   };
 
-  # Host-specific overrides for the node-exporter agent on 'forge'.
-  # Note: ZFS collector disabled due to kernel hangs when snapshot unmount operations are pending.
-  # The ZFS collector calls statfs() which can block indefinitely in zfsctl_snapshot_unmount_delay().
-  # We use custom textfile collectors for critical ZFS metrics instead.
-  services.prometheus.exporters.node = {
-    # Note: monitoring-agent.nix enables [ "systemd" ], monitoring module adds "textfile"
-    enabledCollectors = lib.mkForce [ "systemd" "textfile" ];
-  };
+  # Host-specific node-exporter overrides for forge are defined in
+  # ./monitoring.nix (alongside the GPU metrics module enable). Keep them
+  # in one place so module merging doesn't duplicate the collector flags.
 
   # Define the scrape targets for this instance of the monitoring hub.
   # If the hub were moved to another host, this block would move with it.
