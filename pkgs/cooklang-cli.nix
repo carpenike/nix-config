@@ -11,7 +11,7 @@ let
     pname = "cooklang-tailwind-assets";
     inherit (src) version;
     inherit (src) src;
-    npmDepsHash = "sha256-KnVtLFD//Nq7ilu6bY6zrlLpyrHVmwxxojOzlu7DdLQ=";
+    npmDepsHash = "sha256-tBOBa2plgJ0dG5eDD9Yc9YS+Dh6rhBdqU6JiZUjTUY4=";
     npmBuildScript = "build-css";
     installPhase = ''
       runHook preInstall
