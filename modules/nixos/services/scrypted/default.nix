@@ -203,6 +203,28 @@ in
         default = true;
         description = "Automatically manage the NVR ZFS dataset when true.";
       };
+
+      mountPoint = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        example = "/mnt/data";
+        description = ''
+          Optional explicit mount point that backs `nvr.path`. Only relevant
+          when `manageStorage = false` and the NVR data lives on an external
+          mount (e.g. NFS) where `nvr.path` is a *subdirectory* of that
+          mount rather than the mount itself.
+
+          When set, the container unit will refuse to start unless this
+          path is an active mount point (via `AssertPathIsMountPoint`),
+          providing a clean failure mode if the mount is missing rather
+          than silently writing recordings to the underlying local
+          directory.
+
+          When null (the default), only `RequiresMountsFor = nvr.path` is
+          used, which still orders/blocks on the most specific mount that
+          contains the path but does not assert it.
+        '';
+      };
     };
 
     timezone = lib.mkOption {
@@ -580,13 +602,22 @@ in
           # camera recordings to the underlying local directory, which will
           # be shadowed (but not freed) the moment the mount comes up.
           # See the matching tmpfiles guard above.
+          #
+          # `RequiresMountsFor` always finds the most specific mount unit
+          # that *contains* `cfg.nvr.path` and orders/requires it, which
+          # works correctly when `cfg.nvr.path` is a subdirectory of the
+          # mount (the common NFS case).
+          #
+          # `AssertPathIsMountPoint` is stricter: it requires the asserted
+          # path to be a literal mount point. Only enable it when the user
+          # has explicitly told us what the actual mount point is via
+          # `cfg.nvr.mountPoint` — otherwise it would falsely fail for
+          # subdirectories of valid mounts.
           (lib.mkIf (cfg.nvr.enable && !cfg.nvr.manageStorage) {
             unitConfig = {
               RequiresMountsFor = [ cfg.nvr.path ];
-              # AssertPathIsMountPoint causes a clean failure (vs hang) if
-              # the mount is missing — easier to debug than mysterious
-              # write-to-wrong-place behavior.
-              AssertPathIsMountPoint = cfg.nvr.path;
+            } // lib.optionalAttrs (cfg.nvr.mountPoint != null) {
+              AssertPathIsMountPoint = cfg.nvr.mountPoint;
             };
           })
         ];

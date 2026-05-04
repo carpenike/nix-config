@@ -44,6 +44,7 @@ in
           datasetName = "scrypted-nvr";
           mountMode = "rw";
           manageStorage = false; # recordings live on NAS share mounted at /mnt/data
+          mountPoint = mediaMount; # assert the NFS mount itself is active before starting
           group = "media";
         };
 
