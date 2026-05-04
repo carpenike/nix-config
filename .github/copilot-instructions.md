@@ -85,15 +85,6 @@ Use `strip_thinking: true` by default.
 - `zen.clink` → external CLI (Gemini, Codex, Claude Code)
 - `zen.codereview` / `zen.precommit` → validation when needed
 
-### Beads CLI (bd)
-Use for:
-- Session startup: `bd ready` to find available work
-- Task tracking: Creating, updating, closing issues
-- Dependency management: Linking related work
-- Multi-session context: Understanding work history across sessions
-
-**Always prefer CLI** over creating markdown TODO lists for multi-step work.
-
 ### When NOT to Use Tools
 - When fixing typos or formatting
 - When obvious patterns already exist in the repo
@@ -102,114 +93,6 @@ Use for:
 - When existing modules already contain the solution
 
 If a tool is unavailable → fall back to repo patterns, NixOS expertise, or zen.apilookup.
-
----
-
-## Beads Issue Tracker
-
-This repository uses **Beads** (`bd`) for tracking long-horizon tasks across sessions. Beads gives you persistent memory for complex, multi-session work.
-
-### Git Integration
-Beads uses a dual-system architecture:
-- **SQLite database** (`.beads/beads.db`) - Fast local queries (gitignored)
-- **JSONL file** (`.beads/issues.jsonl`) - Source of truth (committed to git)
-
-**What gets committed:**
-- ✅ `.beads/issues.jsonl` - Issue data (auto-syncs from SQLite)
-- ✅ `.beads/metadata.json` - Repository metadata
-- ❌ Everything else is gitignored (db, daemon files, sockets)
-
-The daemon auto-syncs: SQLite → JSONL after changes (5s debounce), JSONL → SQLite after `git pull`.
-
-### Session Start
-```bash
-bd onboard          # First time only - follow setup instructions
-bd ready            # See what's ready to work on (no blockers)
-bd list --status open  # See all open issues
-```
-
-### During Work
-- **Discover a bug or TODO?** → File it immediately:
-  ```bash
-  bd create "Found bug in sonarr module" -t bug -p 1
-  ```
-- **Starting work on an issue?** → Update status:
-  ```bash
-  bd update <id> --status in_progress
-  ```
-- **Found related work?** → Link it:
-  ```bash
-  bd dep add <new-id> <parent-id> --type discovered-from
-  ```
-
-### Dependency Types
-| Type | Purpose | Affects `bd ready`? |
-|------|---------|---------------------|
-| **blocks** | Hard blocker - issue cannot start until resolved | ✅ Yes |
-| **parent-child** | Hierarchical (epic → tasks) | ❌ No (organizational) |
-| **related** | Soft connection, not blocking | ❌ No (informational) |
-| **discovered-from** | Found during other work | ❌ No (inherits `source_repo`) |
-
-**Example: Epic with blocked ADR task**
-```bash
-# Create epic
-bd create "Auth System Refactor" -t epic -p 1
-# Returns: nix-config-abc
-
-# Create child tasks (parent-child for organization)
-bd create "Review current auth patterns" -t task -p 2
-bd dep add <task-id> <epic-id> --type parent-child
-
-# Create ADR blocked by review tasks
-bd create "Document auth patterns in ADR" -t task -p 2
-bd dep add <adr-id> <epic-id> --type parent-child
-bd dep add <adr-id> <review-task-id> --type blocks
-# Now ADR won't appear in `bd ready` until review is closed
-```
-
-### Writing Self-Contained Issues
-
-**Assume a fresh agent will implement each issue.** Every issue must contain:
-
-1. **Problem Statement**: What's wrong or what needs to be done
-2. **File Locations**: Exact paths and line numbers
-3. **Code Snippets**: Current code and expected fix (when applicable)
-4. **Rationale**: Why this change is needed (link to docs/ADRs)
-5. **Deliverable**: Clear definition of done
-6. **Testing**: How to verify the fix (`nix flake check`, etc.)
-
-**Good issue example:**
-```
-**Problem**: Cross-seed lacks Gatus health check
-**File**: hosts/forge/services/cross-seed.nix (inside serviceEnabled block)
-**Fix**: Add this code:
-  modules.services.gatus.contributions.cross-seed = { ... };
-**Rationale**: Per monitoring-strategy.md, user-facing services need Gatus
-**Deliverable**: Gatus shows cross-seed on status page
-**Testing**: nix flake check && deploy
-```
-
-**Bad issue example:**
-```
-Fix cross-seed monitoring
-```
-
-### Session End ("Land the Plane")
-1. File issues for any remaining work discovered
-2. Close completed issues: `bd close <id> --reason "Implemented"`
-3. Sync the database: `bd sync`
-4. Commit `.beads/issues.jsonl` with your other commits
-
-### When to Use Beads
-- ✅ Multi-step refactoring (e.g., "migrate all services to mylib.types")
-- ✅ Complex feature implementation spanning multiple sessions
-- ✅ Tracking discovered work during other tasks
-- ✅ Epic-level planning with child tasks and blocking dependencies
-
-### When NOT to Use Beads
-- ❌ Simple one-shot fixes
-- ❌ Typo corrections
-- ❌ Single-session work
 
 ---
 
@@ -388,17 +271,6 @@ granian = pyPrev.granian.overridePythonAttrs (old: {
 ---
 
 ## Trigger Phrases → Required Workflows
-
-### **"[I'm starting work on something complex]"**
-If work appears to be multi-session or has multiple dependencies:
-1. Check `bd ready` for existing related issues
-2. Offer to create tracking issue if none exists
-3. Suggest dependency structure if appropriate
-
-**Do NOT suggest Beads for**:
-- Typo fixes or single-file edits
-- Configuration tweaks to existing modules
-- Questions or research tasks
 
 ### **"Add a module for [SERVICE]"**
 Use **full 5-step workflow**:
@@ -606,11 +478,10 @@ services.myservice = {
 - [ ] Test with "Add a module for [NEW_SERVICE]" scenario
 
 ### Recent Changes
+- 2026-05-04: Removed Beads issue tracker. Long-horizon work tracking moved to GitHub issues. The `bd` CLI, `pkgs/beads.nix`, and `.beads/` directory have all been removed; the deferred PeaNUT-wrapper task migrated to GitHub issue #432.
 - 2026-01-23: Added ADR-011 documenting service factory and module architecture (two-layer pattern for queryable service registry)
 - 2026-01-03: Added `mylib.serviceUids` requirement for all UID/GID assignments, updated nixos-instructions.md with centralized registry pattern
 - 2025-12-19: Added workarounds tracking system (`docs/workarounds.md`) with standardized comment conventions
-- 2025-12-19: Expanded Beads documentation with Git integration, dependency types table, epic workflow example
-- 2025-12-12: Added Beads proactive trigger, positioned as first-class tool in Tool Selection
 - 2025-12-09: Added architecture docs and ADRs, documented `mylib.types` and `mylib.storageHelpers` patterns, updated `lib/host-defaults.nix` factory reference.
 - 2025-11-20: Documented instruction stack, added direct doc links, enforced Taskfile-only deployment guidance.
 

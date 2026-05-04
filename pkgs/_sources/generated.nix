@@ -6,17 +6,6 @@
 ,
 }:
 {
-  beads = {
-    pname = "beads";
-    version = "v1.0.3";
-    src = fetchFromGitHub {
-      owner = "steveyegge";
-      repo = "beads";
-      rev = "v1.0.3";
-      fetchSubmodules = false;
-      sha256 = "sha256-K3X67XgUl55mZS4r4V/KTbXPNqCV7fPHi8HnrDime+E=";
-    };
-  };
   cooklang-cli = {
     pname = "cooklang-cli";
     version = "v0.29.1";

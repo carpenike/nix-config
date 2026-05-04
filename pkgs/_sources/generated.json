@@ -1,25 +1,4 @@
 {
-    "beads": {
-        "cargoLock": null,
-        "date": null,
-        "extract": null,
-        "name": "beads",
-        "passthru": null,
-        "pinned": false,
-        "src": {
-            "deepClone": false,
-            "fetchSubmodules": false,
-            "leaveDotGit": false,
-            "name": null,
-            "owner": "steveyegge",
-            "repo": "beads",
-            "rev": "v1.0.3",
-            "sha256": "sha256-K3X67XgUl55mZS4r4V/KTbXPNqCV7fPHi8HnrDime+E=",
-            "sparseCheckout": [],
-            "type": "github"
-        },
-        "version": "v1.0.3"
-    },
     "cooklang-cli": {
         "cargoLock": null,
         "date": null,
