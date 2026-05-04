@@ -1,9 +1,11 @@
 { lib
 , config
+, mylib
 , podmanLib
 , ...
 }:
 let
+  sharedTypes = mylib.types;
   cfg = config.modules.services.onepassword-connect;
   apiPort = 8000;
 in
@@ -55,36 +57,14 @@ in
       description = "Resource limits for the 1Password Connect containers (lightweight API services)";
     };
 
-    # Reverse proxy integration options
-    reverseProxy = {
-      enable = lib.mkEnableOption "Caddy reverse proxy integration for 1Password Connect";
-      subdomain = lib.mkOption {
-        type = lib.types.str;
-        default = "vault";
-        description = "Subdomain to use for the reverse proxy";
-      };
-      requireAuth = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Whether to require authentication (highly recommended for vault access)";
-      };
-      auth = lib.mkOption {
-        type = lib.types.nullOr (lib.types.submodule {
-          options = {
-            user = lib.mkOption {
-              type = lib.types.str;
-              default = "vault";
-              description = "Username for basic authentication";
-            };
-            passwordHashEnvVar = lib.mkOption {
-              type = lib.types.str;
-              description = "Name of environment variable containing bcrypt password hash";
-            };
-          };
-        });
-        default = null;
-        description = "Authentication configuration for vault endpoint";
-      };
+    # Standard reverse proxy integration via the shared submodule.
+    # Caddy registration is wired up below when reverseProxy != null && .enable.
+    # Note: 1Password Connect uses native token-based auth (OP_CONNECT_TOKEN),
+    # so external Caddy auth is typically left null.
+    reverseProxy = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+      default = null;
+      description = "Reverse proxy configuration for the 1Password Connect API.";
     };
   };
 
@@ -92,35 +72,40 @@ in
     modules.services.podman.enable = true;
 
     # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.${cfg.reverseProxy.subdomain} = lib.mkIf cfg.reverseProxy.enable {
-      enable = true;
-      hostName = "${cfg.reverseProxy.subdomain}.${config.modules.services.caddy.domain or config.networking.domain or "holthome.net"}";
+    modules.services.caddy.virtualHosts."${cfg.reverseProxy.hostName}" =
+      lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+        enable = true;
+        hostName = cfg.reverseProxy.hostName;
 
-      # Use structured backend configuration
-      backend = {
-        scheme = "http"; # 1Password Connect uses HTTP locally
-        host = "localhost";
-        port = apiPort;
+        backend = lib.mkDefault {
+          scheme = "http"; # 1Password Connect serves HTTP locally
+          host = "localhost";
+          port = apiPort;
+        };
+
+        # Token-based auth is enforced by Connect itself; only attach Caddy
+        # auth when the consumer explicitly opts in.
+        auth = cfg.reverseProxy.auth;
+
+        # HSTS is on by default in the shared submodule. Layer extra
+        # browser-hardening headers on top of any consumer-provided ones.
+        security = cfg.reverseProxy.security // {
+          customHeaders = {
+            "X-Frame-Options" = "DENY";
+            "X-Content-Type-Options" = "nosniff";
+            "X-XSS-Protection" = "1; mode=block";
+            "Referrer-Policy" = "strict-origin-when-cross-origin";
+          } // (cfg.reverseProxy.security.customHeaders or { });
+        };
+
+        # Force JSON content-type on the v1 API surface (defensive, in case
+        # an upstream response omits the header).
+        extraConfig = ''
+          header /v1/* {
+            Content-Type "application/json"
+          }
+        '';
       };
-
-      # Authentication from shared types
-      auth = lib.mkIf (cfg.reverseProxy.requireAuth && cfg.reverseProxy.auth != null) cfg.reverseProxy.auth;
-
-      extraConfig = ''
-        # High security headers for vault access
-        header / {
-          X-Frame-Options "DENY"
-          X-Content-Type-Options "nosniff"
-          X-XSS-Protection "1; mode=block"
-          Referrer-Policy "strict-origin-when-cross-origin"
-          Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        }
-        # API endpoint specific handling
-        header /v1/* {
-          Content-Type "application/json"
-        }
-      '';
-    };
 
     system.activationScripts.makeOnePasswordConnectDataDir = lib.stringAfter [ "var" ] ''
       mkdir -p "${cfg.dataDir}"
