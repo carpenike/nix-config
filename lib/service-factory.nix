@@ -620,6 +620,9 @@ in
                   retries = specHealthcheck.retries or cfg.healthcheck.retries;
                   startPeriod = specHealthcheck.startPeriod or cfg.healthcheck.startPeriod;
                   onFailure = specHealthcheck.onFailure or cfg.healthcheck.onFailure;
+                  startupInterval = specHealthcheck.startupInterval or cfg.healthcheck.startupInterval;
+                  startupRetries = specHealthcheck.startupRetries or cfg.healthcheck.startupRetries;
+                  startupTimeout = specHealthcheck.startupTimeout or cfg.healthcheck.startupTimeout;
                 in
                 [
                   # -L follows redirects (308/301/302) which *arr apps use for /ping endpoint
@@ -629,6 +632,19 @@ in
                   "--health-retries=${toString retries}"
                   "--health-start-period=${startPeriod}"
                   "--health-on-failure=${onFailure}"
+                ]
+                # Startup-phase healthcheck. Polls more frequently (--health-startup-interval)
+                # but only fails the unit after startupRetries consecutive failures —
+                # eliminating the noisy "transient systemd-run unit failed" warnings during
+                # nixos-rebuild switches caused by the regular --health-interval timer firing
+                # before the container's HTTP server was ready. Once the startup check
+                # succeeds once, podman switches over to the regular healthcheck.
+                # Disabled by setting startupRetries = 0.
+                ++ lib.optionals (startupRetries > 0) [
+                  "--health-startup-cmd=${healthCmd}"
+                  "--health-startup-interval=${startupInterval}"
+                  "--health-startup-timeout=${startupTimeout}"
+                  "--health-startup-retries=${toString startupRetries}"
                 ]
               )
               ++ lib.optionals (cfg.podmanNetwork or null != null) [
