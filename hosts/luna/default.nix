@@ -173,9 +173,10 @@ in
           credentialsFile = config.sops.secrets.onepassword-credentials.path;
           reverseProxy = {
             enable = true;
-            # NOTE: Uses native token-based auth (OP_CONNECT_TOKEN)
-            # No additional auth needed at reverse proxy level
-            requireAuth = false;
+            hostName = "vault.${config.networking.domain}";
+            # No external auth: Connect uses native token-based auth (OP_CONNECT_TOKEN);
+            # the shared submodule's `auth` defaults to null, so leaving it unset
+            # means Caddy will not enforce its own auth layer in front.
           };
         };
 
