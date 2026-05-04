@@ -318,19 +318,69 @@
           };
 
           # Code formatter (nix fmt)
-          # Wraps nixpkgs-fmt to exclude nvfetcher-generated files that use
-          # their own formatting style and would cause CI failures.
+          # Wraps nixpkgs-fmt to exclude nvfetcher-generated files which use
+          # their own formatting style and would otherwise cause CI failures.
+          #
+          # nixpkgs-fmt has no native --exclude flag, and walking a directory
+          # arg (e.g. `nix fmt -- --check .`) would silently include
+          # pkgs/_sources/generated.nix. We therefore expand any directory
+          # args to an explicit file list with the excluded paths removed.
+          #
+          # The excluded paths mirror the pre-commit `excludes` block in this
+          # flake (^tmp/, ^site/, ^result, ^pkgs/_sources/) plus tooling dirs
+          # (.direnv, .git, .beads) so local runs match CI behaviour.
           formatter = pkgs.writeShellScriptBin "nixpkgs-fmt" ''
-            # Filter out nvfetcher-generated files, pass the rest to nixpkgs-fmt
-            args=()
+            set -euo pipefail
+
+            flags=()
+            paths=()
             for arg in "$@"; do
               case "$arg" in
-                -*)           args+=("$arg") ;;   # pass flags through
-                */pkgs/_sources/*) ;;              # skip generated files
-                *)            args+=("$arg") ;;   # keep other paths
+                -*) flags+=("$arg") ;;
+                *)  paths+=("$arg") ;;
               esac
             done
-            exec ${pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt "''${args[@]}"
+
+            # Default to current directory when no path is given (matches
+            # `nixpkgs-fmt`'s native behaviour).
+            if [ ''${#paths[@]} -eq 0 ]; then
+              paths=(".")
+            fi
+
+            files=()
+            for p in "''${paths[@]}"; do
+              if [ -d "$p" ]; then
+                while IFS= read -r f; do
+                  files+=("$f")
+                done < <(${pkgs.findutils}/bin/find "$p" \
+                  \( -type d \( \
+                       -name _sources \
+                    -o -name tmp \
+                    -o -name site \
+                    -o -name result \
+                    -o -name .direnv \
+                    -o -name .git \
+                    -o -name .beads \
+                  \) -prune \) -o \
+                  -type f -name '*.nix' -print)
+              elif [ -f "$p" ]; then
+                case "$p" in
+                  */pkgs/_sources/*|pkgs/_sources/*) ;;  # nvfetcher-generated
+                  */tmp/*|tmp/*) ;;
+                  */site/*|site/*) ;;
+                  */.direnv/*|.direnv/*) ;;
+                  */.git/*|.git/*) ;;
+                  *) files+=("$p") ;;
+                esac
+              fi
+            done
+
+            # No-op when nothing to format (avoids nixpkgs-fmt's "no input" error)
+            if [ ''${#files[@]} -eq 0 ]; then
+              exit 0
+            fi
+
+            exec ${pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt "''${flags[@]}" "''${files[@]}"
           '';
 
           # Custom packages - available via 'nix build .#<name>'
