@@ -243,7 +243,6 @@ These are custom package definitions where tests are disabled:
 |---------|----------|--------|
 | tqm | `modules/nixos/services/tqm/package.nix` | Tests require network/fixtures |
 | qbit-manage | `modules/nixos/services/qbit-manage/package.nix` | Tests require network/fixtures |
-| beads | `pkgs/beads.nix` | Tests require network/fixtures |
 | cooklang-federation | `pkgs/cooklang-federation.nix` | Rust tests require fixtures |
 | cooklang-cli | `pkgs/cooklang-cli.nix` | Rust tests require fixtures |
 | usage | `pkgs/usage.nix` | 4 test failures in complete_word test suite (v2.16.1) |

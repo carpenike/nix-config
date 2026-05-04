@@ -33,7 +33,7 @@
     systems.url = "github:nix-systems/default";
 
     # Flake-utils - common flake utility functions
-    # Direct input allows beads, nixos-vscode-server, etc. to follow
+    # Direct input allows nixos-vscode-server etc. to follow
     flake-utils = {
       url = "github:numtide/flake-utils";
       inputs.systems.follows = "systems";
@@ -328,7 +328,7 @@
           #
           # The excluded paths mirror the pre-commit `excludes` block in this
           # flake (^tmp/, ^site/, ^result, ^pkgs/_sources/) plus tooling dirs
-          # (.direnv, .git, .beads) so local runs match CI behaviour.
+          # (.direnv, .git) so local runs match CI behaviour.
           formatter = pkgs.writeShellScriptBin "nixpkgs-fmt" ''
             set -euo pipefail
 
@@ -360,7 +360,6 @@
                     -o -name result \
                     -o -name .direnv \
                     -o -name .git \
-                    -o -name .beads \
                   \) -prune \) -o \
                   -type f -name '*.nix' -print)
               elif [ -f "$p" ]; then

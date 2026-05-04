@@ -7,7 +7,6 @@
   backup-list = pkgs.callPackage ./backup-list.nix { };
   backup-orchestrator = pkgs.callPackage ./backup-orchestrator.nix { };
   backup-status = pkgs.callPackage ./backup-status.nix { };
-  beads = pkgs.callPackage ./beads.nix { };
   syncoid-list = pkgs.callPackage ./syncoid-list.nix { };
   # Kubernetes tools - commented out, no longer using Kubernetes
   # kubecolor-catppuccin = pkgs.callPackage ./kubecolor-catppuccin.nix { };

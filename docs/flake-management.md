@@ -21,7 +21,6 @@ This document describes how flake inputs are managed, updated, and pinned in thi
 | `catppuccin` | v1.0.2 | Theme (pinned) | No (pure module) |
 | `impermanence` | latest | ZFS root rollback | No (pure module) |
 | `nix-inspect` | latest | TUI inspector | Yes |
-| `beads` | latest | AI issue tracker | Yes |
 
 ### Input Categories
 
