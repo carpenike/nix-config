@@ -34,6 +34,49 @@ in
         description = ''
           Grace period for the container to initialize before failures are counted.
           Allows time for DB migrations, preseed operations, and first-run initialization.
+
+          Note: when `startupRetries > 0` (default), the startup-phase healthcheck
+          (--health-startup-*) is what actually gates "is the container ready",
+          and `startPeriod` becomes a backstop. The startup healthcheck polls
+          on `startupInterval` and only fails after `startupRetries` consecutive
+          failures, eliminating the noisy transient-unit failures we used to
+          see during nixos-rebuild switches when the regular --health-interval
+          timer fired before the container's HTTP server was ready.
+        '';
+      };
+
+      startupInterval = mkOption {
+        type = types.str;
+        default = "10s";
+        description = ''
+          Interval between startup-phase health checks (--health-startup-interval).
+          Faster than the regular interval so the container is marked ready
+          quickly once it's actually serving. Only used when startupRetries > 0.
+        '';
+      };
+
+      startupRetries = mkOption {
+        type = types.int;
+        default = 30;
+        description = ''
+          Number of startup-phase health checks before declaring startup failed
+          (--health-startup-retries). At the default startupInterval=10s, this
+          allows up to 5 minutes for the container to come up cleanly without
+          producing failed transient systemd-run units.
+
+          Set to 0 to disable the startup-phase healthcheck and fall back to
+          --health-start-period only (legacy behavior, produces noisy failed
+          transient units during nixos-rebuild switches).
+        '';
+      };
+
+      startupTimeout = mkOption {
+        type = types.str;
+        default = "5s";
+        description = ''
+          Timeout for each startup-phase health check (--health-startup-timeout).
+          Shorter than the regular timeout because we're polling more often.
+          Only used when startupRetries > 0.
         '';
       };
 
