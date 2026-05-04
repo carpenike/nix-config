@@ -97,16 +97,25 @@ in
       description = "Path to cross-seed data directory";
     };
 
-    user = lib.mkOption {
+    username = lib.mkOption {
       type = lib.types.str;
-      default = toString serviceIds.uid;
-      description = "User account under which cross-seed runs (from lib/service-uids.nix).";
+      default = "cross-seed";
+      description = ''
+        Linux username for the cross-seed system user. The UID is sourced
+        from `lib/service-uids.nix` via the `uid` option.
+      '';
+    };
+
+    uid = lib.mkOption {
+      type = lib.types.int;
+      default = serviceIds.uid;
+      description = "UID for the cross-seed user (from lib/service-uids.nix).";
     };
 
     group = lib.mkOption {
       type = lib.types.str;
       default = "media";
-      description = "Group under which cross-seed runs.";
+      description = "Primary group under which cross-seed runs.";
     };
 
     # NOTE: qbittorrentDataDir option removed - no longer needed with useClientTorrents=true
@@ -342,9 +351,9 @@ in
         gid = mylib.serviceUids.mediaGroup.gid; # Shared media group from centralized registry
       };
 
-      users.users.cross-seed = {
+      users.users.${cfg.username} = {
         isSystemUser = true;
-        uid = lib.toInt cfg.user;
+        uid = cfg.uid;
         group = cfg.group;
         home = cfg.dataDir;
         createHome = false;
@@ -362,7 +371,7 @@ in
           "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
         };
         # Ownership matches the container user/group
-        owner = "cross-seed";
+        owner = cfg.username;
         group = cfg.group;
         mode = "0750"; # Allow group read access for backup systems
       };
@@ -385,8 +394,8 @@ in
 
       # Ensure subdirectories exist with proper permissions
       systemd.tmpfiles.rules = [
-        "d '${cfg.dataDir}' 0750 ${cfg.user} ${cfg.group} - -"
-        "d '${cfg.dataDir}/data' 0750 ${cfg.user} ${cfg.group} - -"
+        "d '${cfg.dataDir}' 0750 ${cfg.username} ${cfg.group} - -"
+        "d '${cfg.dataDir}/data' 0750 ${cfg.username} ${cfg.group} - -"
         # NOTE: output directory removed - outputDir is null for action=inject mode
       ];
 
@@ -436,7 +445,7 @@ in
             fi
           ''}
 
-          chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
+          chown -R ${cfg.username}:${cfg.group} ${cfg.dataDir}
           chmod 0640 ${cfg.dataDir}/config.js
         '';
         serviceConfig = {
@@ -478,10 +487,10 @@ in
       virtualisation.oci-containers.containers.cross-seed = {
         image = cfg.image;
         autoStart = true;
-        user = "${cfg.user}:${toString config.users.groups.${cfg.group}.gid}";
+        user = "${toString cfg.uid}:${toString config.users.groups.${cfg.group}.gid}";
         cmd = [ "daemon" ];
         environment = {
-          PUID = cfg.user;
+          PUID = toString cfg.uid;
           PGID = toString config.users.groups.${cfg.group}.gid;
           TZ = cfg.timezone;
         };
@@ -544,7 +553,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
-        owner = cfg.user;
+        owner = cfg.username;
         group = cfg.group;
       }
     ))
