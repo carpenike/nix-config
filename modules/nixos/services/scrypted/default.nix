@@ -8,7 +8,13 @@ let
   storageCfg = config.modules.storage;
   serviceName = "scrypted";
   backend = config.virtualisation.oci-containers.backend;
-  mainServiceUnit = "${backend}-${serviceName}.service";
+  # NixOS systemd module attribute keys must NOT include the `.service`
+  # suffix \u2014 NixOS appends it when rendering the unit. Using the suffixed
+  # name as a key creates a phantom attribute that NixOS silently ignores.
+  # mainServiceUnit (with suffix) is for places that need the unit *name*
+  # for cross-references (OnFailure, Wants, After, etc).
+  mainServiceName = "${backend}-${serviceName}";
+  mainServiceUnit = "${mainServiceName}.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/scrypted";
   domain = config.networking.domain or null;
   defaultHostname = if domain == null || domain == "" then "scrypted.local" else "scrypted.${domain}";
@@ -560,7 +566,7 @@ in
           ports = portMappings;
         };
 
-        systemd.services.${mainServiceUnit} = lib.mkMerge [
+        systemd.services.${mainServiceName} = lib.mkMerge [
           (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
             unitConfig.OnFailure = [ "notify@scrypted-failure:%n.service" ];
           })
