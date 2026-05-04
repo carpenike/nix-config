@@ -641,6 +641,12 @@ in
           owner = cfg.dataOwner;
           group = cfg.dataGroup;
           mode = "0750";
+          # Scrypted runs in a privileged container with hardware passthrough
+          # (Intel iGPU, Coral USB) and executes as uid 0 inside the container.
+          # The host bind mount must therefore be owned by root. Acknowledged
+          # to suppress the storage module's "owner=root" advisory warning.
+          rootOwnedReason = lib.mkIf (cfg.dataOwner == "root")
+            "Scrypted runs privileged with hardware passthrough; container processes execute as uid 0";
         };
 
         modules.storage.datasets.services.${cfg.nvr.datasetName} = lib.mkIf (cfg.nvr.enable && cfg.nvr.manageStorage) {
@@ -654,6 +660,8 @@ in
           owner = cfg.nvr.owner;
           group = cfg.nvr.group;
           mode = "0750";
+          rootOwnedReason = lib.mkIf (cfg.nvr.owner == "root")
+            "Scrypted runs privileged with hardware passthrough; NVR recordings are written as uid 0";
         };
 
         modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
