@@ -25,9 +25,9 @@ in
         dataDir = "/var/lib/pinchflat";
         mediaDir = "/mnt/data/media/youtube";
 
-        # User configuration - UID 930, media group for NFS access
+        # User configuration - "pinchflat" user, media group for NFS access.
+        # UID is sourced from lib/service-uids.nix via the module default.
         user = "pinchflat";
-        uid = 930;
         group = "media";
 
         # NFS mount dependency for media storage

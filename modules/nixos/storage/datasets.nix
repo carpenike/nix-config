@@ -119,6 +119,22 @@ in
               Only applies when mountpoint is not "none" or "legacy".
             '';
           };
+
+          rootOwnedReason = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            example = "Privileged container runs as uid 0 for hardware passthrough";
+            description = ''
+              Suppress the "owner=root is usually unintentional" warning for
+              this dataset by documenting why root ownership is required.
+              Typical legitimate reasons:
+                - Privileged container that runs as uid 0 inside the container
+                - Service intentionally invokes setuid binaries from this path
+                - System-level dataset shared between multiple service users
+              When set to a non-null string, the warning is suppressed.
+              Has no effect when `owner` is not "root".
+            '';
+          };
         };
       });
       default = { };
@@ -468,30 +484,32 @@ in
     ];
 
     # Warn about datasets with root ownership that have real mountpoints
-    # Root ownership is usually unintentional for service datasets
+    # Root ownership is usually unintentional for service datasets.
+    # Suppress per-dataset by setting `rootOwnedReason` to document why.
     warnings =
       let
-        # Service datasets with root owner and a real mountpoint
+        # Service datasets with root owner, a real mountpoint, and no documented reason
         rootOwnedServices = lib.filterAttrs
-          (_name: cfg:
-            cfg.owner == "root" &&
-            cfg.mountpoint != null &&
-            cfg.mountpoint != "none" &&
-            cfg.mountpoint != "legacy"
+          (_name: dcfg:
+            dcfg.owner == "root" &&
+            dcfg.rootOwnedReason == null &&
+            dcfg.mountpoint != null &&
+            dcfg.mountpoint != "none" &&
+            dcfg.mountpoint != "legacy"
           )
           cfg.services;
 
         # Utility datasets with root owner and a real mountpoint
         rootOwnedUtility = lib.filterAttrs
-          (_name: cfg:
-            cfg.owner == "root" &&
-            cfg.mountpoint != "none" &&
-            cfg.mountpoint != "legacy"
+          (_name: dcfg:
+            dcfg.owner == "root" &&
+            dcfg.mountpoint != "none" &&
+            dcfg.mountpoint != "legacy"
           )
           cfg.utility;
 
         serviceWarnings = lib.mapAttrsToList
-          (name: _: "ZFS dataset '${name}' has owner=root - this is usually unintentional. Set 'owner' to the service user.")
+          (name: _: "ZFS dataset '${name}' has owner=root - this is usually unintentional. Set 'owner' to the service user, or set 'rootOwnedReason' to document why root ownership is required.")
           rootOwnedServices;
 
         utilityWarnings = lib.mapAttrsToList
