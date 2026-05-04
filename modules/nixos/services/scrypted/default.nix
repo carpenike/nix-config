@@ -514,11 +514,21 @@ in
           message = "Scrypted preseed.enable requires preseed.passwordFile to be set.";
         });
 
+        # tmpfiles.d rules. The dataDir is always managed by us (locally
+        # owned ZFS dataset). For the NVR path, only create the directory
+        # locally if cfg.nvr.manageStorage = true (i.e. it IS a local ZFS
+        # dataset we own). When manageStorage = false (the path is provided
+        # by an external mount such as NFS), creating the directory locally
+        # would silently shadow the upstream mount if the mount races us at
+        # boot — and any data written to the local path before the mount
+        # comes up gets stranded forever underneath it. forge accumulated
+        # 302 GB of orphaned scrypted recordings this way over a 4-day
+        # window in March 2026 before we caught it.
         systemd.tmpfiles.rules =
           [
             "d ${cfg.dataDir} 0750 ${cfg.dataOwner} ${cfg.dataGroup} -"
           ]
-          ++ lib.optionals cfg.nvr.enable [
+          ++ lib.optionals (cfg.nvr.enable && cfg.nvr.manageStorage) [
             "d ${cfg.nvr.path} 0750 ${cfg.nvr.owner} ${cfg.nvr.group} -"
           ];
 
@@ -557,6 +567,21 @@ in
           (lib.mkIf cfg.preseed.enable {
             wants = [ "preseed-scrypted.service" ];
             after = [ "preseed-scrypted.service" ];
+          })
+          # NVR mount safety. When the NVR path is provided by an external
+          # mount (manageStorage = false), refuse to start the container if
+          # that mount is not active. Otherwise scrypted will happily write
+          # camera recordings to the underlying local directory, which will
+          # be shadowed (but not freed) the moment the mount comes up.
+          # See the matching tmpfiles guard above.
+          (lib.mkIf (cfg.nvr.enable && !cfg.nvr.manageStorage) {
+            unitConfig = {
+              RequiresMountsFor = [ cfg.nvr.path ];
+              # AssertPathIsMountPoint causes a clean failure (vs hang) if
+              # the mount is missing — easier to debug than mysterious
+              # write-to-wrong-place behavior.
+              AssertPathIsMountPoint = cfg.nvr.path;
+            };
           })
         ];
 
