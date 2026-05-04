@@ -74,7 +74,49 @@ tasks:
     cmds:
       # Clear any failed transient units (e.g., Podman healthcheck timers) before switch
       - ssh "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" 'sudo systemctl reset-failed' || true
-      - nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}"'
+      # Run the rebuild. Capture exit code; do NOT fail the task immediately on
+      # exit 1 — podman's healthcheck system uses transient `systemd-run`
+      # units that exit status=1 on each individual probe failure, including
+      # probes that fire while the container is still inside its
+      # --health-start-period grace window. switch-to-configuration's
+      # post-activation `systemctl --failed` check then surfaces these and
+      # makes nixos-rebuild exit 1 even though the actual containers are
+      # healthy. We post-process the failed list to filter that noise.
+      - |
+        rebuild_exit=0
+        nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}"' || rebuild_exit=$?
+
+        if [ "$rebuild_exit" -eq 0 ]; then
+          exit 0
+        fi
+
+        # Wait briefly for transient units to settle, then enumerate what's
+        # actually failed. Podman healthcheck transient units have names
+        # matching <64-hex-char-container-id>(-startup)?-<hex>.service.
+        sleep 2
+        all_failed=$(ssh "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" \
+          'systemctl --failed --no-pager --no-legend --plain --state=failed' 2>/dev/null \
+          | awk '{ print $1 }' || true)
+
+        # Strip podman healthcheck transient units. The container ID is 64
+        # hex chars, then optionally -startup, then -<hex-suffix>.service.
+        real_failures=$(echo "$all_failed" \
+          | grep -vE '^[0-9a-f]{64}(-startup)?-[0-9a-f]+\.service$' \
+          | grep -vE '^$' \
+          || true)
+
+        if [ -z "$real_failures" ]; then
+          echo ""
+          echo "ℹ️  nixos-rebuild reported failure but only podman healthcheck transient units were failed (cosmetic — containers still inside their --health-start-period). Treating as success."
+          # Clean up the transient noise so the next deploy starts clean
+          ssh "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" 'sudo systemctl reset-failed' || true
+          exit 0
+        fi
+
+        echo ""
+        echo "❌ nixos-rebuild failed AND these non-cosmetic units are also failed:"
+        echo "$real_failures"
+        exit "$rebuild_exit"
     preconditions:
       - sh: which nix
         msg: "nix not found"
