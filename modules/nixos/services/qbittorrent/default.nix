@@ -76,6 +76,13 @@ mylib.mkContainerService {
     # Extra podman options
     extraOptions = { cfg, config }: [
       "--umask=0027"
+      # Give qBittorrent up to 60s to flush state on SIGTERM before podman
+      # falls back to SIGKILL. Default of 10s wasn't enough during the
+      # 5.1.4 → 5.2.0 upgrade on 2026-05-01 — qBittorrent got SIGKILL'd
+      # mid-shutdown and left a stale /config/qBittorrent/lockfile that
+      # blocked all subsequent restarts for 3 days. See preStart hook
+      # below for the matching belt-and-suspenders cleanup.
+      "--stop-timeout=60"
     ] ++ lib.optionals (cfg.macAddress != null) [
       "--mac-address=${cfg.macAddress}"
     ];
@@ -245,6 +252,28 @@ mylib.mkContainerService {
         Preferences."Connection\\PortRangeMin" = toString cfg.torrentPort;
       }
     ];
+
+    # Container service overrides:
+    #   preStart removes any stale lockfile left behind by a SIGKILL'd
+    #   qBittorrent. The lockfile is purely a "another instance running"
+    #   check — systemd already serializes service starts, so the only
+    #   way it ever exists at start time is if a previous shutdown was
+    #   ungraceful. Pre-cleaning prevents the restart-loop death spiral
+    #   we hit on 2026-05-01 (lockfile from 18:14 deploy blocked every
+    #   restart attempt for 3 days until manually deleted).
+    #
+    #   The matching `--stop-timeout=60` in spec.extraOptions above gives
+    #   qBittorrent enough time to flush state during normal shutdowns,
+    #   so the preStart cleanup is belt-and-suspenders for actual crashes.
+    #
+    #   systemd-side TimeoutStopSec is left at the nixpkgs podman wrapper
+    #   default (currently 120s) which is already > podman's 60s.
+    systemd.services."${config.virtualisation.oci-containers.backend}-qbittorrent".preStart = lib.mkAfter ''
+      # Remove stale lockfile from any prior ungraceful shutdown.
+      # Safe because systemd already serializes service starts; if a
+      # lockfile exists at this point, no qBittorrent process owns it.
+      rm -f ${cfg.dataDir}/qBittorrent/lockfile
+    '';
 
     # Config generator script for INI file
     modules.services.qbittorrent.configGenerator.script = ''
