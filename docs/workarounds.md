@@ -216,11 +216,14 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | Field | Value |
 |-------|-------|
 | **Added** | 2026-03-10 |
+| **Last reviewed** | 2026-05-04 |
 | **Location** | `modules/nixos/services/omada/default.nix` (container image) |
-| **Reason** | Luna's Intel Celeron J3455 (Apollo Lake) lacks AVX instruction support. Omada Controller v6.x ships MongoDB 8 which requires AVX. Container exits immediately with `ERROR: your system does not support AVX`. |
-| **Workaround** | Pinned to `omada-controller:5.15.24.18` (last v5.x release, uses MongoDB 7 which has no AVX requirement) |
-| **Upstream** | https://github.com/mbentley/docker-omada-controller/blob/master/KNOWN_ISSUES.md#your-system-does-not-support-avx-or-armv82-a |
-| **Check** | If luna is replaced with AVX-capable hardware, or if upstream offers a v6+ image with MongoDB 7 |
+| **Reason** | Luna's Intel Celeron J3455 (Apollo Lake) lacks AVX instruction support. Omada Controller v6.x ships MongoDB 8 which requires AVX (or armv8.2-a on arm64). Container exits immediately with `ERROR: your system does not support AVX`. |
+| **Workaround** | Pinned to `mbentley/omada-controller:5.15.24.19` — currently the latest v5.x release. v5.x uses the embedded MongoDB 3.6 which has no AVX requirement. The image is still being refreshed by upstream as of 2026-05-04. |
+| **Upstream** | <https://github.com/mbentley/docker-omada-controller/blob/master/README.md#your-system-does-not-support-avx-or-armv82-a> |
+| **Available v6 path (not chosen)** | Set `MONGO_EXTERNAL=true` + `EAP_MONGOD_URI=…` and run a separate non-AVX MongoDB container. Upstream documents this as the only AVX-free way onto v6. Rejected because the chosen MongoDB build would need to be a custom or non-default image (TP-Link officially specs MongoDB 8 for v6; older versions may lack required features), and the long-term plan is to move Omada off Luna entirely. |
+| **Planned resolution** | **Migrate Omada controller to forge** (Intel Xeon, has AVX). This unblocks the upstream-supported v6 path with no surgery. Tracked in [#434](https://github.com/carpenike/nix-config/issues/434). |
+| **Re-check trigger** | (a) Omada migrated to forge (then drop this entry entirely), (b) Luna replaced with AVX-capable hardware, (c) `mbentley` archives the v5 line (would force the migration). |
 
 ### NFS Media Mount - Soft Mount to Prevent System Freeze
 
