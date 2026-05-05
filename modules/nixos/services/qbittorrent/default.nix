@@ -17,7 +17,7 @@
 let
   # VueTorrent package (pinned for reproducibility)
   vuetorrentPackage = pkgs.fetchzip {
-    url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.32.1/vuetorrent.zip";
+    url = "https://github.com/VueTorrent/VueTorrent/releases/download/v2.33.0/vuetorrent.zip";
     # Hash refreshed 2026-04-28: GitHub re-packed the v2.32.1 release zip.
     # Same upstream version, different bytes — common with GitHub release assets.
     hash = "sha256-md6UckHoMhnUAg2Kn3FqvzgEOBvfi8fTaTdbErvU73s=";
