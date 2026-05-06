@@ -65,6 +65,13 @@ mylib.mkContainerService {
     # Health check endpoint
     healthEndpoint = "/api/healthz/liveness";
 
+    # Extra podman flags. Currently used to inject `--add-host` entries from
+    # cfg.extraHosts so the container can override DNS for hosts that aren't
+    # routable via its podman bridge (hairpin-NAT workaround for OIDC).
+    extraOptions = { cfg, config, ... }:
+      lib.optionals (cfg.extraHosts != { })
+        (lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts);
+
     # Default resources (based on observed usage: 26M peak × 2.5 = 65M)
     resources = {
       memory = "128M";
@@ -214,6 +221,26 @@ mylib.mkContainerService {
         };
       };
       description = "Prometheus metrics collection configuration for Autobrr";
+    };
+
+    # Hairpin-NAT escape hatch. When the container needs to reach a host-side
+    # service that resolves to the LAN IP (e.g. https://id.holthome.net for
+    # OIDC discovery), routing back via the LAN address typically fails because
+    # the podman bridge gateway is not the default LAN router. Map the FQDN to
+    # the host's podman bridge IP (e.g. 10.89.0.1) so the container reaches
+    # Caddy directly. Mirrors the option in modules/nixos/services/qui.
+    extraHosts = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      example = { "id.holthome.net" = "10.89.0.1"; };
+      description = ''
+        Extra /etc/hosts entries to inject into the container (rendered as
+        `--add-host=<host>:<ip>` podman flags).
+
+        Useful for overriding DNS resolution when the container needs to
+        reach a host-side service whose A record points at the LAN IP but
+        is only reachable from the container via the podman bridge gateway.
+      '';
     };
   };
 
