@@ -8,6 +8,7 @@
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.autobrr.enable or false;
+  inherit (config.networking) domain;
 in
 {
   config = lib.mkMerge [
@@ -16,6 +17,15 @@ in
         enable = true;
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
+
+        # Hairpin-NAT workaround: id.holthome.net resolves to forge's LAN IP
+        # (10.20.0.30), but autobrr's podman bridge can't reach the LAN — so
+        # OIDC discovery (https://id.holthome.net/.well-known/openid-configuration)
+        # times out from inside the container. Override the hosts file to point
+        # at the podman bridge IP where Caddy also listens. Same pattern as qui.
+        extraHosts = {
+          "id.${domain}" = "10.89.0.1";
+        };
 
         settings = {
           host = "0.0.0.0";
