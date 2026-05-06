@@ -84,12 +84,31 @@ jobs:
             -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml \
             ./profile | tee security.txt
 
+      # Snapshot of *what* was built so the artifact has debuggable provenance
+      # without uploading the full expanded closure (which can include filenames
+      # like `notify-pushover@system-boot:boot.path` that actions/upload-artifact
+      # rejects because `:` is illegal on NTFS).
+      - name: Generate closure manifest
+        if: always()
+        run: |
+          if [ -e ./profile ]; then
+            nix path-info -r ./profile > closure.txt
+            wc -l closure.txt
+          else
+            echo "profile/ does not exist (build failed); skipping manifest" > closure.txt
+          fi
+
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: flake-health-${{ matrix.host }}
+          # Intentionally NOT uploading `profile/` itself — it's a Nix profile
+          # symlink that dereferences to the entire expanded system (~70k
+          # files), which both blew the artifact size and tripped the NTFS
+          # filename validator on `:` in unit-name@instance:value paths.
+          # See `closure.txt` for the path manifest.
           path: |
             security.txt
-            profile
+            closure.txt
           if-no-files-found: ignore

@@ -501,5 +501,5 @@ Category defaults are educated guesses, not guarantees:
 
 - [Modular Design Patterns](./modular-design-patterns.md) - Standardized submodule patterns
 - [Repository Architecture](./repository-architecture.md) - High-level structure
-- [host-defaults.nix](../lib/host-defaults.nix) - Host-specific factory
+- [`lib/host-defaults.nix`](https://github.com/carpenike/nix-config/blob/main/lib/host-defaults.nix) - Host-specific factory (source)
 - [Monitoring Strategy](./monitoring-strategy.md) - Metrics/alerting patterns

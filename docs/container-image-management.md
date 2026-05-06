@@ -140,7 +140,7 @@ Create or update `renovate.json` in your repository root:
 ## Current Status
 
 ### Services with Pinned Versions ✅
-- **Omada Controller**: `mbentley/omada-controller:5.15.24.19` (pinned to v5.x — see [`workarounds.md`](workarounds.md#omada-controller---pinned-to-v5x-no-avx-on-luna))
+- **Omada Controller**: `mbentley/omada-controller:5.15.24.19` (pinned to v5.x — see [`workarounds.md`](workarounds.md#omada-controller-pinned-to-v5x-no-avx-on-luna))
 - **UniFi Controller**: `jacobalberty/unifi-docker:v8.4.62`
 - **1Password Connect API**: `1password/connect-api:1.7.2`
 - **1Password Connect Sync**: `1password/connect-sync:1.7.2`
