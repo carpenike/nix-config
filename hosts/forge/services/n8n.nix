@@ -23,10 +23,12 @@ in
   config = lib.mkMerge [
     {
       modules.services.n8n = {
-        # FIXME: Temporarily disabled - n8n 1.122.5 in nixpkgs-unstable has broken build
-        # The n8n-editor-ui package fails to build due to vite/rolldown compatibility issues
-        # Re-enable once upstream nixpkgs fixes the package
-        # Tracking: https://github.com/NixOS/nixpkgs/issues/n8n
+        # FIXME (2026-05-07): Re-evaluate enabling.
+        # Originally disabled because n8n 1.122.5 in nixpkgs-unstable had a broken
+        # n8n-editor-ui build (vite/rolldown compatibility). Upstream nixpkgs has since
+        # rolled forward (n8n 2.15.0 merged 2026-04-13 in NixOS/nixpkgs#508125), so this
+        # comment likely no longer applies. Action item: build forge with `enable = true`
+        # locally and confirm the editor-ui closure evaluates and starts before re-enabling.
         enable = false;
 
         # Core settings
