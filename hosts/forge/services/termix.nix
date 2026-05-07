@@ -30,7 +30,7 @@ in
         # Pin container image (Renovate will update)
         image = "ghcr.io/lukegus/termix:release-1.9.0@sha256:42649d815da4ee2cb71560b04a22641e54d993e05279908711d9056504487feb";
 
-        # Port 8095 (8080 conflicts with qbittorrent/tqm)
+        # Port 8095 (8080 conflicts with qbittorrent)
         port = 8095;
 
         # Reverse proxy configuration (LAN only - no Cloudflare tunnel)

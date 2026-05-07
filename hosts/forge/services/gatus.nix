@@ -22,7 +22,7 @@ in
       modules.services.gatus = {
         enable = true;
 
-        # Use port 8090 (8080 is used by tqm)
+        # Use port 8090 (8080 is used by qbittorrent)
         port = 8090;
 
         # SQLite storage (persisted on ZFS)

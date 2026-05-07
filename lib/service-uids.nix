@@ -270,14 +270,6 @@
     extraGroups = [ ]; # render is conditionally added when GPU devices are configured
   };
 
-  cross-seed = {
-    uid = 921;
-    gid = 65537;
-    groupName = "media";
-    description = "Cross-seed torrent cross-seeding";
-    extraGroups = [ ];
-  };
-
   recyclarr = {
     uid = 922;
     gid = 65537;
@@ -467,13 +459,6 @@
     gid = 973; # Shares group with cooklang-federation
     description = "Cooklang recipe server";
     extraGroups = [ ];
-  };
-
-  tqm = {
-    uid = 981;
-    gid = 974;
-    description = "TQM torrent queue manager";
-    extraGroups = [ "media" ]; # Needs access to media files
   };
 
   cloudflared = {

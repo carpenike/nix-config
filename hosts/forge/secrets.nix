@@ -35,7 +35,6 @@ let
   paperlessEnabled = config.modules.services.paperless.enable or false;
   paperlessAiEnabled = config.modules.services.paperless-ai.enable or false;
   emqxEnabled = config.modules.services.emqx.enable or false;
-  crossSeedEnabled = config.modules.services."cross-seed".enable or false;
   sabnzbdEnabled = config.modules.services.sabnzbd.enable or false;
   actualEnabled = config.modules.services.actual.enable or false;
   autobrrEnabled = config.modules.services.autobrr.enable or false;
@@ -352,13 +351,6 @@ in
         }
         // optionalAttrs prowlarrEnabled {
           "prowlarr/api-key" = {
-            mode = "0400";
-            owner = "root";
-            group = "root";
-          };
-        }
-        // optionalAttrs crossSeedEnabled {
-          "cross-seed/api-key" = {
             mode = "0400";
             owner = "root";
             group = "root";

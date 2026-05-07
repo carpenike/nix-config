@@ -114,6 +114,8 @@ nav:
           - "007: Multi-Tier DR": adr/007-multi-tier-disaster-recovery.md
           - "008: Authentication Framework": adr/008-authentication-priority-framework.md
           - "009: Thin Orchestrator Pattern": adr/009-thin-orchestrator-pattern.md
+          - "010: Cross-Module Dependencies": adr/010-cross-module-dependency-patterns.md
+          - "011: Service Factory Module Architecture": adr/011-service-factory-module-architecture.md
   - Patterns:
       - Modular Design: modular-design-patterns.md
       - Monitoring Strategy: monitoring-strategy.md
@@ -121,6 +123,7 @@ nav:
       - Storage Module: storage-module-guide.md
       - Custom Packages: custom-package-patterns.md
       - Shared Config: shared-config-example.md
+      - Shared Config Library: shared-config-library.md
       - Reverse Proxy: reverse-proxy-pattern.md
       - Structured Logging: structured-logging-framework.md
   - Operations:
@@ -135,6 +138,7 @@ nav:
       - Notifications: notifications.md
       - Metrics Patterns: metrics-pattern-usage.md
       - UPS Monitoring: ups-monitoring.md
+      - Workarounds & Overrides: workarounds.md
   - Infrastructure:
       - Caddy Reverse Proxy: modular-caddy-config.md
       - Authentication/SSO: pocketid-integration-pattern.md

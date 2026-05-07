@@ -28,7 +28,7 @@ let
 
   hasCentralizedNotifications = notificationsCfg.enable or false;
 
-  # Default port changed from 8080 (conflicts with qbittorrent/tqm) to 8095
+  # Default port changed from 8080 (conflicts with qbittorrent) to 8095
   termixPort = cfg.port;
 
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-termix.service";
@@ -76,7 +76,7 @@ in
       default = 8095;
       description = ''
         Port for the Termix web interface.
-        Default changed from upstream 8080 to avoid conflicts with qbittorrent/tqm.
+        Default changed from upstream 8080 to avoid conflicts with qbittorrent.
       '';
     };
 

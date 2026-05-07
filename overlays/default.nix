@@ -1,6 +1,115 @@
 { inputs
 , ...
 }:
+let
+  # ===========================================================================
+  # Shared overrides used by BOTH the unstable and stable channels.
+  # Centralising them here ensures the two channels never silently diverge
+  # (e.g. one channel having a fix the other doesn't). Channel-specific
+  # workarounds (typically tied to a particular Python version) stay inline
+  # in their respective overlay below.
+  #
+  # NOTE: All workarounds here must also be tracked in docs/workarounds.md.
+  # ===========================================================================
+
+  # WORKAROUND (2025-01-01): ctranslate2 missing #include <cstdint> in cxxopts.hpp
+  # C++20 / GCC 14 require an explicit cstdint include for uint8_t. Insertion
+  # is anchored to the cxxopts include-guard so it works regardless of which
+  # other headers the bundled cxxopts.hpp happens to include.
+  # Affects: open-webui (via faster-whisper -> ctranslate2), paperless (transitive)
+  # Upstream: https://github.com/OpenNMT/CTranslate2 (no specific tracking issue;
+  #   the bundled cxxopts.hpp dependency is the actual offender)
+  # Check: When ctranslate2 >= 4.7.0 or upstream fixes cxxopts
+  ctranslate2Override = prev: prev.ctranslate2.overrideAttrs (old: {
+    postPatch = (old.postPatch or "") + ''
+      # Add missing #include <cstdint> to cxxopts.hpp for C++20 compatibility.
+      sed -i '/#ifndef CXXOPTS_HPP_INCLUDED/a #include <cstdint>' third_party/cxxopts/include/cxxopts.hpp
+    '';
+  });
+
+  # Shared Python override fragment applied to both stable and unstable
+  # `pythonPackagesExtensions`. Defined as a single attrset so adding a new
+  # workaround applies to both channels in one edit.
+  sharedPythonOverrides = pyFinal: pyPrev: {
+    # CUSTOM PACKAGE (2026-01-26): thermoworks-cloud
+    # Python API client for ThermoWorks Cloud devices (Signals BBQ thermometer, etc.)
+    # Required by: home-assistant thermoworks_cloud integration
+    # Upstream: https://github.com/a2hill/python-thermoworks-cloud
+    # Check: When thermoworks-cloud lands in nixpkgs
+    thermoworks-cloud = pyFinal.buildPythonPackage rec {
+      pname = "thermoworks-cloud";
+      version = "0.1.12";
+      pyproject = true;
+
+      src = pyFinal.fetchPypi {
+        pname = "thermoworks_cloud";
+        inherit version;
+        hash = "sha256-6PNBuLOS1i6pVjswoOPYORgzC2/wFwIJFh3zE9PFpxw=";
+      };
+
+      build-system = [
+        pyFinal.setuptools
+        pyFinal.setuptools-scm
+      ];
+      dependencies = [ pyFinal.aiohttp ];
+      doCheck = false;
+      pythonImportsCheck = [ "thermoworks_cloud" ];
+
+      # Use inputs.nixpkgs.lib (constants only) to avoid capturing the outer
+      # overlay's `prev` from inside this shared fragment.
+      meta = with inputs.nixpkgs.lib; {
+        description = "Python API client for ThermoWorks Cloud devices";
+        homepage = "https://github.com/a2hill/python-thermoworks-cloud";
+        license = licenses.gpl3;
+      };
+    };
+
+    # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
+    # Tests use self-signed certs that fail SSL verification during build.
+    # Affects: home-assistant (transitive), paperless-ngx (uses granian as ASGI server)
+    # Check: When granian is updated in nixpkgs
+    granian = pyPrev.granian.overridePythonAttrs (old: {
+      disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [
+        "tests/test_https.py"
+      ];
+    });
+
+    # WORKAROUND (2025-01-01): duckdb-engine tests fail with pg_collation error
+    # Tests use SQLAlchemy reflection that queries pg_collation which doesn't
+    # exist in DuckDB.
+    # Affects: open-webui (via langchain-community)
+    # Upstream: https://github.com/Mause/duckdb_engine (no single tracking issue;
+    #   reflection vs DuckDB system catalogs is a known design gap)
+    # Check: When duckdb-engine >= 0.18.0 or test suite is fixed
+    duckdb-engine = pyPrev.duckdb-engine.overridePythonAttrs (_old: {
+      doCheck = false;
+    });
+
+    # WORKAROUND (2025-01-01): langchain-community tests require network access
+    # Tests try to connect to api.smith.langchain.com which fails in Nix sandbox.
+    # Affects: open-webui
+    # Check: When langchain-community tests are fixed to not require network
+    langchain-community = pyPrev.langchain-community.overridePythonAttrs (_old: {
+      doCheck = false;
+    });
+
+    # WORKAROUND (2025-01-01): extract-msg beautifulsoup4 version constraint too strict
+    # Package requires beautifulsoup4<4.14 but nixpkgs has 4.14.3.
+    # Affects: open-webui (indirect dependency)
+    # Check: When extract-msg is updated to allow newer beautifulsoup4
+    extract-msg = pyPrev.extract-msg.overridePythonAttrs (_old: {
+      pythonRelaxDeps = [ "beautifulsoup4" ];
+    });
+
+    # WORKAROUND (2025-01-01): weatherflow4py marshmallow version constraint too strict
+    # Package requires marshmallow<4.0.0 but nixpkgs has 4.1.0.
+    # Affects: home-assistant
+    # Check: When weatherflow4py is updated to allow newer marshmallow
+    weatherflow4py = pyPrev.weatherflow4py.overridePythonAttrs (_old: {
+      pythonRelaxDeps = [ "marshmallow" ];
+    });
+  };
+in
 {
   rust-overlay = inputs.rust-overlay.overlays.default;
 
@@ -36,52 +145,19 @@
             '';
           });
 
-          # WORKAROUND (2025-01-01): ctranslate2 missing #include <cstdint> in cxxopts.hpp
-          # C++20/GCC 14 requires explicit cstdint include for uint8_t
-          # Affects: open-webui (via faster-whisper -> ctranslate2)
-          # Upstream: https://github.com/OpenNMT/CTranslate2/issues/XXX
-          # Check: When ctranslate2 >= 4.7.0 or upstream fixes cxxopts
-          ctranslate2 = prev.ctranslate2.overrideAttrs (old: {
-            postPatch = (old.postPatch or "") + ''
-              # Add missing #include <cstdint> to cxxopts.hpp for C++20 compatibility
-              # Insert after the #ifndef guard and before other includes
-              sed -i '/#ifndef CXXOPTS_HPP_INCLUDED/a #include <cstdint>' third_party/cxxopts/include/cxxopts.hpp
-            '';
-          });
+          # Shared with stable channel - see top of file.
+          ctranslate2 = ctranslate2Override prev;
 
           pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+            # Shared overrides applied to both channels
+            sharedPythonOverrides
+
+            # Unstable-only Python overrides:
+            # - Custom buildPythonPackage definitions tied to Home Assistant on
+            #   unstable (homekit-audio-proxy, aioacaia)
+            # - Python 3.14 transition issues not yet present in stable, which
+            #   still defaults to Python 3.13 (aiounittest, httpx-auth, ics, ...)
             (pyFinal: pyPrev: {
-              # CUSTOM PACKAGE (2026-01-26): thermoworks-cloud
-              # Python API client for ThermoWorks Cloud devices (Signals BBQ thermometer, etc.)
-              # Required by: home-assistant thermoworks_cloud integration
-              # Upstream: https://github.com/a2hill/python-thermoworks-cloud
-              # Check: When thermoworks-cloud lands in nixpkgs
-              thermoworks-cloud = pyFinal.buildPythonPackage rec {
-                pname = "thermoworks-cloud";
-                version = "0.1.12";
-                pyproject = true;
-
-                src = pyFinal.fetchPypi {
-                  pname = "thermoworks_cloud";
-                  inherit version;
-                  hash = "sha256-6PNBuLOS1i6pVjswoOPYORgzC2/wFwIJFh3zE9PFpxw=";
-                };
-
-                build-system = [
-                  pyFinal.setuptools
-                  pyFinal.setuptools-scm
-                ];
-                dependencies = [ pyFinal.aiohttp ];
-                doCheck = false;
-                pythonImportsCheck = [ "thermoworks_cloud" ];
-
-                meta = with prev.lib; {
-                  description = "Python API client for ThermoWorks Cloud devices";
-                  homepage = "https://github.com/a2hill/python-thermoworks-cloud";
-                  license = licenses.gpl3;
-                };
-              };
-
               # CUSTOM PACKAGE (2026-05-07): homekit-audio-proxy
               # SRTP audio proxy for HomeKit camera streaming. Required runtime
               # dep of Home Assistant 2026.4's homekit integration
@@ -146,9 +222,9 @@
                 };
               };
 
-              # WORKAROUND (2025-12-19): aio-georss-client test failure with Python 3.13
-              # Tests fail in test_feed.py due to Python 3.13 compatibility issues
-              # Check: When aio-georss-client is updated or Python 3.14 releases
+              # WORKAROUND (2025-12-19): aio-georss-client test failure with Python 3.13+
+              # Tests fail in test_feed.py due to Python compatibility issues
+              # Check: When aio-georss-client is updated
               aio-georss-client = pyPrev.aio-georss-client.overridePythonAttrs (old: {
                 doCheck = false;
                 meta = old.meta // { broken = false; };
@@ -185,49 +261,6 @@
               httpx-auth = pyPrev.httpx-auth.overridePythonAttrs (_old: {
                 doCheck = false;
                 doInstallCheck = false;
-              });
-
-              # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
-              # Tests use self-signed certs that fail SSL verification during build
-              # Affects: home-assistant (uses granian indirectly)
-              # Check: When granian is updated in nixpkgs-unstable
-              granian = pyPrev.granian.overridePythonAttrs (old: {
-                disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [
-                  "tests/test_https.py"
-                ];
-              });
-
-              # WORKAROUND (2025-01-01): duckdb-engine tests fail with pg_collation error
-              # Tests use SQLAlchemy reflection that queries pg_collation which doesn't exist in DuckDB
-              # Affects: open-webui (via langchain-community)
-              # Upstream: https://github.com/Mause/duckdb_engine/issues/XXX
-              # Check: When duckdb-engine >= 0.18.0 or test suite is fixed
-              duckdb-engine = pyPrev.duckdb-engine.overridePythonAttrs (_old: {
-                doCheck = false;
-              });
-
-              # WORKAROUND (2025-01-01): langchain-community tests require network access
-              # Tests try to connect to api.smith.langchain.com which fails in Nix sandbox
-              # Affects: open-webui
-              # Check: When langchain-community tests are fixed to not require network
-              langchain-community = pyPrev.langchain-community.overridePythonAttrs (_old: {
-                doCheck = false;
-              });
-
-              # WORKAROUND (2025-01-01): extract-msg beautifulsoup4 version constraint too strict
-              # Package requires beautifulsoup4<4.14 but nixpkgs has 4.14.3
-              # Affects: open-webui (indirect dependency)
-              # Check: When extract-msg is updated to allow newer beautifulsoup4
-              extract-msg = pyPrev.extract-msg.overridePythonAttrs (_old: {
-                pythonRelaxDeps = [ "beautifulsoup4" ];
-              });
-
-              # WORKAROUND (2025-01-01): weatherflow4py marshmallow version constraint too strict
-              # Package requires marshmallow<4.0.0 but nixpkgs has 4.1.0
-              # Affects: home-assistant
-              # Check: When weatherflow4py is updated to allow newer marshmallow
-              weatherflow4py = pyPrev.weatherflow4py.overridePythonAttrs (_old: {
-                pythonRelaxDeps = [ "marshmallow" ];
               });
 
               # WORKAROUND (2026-03-02): ics 0.7.2 test_gehol hits RecursionError
@@ -276,93 +309,12 @@
       postInstall = ""; # Don't delete the sqlite3 build directory!
     });
 
-    # WORKAROUND (2025-01-01): ctranslate2 missing #include <cstdint> in cxxopts.hpp
-    # C++20/GCC 14 requires explicit cstdint include for uint8_t
-    # Affects: open-webui (via faster-whisper -> ctranslate2)
-    # Check: When ctranslate2 >= 4.7.0 or upstream fixes cxxopts
-    ctranslate2 = prev.ctranslate2.overrideAttrs (old: {
-      postPatch = (old.postPatch or "") + ''
-        # Add missing #include <cstdint> to cxxopts.hpp for C++20 compatibility
-        sed -i '/#include <optional>/a #include <cstdint>' third_party/cxxopts/include/cxxopts.hpp
-      '';
-    });
+    # Shared with unstable channel - see top of file.
+    ctranslate2 = ctranslate2Override prev;
 
     pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-      (pyFinal: pyPrev: {
-        # CUSTOM PACKAGE (2026-01-26): thermoworks-cloud
-        # Python API client for ThermoWorks Cloud devices (Signals BBQ thermometer, etc.)
-        # Required by: home-assistant thermoworks_cloud integration
-        # Upstream: https://github.com/a2hill/python-thermoworks-cloud
-        # Check: When thermoworks-cloud lands in nixpkgs
-        thermoworks-cloud = pyFinal.buildPythonPackage rec {
-          pname = "thermoworks-cloud";
-          version = "0.1.12";
-          pyproject = true;
-
-          src = pyFinal.fetchPypi {
-            pname = "thermoworks_cloud";
-            inherit version;
-            hash = "sha256-6PNBuLOS1i6pVjswoOPYORgzC2/wFwIJFh3zE9PFpxw=";
-          };
-
-          build-system = [
-            pyFinal.setuptools
-            pyFinal.setuptools-scm
-          ];
-          dependencies = [ pyFinal.aiohttp ];
-          doCheck = false;
-          pythonImportsCheck = [ "thermoworks_cloud" ];
-
-          meta = with prev.lib; {
-            description = "Python API client for ThermoWorks Cloud devices";
-            homepage = "https://github.com/a2hill/python-thermoworks-cloud";
-            license = licenses.gpl3;
-          };
-        };
-
-        # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
-        # Tests use self-signed certs that fail SSL verification during build
-        # Affects: paperless-ngx (uses granian as ASGI server)
-        # Check: When granian is updated in stable nixpkgs
-        # See: docs/workarounds.md for full tracking
-        granian = pyPrev.granian.overridePythonAttrs (old: {
-          disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [
-            "tests/test_https.py"
-          ];
-        });
-
-        # WORKAROUND (2025-01-01): duckdb-engine tests fail with pg_collation error
-        # Tests use SQLAlchemy reflection that queries pg_collation which doesn't exist in DuckDB
-        # Affects: open-webui (via langchain-community)
-        # Check: When duckdb-engine >= 0.18.0 or test suite is fixed
-        duckdb-engine = pyPrev.duckdb-engine.overridePythonAttrs (_old: {
-          doCheck = false;
-        });
-
-        # WORKAROUND (2025-01-01): langchain-community tests require network access
-        # Tests try to connect to api.smith.langchain.com which fails in Nix sandbox
-        # Affects: open-webui
-        # Check: When langchain-community tests are fixed to not require network
-        langchain-community = pyPrev.langchain-community.overridePythonAttrs (_old: {
-          doCheck = false;
-        });
-
-        # WORKAROUND (2025-01-01): extract-msg beautifulsoup4 version constraint too strict
-        # Package requires beautifulsoup4<4.14 but nixpkgs has 4.14.3
-        # Affects: open-webui (indirect dependency)
-        # Check: When extract-msg is updated to allow newer beautifulsoup4
-        extract-msg = pyPrev.extract-msg.overridePythonAttrs (_old: {
-          pythonRelaxDeps = [ "beautifulsoup4" ];
-        });
-
-        # WORKAROUND (2025-01-01): weatherflow4py marshmallow version constraint too strict
-        # Package requires marshmallow<4.0.0 but nixpkgs has 4.1.0
-        # Affects: home-assistant
-        # Check: When weatherflow4py is updated to allow newer marshmallow
-        weatherflow4py = pyPrev.weatherflow4py.overridePythonAttrs (_old: {
-          pythonRelaxDeps = [ "marshmallow" ];
-        });
-      })
+      # Shared overrides applied to both channels (see top of file).
+      sharedPythonOverrides
     ];
   };
 }
