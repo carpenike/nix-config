@@ -64,8 +64,9 @@ jobs:
           name: carpenike
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
+      # Pinned to v12 (2025-07-15) for supply-chain hygiene; bump deliberately.
       - name: Run flake freshness policy
-        uses: DeterminateSystems/flake-checker-action@main
+        uses: DeterminateSystems/flake-checker-action@v12
         with:
           nixpkgs-keys: nixpkgs,nixpkgs-unstable
 
