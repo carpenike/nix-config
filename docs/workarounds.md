@@ -2,8 +2,8 @@
 
 This document tracks temporary workarounds, package overrides, and unstable package usage that should be periodically reviewed. These exist due to upstream bugs, missing features in stable, or test failures in the Nix build sandbox.
 
-**Last Reviewed**: 2026-04-28
-**Next Review**: 2026-05-28 (monthly)
+**Last Reviewed**: 2026-05-07
+**Next Review**: 2026-06-07 (monthly)
 
 ---
 
@@ -18,6 +18,30 @@ When reviewing workarounds:
 ---
 
 ## Package Overrides (overlays/default.nix)
+
+### homekit-audio-proxy - Custom Package (not yet in nixpkgs)
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-05-07 |
+| **Affects** | `pythonPackagesExtensions` (unstable overlay) |
+| **Reason** | Home Assistant 2026.4's `homekit` integration unconditionally `from homekit_audio_proxy import AudioProxy` at module top of `homeassistant/components/homekit/type_cameras.py`. The HASS Bridge (port 21064) — i.e. all Apple Home exposure — fails to load without it. The package is on PyPI (v1.2.1, Apache-2.0, runtime dep `cryptography>=43`) but had not landed in nixos-unstable as of this date. |
+| **Workaround** | Custom `buildPythonPackage` definition in the unstable overlay (mirrors the `thermoworks-cloud` pattern), wired into HA via `services.home-assistant.extraPackages`. |
+| **Check** | When `homekit-audio-proxy` lands in nixpkgs |
+| **Upstream** | https://github.com/bdraco/homekit-audio-proxy |
+| **Impact** | Without fix: HomeKit Bridge fails to start; no Apple Home device exposure works. |
+
+### aioacaia - Custom Package (not yet in nixpkgs)
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-05-07 |
+| **Affects** | `pythonPackagesExtensions` (unstable overlay) |
+| **Reason** | Home Assistant's built-in `acaia` integration imports `aioacaia` at config-flow time. Without it, opening the Acaia config flow raises ModuleNotFoundError. PyPI v0.1.18 (AGPL-3.0). |
+| **Workaround** | Custom `buildPythonPackage` definition in the unstable overlay, wired into HA via `services.home-assistant.extraPackages`. Runtime deps: `bleak`, `bleak-retry-connector`. |
+| **Check** | When `aioacaia` lands in nixpkgs |
+| **Upstream** | https://github.com/zweckj/aioacaia |
+| **Impact** | Without fix: the Acaia integration can't be configured; runtime use blocked. |
 
 ### aiounittest - Re-enabled on Python 3.14
 

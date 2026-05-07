@@ -140,6 +140,16 @@ in
             logs = {
               "homeassistant.components.http" = "warning";
               "homeassistant.components.recorder" = "warning";
+
+              # Suppress benign upstream noise (verified 2026-05-07):
+              # - rest.util emits a WARNING any time a REST sensor's response
+              #   isn't valid JSON, even when the sensor is configured for
+              #   text/xml. Real REST failures still surface at ERROR.
+              # - llmvision's NWS Alerts coordinator logs an ERROR for every
+              #   benign upstream timeout/cache miss. The integration retries
+              #   automatically; only persistent failures matter.
+              "homeassistant.components.rest.util" = "error";
+              "custom_components.nws_alerts.coordinator" = "error";
             };
           };
           recorder = {
@@ -190,6 +200,16 @@ in
             hap-python
             pychromecast
             base36
+            # HA 2026.4+ unconditionally imports homekit_audio_proxy from
+            # homekit/type_cameras.py at module top. Without this the entire
+            # HomeKit Bridge fails to load. Custom package (overlays/default.nix)
+            # until upstream nixpkgs ships it.
+            homekit-audio-proxy
+
+            # Acaia smart scale integration (built-in `acaia` component).
+            # Custom package (overlays/default.nix) until upstream nixpkgs
+            # ships aioacaia.
+            aioacaia
 
             aiodiscover
             aiodhcpwatcher
