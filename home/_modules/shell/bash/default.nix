@@ -37,6 +37,14 @@ in
         if [[ -r "/run/secrets/home-assistant/bearer-token" ]]; then
           export HA_BEARER_TOKEN="$(cat /run/secrets/home-assistant/bearer-token)"
         fi
+
+        # Load GitHub personal access token for the gh CLI.
+        # gh reads $GH_TOKEN natively and prefers it over its own config file,
+        # so this avoids the read-only home-manager hosts.yml problem entirely.
+        # Token is managed via SOPS and only readable by the owning user.
+        if [[ -r "/run/secrets/users/ryan/github-token" ]]; then
+          export GH_TOKEN="$(cat /run/secrets/users/ryan/github-token)"
+        fi
       '' + lib.optionalString cfg.launchFishForInteractive ''
         # Launch fish for interactive sessions, but not for VS Code terminals
         # or other non-interactive contexts that need POSIX shell compatibility

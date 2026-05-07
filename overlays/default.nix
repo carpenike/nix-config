@@ -82,6 +82,70 @@
                 };
               };
 
+              # CUSTOM PACKAGE (2026-05-07): homekit-audio-proxy
+              # SRTP audio proxy for HomeKit camera streaming. Required runtime
+              # dep of Home Assistant 2026.4's homekit integration
+              # (homeassistant/components/homekit/type_cameras.py imports it at
+              # module top, so the entire HASS Bridge fails to start without it).
+              # Required by: home-assistant homekit integration (Apple Home bridge)
+              # Upstream: https://github.com/bdraco/homekit-audio-proxy
+              # Check: When homekit-audio-proxy lands in nixpkgs
+              homekit-audio-proxy = pyFinal.buildPythonPackage rec {
+                pname = "homekit-audio-proxy";
+                version = "1.2.1";
+                pyproject = true;
+
+                src = pyFinal.fetchPypi {
+                  pname = "homekit_audio_proxy";
+                  inherit version;
+                  hash = "sha256-nGX1f8xOLFnxF7uk2sMyYPRdFdfKJuohWANb0UT9VJU=";
+                };
+
+                build-system = [ pyFinal.setuptools ];
+                dependencies = [ pyFinal.cryptography ];
+                doCheck = false;
+                pythonImportsCheck = [ "homekit_audio_proxy" ];
+
+                meta = with prev.lib; {
+                  description = "SRTP audio proxy for HomeKit camera streaming";
+                  homepage = "https://github.com/bdraco/homekit-audio-proxy";
+                  license = licenses.asl20;
+                };
+              };
+
+              # CUSTOM PACKAGE (2026-05-07): aioacaia
+              # Async Bluetooth client for Acaia coffee scales. Required by
+              # Home Assistant's built-in `acaia` integration; without it the
+              # integration raises ModuleNotFoundError when its config flow
+              # is opened.
+              # Required by: home-assistant acaia integration
+              # Upstream: https://github.com/zweckj/aioacaia
+              # Check: When aioacaia lands in nixpkgs
+              aioacaia = pyFinal.buildPythonPackage rec {
+                pname = "aioacaia";
+                version = "0.1.18";
+                pyproject = true;
+
+                src = pyFinal.fetchPypi {
+                  inherit pname version;
+                  hash = "sha256-KjCBDA+jScqMw9artTcykKxsGkRtOtkvOnist0dvsqc=";
+                };
+
+                build-system = [ pyFinal.setuptools ];
+                dependencies = [
+                  pyFinal.bleak
+                  pyFinal.bleak-retry-connector
+                ];
+                doCheck = false;
+                pythonImportsCheck = [ "aioacaia" ];
+
+                meta = with prev.lib; {
+                  description = "Async implementation of pyacaia for Acaia smart scales";
+                  homepage = "https://github.com/zweckj/aioacaia";
+                  license = licenses.agpl3Only;
+                };
+              };
+
               # WORKAROUND (2025-12-19): aio-georss-client test failure with Python 3.13
               # Tests fail in test_feed.py due to Python 3.13 compatibility issues
               # Check: When aio-georss-client is updated or Python 3.14 releases

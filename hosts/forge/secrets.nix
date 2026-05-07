@@ -856,6 +856,18 @@ in
             owner = "root";
             group = "root";
           };
+        }
+        // {
+          # Per-user secrets (always present, not gated on a service flag)
+          # GitHub personal access token for ryan's interactive shell.
+          # Read at login by home/_modules/shell/bash/default.nix and exported
+          # as GH_TOKEN, which the `gh` CLI consumes natively (no `gh auth
+          # login` required, and no oauth_token written to managed config).
+          "users/ryan/github-token" = {
+            mode = "0400";
+            owner = "ryan";
+            group = "users";
+          };
         };
 
       # Templates for generating .env files for containers.
