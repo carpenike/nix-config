@@ -75,9 +75,6 @@ in
     ./services/recyclarr.nix # Recyclarr TRaSH guides automation
     ./services/kometa.nix # Kometa Plex metadata manager
     ./services/qbittorrent.nix # qBittorrent download client
-    ./services/cross-seed.nix # cross-seed torrent automation
-    ./services/tqm.nix # tqm torrent lifecycle management
-    ./services/qbit-manage.nix # qbit-manage (DISABLED - migrated to tqm)
     ./services/sabnzbd.nix # SABnzbd usenet downloader
     ./services/unpackerr.nix # Unpackerr archive extraction for Starr apps
     ./services/seerr.nix # Seerr media request management (formerly Overseerr)
