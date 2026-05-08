@@ -271,6 +271,17 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Check** | When restic itself ships meaningful index-memory improvements (tracking issue: <https://github.com/restic/restic/issues/2523>) or if forge moves to a smaller-RAM host. |
 | **Related** | Same OOM pattern previously addressed per-service for scrypted (2026-02-21) and plex; this generalises the fix to the host default so future services benefit automatically. |
 
+### pgBackRest Auto-Retry on Transient NFS Errors
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-05-08 |
+| **Location** | `hosts/forge/services/pgbackrest.nix` (`retryPolicy` applied to all 3 backup units) |
+| **Reason** | pgBackRest backup units occasionally fail with NFS-coherency errors against `/mnt/nas-postgresql`: `[073] unable to sync missing path '.../pg_dynshmem'` and `[061] unable to remove path '.../base/<oid>': Directory not empty`. These are intermittent (~once per week, 22 lifetime [073] events in the file log going back to Dec 2025). Without `Restart=`, a single transient failure took out the entire daily full backup until 02:00 the next night, triggering `PgBackRestFullBackupStale` alerts. |
+| **Workaround** | Set `Restart=on-failure`, `RestartSec=15min`, `StartLimitBurst=3`, `StartLimitIntervalSec=2h` on `pgbackrest-full-backup`, `pgbackrest-incr-backup`, `pgbackrest-incr-r2-backup`. The 15-minute backoff is long enough for transient NFS issues to clear; the burst cap surfaces sustained failures via `OnFailure=` notifications and `PgBackRestFullBackupStale` rather than looping forever. |
+| **Check** | If errors persist after this is deployed, consider enabling pgBackRest file bundling (`--bundle=y` / `repo1-bundle=y`) to reduce per-backup file count by 10-100×, which directly attacks the NFS-many-small-files surface. Bundling is a one-time per-stanza decision and doesn't break existing backups. |
+| **Related** | An earlier related workaround (`EXCLUDE_OPTS="--exclude=.config --exclude=.local"`, 2026-02-02) addressed a different `[073]` instance where `.config`/`.local` dirs polluted PGDATA. Today's `pg_dynshmem` failure is a normal PG directory and can't be excluded that way. |
+
 ---
 
 ## Custom Packages with doCheck=false
