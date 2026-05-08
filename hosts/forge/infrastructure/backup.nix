@@ -99,6 +99,24 @@ in
         monitoring.enable = true;
         verification.enable = true;
 
+        # Host-level resource defaults for auto-discovered service backup jobs.
+        # The module default of 512M MemoryMax has caused repeated OOM kills on
+        # forge as restic repositories grow (paperless/home-assistant hit ~511MB
+        # RSS just loading the index — at 1545+ snapshots this is unavoidable).
+        # Forge has 31 GiB RAM with backup jobs staggered across the night, so
+        # raising the floor to 2G/1G is essentially free.
+        #
+        # Per-service overrides (scrypted, plex) still win because they set
+        # `service.backup.resources` explicitly — see the fallback logic in
+        # modules/nixos/services/backup/default.nix.
+        #
+        # WORKAROUND (2026-05-07): tracked in docs/workarounds.md.
+        performance.resources = {
+          memory = "2G";
+          memoryReservation = "1G";
+          cpus = "1.5";
+        };
+
         # PostgreSQL backup (pgBackRest with dual-repo PITR)
         # Restic meta-backup DISABLED - redundant now that repo2 has WAL archiving
         # Both repo1 (NFS) and repo2 (R2) now support full Point-in-Time Recovery
