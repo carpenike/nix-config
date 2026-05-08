@@ -260,6 +260,17 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Check** | If NFS reliability becomes an issue (data corruption from partial writes), consider switching back to `hard` with `timeo=300` and adding a systemd watchdog. |
 | **Tradeoff** | `soft` mount risks returning EIO on transient network issues, which could cause media service errors. This is far safer than `hard`-mount freezes that require physical intervention. |
 
+### Restic Backup Memory Limit Raised to 2G on Forge
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-05-07 |
+| **Location** | `hosts/forge/infrastructure/backup.nix` (`modules.services.backup.performance.resources`) |
+| **Reason** | The module-default 512 MiB `MemoryMax` for auto-discovered restic backup jobs (`modules/nixos/services/backup/default.nix`) was too low for forge: services with thousands of snapshots (paperless / home-assistant: 1545 each) consistently hit the cgroup limit at ~511 MB RSS just loading the restic index. On 2026-05-07, six services (`paperless`, `worldmonitor`, `zigbee2mqtt`, `home-assistant`, `esphome`, `pinchflat`) were OOM-killed and never recovered, triggering `ResticBackupStale` alerts. Smaller-repo services hit the limit too but recovered on retry. |
+| **Workaround** | Set host-level defaults `performance.resources = { memory = "2G"; memoryReservation = "1G"; cpus = "1.5"; }`. Per-service overrides (scrypted, plex) still win because the orchestrator falls back to `performance.resources` only when `service.backup.resources` is null. |
+| **Check** | When restic itself ships meaningful index-memory improvements (tracking issue: <https://github.com/restic/restic/issues/2523>) or if forge moves to a smaller-RAM host. |
+| **Related** | Same OOM pattern previously addressed per-service for scrypted (2026-02-21) and plex; this generalises the fix to the host default so future services benefit automatically. |
+
 ---
 
 ## Custom Packages with doCheck=false
