@@ -20,6 +20,34 @@ let
     RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
     MemoryDenyWriteExecute = true;
   };
+
+  # Restart policy for pgBackRest backup units.
+  #
+  # WORKAROUND (2026-05-08): pgBackRest occasionally hits transient NFS
+  # write/sync coherency errors against /mnt/nas-postgresql, observed as:
+  #   ERROR [073]: unable to sync missing path '.../pg_dynshmem'
+  #   ERROR [061]: unable to remove path '.../base/<oid>': Directory not empty
+  # These are intermittent (~once a week per pgBackRest's main-backup.log,
+  # 22 lifetime [073] occurrences). Without a restart policy, a single failure
+  # wipes out the entire daily full backup until 02:00 the next night, which
+  # was triggering PgBackRestFullBackupStale alerts.
+  #
+  # Settings rationale:
+  #   Restart=on-failure   - retry on any non-zero exit (NFS error class)
+  #   RestartSec=15min     - long enough for transient NFS issues to clear,
+  #                          short enough to recover within the same backup window
+  #   StartLimitBurst=3    - cap retries to 3 per StartLimitIntervalSec window
+  #   StartLimitIntervalSec=2h - if 3 retries fail in 2h, surface the failure
+  #                              instead of looping forever (the OnFailure
+  #                              alerts and PgBackRestFullBackupStale will fire)
+  #
+  # Tracked in docs/workarounds.md.
+  retryPolicy = {
+    Restart = "on-failure";
+    RestartSec = "15min";
+    StartLimitBurst = 3;
+    StartLimitIntervalSec = "2h";
+  };
 in
 {
   # pgBackRest - PostgreSQL Backup & Recovery
@@ -539,12 +567,19 @@ in
         RequiresMountsFor = [ "/mnt/nas-postgresql" ];
         # Trigger metrics collection on success to immediately update Prometheus
         OnSuccess = "pgbackrest-metrics.service";
+        # Bound the auto-retries so a sustained outage surfaces as an alert
+        # instead of looping forever (see retryPolicy comment above).
+        StartLimitBurst = retryPolicy.StartLimitBurst;
+        StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
       };
       serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
         IPAddressDeny = [ "169.254.169.254" ];
+        # Self-heal transient NFS coherency errors (see retryPolicy comment above).
+        Restart = retryPolicy.Restart;
+        RestartSec = retryPolicy.RestartSec;
       };
       script = ''
         set -euo pipefail
@@ -577,12 +612,19 @@ in
         RequiresMountsFor = [ "/mnt/nas-postgresql" ];
         # Trigger metrics collection on success to immediately update Prometheus
         OnSuccess = "pgbackrest-metrics.service";
+        # Bound the auto-retries so a sustained outage surfaces as an alert
+        # instead of looping forever (see retryPolicy comment above).
+        StartLimitBurst = retryPolicy.StartLimitBurst;
+        StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
       };
       serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
         IPAddressDeny = [ "169.254.169.254" ];
+        # Self-heal transient NFS coherency errors (see retryPolicy comment above).
+        Restart = retryPolicy.Restart;
+        RestartSec = retryPolicy.RestartSec;
       };
       script = ''
         set -euo pipefail
@@ -610,12 +652,19 @@ in
       unitConfig = {
         RequiresMountsFor = [ "/mnt/nas-postgresql" ];
         OnSuccess = "pgbackrest-metrics.service";
+        # Bound the auto-retries so a sustained outage surfaces as an alert
+        # instead of looping forever (see retryPolicy comment above).
+        StartLimitBurst = retryPolicy.StartLimitBurst;
+        StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
       };
       serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
         IPAddressDeny = [ "169.254.169.254" ];
+        # Self-heal transient NFS coherency errors (see retryPolicy comment above).
+        Restart = retryPolicy.Restart;
+        RestartSec = retryPolicy.RestartSec;
       };
       script = ''
         set -euo pipefail
