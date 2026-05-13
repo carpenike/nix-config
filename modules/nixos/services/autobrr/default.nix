@@ -45,7 +45,7 @@ mylib.mkContainerService {
 
   spec = {
     port = 7474;
-    image = "ghcr.io/autobrr/autobrr:v1.77.1@sha256:26796bb64ad4cd5956def3e171d485daf7353e952b603f9602d44836e4c9b314";
+    image = "ghcr.io/autobrr/autobrr:v1.78.0@sha256:5641009f9d83b602bb455426e28a67d928960d26f173bccc886cbbb024cbfbab";
 
     category = "downloads";
     displayName = "Autobrr";
