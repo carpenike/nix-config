@@ -16,7 +16,7 @@ in
         enable = true;
 
         # Pin container image to specific version with digest
-        image = "ghcr.io/home-operations/qbittorrent:5.2.0@sha256:08eb7ed4c7fe70425064d58154c35fccc89fafffd64ce9d1affed399e173ff20";
+        image = "ghcr.io/home-operations/qbittorrent:5.2.0@sha256:788796013c3da75f2dba568c5319975a5c41f555586dfd13987be4631181e00e";
 
         # BitTorrent port (migrated from k8s)
         torrentPort = 61144;
