@@ -43,6 +43,19 @@
 #      its own — we keep this out of SOPS so it diffs cleanly.
 #
 # After step 3, run `task nix:apply-nixos host=forge` to bring the service up.
+#
+# Optional features:
+#   * Partiful calendar sync — hourly poll of the host's personal Partiful
+#     ICS feed to keep linked operations' date/time in sync. To enable:
+#       1. Open Partiful → calendar icon below an event → iOS or Google
+#          Calendar → copy the URL (it's a credential; "do not share").
+#       2. `sops hosts/forge/secrets.sops.yaml` and add under
+#          `whiskey-whiskey-whiskey:` the key `partiful_calendar_url: <URL>`.
+#       3. Flip `whiskeyWhiskeyWhiskeyPartifulEnabled` to `true` in
+#          `hosts/forge/secrets.nix`.
+#       4. `task nix:apply-nixos host=forge`.
+#     The bunker's timezone defaults to America/New_York (forge's TZ); set
+#     `settings.PARTIFUL_TIMEZONE` if you ever need to override.
 
 { config, lib, inputs, pkgs, ... }:
 let

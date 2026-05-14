@@ -41,6 +41,10 @@ let
   quiEnabled = config.modules.services.qui.enable or false;
   unpackerrEnabled = config.modules.services.unpackerr.enable or false;
   whiskeyWhiskeyWhiskeyEnabled = config.services.whiskey-whiskey-whiskey.enable or false;
+  # Opt-in: Partiful calendar sync for whiskey-whiskey-whiskey. See
+  # hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
+  # When true, the partiful_calendar_url SOPS key is required to exist.
+  whiskeyWhiskeyWhiskeyPartifulEnabled = true;
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
   scryptedEnabled = config.modules.services.scrypted.enable or false;
@@ -856,6 +860,15 @@ in
             group = "root";
           };
         }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyPartifulEnabled) {
+          # Partiful personal ICS calendar feed URL. Treated as a credential
+          # per upstream warning. Consumed via the env template below.
+          "whiskey-whiskey-whiskey/partiful_calendar_url" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs quiEnabled {
           "qui/oidc-client-secret" = {
             mode = "0400";
@@ -1001,6 +1014,8 @@ in
               WWW_API_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/api_token"}
               WWW_SESSION_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/session_secret"}
               WWW_OIDC_CLIENT_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/oidc_client_secret"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyPartifulEnabled
+                "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";
