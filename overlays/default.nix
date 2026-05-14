@@ -64,14 +64,17 @@ let
       };
     };
 
-    # WORKAROUND (2025-12-19): granian HTTPS tests fail in Nix sandbox
-    # Tests use self-signed certs that fail SSL verification during build.
+    # WORKAROUND (2025-12-19, escalated 2026-05-13): granian tests are unreliable in Nix sandbox.
+    # Originally only HTTPS tests failed (self-signed cert / SSL verification in sandbox).
+    # On 2026-05-13 the test suite hung forge's nixos-upgrade.service for 3.5 days inside
+    # a non-HTTPS test (most likely a network-dependent socket test waiting on a timeout).
+    # Granian is an ASGI server — its functional behavior is exercised by paperless/HA at
+    # runtime; running its upstream pytest suite during the Nix build provides no extra
+    # safety while introducing a hard availability risk for every host that consumes it.
     # Affects: home-assistant (transitive), paperless-ngx (uses granian as ASGI server)
-    # Check: When granian is updated in nixpkgs
-    granian = pyPrev.granian.overridePythonAttrs (old: {
-      disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [
-        "tests/test_https.py"
-      ];
+    # Check: When granian is updated in nixpkgs and upstream tests are sandbox-friendly.
+    granian = pyPrev.granian.overridePythonAttrs (_old: {
+      doCheck = false;
     });
 
     # WORKAROUND (2025-01-01): duckdb-engine tests fail with pg_collation error

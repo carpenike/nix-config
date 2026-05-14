@@ -80,16 +80,16 @@ When reviewing workarounds:
 | **Upstream** | https://github.com/NixOS/nixpkgs - should file bug report |
 | **Impact** | Without fix: message history (scrollback) not persisted between restarts |
 
-### granian - HTTPS Test Disabled
+### granian - Test Suite Disabled
 
 | Field | Value |
 |-------|-------|
-| **Added** | 2025-12-19 |
+| **Added** | 2025-12-19 (escalated 2026-05-13) |
 | **Affects** | `pythonPackagesExtensions` (stable + unstable) |
-| **Reason** | HTTPS tests use self-signed certs that fail SSL verification in Nix sandbox |
-| **Workaround** | `disabledTestPaths = ["tests/test_https.py"]` |
+| **Reason** | 2025-12-19: HTTPS tests use self-signed certs that fail SSL verification in Nix sandbox. 2026-05-13: a non-HTTPS test wedged `nixos-upgrade.service` on `forge` for ~3.5 days (process used 3h CPU over 3.5d wall clock — almost certainly a network-dependent socket test waiting on an absurdly long timeout). Granian's behavior is exercised at runtime by paperless and home-assistant; the upstream pytest suite adds no extra safety while introducing a hard availability risk during builds. |
+| **Workaround** | `doCheck = false` (previously `disabledTestPaths = ["tests/test_https.py"]`, escalated after the 2026-05-13 incident) |
 | **Check Version** | Any granian update in nixpkgs |
-| **Upstream** | https://github.com/emmett-framework/granian (check for cert updates) |
+| **Upstream** | https://github.com/emmett-framework/granian (check for sandbox-friendly tests) |
 | **nixpkgs** | Check if tests are already disabled upstream |
 
 ### aio-georss-client - Tests Disabled (unstable only)
