@@ -45,6 +45,12 @@ let
   # hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
   # When true, the partiful_calendar_url SOPS key is required to exist.
   whiskeyWhiskeyWhiskeyPartifulEnabled = true;
+  # Opt-in: Partiful Firebase auth for the `pull_partiful_rsvps` MCP tool.
+  # Captured from a signed-in browser session via DevTools -> Application
+  # -> IndexedDB -> firebaseLocalStorageDb. Re-capture when the tool
+  # reports `auth-expired`. When true, the partiful_firebase_auth SOPS
+  # key is required to exist (single-line JSON string).
+  whiskeyWhiskeyWhiskeyFirebaseEnabled = true;
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
   scryptedEnabled = config.modules.services.scrypted.enable or false;
@@ -869,6 +875,17 @@ in
             group = "root";
           };
         }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyFirebaseEnabled) {
+          # Partiful Firebase auth blob (single-line JSON containing
+          # refreshToken + firebaseApiKey). Enables the
+          # `pull_partiful_rsvps` MCP tool. Treat like a password and
+          # re-capture when upstream reports `auth-expired`.
+          "whiskey-whiskey-whiskey/partiful_firebase_auth" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs quiEnabled {
           "qui/oidc-client-secret" = {
             mode = "0400";
@@ -1016,6 +1033,10 @@ in
               WWW_OIDC_CLIENT_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/oidc_client_secret"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyPartifulEnabled
                 "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyFirebaseEnabled
+                # JSON value contains embedded double-quotes; wrap in single
+                # quotes so systemd's EnvironmentFile parser preserves them.
+                "PARTIFUL_FIREBASE_AUTH='${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_firebase_auth"}'"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";
