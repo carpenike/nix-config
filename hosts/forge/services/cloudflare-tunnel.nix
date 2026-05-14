@@ -28,6 +28,21 @@ in
           credentialsFile = config.sops.secrets."networking/cloudflare/forge-credentials".path;
           originCertFile = config.sops.secrets."networking/cloudflare/origin-cert".path;
 
+          # API token for DNS registration across multiple zones.
+          # The origin cert above is per-zone (selected at `cloudflared login` time)
+          # and would require re-auth whenever we add a new domain. The API token
+          # path is set-and-forget: a single Cloudflare token with Zone:DNS:Edit
+          # scoped to every zone we want this tunnel to manage.
+          # Required permissions: Zone -> DNS -> Edit
+          # Recommended Zone Resources: Include -> All zones from account
+          # (or explicitly list holthome.net + whiskeywhiskeywhiskey.org).
+          dnsApiTokenFile = config.sops.secrets."networking/cloudflare/tunnel-dns-api-token".path;
+
+          # Pin DNS registration to API mode. Without this the module's "auto"
+          # default would prefer CLI mode whenever originCertFile is present,
+          # which only works for zones authorized into the origin cert.
+          dnsRegistration.mode = "api";
+
           # Default backend: route all tunnel traffic through Caddy over HTTPS
           # Connecting with TLS avoids Caddy's automatic HTTP->HTTPS redirects when
           # requests arrive from Cloudflare, preventing redirect loops at the edge.

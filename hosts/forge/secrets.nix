@@ -40,6 +40,7 @@ let
   autobrrEnabled = config.modules.services.autobrr.enable or false;
   quiEnabled = config.modules.services.qui.enable or false;
   unpackerrEnabled = config.modules.services.unpackerr.enable or false;
+  whiskeyWhiskeyWhiskeyEnabled = config.services.whiskey-whiskey-whiskey.enable or false;
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
   scryptedEnabled = config.modules.services.scrypted.enable or false;
@@ -234,6 +235,18 @@ in
           };
 
           "networking/cloudflare/origin-cert" = {
+            mode = "0400";
+            owner = config.users.users.cloudflared.name;
+            group = config.users.groups.cloudflared.name;
+          };
+
+          # Cloudflare API token used by the tunnel's DNS automation helper.
+          # Required permissions: Zone -> DNS -> Edit
+          # Required zone resources: every zone that has a vhost routed through
+          # the forge tunnel (currently holthome.net + whiskeywhiskeywhiskey.org).
+          # Distinct from networking/cloudflare/ddns/apiToken (Caddy ACME); kept
+          # separate so each consumer can be rotated independently.
+          "networking/cloudflare/tunnel-dns-api-token" = {
             mode = "0400";
             owner = config.users.users.cloudflared.name;
             group = config.users.groups.cloudflared.name;
@@ -814,6 +827,35 @@ in
             group = "root";
           };
         }
+        // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
+          # Operation W.W.W. secrets. All four are required at service start.
+          # See hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
+          # Assembled into a single EnvironmentFile via the sops.templates entry
+          # "whiskey-whiskey-whiskey-env" below.
+          "whiskey-whiskey-whiskey/anthropic_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          "whiskey-whiskey-whiskey/api_token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          "whiskey-whiskey-whiskey/session_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          "whiskey-whiskey-whiskey/oidc_client_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs quiEnabled {
           "qui/oidc-client-secret" = {
             mode = "0400";
@@ -943,6 +985,22 @@ in
             content = ''
               AUTOBRR__SESSION_SECRET=${config.sops.placeholder."autobrr/session-secret"}
               AUTOBRR__OIDC_CLIENT_SECRET=${config.sops.placeholder."autobrr/oidc-client-secret"}
+            '';
+            mode = "0400"; # root-only readable
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
+          # EnvironmentFile assembled at activation from individually-rotatable
+          # SOPS secrets. systemd reads this before privileges drop into the
+          # service's DynamicUser, so it must be root-only.
+          "whiskey-whiskey-whiskey-env" = {
+            content = ''
+              ANTHROPIC_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/anthropic_api_key"}
+              WWW_API_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/api_token"}
+              WWW_SESSION_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/session_secret"}
+              WWW_OIDC_CLIENT_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/oidc_client_secret"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";
