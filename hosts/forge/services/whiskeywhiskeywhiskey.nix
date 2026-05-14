@@ -117,6 +117,16 @@ in
         openFirewall = false;
       };
 
+      # Refuse to start the service if the ZFS dataset isn't mounted.
+      # Without this, on a fresh deploy systemd's DynamicUser will happily
+      # write the SQLite DB to the rpool fallback path; the dataset gets
+      # mounted on top later and silently hides the data. (We hit exactly
+      # this bug on 2026-05-13 → 2026-05-14.) RequiresMountsFor pulls in
+      # the matching .mount unit and waits for it before ExecStart.
+      systemd.services.whiskey-whiskey-whiskey.unitConfig.RequiresMountsFor = [
+        dataDir
+      ];
+
       # Caddy vhost — apex, canonical hostname. Pure pass-through; the app
       # does OIDC against PocketID itself, so no caddySecurity here.
       modules.services.caddy.virtualHosts.${serviceName} = {
