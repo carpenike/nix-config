@@ -281,6 +281,18 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Workaround** | Set `Restart=on-failure`, `RestartSec=15min`, `StartLimitBurst=3`, `StartLimitIntervalSec=2h` on `pgbackrest-full-backup`, `pgbackrest-incr-backup`, `pgbackrest-incr-r2-backup`. The 15-minute backoff is long enough for transient NFS issues to clear; the burst cap surfaces sustained failures via `OnFailure=` notifications and `PgBackRestFullBackupStale` rather than looping forever. |
 | **Check** | If errors persist after this is deployed, consider enabling pgBackRest file bundling (`--bundle=y` / `repo1-bundle=y`) to reduce per-backup file count by 10-100×, which directly attacks the NFS-many-small-files surface. Bundling is a one-time per-stanza decision and doesn't break existing backups. |
 | **Related** | An earlier related workaround (`EXCLUDE_OPTS="--exclude=.config --exclude=.local"`, 2026-02-02) addressed a different `[073]` instance where `.config`/`.local` dirs polluted PGDATA. Today's `pg_dynshmem` failure is a normal PG directory and can't be excluded that way. |
+| **Verified** | 2026-05-11: the retry fired exactly as designed in production. The 2026-05-11 02:00 full backup hit a `[061]` error at 02:02, systemd waited 15 min, retried at 02:17, and completed successfully at 02:24 (NFS) and 02:44 (R2). No alert fired. |
+
+### Profilarr - Disabled (Upstream Image Gone)
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-05-11 |
+| **Location** | `hosts/forge/services/profilarr.nix` (`enable = false`) |
+| **Reason** | The original `ghcr.io/profilarr/profilarr` image registry returns 403 Forbidden as of May 2026. The project moved to <https://github.com/Dictionarry-Hub/profilarr> but no public container image is published yet at the new location (the org's packages page shows "No packages published"). The README documents `ghcr.io/dictionarry-hub/profilarr:latest` but that path is also unauthorized. The service had also never produced any output on this host: `/var/lib/profilarr/` was empty and the journal had zero successful runs in retention. |
+| **Workaround** | `enable = false` with a FIXME comment pointing at the upstream situation. `recyclarr` (still enabled) does the equivalent TRaSH-guides sync work, so disabling profilarr has no functional impact on this host. |
+| **Check** | Periodically check <https://github.com/orgs/Dictionarry-Hub/packages?repo_name=profilarr> for a published image. When V2 ships and an image lands, update the `image` ref in `hosts/forge/services/profilarr.nix` and toggle `enable = true`. |
+| **Related** | Same FIXME-disable pattern used for n8n in `hosts/forge/services/n8n.nix`. |
 
 ---
 

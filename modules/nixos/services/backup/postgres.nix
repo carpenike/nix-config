@@ -160,7 +160,10 @@ in
           set -euo pipefail
 
           METRICS_FILE="/var/lib/node_exporter/textfile_collector/postgres_verification.prom"
-          START_TIME=$(date +%s)
+          # Lowercase to match the cleanup trap below; mismatched case under
+          # `set -u` raised "start_time: unbound variable" and aborted the script
+          # before metrics were written (observed 2026-05-11).
+          start_time=$(date +%s)
 
           # Cleanup function for metrics
           cleanup() {
@@ -188,14 +191,18 @@ in
 
           echo "Starting PostgreSQL backup verification..."
 
-          # Check pgBackRest repository status
-          if ! ${pkgs.pgbackrest}/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf info; then
+          # Check pgBackRest repository status. Use the default config path
+          # (/etc/pgbackrest.conf); previously this script passed
+          # --config=/etc/pgbackrest/pgbackrest.conf which doesn't exist on this
+          # host (the file is at /etc/pgbackrest.conf, no subdirectory) and
+          # caused error [055] "unable to open missing file" on every run.
+          if ! ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main check; then
             echo "ERROR: pgBackRest repository check failed"
             exit 1
           fi
 
           # Verify recent backup exists
-          if ! ${pkgs.pgbackrest}/bin/pgbackrest --config=/etc/pgbackrest/pgbackrest.conf info \
+          if ! ${pkgs.pgbackrest}/bin/pgbackrest --stanza=main info \
               | grep -q "$(date -d '1 day ago' '+%Y-%m-%d')"; then
             echo "WARNING: No recent backup found within 24 hours"
           fi
