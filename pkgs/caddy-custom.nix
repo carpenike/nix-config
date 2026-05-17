@@ -21,5 +21,8 @@ pkgs.caddy.withPlugins {
   # Updated 2026-04-29: combined bump of caddy-security v1.1.31 → v1.1.62
   # AND caddy-dns/cloudflare v0.2.3 → v0.2.4 (the v0.2.4 part already
   # landed via PR #376). Hash captured from CI fakeHash probe on this PR.
-  hash = "sha256-eacR0fi+m/l5zRu4griQ0YTRnT8UdflKgzXaZ6Eh5+k=";
+  # Updated 2026-05-17: hash drifted again after flake.lock bump #450
+  # (nixpkgs update changed how caddy.withPlugins resolves go module
+  # vendoring). Plugin versions unchanged. Hash captured from forge apply.
+  hash = "sha256-PwW0hz0cQMz+laKb0sEfLXYB7Ab6VKgU8tMAHBtm5y0=";
 }
