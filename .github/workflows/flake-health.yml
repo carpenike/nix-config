@@ -53,6 +53,12 @@ jobs:
 
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          # Inject access-tokens for private flake inputs (currently
+          # carpenike/whiskey-whiskey-whiskey). The forge/luna closure
+          # builds dereference every flake input.
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
 
       # Cachix push (non-fatal) - populates the binary cache so that the
       # `task nix:apply-nixos host=<heavy>` workflow on the homelab can pull

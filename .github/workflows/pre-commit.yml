@@ -30,6 +30,12 @@ jobs:
 
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          # Inject access-tokens for private flake inputs (currently
+          # carpenike/whiskey-whiskey-whiskey). Without this, `nix
+          # develop` fails when resolving the private fetch.
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
 
       - name: Run pre-commit hooks via Nix devshell
         run: |

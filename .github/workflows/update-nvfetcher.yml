@@ -39,6 +39,12 @@ jobs:
 
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          # Inject access-tokens for private flake inputs (currently
+          # carpenike/whiskey-whiskey-whiskey). Without this, nvfetcher's
+          # nix eval calls fail with a 404 on the private fetch.
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
 
       - name: Run nvfetcher
         id: run-nvfetcher

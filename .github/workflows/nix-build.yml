@@ -135,6 +135,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          # Inject access-tokens for private flake inputs (currently
+          # carpenike/whiskey-whiskey-whiskey). `nix flake check` would
+          # otherwise fail with a 404 on the private fetch.
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
       - name: Nix flake check (eval only)
         run: nix flake check --no-build
       - name: Note skipped heavy hosts
@@ -189,6 +195,12 @@ jobs:
       # Use Determinate Nix (recommended over nix-installer-action in 2025)
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          # Inject access-tokens for private flake inputs (currently
+          # carpenike/whiskey-whiskey-whiskey). Per-host closure builds
+          # dereference every flake input.
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
 
       # Cachix - read existing cached paths AND push new ones if the build
       # produces something useful. Wrapped in continue-on-error because
