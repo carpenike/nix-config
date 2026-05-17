@@ -133,6 +133,17 @@ in
       cores = lib.mkForce 4;
     };
 
+    # Pull GitHub PAT for private flake inputs (currently
+    # carpenike/whiskey-whiskey-whiskey) from a SOPS-decrypted file.
+    # We use !include rather than nix.settings.access-tokens because the
+    # latter would render into the world-readable /etc/nix/nix.conf and
+    # leak the token. nix-daemon reads !include files at fetch time, so
+    # the file only needs to exist when a fetch happens (sops decrypts
+    # well before any user-triggered build).
+    nix.extraOptions = ''
+      !include ${config.sops.secrets."nix/access-tokens".path}
+    '';
+
     modules = {
       # Attic binary cache disabled - not currently functional
       # binaryCache.attic.enable = true;

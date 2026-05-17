@@ -932,6 +932,20 @@ in
             owner = "ryan";
             group = "users";
           };
+
+          # GitHub PAT for nix-daemon to fetch private flake inputs.
+          # Value is a complete nix.conf line, e.g.:
+          #   access-tokens = github.com=github_pat_xxx
+          # Consumed via `nix.extraOptions = "!include ${...path}"` in
+          # hosts/forge/default.nix. Root-only because nix-daemon runs as
+          # root; the !include avoids leaking the token into the
+          # world-readable /etc/nix/nix.conf. Currently required for the
+          # private carpenike/whiskey-whiskey-whiskey upstream.
+          "nix/access-tokens" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         };
 
       # Templates for generating .env files for containers.
