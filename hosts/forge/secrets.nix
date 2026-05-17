@@ -838,7 +838,7 @@ in
           };
         }
         // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
-          # Operation W.W.W. secrets. All four are required at service start.
+          # Operation W.W.W. secrets. All six are required at service start.
           # See hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
           # Assembled into a single EnvironmentFile via the sops.templates entry
           # "whiskey-whiskey-whiskey-env" below.
@@ -861,6 +861,29 @@ in
           };
 
           "whiskey-whiskey-whiskey/oidc_client_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # AES-256-GCM key (64-char hex / 32 bytes) for encrypting
+          # per-host Partiful refresh tokens stored in the app DB.
+          # Generated via `openssl rand -hex 32`. Rotating it forces
+          # every host to re-bind via the /me/partiful UI; the legacy
+          # PARTIFUL_FIREBASE_AUTH env-var fallback is unaffected.
+          "whiskey-whiskey-whiskey/token_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # HMAC-SHA256 key (64-char hex / 32 bytes) for signing the
+          # 5-word share-URL keys used by the public-op share page
+          # (/o/:slug/:keywords). Generated via `openssl rand -hex 32`.
+          # Rotating it invalidates every share URL in the wild.
+          # Independent blast radius from token_key and session_secret
+          # by design.
+          "whiskey-whiskey-whiskey/public_token_key" = {
             mode = "0400";
             owner = "root";
             group = "root";
@@ -1045,6 +1068,8 @@ in
               WWW_API_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/api_token"}
               WWW_SESSION_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/session_secret"}
               WWW_OIDC_CLIENT_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/oidc_client_secret"}
+              WWW_TOKEN_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/token_key"}
+              WWW_PUBLIC_TOKEN_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/public_token_key"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyPartifulEnabled
                 "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyFirebaseEnabled
