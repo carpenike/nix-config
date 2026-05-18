@@ -45,6 +45,26 @@ in
         if [[ -r "/run/secrets/users/ryan/github-token" ]]; then
           export GH_TOKEN="$(cat /run/secrets/users/ryan/github-token)"
         fi
+
+        # Load the WWW prod PAT from macOS Keychain into the current shell.
+        # Mirrors the fish function of the same name so bash sessions (e.g. the
+        # VS Code Copilot terminal on rymac) get the same one-liner UX.
+        # One-time setup on macOS:
+        #   security add-generic-password -a "$USER" -s www-prod-pat -w
+        # Revoke at https://whiskeywhiskeywhiskey.org/#/me/tokens when done.
+        www-prod-pat() {
+          if ! command -v security >/dev/null 2>&1; then
+            echo "www-prod-pat: requires macOS Keychain (security command not found)" >&2
+            return 1
+          fi
+          local pat
+          if ! pat="$(security find-generic-password -a "$USER" -s www-prod-pat -w 2>/dev/null)"; then
+            echo "No PAT stored. Run: security add-generic-password -a \$USER -s www-prod-pat -w" >&2
+            return 1
+          fi
+          export WWW_PROD_PAT="$pat"
+          echo "WWW_PROD_PAT loaded — revoke at https://whiskeywhiskeywhiskey.org/#/me/tokens when done."
+        }
       '' + lib.optionalString cfg.launchFishForInteractive ''
         # Launch fish for interactive sessions, but not for VS Code terminals
         # or other non-interactive contexts that need POSIX shell compatibility

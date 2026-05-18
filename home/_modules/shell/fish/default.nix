@@ -125,6 +125,10 @@ in
             description = "Flush DNS cache";
             body = builtins.readFile ./functions/flushdns.fish;
           };
+          www-prod-pat = {
+            description = "Load WWW prod PAT from macOS Keychain into WWW_PROD_PAT";
+            body = builtins.readFile ./functions/www-prod-pat.fish;
+          };
         };
       };
     })
