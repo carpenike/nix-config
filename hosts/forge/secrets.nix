@@ -839,7 +839,7 @@ in
           };
         }
         // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
-          # Operation W.W.W. secrets. All six are required at service start.
+          # Operation W.W.W. secrets. All seven are required at service start.
           # See hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
           # Assembled into a single EnvironmentFile via the sops.templates entry
           # "whiskey-whiskey-whiskey-env" below.
@@ -885,6 +885,22 @@ in
           # Independent blast radius from token_key and session_secret
           # by design.
           "whiskey-whiskey-whiskey/public_token_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # HMAC-SHA256 key (64-char hex / 32 bytes) for signing the
+          # 5-minute preview→commit confirm tokens minted by every
+          # Partiful write tool (send_partiful_blast, post_partiful_activity,
+          # invite_partiful_guests, delete_partiful_event,
+          # create_partiful_event). Server REFUSES TO START without it.
+          # Generated via `openssl rand -hex 32`. Rotating it invalidates
+          # any in-flight preview tokens (5-minute window); sessions,
+          # stored Partiful credentials, and public op URLs are unaffected.
+          # Independent blast radius from the other WWW_*_KEY env vars
+          # by design.
+          "whiskey-whiskey-whiskey/gate_token_key" = {
             mode = "0400";
             owner = "root";
             group = "root";
@@ -1060,6 +1076,7 @@ in
               WWW_OIDC_CLIENT_SECRET=${config.sops.placeholder."whiskey-whiskey-whiskey/oidc_client_secret"}
               WWW_TOKEN_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/token_key"}
               WWW_PUBLIC_TOKEN_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/public_token_key"}
+              WWW_GATE_TOKEN_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/gate_token_key"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyPartifulEnabled
                 "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
             '';
