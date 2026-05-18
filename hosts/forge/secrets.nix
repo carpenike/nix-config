@@ -45,12 +45,13 @@ let
   # hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
   # When true, the partiful_calendar_url SOPS key is required to exist.
   whiskeyWhiskeyWhiskeyPartifulEnabled = true;
-  # Opt-in: Partiful Firebase auth for the `pull_partiful_rsvps` MCP tool.
-  # Captured from a signed-in browser session via DevTools -> Application
-  # -> IndexedDB -> firebaseLocalStorageDb. Re-capture when the tool
-  # reports `auth-expired`. When true, the partiful_firebase_auth SOPS
-  # key is required to exist (single-line JSON string).
-  whiskeyWhiskeyWhiskeyFirebaseEnabled = true;
+  # NOTE: PARTIFUL_FIREBASE_AUTH was removed 2026-05-18. As of upstream
+  # commit 7703b7b4 ("strict per-caller credential routing; remove
+  # env-var + cross-host fallbacks") the Fastify server no longer reads
+  # this env var at runtime. Per-host Partiful credentials are bound
+  # exclusively via the in-app /me/partiful UI, encrypted at rest with
+  # WWW_TOKEN_KEY (AAD-bound to the user). The env var only survives as
+  # a dev/recon-script convenience that doesn't apply on forge.
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
   scryptedEnabled = config.modules.services.scrypted.enable or false;
@@ -898,17 +899,6 @@ in
             group = "root";
           };
         }
-        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyFirebaseEnabled) {
-          # Partiful Firebase auth blob (single-line JSON containing
-          # refreshToken + firebaseApiKey). Enables the
-          # `pull_partiful_rsvps` MCP tool. Treat like a password and
-          # re-capture when upstream reports `auth-expired`.
-          "whiskey-whiskey-whiskey/partiful_firebase_auth" = {
-            mode = "0400";
-            owner = "root";
-            group = "root";
-          };
-        }
         // optionalAttrs quiEnabled {
           "qui/oidc-client-secret" = {
             mode = "0400";
@@ -1072,10 +1062,6 @@ in
               WWW_PUBLIC_TOKEN_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/public_token_key"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyPartifulEnabled
                 "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
-              ${lib.optionalString whiskeyWhiskeyWhiskeyFirebaseEnabled
-                # JSON value contains embedded double-quotes; wrap in single
-                # quotes so systemd's EnvironmentFile parser preserves them.
-                "PARTIFUL_FIREBASE_AUTH='${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_firebase_auth"}'"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";
