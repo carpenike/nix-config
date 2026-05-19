@@ -12,9 +12,9 @@
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
-      rev = "v0.29.1";
+      rev = "v0.30.0";
       fetchSubmodules = false;
-      sha256 = "sha256-fg8qq4j9NbQvnduPRBwqp+GyQaHx2axqH39KeMZqy2k=";
+      sha256 = "sha256-UwO/pdop4grOuVEq0pSt9DXEQLCXKFrm9HhfQISdBXg=";
     };
   };
   cooklang-federation = {
