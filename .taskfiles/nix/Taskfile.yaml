@@ -82,12 +82,38 @@ tasks:
       # post-activation `systemctl --failed` check then surfaces these and
       # makes nixos-rebuild exit 1 even though the actual containers are
       # healthy. We post-process the failed list to filter that noise.
+      #
+      # CRITICAL: only enter the "treat as success" branch if the rebuild
+      # actually got past the build phase. Build-phase failures (sops missing
+      # secrets, shellcheck violations in writeShellApplication, eval errors)
+      # produce NO failed systemd units, so the bare `real_failures` check
+      # below would incorrectly return zero — silently masking real
+      # build failures. We detect post-build phase via the
+      # "activating the configuration" sentinel that nixos-rebuild prints
+      # only after switch-to-configuration starts running.
       - |
+        rebuild_log=$(mktemp)
+        trap 'rm -f "$rebuild_log"' EXIT
         rebuild_exit=0
-        nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}"' || rebuild_exit=$?
+        nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --use-remote-sudo --build-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}"' 2>&1 \
+          | tee "$rebuild_log"
+        rebuild_exit=${PIPESTATUS[0]}
 
         if [ "$rebuild_exit" -eq 0 ]; then
           exit 0
+        fi
+
+        # Did we actually reach the switch phase? If not, this is a
+        # build-phase failure (sops, shellcheck, eval, missing input)
+        # and there is nothing to filter — propagate the failure.
+        if ! grep -q 'activating the configuration' "$rebuild_log"; then
+          echo ""
+          echo "❌ nixos-rebuild failed during the BUILD phase (before switch)."
+          echo "   No failed systemd units to filter; surfacing the original error."
+          # Surface the most likely culprit lines for quick triage
+          grep -E 'error:|manifest is not valid|sops-install-secrets|SC[0-9]+' "$rebuild_log" \
+            | tail -10 | sed 's/^/   /' || true
+          exit "$rebuild_exit"
         fi
 
         # Wait briefly for transient units to settle, then enumerate what's
@@ -106,8 +132,9 @@ tasks:
           || true)
 
         if [ -z "$real_failures" ]; then
+          filtered_count=$(echo "$all_failed" | grep -cE '^[0-9a-f]{64}' || echo 0)
           echo ""
-          echo "ℹ️  nixos-rebuild reported failure but only podman healthcheck transient units were failed (cosmetic — containers still inside their --health-start-period). Treating as success."
+          echo "ℹ️  nixos-rebuild reported failure but only $filtered_count podman healthcheck transient unit(s) were failed (cosmetic — containers still inside their --health-start-period). Treating as success."
           # Clean up the transient noise so the next deploy starts clean
           ssh "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" 'sudo systemctl reset-failed' || true
           exit 0
