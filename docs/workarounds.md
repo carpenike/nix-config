@@ -2,8 +2,8 @@
 
 This document tracks temporary workarounds, package overrides, and unstable package usage that should be periodically reviewed. These exist due to upstream bugs, missing features in stable, or test failures in the Nix build sandbox.
 
-**Last Reviewed**: 2026-05-07
-**Next Review**: 2026-06-07 (monthly)
+**Last Reviewed**: 2026-05-23
+**Next Review**: 2026-06-23 (monthly)
 
 ---
 
@@ -18,6 +18,36 @@ When reviewing workarounds:
 ---
 
 ## Package Overrides (overlays/default.nix)
+
+### cooklang-federation - Tailwind v4 Import → v3 Compatibility Patch
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-02-11 |
+| **Last reviewed** | 2026-05-23 (still required at upstream HEAD `d4131c0b`) |
+| **Location** | `pkgs/cooklang-federation.nix` (`postPatch`) |
+| **Affects** | `cooklang-federation` CSS build (ExecStartPre uses `pkgs.tailwindcss_3`) |
+| **Reason** | Upstream `styles/input.css` ships `@import "tailwindcss";` (Tailwind v4 syntax). However the same repo has **no `package.json`** and `tailwind.config.js` is v3-format (`module.exports = { ... }`) — i.e. upstream is in a broken hybrid state and cannot actually build its own CSS without external tooling. Our service module runs `pkgs.tailwindcss_3` at start, which doesn't understand the v4 `@import` directive. |
+| **Workaround** | `postPatch` substitutes `@import "tailwindcss";` with the v3 `@tailwind base; @tailwind components; @tailwind utilities;` directives so `tailwindcss_3` can compile the file. |
+| **Check** | Re-evaluate when upstream either (a) completes the v4 migration (adds `package.json`, rewrites the JS config to `@theme` blocks) — then switch `modules/nixos/services/cooklang-federation/default.nix` to `pkgs.tailwindcss_4` and drop this patch — or (b) reverts the `input.css` change to v3 directives, in which case drop the patch and keep `tailwindcss_3`. |
+| **Upstream** | https://github.com/cooklang/federation (issue tracker is disabled; cannot file) |
+| **Impact** | Without fix: ExecStartPre fails when `tailwindcss_3` tries to compile `input.css`; service won't start with a working stylesheet. |
+
+### cooklang-federation - Crawler Search Index Integration Patch
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-02-11 |
+| **Last reviewed** | 2026-05-23 (still required at upstream HEAD `d4131c0b`) |
+| **Location** | `pkgs/cooklang-federation.nix` + `pkgs/patches/cooklang-federation-normalize-field-query.patch` |
+| **Affects** | `cooklang-federation` recipe search (RSS-sourced recipes) |
+| **Reason** | Upstream `Crawler` (`src/crawler/mod.rs`) does **not** hold a `SearchIndex` reference and never writes to Tantivy after an RSS crawl. Only the GitHub indexer (`src/github/indexer.rs`) commits to the search index. Result on a vanilla build: every recipe pulled from an RSS feed is stored in SQLite but is **invisible to `/search`**. Additionally, the upstream schema defines `servings` and `total_time` as `FAST | STORED` only (no `INDEXED`), so range queries against those fields silently return nothing. |
+| **Workaround** | Local patch adds: (1) `search_index: Option<Arc<SearchIndex>>` field + `set_search_index()` setter on `Crawler`; (2) `process_entry` returns `(ProcessResult, recipe_id)`; (3) new `Crawler::index_recipes()` called after each `crawl_feed()` to commit new/updated recipes to Tantivy and mark them via `mark_recipe_indexed`; (4) GitHub indexer also calls `mark_recipe_indexed` + `search_index.reload()`; (5) schema gets `INDEXED` on `servings` and `total_time`. |
+| **Check** | At each nvfetcher bump: if upstream `Crawler` ever gains a `search_index` field or calls `index_recipes()` from `crawl_feed()`, drop the patch. Currently upstream is low-velocity (last commit 2026-04-13, ~4 commits in 2026) so churn risk is low. |
+| **Upstream** | https://github.com/cooklang/federation (issue tracker is disabled; consider submitting as a PR if upstream re-enables contributions). |
+| **Impact** | Without fix: RSS-feed recipes never appear in search results; range filters on servings/cook time return empty. The patch IS the reason the service is useful on this host. |
+
+---
 
 ### homekit-audio-proxy - Custom Package (not yet in nixpkgs)
 
