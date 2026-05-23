@@ -41,9 +41,11 @@ jobs:
         id: refresh
         run: |
           set -euo pipefail
-          before=$(sha256sum hosts/files/cooklang-federation/feeds.yaml | awk '{print $1}')
+          FEEDS=hosts/files/cooklang-federation/feeds.yaml
+
+          before=$(sha256sum "$FEEDS" | awk '{print $1}')
           ./scripts/update-cooklang-feeds.sh
-          after=$(sha256sum hosts/files/cooklang-federation/feeds.yaml | awk '{print $1}')
+          after=$(sha256sum "$FEEDS" | awk '{print $1}')
 
           if [ "$before" = "$after" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -52,30 +54,34 @@ jobs:
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
-          # Compute feed-count delta for the PR body
-          before_count=$(git show HEAD:hosts/files/cooklang-federation/feeds.yaml | grep -c '^  - url:' || echo 0)
-          after_count=$(grep -c '^  - url:' hosts/files/cooklang-federation/feeds.yaml || echo 0)
+          # Counts. `grep -c` exits 1 when zero matches; tolerate that with
+          # `|| true` (NOT `|| echo 0`, which would append a stray "0" to
+          # grep's own "0" output and break the arithmetic below).
+          before_count=$(git show "HEAD:$FEEDS" | grep -c '^  - url:' || true)
+          after_count=$(grep -c '^  - url:' "$FEEDS" || true)
           delta=$((after_count - before_count))
+
+          # Build the URL-line diff ONCE. `diff` exits 1 when files differ
+          # (which is the whole point here), so we must tolerate it explicitly
+          # under `pipefail`. Both `grep '^>'` / `grep '^<'` may also legitimately
+          # return zero matches when changes are one-sided (e.g. upstream only
+          # adds feeds and removes none — our happy path).
+          diff_out=$(diff \
+            <(git show "HEAD:$FEEDS" | grep '^  - url:' | sort) \
+            <(grep '^  - url:' "$FEEDS" | sort) || true)
+          added=$(printf '%s\n' "$diff_out" | { grep '^>' || true; } | sed 's/^> /- /' | head -50)
+          removed=$(printf '%s\n' "$diff_out" | { grep '^<' || true; } | sed 's/^< /- /' | head -50)
+
           {
             echo "before_count=$before_count"
             echo "after_count=$after_count"
             echo "delta=$delta"
-          } >> "$GITHUB_OUTPUT"
-
-          # Capture added/removed feed URLs for the PR body (best-effort, truncated)
-          {
-            echo 'added<<EOF'
-            diff <(git show HEAD:hosts/files/cooklang-federation/feeds.yaml | grep '^  - url:' | sort) \
-                 <(grep '^  - url:' hosts/files/cooklang-federation/feeds.yaml | sort) \
-              | grep '^>' | sed 's/^> /- /' | head -50
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-          {
-            echo 'removed<<EOF'
-            diff <(git show HEAD:hosts/files/cooklang-federation/feeds.yaml | grep '^  - url:' | sort) \
-                 <(grep '^  - url:' hosts/files/cooklang-federation/feeds.yaml | sort) \
-              | grep '^<' | sed 's/^< /- /' | head -50
-            echo 'EOF'
+            echo 'added<<DIFFEOF'
+            if [ -n "$added" ]; then printf '%s\n' "$added"; else echo '_(none)_'; fi
+            echo 'DIFFEOF'
+            echo 'removed<<DIFFEOF'
+            if [ -n "$removed" ]; then printf '%s\n' "$removed"; else echo '_(none)_'; fi
+            echo 'DIFFEOF'
           } >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
