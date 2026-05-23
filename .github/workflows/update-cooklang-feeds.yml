@@ -1,0 +1,115 @@
+name: Update Cooklang feeds
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Daily at 05:30 UTC, 30 min after update-nvfetcher to spread load.
+    - cron: '30 5 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/update-cooklang-feeds.sh
+      - .github/workflows/update-cooklang-feeds.yml
+
+concurrency:
+  group: update-cooklang-feeds
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-cooklang-feeds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.CARPENIKE_APP_ID }}
+          private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Refresh feeds.yaml from upstream
+        id: refresh
+        run: |
+          set -euo pipefail
+          before=$(sha256sum hosts/files/cooklang-federation/feeds.yaml | awk '{print $1}')
+          ./scripts/update-cooklang-feeds.sh
+          after=$(sha256sum hosts/files/cooklang-federation/feeds.yaml | awk '{print $1}')
+
+          if [ "$before" = "$after" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No upstream changes."
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+          # Compute feed-count delta for the PR body
+          before_count=$(git show HEAD:hosts/files/cooklang-federation/feeds.yaml | grep -c '^  - url:' || echo 0)
+          after_count=$(grep -c '^  - url:' hosts/files/cooklang-federation/feeds.yaml || echo 0)
+          delta=$((after_count - before_count))
+          {
+            echo "before_count=$before_count"
+            echo "after_count=$after_count"
+            echo "delta=$delta"
+          } >> "$GITHUB_OUTPUT"
+
+          # Capture added/removed feed URLs for the PR body (best-effort, truncated)
+          {
+            echo 'added<<EOF'
+            diff <(git show HEAD:hosts/files/cooklang-federation/feeds.yaml | grep '^  - url:' | sort) \
+                 <(grep '^  - url:' hosts/files/cooklang-federation/feeds.yaml | sort) \
+              | grep '^>' | sed 's/^> /- /' | head -50
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo 'removed<<EOF'
+            diff <(git show HEAD:hosts/files/cooklang-federation/feeds.yaml | grep '^  - url:' | sort) \
+                 <(grep '^  - url:' hosts/files/cooklang-federation/feeds.yaml | sort) \
+              | grep '^<' | sed 's/^< /- /' | head -50
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        if: steps.refresh.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: cooklang/feeds-refresh
+          title: "chore(cooklang): refresh federation feeds registry"
+          commit-message: |
+            chore(cooklang): refresh federation feeds registry
+
+            Feeds: ${{ steps.refresh.outputs.before_count }} → ${{ steps.refresh.outputs.after_count }} (Δ ${{ steps.refresh.outputs.delta }})
+          body: |
+            Refreshed `hosts/files/cooklang-federation/feeds.yaml` from upstream
+            [`cooklang/federation`](https://github.com/cooklang/federation/blob/main/config/feeds.yaml).
+
+            **Feed count:** ${{ steps.refresh.outputs.before_count }} → ${{ steps.refresh.outputs.after_count }} (Δ ${{ steps.refresh.outputs.delta }})
+
+            ### Added feeds
+            ${{ steps.refresh.outputs.added || '_(none)_' }}
+
+            ### Removed feeds
+            ${{ steps.refresh.outputs.removed || '_(none)_' }}
+
+            ---
+
+            Merging this PR updates the registry that
+            [forge `cooklang-federation`](../tree/main/hosts/forge/services/cooklang-federation.nix)
+            ships to `${dataDir}/config/feeds.yaml`. The service re-reads the
+            file on next restart (which happens automatically as part of any
+            NixOS switch). See
+            [docs/services/cooklang-federation-feed-sync.md](../tree/main/docs/services/cooklang-federation-feed-sync.md)
+            for the full workflow.
+          add-paths: |
+            hosts/files/cooklang-federation/feeds.yaml
+          delete-branch: true
