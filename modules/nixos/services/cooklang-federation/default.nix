@@ -542,9 +542,15 @@ in
                     # base; extraFeeds are appended to its `feeds` array. This
                     # survives the daily upstream sync because the merge happens
                     # at every service start, not at file-sync time.
-                    ${pkgs.yq-go}/bin/yq eval-all --inplace \
-                      'select(fileIndex == 0) * {"feeds": [.feeds[], select(fileIndex == 1).feeds[]]}' \
-                      ${feedConfigDestination} ${extraFeedsFile}
+                    #
+                    # Use `load()` rather than `eval-all` so we get a single
+                    # merged document (not a multi-doc YAML stream) and so the
+                    # operation is idempotent regardless of how many times
+                    # ExecStartPre runs — each run starts from the freshly
+                    # `install`-ed base above.
+                    ${pkgs.yq-go}/bin/yq --inplace \
+                      '.feeds += load("${extraFeedsFile}").feeds' \
+                      ${feedConfigDestination}
                     chown ${cfg.user}:${cfg.group} ${feedConfigDestination}
                     chmod 0640 ${feedConfigDestination}
                   ''}
