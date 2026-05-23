@@ -113,7 +113,7 @@ in
         #   6. task nix:apply-nixos host=forge
         # See modules/nixos/services/cooklang/default.nix for full module docs.
         git = {
-          enable = false; # TODO: flip to true after bootstrap (see above)
+          enable = true;
           remote = "git@github.com:carpenike/recipes.git";
           branch = "main";
           deployKeyFile = config.sops.secrets."cooklang/git-deploy-key".path;
