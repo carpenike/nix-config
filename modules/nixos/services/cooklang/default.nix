@@ -809,37 +809,65 @@ in
             install -d -m 0755 .git/info
             install -m 0644 ${excludeFile} .git/info/exclude
 
-            # Pull any out-of-band commits from the remote (someone editing on
-            # GitHub directly). Rebase keeps history linear; conflict aborts
-            # the cycle and surfaces in journalctl.
-            if git fetch -q origin "$BRANCH" 2>/dev/null; then
-              if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
-                if git rev-parse --verify -q HEAD >/dev/null; then
-                  if ! git rebase -q "origin/$BRANCH"; then
-                    git rebase --abort || true
-                    echo "Rebase against origin/$BRANCH conflicted; skipping this sync cycle." >&2
-                    exit 1
-                  fi
-                else
-                  git reset --hard "origin/$BRANCH"
-                fi
-              fi
-            fi
+            # ----------------------------------------------------------------
+            # Sync loop. Order matters: commit local FIRST, THEN rebase, THEN
+            # push. This sequence is the only one that:
+            #   - never loses an edit (the local commit is preserved in the
+            #     reflog even if rebase or push fails)
+            #   - lets `git rebase` actually do its job (rebase refuses to run
+            #     with uncommitted changes in the working tree)
+            #   - surfaces genuine content conflicts (two devices editing the
+            #     same line) as a true rebase conflict, not a misleading
+            #     "cannot rebase: unstaged changes" abort.
+            # ----------------------------------------------------------------
 
+            # 1. Capture any local working-tree changes (from Resilio, manual
+            #    SSH edits, CookCLI UI saves, etc.) as a commit.
             git add -A
-
             if git diff --staged --quiet; then
-              echo "No local changes to commit."
+              echo "No local changes."
             else
               changed_count=$(git diff --staged --name-only | wc -l | tr -d ' ')
               msg="auto-sync: $(date -u +%Y-%m-%dT%H:%MZ) (''${changed_count} file(s))"
               body=$(git diff --staged --name-status | head -20)
               git commit -q -m "$msg" -m "$body"
-              echo "Committed: $msg"
+              echo "Committed local changes: $msg"
             fi
 
-            # Push HEAD even if we did nothing this cycle \u2014 catches up after
-            # earlier push failures (network blips, etc).
+            # 2. Pull remote commits (someone editing on GitHub directly or
+            #    from another clone) and rebase our local commits on top.
+            #    Conflicts at this point are genuine content conflicts and
+            #    require human resolution.
+            if git fetch -q origin "$BRANCH" 2>/dev/null; then
+              if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+                if git rev-parse --verify -q HEAD >/dev/null; then
+                  if ! git rebase -q "origin/$BRANCH"; then
+                    conflicted=$(git diff --name-only --diff-filter=U | head -20 || true)
+                    git rebase --abort || true
+                    {
+                      echo "Rebase against origin/$BRANCH conflicted."
+                      echo "Local commits are preserved on $BRANCH; remote is unchanged."
+                      echo "Files with conflicting edits:"
+                      echo "$conflicted" | sed 's/^/  - /'
+                      echo "Resolve manually:"
+                      echo "  ssh ${config.networking.hostName or "<host>"}"
+                      echo "  sudo -u ${cfg.user} -i"
+                      echo "  cd $REPO_DIR"
+                      echo "  git pull --rebase    # then edit conflicted files, git add, git rebase --continue"
+                      echo "Auto-sync will keep retrying every ${cfg.git.pushInterval} until resolved."
+                    } >&2
+                    exit 1
+                  fi
+                else
+                  # No local HEAD yet (rare: race between init and first add).
+                  git reset --hard "origin/$BRANCH"
+                fi
+              fi
+            else
+              echo "Fetch failed; proceeding with push attempt (will retry next cycle if push also fails)." >&2
+            fi
+
+            # 3. Push HEAD (always — catches up after earlier push failures).
             if git rev-parse --verify -q HEAD >/dev/null; then
               git push -q origin "HEAD:$BRANCH"
             fi
