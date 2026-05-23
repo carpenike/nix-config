@@ -44,6 +44,24 @@ in
           enable = true;
           tokenFile = config.sops.secrets."github/cooklang-token".path;
         };
+
+        # Private/homelab feeds merged into feeds.yaml at service start
+        # (survives the daily upstream sync — see scripts/update-cooklang-feeds.sh).
+        # Requires the github/cooklang-token PAT to have Contents:Read access
+        # on each private repo listed here.
+        extraFeeds = [
+          {
+            url = "https://github.com/carpenike/recipes";
+            title = "Personal recipes (forge auto-synced)";
+            feed_type = "github";
+            branch = "main";
+            enabled = true;
+            tags = [ "personal" "homelab" "private" ];
+            notes = "Auto-synced from /data/cooklang/recipes by cooklang-git-sync.timer every 15 minutes.";
+            added_by = "homelab";
+            added_at = "2026-05-23";
+          }
+        ];
       };
     }
 

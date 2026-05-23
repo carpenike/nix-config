@@ -184,6 +184,78 @@ in
       description = "Optional override for feeds.yaml that seeds the federation. When unset, the packaged config/feeds.yaml is used.";
     };
 
+    extraFeeds = mkOption {
+      type = types.listOf (types.submodule {
+        options = {
+          url = mkOption {
+            type = types.str;
+            description = "Feed URL (GitHub repo URL for feed_type=github, or Atom/RSS URL for feed_type=web).";
+          };
+          title = mkOption {
+            type = types.str;
+            description = "Human-readable feed title shown in the federation UI.";
+          };
+          feed_type = mkOption {
+            type = types.enum [ "github" "web" ];
+            description = "Feed source type.";
+          };
+          branch = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = "Branch to track for feed_type=github (default: repo default branch).";
+          };
+          enabled = mkOption {
+            type = types.bool;
+            default = true;
+            description = "Whether the crawler should index this feed.";
+          };
+          tags = mkOption {
+            type = types.listOf types.str;
+            default = [ ];
+            description = "Free-form tags surfaced in the UI.";
+          };
+          notes = mkOption {
+            type = types.str;
+            default = "";
+            description = "Optional notes shown in the UI / used as commit context.";
+          };
+          added_by = mkOption {
+            type = types.str;
+            default = "homelab";
+            description = "Attribution metadata.";
+          };
+          added_at = mkOption {
+            type = types.str;
+            default = "";
+            description = "ISO date the feed was added (informational).";
+          };
+        };
+      });
+      default = [ ];
+      example = lib.literalExpression ''
+        [
+          {
+            url = "https://github.com/carpenike/recipes";
+            title = "Personal recipes";
+            feed_type = "github";
+            branch = "main";
+            tags = [ "personal" "private" ];
+          }
+        ]
+      '';
+      description = ''
+        Extra feed entries merged into the live `feeds.yaml` at service
+        start, on top of the upstream-synced base file pointed at by
+        `feedConfigFile`. Use this for private/local feeds that would
+        otherwise be clobbered by the daily upstream feeds sync
+        (see `scripts/update-cooklang-feeds.sh`).
+
+        Schema mirrors the upstream `config/feeds.yaml` entry format.
+        Private GitHub repos require the `github.tokenFile` PAT to have
+        `Contents: Read` access on the repo.
+      '';
+    };
+
     healthcheck = {
       enable = mkEnableOption "Enable HTTP health checks";
       path = mkOption {
@@ -312,6 +384,12 @@ in
         usesDefaultSqlite = cfg.databaseUrl == null;
         feedConfigDestination = "${dataDir}/config/feeds.yaml";
         feedConfigSource = if cfg.feedConfigFile != null then cfg.feedConfigFile else bundledFeedConfig;
+        # Nix-generated YAML containing just the extraFeeds entries, in the
+        # same { feeds: [...] } shape as the upstream registry. Merged into
+        # feedConfigSource at ExecStartPre by yq.
+        extraFeedsFile = (pkgs.formats.yaml { }).generate "${serviceName}-extra-feeds.yaml" {
+          feeds = cfg.extraFeeds;
+        };
         databaseUrl =
           if cfg.databaseUrl != null then cfg.databaseUrl
           else "sqlite://${localDatabasePath}";
@@ -458,6 +536,18 @@ in
                 install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${dataDir}/config
                 if [ -f "${feedConfigSource}" ]; then
                   install -D -m 0640 -o ${cfg.user} -g ${cfg.group} "${feedConfigSource}" ${feedConfigDestination}
+                  ${lib.optionalString (cfg.extraFeeds != [ ]) ''
+                    # Merge module-defined extraFeeds into the deployed feeds.yaml.
+                    # The base file (synced from upstream) is the authoritative
+                    # base; extraFeeds are appended to its `feeds` array. This
+                    # survives the daily upstream sync because the merge happens
+                    # at every service start, not at file-sync time.
+                    ${pkgs.yq-go}/bin/yq eval-all --inplace \
+                      'select(fileIndex == 0) * {"feeds": [.feeds[], select(fileIndex == 1).feeds[]]}' \
+                      ${feedConfigDestination} ${extraFeedsFile}
+                    chown ${cfg.user}:${cfg.group} ${feedConfigDestination}
+                    chmod 0640 ${feedConfigDestination}
+                  ''}
                 fi
                 ${lib.optionalString usesDefaultSqlite ''
                   install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${dataDir}/data
