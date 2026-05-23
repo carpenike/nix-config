@@ -98,6 +98,27 @@ in
 
         # Disaster recovery via preseed
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+
+        # Git audit-log + off-site backup. Resilio remains primary transport.
+        #
+        # BOOTSTRAP REQUIRED before flipping `enable = true`:
+        #   1. Create private repo: gh repo create carpenike/recipes --private --description 'Personal Cooklang recipes (forge auto-synced)'
+        #   2. Generate deploy key on rymac (or any trusted machine):
+        #        ssh-keygen -t ed25519 -N '' -C 'forge-cooklang-git' -f /tmp/cooklang-git
+        #   3. Add /tmp/cooklang-git.pub to the repo as a WRITE-enabled deploy key:
+        #        gh repo deploy-key add /tmp/cooklang-git.pub --repo carpenike/recipes --title 'forge auto-sync' --allow-write
+        #   4. Encrypt the private key into forge's sops yaml:
+        #        sops hosts/forge/secrets.sops.yaml   # add key under cooklang.git-deploy-key
+        #   5. Wipe /tmp/cooklang-git* and flip `enable = true` below.
+        #   6. task nix:apply-nixos host=forge
+        # See modules/nixos/services/cooklang/default.nix for full module docs.
+        git = {
+          enable = false; # TODO: flip to true after bootstrap (see above)
+          remote = "git@github.com:carpenike/recipes.git";
+          branch = "main";
+          deployKeyFile = config.sops.secrets."cooklang/git-deploy-key".path;
+          pushInterval = "15min";
+        };
       };
     }
 

@@ -318,6 +318,96 @@ in
         '';
       };
     };
+
+    # Git audit-log + off-site backup for recipes.
+    #
+    # Resilio remains the primary transport (mobile-friendly, P2P, instant).
+    # This adds a periodic systemd timer that commits any changes in `recipeDir`
+    # and pushes them to a private git remote, giving us:
+    #   - per-edit version history (rollback / diff / blame)
+    #   - off-site backup independent of the homelab snapshot chain
+    #   - a vendor-independent recovery path if Resilio ever goes away
+    #
+    # Bootstrap (one-time, before enabling):
+    #   1. Create the remote repository (e.g. github.com/<owner>/recipes), private.
+    #   2. Generate an ed25519 deploy key:
+    #        ssh-keygen -t ed25519 -N '' -C "forge-cooklang-git" -f /tmp/cooklang-git
+    #   3. Add /tmp/cooklang-git.pub to the GitHub repo as a deploy key WITH
+    #      WRITE access (Settings -> Deploy keys -> Allow write).
+    #   4. Encrypt the private key into the host's secrets:
+    #        sops --set '["cooklang"]["git-deploy-key"] "'"$(cat /tmp/cooklang-git)"'"' \
+    #          hosts/<host>/secrets.sops.yaml
+    #      (or use the editor: `sops hosts/<host>/secrets.sops.yaml`)
+    #   5. Wire the sops secret in `hosts/<host>/secrets.nix` with owner = cfg.user.
+    #   6. Wipe /tmp/cooklang-git and /tmp/cooklang-git.pub.
+    git = {
+      enable = mkEnableOption "periodic git sync of recipeDir to a remote repository";
+
+      remote = mkOption {
+        type = types.str;
+        default = "";
+        example = "git@github.com:carpenike/recipes.git";
+        description = ''
+          SSH remote URL to push recipe changes to. Only SSH remotes are
+          supported (HTTPS would require storing a PAT and gives weaker
+          revocation semantics than per-host deploy keys).
+        '';
+      };
+
+      branch = mkOption {
+        type = types.str;
+        default = "main";
+        description = "Branch to commit / push to.";
+      };
+
+      deployKeyFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        example = "/run/secrets/cooklang/git-deploy-key";
+        description = ''
+          Path to a private SSH key (typically a sops-managed file) used to
+          authenticate to the remote. Must be readable by `cfg.user` and have
+          mode 0400. Pair with a deploy key registered on the remote that
+          has WRITE access.
+        '';
+      };
+
+      pushInterval = mkOption {
+        type = types.str;
+        default = "15min";
+        description = ''
+          systemd time-span between sync cycles (passed to OnUnitInactiveSec,
+          so the timer waits `pushInterval` after the previous run finished —
+          slow syncs do not pile up).
+        '';
+      };
+
+      committerName = mkOption {
+        type = types.str;
+        default = "cooklang (forge)";
+        description = "git user.name for auto-commits.";
+      };
+
+      committerEmail = mkOption {
+        type = types.str;
+        default = "cooklang@${config.networking.hostName or "unknown"}.local";
+        defaultText = lib.literalExpression ''"cooklang@''${config.networking.hostName}.local"'';
+        description = "git user.email for auto-commits.";
+      };
+
+      extraExcludes = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        example = [ "private/**" "*.draft.cook" ];
+        description = ''
+          Additional gitignore-style patterns to append to `.git/info/exclude`
+          on every sync. The module always excludes Resilio metadata
+          (`.sync/`, `.sync~/`, `*.bts`, `.SyncIgnore`, `.SyncID`,
+          `.SyncOldArchive/`), CookCLI's stateful pantry file
+          (`config/pantry.conf`), and macOS cruft (`.DS_Store`).
+        '';
+      };
+    };
   };
 
   config = mkMerge [
@@ -589,6 +679,18 @@ in
           assertion = (cfg.backup == null) || (!cfg.backup.enable) || (cfg.backup.repository != null);
           message = "Cooklang backup.enable requires backup.repository to be set.";
         }
+        {
+          assertion = (!cfg.git.enable) || (cfg.git.remote != "");
+          message = "Cooklang git.enable requires git.remote to be set (e.g. git@github.com:owner/recipes.git).";
+        }
+        {
+          assertion = (!cfg.git.enable) || (cfg.git.deployKeyFile != null);
+          message = "Cooklang git.enable requires git.deployKeyFile pointing at a sops-managed SSH private key.";
+        }
+        {
+          assertion = (!cfg.git.enable) || (lib.hasPrefix "git@" cfg.git.remote || lib.hasPrefix "ssh://" cfg.git.remote);
+          message = "Cooklang git.remote must be an SSH URL (git@host:owner/repo.git or ssh://...). HTTPS remotes are not supported.";
+        }
       ];
     })
 
@@ -631,6 +733,166 @@ in
         timeoutSec = 1800;
         owner = cfg.user;
         group = cfg.group;
+      }
+    ))
+
+    # ------------------------------------------------------------------
+    # Git audit-log sync (see options.modules.services.cooklang.git)
+    # ------------------------------------------------------------------
+    (mkIf (cfg.enable && cfg.git.enable) (
+      let
+        gitSyncUnit = "${serviceName}-git-sync";
+        stateDir = "/var/lib/${gitSyncUnit}";
+
+        # github.com SSH host keys, pinned. Source:
+        #   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
+        # Re-validate when GitHub rotates keys (last rotation: 2023-03-24, RSA only).
+        githubKnownHosts = pkgs.writeText "${gitSyncUnit}-known_hosts" ''
+          github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+          github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
+          github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+        '';
+
+        defaultExcludes = [
+          "# Resilio Sync metadata"
+          ".sync/"
+          ".sync~/"
+          "*.bts"
+          ".SyncIgnore"
+          ".SyncID"
+          ".SyncOldArchive/"
+          ""
+          "# CookCLI stateful files (managed via CLI, not declaratively)"
+          "config/pantry.conf"
+          ""
+          "# OS / editor cruft"
+          ".DS_Store"
+        ];
+        allExcludes = defaultExcludes ++ [ "" "# extraExcludes:" ] ++ cfg.git.extraExcludes;
+        excludeFile = pkgs.writeText "${gitSyncUnit}-exclude" (lib.concatStringsSep "\n" allExcludes + "\n");
+
+        syncScript = pkgs.writeShellApplication {
+          name = "${gitSyncUnit}";
+          runtimeInputs = [ pkgs.git pkgs.openssh pkgs.coreutils ];
+          text = ''
+            set -euo pipefail
+
+            REPO_DIR="${cfg.recipeDir}"
+            REMOTE="${cfg.git.remote}"
+            BRANCH="${cfg.git.branch}"
+            DEPLOY_KEY="${cfg.git.deployKeyFile}"
+            STATE_DIR="${stateDir}"
+
+            export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o UserKnownHostsFile=${githubKnownHosts} -o StrictHostKeyChecking=yes -o ConnectTimeout=10"
+
+            cd "$REPO_DIR"
+
+            # Bootstrap on first run.
+            if [ ! -d .git ]; then
+              echo "Initialising new git repository in $REPO_DIR"
+              git init -q -b "$BRANCH"
+              git remote add origin "$REMOTE"
+              # If the remote already has commits (e.g. a README from repo creation),
+              # adopt them so we build linear history on top.
+              if git fetch -q origin "$BRANCH" 2>/dev/null; then
+                git reset --hard "origin/$BRANCH"
+              fi
+            fi
+
+            # Idempotently keep config in sync with module values.
+            git remote set-url origin "$REMOTE"
+            git config user.name "${cfg.git.committerName}"
+            git config user.email "${cfg.git.committerEmail}"
+            git config pull.rebase true
+            git config commit.gpgsign false
+
+            # Refresh the exclude list every cycle (cheap, keeps it authoritative).
+            install -d -m 0755 .git/info
+            install -m 0644 ${excludeFile} .git/info/exclude
+
+            # Pull any out-of-band commits from the remote (someone editing on
+            # GitHub directly). Rebase keeps history linear; conflict aborts
+            # the cycle and surfaces in journalctl.
+            if git fetch -q origin "$BRANCH" 2>/dev/null; then
+              if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+                if git rev-parse --verify -q HEAD >/dev/null; then
+                  if ! git rebase -q "origin/$BRANCH"; then
+                    git rebase --abort || true
+                    echo "Rebase against origin/$BRANCH conflicted; skipping this sync cycle." >&2
+                    exit 1
+                  fi
+                else
+                  git reset --hard "origin/$BRANCH"
+                fi
+              fi
+            fi
+
+            git add -A
+
+            if git diff --staged --quiet; then
+              echo "No local changes to commit."
+            else
+              changed_count=$(git diff --staged --name-only | wc -l | tr -d ' ')
+              msg="auto-sync: $(date -u +%Y-%m-%dT%H:%MZ) (''${changed_count} file(s))"
+              body=$(git diff --staged --name-status | head -20)
+              git commit -q -m "$msg" -m "$body"
+              echo "Committed: $msg"
+            fi
+
+            # Push HEAD even if we did nothing this cycle \u2014 catches up after
+            # earlier push failures (network blips, etc).
+            if git rev-parse --verify -q HEAD >/dev/null; then
+              git push -q origin "HEAD:$BRANCH"
+            fi
+          '';
+        };
+      in
+      {
+        systemd.tmpfiles.rules = [
+          "d ${stateDir} 0750 ${cfg.user} ${cfg.group} - -"
+        ];
+
+        systemd.services.${gitSyncUnit} = {
+          description = "Cooklang recipe git auto-sync";
+          after = [ "${serviceName}.service" "network-online.target" ];
+          wants = [ "network-online.target" ];
+          # Soft-binding to the main service so we don't run before recipeDir is mounted.
+          requisite = [ "${serviceName}.service" ];
+
+          serviceConfig = {
+            Type = "oneshot";
+            User = cfg.user;
+            Group = cfg.group;
+            StateDirectory = gitSyncUnit;
+            StateDirectoryMode = "0750";
+            WorkingDirectory = cfg.recipeDir;
+            ExecStart = lib.getExe syncScript;
+            # Hardening
+            PrivateTmp = true;
+            NoNewPrivileges = true;
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            ReadWritePaths = [ cfg.recipeDir stateDir ];
+            PrivateDevices = true;
+            ProtectKernelTunables = true;
+            ProtectControlGroups = true;
+            RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+            MemoryMax = "256M";
+            CPUQuota = "50%";
+            TasksMax = "32";
+          };
+        };
+
+        systemd.timers.${gitSyncUnit} = {
+          description = "Cooklang recipe git auto-sync timer";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnBootSec = "5min";
+            OnUnitInactiveSec = cfg.git.pushInterval;
+            AccuracySec = "1min";
+            Persistent = true;
+          };
+        };
       }
     ))
   ];

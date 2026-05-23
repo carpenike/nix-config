@@ -285,6 +285,13 @@ in
             group = config.modules.services.cooklang.group;
           };
         }
+        // optionalAttrs (cooklangEnabled && (config.modules.services.cooklang.git.enable or false)) {
+          "cooklang/git-deploy-key" = {
+            mode = "0400";
+            owner = config.modules.services.cooklang.user;
+            group = config.modules.services.cooklang.group;
+          };
+        }
         // optionalAttrs cooklangFederationEnabled {
           "github/cooklang-token" = {
             mode = "0400";
