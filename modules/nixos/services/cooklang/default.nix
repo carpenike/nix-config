@@ -781,7 +781,6 @@ in
             REMOTE="${cfg.git.remote}"
             BRANCH="${cfg.git.branch}"
             DEPLOY_KEY="${cfg.git.deployKeyFile}"
-            STATE_DIR="${stateDir}"
 
             export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o UserKnownHostsFile=${githubKnownHosts} -o StrictHostKeyChecking=yes -o ConnectTimeout=10"
 
