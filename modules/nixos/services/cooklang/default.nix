@@ -764,6 +764,7 @@ in
           ""
           "# CookCLI stateful files (managed via CLI, not declaratively)"
           "config/pantry.conf"
+          ".shopping-list"
           ""
           "# OS / editor cruft"
           ".DS_Store"
@@ -838,7 +839,12 @@ in
             #    from another clone) and rebase our local commits on top.
             #    Conflicts at this point are genuine content conflicts and
             #    require human resolution.
-            if git fetch -q origin "$BRANCH" 2>/dev/null; then
+            #
+            # Distinguish three fetch outcomes:
+            #   - success + remote ref exists: rebase
+            #   - success + no remote ref (empty repo on first push): silent
+            #   - failure (network, auth, etc.): log and continue to push
+            if fetch_err=$(git fetch -q origin "$BRANCH" 2>&1); then
               if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
                 if git rev-parse --verify -q HEAD >/dev/null; then
                   if ! git rebase -q "origin/$BRANCH"; then
@@ -867,8 +873,15 @@ in
                   git reset --hard "origin/$BRANCH"
                 fi
               fi
+              # else: remote ref doesn't exist yet (empty repo) — normal on
+              # bootstrap, the upcoming push will create it.
             else
-              echo "Fetch failed; proceeding with push attempt (will retry next cycle if push also fails)." >&2
+              # Real fetch failure (network, auth, deploy-key revoked, etc.).
+              # Continue to push — if remote is reachable for push, that'll
+              # succeed and self-heal; if not, push will fail too and the
+              # next cycle retries.
+              echo "Fetch failed (continuing to push; will retry next cycle on persistent failure):" >&2
+              echo "$fetch_err" | head -5 >&2
             fi
 
             # 3. Push HEAD (always — catches up after earlier push failures).
