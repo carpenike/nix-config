@@ -34,7 +34,7 @@ in
         enable = true;
         dataDir = dataDir;
         # renovate: depName=rustmailer/bichon datasource=docker
-        image = "rustmailer/bichon:1.1.3@sha256:cbbdd4b42cdb808b9d6346c6981160a6e7cf8547bb19d5893fd09599718a70c8";
+        image = "rustmailer/bichon:1.2.0@sha256:3f1e2cf2ec0708c152668987529ced7ea8d2482c9b784d37b9c9fe725d78ee6b";
         publicUrl = "https://${serviceDomain}";
         encryptPasswordFile = config.sops.secrets."bichon/encrypt-password".path;
 
