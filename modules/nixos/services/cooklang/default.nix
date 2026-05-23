@@ -848,7 +848,11 @@ in
                       echo "Rebase against origin/$BRANCH conflicted."
                       echo "Local commits are preserved on $BRANCH; remote is unchanged."
                       echo "Files with conflicting edits:"
-                      echo "$conflicted" | sed 's/^/  - /'
+                      # Loop avoids SC2001 (sed for line prefix) and is safe
+                      # for filenames containing spaces.
+                      while IFS= read -r f; do
+                        [ -n "$f" ] && echo "  - $f"
+                      done <<<"$conflicted"
                       echo "Resolve manually:"
                       echo "  ssh ${config.networking.hostName or "<host>"}"
                       echo "  sudo -u ${cfg.user} -i"
