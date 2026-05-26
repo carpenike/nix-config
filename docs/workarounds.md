@@ -154,6 +154,18 @@ When reviewing workarounds:
 | **Check Version** | Any kubectl-view-secret update |
 | **Upstream** | Check if fixed in nixpkgs |
 
+### open-webui - Drop `--legacy-peer-deps` on Frontend Build
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-05-26 |
+| **Affects** | `open-webui` frontend (unstable overlay); forge service |
+| **Reason** | open-webui 0.9.5 bundles `bits-ui` v2.16.3, which declares `@internationalized/date` as a peer dependency. The frontend derivation in nixpkgs invoked `npm ci` with `--force --legacy-peer-deps`; under `--legacy-peer-deps`, npm reverts to v6 behaviour and skips installing peer deps entirely. The package was therefore absent from `node_modules`, and Vite/Rollup aborted with `[vite]: Rollup failed to resolve import "@internationalized/date" from ".../node_modules/bits-ui/dist/internal/date-time/utils.js"`. |
+| **Workaround** | Override `passthru.frontend` to set `npmFlags = [ "--force" ]` (drop `--legacy-peer-deps`) and re-point `makeWrapperArgs`' `FRONTEND_BUILD_DIR` to the patched frontend. `npmDepsHash` is unchanged (the lockfile already includes `@internationalized/date`; only npm's install behaviour differs). |
+| **Upstream** | Fixed in nixpkgs commit [`be3620d`](https://github.com/NixOS/nixpkgs/commit/be3620d) (2026-05-23). Our `nixpkgs-unstable` lock is from 2026-05-22, one day prior. |
+| **Check** | When `nixpkgs-unstable` lock advances past commit `be3620d`, remove this override entirely. |
+| **Impact** | Without fix: forge build fails on `open-webui-frontend-0.9.5`, blocking the entire system closure. |
+
 ### inetutils - Darwin Build Failure (format-security)
 
 | Field | Value |

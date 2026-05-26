@@ -148,6 +148,34 @@ in
             '';
           });
 
+          # WORKAROUND (2026-05-26): open-webui 0.9.5 frontend fails to build
+          # because bits-ui v2.16.3 declares @internationalized/date as a peer
+          # dependency. `npm ci --legacy-peer-deps` skips peer-dep installation
+          # entirely (npm v6 behaviour), so the package is missing from
+          # node_modules and Vite/Rollup fails with:
+          #   [vite]: Rollup failed to resolve import "@internationalized/date"
+          #   from ".../node_modules/bits-ui/dist/internal/date-time/utils.js"
+          # Affects: open-webui frontend (forge service)
+          # Upstream fix: https://github.com/NixOS/nixpkgs/commit/be3620d
+          #   (lands in nixpkgs-unstable after 2026-05-23; our nixpkgs-unstable
+          #   lock is from 2026-05-22, one day prior)
+          # Check: When nixpkgs-unstable lock advances past commit be3620d,
+          #   remove this override.
+          open-webui =
+            let
+              patchedFrontend = prev.open-webui.passthru.frontend.overrideAttrs (_: {
+                npmFlags = [ "--force" ];
+              });
+            in
+            prev.open-webui.overrideAttrs (oldAttrs: {
+              makeWrapperArgs = [
+                "--set FRONTEND_BUILD_DIR ${patchedFrontend}/share/open-webui"
+              ];
+              passthru = (oldAttrs.passthru or { }) // {
+                frontend = patchedFrontend;
+              };
+            });
+
           # Shared with stable channel - see top of file.
           ctranslate2 = ctranslate2Override prev;
 

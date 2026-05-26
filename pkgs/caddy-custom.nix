@@ -24,5 +24,7 @@ pkgs.caddy.withPlugins {
   # Updated 2026-05-17: hash drifted again after flake.lock bump #450
   # (nixpkgs update changed how caddy.withPlugins resolves go module
   # vendoring). Plugin versions unchanged. Hash captured from forge apply.
-  hash = "sha256-PwW0hz0cQMz+laKb0sEfLXYB7Ab6VKgU8tMAHBtm5y0=";
+  # Updated 2026-05-26: hash drifted again after another nixpkgs bump
+  # (plugin versions unchanged). Hash captured from forge build failure.
+  hash = "sha256-T42aRGrynBghyiPWyfPkflSwE3NAwAR700P7qUpouaI=";
 }
