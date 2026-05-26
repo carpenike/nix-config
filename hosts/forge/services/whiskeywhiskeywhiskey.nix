@@ -102,6 +102,17 @@ in
           WWW_HOST_GROUP = "www-host";
           WWW_CREW_GROUP = "www-crew";
 
+          # Cooklang deep-link resolver (HOF-020, upstream dbd15d8). When set,
+          # recipe rows with a `cooklang_ref` gain a derived `cooklangUrl`
+          # field and the Mess Hall / op-detail surfaces render a
+          # "Full recipe ↗" link to the canonical .cook page. The bunker
+          # fetches `<base>/api/recipes` server-side at boot + hourly, and
+          # the same URL is what the client navigates to — so we point at
+          # the public Caddy vhost (reachable from both forge-local and
+          # household browsers). Cook is intentionally household-public
+          # and unauthenticated (see services/cooklang.nix).
+          COOKLANG_BASE_URL = "https://cook.holthome.net";
+
           # Optional: email-based host allow-list (OR'd with WWW_HOST_GROUP).
           # Uncomment if you want a fallback path that doesn't rely on PocketID
           # group membership. Comma-separated, no spaces.
