@@ -110,6 +110,7 @@ in
     ./services/esphome.nix # ESPHome dashboard and firmware builder
     ./services/termix.nix # Termix SSH web terminal
     ./services/whiskeywhiskeywhiskey.nix # Operation W.W.W. command center (carpenike/whiskey-whiskey-whiskey)
+    ./services/replog.nix # RepLog — self-hosted family fitness tracker (carpenike/replog)
     ./services/worldmonitor.nix # World Monitor real-time intelligence dashboard
   ];
 
