@@ -143,12 +143,16 @@
     };
 
     # homelab-mcp — small MCP server bridging homelab APIs (cooklang +
-    # gatus today) into tools Claude can call. Cloudflare Access OIDC
-    # for auth; runs natively on forge. See README in upstream repo for
-    # the full architecture / tool registry pattern.
+    # gatus today) into tools Claude can call. Runs its own embedded
+    # OAuth 2.1 Authorization Server (federating user login to
+    # PocketID) so Claude's MCP custom-connector flow can complete
+    # DCR + PKCE without depending on Cloudflare Access for SaaS
+    # (which serves non-spec discovery field names Claude rejects).
+    # See README in upstream repo for the full architecture / tool
+    # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      url = "github:carpenike/mcp";
+      url = "github:carpenike/mcp/feat/oauth-provider";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

@@ -1,23 +1,30 @@
 # hosts/forge/services/homelab-mcp.nix
 #
-# Homelab MCP server — Cloudflare-Access-authenticated bridge that
-# exposes selected homelab APIs (cooklang, gatus, future categories)
-# as MCP tools Claude can call.
+# Homelab MCP server — bridge that exposes selected homelab APIs
+# (cooklang, gatus, future categories) as MCP tools Claude can call.
 #
-# Architecture:
+# Architecture (v0.2 — embedded OAuth provider, NO Cloudflare Access):
 #
-#   Claude.ai (iOS / web)
-#     │ OAuth 2.1 + PKCE
-#     ▼
-#   Cloudflare Access (Access for SaaS / OIDC)   ← federates upstream
-#     │                                            to PocketID for the
-#     │ Cf-Access-Jwt-Assertion + Bearer JWT       passkey login UX
+#   Claude (iOS / web)
+#     │ Streamable HTTP + Bearer JWT
+#     │
+#     │ ┌─────────────────────────────────────────────────────────────┐
+#     │ │ OAuth dance (one-time per Claude session):                  │
+#     │ │   1. Claude POSTs /oauth/register (RFC 7591 DCR)            │
+#     │ │   2. Claude GETs /oauth/authorize w/ PKCE                   │
+#     │ │   3. homelab-mcp 302s to PocketID for passkey login          │
+#     │ │   4. PocketID 302s back to /oauth/callback                  │
+#     │ │   5. homelab-mcp 302s to Claude w/ a one-shot auth code     │
+#     │ │   6. Claude POSTs /oauth/token (PKCE verifier)              │
+#     │ │   7. homelab-mcp mints a 24h RS256 JWT                      │
+#     │ └─────────────────────────────────────────────────────────────┘
 #     ▼
 #   Cloudflare Tunnel → forge → Caddy (mcp.holthome.net)
 #     │ HTTP, localhost-only
 #     ▼
 #   homelab-mcp.service (this module)
-#     │ validates the CF Access JWT (per-app issuer + JWKS, RS256)
+#     │ JWTAuthMiddleware validates against own public key (no network
+#     │ call per request; key is loaded once at startup)
 #     │ then dispatches to a tool handler
 #     ▼
 #   ├── cook.holthome.net      (recipe browse / shopping list)
@@ -26,17 +33,21 @@
 #   └── /data/cooklang/recipes/claude/  (save_recipe writes here)
 #
 # Tool name convention: <category>_<verb>_<object>. See
-# carpenike/mcp/AGENTS.md for the registry pattern that makes adding
-# new tool categories cheap.
+# carpenike/mcp/AGENTS.md for the registry pattern.
 #
-# Bootstrap:
-#   1. Cloudflare dashboard side is already done (PocketID OIDC client,
-#      CF Access "PocketID" login method, Access for SaaS app named
-#      "Cooklang MCP" with the policy "Allow Ryan").
-#   2. The OIDC client ID (64-char hex) was sops-encrypted into this
-#      host's secrets.sops.yaml as homelab-mcp.cf-access-app-id.
-#   3. DNS + tunnel ingress are declarative below — no manual CF
-#      hostname is required (see cloudflare.tunnel block).
+# Bootstrap (one-time):
+#   1. In PocketID admin UI, create an OIDC client:
+#        - Callback URL: https://mcp.holthome.net/oauth/callback
+#        - Scopes: openid email profile
+#      Copy the resulting Client ID and Client Secret.
+#   2. Set HOMELAB_MCP_POCKETID_CLIENT_ID below to the Client ID.
+#   3. Re-encrypt this host's secrets.sops.yaml with the env file
+#      containing at minimum:
+#        HOMELAB_MCP_POCKETID_CLIENT_SECRET=<from PocketID UI>
+#      Optionally (preferred for production — key never touches disk):
+#        HOMELAB_MCP_OAUTH_SIGNING_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+#   4. Cloudflare Tunnel + DNS ingress are declarative below — no
+#      manual CF dashboard step required.
 { config, inputs, lib, pkgs, ... }:
 
 let
@@ -44,8 +55,8 @@ let
   serviceDomain = "mcp.${config.networking.domain}";
   listenAddr = "127.0.0.1";
   # Upstream default is 9200 (avoids the well-known prometheus
-  # node_exporter port 9100). We don't override it; surface it here
-  # so the Caddy backend below has a single source of truth.
+  # node_exporter port 9100). We surface it here so the Caddy backend
+  # below has a single source of truth.
   listenPort = 9200;
 in
 {
@@ -62,6 +73,10 @@ in
         host = listenAddr;
         port = listenPort;
 
+        # Used as the OAuth issuer + JWT audience + RFC 9728 resource URL.
+        # Must match the URL Cloudflare Tunnel / Caddy exposes externally.
+        publicBaseUrl = "https://${serviceDomain}";
+
         # MCP user joins the cooklang group via the upstream module's
         # `recipesGroup` option (default "cooklang") so save_recipe
         # writes work. Confirmed via `getent group cooklang` on forge.
@@ -69,31 +84,37 @@ in
         recipesGroup = config.modules.services.cooklang.group or "cooklang";
 
         # Non-secret declarative settings (visible in /nix/store).
-        # CF Access team subdomain identifies WHICH cloudflareaccess.com
-        # namespace owns our app; not sensitive.
+        # PocketID issuer + client ID are not sensitive (the client ID
+        # appears in every auth URL Claude constructs).
         settings = {
-          HOMELAB_MCP_CF_ACCESS_TEAM = "bigheadltd";
-          HOMELAB_MCP_PUBLIC_BASE_URL = "https://${serviceDomain}";
+          HOMELAB_MCP_POCKETID_ISSUER = "https://id.holthome.net";
+          # NOTE: replace with the Client ID from PocketID admin UI
+          # before deploying. Until then the service will fail to
+          # start with a clear error from Settings.model_post_init.
+          HOMELAB_MCP_POCKETID_CLIENT_ID = "REPLACE_WITH_POCKETID_CLIENT_ID";
           HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.holthome.net";
           HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.holthome.net";
           HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.holthome.net";
         };
 
-        # Sops-managed env file containing:
-        #   HOMELAB_MCP_CF_ACCESS_APP_ID=<64-char OIDC Client ID from CF dashboard>
-        #
-        # Strictly speaking the App ID is not a secret (it appears in
-        # every auth URL Claude constructs), but it's environment-
-        # specific configuration that would leak the Access app's
-        # identity if the Nix store were ever shared, so we route it
-        # through sops alongside any future actual-secret values.
+        # Sops-managed env file containing at minimum:
+        #   HOMELAB_MCP_POCKETID_CLIENT_SECRET=<from PocketID admin UI>
+        # Optionally:
+        #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA PEM, escaped \n>
+        #     If absent, the service auto-generates and persists a
+        #     fresh 2048-bit RSA key at /var/lib/homelab-mcp/signing-key.pem
+        #     on first start.
+        #   HOMELAB_MCP_OAUTH_SESSION_SECRET=<urlsafe-base64 32+ bytes>
+        #     If absent, a fresh key is generated per process — fine
+        #     because OAuth in-flight state TTLs out in 120s anyway.
         environmentFile = config.sops.secrets."homelab-mcp/env".path;
       };
 
       # Caddy vhost — pure pass-through. Auth is enforced by the MCP
-      # server itself (JWT middleware validates the CF Access bearer
-      # token against the per-app JWKS). No SSO guard at Caddy because
-      # the OAuth flow would loop if we tried.
+      # server itself (its own OAuth provider issues bearer tokens; the
+      # JWT middleware validates them against the local public key).
+      # No SSO guard at Caddy because the OAuth flow would loop if we
+      # tried to add one in front.
       modules.services.caddy.virtualHosts.${serviceName} = {
         enable = true;
         hostName = serviceDomain;

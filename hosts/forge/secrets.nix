@@ -295,10 +295,17 @@ in
           };
         }
         // optionalAttrs homelabMcpEnabled {
-          # Env file for homelab-mcp containing the CF Access OIDC App
-          # ID (and any future MCP-only secret values). The MCP
-          # service runs as the `homelab-mcp` system user managed by
-          # the upstream module.
+          # Env file for homelab-mcp. Contains the PocketID OIDC client
+          # secret (required) and optionally the OAuth RSA signing key
+          # + session secret. Format is a plain dotenv consumable by
+          # systemd's EnvironmentFile=. The MCP service runs as the
+          # `homelab-mcp` system user managed by the upstream module.
+          #
+          # Minimum content (re-encrypt via `sops hosts/forge/secrets.sops.yaml`):
+          #   HOMELAB_MCP_POCKETID_CLIENT_SECRET=<from PocketID admin UI>
+          # Optional:
+          #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA private PEM, escaped \n>
+          #   HOMELAB_MCP_OAUTH_SESSION_SECRET=<urlsafe-base64 32+ bytes>
           "homelab-mcp/env" = {
             mode = "0400";
             owner = "homelab-mcp";
