@@ -88,10 +88,9 @@ in
         # appears in every auth URL Claude constructs).
         settings = {
           HOMELAB_MCP_POCKETID_ISSUER = "https://id.holthome.net";
-          # NOTE: replace with the Client ID from PocketID admin UI
-          # before deploying. Until then the service will fail to
-          # start with a clear error from Settings.model_post_init.
-          HOMELAB_MCP_POCKETID_CLIENT_ID = "REPLACE_WITH_POCKETID_CLIENT_ID";
+          # Client ID registered in PocketID admin UI (display name
+          # also "mcp"). Not sensitive — it appears in every auth URL.
+          HOMELAB_MCP_POCKETID_CLIENT_ID = "mcp";
           HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.holthome.net";
           HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.holthome.net";
           HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.holthome.net";
