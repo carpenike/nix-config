@@ -43,7 +43,10 @@ let
   serviceName = "homelab-mcp";
   serviceDomain = "mcp.${config.networking.domain}";
   listenAddr = "127.0.0.1";
-  listenPort = 9100;
+  # Upstream default is 9200 (avoids the well-known prometheus
+  # node_exporter port 9100). We don't override it; surface it here
+  # so the Caddy backend below has a single source of truth.
+  listenPort = 9200;
 in
 {
   imports = [
