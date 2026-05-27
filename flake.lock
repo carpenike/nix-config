@@ -228,6 +228,26 @@
         "type": "github"
       }
     },
+    "homelab-mcp": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1779897179,
+        "narHash": "sha256-Zmgn5lkgXChUsDvrglSl5JCmvElmFzdtDvdQicQ58TE=",
+        "owner": "carpenike",
+        "repo": "mcp",
+        "rev": "1eb5f8682af55ada7fcbd680c4fdaa9268ad89a3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "carpenike",
+        "repo": "mcp",
+        "type": "github"
+      }
+    },
     "impermanence": {
       "inputs": {
         "home-manager": "home-manager_2",
@@ -415,6 +435,7 @@
         "git-hooks": "git-hooks",
         "hardware": "hardware",
         "home-manager": "home-manager",
+        "homelab-mcp": "homelab-mcp",
         "impermanence": "impermanence",
         "nix-darwin": "nix-darwin",
         "nix-vscode-extensions": "nix-vscode-extensions",

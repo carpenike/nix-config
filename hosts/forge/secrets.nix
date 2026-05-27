@@ -17,6 +17,7 @@ let
   cloudflaredEnabled = config.modules.services.cloudflared.enable or false;
   cooklangEnabled = config.modules.services.cooklang.enable or false;
   cooklangFederationEnabled = config.modules.services.cooklangFederation.enable or false;
+  homelabMcpEnabled = config.services.homelab-mcp.enable or false;
   grafanaEnabled = config.modules.services.grafana.enable or false;
   grafanaOncallEnabled = config.modules.services.grafana-oncall.enable or false;
   pocketIdEnabled = config.modules.services.pocketid.enable or false;
@@ -291,6 +292,17 @@ in
             mode = "0400";
             owner = config.modules.services.cooklang.user;
             group = config.modules.services.cooklang.group;
+          };
+        }
+        // optionalAttrs homelabMcpEnabled {
+          # Env file for homelab-mcp containing the CF Access OIDC App
+          # ID (and any future MCP-only secret values). The MCP
+          # service runs as the `homelab-mcp` system user managed by
+          # the upstream module.
+          "homelab-mcp/env" = {
+            mode = "0400";
+            owner = "homelab-mcp";
+            group = "homelab-mcp";
           };
         }
         // optionalAttrs cooklangFederationEnabled {

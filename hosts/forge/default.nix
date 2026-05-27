@@ -84,6 +84,7 @@ in
     ./services/tdarr.nix # Tdarr transcoding automation
     ./services/cooklang.nix # Cooklang recipe management
     ./services/cooklang-federation.nix # Cooklang federation search service
+    ./services/homelab-mcp.nix # Homelab MCP server (Claude tools bridge)
     ./services/enclosed.nix # Enclosed encrypted note sharing
     ./services/mealie.nix # Mealie recipe manager
     ./services/miniflux.nix # Miniflux minimalist RSS reader
