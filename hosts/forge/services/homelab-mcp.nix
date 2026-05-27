@@ -73,6 +73,7 @@ in
         # namespace owns our app; not sensitive.
         settings = {
           HOMELAB_MCP_CF_ACCESS_TEAM = "bigheadltd";
+          HOMELAB_MCP_PUBLIC_BASE_URL = "https://${serviceDomain}";
           HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.holthome.net";
           HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.holthome.net";
           HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.holthome.net";
