@@ -152,7 +152,7 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      url = "github:carpenike/mcp/feat/oauth-provider";
+      url = "github:carpenike/mcp";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
