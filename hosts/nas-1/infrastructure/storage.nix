@@ -139,6 +139,12 @@
       "send"
       "snapshot"
       "destroy"
+      # mount is REQUIRED for `zfs destroy` of snapshots: on Linux an
+      # unprivileged delegated user must be able to unmount a snapshot to
+      # destroy it. Without it, syncoid logs "cannot destroy snapshots:
+      # permission denied" and its sync-snapshots accumulate unbounded
+      # (this filled rpool and broke nas-1 builds, 2026-06-01).
+      "mount"
     ];
 
     localTargetAllow = [
