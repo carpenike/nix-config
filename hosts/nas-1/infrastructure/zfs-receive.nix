@@ -40,18 +40,21 @@
       # - hold: Place holds on snapshots during transfer
       # - bookmark: Manage bookmarks for resumable sends
       # - canmount: Allow post-replication fixup to set canmount=noauto
+      # - userprop: Allow receiving ZFS user properties (e.g. holthome:preseed_complete,
+      #   com.sun:auto-snapshot) carried by syncoid's `-p` send option. Without this,
+      #   syncoid logs "cannot receive ... property ... permission denied" on every run.
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
+        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
         backup/forge/zfs-recv || true
 
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
+        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
         backup/forge/services || true
 
       # Grant receive permissions for nas-0 backups
       ${config.boot.zfs.package}/bin/zfs allow zfs-replication \
-        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir \
+        bookmark,canmount,compression,create,destroy,hold,mount,mountpoint,receive,recordsize,rollback,send,snapdir,userprop \
         backup/nas-0/zfs-recv || true
 
       echo "ZFS receive permissions applied for zfs-replication user"

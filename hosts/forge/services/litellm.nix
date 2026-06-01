@@ -28,7 +28,8 @@ in
     # =========================================================================
     {
       modules.services.litellm = {
-        enable = true;
+        # Disabled 2026-06-01: unused AI gateway, reduces memory/swap pressure on forge.
+        enable = false;
         port = 4100; # 8080=qbittorrent, 4000=teslamate
 
         # Provider credentials via SOPS (defined in secrets.nix)

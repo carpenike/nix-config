@@ -25,7 +25,8 @@ in
   config = lib.mkMerge [
     {
       modules.services.open-webui = {
-        enable = true;
+        # Disabled 2026-06-01: unused AI chat UI, reduces memory/swap pressure on forge.
+        enable = false;
         package = pkgs.unstable.open-webui;
         host = listenAddr;
         port = listenPortNumber;

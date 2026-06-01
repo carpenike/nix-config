@@ -633,7 +633,11 @@ On destination host (nas-1), the zfs-replication user needs receive permissions:
 ssh nas-1.holthome.net
 
 # Grant receive permissions
-sudo zfs allow zfs-replication receive,create,mount,hold backup/forge/zfs-recv
+# Include `userprop` so the receiver can accept ZFS user properties carried by
+# syncoid's `-p` send (e.g. holthome:preseed_complete, com.sun:auto-snapshot).
+# Omitting it produces "cannot receive ... property ... permission denied" warnings
+# on every replication run.
+sudo zfs allow zfs-replication receive,create,mount,hold,userprop backup/forge/zfs-recv
 
 # Verify permissions
 sudo zfs allow backup/forge/zfs-recv
