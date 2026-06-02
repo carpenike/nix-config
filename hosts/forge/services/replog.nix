@@ -11,8 +11,13 @@
 #                                          /var/lib/replog/avatars/
 #
 # Auth model:
-#   * RepLog uses native WebAuthn passkeys, NOT PocketID/OIDC. The Caddy
-#     vhost is a pure pass-through (no caddySecurity).
+#   * Primary login federates to PocketID via OIDC (Authorization Code +
+#     PKCE) — REPLOG_OIDC_ISSUER/CLIENT_ID set here (non-secret) and
+#     REPLOG_OIDC_CLIENT_SECRET injected via the sops env template. The
+#     redirect URL defaults to ${baseUrl}/auth/oidc/callback.
+#   * Native WebAuthn passkeys + the admin password remain as break-glass
+#     when OIDC is disabled/unreachable. The Caddy vhost is a pure
+#     pass-through (no caddySecurity) — RepLog handles its own auth.
 #   * REPLOG_BASE_URL drives WebAuthn RPID + Origins; the upstream module
 #     auto-derives those when we set `baseUrl`. Do not split the hostname
 #     across multiple origins without also pinning REPLOG_WEBAUTHN_ORIGINS.
@@ -76,6 +81,19 @@ in
           # terminates at the local cloudflared which talks to Caddy
           # over loopback.
           REPLOG_TRUSTED_PROXIES = "127.0.0.1/32,::1/128";
+
+          # PocketID OIDC login (ADR 019 / HOF-012). Non-secret values
+          # only — the client ID appears in every auth URL. The matching
+          # REPLOG_OIDC_CLIENT_SECRET is injected via the sops env
+          # template (see hosts/forge/secrets.nix). OIDC login enables
+          # itself only when issuer + client_id + client_secret are all
+          # set; until then the WebAuthn/admin-password path is used.
+          #
+          # The redirect URL is left unset → the app defaults it to
+          # ${baseUrl}/auth/oidc/callback, which must be registered as a
+          # callback URL on the PocketID client.
+          REPLOG_OIDC_ISSUER = "https://id.${config.networking.domain}";
+          REPLOG_OIDC_CLIENT_ID = "replog";
         };
 
         # Secrets merged in via SOPS template (see hosts/forge/secrets.nix).

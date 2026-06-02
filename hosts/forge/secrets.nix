@@ -977,6 +977,16 @@ in
             owner = "root";
             group = "root";
           };
+
+          # PocketID OIDC client secret for RepLog's webui login
+          # (ADR 019 / HOF-012). Issued by the PocketID admin UI when the
+          # `replog` OIDC client is created. Non-secret issuer + client ID
+          # live in services.replog.settings; only the secret lands here.
+          "replog/oidc_client_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs quiEnabled {
           "qui/oidc-client-secret" = {
@@ -1164,6 +1174,7 @@ in
               REPLOG_ADMIN_PASS=${config.sops.placeholder."replog/admin_pass"}
               REPLOG_ADMIN_EMAIL=${config.sops.placeholder."replog/admin_email"}
               REPLOG_SECRET_KEY=${config.sops.placeholder."replog/secret_key"}
+              REPLOG_OIDC_CLIENT_SECRET=${config.sops.placeholder."replog/oidc_client_secret"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";

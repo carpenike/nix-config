@@ -30,9 +30,6 @@
 #   ├── cook.holthome.net      (recipe browse / shopping list)
 #   ├── fedcook.holthome.net   (federation search across 62 feeds)
 #   ├── gatus.holthome.net     (uptime monitoring)
-#   ├── 127.0.0.1:5008         (replog — HOF-004 / Option α′; tool-hop
-#   │                          JWT with aud=https://replog.holthome.net,
-#   │                          verified offline against our JWKS)
 #   └── /data/cooklang/recipes/claude/  (save_recipe writes here)
 #
 # Tool name convention: <category>_<verb>_<object>. See
@@ -97,29 +94,6 @@ in
           HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.holthome.net";
           HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.holthome.net";
           HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.holthome.net";
-
-          # RepLog tool-hop integration (HOF-004 / Option α′).
-          #
-          # The `replog.py` tool module re-mints a short-TTL RS256 JWT
-          # carrying the original caller's sub+email but with `aud` set
-          # to HOMELAB_MCP_REPLOG_AUDIENCE, then POSTs to
-          # `${HOMELAB_MCP_REPLOG_BASE_URL}/api-mcp/...` over loopback.
-          # RepLog's withBearerAuth middleware fetches our JWKS from
-          # `${HOMELAB_MCP_PUBLIC_BASE_URL}/oauth/jwks.json` and
-          # verifies offline.
-          #
-          # Identity is the JWT end-to-end — there is NO per-user
-          # bearer-token map and no shared service account. Per-user
-          # MCP access is gated by `users.mcp_enabled` on the RepLog
-          # side, toggled via the admin UI at
-          # https://replog.holthome.net/users/<id>/edit.
-          #
-          # Loopback reference via config.services.replog.{host,port}
-          # so a future port change on either side ripples without
-          # editing this block.
-          HOMELAB_MCP_REPLOG_BASE_URL =
-            "http://${config.services.replog.host}:${toString config.services.replog.port}";
-          HOMELAB_MCP_REPLOG_AUDIENCE = "https://replog.${config.networking.domain}";
         };
 
         # Sops-managed env file containing at minimum:

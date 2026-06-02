@@ -429,11 +429,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1780322977,
-        "narHash": "sha256-elYb7pXTBvLuoQK7QuAzsqO2dqoV0MHnDS4dakiPLM0=",
+        "lastModified": 1780424617,
+        "narHash": "sha256-ozesAGOkrjb5/M6NENeGXbNcIh1WV8i6Gny5XVKk0gE=",
         "owner": "carpenike",
         "repo": "replog",
-        "rev": "eff4e5222cb2cb8ddd9a03835c0e1d79682d6716",
+        "rev": "1147f3877b68c00ed812e6b74a25a9f2940db6ff",
         "type": "github"
       },
       "original": {
