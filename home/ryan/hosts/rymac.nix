@@ -1,6 +1,12 @@
-{ ...
+{ pkgs
+, ...
 }:
 {
+  home.packages = with pkgs; [
+    podman
+    podman-compose
+  ];
+
   modules = {
     deployment.nix.enable = true;
     development.enable = true;
