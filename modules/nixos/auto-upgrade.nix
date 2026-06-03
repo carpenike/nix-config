@@ -59,6 +59,10 @@ let
 
     echo "$(date +%s)" > /run/nixos-upgrade-start-time
 
+    # Record the current system closure so the success notification can diff
+    # it against the new closure and report which packages changed.
+    ${pkgs.coreutils}/bin/readlink -f /run/current-system > /run/nixos-upgrade-old-system 2>/dev/null || true
+
     # Reset all failed units to prevent transient healthcheck failures from
     # causing switch-to-configuration to return status 4
     echo "Resetting failed systemd units before upgrade..."
@@ -121,15 +125,45 @@ let
           TITLE="✅ NixOS Upgrade Complete"
         fi
 
-        cat > "$PAYLOAD_DIR/nixos-upgrade-success.json" << EOF
-    {
-      "priority": "$PRIORITY",
-      "title": "$TITLE",
-      "message": "Host: ${config.networking.hostName}\nDuration: ''${DURATION_MIN}m ''${DURATION}s\n\nUpgrade completed successfully."
-    }
-    EOF
+        # Diff the old and new system closures to report which packages changed.
+        # Output looks like "hello: 2.10 → 2.12.1". Truncated to keep the
+        # Pushover message within its ~1024 character limit.
+        OLD_SYSTEM=$(cat /run/nixos-upgrade-old-system 2>/dev/null || echo "")
+        NEW_SYSTEM=$(${pkgs.coreutils}/bin/readlink -f /run/current-system 2>/dev/null || echo "")
+        MAX_CHANGE_LINES=40
 
-        rm -f /run/nixos-upgrade-start-time
+        CHANGES=""
+        if [ -n "$OLD_SYSTEM" ] && [ -n "$NEW_SYSTEM" ] && [ "$OLD_SYSTEM" != "$NEW_SYSTEM" ]; then
+          CHANGES=$(${pkgs.nix}/bin/nix --extra-experimental-features nix-command \
+            store diff-closures "$OLD_SYSTEM" "$NEW_SYSTEM" 2>/dev/null || echo "")
+        fi
+
+        # Build the message with printf so every source line stays indented.
+        # (A multiline "..." literal with column-0 lines would change the Nix
+        # indented-string dedent and break the Prometheus heredoc's EOF above.)
+        BASE_INFO=$(printf 'Host: %s\nDuration: %sm %ss' "${config.networking.hostName}" "$DURATION_MIN" "$DURATION")
+
+        if [ -n "$CHANGES" ]; then
+          TOTAL_LINES=$(printf '%s\n' "$CHANGES" | grep -c . || echo "0")
+          CHANGE_TEXT=$(printf '%s\n' "$CHANGES" | head -n "$MAX_CHANGE_LINES")
+          if [ "$TOTAL_LINES" -gt "$MAX_CHANGE_LINES" ]; then
+            CHANGE_TEXT=$(printf '%s\n… and %d more' "$CHANGE_TEXT" "$((TOTAL_LINES - MAX_CHANGE_LINES))")
+          fi
+          MESSAGE=$(printf '%s\n\nChanges:\n%s' "$BASE_INFO" "$CHANGE_TEXT")
+        else
+          MESSAGE=$(printf '%s\n\nNo package changes.' "$BASE_INFO")
+        fi
+
+        # Build JSON safely with jq so arbitrary diff content (arrows, quotes,
+        # newlines) can't corrupt the payload.
+        ${pkgs.jq}/bin/jq -n \
+          --arg priority "$PRIORITY" \
+          --arg title "$TITLE" \
+          --arg message "$MESSAGE" \
+          '{priority: $priority, title: $title, message: $message}' \
+          > "$PAYLOAD_DIR/nixos-upgrade-success.json"
+
+        rm -f /run/nixos-upgrade-start-time /run/nixos-upgrade-old-system
   '';
 
   # Script to write failure metrics
