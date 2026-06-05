@@ -21,7 +21,14 @@ in
         # Attach to media services network for DNS resolution to Sonarr and Radarr
         podmanNetwork = forgeDefaults.podmanNetwork;
 
-        # Sonarr configuration - WEB-1080p quality profile
+        # Sonarr configuration - WEB-1080p and WEB-2160p quality profiles
+        # Mirrors the Radarr dual-resolution setup:
+        # - WEB-1080p: Standard HD content
+        # - WEB-2160p: 4K content
+        #
+        # After sync, assign series to profiles in Sonarr UI:
+        # - "WEB-1080p" for 1080p content
+        # - "WEB-2160p" for 4K content
         sonarr.sonarr-main = {
           baseUrl = "http://sonarr:8989";
           apiKeyFile = config.sops.secrets."sonarr/api-key".path;
@@ -38,8 +45,14 @@ in
 
           templates = [
             "sonarr-quality-definition-series"
+
+            # WEB-1080p profile - standard HD content
             "sonarr-v4-quality-profile-web-1080p"
             "sonarr-v4-custom-formats-web-1080p"
+
+            # WEB-2160p profile - 4K content
+            "sonarr-v4-quality-profile-web-2160p"
+            "sonarr-v4-custom-formats-web-2160p"
           ];
         };
 
