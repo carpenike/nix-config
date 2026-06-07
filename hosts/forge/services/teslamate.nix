@@ -20,7 +20,7 @@ in
         dataDir = dataDir;
         datasetPath = dataset;
         # renovate: depName=teslamate/teslamate datasource=docker
-        image = "teslamate/teslamate:3.0.0@sha256:6569026b73bd657455bbec05965d07fa30b6d4d70eaab0bd5b343231c0429167";
+        image = "teslamate/teslamate:3.1.0@sha256:b7b8b21869d789d043f62b404dd689f55c601ef7d02222e92c0f5d596d0b1044";
         encryptionKeyFile = config.sops.secrets."teslamate/encryption_key".path;
 
         database = {
