@@ -26,5 +26,5 @@ pkgs.caddy.withPlugins {
   # vendoring). Plugin versions unchanged. Hash captured from forge apply.
   # Updated 2026-05-26: hash drifted again after another nixpkgs bump
   # (plugin versions unchanged). Hash captured from forge build failure.
-  hash = "sha256-T42aRGrynBghyiPWyfPkflSwE3NAwAR700P7qUpouaI=";
+  hash = "sha256-dzCIHQwXO0EkCEwSRpmEh2Mgha+j0wmPKvr8b7yiPlg=";
 }
