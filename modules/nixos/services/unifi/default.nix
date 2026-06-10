@@ -184,13 +184,20 @@ in
         security = cfg.reverseProxy.security;
 
         # UniFi-specific reverse proxy directives
+        #
+        # IMPORTANT: Forward the ORIGINAL request Host to the backend; do NOT
+        # rewrite it to the upstream address ({upstream_hostport}).
+        # UniFi Network 9.x/10.x validates the browser Origin header against
+        # the request Host on state-changing requests (e.g. POST /api/login).
+        # If Caddy sends Host: 127.0.0.1:8443 while the browser sends
+        # Origin: https://unifi.holthome.net, UniFi's CSRF protection returns
+        # HTTP 403, surfacing in the UI as "There was an error making that
+        # request." Pinning Host to {http.request.host} makes the backend see
+        # the same hostname as the browser Origin. Caddy v2 handles WebSocket
+        # upgrades natively, so no explicit Upgrade/Connection headers needed.
         reverseProxyBlock = ''
-          # Handle websockets for real-time updates
-          header_up Host {upstream_hostport}
+          header_up Host {http.request.host}
           header_up X-Real-IP {remote_host}
-          # WebSocket upgrade headers
-          header_up Upgrade {>Upgrade}
-          header_up Connection {>Connection}
         '';
       };
 
