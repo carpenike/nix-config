@@ -17,14 +17,16 @@ in
 
   # WWW Shield signing keystore.
   #
-  # Non-secret values are exported for every shell via session variables.
+  # All four vars are set directly in the interactive shell init blocks so they
+  # land in the same fish/bash sessions. (home.sessionVariables is unreliable
+  # here: fish doesn't source hm-session-vars.sh and bash only sources it for
+  # login shells, so the non-secret vars went missing while the password
+  # loaders below still ran.)
+  #
   # The two passwords are decrypted by sops-nix (using my PGP key, which is a
-  # recipient for every *.sops.yaml) and loaded into interactive shells below.
+  # recipient for every *.sops.yaml). Guarded on readability so a missing or
+  # locked secret never breaks shell startup.
   # Add the password values with:  sops home/ryan/secrets.sops.yaml
-  home.sessionVariables = {
-    WWW_SHIELD_KEYSTORE = "/Users/ryan/src/material/www-shield-release.jks";
-    WWW_SHIELD_KEY_ALIAS = "www-shield";
-  };
 
   sops = {
     # rymac has no machine age key in .sops.yaml; decrypt with my PGP key.
@@ -36,9 +38,9 @@ in
     };
   };
 
-  # Load the WWW Shield signing passwords into interactive shells. Guarded on
-  # readability so a missing/locked secret never breaks shell startup.
   programs.bash.initExtra = lib.mkAfter ''
+    export WWW_SHIELD_KEYSTORE="/Users/ryan/src/material/www-shield-release.jks"
+    export WWW_SHIELD_KEY_ALIAS="www-shield"
     if [[ -r "${keystorePasswordPath}" ]]; then
       export WWW_SHIELD_KEYSTORE_PASSWORD="$(cat "${keystorePasswordPath}")"
     fi
@@ -48,6 +50,8 @@ in
   '';
 
   programs.fish.interactiveShellInit = lib.mkAfter ''
+    set -gx WWW_SHIELD_KEYSTORE "/Users/ryan/src/material/www-shield-release.jks"
+    set -gx WWW_SHIELD_KEY_ALIAS "www-shield"
     if test -r "${keystorePasswordPath}"
       set -gx WWW_SHIELD_KEYSTORE_PASSWORD (cat "${keystorePasswordPath}")
     end
