@@ -46,6 +46,15 @@ let
   # hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
   # When true, the partiful_calendar_url SOPS key is required to exist.
   whiskeyWhiskeyWhiskeyPartifulEnabled = true;
+  # Opt-in: Plex token for the whiskey `capture_plex_keys` MCP tool
+  # (HOF-039). When true, the plex_token SOPS key is required to exist.
+  # Setup: generate a SCOPED / managed-user Plex token (NOT the admin
+  # token) per upstream's least-privilege guidance, encrypt it via
+  #   sops hosts/forge/secrets.sops.yaml
+  # under `whiskey-whiskey-whiskey: plex_token: ...`, then flip this to
+  # true and `task nix:apply-nixos host=forge`. Unset = the MCP tool
+  # degrades to "use the host `npm run capture:plex` CLI instead".
+  whiskeyWhiskeyWhiskeyPlexEnabled = true;
   # NOTE: PARTIFUL_FIREBASE_AUTH was removed 2026-05-18. As of upstream
   # commit 7703b7b4 ("strict per-caller credential routing; remove
   # env-var + cross-host fallbacks") the Fastify server no longer reads
@@ -942,6 +951,18 @@ in
             group = "root";
           };
         }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyPlexEnabled) {
+          # Scoped Plex token for the `capture_plex_keys` MCP tool (HOF-039).
+          # App-global (Anthropic-key trust tier), NOT the per-host Partiful
+          # pattern. Use a SCOPED / managed-user token, never the admin
+          # token, to keep the server's blast radius small. Consumed via the
+          # env template below.
+          "whiskey-whiskey-whiskey/plex_token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs replogEnabled {
           # RepLog admin-bootstrap credentials. Consumed by the upstream
           # module ONLY on the very first boot — once a user row exists
@@ -1152,10 +1173,18 @@ in
               WWW_GATE_TOKEN_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/gate_token_key"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyPartifulEnabled
                 "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyPlexEnabled
+                "PLEX_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/plex_token"}"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";
             group = "root";
+            # Restart the service when the assembled env file changes so it
+            # re-reads the EnvironmentFile. Without this, sops-nix re-renders
+            # the file at activation but the running unit keeps its old
+            # environment — e.g. a newly-added PLEX_TOKEN (or any rotated key)
+            # is silently ignored until the next manual restart.
+            restartUnits = [ "whiskey-whiskey-whiskey.service" ];
           };
         }
         // optionalAttrs replogEnabled {

@@ -138,6 +138,15 @@ in
         dataDir
       ];
 
+      # Same guard for the upstream maintenance oneshot template
+      # (`whiskey-www-maintenance@.service`). It shares the main service's
+      # DynamicUser identity + StateDirectory and writes to the same SQLite
+      # DB, so a migrate/seed run before the ZFS dataset is mounted would hit
+      # the identical fallback-path data-loss bug (2026-05-13 → 2026-05-14).
+      systemd.services."whiskey-www-maintenance@".unitConfig.RequiresMountsFor = [
+        dataDir
+      ];
+
       # Caddy vhost — apex, canonical hostname. Pure pass-through; the app
       # does OIDC against PocketID itself, so no caddySecurity here.
       modules.services.caddy.virtualHosts.${serviceName} = {
