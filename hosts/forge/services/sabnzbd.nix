@@ -11,7 +11,7 @@ in
 
         # Use home-operations container image (version 4.5.5)
         # Pinned with SHA256 digest for immutability
-        image = "ghcr.io/home-operations/sabnzbd:5.0.3@sha256:53064020792b2e21305c892c11aaa1eb32af2141cbd59119b52df226d664cd05";
+        image = "ghcr.io/home-operations/sabnzbd:5.0.4@sha256:0c78c4752607d6d3fca43817af3540dad515c48dbab2c980ef7ef5bc27849b2b";
 
         # Override default port (8081 already in use on this host)
         port = 8082;
