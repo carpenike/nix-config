@@ -8,7 +8,7 @@
 {
   cooklang-cli = {
     pname = "cooklang-cli";
-    version = "v0.31.0";
+    version = "v0.32.0";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
