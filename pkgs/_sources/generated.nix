@@ -12,9 +12,9 @@
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "CookCLI";
-      rev = "v0.30.0";
+      rev = "v0.32.0";
       fetchSubmodules = false;
-      sha256 = "sha256-UwO/pdop4grOuVEq0pSt9DXEQLCXKFrm9HhfQISdBXg=";
+      sha256 = "sha256-Lft44tBo8l+EhqEHuq6mKBVTjgpewd34SPtloVwkmGc=";
     };
   };
   cooklang-federation = {
@@ -70,9 +70,9 @@
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v3.4.0";
+      rev = "v3.5.0";
       fetchSubmodules = false;
-      sha256 = "sha256-qavPQi3qIp47HYFY1ACW+RvCOMtWdVBGvjYtDgaammk=";
+      sha256 = "sha256-ZXjOuf8xjKtFnxzrb4mU6TBae75Nyl6zGllT9orbNMY=";
     };
   };
 }
