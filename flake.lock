@@ -473,11 +473,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781320681,
-        "narHash": "sha256-mjJ/VxJaIkgcUvKANgKOaaN5M1X1X+6NjCP0C5hw0WI=",
+        "lastModified": 1781407245,
+        "narHash": "sha256-VzJq4MmD0uyNDAceudSe1hHqcQMe9Tau0U4S+5iRGh0=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "5b929d8c854149d926d05ea0cd6469bf4e54db27",
+        "rev": "d5f483210eb016d66102eef22baa128b3b3233fc",
         "type": "github"
       },
       "original": {
@@ -559,11 +559,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781207407,
-        "narHash": "sha256-2MxPRoYnAq5au5RiaKlAyd5zuhp5tcLhg7ZtHsrurBM=",
+        "lastModified": 1781408647,
+        "narHash": "sha256-Ad48JwdJx8HcNz1jj847fkfQMso+zf2UONuiHtKUwjI=",
         "owner": "carpenike",
         "repo": "whiskey-whiskey-whiskey",
-        "rev": "f3a2d3679c1dcdb6078ad348f3766ffd5ade4c66",
+        "rev": "8b3424827a96347bc9ae92f9ccb93760d864fae8",
         "type": "github"
       },
       "original": {
