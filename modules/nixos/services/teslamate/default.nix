@@ -17,7 +17,7 @@ let
   mainServiceUnit = "${serviceAttrName}.service";
 
   # renovate: depName=adriankumpf/teslamate datasource=github-releases
-  teslamateDashboardsVersion = "3.1.0";
+  teslamateDashboardsVersion = "4.0.1";
   teslamateDashboardsSrc = pkgs.fetchzip {
     url = "https://github.com/adriankumpf/teslamate/archive/refs/tags/v${teslamateDashboardsVersion}.tar.gz";
     # WORKAROUND (2026-04-28): GitHub re-packs archive tarballs occasionally,
