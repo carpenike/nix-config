@@ -73,6 +73,20 @@ let
   # and add under `whiskey-whiskey-whiskey: pushover_token: ...`.
   # Flip to false to suppress the push entirely.
   whiskeyWhiskeyWhiskeyPushoverEnabled = true;
+  # Opt-in: op cover-image generation (HOF-063). The non-secret provider
+  # selector lives in the service settings (IMAGE_GEN_PROVIDER, default
+  # gemini); these toggles supply the provider API keys. Upstream resolves
+  # the key for whichever provider a call uses (the IMAGE_GEN_PROVIDER
+  # default OR a per-call `provider` override on the generate_op_cover MCP
+  # tool), so all three keys can be present at once and per-call provider
+  # switching works for any provider whose key is enabled here. Each key is
+  # independently rotatable and renders its matching *_API_KEY env var only
+  # when its toggle is true and the SOPS value exists. Enable gemini by
+  # default (the locked HOF-063 default); flip openai/openrouter on to also
+  # allow per-call overrides to those providers.
+  whiskeyWhiskeyWhiskeyImageGenGeminiEnabled = true;
+  whiskeyWhiskeyWhiskeyImageGenOpenaiEnabled = true;
+  whiskeyWhiskeyWhiskeyImageGenOpenrouterEnabled = true;
   # NOTE: PARTIFUL_FIREBASE_AUTH was removed 2026-05-18. As of upstream
   # commit 7703b7b4 ("strict per-caller credential routing; remove
   # env-var + cross-host fallbacks") the Fastify server no longer reads
@@ -994,6 +1008,38 @@ in
             group = "root";
           };
         }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyImageGenGeminiEnabled) {
+          # Gemini API key for op cover-image generation (HOF-063). Plain
+          # Gemini API key (no Vertex/GCP project). Maps to GEMINI_API_KEY in
+          # the env template. A platform-side spend cap is recommended as
+          # defense in depth. Consumed via the env template below.
+          "whiskey-whiskey-whiskey/gemini_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyImageGenOpenaiEnabled) {
+          # OpenAI API key for op cover-image generation (HOF-063). Maps to
+          # OPENAI_API_KEY in the env template; only needed if a generate_op_cover
+          # call uses provider=openai. Consumed via the env template below.
+          "whiskey-whiskey-whiskey/openai_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyImageGenOpenrouterEnabled) {
+          # OpenRouter API key for op cover-image generation (HOF-063). Maps to
+          # OPENROUTER_API_KEY in the env template; only needed if a
+          # generate_op_cover call uses provider=openrouter. Consumed via the
+          # env template below.
+          "whiskey-whiskey-whiskey/openrouter_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs replogEnabled {
           # RepLog admin-bootstrap credentials. Consumed by the upstream
           # module ONLY on the very first boot — once a user row exists
@@ -1206,6 +1252,12 @@ in
                 "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyPlexEnabled
                 "PLEX_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/plex_token"}"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyImageGenGeminiEnabled
+                "GEMINI_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/gemini_api_key"}"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyImageGenOpenaiEnabled
+                "OPENAI_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/openai_api_key"}"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyImageGenOpenrouterEnabled
+                "OPENROUTER_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/openrouter_api_key"}"}
               ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)
                 "WWW_PUSHOVER_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/pushover_token"}"}
               ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)

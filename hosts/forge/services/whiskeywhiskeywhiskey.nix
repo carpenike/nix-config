@@ -124,6 +124,18 @@ in
           WWW_APK_DIR = "${dataDir}/apk";
           WWW_PHOTO_DIR = "${dataDir}/op-photos";
 
+          # Op cover-image generation (HOF-063). Non-secret default provider
+          # selector; the matching API keys are secrets injected via the SOPS
+          # env template (see hosts/forge/secrets.nix). The feature is INERT
+          # until both a provider and its key are present — generate_op_cover
+          # returns image-gen-provider-error otherwise. This sets the DEFAULT
+          # provider (gemini, the locked HOF-063 default; every gemini cover
+          # carries a SynthID provenance watermark). The generate_op_cover MCP
+          # tool also accepts a per-call `provider` override, so any provider
+          # whose key is enabled in secrets.nix (gemini/openai/openrouter) can
+          # be used per call regardless of this default.
+          IMAGE_GEN_PROVIDER = "gemini";
+
           # Cooklang deep-link resolver (HOF-020, upstream dbd15d8). When set,
           # recipe rows with a `cooklang_ref` gain a derived `cooklangUrl`
           # field and the Mess Hall / op-detail surfaces render a
