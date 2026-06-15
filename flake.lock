@@ -408,11 +408,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781496494,
-        "narHash": "sha256-SfOg25O4vI7jVl4hwxiLAgsa0oiu2K1SPoDtRT3ECNc=",
+        "lastModified": 1781551022,
+        "narHash": "sha256-9HvjojjN6VHSPLFGUnEuTU/Mq0mqN8avcJTvw0WcrfY=",
         "owner": "nix-community",
         "repo": "nixvim",
-        "rev": "586286af54a314a24566811ce44eb9f380696e6e",
+        "rev": "1d91fc6f88e1bda1f36fc4cf261e77458a125926",
         "type": "github"
       },
       "original": {
@@ -559,11 +559,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781556605,
-        "narHash": "sha256-ceUp09jwQFlE1h/xW7ZqZnH5abFyqY5BkZy+Pn65hEc=",
+        "lastModified": 1781558667,
+        "narHash": "sha256-stuzBz8naWWauNAEN/Rp8L9yK1/yUPAgNVLe2ELoEyk=",
         "owner": "carpenike",
         "repo": "whiskey-whiskey-whiskey",
-        "rev": "7910df4c6e0f598e0be3244adfcbf643f272b9b6",
+        "rev": "20a7870e81018d74c4a7427bbae255cf66f8c551",
         "type": "github"
       },
       "original": {
