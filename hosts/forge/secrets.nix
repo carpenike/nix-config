@@ -55,6 +55,24 @@ let
   # true and `task nix:apply-nixos host=forge`. Unset = the MCP tool
   # degrades to "use the host `npm run capture:plex` CLI instead".
   whiskeyWhiskeyWhiskeyPlexEnabled = true;
+  # Opt-in: Pushover host-push for the whiskey outbox auto-stage cron
+  # (HOF-054). When the daily outbox tick stages auto-drafts, the bunker
+  # sends ONE best-effort Pushover push so the host learns drafts are
+  # waiting (a pointer to the review surface, never an approval path;
+  # nothing is ever sent to guests). Upstream requires BOTH
+  # WWW_PUSHOVER_TOKEN and WWW_PUSHOVER_USER or the feature no-ops.
+  #
+  # Channel separation: whiskey uses its OWN Pushover *application token*
+  # (whiskey-whiskey-whiskey/pushover_token) so its pushes land on a
+  # distinct channel (own name/icon/sound) instead of being intermixed
+  # with Alertmanager/Gatus/Grafana traffic. The *recipient* is still the
+  # shared homelab user-key (pushover/user-key) — same person/devices —
+  # which is only declared when alerting is enabled. Setup: in Pushover
+  # create an Application/API Token (e.g. "W.W.W. Bunker"), then
+  #   sops hosts/forge/secrets.sops.yaml
+  # and add under `whiskey-whiskey-whiskey: pushover_token: ...`.
+  # Flip to false to suppress the push entirely.
+  whiskeyWhiskeyWhiskeyPushoverEnabled = true;
   # NOTE: PARTIFUL_FIREBASE_AUTH was removed 2026-05-18. As of upstream
   # commit 7703b7b4 ("strict per-caller credential routing; remove
   # env-var + cross-host fallbacks") the Fastify server no longer reads
@@ -963,6 +981,19 @@ in
             group = "root";
           };
         }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyPushoverEnabled) {
+          # Dedicated Pushover *application token* for the whiskey outbox
+          # auto-stage push (HOF-054). Gives whiskey its own channel
+          # (name/icon/sound) distinct from the shared homelab alerting
+          # application. The recipient stays the shared pushover/user-key,
+          # so only the token lives here. Create it in Pushover → Create an
+          # Application/API Token. Consumed via the env template below.
+          "whiskey-whiskey-whiskey/pushover_token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs replogEnabled {
           # RepLog admin-bootstrap credentials. Consumed by the upstream
           # module ONLY on the very first boot — once a user row exists
@@ -1175,6 +1206,10 @@ in
                 "PARTIFUL_CALENDAR_URL=${config.sops.placeholder."whiskey-whiskey-whiskey/partiful_calendar_url"}"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyPlexEnabled
                 "PLEX_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/plex_token"}"}
+              ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)
+                "WWW_PUSHOVER_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/pushover_token"}"}
+              ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)
+                "WWW_PUSHOVER_USER=${config.sops.placeholder."pushover/user-key"}"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";

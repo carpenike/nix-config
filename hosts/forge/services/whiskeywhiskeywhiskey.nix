@@ -56,6 +56,20 @@
 #       4. `task nix:apply-nixos host=forge`.
 #     The bunker's timezone defaults to America/New_York (forge's TZ); set
 #     `settings.PARTIFUL_TIMEZONE` if you ever need to override.
+#   * Pushover host-push (HOF-054) — when the daily outbox cron stages
+#     auto-drafts, the bunker sends one best-effort Pushover push telling
+#     the host that drafts are waiting for review (never an approval path;
+#     nothing reaches guests). Whiskey uses its OWN Pushover *application
+#     token* (`whiskey-whiskey-whiskey/pushover_token`) so these pushes land
+#     on their own channel (distinct name/icon/sound) instead of being
+#     intermixed with the shared homelab alerting application. The recipient
+#     is still the shared `pushover/user-key` (same person/devices). To set
+#     up: in Pushover create an Application/API Token (e.g. "W.W.W. Bunker"),
+#     then `sops hosts/forge/secrets.sops.yaml` and add under
+#     `whiskey-whiskey-whiskey:` the key `pushover_token: <token>`. Toggle via
+#     `whiskeyWhiskeyWhiskeyPushoverEnabled` in `hosts/forge/secrets.nix`; the
+#     env lines render only when alerting is enabled (which declares the
+#     shared user-key).
 
 { config, lib, inputs, pkgs, ... }:
 let
@@ -102,6 +116,14 @@ in
           WWW_HOST_GROUP = "www-host";
           WWW_CREW_GROUP = "www-crew";
 
+          # New upstream deployment knobs (HOF-040/HOF-041 era):
+          # keep the canonical public origin explicit, and pin artifact/media
+          # directories under StateDirectory so systemd sandboxing needs no
+          # extra ReadOnlyPaths overrides.
+          WWW_PUBLIC_BASE_ORIGIN = "https://${apexDomain}";
+          WWW_APK_DIR = "${dataDir}/apk";
+          WWW_PHOTO_DIR = "${dataDir}/op-photos";
+
           # Cooklang deep-link resolver (HOF-020, upstream dbd15d8). When set,
           # recipe rows with a `cooklang_ref` gain a derived `cooklangUrl`
           # field and the Mess Hall / op-detail surfaces render a
@@ -117,6 +139,11 @@ in
           # Uncomment if you want a fallback path that doesn't rely on PocketID
           # group membership. Comma-separated, no spaces.
           # WWW_HOST_EMAILS = "you@example.com,other@example.com";
+        } // lib.optionalAttrs (config.modules.services.plex.enable or false) {
+          # Optional upstream override for `capture_plex_keys` MCP lookups.
+          # Upstream defaults to plex.holthome.net today; pinning here keeps
+          # the deployment self-describing if upstream changes that default.
+          PLEX_BASE_URL = "https://plex.${config.networking.domain}";
         };
 
         # Secrets are merged in via SOPS template (see hosts/forge/secrets.nix).
