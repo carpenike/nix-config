@@ -142,6 +142,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # marginalia — cook log service ("lab notebook for cooking"). Node +
+    # TypeScript + Fastify + SQLite + MCP, deploy-pattern twin of Whiskey.
+    # Native PocketID OIDC + embedded OAuth AS; reads CookLang lineage
+    # one-way (no dependency on Whiskey). https://github.com/carpenike/marginalia
+    marginalia = {
+      url = "github:carpenike/marginalia";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # homelab-mcp — small MCP server bridging homelab APIs (cooklang +
     # gatus today) into tools Claude can call. Runs its own embedded
     # OAuth 2.1 Authorization Server (federating user login to

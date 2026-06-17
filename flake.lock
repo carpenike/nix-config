@@ -270,6 +270,26 @@
         "type": "github"
       }
     },
+    "marginalia": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1781707091,
+        "narHash": "sha256-97A2rABzNTmztm4RpYt2FBeQxu5a5yALhOhXixDr/WM=",
+        "owner": "carpenike",
+        "repo": "marginalia",
+        "rev": "06b861120d2d2eac07312cb42723f307a82deff5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "carpenike",
+        "repo": "marginalia",
+        "type": "github"
+      }
+    },
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
@@ -453,6 +473,7 @@
         "home-manager": "home-manager",
         "homelab-mcp": "homelab-mcp",
         "impermanence": "impermanence",
+        "marginalia": "marginalia",
         "nix-darwin": "nix-darwin",
         "nix-vscode-extensions": "nix-vscode-extensions",
         "nixos-vscode-server": "nixos-vscode-server",

@@ -94,6 +94,7 @@ let
   # exclusively via the in-app /me/partiful UI, encrypted at rest with
   # WWW_TOKEN_KEY (AAD-bound to the user). The env var only survives as
   # a dev/recon-script convenience that doesn't apply on forge.
+  marginaliaEnabled = config.services.marginalia.enable or false;
   replogEnabled = config.services.replog.enable or false;
   homepageEnabled = config.modules.services.homepage.enable or false;
   plexEnabled = config.modules.services.plex.enable or false;
@@ -1040,6 +1041,29 @@ in
             group = "root";
           };
         }
+        // optionalAttrs marginaliaEnabled {
+          # Marginalia auth secrets (HOF-006). Both are required at service
+          # start in production. See hosts/forge/services/marginalia.nix for
+          # setup steps. Assembled into a single EnvironmentFile via the
+          # sops.templates entry "marginalia-env" below.
+
+          # OAuth client secret for Marginalia's OWN PocketID client (a NEW
+          # client distinct from Whiskey's). From the PocketID admin UI.
+          "marginalia/oidc_client_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # HS256 signing key for the browser session cookie (>=32 random
+          # chars; generate via `openssl rand -hex 48`). Rotating it
+          # invalidates all live sessions.
+          "marginalia/session_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs replogEnabled {
           # RepLog admin-bootstrap credentials. Consumed by the upstream
           # module ONLY on the very first boot — once a user row exists
@@ -1272,6 +1296,26 @@ in
             # environment — e.g. a newly-added PLEX_TOKEN (or any rotated key)
             # is silently ignored until the next manual restart.
             restartUnits = [ "whiskey-whiskey-whiskey.service" ];
+          };
+        }
+        // optionalAttrs marginaliaEnabled {
+          # EnvironmentFile assembled at activation from individually-rotatable
+          # SOPS secrets. systemd reads this before privileges drop into the
+          # service's DynamicUser, so it must be root-only. The matching
+          # non-secret auth settings live in services/marginalia.nix.
+          "marginalia-env" = {
+            content = ''
+              MARGINALIA_OIDC_CLIENT_SECRET=${config.sops.placeholder."marginalia/oidc_client_secret"}
+              MARGINALIA_SESSION_SECRET=${config.sops.placeholder."marginalia/session_secret"}
+            '';
+            mode = "0400"; # root-only readable
+            owner = "root";
+            group = "root";
+            # Restart the service when the assembled env file changes so it
+            # re-reads the EnvironmentFile (mirrors the whiskey fix above —
+            # without this a rotated secret is silently ignored until a
+            # manual restart).
+            restartUnits = [ "marginalia.service" ];
           };
         }
         // optionalAttrs replogEnabled {
