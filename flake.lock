@@ -277,11 +277,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1781751394,
-        "narHash": "sha256-S7EDJSbK0omKFmPY6UvkS0JjwirxHsGvAVy70kU5Qi4=",
+        "lastModified": 1781752340,
+        "narHash": "sha256-9Zht4Wjg2VslrVJaXJPgW+4qkyQywVmYBpDIyju+474=",
         "owner": "carpenike",
         "repo": "marginalia",
-        "rev": "1fb695dfa9f0abd0a355e51ebce5c741e4110b54",
+        "rev": "93eba7dfe0a8611becca80d177163196ff9641ba",
         "type": "github"
       },
       "original": {
