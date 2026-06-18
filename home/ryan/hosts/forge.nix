@@ -1,6 +1,13 @@
-_:
+{ pkgs
+, ...
+}:
 {
   modules.development.enable = true;
+
+  # Claude Code: install via nixpkgs rather than the upstream curl installer,
+  # which ships a generic dynamically-linked binary that cannot run on NixOS.
+  # Sourced from unstable to track Claude Code's rapid release cadence.
+  home.packages = [ pkgs.unstable.claude-code ];
 
   modules.shell.bash = {
     enable = true;
