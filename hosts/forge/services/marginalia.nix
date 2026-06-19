@@ -136,6 +136,16 @@ in
         dataDir
       ];
 
+      # Same guard for the upstream auto-migrate oneshot
+      # (`marginalia-migrate.service`, added upstream dec7e6af). It runs
+      # Before marginalia.service on every activation, shares the same
+      # DynamicUser + StateDirectory, and writes the SQLite DB — so on a
+      # fresh deploy it could migrate onto the rpool fallback path before the
+      # ZFS dataset mounts. Guard it like the other two units.
+      systemd.services.marginalia-migrate.unitConfig.RequiresMountsFor = [
+        dataDir
+      ];
+
       # Caddy vhost — canonical hostname. Pure pass-through; the app does OIDC
       # against PocketID itself (plus an embedded OAuth AS for the MCP
       # connector flow), so no caddySecurity here.

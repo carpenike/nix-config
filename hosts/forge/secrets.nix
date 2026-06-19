@@ -1063,6 +1063,19 @@ in
             owner = "root";
             group = "root";
           };
+
+          # HMAC key for the HOF-015 pavilion dashboard capability URLs (the
+          # read-only `/api/dashboard/<words>` kiosk/TV view). NOT part of the
+          # production boot guard: unset just 503s that route. When present,
+          # the `get_dashboard_url` MCP tool mints bookmarkable kiosk links.
+          # Self-generated random key (`openssl rand -hex 32`); independent
+          # rotation blast radius from session_secret (rotating only
+          # invalidates outstanding dashboard URLs).
+          "marginalia/dashboard_token_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs replogEnabled {
           # RepLog admin-bootstrap credentials. Consumed by the upstream
@@ -1307,6 +1320,7 @@ in
             content = ''
               MARGINALIA_OIDC_CLIENT_SECRET=${config.sops.placeholder."marginalia/oidc_client_secret"}
               MARGINALIA_SESSION_SECRET=${config.sops.placeholder."marginalia/session_secret"}
+              MARGINALIA_DASHBOARD_TOKEN_KEY=${config.sops.placeholder."marginalia/dashboard_token_key"}
             '';
             mode = "0400"; # root-only readable
             owner = "root";
