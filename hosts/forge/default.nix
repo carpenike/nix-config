@@ -87,6 +87,7 @@ in
     ./services/homelab-mcp.nix # Homelab MCP server (Claude tools bridge)
     ./services/enclosed.nix # Enclosed encrypted note sharing
     ./services/mealie.nix # Mealie recipe manager
+    ./services/grocy.nix # Grocy household & groceries management
     ./services/miniflux.nix # Miniflux minimalist RSS reader
     ./services/n8n.nix # n8n workflow automation
     ./services/netvisor.nix # NetVisor network discovery and visualization

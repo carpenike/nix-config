@@ -94,10 +94,20 @@ in
           HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.holthome.net";
           HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.holthome.net";
           HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.holthome.net";
+          # Grocy REST API base. The /api path is intentionally exempt from
+          # the PocketID gate (see hosts/forge/services/grocy.nix
+          # caddySecurity.bypassPaths); the grocy_* tools authenticate with
+          # the GROCY-API-KEY header sourced from the env file below.
+          HOMELAB_MCP_GROCY_BASE_URL = "https://grocy.holthome.net/api";
         };
 
         # Sops-managed env file containing at minimum:
         #   HOMELAB_MCP_POCKETID_CLIENT_SECRET=<from PocketID admin UI>
+        # Required for the grocy_* tools:
+        #   HOMELAB_MCP_GROCY_API_KEY=<from Grocy → Settings → Manage API keys>
+        #     Authenticates to grocy.holthome.net/api via the GROCY-API-KEY
+        #     header. The /api path is exempt from PocketID at Caddy (see
+        #     hosts/forge/services/grocy.nix), so the key alone gates the API.
         # Optionally:
         #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA PEM, escaped \n>
         #     If absent, the service auto-generates and persists a

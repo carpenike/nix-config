@@ -508,6 +508,18 @@
     extraGroups = [ ];
   };
 
+  grocy = {
+    uid = 510;
+    # NOTE: The upstream services.grocy module forces the grocy user's primary
+    # group to "nginx" (it shares the PHP-FPM socket with nginx). This gid is
+    # reserved for documentation/stability only and is NOT used to create a
+    # dedicated "grocy" group; dataset ownership uses grocy:nginx. Only the uid
+    # is pinned (via users.users.grocy.uid) for stable ZFS ownership.
+    gid = 510;
+    description = "Grocy household / groceries manager (group=nginx, upstream module)";
+    extraGroups = [ ];
+  };
+
   emqx = {
     uid = 505;
     gid = 505;
