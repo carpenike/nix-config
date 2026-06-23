@@ -16,7 +16,7 @@ in
         enable = true;
 
         # Pin container image to specific version with digest
-        image = "ghcr.io/home-operations/bazarr:1.5.6@sha256:79fc37491f55c7e24427bcd669bce3df2d7415ca432a47ce9d53cc5988af8411";
+        image = "ghcr.io/home-operations/bazarr:1.5.6@sha256:80cb090162b47ea1bfb499d742b45a460b282f17ffefa4c01d518a5c8d52a5a4";
 
         # Bazarr needs to access both TV and movie directories
         tvDir = "/mnt/data/media/tv";
