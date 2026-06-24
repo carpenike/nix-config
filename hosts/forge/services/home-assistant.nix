@@ -211,6 +211,14 @@ in
             # ships aioacaia.
             aioacaia
 
+            # Big Ass Fans i6/Haiku integration (built-in `baf` component),
+            # triggered by zeroconf auto-discovery of a fan on the network.
+            aiobafi6
+
+            # Improv via BLE integration (built-in `improv_ble` component),
+            # triggered by Bluetooth auto-discovery.
+            py-improv-ble-client
+
             aiodiscover
             aiodhcpwatcher
             aiousbwatcher
