@@ -168,7 +168,7 @@ in
       # docs). Do NOT let Renovate bump this independently; update it only when
       # MA's supported PO-token server version changes.
       virtualisation.oci-containers.containers.bgutil-pot = {
-        image = "docker.io/brainicism/bgutil-ytdlp-pot-provider:1.2.1@sha256:7064546d70a58680aec236b50859c4fca065092d7ed462c85ea5d897b003095e";
+        image = "docker.io/brainicism/bgutil-ytdlp-pot-provider:1.2.2@sha256:99e6c198fd55f910004a344c80515905bf8368173d41435b67a0148d9cb2a5e9";
         autoStart = true;
 
         environment = {
