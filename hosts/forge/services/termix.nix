@@ -30,8 +30,11 @@ in
         # Pin container image (Renovate will update)
         image = "ghcr.io/lukegus/termix:release-1.9.0@sha256:42649d815da4ee2cb71560b04a22641e54d993e05279908711d9056504487feb";
 
-        # Port 8095 (8080 conflicts with qbittorrent)
-        port = 8095;
+        # Port 8099 (8080 conflicts with qbittorrent; 8095 is Music Assistant's
+        # web UI — see services/music-assistant.nix). This sets the container's
+        # internal PORT env var, the loopback host publish, and the Caddy
+        # backend uniformly.
+        port = 8099;
 
         # Reverse proxy configuration (LAN only - no Cloudflare tunnel)
         reverseProxy = {
@@ -72,7 +75,7 @@ in
         icon = "terminal";
         href = "https://${serviceDomain}";
         description = "SSH web terminal & server management";
-        siteMonitor = "http://localhost:8095";
+        siteMonitor = "http://localhost:8099";
       };
 
       # Gatus black-box monitoring
