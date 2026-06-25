@@ -277,6 +277,18 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Check** | When nixpkgs #468070 is resolved, or Plex updates their bundled glibc |
 | **Solution Available** | Set `modules.services.plex.deploymentMode = "container"` to use `ghcr.io/home-operations/plex` (Ubuntu 24.04 base with matching glibc). VA-API hardware transcoding works in container mode. |
 
+### Scrypted - Force Intel iHD VAAPI Driver / Drop NVIDIA Render Node
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-06-25 |
+| **Location** | `hosts/forge/services/scrypted.nix` (`services.udev.extraRules`, `devices`, `extraEnv.LIBVA_DRIVER_NAME`) |
+| **Reason** | forge exposes two render nodes: `renderD128` (NVIDIA, PCI `0000:01:00.0`, nouveau) and `renderD129` (Intel UHD 630, PCI `0000:00:02.0`, i915). libva enumerates every node under `/dev/dri` and was loading `nouveau_drv_video.so`, which fails with `Failed to initialise VAAPI connection: 2 (resource allocation failed)`. The Scrypted decoder process then became "unresponsive" → 0 frames decoded → 0 object detections on all cameras. |
+| **Workaround** | (1) A udev rule creates PCI-stable, **colon-free** aliases `/dev/dri/intel-render` and `/dev/dri/intel-card` for the Intel iGPU (matched on `KERNELS=="0000:00:02.0"`). The kernel's own `/dev/dri/by-path/pci-0000:00:02.0-*` symlinks **cannot** be passed to podman `--device` because podman splits the argument on the colons in the PCI address (it tries to `stat /dev/dri/by-path/pci-0000`). (2) These aliases are passed as the `--device` *source*; the *destination* MUST be the Intel node's **real host name** (`renderD129`/`card2` today). The container shares the host's `/sys`, and libva/iHD resolves the GPU via `/sys/class/drm/<node-name>` derived from the device path — exposing the Intel device as `renderD128` (where host `/sys` points at nouveau) or a custom alias makes iHD inspect the wrong/missing sysfs node and fail with `Cannot open a VA display`. Scrypted enumerates `/dev/dri` and tries every `renderD*`, so exposing exactly `renderD129` makes it select Intel. (3) `LIBVA_DRIVER_NAME=iHD` forces the Intel media driver (`intel-media-driver`, bundled in `ghcr.io/koush/scrypted:latest`). |
+| **Check** | If a kernel update renumbers the DRM nodes (Intel → `renderD128`), update the `devices` destinations in `scrypted.nix` to match; otherwise scrypted falls back to software/vulkan decode (graceful, not a crash). Re-add the NVIDIA node only if/when CUDA/TensorRT passthrough is properly wired (`/dev/nvidia*` + NVIDIA userspace driver, not nouveau). |
+| **Upstream** | N/A (host hardware/driver enumeration issue, not an upstream bug) |
+| **Impact** | Without fix: hardware decode fails, decoder dies, no camera frames or detections. |
+
 ### Omada Controller - Pinned to v5.x (No AVX on Luna)
 
 | Field | Value |

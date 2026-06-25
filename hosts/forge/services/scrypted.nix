@@ -21,15 +21,63 @@ in
 {
   config = lib.mkMerge [
     {
+      # Stable, colon-free device aliases for the Intel iGPU (UHD 630,
+      # PCI 0000:00:02.0). podman's --device flag splits on ':' to separate
+      # host:container:perms, so the kernel's /dev/dri/by-path/pci-0000:00:02.0-*
+      # symlinks cannot be passed directly (podman tries to stat
+      # "/dev/dri/by-path/pci-0000"). These udev aliases stay PCI-stable
+      # (which renderD12x number maps to Intel is NOT guaranteed across reboots)
+      # while avoiding the colon-parsing problem. They are used only as the
+      # podman --device *source*; see devices list below for the destination
+      # naming constraint.
+      services.udev.extraRules = ''
+        SUBSYSTEM=="drm", KERNELS=="0000:00:02.0", KERNEL=="renderD*", SYMLINK+="dri/intel-render"
+        SUBSYSTEM=="drm", KERNELS=="0000:00:02.0", KERNEL=="card*", SYMLINK+="dri/intel-card"
+      '';
+
       modules.services.scrypted = {
         enable = true;
         hostname = serviceDomain;
         dataDir = dataDir;
 
+        # Pass ONLY the Intel iGPU (UHD 630, i915, PCI 0000:00:02.0) for VAAPI/QSV
+        # decode and Intel OpenCL. We deliberately do NOT pass the NVIDIA GPU
+        # (PCI 0000:01:00.0, nouveau): libva enumerates every node in /dev/dri
+        # and was loading nouveau_drv_video.so, which fails ("VAAPI connection:
+        # 2 / resource allocation failed") and takes the decoder process down
+        # with it (0 frames -> 0 detections).
+        #
+        # SOURCE: the PCI-stable udev aliases (services.udev.extraRules above) so
+        # the *physical* Intel device is always selected regardless of probe order.
+        #
+        # DESTINATION: MUST be the Intel node's REAL host name (renderD129 / card2
+        # today). The container shares the host's /sys, and libva/iHD resolves the
+        # GPU by looking up /sys/class/drm/<node-name> derived from the device
+        # path. If we expose the Intel device under any other name (e.g.
+        # renderD128, where /sys points at the NVIDIA/nouveau card, or a custom
+        # alias with no /sys entry), iHD inspects the wrong/missing sysfs node and
+        # fails with "Cannot open a VA display". Scrypted enumerates /dev/dri and
+        # tries every renderD* it finds, so exposing exactly renderD129 makes it
+        # pick the Intel node.
+        #
+        # WORKAROUND (2026-06-25): VAAPI nouveau init failure on cameras.
+        # Affects: Scrypted hardware decode / object detection.
+        # Check: If a kernel update renumbers the DRM nodes (Intel -> renderD128),
+        # update the destinations below to match the new real names; otherwise
+        # scrypted falls back to (slower) software/vulkan decode rather than
+        # crashing. Re-add the NVIDIA node only if/when CUDA/TensorRT passthrough
+        # is wired up with proper /dev/nvidia* devices and the NVIDIA driver.
         devices = [
-          "/dev/dri:/dev/dri" # Intel iGPU for decoding and TensorRT/OpenCL paths
+          "/dev/dri/intel-render:/dev/dri/renderD129" # Intel UHD 630 render node (i915, VAAPI/QSV + OpenCL)
+          "/dev/dri/intel-card:/dev/dri/card2" # Intel UHD 630 card node
           "/dev/bus/usb:/dev/bus/usb" # Coral USB passthrough for TFLite delegate
         ];
+
+        # Force libva to use the Intel iHD driver (intel-media-driver, bundled
+        # in the koush/scrypted image) instead of auto-detecting nouveau.
+        extraEnv = {
+          LIBVA_DRIVER_NAME = "iHD";
+        };
 
         extraOptions = [ "--shm-size=1024m" ];
 
