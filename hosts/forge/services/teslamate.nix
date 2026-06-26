@@ -20,7 +20,10 @@ in
         dataDir = dataDir;
         datasetPath = dataset;
         # renovate: depName=teslamate/teslamate datasource=docker
-        image = "teslamate/teslamate:3.1.0@sha256:b7b8b21869d789d043f62b404dd689f55c601ef7d02222e92c0f5d596d0b1044";
+        # v4.0.0+ fixes Owner API 403s after Tesla moved owner-api behind the
+        # Fleet API ingress (requires HTTP/2 + TLS 1.3). See teslamate v4.0.0/v4.0.1
+        # release notes. Avoids needing a Fleet API / MyTeslaMate migration.
+        image = "teslamate/teslamate:4.0.1@sha256:e77ec65007aafb40d736ed2c89675112fe8d960886ea9d7de3255f2b5360269f";
         encryptionKeyFile = config.sops.secrets."teslamate/encryption_key".path;
 
         database = {
