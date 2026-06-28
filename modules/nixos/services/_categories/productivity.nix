@@ -5,7 +5,6 @@
   imports = [
     ../actual # Actual Budget personal finance
     ../bichon # Email archiving system
-    ../coachiq # Coach IQ management
     ../cooklang # Recipe management server
     ../cooklang-federation # Recipe discovery service
     ../enclosed # Encrypted note sharing

@@ -16,6 +16,29 @@
         "type": "github"
       }
     },
+    "coachiq": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1782613196,
+        "narHash": "sha256-tgvDLjCdOBvsPJ2ssTr/+By7AMZQVuoeyk0THjdy1+U=",
+        "owner": "carpenike",
+        "repo": "coachiq",
+        "rev": "56008f1c77e568eb355260367730fed895f26417",
+        "type": "github"
+      },
+      "original": {
+        "owner": "carpenike",
+        "repo": "coachiq",
+        "type": "github"
+      }
+    },
     "disko": {
       "inputs": {
         "nixpkgs": [
@@ -449,11 +472,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1780424617,
-        "narHash": "sha256-ozesAGOkrjb5/M6NENeGXbNcIh1WV8i6Gny5XVKk0gE=",
+        "lastModified": 1782617148,
+        "narHash": "sha256-rREy9A5Ins5pTPBK4/21h16iCoRjgstj9WCT/IH6Ubg=",
         "owner": "carpenike",
         "repo": "replog",
-        "rev": "1147f3877b68c00ed812e6b74a25a9f2940db6ff",
+        "rev": "72e1a0ecee7b0b6de57be2b009f73e9b40f63f3d",
         "type": "github"
       },
       "original": {
@@ -465,6 +488,7 @@
     "root": {
       "inputs": {
         "catppuccin": "catppuccin",
+        "coachiq": "coachiq",
         "disko": "disko",
         "flake-parts": "flake-parts",
         "flake-utils": "flake-utils",
@@ -494,11 +518,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1782530211,
-        "narHash": "sha256-Zn5H2VVMaP79C+bvaUQD+SBXSKoTnURMZGiUrG00zII=",
+        "lastModified": 1782616745,
+        "narHash": "sha256-NN5B1cKBXF6h1Ec681gMGZ2o/99d7vKXAAfFNEvyOKA=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "06ba695dfefc4afc513b49dfc41c4bf0dd2eaeb1",
+        "rev": "b916d014dc57eb555f84e51172a82f7f6fb560d7",
         "type": "github"
       },
       "original": {

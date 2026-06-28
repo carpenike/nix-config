@@ -600,7 +600,8 @@
   coachiq = {
     uid = 945;
     gid = 945;
-    description = "CoachIQ RV monitoring (not yet deployed)";
+    description = "CoachIQ RV monitoring (nixpi). Upstream module owns the
+      user/group; this id is pinned at the host level for stable data ownership.";
     extraGroups = [ ];
   };
 

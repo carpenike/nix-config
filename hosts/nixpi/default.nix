@@ -14,6 +14,7 @@ in
     ./secrets.nix
     ./systemPackages.nix
     ./storage.nix
+    ./coachiq.nix
 
     # Use nixos-hardware for Raspberry Pi 4 support (same as original repo)
     inputs.hardware.nixosModules.raspberry-pi-4
@@ -155,6 +156,10 @@ in
     systemd.tmpfiles.rules = [
       "C /var/lib/iwd/iot.psk 0600 root root - ${config.sops.secrets."IOT_WIFI_PASSWORD".path}"
       "C /var/lib/iwd/rvproblems-2ghz.psk 0600 root root - ${config.sops.secrets."RVPROBLEMS_WIFI_PASSWORD".path}"
+
+      # Disk-backed scratch dir for Nix builds (see nix.settings.build-dir below).
+      # 1777 mirrors /tmp so sandboxed build users can own their per-build subdir.
+      "d /nix/tmp 1777 root root - -"
     ];
 
     # Additional system configuration
@@ -163,6 +168,14 @@ in
     # Nix settings for Raspberry Pi
     nix.settings = {
       download-buffer-size = 33554432; # 32 MiB
+
+      # The Pi mounts /tmp and /var/tmp on a RAM-backed tmpfs (~3.9G, no swap),
+      # so large source builds such as caddy-with-plugins overflow it and fail
+      # with "no space left on device". Redirect Nix's build scratch space to
+      # the SD card (28G free). build-dir is honored by both daemon builds and
+      # direct root builds (e.g. nixos-rebuild --use-remote-sudo, which bypasses
+      # the daemon). /nix/tmp is created via tmpfiles above.
+      build-dir = "/nix/tmp";
     };
   };
 }

@@ -164,6 +164,17 @@
       url = "github:carpenike/mcp";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # coachiq — RV-C / multi-protocol CANbus monitoring (FastAPI + React).
+    # Hybrid Nix module (post-HOF-020): import nixosModules.default and
+    # configure services.coachiq.*; package at packages.<system>.coachiq.
+    # Consumed by the nixpi (RV Raspberry Pi) host.
+    # https://github.com/carpenike/coachiq
+    coachiq = {
+      url = "github:carpenike/coachiq";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs =
