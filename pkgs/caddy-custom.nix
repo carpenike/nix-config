@@ -1,9 +1,16 @@
-# Custom Caddy build with plugins
+# Caddy with plugins (via the supported `caddy.withPlugins` API)
 #
-# This package builds Caddy with additional plugins compiled in.
-# When Renovate updates plugin versions, the hash will need to be updated.
+# This is NOT a workaround. caddy-dns/cloudflare and caddy-security are
+# external Caddy modules that stock Caddy will never bundle, so a build that
+# compiles them in is always required. nixpkgs (25.05+) provides the
+# first-class `caddy.withPlugins` mechanism used below, so no hand-rolled
+# xcaddy / buildGoModule is needed.
 #
-# To get the correct hash after a version bump:
+# Ongoing maintenance: `withPlugins` vendors the Go modules as a fixed-output
+# derivation, so the `hash` must be re-pinned whenever plugin versions OR the
+# nixpkgs caddy version change.
+#
+# To get the correct hash after a bump:
 # 1. Set hash to lib.fakeHash (or an empty string)
 # 2. Run: nix build .#caddy   (or push the change and read the CI failure)
 # 3. Copy the expected hash from the error message into the `hash` field
@@ -17,7 +24,7 @@ pkgs.caddy.withPlugins {
     # renovate: depName=github.com/greenpau/caddy-security datasource=go
     "github.com/greenpau/caddy-security@v1.1.62"
   ];
-  # WORKAROUND (2025-01-01): Hash updated after plugin version changes.
+  # Hash re-pin log (re-pinning is expected with withPlugins; see header note):
   # Updated 2026-04-29: combined bump of caddy-security v1.1.31 → v1.1.62
   # AND caddy-dns/cloudflare v0.2.3 → v0.2.4 (the v0.2.4 part already
   # landed via PR #376). Hash captured from CI fakeHash probe on this PR.
