@@ -148,6 +148,42 @@ tasks:
       - sh: which nix
         msg: "nix not found"
 
+  deploy-nixos:
+    desc: Build a NixOS host on THIS machine and push it to the target (target never compiles)
+    silent: true
+    vars:
+      ssh_user: ryan
+      NIXOS_DOMAIN: "{{.NIXOS_DOMAIN | default \"holthome.net\"}}"
+    summary: |
+      Build the entire closure locally and copy it to {host}; the target only
+      activates, it never compiles. On Apple Silicon, aarch64-linux builds are
+      transparently offloaded to the nix linux-builder VM (see
+      modules/darwin/nix.nix), so this Mac can fully build + deploy hosts like
+      nixpi without the Raspberry Pi compiling anything.
+
+      This is the preferred path for slow / low-resource targets. Unlike
+      apply-nixos (which sets --build-host=<target>), this omits --build-host
+      so the build runs here.
+
+      Args:
+        host: Host to build and deploy to (required)
+        NIXOS_DOMAIN: Domain suffix (default: holthome.net; nixpi uses holtel.io)
+    requires:
+      vars:
+        - host
+    cmds:
+      # Clear any stale failed transient units before activation.
+      - ssh "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" 'sudo systemctl reset-failed' || true
+      # No --build-host: nixos-rebuild builds locally (offloading aarch64-linux
+      # to the linux-builder VM) and copies the closure to --target-host.
+      # --fast is required: it skips rebuilding nixos-rebuild itself from the
+      # flake (an aarch64-linux binary) and re-exec'ing it, which cannot run on
+      # the aarch64-darwin host.
+      - nix-shell -p nixos-rebuild --run 'nixos-rebuild switch --flake .#{{.host}} --fast --target-host "{{.ssh_user}}@{{.host}}.{{.NIXOS_DOMAIN}}" --use-remote-sudo'
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+
   test-vm:
     desc: Build and run a NixOS configuration in a QEMU VM for testing
     silent: true

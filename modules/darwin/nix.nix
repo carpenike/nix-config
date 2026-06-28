@@ -19,4 +19,30 @@ _:
     trusted-users = [ "root" "ryan" ];
     ssl-cert-file = "/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt";
   };
+
+  # Linux remote builder VM. On Apple Silicon this boots a lightweight NixOS
+  # aarch64-linux guest under Apple's Virtualization framework (via QEMU), so
+  # this Mac can build aarch64-linux closures (e.g. the nixpi Raspberry Pi
+  # system) at *native* speed and push them to the target — instead of
+  # compiling on the Pi itself. The builder image is substitutable from
+  # cache.nixos.org, so enabling this does not require an existing Linux
+  # builder to bootstrap.
+  #
+  # Pair with `task nix:deploy-nixos host=nixpi` to build here and deploy.
+  nix.linux-builder = {
+    enable = true;
+    # Wipe the guest's /nix/store on each restart to avoid stale build state.
+    ephemeral = true;
+    config = {
+      # cores/memory/disk are host-side QEMU runtime args, so they can be tuned
+      # without rebuilding the substituted guest image.
+      virtualisation = {
+        cores = 6;
+        # Headroom for large source builds — the RPi kernel alone needs ~18 GB
+        # of scratch. qcow2 is sparse, so this is a ceiling, not a reservation.
+        darwin-builder.diskSize = 80 * 1024; # MiB
+        darwin-builder.memorySize = 8 * 1024; # MiB
+      };
+    };
+  };
 }
