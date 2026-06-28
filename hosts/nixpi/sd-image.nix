@@ -7,6 +7,15 @@
   imports = [ "${modulesPath}/installer/sd-card/sd-image-aarch64.nix" ];
   disabledModules = [ ./hardware-configuration.nix ];
 
+  # The RPi downstream kernel lacks some generic modules referenced by the
+  # sd-image base profile (e.g. dw-hdmi), which aborts modules-shrunk. Tolerate
+  # missing modules during the closure build (proven pattern from rv-nixpi).
+  nixpkgs.overlays = [
+    (_final: super: {
+      makeModulesClosure = args: super.makeModulesClosure (args // { allowMissing = true; });
+    })
+  ];
+
   sdImage = {
     firmwareSize = 512; # MiB — up from the 30 default; holds the 36 MB kernel
     compressImage = false; # flash result/sd-image/*.img directly
