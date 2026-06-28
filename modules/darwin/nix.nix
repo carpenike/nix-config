@@ -38,9 +38,9 @@ _:
       # without rebuilding the substituted guest image.
       virtualisation = {
         cores = 6;
-        # Headroom for large source builds — the RPi kernel alone needs ~18 GB
-        # of scratch. qcow2 is sparse, so this is a ceiling, not a reservation.
-        darwin-builder.diskSize = 80 * 1024; # MiB
+        # Headroom for big builds: RPi kernel scratch (~18G) + SD-image
+        # assembly (ext4 + .img + chroot). qcow2 is sparse, so this is a cap.
+        darwin-builder.diskSize = 200 * 1024; # MiB
         darwin-builder.memorySize = 8 * 1024; # MiB
       };
     };
