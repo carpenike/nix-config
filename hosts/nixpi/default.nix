@@ -14,6 +14,7 @@ in
     ./secrets.nix
     ./systemPackages.nix
     ./storage.nix
+    ./persistence.nix
     ./coachiq.nix
 
     # Use nixos-hardware for Raspberry Pi 4 support (same as original repo)

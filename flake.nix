@@ -515,6 +515,17 @@
               "observability"
             ];
           };
+          # Flashable SD image for nixpi (512 MiB firmware so the kernel fits).
+          # Build: nix build .#nixosConfigurations.nixpi-image.config.system.build.sdImage
+          nixpi-image = mkSystemLib.mkNixosSystem {
+            system = "aarch64-linux";
+            hostname = "nixpi";
+            serviceCategories = [
+              "infrastructure"
+              "observability"
+            ];
+            extraModules = [ ./hosts/nixpi/sd-image.nix ];
+          };
         };
 
         darwinConfigurations = {
