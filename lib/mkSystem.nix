@@ -30,6 +30,7 @@
     { system
     , hostname
     , serviceCategories ? null  # null = all categories, list = selective
+    , extraModules ? [ ]        # extra modules (e.g. sd-image builder)
     }:
     let
       # Import custom library helpers for injection into modules
@@ -109,7 +110,7 @@
         nixosBaseModule
       ] ++ serviceModules ++ [
         ../hosts/${hostname}
-      ];
+      ] ++ extraModules;
       specialArgs = {
         inherit inputs hostname mylib;
       };

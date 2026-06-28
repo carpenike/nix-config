@@ -121,8 +121,11 @@ in
         # cloudflared.enable = true;  # TODO: Add cloudflare secrets to secrets.sops.yaml
 
         caddy = {
-          enable = true;
-          # Now includes reverse proxy functionality via reverseProxy option
+          # Disabled: nixpi defines zero virtualHosts, so the generated
+          # Caddyfile is empty and caddy fails to start ("adapting config: EOF").
+          # Keeping it on also drags in the heavy caddy-with-plugins Go build for
+          # no benefit. Re-enable once real vhosts (e.g. iq.holtel.io) are wired.
+          enable = false;
         };
 
         chrony = {
@@ -165,9 +168,20 @@ in
     # Additional system configuration
     hardware.enableRedistributableFirmware = true;
 
+    # Back up (rather than fail on) pre-existing non-HM dotfiles during Home
+    # Manager activation. The Pi had a stale ~/.config/fish/config.fish that
+    # blocked activation; with this, HM renames it to *.hm-bak and proceeds.
+    home-manager.backupFileExtension = "hm-bak";
+
     # Nix settings for Raspberry Pi
     nix.settings = {
       download-buffer-size = 33554432; # 32 MiB
+
+      # Allow deploying pre-built closures from the Mac (nix.linux-builder via
+      # `task nix:deploy-nixos`). Pushed store paths are built locally and thus
+      # unsigned, so the pushing user (ryan, in wheel) must be trusted for the
+      # Pi's nix-daemon to import them.
+      trusted-users = [ "root" "@wheel" ];
 
       # The Pi mounts /tmp and /var/tmp on a RAM-backed tmpfs (~3.9G, no swap),
       # so large source builds such as caddy-with-plugins overflow it and fail
