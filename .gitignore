@@ -1,6 +1,7 @@
 .direnv
 tmp
 result
+result-*
 .decrypted~secrets.sops.yaml
 
 # Beads issue tracker (removed 2026-05-04). The 'bd' CLI may briefly
