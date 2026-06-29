@@ -30,8 +30,23 @@ in
       systemd.services.home-assistant = {
         wants = lib.mkAfter [ "postgresql.service" ];
         after = lib.mkAfter [ "postgresql.service" ];
-        # Add ffprobe to PATH for Chime TTS integration
-        path = [ pkgs.ffmpeg ];
+        # Expose tools used by HA command_line/shell_command scripts.
+        path = with pkgs; [
+          ffmpeg # ffprobe for Chime TTS integration
+          curl
+          jq
+          coreutils
+          gnugrep
+          gnused
+          bashInteractive
+          gawk
+          socat
+          iputils
+          dnsutils
+          openssl
+          jo
+          moreutils
+        ];
       };
     })
 

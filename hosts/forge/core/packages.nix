@@ -9,6 +9,11 @@
     pkgs.wget
     pkgs.curl
 
+    # Interactive network/API debugging
+    pkgs.jq
+    pkgs.dnsutils # dig
+    pkgs.socat
+
     # ZFS utilities
     pkgs.zfs
 
