@@ -8,25 +8,11 @@
 # Secrets MUST NOT live in Nix options, services.coachiq.settings, the Nix
 # store, or systemd Environment=. The security secret is delivered via a
 # root-readable EnvironmentFile rendered from sops at activation time.
-{ pkgs
-, config
+{ config
 , inputs
 , mylib
 , ...
 }:
-let
-  coachiqPackage = inputs.coachiq.packages.${pkgs.stdenv.hostPlatform.system}.coachiq.overridePythonAttrs (old: {
-    # WORKAROUND (2026-06-29): CoachIQ rev f569955 security validator references
-    # stale AuthenticationSettings fields. Tracked in docs/workarounds.md.
-    postPatch = (old.postPatch or "") + ''
-      substituteInPlace backend/core/security_config_validator.py \
-        --replace-fail 'self.settings.auth.access_token_expire_minutes' 'self.settings.auth.jwt_expire_minutes' \
-        --replace-fail 'self.settings.auth.mode' 'getattr(self.settings.auth, "mode", "none")' \
-        --replace-fail 'self.settings.auth.admin_password_hash' 'self.settings.auth.admin_password' \
-        --replace-fail 'self.settings.auth.enable_magic_link' 'self.settings.auth.enable_magic_links'
-    '';
-  });
-in
 {
   imports = [
     inputs.coachiq.nixosModules.default
@@ -35,7 +21,6 @@ in
   config = {
     services.coachiq = {
       enable = true;
-      package = coachiqPackage;
 
       # Bind to loopback. No coachiq reverse-proxy vhost is wired on nixpi yet,
       # so the port stays host-local. Switch to a routable address (and add a
@@ -68,17 +53,9 @@ in
     users.users.coachiq.uid = mylib.serviceUids.coachiq.uid;
     users.groups.coachiq.gid = mylib.serviceUids.coachiq.gid;
 
-    # CoachIQ's CAN recorder currently creates a relative ./recordings
-    # directory. Run the service from its writable data directory so that
-    # recorder state lands on the SSD-backed @coachiq subvolume.
-    systemd.services.coachiq.serviceConfig.WorkingDirectory = "/var/lib/coachiq";
-
-    # Production security secret. COACHIQ_ENVIRONMENT=production is hardcoded by
-    # the module, so a real COACHIQ_SECURITY__SECRET_KEY is mandatory (the
-    # coachiq-validate-config ExecStartPre fails otherwise).
-    #
-    # The decrypted secret is a systemd EnvironmentFile. Populate it with a
-    # single line, e.g.:
+    # The decrypted secret is a systemd EnvironmentFile, keeping secrets out of
+    # Nix options, the store, and systemd Environment=. Populate it with a
+    # single line when a production security secret is needed, e.g.:
     #   COACHIQ_SECURITY__SECRET_KEY=<openssl rand -hex 32>
     # Add it with: sops hosts/nixpi/secrets.sops.yaml   (key: coachiq_environment)
     sops.secrets.coachiq_environment = {
