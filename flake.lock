@@ -26,11 +26,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1782784950,
-        "narHash": "sha256-qJpjlywdJWmllDVUwtR2o3HOFFTya2JuFJgCSwctZ6M=",
+        "lastModified": 1782789625,
+        "narHash": "sha256-TV2qwSB2F5oUklGyOEZlLBuhUeQIolTPv2MpglWxVXU=",
         "owner": "carpenike",
         "repo": "coachiq",
-        "rev": "85e183e59cba34ba9c5928c02ae04284b5a34d3e",
+        "rev": "1ebd3fc613b9cb121f5dee45f3591795a8a00909",
         "type": "github"
       },
       "original": {
@@ -518,11 +518,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1782703273,
-        "narHash": "sha256-WJPfr9EAWVIuTMyb/ilHKUYlg/RNa0xrNiWR+p1iHUg=",
+        "lastModified": 1782789458,
+        "narHash": "sha256-CR55gKCChD9ffN1Ag5az20Z3RD4tylHlcM1SSohkMA8=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "5106a604b3d67cffe8eb51a8bd9f04e607f0d31d",
+        "rev": "067959ef838c440558ca519cf08ca87f43c3db3a",
         "type": "github"
       },
       "original": {

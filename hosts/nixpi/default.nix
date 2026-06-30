@@ -17,6 +17,8 @@ in
     ./storage.nix
     ./persistence.nix
     ./coachiq.nix
+    ./cloudflared.nix
+    ./time.nix
 
     # Use nixos-hardware for Raspberry Pi 4 support (same as original repo)
     inputs.hardware.nixosModules.raspberry-pi-4
@@ -120,7 +122,7 @@ in
           # Glances binds to localhost only for security
         };
 
-        # cloudflared.enable = true;  # TODO: Add cloudflare secrets to secrets.sops.yaml
+        # Cloudflare Tunnel is configured in ./cloudflared.nix (tunnel "nixpi").
 
         caddy = {
           # Disabled: nixpi defines zero virtualHosts, so the generated
