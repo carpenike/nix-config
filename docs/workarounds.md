@@ -19,6 +19,19 @@ When reviewing workarounds:
 
 ## Package Overrides (overlays/default.nix)
 
+### coachiq - Missing `access_token_expire_minutes` Compatibility Patch
+
+| Field | Value |
+|-------|-------|
+| **Added** | 2026-06-29 |
+| **Location** | `hosts/nixpi/coachiq.nix` (`services.coachiq.package.overridePythonAttrs`) |
+| **Affects** | nixpi CoachIQ startup at upstream rev `f5699554751cf22d9890f332209a0d3ea461d9f8` |
+| **Reason** | `backend/core/security_config_validator.py` references stale `AuthenticationSettings` fields (`access_token_expire_minutes`, `mode`, `admin_password_hash`, `enable_magic_link`). The model now uses `jwt_expire_minutes`, `admin_password`, and `enable_magic_links`, and has no `mode` field. CoachIQ validates successfully in `coachiq-validate-config`, then crashes during FastAPI startup with `AttributeError`. |
+| **Workaround** | Patch the validator to read the current field names and treat missing `mode` as `"none"`, skipping legacy single/multi mode checks. |
+| **Check** | Remove once upstream either restores the field on `AuthenticationSettings` or updates the validator to use the security config service/defaults. |
+| **Upstream** | https://github.com/carpenike/coachiq |
+| **Impact** | Without fix: `coachiq.service` exits during app lifespan startup after SOPS and CAN recorder initialization succeed. |
+
 ### cooklang-federation - Tailwind v4 Import → v3 Compatibility Patch
 
 | Field | Value |

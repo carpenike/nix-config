@@ -14,6 +14,19 @@
 , mylib
 , ...
 }:
+let
+  coachiqPackage = inputs.coachiq.packages.${pkgs.stdenv.hostPlatform.system}.coachiq.overridePythonAttrs (old: {
+    # WORKAROUND (2026-06-29): CoachIQ rev f569955 security validator references
+    # stale AuthenticationSettings fields. Tracked in docs/workarounds.md.
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace backend/core/security_config_validator.py \
+        --replace-fail 'self.settings.auth.access_token_expire_minutes' 'self.settings.auth.jwt_expire_minutes' \
+        --replace-fail 'self.settings.auth.mode' 'getattr(self.settings.auth, "mode", "none")' \
+        --replace-fail 'self.settings.auth.admin_password_hash' 'self.settings.auth.admin_password' \
+        --replace-fail 'self.settings.auth.enable_magic_link' 'self.settings.auth.enable_magic_links'
+    '';
+  });
+in
 {
   imports = [
     inputs.coachiq.nixosModules.default
@@ -22,7 +35,7 @@
   config = {
     services.coachiq = {
       enable = true;
-      package = inputs.coachiq.packages.${pkgs.stdenv.hostPlatform.system}.coachiq;
+      package = coachiqPackage;
 
       # Bind to loopback. No coachiq reverse-proxy vhost is wired on nixpi yet,
       # so the port stays host-local. Switch to a routable address (and add a
@@ -54,6 +67,11 @@
     # does not assign a fixed id.
     users.users.coachiq.uid = mylib.serviceUids.coachiq.uid;
     users.groups.coachiq.gid = mylib.serviceUids.coachiq.gid;
+
+    # CoachIQ's CAN recorder currently creates a relative ./recordings
+    # directory. Run the service from its writable data directory so that
+    # recorder state lands on the SSD-backed @coachiq subvolume.
+    systemd.services.coachiq.serviceConfig.WorkingDirectory = "/var/lib/coachiq";
 
     # Production security secret. COACHIQ_ENVIRONMENT=production is hardcoded by
     # the module, so a real COACHIQ_SECURITY__SECRET_KEY is mandatory (the
