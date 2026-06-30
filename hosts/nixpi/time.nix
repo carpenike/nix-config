@@ -15,7 +15,11 @@
 # Hardware: USB GPS on a Prolific PL2303 bridge, multi-constellation NMEA @ 38400
 # baud (no PPS), so time accuracy is coarse (~0.1-0.5s) but more than enough for
 # TLS/logs/dashboard. gpsd auto-detects the baud rate.
-{ ... }:
+#
+# This host also re-serves the GPS as NMEA 0183 over TCP on the LAN (port 10110)
+# so devices that can't host their own GPS — e.g. a Victron Cerbo GX — can use
+# the position without a receiver of their own.
+{ pkgs, ... }:
 {
   config = {
     services.gpsd = {
@@ -42,5 +46,37 @@
       # available. Without this a cold boot can stay wildly wrong indefinitely.
       makestep 1.0 3
     '';
+
+    # Share GPS position on the LAN as NMEA 0183 over TCP.
+    #
+    # Venus OS / Cerbo GX has NO native network-GPS client — it only reads
+    # USB/serial NMEA-0183 or NMEA-2000. So we publish the raw NMEA stream
+    # (RMC/GGA/VTG/...) on port 10110 (the IANA "NMEA-0183 Navigational Data"
+    # port); on the Cerbo you bridge this to a pseudo-serial with socat and point
+    # gps_dbus at it. Also works directly with OpenCPN, SignalK, pyGPSClient, etc.
+    #
+    # `socat ... fork` spawns one `gpspipe -r` per client connection, each of
+    # which streams the raw NMEA gpsd receives. DynamicUser is sufficient: the
+    # only access it needs is gpsd's control socket on 127.0.0.1:2947.
+    systemd.services.gps-nmea-tcp = {
+      description = "Serve gpsd NMEA 0183 over TCP on the LAN (port 10110)";
+      after = [ "gpsd.service" "network.target" ];
+      wants = [ "gpsd.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:10110,reuseaddr,fork,keepalive EXEC:'${pkgs.gpsd}/bin/gpspipe -r'";
+        Restart = "always";
+        RestartSec = 5;
+        DynamicUser = true;
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+      };
+    };
+
+    # LAN-only in practice: the Cloudflare tunnel is outbound, so nothing forwards
+    # WAN traffic to this port — only devices on the RV LAN can reach it.
+    networking.firewall.allowedTCPPorts = [ 10110 ];
   };
 }
