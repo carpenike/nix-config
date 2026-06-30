@@ -1,6 +1,33 @@
 { config, pkgs, lib, ... }:
 let
   cfg = config.modules.hardware.pican2Duo;
+  cangw = "${pkgs.can-utils}/bin/cangw";
+  gatewayFilter = "19FFAA4F~1FFFFFFF";
+  mkCangwService = source: destination: {
+    description = "CAN Gateway from ${source} to ${destination}";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "can0.service" "can1.service" ];
+    requires = [ "can0.service" "can1.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "setup-cangw-${source}-to-${destination}" ''
+        while ${cangw} -D -s ${source} -d ${destination} -e -f ${gatewayFilter} >/dev/null 2>&1; do
+          :
+        done
+        exec ${cangw} -A -s ${source} -d ${destination} -e -f ${gatewayFilter}
+      '';
+      ExecStop = pkgs.writeShellScript "stop-cangw-${source}-to-${destination}" ''
+        while ${cangw} -D -s ${source} -d ${destination} -e -f ${gatewayFilter} >/dev/null 2>&1; do
+          :
+        done
+      '';
+      Restart = "on-failure";
+      RestartSec = "5s";
+      User = "root";
+      Group = "root";
+    };
+  };
 in
 {
   options.modules.hardware.pican2Duo = {
@@ -222,35 +249,9 @@ in
     };
 
     # Systemd services for cangw bridging
-    systemd.services."cangw-can0-to-can1" = {
-      description = "CAN Gateway from can0 to can1";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "can0.service" "can1.service" ];
-      requires = [ "can0.service" "can1.service" ];
-      serviceConfig = {
-        ExecStart = "${pkgs.can-utils}/bin/cangw -A -s can0 -d can1 -e -f 19FFAA4F~1FFFFFFF";
-        Restart = "on-failure";
-        RestartSec = "5s";
-        # Run as root
-        User = "root";
-        Group = "root";
-      };
-    };
+    systemd.services."cangw-can0-to-can1" = mkCangwService "can0" "can1";
 
-    systemd.services."cangw-can1-to-can0" = {
-      description = "CAN Gateway from can1 to can0";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "can0.service" "can1.service" ];
-      requires = [ "can0.service" "can1.service" ];
-      serviceConfig = {
-        ExecStart = "${pkgs.can-utils}/bin/cangw -A -s can1 -d can0 -e -f 19FFAA4F~1FFFFFFF";
-        Restart = "on-failure";
-        RestartSec = "5s";
-        # Run as root
-        User = "root";
-        Group = "root";
-      };
-    };
+    systemd.services."cangw-can1-to-can0" = mkCangwService "can1" "can0";
 
     # Add can-utils and debugging tools.
     environment.systemPackages = with pkgs; [
