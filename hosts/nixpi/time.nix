@@ -75,6 +75,34 @@
       };
     };
 
+    # Drop-in replacement for the Peplink's "GPS Forwarding": UDP-broadcast the
+    # NMEA stream to the LAN broadcast on port 10110 — exactly what
+    # proptied/network-gps on the Cerbo listens for:
+    #   socat udp-recv:10110 pty,link=/dev/ttyUDP10110 -> gps_dbus
+    # So the existing Cerbo network-gps install keeps working — it just receives
+    # this Pi's broadcast instead of the Peplink's.
+    #
+    # 192.168.88.255 is the RV LAN (192.168.88.0/24) directed broadcast; update it
+    # if the subnet changes. socat reads `gpspipe -r` and emits one datagram per
+    # chunk; broadcasting is outbound, so no inbound firewall rule is required.
+    # Restart=always rides out the brief window before DHCP assigns the address.
+    systemd.services.gps-nmea-udp-broadcast = {
+      description = "Broadcast gpsd NMEA 0183 over UDP to the LAN (port 10110)";
+      after = [ "gpsd.service" "network.target" ];
+      wants = [ "gpsd.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        ExecStart = "${pkgs.socat}/bin/socat EXEC:'${pkgs.gpsd}/bin/gpspipe -r' UDP-DATAGRAM:192.168.88.255:10110,broadcast";
+        Restart = "always";
+        RestartSec = 5;
+        DynamicUser = true;
+        NoNewPrivileges = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+      };
+    };
+
     # LAN-only in practice: the Cloudflare tunnel is outbound, so nothing forwards
     # WAN traffic to this port — only devices on the RV LAN can reach it.
     networking.firewall.allowedTCPPorts = [ 10110 ];
