@@ -13,6 +13,7 @@ in
     ./hardware-configuration.nix
     ./secrets.nix
     ./systemPackages.nix
+    ./disko-config.nix
     ./storage.nix
     ./persistence.nix
     ./coachiq.nix

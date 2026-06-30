@@ -25,19 +25,21 @@
     neededForBoot = true;
   };
 
+  # The SD image rootfs is populated with /nix/store. Since this appliance
+  # mounts that partition at /nix, bind the nested store to runtime /nix/store
+  # as a real mount; nix-daemon refuses symlinked store paths.
+  fileSystems."/nix/store" = {
+    device = "/nix/nix/store";
+    fsType = "none";
+    options = [ "bind" "ro" "nosuid" "nodev" "noatime" ];
+    neededForBoot = true;
+    depends = [ "/nix" ];
+  };
+
   # Firmware + kernel (vfat); 512 MiB on the rebuilt image so the kernel fits.
   fileSystems."/boot" = {
     device = "/dev/disk/by-label/FIRMWARE";
     fsType = "vfat";
-  };
-
-  # Persistent state on the USB SSD (impermanence target). nofail so the box
-  # still boots (ephemeral) if the SSD is absent.
-  fileSystems."/persist" = {
-    device = "/dev/disk/by-id/usb-SABRENT_ASM1153E_0000000000B7-0:0-part1";
-    fsType = "btrfs";
-    options = [ "subvol=@persist" "compress=zstd" "noatime" "nofail" ];
-    neededForBoot = true;
   };
 
   swapDevices = [ ];

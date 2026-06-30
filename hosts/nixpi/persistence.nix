@@ -9,7 +9,6 @@
       "/var/lib/nixos" # uid/gid map stability
       "/var/lib/systemd" # timers, random seed
       "/var/lib/iwd" # wifi credentials/state
-      { directory = "/var/lib/coachiq"; user = "coachiq"; group = "coachiq"; mode = "0750"; }
     ];
     files = [
       "/etc/machine-id"
