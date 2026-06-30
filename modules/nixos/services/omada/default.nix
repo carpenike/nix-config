@@ -273,7 +273,7 @@ in
       # Check: re-evaluate if luna is replaced, the controller is migrated to forge,
       # or upstream archives the v5 line.
       virtualisation.oci-containers.containers.omada = podmanLib.mkContainer "omada" {
-        image = "docker.io/mbentley/omada-controller:5.15.24.19@sha256:cfeb0a23f4d0c9e0d3bd964a110ddc9a1075ca19ef2344382a3c831a53c65e7a";
+        image = "docker.io/mbentley/omada-controller:5.15.24.19@sha256:2f99a7d4ab782b24081997fba298969f12a4c42df5c987fdd4a9c32d692e4583";
         environment = {
           "TZ" = "America/New_York";
           # Using embedded MongoDB (default behavior when MONGO_EXTERNAL is not set)
