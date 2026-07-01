@@ -48,9 +48,10 @@
           zoneName = "holtel.io";
         };
 
-        # defaultService is left at the module default
-        # (http://127.0.0.1:<caddy http port>) so discovered hostnames route
-        # through Caddy once it is re-enabled with real vhosts.
+        # Route tunnel traffic to Caddy over HTTPS on loopback. Connecting with
+        # TLS avoids Caddy's automatic HTTP->HTTPS redirect (which would loop at
+        # the edge). Caddy serves the DNS-01 cert for the discovered hostnames.
+        defaultService = "https://127.0.0.1:443";
       };
     };
   };

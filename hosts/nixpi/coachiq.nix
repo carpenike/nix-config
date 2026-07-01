@@ -22,29 +22,39 @@
     services.coachiq = {
       enable = true;
 
-      # Bind to loopback. No coachiq reverse-proxy vhost is wired on nixpi yet,
-      # so the port stays host-local. Switch to a routable address (and add a
-      # Caddy vhost / openFirewall) when external access is intended.
+      # Bind to loopback; Caddy on the same host fronts coachiq and the
+      # Cloudflare tunnel terminates public TLS. openFirewall stays off — the
+      # only ingress is the tunnel -> Caddy -> loopback path.
       host = "127.0.0.1";
       port = 8000;
       dataDir = "/var/lib/coachiq";
       logLevel = "INFO";
 
-      # No TLS-terminating reverse proxy fronts coachiq on nixpi yet; keep the
-      # app's TLS-redirect/HSTS behaviour off. Flip to true once Caddy fronts it.
-      tlsTerminationIsExternal = false;
+      # Caddy (and the Cloudflare edge) terminate TLS; tell uvicorn to trust
+      # X-Forwarded-* so redirects/cookies use https://iq.holtel.io.
+      tlsTerminationIsExternal = true;
       openFirewall = false;
 
-      # Root-readable EnvironmentFile carrying COACHIQ_SECURITY__SECRET_KEY.
-      # Rendered by sops-nix at activation (see sops.secrets below).
+      # Root-readable EnvironmentFile carrying the secrets that must NOT live in
+      # the Nix store: COACHIQ_SECURITY__SECRET_KEY (session), COACHIQ_AUTH__SECRET_KEY
+      # (JWT), and COACHIQ_AUTH__OIDC_CLIENT_SECRET (PocketID). Add them with
+      #   sops hosts/nixpi/secrets.sops.yaml    (key: coachiq_environment)
       environmentFile = config.sops.secrets.coachiq_environment.path;
 
-      # Non-secret long-tail COACHIQ_* settings (full env var names) go here.
-      # Left empty: upstream defaults (single can0 interface, auth disabled,
-      # mandatory persistence) are correct for the initial deployment. Add e.g.
-      # COACHIQ_CAN__INTERFACES / COACHIQ_CAN__INTERFACE_MAPPINGS here when the
-      # dual-CAN (pican2Duo) topology is configured.
-      settings = { };
+      # Non-secret COACHIQ_* settings (full env var names; secrets go in the
+      # EnvironmentFile above). Enforce auth and native PocketID OIDC.
+      settings = {
+        # Turn on authentication + native OIDC against the home PocketID server.
+        COACHIQ_AUTH__ENABLED = true;
+        COACHIQ_AUTH__OIDC_ENABLED = true;
+        COACHIQ_AUTH__OIDC_ISSUER = "https://id.holthome.net";
+        COACHIQ_AUTH__OIDC_CLIENT_ID = "coachiq";
+
+        # Required by upstream when OIDC is enabled: absolute external origin
+        # (scheme+host only, no path, no trailing slash). Drives OIDC redirect
+        # URIs and cookie/redirect generation.
+        COACHIQ_SERVER__PUBLIC_ORIGIN = "https://iq.holtel.io";
+      };
     };
 
     # Pin the reserved uid/gid so /var/lib/coachiq ownership is stable across
@@ -63,6 +73,23 @@
       owner = "root";
       group = "root";
       restartUnits = [ "coachiq.service" ];
+    };
+
+    # Caddy vhost — pure pass-through (no caddySecurity). coachiq enforces its
+    # own native PocketID OIDC; Caddy just terminates TLS for the tunnel origin
+    # and proxies to loopback. Opting the hostname into the "nixpi" tunnel makes
+    # the cloudflared module auto-discover it for ingress + DNS registration.
+    modules.services.caddy.virtualHosts.coachiq = {
+      enable = true;
+      hostName = "iq.holtel.io";
+      backend = {
+        host = "127.0.0.1";
+        port = 8000;
+      };
+      cloudflare = {
+        enable = true;
+        tunnel = "nixpi";
+      };
     };
   };
 }

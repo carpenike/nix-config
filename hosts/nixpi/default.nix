@@ -17,6 +17,7 @@ in
     ./storage.nix
     ./persistence.nix
     ./coachiq.nix
+    ./caddy.nix
     ./cloudflared.nix
     ./time.nix
 
@@ -125,11 +126,10 @@ in
         # Cloudflare Tunnel is configured in ./cloudflared.nix (tunnel "nixpi").
 
         caddy = {
-          # Disabled: nixpi defines zero virtualHosts, so the generated
-          # Caddyfile is empty and caddy fails to start ("adapting config: EOF").
-          # Keeping it on also drags in the heavy caddy-with-plugins Go build for
-          # no benefit. Re-enable once real vhosts (e.g. iq.holtel.io) are wired.
-          enable = false;
+          # Fronts coachiq at iq.holtel.io (vhost defined in ./coachiq.nix) and
+          # terminates TLS for the Cloudflare tunnel origin. DNS-01 ACME needs a
+          # CLOUDFLARE_API_TOKEN in Caddy's environment, wired via ./caddy.nix.
+          enable = true;
         };
 
         chrony = {
