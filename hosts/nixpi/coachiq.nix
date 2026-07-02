@@ -54,6 +54,13 @@
         # (scheme+host only, no path, no trailing slash). Drives OIDC redirect
         # URIs and cookie/redirect generation.
         COACHIQ_SERVER__PUBLIC_ORIGIN = "https://iq.holtel.io";
+
+        # Base URL for magic-link generation. The production security validator
+        # hard-fails startup ("base_url is required when magic links are enabled")
+        # because magic links default on. We authenticate via OIDC, but set this
+        # to the public origin to satisfy the validator (magic links are inert
+        # without SMTP). Alternatively set COACHIQ_AUTH__ENABLE_MAGIC_LINKS = false.
+        COACHIQ_AUTH__BASE_URL = "https://iq.holtel.io";
       };
     };
 
