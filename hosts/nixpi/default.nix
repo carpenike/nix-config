@@ -165,8 +165,10 @@ in
       "C /var/lib/iwd/rvproblems-2ghz.psk 0600 root root - ${config.sops.secrets."RVPROBLEMS_WIFI_PASSWORD".path}"
 
       # Disk-backed scratch dir for Nix builds (see nix.settings.build-dir below).
-      # 1777 mirrors /tmp so sandboxed build users can own their per-build subdir.
-      "d /nix/tmp 1777 root root - -"
+      # Must be root-owned and NOT world-writable: recent Nix rejects a
+      # world-writable (e.g. 1777) build-dir as a security risk. The nix-daemon
+      # runs as root and creates per-build subdirs itself, so 0755 is sufficient.
+      "d /nix/tmp 0755 root root - -"
     ];
 
     # Additional system configuration
