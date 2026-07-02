@@ -61,6 +61,11 @@
         # to the public origin to satisfy the validator (magic links are inert
         # without SMTP). Alternatively set COACHIQ_AUTH__ENABLE_MAGIC_LINKS = false.
         COACHIQ_AUTH__BASE_URL = "https://iq.holtel.io";
+
+        # Select the coach mapping for our RV (2021 Entegra Aspire 44R). Value is
+        # the bundled config/<model>.yml filename without the extension; without
+        # it coachiq falls back to the generic coach_mapping.default.yml (1 entity).
+        COACHIQ_RVC__COACH_MODEL = "2021_Entegra_Aspire_44R";
       };
     };
 
