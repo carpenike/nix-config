@@ -35,6 +35,21 @@
       tlsTerminationIsExternal = true;
       openFirewall = false;
 
+      # RouterOS sidecar (HOF-073): a dedicated tokenless plain-HTTP listener on
+      # 0.0.0.0:8100, separate from the authed main API, that the RV MikroTik
+      # router polls for /location-state + /starlink/verdict. The firewall opens
+      # 8100 ONLY on end0 (the RV LAN NIC holding 192.168.88.30) — never the
+      # Cloudflare tunnel / WAN (a module assertion enforces lanInterfaces here).
+      # Home lat/lon drive the home/away verdict and reveal the RV's home
+      # address, so they go in the sops EnvironmentFile as
+      # COACHIQ_ROUTER_SIDECAR__HOME_LATITUDE / __HOME_LONGITUDE, NOT in settings
+      # (this repo is public). Without them /location-state safely returns "unknown".
+      routerSidecar = {
+        enable = true;
+        openFirewall = true;
+        lanInterfaces = [ "end0" ];
+      };
+
       # Root-readable EnvironmentFile carrying the secrets that must NOT live in
       # the Nix store: COACHIQ_SECURITY__SECRET_KEY (session), COACHIQ_AUTH__SECRET_KEY
       # (JWT), and COACHIQ_AUTH__OIDC_CLIENT_SECRET (PocketID). Add them with
