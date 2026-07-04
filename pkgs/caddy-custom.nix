@@ -22,7 +22,7 @@ pkgs.caddy.withPlugins {
     # renovate: depName=github.com/caddy-dns/cloudflare datasource=go
     "github.com/caddy-dns/cloudflare@v0.2.4"
     # renovate: depName=github.com/greenpau/caddy-security datasource=go
-    "github.com/greenpau/caddy-security@v1.1.62"
+    "github.com/greenpau/caddy-security@v1.1.64"
   ];
   # Hash re-pin log (re-pinning is expected with withPlugins; see header note):
   # Updated 2026-04-29: combined bump of caddy-security v1.1.31 → v1.1.62
@@ -35,5 +35,7 @@ pkgs.caddy.withPlugins {
   # (plugin versions unchanged). Hash captured from forge build failure.
   # Updated 2026-06-27: hash drifted again after a nixpkgs bump
   # (plugin versions unchanged). Hash captured from forge build failure.
-  hash = "sha256-blINVJ6vakiRtsQHIyp+NrhTiyyS4jjwBXVcaWqJAJo=";
+  # Updated 2026-07-04: caddy-security v1.1.62 → v1.1.64 (Renovate PR #527).
+  # Hash captured from CI build failure.
+  hash = "sha256-mfW3VUkDs7q50ziTPAaZPOi2Cg6gykkPRjdTTM+Ixbg=";
 }
