@@ -26,11 +26,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783190332,
-        "narHash": "sha256-JYgVqoBKMMShb3DJ0OUxaS/lF96qoyDy3AtYibIBiQY=",
+        "lastModified": 1783191052,
+        "narHash": "sha256-xuPoQm3NAkRxakjbaX/fyOe78yEGaopQCf71ZmChkhg=",
         "owner": "carpenike",
         "repo": "coachiq",
-        "rev": "c82a33ee1b0ce8c70406372eb01d969ef01f83c6",
+        "rev": "a263a86f9d8b93abaa109bb45eb06a990fc92510",
         "type": "github"
       },
       "original": {
@@ -516,11 +516,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783104586,
-        "narHash": "sha256-vSLKc7m34/g5xH4dwmNZSqxc5OcHeE3qiG3EIz6bJKs=",
+        "lastModified": 1783174389,
+        "narHash": "sha256-aCWC8ngycU7OdJrU2+Je3qf+1a2ykuBvpPhZT/9tXMc=",
         "owner": "mic92",
         "repo": "sops-nix",
-        "rev": "1ebd41717762d837d5115f7108522c29cdb00fbb",
+        "rev": "f1406619a3884cd5c47992a70b8b35c9c0fcb4c9",
         "type": "github"
       },
       "original": {
