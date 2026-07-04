@@ -81,6 +81,19 @@
         # the bundled config/<model>.yml filename without the extension; without
         # it coachiq falls back to the generic coach_mapping.default.yml (1 entity).
         COACHIQ_RVC__COACH_MODEL = "2021_Entegra_Aspire_44R";
+
+        # Attach BOTH CAN ports and map them to the buses they actually carry.
+        # Without these, coachiq defaults to can0 only with house=can0 — and the
+        # physical wiring is the other way around. Verified 2026-07-04 via
+        # candump on nixpi: can1 carries RV-C house traffic (DGN 1FEDA
+        # DC_DIMMER_STATUS_3 etc., ~133 f/s from the Firefly system) while can0
+        # carries J1939 chassis traffic (18FECA DM1 diagnostics, quiet with
+        # engine off). The app was listening to the near-silent chassis port.
+        COACHIQ_CAN__INTERFACES = "can0,can1";
+        COACHIQ_CAN__INTERFACE_MAPPINGS = builtins.toJSON {
+          house = "can1";
+          chassis = "can0";
+        };
       };
     };
 
