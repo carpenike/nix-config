@@ -35,5 +35,7 @@ pkgs.caddy.withPlugins {
   # (plugin versions unchanged). Hash captured from forge build failure.
   # Updated 2026-06-27: hash drifted again after a nixpkgs bump
   # (plugin versions unchanged). Hash captured from forge build failure.
-  hash = "sha256-blINVJ6vakiRtsQHIyp+NrhTiyyS4jjwBXVcaWqJAJo=";
+  # Updated 2026-07-04: caddy-security v1.1.62 → v1.1.64 (Renovate PR #527).
+  # Hash captured from CI build failure.
+  hash = "sha256-mfW3VUkDs7q50ziTPAaZPOi2Cg6gykkPRjdTTM+Ixbg=";
 }
