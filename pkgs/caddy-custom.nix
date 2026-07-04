@@ -22,7 +22,7 @@ pkgs.caddy.withPlugins {
     # renovate: depName=github.com/caddy-dns/cloudflare datasource=go
     "github.com/caddy-dns/cloudflare@v0.2.4"
     # renovate: depName=github.com/greenpau/caddy-security datasource=go
-    "github.com/greenpau/caddy-security@v1.1.62"
+    "github.com/greenpau/caddy-security@v1.1.64"
   ];
   # Hash re-pin log (re-pinning is expected with withPlugins; see header note):
   # Updated 2026-04-29: combined bump of caddy-security v1.1.31 → v1.1.62
