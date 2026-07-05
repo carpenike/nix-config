@@ -26,11 +26,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783255193,
-        "narHash": "sha256-J08iEseeDt4Eqs95gdvn/+HHfn4F/a0f4zYEcEDu0k8=",
+        "lastModified": 1783256179,
+        "narHash": "sha256-N3+YbrVmnv6Qq3uEW4neJ4XGO1f6rRpgbZMiriTqIx0=",
         "owner": "carpenike",
         "repo": "coachiq",
-        "rev": "8638ae0e5006879f06c2a0b6845b464dfe77b004",
+        "rev": "27648d81c62da5f38664238265abb92596d5b933",
         "type": "github"
       },
       "original": {
@@ -582,11 +582,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783245873,
-        "narHash": "sha256-m2quoIVfPwFlh6oyvFkhg/Egg2L9CNs+n368sS/ZFrw=",
+        "lastModified": 1783255984,
+        "narHash": "sha256-orGeUnkR5nvaDmQIrfzOWbNzuYC5HAgJxwvyaccNXPk=",
         "owner": "carpenike",
         "repo": "whiskey-whiskey-whiskey",
-        "rev": "704b00a4f16fbd52a5d88b6a8c48d5faffe7df24",
+        "rev": "8ff9b801a2b9b322605ea74c454998cff217fd75",
         "type": "github"
       },
       "original": {
