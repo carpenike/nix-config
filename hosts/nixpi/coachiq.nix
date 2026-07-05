@@ -109,6 +109,15 @@
         # time.nix runs for chrony and re-serves to the Cerbo). Defaults read
         # gpsd on 127.0.0.1:2947; retention defaults to keep-everything.
         COACHIQ_TRIP_LOG__ENABLED = true;
+
+        # RV-C time master + GPS broadcast (coachiq PR #214). The coach's
+        # factory GPS node (SA 0x75) is dead and spams a frozen 2025-10-03
+        # timestamp, leaving every clock on the bus nine months wrong. coachiq
+        # (SA 0xF9) outranks the current master by source-address arbitration
+        # and broadcasts GPS-disciplined DATE_TIME_STATUS at 1 Hz, plus the
+        # spec 6.34 GPS DGNs (position/status/UTC). Only transmits while gpsd
+        # has a fix (chrony is GPS-disciplined via time.nix).
+        COACHIQ_TIME_SYNC__ENABLED = true;
       };
     };
 
