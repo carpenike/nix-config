@@ -94,6 +94,15 @@
           house = "can1";
           chassis = "can0";
         };
+
+        # Victron Cerbo GX power-system integration (coachiq PR #200): pulls
+        # inverter/charger, EG4 battery, solar, and system telemetry from the
+        # Cerbo's local MQTT broker (dbus-flashmq, port 1883) and exposes
+        # admin-gated VE.Bus mode / input-current-limit control. The broker is
+        # unauthenticated on the RV LAN, so no secrets are involved. Requires
+        # MQTT enabled on the Cerbo (Settings -> Services -> MQTT, done 2026-07-05).
+        COACHIQ_VICTRON__ENABLED = true;
+        COACHIQ_VICTRON__HOST = "cerbo.holtel.io";
       };
     };
 
