@@ -103,6 +103,12 @@
         # MQTT enabled on the Cerbo (Settings -> Services -> MQTT, done 2026-07-05).
         COACHIQ_VICTRON__ENABLED = true;
         COACHIQ_VICTRON__HOST = "cerbo.holtel.io";
+
+        # GPS trip log (coachiq PR #207): breadcrumb trails + trip history on
+        # the Location page, recorded from the local gpsd (the same daemon
+        # time.nix runs for chrony and re-serves to the Cerbo). Defaults read
+        # gpsd on 127.0.0.1:2947; retention defaults to keep-everything.
+        COACHIQ_TRIP_LOG__ENABLED = true;
       };
     };
 
