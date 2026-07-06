@@ -65,6 +65,11 @@
         COACHIQ_AUTH__OIDC_ISSUER = "https://id.holthome.net";
         COACHIQ_AUTH__OIDC_CLIENT_ID = "coachiq";
 
+        # Keep signed-in sessions alive for a month between visits. Access
+        # tokens stay short-lived (15 min default); this only stretches the
+        # DB-backed refresh token that silently renews them on page load.
+        COACHIQ_AUTH__REFRESH_TOKEN_EXPIRE_DAYS = 30;
+
         # Required by upstream when OIDC is enabled: absolute external origin
         # (scheme+host only, no path, no trailing slash). Drives OIDC redirect
         # URIs and cookie/redirect generation.
