@@ -9,6 +9,13 @@
       "/var/lib/nixos" # uid/gid map stability
       "/var/lib/systemd" # timers, random seed
       "/var/lib/iwd" # wifi credentials/state
+      # AdGuardHome state (mutableSettings=true keeps UI config here)
+      {
+        directory = "/var/lib/AdGuardHome";
+        user = "adguardhome";
+        group = "adguardhome";
+        mode = "0700";
+      }
     ];
     files = [
       "/etc/machine-id"

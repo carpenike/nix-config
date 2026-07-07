@@ -3,7 +3,13 @@
 {
   # Boot loader configuration
   boot.loader = {
-    systemd-boot.enable = true;
+    systemd-boot = {
+      enable = true;
+      # Cap boot entries kept on the ~500MB ESP. Daily auto-upgrades create a
+      # generation almost every day; without a limit the ESP fills with old
+      # kernels/initrds and upgrades start failing with "No space left on device".
+      configurationLimit = 10;
+    };
     efi.canTouchEfiVariables = true;
   };
 
@@ -27,6 +33,23 @@
     enable = true;
     memoryPercent = 25; # 25% of 32GB = ~8GB zram device, ~4GB effective with compression
     algorithm = "zstd";
+  };
+
+  # systemd-oomd — userspace OOM killer that acts BEFORE the kernel OOM killer.
+  # With zram swap enabled, swap fill is an early and reliable signal of memory
+  # exhaustion: oomd kills the worst-offending cgroup when swap runs low instead
+  # of letting the kernel pick a victim (which has historically hit Plex and the
+  # Paperless-AI celery worker). Root/system slice enablement applies the
+  # swap-based policy (ManagedOOMSwap=kill) to all services.
+  systemd.oomd = {
+    enable = true;
+    enableRootSlice = true;
+    enableSystemSlice = true;
+    extraConfig = {
+      # Kill the highest-swap-usage cgroup once zram swap is 90% full
+      # (explicit rather than relying on the compiled-in default)
+      SwapUsedLimit = "90%";
+    };
   };
 
   # Daily GC instead of weekly — forge auto-upgrade creates generations almost daily,

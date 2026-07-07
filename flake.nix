@@ -112,9 +112,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Impermanence - does not have a nixpkgs input, pure module flake
+    # Impermanence - upstream now declares nixpkgs and home-manager inputs
+    # (used for its tests/dev shell); follow ours to avoid duplicate locked
+    # copies of nixpkgs/home-manager in flake.lock.
     impermanence = {
       url = "github:nix-community/impermanence";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "home-manager";
     };
 
     # git-hooks.nix - Pre-commit hooks in Nix
@@ -140,6 +144,7 @@
     replog = {
       url = "github:carpenike/replog";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
     };
 
     # marginalia — cook log service ("lab notebook for cooking"). Node +

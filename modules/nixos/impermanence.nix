@@ -120,6 +120,11 @@ in
       "/var/log" # Persist logs between reboots for debugging
       "/var/lib/cache" # Cache files (e.g., restic, nginx, containers)
       "/var/lib/nixos" # NixOS state (uid/gid maps, etc.)
+      # systemd state: Persistent=true timer stamps and the random seed.
+      # Without this, every timer with Persistent=true considers itself missed
+      # after a reboot and fires immediately (thundering herd after nightly
+      # auto-upgrade reboots), and the RNG seed is lost each boot.
+      "/var/lib/systemd"
     ];
 
     modules.system.impermanence.files = [

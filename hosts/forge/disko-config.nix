@@ -66,7 +66,6 @@ in
           canmount = "off";
           normalization = "formD";
           redundant_metadata = "most";
-          "com.sun:auto-snapshot" = "false";
         };
 
         datasets =
@@ -78,7 +77,6 @@ in
               mountpoint = "/";
               options = {
                 mountpoint = "legacy";
-                "com.sun:auto-snapshot" = "false";
               };
               postCreateHook = ''
                 zfs snapshot rpool/local/root@blank
@@ -92,7 +90,6 @@ in
                 mountpoint = "legacy";
                 atime = "off";
                 canmount = "on";
-                "com.sun:auto-snapshot" = "true";
               };
             };
 
@@ -101,7 +98,7 @@ in
             "safe/home" = {
               type = "zfs_fs";
               mountpoint = "/home";
-              options = { mountpoint = "legacy"; "com.sun:auto-snapshot" = "true"; };
+              options = { mountpoint = "legacy"; };
             };
 
             "safe/persist" = {
@@ -109,7 +106,6 @@ in
               mountpoint = "/persist";
               options = {
                 mountpoint = "legacy";
-                "com.sun:auto-snapshot" = "true";
               };
             };
           }
@@ -123,7 +119,6 @@ in
               options = {
                 mountpoint = "legacy";
                 recordsize = "128K";
-                "com.sun:auto-snapshot" = "true";
               };
             };
 
@@ -133,7 +128,6 @@ in
               options = {
                 mountpoint = "legacy";
                 recordsize = "64K";
-                "com.sun:auto-snapshot" = "true";
               };
             };
 
@@ -144,7 +138,6 @@ in
             #   options = {
             #     mountpoint = "legacy";
             #     recordsize = "1M";
-            #     "com.sun:auto-snapshot" = "true";
             #   };
             # };
 
@@ -154,7 +147,6 @@ in
               options = {
                 mountpoint = "legacy";
                 recordsize = "1M";
-                "com.sun:auto-snapshot" = "true";
               };
             };
 
@@ -164,6 +156,21 @@ in
               options = {
                 mountpoint = "none";
                 reservation = "50G"; # ~10% of 500GB
+              };
+            };
+          }
+          // lib.optionalAttrs haveTwo {
+            # Two-disk: rpool only holds system datasets, but a full rpool still
+            # wedges the host (CoW needs free space to delete). Mirror the tank
+            # dutyfree pattern with a small unmounted reservation.
+            # NOTE: disko only runs at provisioning time. On the live host this
+            # must be created manually:
+            #   zfs create -o mountpoint=none -o reservation=15G rpool/dutyfree
+            "dutyfree" = {
+              type = "zfs_fs";
+              options = {
+                mountpoint = "none";
+                reservation = "15G";
               };
             };
           };
@@ -189,7 +196,6 @@ in
             type = "zfs_fs";
             options = {
               mountpoint = "none";
-              "com.sun:auto-snapshot" = "true";
             };
           };
 
@@ -199,7 +205,6 @@ in
             options = {
               mountpoint = "legacy";
               recordsize = "128K";
-              "com.sun:auto-snapshot" = "true";
             };
           };
 
@@ -209,7 +214,6 @@ in
             options = {
               mountpoint = "legacy";
               recordsize = "64K";
-              "com.sun:auto-snapshot" = "true";
             };
           };
 
@@ -220,7 +224,6 @@ in
           #   options = {
           #     mountpoint = "legacy";
           #     recordsize = "1M";
-          #     "com.sun:auto-snapshot" = "true";
           #   };
           # };
 
@@ -230,7 +233,6 @@ in
             options = {
               mountpoint = "legacy";
               recordsize = "1M";
-              "com.sun:auto-snapshot" = "true";
             };
           };
 

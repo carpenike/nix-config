@@ -137,6 +137,27 @@ in
       # Increase shutdown timeout for Granian - default 90s is insufficient
       # Granian sometimes takes longer to drain connections gracefully
       systemd.services.paperless-web.serviceConfig.TimeoutStopSec = "120s";
+
+      # Memory caps: paperless was previously uncapped on a 32GB host with
+      # documented OOM history. ~3.5G hard cap total across the units; the
+      # celery worker (task-queue) gets the most since OCR jobs are the heavy
+      # part. MemoryHigh throttles before MemoryMax OOM-kills.
+      systemd.services.paperless-web.serviceConfig = {
+        MemoryHigh = "768M";
+        MemoryMax = "1G";
+      };
+      systemd.services.paperless-task-queue.serviceConfig = {
+        MemoryHigh = "1536M"; # OCR/ocrmypdf spikes per document
+        MemoryMax = "2G";
+      };
+      systemd.services.paperless-consumer.serviceConfig = {
+        MemoryHigh = "384M";
+        MemoryMax = "512M";
+      };
+      systemd.services.paperless-scheduler.serviceConfig = {
+        MemoryHigh = "384M";
+        MemoryMax = "512M";
+      };
     }
 
     (lib.mkIf serviceEnabled {

@@ -21,7 +21,6 @@
     # ./services/postgresql/database-interface.nix  # PostgreSQL database interface (option declaration only)
     ./postgresql-preseed.nix # PostgreSQL automatic pre-seeding for new servers
     ./backup.nix
-    ./services/backup-services.nix
     ./monitoring.nix
     ./alerting # New Alertmanager-based alerting system
     ./notifications

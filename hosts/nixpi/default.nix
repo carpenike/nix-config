@@ -19,6 +19,7 @@ in
     ./coachiq.nix
     ./caddy.nix
     ./cloudflared.nix
+    ./dns.nix
     ./time.nix
 
     # Use nixos-hardware for Raspberry Pi 4 support (same as original repo)

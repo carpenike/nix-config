@@ -16,6 +16,10 @@ in
     })
     ./secrets.nix
     ./systemPackages.nix
+
+    # Unified backup system (modules.services.backup). Luna doesn't import the
+    # "backup" service category in flake.nix, so pull in the module directly.
+    ../../modules/nixos/services/backup
   ];
 
   config = {
@@ -26,13 +30,40 @@ in
       hostName = hostname;
       hostId = "506a4dd5";
       useDHCP = true;
-      firewall.enable = false;
       domain = "holthome.net"; # Base domain for reverse proxy
+
+      # Host firewall. Most listening services open their own ports via their
+      # modules; only ports without a module-managed rule are listed here.
+      #
+      # Module-opened ports (for reference):
+      #   22/tcp            openssh module
+      #   80,443/tcp        caddy module (reverse proxy for all web UIs)
+      #   8080,8443/tcp     unifi module (device inform, controller UI)
+      #   3478/udp          unifi module (STUN)
+      #   8043,8843,29814/tcp + 29810/udp  omada module (UI, portal, discovery)
+      #   8000/tcp          onepassword-connect module (API)
+      #   9100/tcp          node-exporter module (Prometheus scrape from forge)
+      # AdGuardHome web UI (3000) binds 127.0.0.1 and is only reachable via Caddy.
+      firewall = {
+        enable = true;
+        allowedTCPPorts = [
+          53 # AdGuardHome DNS (TCP fallback / large responses)
+        ];
+        allowedUDPPorts = [
+          53 # AdGuardHome DNS
+          123 # chrony NTP (configured as a LAN time server: allow all)
+        ];
+      };
     };
 
     # Boot loader configuration
     boot.loader = {
-      systemd-boot.enable = true;
+      systemd-boot = {
+        enable = true;
+        # Cap boot entries on the ~500MB ESP; auto-upgrade generates frequent
+        # generations and an unbounded ESP eventually fails upgrades.
+        configurationLimit = 10;
+      };
       efi.canTouchEfiVariables = true;
     };
 
@@ -63,6 +94,20 @@ in
     '';
 
     modules = {
+      # Automatic system upgrades from GitHub (same pattern as forge).
+      # Scheduled AFTER forge's 04:00-05:00 window: forge's upgrade pulls the
+      # flake from GitHub and needs working DNS, so luna (the primary resolver)
+      # must not be rebooting at that time.
+      autoUpgrade = {
+        enable = true;
+        schedule = "05:15";
+        allowReboot = true;
+        rebootWindow = {
+          lower = "05:15";
+          upper = "06:00";
+        };
+      };
+
       services = {
         # Enable Caddy reverse proxy
         caddy = {
@@ -99,6 +144,15 @@ in
               host = "127.0.0.1";
               port = 3000;
             };
+          };
+          # Backup the root-refreshed dump (state files are 0600 adguardhome-owned,
+          # unreadable by the restic-backup user; see luna-backup-dumps below).
+          # Overrides the module default, which assumes forge's tank ZFS layout.
+          backup = {
+            enable = true;
+            repository = "nas-primary";
+            paths = [ "/var/lib/backup-dumps/adguardhome" ];
+            tags = [ "adguardhome" "dns" "config" "luna" ];
           };
         };
 
@@ -193,6 +247,14 @@ in
               port = 8443;
             };
           };
+          # Backup the mongodump + config refreshed by luna-backup-dumps
+          # (migrated from the legacy backup-services module).
+          backup = {
+            enable = true;
+            repository = "nas-primary";
+            paths = [ "/var/lib/backup-dumps/unifi" ];
+            tags = [ "unifi" "controller" "database" "luna" ];
+          };
         };
 
         omada = {
@@ -210,6 +272,14 @@ in
             memory = "4g"; # Recommended by Perplexity for Omada 5.14 with embedded MongoDB
             memoryReservation = "2g"; # Reserve half for stable operation
             cpus = "2.0"; # 2 cores recommended for Omada + MongoDB
+          };
+          # Backup the controller export refreshed by luna-backup-dumps
+          # (migrated from the legacy backup-services module).
+          backup = {
+            enable = true;
+            repository = "nas-primary";
+            paths = [ "/var/lib/backup-dumps/omada" ];
+            tags = [ "omada" "controller" "database" "luna" ];
           };
         };
 
@@ -271,6 +341,16 @@ in
           "/var/lib/omada"
           "/var/lib/unifi"
 
+          # AdGuardHome state (AdGuardHome.yaml, query log, stats).
+          # mutableSettings = true means UI-made config lives ONLY in this
+          # directory - without persistence it is wiped on every reboot.
+          {
+            directory = "/var/lib/AdGuardHome";
+            user = "adguardhome";
+            group = "adguardhome";
+            mode = "0700";
+          }
+
           # Reverse proxy (ACME certificates)
           {
             directory = "/var/lib/caddy";
@@ -281,45 +361,26 @@ in
         ];
       };
 
-      # Backup system disabled for now - needs full configuration
-      # backup = {
-      #   enable = false;
-      # };
+      # Unified backup system (restic → nas-1 over NFS).
+      # Jobs are auto-discovered from the per-service `backup` submodules above
+      # (adguardhome, unifi, omada); the luna-backup-dumps service below stages
+      # root-only data where the restic-backup user can read it.
+      # Migrated from the legacy modules.services.backup-services module (now
+      # deleted); the UniFi mongodump no longer needs credentials because the
+      # jacobalberty container runs its embedded mongod without auth.
+      services.backup = {
+        enable = true;
+        restic.enable = true;
 
-      # Service-specific backup configurations (disabled with main backup module)
-      services.backup-services = {
-        enable = false;
-
-        unifi = {
-          enable = config.modules.services.unifi.enable or false;
-          mongoCredentialsFile = "/run/secrets/rendered/unifi-mongo-credentials";
-        };
-
-        omada = {
-          enable = config.modules.services.omada.enable or false;
-          containerName = "omada";
-        };
-
-        onepassword-connect = {
-          enable = config.modules.services.onepassword-connect.enable or false;
-          credentialsFile = config.sops.secrets.onepassword-credentials.path;
-        };
-
-        # Attic moved to nas-1 (2025-12-19)
-        # attic = {
-        #   enable = config.modules.services.attic.enable or false;
-        #   useZfsSend = false;
-        #   nasDestination = "backup@nas.holthome.net";
-        # };
-
-        system = {
-          enable = true;
-          paths = [
-            "/etc/nixos"
-            "/home/ryan/.config"
-            "/var/log"
-            "/persist"
-          ];
+        repositories = {
+          nas-primary = {
+            url = "/mnt/nas-backup";
+            passwordFile = config.sops.secrets."restic/password".path;
+            primary = true;
+            type = "local";
+            repositoryName = "NFS";
+            repositoryLocation = "nas-1";
+          };
         };
       };
 
@@ -333,6 +394,108 @@ in
           };
         };
       };
+    };
+
+    # =========================================================================
+    # Backup plumbing (restic repository + application dumps)
+    # =========================================================================
+
+    # Restic repository password.
+    # Declared here (rather than secrets.nix) alongside the backup wiring.
+    # MANUAL STEP: add `restic/password` to hosts/luna/secrets.sops.yaml
+    # before deploying (e.g. reuse the same repository password as forge).
+    sops.secrets."restic/password" = {
+      mode = "0400";
+      owner = "restic-backup";
+      group = "restic-backup";
+    };
+
+    # Restic backup storage on nas-1 (same automount pattern as forge).
+    # MANUAL STEP: create/export /mnt/backup/luna/restic on nas-1.
+    fileSystems."/mnt/nas-backup" = {
+      device = "nas-1.holthome.net:/mnt/backup/luna/restic";
+      fsType = "nfs";
+      options = [
+        "nfsvers=4.2"
+        "rw"
+        "noatime"
+        "noauto" # don't mount at boot; automount will trigger on access
+        "_netdev" # mark as network device
+        "x-systemd.automount" # create/enable automount unit
+        "x-systemd.idle-timeout=600" # unmount after 10 minutes idle
+        "x-systemd.mount-timeout=30s" # fail fast if NAS is down
+        "x-systemd.force-unmount=true" # force unmount on shutdown to avoid hangs
+        "x-systemd.after=network-online.target"
+        "x-systemd.requires=network-online.target"
+      ];
+    };
+
+    # Stage application data where the (unprivileged) restic-backup user can
+    # read it. Runs as root: AdGuardHome state is 0600 adguardhome-owned, and
+    # the UniFi/Omada dumps need podman exec into the controller containers.
+    # Pulled in via Wants/After by each discovered restic job below, so the
+    # dumps are refreshed right before every backup run.
+    systemd.services.luna-backup-dumps = {
+      description = "Stage AdGuardHome/UniFi/Omada dumps for restic backups";
+      path = [ pkgs.podman pkgs.coreutils ];
+      serviceConfig = {
+        Type = "oneshot";
+      };
+      script = ''
+        set -euo pipefail
+        dumps=/var/lib/backup-dumps
+        install -d -m 0750 -o root -g restic-backup "$dumps"
+
+        stage() {
+          # stage <name> <src-dir>: atomically replace $dumps/<name> with <src-dir>
+          rm -rf "$dumps/$1.new"
+          mv "$2" "$dumps/$1.new"
+          rm -rf "$dumps/$1"
+          mv "$dumps/$1.new" "$dumps/$1"
+        }
+
+        # --- AdGuardHome: config + state (0600 adguardhome-owned) ---
+        work=$(mktemp -d)
+        cp -a /var/lib/AdGuardHome "$work/adguardhome"
+        stage adguardhome "$work/adguardhome"
+
+        # --- UniFi: mongodump of the embedded MongoDB (no auth in the
+        #     jacobalberty image) + controller config/keystore ---
+        work=$(mktemp -d)
+        mkdir -p "$work/unifi"
+        podman exec unifi mongodump --host localhost:27017 --gzip --archive \
+          > "$work/unifi/mongodump.archive.gz"
+        cp -a /var/lib/unifi/data "$work/unifi/data"
+        stage unifi "$work/unifi"
+
+        # --- Omada: mongoexport of key collections + controller backup dir ---
+        work=$(mktemp -d)
+        mkdir -p "$work/omada"
+        podman exec omada mongoexport --db omada --collection sites \
+          --out /opt/tplink/EAPController/data/backup/sites.json || true
+        podman exec omada mongoexport --db omada --collection devices \
+          --out /opt/tplink/EAPController/data/backup/devices.json || true
+        podman cp omada:/opt/tplink/EAPController/data/backup "$work/omada/" || true
+        stage omada "$work/omada"
+
+        # Make everything readable by the restic-backup user
+        chown -R root:restic-backup "$dumps"
+        chmod -R g+rX "$dumps"
+      '';
+    };
+
+    # Refresh the dumps before each discovered backup job runs
+    systemd.services."restic-backup-service-adguardhome" = {
+      wants = [ "luna-backup-dumps.service" ];
+      after = [ "luna-backup-dumps.service" ];
+    };
+    systemd.services."restic-backup-service-unifi" = {
+      wants = [ "luna-backup-dumps.service" ];
+      after = [ "luna-backup-dumps.service" ];
+    };
+    systemd.services."restic-backup-service-omada" = {
+      wants = [ "luna-backup-dumps.service" ];
+      after = [ "luna-backup-dumps.service" ];
     };
 
     # Configure Caddy to load environment file with SOPS secrets

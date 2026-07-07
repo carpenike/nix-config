@@ -30,6 +30,14 @@ in
       systemd.services.home-assistant = {
         wants = lib.mkAfter [ "postgresql.service" ];
         after = lib.mkAfter [ "postgresql.service" ];
+        # Memory cap: HA (native systemd service) was previously uncapped on a
+        # 32GB host with documented OOM history. ~4G is generous for HA + its
+        # integrations; MemoryHigh throttles first so a leaking integration
+        # degrades before the whole service is OOM-killed.
+        serviceConfig = {
+          MemoryHigh = "3G";
+          MemoryMax = "4G";
+        };
         # Expose tools used by HA command_line/shell_command scripts.
         path = with pkgs; [
           ffmpeg # ffprobe for Chime TTS integration

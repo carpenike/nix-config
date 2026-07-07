@@ -46,8 +46,11 @@ in
         openFirewall = true;
 
         # Memory settings (tune based on available RAM)
-        sharedBuffers = "256MB"; # 25% of RAM for dedicated DB
-        effectiveCacheSize = "1GB"; # ~50% of available RAM
+        # Forge is a 32GB shared host (not a dedicated DB server) with ZFS ARC
+        # capped at 8G. ~20 databases share this instance; 1GB shared_buffers
+        # is a sane slice that still leaves ARC/page cache to do read caching.
+        sharedBuffers = "1GB";
+        effectiveCacheSize = "1GB"; # Planner hint only (no allocation)
         maintenanceWorkMem = "128MB";
         workMem = "16MB";
 

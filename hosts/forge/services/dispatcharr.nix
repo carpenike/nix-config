@@ -75,6 +75,15 @@ in
         # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
         healthcheck.enable = true; # Enable container health monitoring
 
+        # Container memory cap (podman --memory/--memory-reservation/--cpus).
+        # Explicit rather than the module default (1g): ffmpeg-based stream
+        # transcodes can spike above 1G with multiple concurrent IPTV streams.
+        resources = {
+          memory = "2g";
+          memoryReservation = "1g";
+          cpus = "2.0";
+        };
+
         backup = forgeDefaults.mkBackupWithSnapshots "dispatcharr";
 
         notifications.enable = true; # Enable failure notifications

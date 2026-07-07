@@ -69,6 +69,13 @@ in
 
     # Infrastructure contributions (guarded by service enable)
     (lib.mkIf serviceEnabled {
+      # Memory cap: raise the module default (1G max) — workflow executions with
+      # community nodes can legitimately exceed 1G, and forge has headroom for 2G.
+      systemd.services.n8n.serviceConfig = {
+        MemoryHigh = lib.mkForce "1536M";
+        MemoryMax = lib.mkForce "2G";
+      };
+
       # ZFS dataset for service data
       modules.storage.datasets.services.n8n = {
         mountpoint = "/var/lib/n8n";
