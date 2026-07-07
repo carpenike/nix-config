@@ -1,6 +1,8 @@
 { config, lib, ... }:
 
 let
+  forgeDefaults = import ./lib/defaults.nix { inherit config lib; };
+
   # Centralized Cloudflare R2 configuration for offsite backups
   # Used by: pgBackRest (PostgreSQL), Restic (system backups)
   r2Config = {
@@ -216,8 +218,8 @@ in
           # Domain defaults to networking.domain (holthome.net)
           # Bind only to main interface, localhost, and podman bridge - prevents wireless clients
           # on VLAN 30 from bypassing router ACLs by accessing Caddy directly via 10.30.0.30
-          # 10.89.0.1 is the podman1 bridge gateway - required for container→host service access
-          bindAddresses = [ "127.0.0.1" "10.20.0.30" "10.89.0.1" ];
+          # The podman1 bridge gateway is required for container→host service access
+          bindAddresses = [ "127.0.0.1" config.my.hostIp forgeDefaults.podmanBridgeGateway ];
           # Trust private network ranges for X-Forwarded-For header processing
           # Ensures backend services see real client IPs instead of Caddy's IP
           trustedProxies = [ "private_ranges" ];

@@ -83,14 +83,14 @@ in
         # LM Studio on mac-mini (disabled until you set it up)
         ollama = {
           enable = false;
-          baseUrl = "http://mac-mini.holthome.net:1234/v1";
+          baseUrl = "http://mac-mini.${domain}:1234/v1";
         };
 
         # SearXNG web search integration for RAG
         # SearXNG is deployed locally at port 8888 with JSON format enabled
         searxng = {
           enable = true;
-          queryUrl = "http://127.0.0.1:8888/search?q=<query>";
+          queryUrl = "http://127.0.0.1:${toString config.modules.services.searxng.port}/search?q=<query>";
           resultCount = 5;
           concurrentRequests = 10;
         };
@@ -114,6 +114,15 @@ in
 
     # Infrastructure contributions - guarded by service enable
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.open-webui = {
+        name = "Open WebUI";
+        group = "AI";
+        url = "https://${serviceDomain}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" "[RESPONSE_TIME] < 5000" ];
+      };
+
       # ZFS dataset with SQLite-optimized recordsize
       modules.storage.datasets.services."open-webui" = {
         mountpoint = dataDir;

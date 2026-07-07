@@ -136,7 +136,7 @@ in
       metrics = lib.mkOption {
         type = lib.types.nullOr sharedTypes.metricsSubmodule;
         default = {
-          enable = true;
+          enable = false; # hub /api/metrics is authenticated JSON, not Prometheus format
           port = hubCfg.port;
           path = "/api/metrics";
           labels = {

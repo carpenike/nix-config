@@ -55,7 +55,7 @@ in
         permitJoin = false;
 
         mqtt = {
-          server = "mqtt://127.0.0.1:1883";
+          server = "mqtt://127.0.0.1:${toString config.modules.services.emqx.listeners.mqtt.port}";
           baseTopic = "zigbee2mqtt";
           username = "zigbee2mqtt";
           passwordFile = config.sops.secrets."zigbee2mqtt/mqtt_password".path;
@@ -118,6 +118,16 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.zigbee2mqtt = {
+        name = "Zigbee2MQTT";
+        group = "Home Automation";
+        # Local frontend check: the public URL sits behind caddySecurity SSO
+        url = "http://127.0.0.1:${toString config.modules.services.zigbee2mqtt.frontend.port}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" ];
+      };
+
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "zigbee2mqtt";
 
       modules.alerting.rules."zigbee2mqtt-service-down" =

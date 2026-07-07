@@ -75,9 +75,7 @@ in
         # Override DNS for id.holthome.net to use internal Podman bridge IP
         # Required because the container can't reach Cloudflare-proxied domains
         # via hairpin NAT. Caddy listens on 10.89.0.1 for internal HTTPS traffic.
-        extraHosts = {
-          "id.holthome.net" = "10.89.0.1";
-        };
+        extraHosts = forgeDefaults.pocketidHostsEntry;
 
         openai = {
           enable = true;
@@ -113,6 +111,15 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.mealie = {
+        name = "Mealie";
+        group = "Productivity";
+        url = "https://${serviceDomain}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" "[RESPONSE_TIME] < 3000" ];
+      };
+
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "mealie";
 
       # Service availability alert

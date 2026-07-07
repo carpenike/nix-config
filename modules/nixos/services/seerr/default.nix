@@ -49,7 +49,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/seerr-team/seerr:sha-adbcf80@sha256:2bfd7605fe24e3edbf704e893ac4b56a40a068facd30d2d0a524b915277a10f6";
+      default = "ghcr.io/seerr-team/seerr:sha-adbcf80";
       description = ''
         Full container image name including tag or digest.
 
@@ -230,10 +230,6 @@ in
           {
             assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
             message = "Seerr preseed.enable requires preseed.repositoryUrl to be set.";
-          }
-          {
-            assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-            message = "Seerr preseed.enable requires preseed.passwordFile to be set.";
           }
           {
             assertion = cfg.backup != null -> cfg.backup.enable;

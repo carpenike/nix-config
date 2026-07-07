@@ -28,8 +28,10 @@ in
 
         # Container-specific settings
         container = {
+          # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+          image = "ghcr.io/home-operations/plex:1.42.2.10156@sha256:9ad8a3506e1d8ebda873a668603c1a2c10e6887969564561be669efd65ae8871";
           # Advertise URL for remote access (Plex apps need this)
-          advertiseUrl = "https://plex.holthome.net:443";
+          advertiseUrl = "https://plex.${config.networking.domain}:443";
           # Skip auth for local networks
           allowedNetworks = [ "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16" ];
         };
@@ -41,7 +43,7 @@ in
         # Reverse proxy integration via Caddy
         reverseProxy = {
           enable = true;
-          hostName = "plex.holthome.net";
+          hostName = "plex.${config.networking.domain}";
         };
 
         # ZFS dataset management for Plex data
@@ -95,7 +97,7 @@ in
         monitoring = {
           enable = true;
           prometheus.enable = true; # Node exporter textfile collector is enabled in monitoring.nix
-          endpoint = "http://127.0.0.1:32400/web";
+          endpoint = "http://127.0.0.1:${toString config.modules.services.plex.port}/web";
           interval = "minutely";
         };
 
@@ -121,12 +123,12 @@ in
         group = "Media";
         name = "Plex";
         icon = "plex";
-        href = "https://plex.holthome.net";
+        href = "https://plex.${config.networking.domain}";
         description = "Media streaming server";
-        siteMonitor = "http://localhost:32400/web";
+        siteMonitor = "http://localhost:${toString config.modules.services.plex.port}/web";
         widget = {
           type = "plex";
-          url = "http://localhost:32400";
+          url = "http://localhost:${toString config.modules.services.plex.port}";
           key = "{{HOMEPAGE_VAR_PLEX_TOKEN}}";
         };
       };
@@ -136,7 +138,7 @@ in
       modules.services.gatus.contributions.plex = {
         name = "Plex Media Server";
         group = "Media";
-        url = "http://localhost:32400/web/index.html";
+        url = "http://localhost:${toString config.modules.services.plex.port}/web/index.html";
         interval = "60s";
         conditions = [
           "[STATUS] == 200"

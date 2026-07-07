@@ -15,6 +15,8 @@ in
     {
       modules.services.autobrr = {
         enable = true;
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/autobrr/autobrr:v1.81.0@sha256:491e3e1a81fe5ced6b542621e49985d0dea58d23257684b0b19d881761736303";
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
@@ -23,9 +25,7 @@ in
         # OIDC discovery (https://id.holthome.net/.well-known/openid-configuration)
         # times out from inside the container. Override the hosts file to point
         # at the podman bridge IP where Caddy also listens. Same pattern as qui.
-        extraHosts = {
-          "id.${domain}" = "10.89.0.1";
-        };
+        extraHosts = forgeDefaults.pocketidHostsEntry;
 
         settings = {
           host = "0.0.0.0"; # In-container bind - required for port mapping to work.
@@ -59,7 +59,7 @@ in
 
         reverseProxy = {
           enable = true;
-          hostName = "autobrr.holthome.net";
+          hostName = "autobrr.${domain}";
         };
 
         backup = forgeDefaults.mkBackupWithSnapshots "autobrr";
@@ -83,12 +83,12 @@ in
         group = "Downloads";
         name = "Autobrr";
         icon = "autobrr";
-        href = "https://autobrr.holthome.net";
+        href = "https://autobrr.${domain}";
         description = "IRC announce bot";
-        siteMonitor = "http://localhost:7474";
+        siteMonitor = "http://localhost:${toString config.modules.services.autobrr.port}";
         widget = {
           type = "autobrr";
-          url = "http://localhost:7474";
+          url = "http://localhost:${toString config.modules.services.autobrr.port}";
           key = "{{HOMEPAGE_VAR_AUTOBRR_API_KEY}}";
         };
       };

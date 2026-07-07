@@ -31,7 +31,7 @@ in
         # Native OIDC authentication via PocketID
         oidc = {
           enable = true;
-          discoveryUrl = "https://id.holthome.net/.well-known/openid-configuration";
+          discoveryUrl = "https://id.${config.networking.domain}/.well-known/openid-configuration";
           clientId = "actual-budget";
           clientSecretFile = config.sops.secrets."actual/oidc-client-secret".path;
           serverHostname = externalUrl;

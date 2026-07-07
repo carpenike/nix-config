@@ -168,7 +168,7 @@ in
 
     image = mkOption {
       type = types.str;
-      default = "ghcr.io/berriai/litellm-database:main-stable@sha256:2d3ec2c7e6726e0e0b837c7635f43ab69ed7e1b74e72b00cb792b4186662bda8";
+      default = "ghcr.io/berriai/litellm-database:main-stable";
       description = ''
         Container image for LiteLLM. Use the -database variant for PostgreSQL support.
         Pinned to specific digest for reproducibility.

@@ -39,7 +39,7 @@ in
         # Reverse proxy configuration for external access
         reverseProxy = {
           enable = true;
-          hostName = "qbittorrent.holthome.net";
+          hostName = "qbittorrent.${config.networking.domain}";
           caddySecurity = forgeDefaults.caddySecurity.media;
         };
 
@@ -67,12 +67,12 @@ in
         group = "Downloads";
         name = "qBittorrent";
         icon = "qbittorrent";
-        href = "https://qbittorrent.holthome.net";
+        href = "https://qbittorrent.${config.networking.domain}";
         description = "Torrent Client";
-        siteMonitor = "http://localhost:8080";
+        siteMonitor = "http://localhost:${toString config.modules.services.qbittorrent.port}";
         widget = {
           type = "qbittorrent";
-          url = "http://localhost:8080";
+          url = "http://localhost:${toString config.modules.services.qbittorrent.port}";
           # Auth disabled - Caddy handles authentication
         };
       };

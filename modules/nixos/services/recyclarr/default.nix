@@ -473,7 +473,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/recyclarr/recyclarr:7.5.2@sha256:2550848d43a453f2c6adf3582f2198ac719f76670691d76de0819053103ef2fb";
+      default = "ghcr.io/recyclarr/recyclarr:7.5.2";
       description = ''
         Full container image name including tag or digest.
 
@@ -635,10 +635,6 @@ in
         {
           assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
           message = "Recyclarr preseed.enable requires preseed.repositoryUrl to be set.";
-        }
-        {
-          assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-          message = "Recyclarr preseed.enable requires preseed.passwordFile to be set.";
         }
       ];
 

@@ -30,6 +30,8 @@ in
       modules.services.litellm = {
         # Disabled 2026-06-01: unused AI gateway, reduces memory/swap pressure on forge.
         enable = false;
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/berriai/litellm-database:main-stable@sha256:2d3ec2c7e6726e0e0b837c7635f43ab69ed7e1b74e72b00cb792b4186662bda8";
         port = 4100; # 8080=qbittorrent, 4000=teslamate
 
         # Provider credentials via SOPS (defined in secrets.nix)
@@ -57,9 +59,7 @@ in
         # Override DNS for id.holthome.net to use internal Podman bridge IP
         # Required because the container can't reach Cloudflare-proxied domains
         # via hairpin NAT. Caddy listens on 10.89.0.1 for internal HTTPS traffic.
-        extraHosts = {
-          "id.holthome.net" = "10.89.0.1";
-        };
+        extraHosts = forgeDefaults.pocketidHostsEntry;
 
         # =====================================================================
         # SSO Configuration (PocketID - OAuth2 Generic for Admin UI)
@@ -71,10 +71,10 @@ in
             enable = true;
             clientId = "litellm";
             clientSecretFile = config.sops.secrets."litellm/oidc-client-secret".path;
-            authorizationEndpoint = "https://id.holthome.net/authorize";
-            tokenEndpoint = "https://id.holthome.net/api/oidc/token";
-            userinfoEndpoint = "https://id.holthome.net/api/oidc/userinfo";
-            redirectUri = "https://llm.holthome.net/sso/callback";
+            authorizationEndpoint = "https://id.${config.networking.domain}/authorize";
+            tokenEndpoint = "https://id.${config.networking.domain}/api/oidc/token";
+            userinfoEndpoint = "https://id.${config.networking.domain}/api/oidc/userinfo";
+            redirectUri = "https://llm.${config.networking.domain}/sso/callback";
             scope = "openid profile email";
             proxyAdminId = "ryan";
           };
@@ -257,7 +257,7 @@ in
         # =====================================================================
         reverseProxy = {
           enable = true;
-          hostName = "llm.holthome.net";
+          hostName = "llm.${config.networking.domain}";
           backend = {
             host = "127.0.0.1";
             port = 4100;

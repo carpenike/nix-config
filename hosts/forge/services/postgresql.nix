@@ -21,6 +21,9 @@
 # to avoid circular dependencies in module evaluation
 #
 let
+  forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  # podman0 bridge gateway (host.containers.internal) - centralized in lib/defaults.nix
+  podmanGw = forgeDefaults.podmanDefaultBridgeGateway;
   # Allow operators to override which Podman CIDRs can reach PostgreSQL without
   # editing the pg_hba.conf snippet directly. If modules.services.postgresql.podmanCidrs
   # is unset, fall back to the traditional 10.88.0.0/16 bridge network.
@@ -40,7 +43,7 @@ in
         # Listen on localhost and Podman bridge for container access
         # Containers connect via host.containers.internal (10.88.0.1)
         # Security: Restrict to specific interfaces instead of all interfaces
-        listenAddresses = "127.0.0.1,10.88.0.1";
+        listenAddresses = "127.0.0.1,${podmanGw}";
 
         # Open firewall for container access (podman bridge interfaces)
         openFirewall = true;
@@ -124,7 +127,7 @@ in
       # Override native PostgreSQL settings to ensure listen_addresses is applied
       # The custom module's listenAddresses may not be taking effect, so we force it here
       services.postgresql.settings = {
-        listen_addresses = pkgs.lib.mkForce "127.0.0.1,10.88.0.1";
+        listen_addresses = pkgs.lib.mkForce "127.0.0.1,${podmanGw}";
         # TimescaleDB requires shared_preload_libraries
         shared_preload_libraries = "timescaledb";
       };
@@ -186,8 +189,8 @@ in
         preStart = ''
           # Wait for Podman bridge interface to be available
           for i in {1..30}; do
-            if ${pkgs.iproute2}/bin/ip addr show podman0 | grep -q "10.88.0.1"; then
-              echo "Podman bridge (10.88.0.1) is available"
+            if ${pkgs.iproute2}/bin/ip addr show podman0 | grep -q "${podmanGw}"; then
+              echo "Podman bridge (${podmanGw}) is available"
               break
             fi
             echo "Waiting for Podman bridge to come up... ($i/30)"
@@ -197,8 +200,8 @@ in
           done
 
           # Verify the interface is up
-          if ! ${pkgs.iproute2}/bin/ip addr show podman0 | grep -q "10.88.0.1"; then
-            echo "ERROR: Podman bridge (10.88.0.1) is not available after 30 seconds"
+          if ! ${pkgs.iproute2}/bin/ip addr show podman0 | grep -q "${podmanGw}"; then
+            echo "ERROR: Podman bridge (${podmanGw}) is not available after 30 seconds"
             exit 1
           fi
         '';
@@ -249,6 +252,16 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.postgresql = {
+        name = "PostgreSQL";
+        group = "Infrastructure";
+        # TCP connect check (Gatus tcp:// endpoint); DB auth not exercised
+        url = "tcp://127.0.0.1:${toString config.modules.services.postgresql.port}";
+        interval = "60s";
+        conditions = [ "[CONNECTED] == true" ];
+      };
+
       # Co-located alert rules for PostgreSQL
       # pgBackRest alerts have been moved to pgbackrest.nix for proper service co-location
       # These rules are automatically enabled when PostgreSQL is enabled

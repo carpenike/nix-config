@@ -68,7 +68,7 @@ in
       modules.services.gatus.contributions.go2rtc = {
         name = "go2rtc";
         group = "Home Automation";
-        url = "http://127.0.0.1:1984/api";
+        url = "http://127.0.0.1:${toString config.modules.services.go2rtc.apiPort}/api";
         interval = "60s";
         conditions = [
           "[STATUS] == 200"

@@ -29,7 +29,7 @@ in
         # Reverse proxy integration via Caddy with PocketID auth
         reverseProxy = {
           enable = true;
-          hostName = "start.holthome.net";
+          hostName = "start.${config.networking.domain}";
           # Using home security level for PocketID authentication
           caddySecurity = forgeDefaults.caddySecurity.home;
         };
@@ -73,7 +73,7 @@ in
         # Settings for the dashboard
         settings = {
           title = "Homelab";
-          favicon = "https://start.holthome.net/favicon.ico";
+          favicon = "https://start.${config.networking.domain}/favicon.ico";
           theme = "dark";
           color = "slate";
           headerStyle = "boxed";
@@ -115,6 +115,16 @@ in
 
     # Infrastructure contributions (guarded by service enable)
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.homepage = {
+        name = "Homepage";
+        group = "Infrastructure";
+        # Local check: the public URL sits behind caddySecurity SSO
+        url = "http://127.0.0.1:${toString config.modules.services.homepage.port}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" ];
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/homepage" =
         forgeDefaults.mkSanoidDataset "homepage";

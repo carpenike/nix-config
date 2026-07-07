@@ -28,7 +28,7 @@ in
 
         reverseProxy = {
           enable = true;
-          hostName = "worldmonitor.holthome.net";
+          hostName = "worldmonitor.${config.networking.domain}";
           caddySecurity = forgeDefaults.caddySecurity.admin;
         };
 

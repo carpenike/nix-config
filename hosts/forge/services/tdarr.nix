@@ -9,6 +9,8 @@ in
       modules.services.tdarr = {
         # Tdarr - Transcoding automation
         enable = true;
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/haveagitgat/tdarr:2.58.02@sha256:20a5656c4af4854e1877046294f77113f949d27e35940a9a65f231423d063207";
         nfsMountDependency = "media";
         podmanNetwork = forgeDefaults.podmanNetwork; # Enable DNS resolution for media library access
         healthcheck.enable = true;
@@ -29,7 +31,7 @@ in
 
         reverseProxy = {
           enable = true;
-          hostName = "tdarr.holthome.net";
+          hostName = "tdarr.${config.networking.domain}";
           caddySecurity = forgeDefaults.caddySecurity.media;
         };
 
@@ -53,7 +55,7 @@ in
         group = "Media";
         name = "Tdarr";
         icon = "tdarr";
-        href = "https://tdarr.holthome.net";
+        href = "https://tdarr.${config.networking.domain}";
         description = "Transcoding";
         siteMonitor = "http://localhost:8265";
         widget = {

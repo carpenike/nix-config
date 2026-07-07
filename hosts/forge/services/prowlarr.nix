@@ -29,7 +29,7 @@ in
         # Reverse proxy configuration for external access
         reverseProxy = {
           enable = true;
-          hostName = "prowlarr.holthome.net";
+          hostName = "prowlarr.${config.networking.domain}";
           # API bypass for /api, /feed, /ping - protected by Prowlarr's built-in API key auth
           caddySecurity = forgeDefaults.caddySecurity.mediaWithApiBypass;
         };
@@ -60,12 +60,12 @@ in
         group = "Downloads";
         name = "Prowlarr";
         icon = "prowlarr";
-        href = "https://prowlarr.holthome.net";
+        href = "https://prowlarr.${config.networking.domain}";
         description = "Indexer Manager";
-        siteMonitor = "http://localhost:9696";
+        siteMonitor = "http://localhost:${toString config.modules.services.prowlarr.port}";
         widget = {
           type = "prowlarr";
-          url = "http://localhost:9696";
+          url = "http://localhost:${toString config.modules.services.prowlarr.port}";
           key = "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}";
         };
       };

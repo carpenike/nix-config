@@ -195,7 +195,7 @@ in
     metrics = lib.mkOption {
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        enable = false; # no Prometheus endpoint
         port = cfg.port;
         path = "/";
         labels = {

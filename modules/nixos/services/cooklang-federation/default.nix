@@ -320,7 +320,7 @@ in
 
     backup = mkOption {
       type = types.nullOr sharedTypes.backupSubmodule;
-      default = mkIf cfg.enable {
+      default = {
         enable = mkDefault true;
         repository = mkDefault "nas-primary";
         tags = mkDefault [ "cooklang" "recipes" "federation" ];

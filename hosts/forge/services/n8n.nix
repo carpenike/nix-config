@@ -32,7 +32,7 @@ in
         enable = false;
 
         # Core settings
-        host = "n8n.holthome.net";
+        host = "n8n.${config.networking.domain}";
         timezone = "America/New_York";
 
         # Encryption key environment file (SOPS managed)
@@ -50,7 +50,7 @@ in
         # n8n has mandatory built-in authentication, so caddySecurity is redundant
         reverseProxy = {
           enable = true;
-          hostName = "n8n.holthome.net";
+          hostName = "n8n.${config.networking.domain}";
           backend = {
             host = "127.0.0.1";
             port = 5678;
@@ -99,16 +99,16 @@ in
         group = "Automation";
         name = "n8n";
         icon = "n8n";
-        href = "https://n8n.holthome.net";
+        href = "https://n8n.${config.networking.domain}";
         description = "Workflow automation";
-        siteMonitor = "http://localhost:5678";
+        siteMonitor = "http://localhost:${toString config.modules.services.n8n.port}";
       };
 
       # Gatus black-box monitoring contribution
       modules.services.gatus.contributions.n8n = {
         name = "n8n";
         group = "Automation";
-        url = "https://n8n.holthome.net";
+        url = "https://n8n.${config.networking.domain}";
         interval = "60s";
         conditions = [
           "[STATUS] == 200"

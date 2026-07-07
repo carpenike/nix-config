@@ -170,7 +170,7 @@ in
 
     image = mkOption {
       type = types.str;
-      default = "teslamate/teslamate:2.2.0@sha256:db111162f1037a8c8ce6fe56e538a4432b8a34d3d6176916ba22d42ef7ee4b78";
+      default = "teslamate/teslamate:2.2.0";
       description = ''
         TeslaMate container image (pin to a specific tag or digest for reproducibility).
         Override this to track upstream releases and digests as needed.
@@ -424,7 +424,7 @@ in
     metrics = mkOption {
       type = types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        enable = false; # web UI on 4000 has no /metrics; TeslaMate publishes via MQTT
         port = 4000;
         path = "/metrics";
         labels = {

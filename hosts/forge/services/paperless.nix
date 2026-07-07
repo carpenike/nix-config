@@ -55,8 +55,15 @@ in
         };
 
         # Enable Office document processing
-        tika.enable = true;
-        gotenberg.enable = true;
+        # Canonical image pins (Renovate manages host-level pins; module defaults are unpinned fallbacks)
+        tika = {
+          enable = true;
+          image = "ghcr.io/paperless-ngx/tika:latest";
+        };
+        gotenberg = {
+          enable = true;
+          image = "docker.io/gotenberg/gotenberg:8";
+        };
 
         # Database configuration via shared PostgreSQL module
         database = {

@@ -82,6 +82,29 @@
       ],
     },
     {
+      // Image pin policy (2026-07): HOST files are the canonical, digest-pinned
+      // source of truth for container images. Module defaults under modules/**
+      // carry only a plain-tag fallback and are NOT managed by Renovate.
+      // Previously Renovate bumped both the module default and the host
+      // override, and the pins diverged (host wins, so module bumps were dead
+      // weight). Keep it this way: new services get their pin in hosts/**.
+      matchDatasources: ['docker'],
+      matchFileNames: ['modules/**'],
+      enabled: false,
+    },
+    {
+      // Exception to the rule above: these modules are the effective pin for
+      // luna, which enables them without a host-level image override, so
+      // Renovate must keep managing their module defaults.
+      matchDatasources: ['docker'],
+      matchFileNames: [
+        'modules/nixos/services/omada/**',
+        'modules/nixos/services/onepassword-connect/**',
+        'modules/nixos/services/unifi/**',
+      ],
+      enabled: true,
+    },
+    {
       matchManagers: [
         'github-actions',
       ],

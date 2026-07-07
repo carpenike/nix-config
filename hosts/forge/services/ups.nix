@@ -328,6 +328,12 @@ in
   # PeaNUT container for Homepage widget integration
   # Provides a web dashboard and API endpoint for NUT UPS monitoring
   # Configuration is done through the UI and stored in /var/lib/peanut/settings.yml
+  #
+  # NOTE: accepted one-off outside the container-service factory pattern.
+  # PeaNUT is a thin companion dashboard for the native NUT service defined in
+  # this file (host networking to reach NUT on localhost:3493, no dataset,
+  # no reverse proxy/backup integration) — do not use it as a template for
+  # new services; use mylib.mkContainerService instead.
   virtualisation.oci-containers.containers.peanut = lib.mkIf serviceEnabled {
     image = "docker.io/brandawg93/peanut:6.0.0@sha256:6629dce915da8b313f08b2e73dd2e54b60e7c0f642c21a8ebc37fe0a820bf41e";
     autoStart = true;
@@ -427,7 +433,7 @@ in
     group = "Infrastructure";
     name = "UPS";
     icon = "apc";
-    href = "http://forge.holthome.net:${toString peanutPort}";
+    href = "http://forge.${config.networking.domain}:${toString peanutPort}";
     description = "APC Smart-UPS 2200 RM XL";
     widget = {
       type = "peanut";

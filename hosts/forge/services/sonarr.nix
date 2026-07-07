@@ -28,7 +28,7 @@ in
         # Reverse proxy configuration for external access via Caddy.
         reverseProxy = {
           enable = true;
-          hostName = "sonarr.holthome.net";
+          hostName = "sonarr.${config.networking.domain}";
 
           # Protect via Pocket ID + caddy-security; grant "media" role when the
           # upstream claim exposes the media group membership.
@@ -71,14 +71,14 @@ in
         group = "Media";
         name = "Sonarr";
         icon = "sonarr";
-        href = "https://sonarr.holthome.net";
+        href = "https://sonarr.${config.networking.domain}";
         description = "TV series management";
-        siteMonitor = "http://localhost:8989";
+        siteMonitor = "http://localhost:${toString config.modules.services.sonarr.port}";
         # Widget displays queue and series stats
         # API key injected via HOMEPAGE_VAR_SONARR_API_KEY environment variable
         widget = {
           type = "sonarr";
-          url = "http://localhost:8989";
+          url = "http://localhost:${toString config.modules.services.sonarr.port}";
           key = "{{HOMEPAGE_VAR_SONARR_API_KEY}}";
           enableQueue = true;
         };

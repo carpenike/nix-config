@@ -20,6 +20,9 @@ in
       modules.services.kometa = {
         enable = true;
 
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "kometateam/kometa:v2.1.0@sha256:af441b1eeaa3be6a55820f16102d950d12fa52f3bb791b835a6a768385cd3a30";
+
         # Attach to media services network for DNS resolution to Plex
         podmanNetwork = forgeDefaults.podmanNetwork;
 

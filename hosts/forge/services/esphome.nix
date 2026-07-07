@@ -23,7 +23,8 @@ in
       modules.services.esphome = {
         enable = true;
 
-        # Uses default home-operations image from module
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/home-operations/esphome:2025.12.3@sha256:d000147ad5598dbcabe59be0426b0b52b095d7f51b5e2a97addf68072218581f";
         hostNetwork = true; # needed for ICMP dashboard checks + mDNS discovery
         dataDir = "/var/lib/esphome";
         secretsFile = config.sops.secrets."esphome/secrets.yaml".path;

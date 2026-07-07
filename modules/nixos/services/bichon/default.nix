@@ -66,7 +66,7 @@ in
     image = lib.mkOption {
       type = lib.types.str;
       # Renovate: datasource=docker depName=rustmailer/bichon
-      default = "rustmailer/bichon:0.1.4@sha256:eb09da0f018ad6b0129e5ff320dab64838e75761bad5a249f5e4191e44ab7697";
+      default = "rustmailer/bichon:0.1.4";
       description = ''
         Full container image name including tag and digest.
         Note: GHCR not available, using Docker Hub.

@@ -35,7 +35,7 @@ in
     metrics = lib.mkOption {
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        enable = false; # REST API is JSON; Prometheus needs the export plugin, not enabled here
         port = 61208; # Same as web interface - Glances exports metrics on /api/3/metrics
         path = "/api/3/metrics";
         labels = {

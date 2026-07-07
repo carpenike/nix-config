@@ -75,7 +75,7 @@ in
         icon = "terminal";
         href = "https://${serviceDomain}";
         description = "SSH web terminal & server management";
-        siteMonitor = "http://localhost:8099";
+        siteMonitor = "http://localhost:${toString config.modules.services.termix.port}";
       };
 
       # Gatus black-box monitoring

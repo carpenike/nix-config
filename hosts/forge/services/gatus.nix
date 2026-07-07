@@ -104,9 +104,9 @@ in
         group = "Monitoring";
         name = "Gatus";
         icon = "gatus";
-        href = "https://status.holthome.net";
+        href = "https://status.${config.networking.domain}";
         description = "Service status monitoring";
-        siteMonitor = "http://localhost:8090";
+        siteMonitor = "http://localhost:${toString config.modules.services.gatus.port}";
       };
 
       # Custom metrics staleness alert for blackbox monitoring reliability

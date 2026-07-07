@@ -18,14 +18,14 @@ in
       modules.services.it-tools = {
         enable = true;
 
-        # Uses default home-operations image from module
-        # Renovate bot can be configured to automate updates
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/home-operations/it-tools:2024.10.22@sha256:7f26ae8d7a4a58b8d70b685cba5cbaa54d7df876d9f8bae702207f45b06d9b7c";
 
         # Reverse proxy configuration for LAN access via Caddy
         # No authentication required - open access on local network
         reverseProxy = {
           enable = true;
-          hostName = "it-tools.holthome.net";
+          hostName = "it-tools.${config.networking.domain}";
           # No caddySecurity - intentionally open for LAN users
         };
 
@@ -45,9 +45,9 @@ in
         group = "Tools";
         name = "IT-Tools";
         icon = "it-tools";
-        href = "https://it-tools.holthome.net";
+        href = "https://it-tools.${config.networking.domain}";
         description = "Web-based developer utilities";
-        siteMonitor = "http://localhost:8380";
+        siteMonitor = "http://localhost:${toString config.modules.services.it-tools.port}";
       };
 
       # Gatus black-box monitoring contribution
@@ -55,7 +55,7 @@ in
       modules.services.gatus.contributions.it-tools = {
         name = "IT-Tools";
         group = "Tools";
-        url = "http://localhost:8380";
+        url = "http://localhost:${toString config.modules.services.it-tools.port}";
         interval = "60s";
         conditions = [
           "[STATUS] == 200"

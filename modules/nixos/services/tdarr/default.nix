@@ -64,7 +64,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/haveagitgat/tdarr:2.58.02@sha256:20a5656c4af4854e1877046294f77113f949d27e35940a9a65f231423d063207";
+      default = "ghcr.io/haveagitgat/tdarr:2.58.02";
       description = ''
         Full container image name including tag or digest.
 
@@ -293,10 +293,6 @@ in
           {
             assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
             message = "Tdarr preseed.enable requires preseed.repositoryUrl to be set.";
-          }
-          {
-            assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-            message = "Tdarr preseed.enable requires preseed.passwordFile to be set.";
           }
         ];
 

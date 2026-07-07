@@ -391,7 +391,7 @@ in
 
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
+      default = {
         enable = lib.mkDefault true;
         repository = lib.mkDefault "nas-primary";
         frequency = lib.mkDefault "daily";

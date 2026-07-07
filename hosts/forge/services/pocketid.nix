@@ -117,6 +117,16 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.pocketid = {
+        name = "PocketID";
+        group = "Infrastructure";
+        # Login page: unauthenticated 200 that exercises the full SSO entry path
+        url = "https://${serviceDomain}/login";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" "[RESPONSE_TIME] < 3000" ];
+      };
+
       # Service availability alert
       modules.alerting.rules."pocketid-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "pocket-id" "PocketID" "identity provider";

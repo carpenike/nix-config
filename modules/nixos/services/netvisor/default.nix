@@ -58,13 +58,13 @@ in
     # Container images
     serverImage = lib.mkOption {
       type = lib.types.str;
-      default = "docker.io/mayanayza/netvisor-server:v0.11.6@sha256:3ccb0ce3fbca84a06c28e2adbf7983b78628399414a2472ae4f506b7e3e8d0c5";
+      default = "docker.io/mayanayza/netvisor-server:v0.11.6";
       description = "NetVisor server container image with digest for immutability.";
     };
 
     daemonImage = lib.mkOption {
       type = lib.types.str;
-      default = "docker.io/mayanayza/netvisor-daemon:v0.11.6@sha256:496978ccb06ed0b0665f2edeef7c5eef1635511d1fced4e29b022eae33dcbe9b";
+      default = "docker.io/mayanayza/netvisor-daemon:v0.11.6";
       description = "NetVisor daemon container image with digest for immutability.";
     };
 
@@ -345,7 +345,7 @@ in
     metrics = lib.mkOption {
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        enable = false; # /api/health is a health check, not Prometheus format
         port = 60072;
         path = "/api/health";
         labels = {

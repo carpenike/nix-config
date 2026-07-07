@@ -52,6 +52,8 @@ in
 
       modules.services.grafana-oncall = {
         enable = true;
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "grafana/oncall:v1.16.7@sha256:173a1e6139f30d881f2df58d480990579287e0ee2f3eb279d978a71ea968ae55";
         dataDir = dataDir;
         datasetPath = dataset;
 

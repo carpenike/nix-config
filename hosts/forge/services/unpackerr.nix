@@ -23,6 +23,9 @@ in
       modules.services.unpackerr = {
         enable = true;
 
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/unpackerr/unpackerr:0.14.5@sha256:dc72256942ce50d1c8a1aeb5aa85b6ae2680a36eefd2182129d8d210fce78044";
+
         # Container settings
         user = 917; # Unpackerr UID (917 is unused in media stack)
         group = 65537; # media group GID

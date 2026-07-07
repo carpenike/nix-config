@@ -98,9 +98,7 @@ in
 
         # Hairpin NAT workaround: container can't reach 10.20.0.30, so override DNS
         # to point id.holthome.net to the podman bridge IP where Caddy also listens
-        extraHosts = {
-          "id.${domain}" = "10.89.0.1";
-        };
+        extraHosts = forgeDefaults.pocketidHostsEntry;
 
         # Resource limits - 7d peak (12M) × 2.5 = 128M minimum
         resources = {

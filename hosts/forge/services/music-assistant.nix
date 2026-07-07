@@ -167,6 +167,11 @@ in
       # specific server version — currently 1.2.1 (per the MA YouTube Music
       # docs). Do NOT let Renovate bump this independently; update it only when
       # MA's supported PO-token server version changes.
+      #
+      # NOTE: accepted one-off outside the container-service factory pattern.
+      # This is a stateless loopback-only companion sidecar for Music Assistant
+      # (no dataset, no reverse proxy, no backup) — do not use it as a template
+      # for new services; use mylib.mkContainerService instead.
       virtualisation.oci-containers.containers.bgutil-pot = {
         image = "docker.io/brainicism/bgutil-ytdlp-pot-provider:1.3.1@sha256:1aaa43a0ca72dfca6a6d2129a0fb4a23465c25adb1b043f8aff829a20825646b";
         autoStart = true;

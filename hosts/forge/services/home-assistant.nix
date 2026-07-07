@@ -80,7 +80,7 @@ in
 
         # MQTT integration with EMQX broker
         mqtt = {
-          server = "mqtt://127.0.0.1:1883";
+          server = "mqtt://127.0.0.1:${toString config.modules.services.emqx.listeners.mqtt.port}";
           username = "home-assistant";
           passwordFile = config.sops.secrets."home-assistant/mqtt-password".path;
           # registerEmqxIntegration = true; # default - auto-registers user + ACLs
@@ -114,7 +114,7 @@ in
                 trusted_networks = [
                   "127.0.0.1" # IPv4 localhost
                   "::1" # IPv6 localhost
-                  "10.20.0.30" # Server IP
+                  config.my.hostIp # Server IP
                 ];
               }
               { type = "homeassistant"; } # Standard login for all other connections
@@ -127,7 +127,7 @@ in
             trusted_proxies = [
               "127.0.0.1" # Caddy reverse proxy (loopback)
               "::1" # IPv6 loopback (localhost resolution)
-              "10.20.0.30" # Caddy reverse proxy (main interface binding)
+              config.my.hostIp # Caddy reverse proxy (main interface binding)
               "10.88.0.0/16" # Podman container network
             ];
             ip_ban_enabled = true;
@@ -342,6 +342,15 @@ in
 
     # Infrastructure contributions (guarded by service enable)
     (lib.mkIf haEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.home-assistant = {
+        name = "Home Assistant";
+        group = "Home Automation";
+        url = "https://${haHostname}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" "[RESPONSE_TIME] < 5000" ];
+      };
+
       # Dataset replication via Sanoid
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "home-assistant";
 

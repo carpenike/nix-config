@@ -45,7 +45,7 @@ in
         # Reverse proxy configuration for external access
         reverseProxy = {
           enable = true;
-          hostName = "bazarr.holthome.net";
+          hostName = "bazarr.${config.networking.domain}";
 
           # Protect via Pocket ID + caddy-security; use media claim for authorization
           # API bypass for /api - protected by Bazarr's built-in API key auth

@@ -13,12 +13,12 @@ in
         datasetPath = "tank/services/cooklang-federation";
         listenAddress = "127.0.0.1";
         port = 9086;
-        externalUrl = "https://fedcook.holthome.net";
+        externalUrl = "https://fedcook.${config.networking.domain}";
         feedConfigFile = ../../files/cooklang-federation/feeds.yaml;
 
         reverseProxy = {
           enable = true;
-          hostName = "fedcook.holthome.net";
+          hostName = "fedcook.${config.networking.domain}";
           backend = {
             scheme = "http";
             host = "127.0.0.1";

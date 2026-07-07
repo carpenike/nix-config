@@ -18,8 +18,18 @@
 
 { config, lib }:
 
+let
+  # Podman bridge gateway IPs (single source of truth for forge).
+  # media-services network (podman1): Caddy also listens here so containers can
+  # reach reverse-proxied services without hairpin NAT.
+  podmanBridgeGateway = "10.89.0.1";
+  # Default podman network (podman0): what host.containers.internal resolves to;
+  # host services (PostgreSQL, Redis) bind here for container access.
+  podmanDefaultBridgeGateway = "10.88.0.1";
+in
+
 # Import the shared host-defaults library with forge-specific configuration
-import ../../../lib/host-defaults.nix {
+(import ../../../lib/host-defaults.nix {
   inherit config lib;
   hostConfig = {
     # ZFS pool configuration
@@ -54,5 +64,17 @@ import ../../../lib/host-defaults.nix {
       rootPoolName = "rpool/local/root";
       rootBlankSnapshotName = "blank";
     };
+  };
+})
+// {
+  inherit podmanBridgeGateway podmanDefaultBridgeGateway;
+
+  # Hairpin-NAT workaround for containers doing PocketID OIDC:
+  # id.<domain> resolves to forge's LAN IP, which container bridges can't
+  # reach, so OIDC discovery times out. Point the container's hosts file at
+  # the podman bridge gateway where Caddy also listens.
+  # Usage: extraHosts = forgeDefaults.pocketidHostsEntry;
+  pocketidHostsEntry = {
+    "id.${config.networking.domain}" = podmanBridgeGateway;
   };
 }

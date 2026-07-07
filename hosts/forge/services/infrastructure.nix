@@ -10,6 +10,8 @@
 
 let
   homepageEnabled = config.modules.services.homepage.enable or false;
+  # Mikrotik RB5009 core router address (deduplicated for href + widget URL)
+  routerIp = "10.20.0.1";
 in
 {
   config = lib.mkIf homepageEnabled {
@@ -23,11 +25,11 @@ in
       group = "Infrastructure";
       name = "Mikrotik Router";
       icon = "mikrotik";
-      href = "https://10.20.0.1";
+      href = "https://${routerIp}";
       description = "RB5009 Core Router";
       widget = {
         type = "mikrotik";
-        url = "http://10.20.0.1"; # HTTP for REST API (HTTPS causes ECONNRESET)
+        url = "http://${routerIp}"; # HTTP for REST API (HTTPS causes ECONNRESET)
         username = "homepage";
         password = "{{HOMEPAGE_VAR_MIKROTIK_PASSWORD}}";
       };
@@ -40,7 +42,7 @@ in
       group = "Infrastructure";
       name = "Caddy";
       icon = "caddy";
-      href = "https://caddy.holthome.net";
+      href = "https://caddy.${config.networking.domain}";
       description = "Reverse Proxy";
       widget = {
         type = "caddy";
@@ -74,11 +76,11 @@ in
       group = "Infrastructure";
       name = "Omada";
       icon = "omada";
-      href = "https://omada.holthome.net";
+      href = "https://omada.${config.networking.domain}";
       description = "SDN Controller";
       widget = {
         type = "omada";
-        url = "https://omada.holthome.net";
+        url = "https://omada.${config.networking.domain}";
         username = "{{HOMEPAGE_VAR_OMADA_USERNAME}}";
         password = "{{HOMEPAGE_VAR_OMADA_PASSWORD}}";
         site = "SLC"; # Site name in Omada controller

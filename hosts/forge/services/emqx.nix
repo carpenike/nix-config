@@ -17,6 +17,8 @@ in
     {
       modules.services.emqx = {
         enable = true;
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "emqx/emqx:5.8.3@sha256:2bb94239a3812cd3443695d29d196cff510660b3fbf1bc56bbd8747fa94c4bd8";
         dataDir = dataDir;
         datasetPath = dataset;
         allowAnonymous = false;

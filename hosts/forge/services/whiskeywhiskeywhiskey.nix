@@ -145,7 +145,7 @@ in
           # the public Caddy vhost (reachable from both forge-local and
           # household browsers). Cook is intentionally household-public
           # and unauthenticated (see services/cooklang.nix).
-          COOKLANG_BASE_URL = "https://cook.holthome.net";
+          COOKLANG_BASE_URL = "https://cook.${config.networking.domain}";
 
           # Optional: email-based host allow-list (OR'd with WWW_HOST_GROUP).
           # Uncomment if you want a fallback path that doesn't rely on PocketID

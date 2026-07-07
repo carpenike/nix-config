@@ -11,7 +11,7 @@ let
     mkAfter
     ;
 
-  cfg = config.modules.services.resilioSync;
+  cfg = config.modules.services.resilio-sync;
 
   folderSubmodule = _name: types.submodule ({ ... }:
     {
@@ -170,7 +170,7 @@ let
 
 in
 {
-  options.modules.services.resilioSync = {
+  options.modules.services.resilio-sync = {
     enable = mkEnableOption "opinionated Resilio Sync configuration for service data replication";
 
     package = mkOption {
@@ -318,7 +318,7 @@ in
       assertions = [
         {
           assertion = cfg.folders != { } || cfg.webUI.enable;
-          message = "modules.services.resilioSync requires at least one folder or Web UI enabled.";
+          message = "modules.services.resilio-sync requires at least one folder or Web UI enabled.";
         }
       ] ++ folderAssertions;
     }

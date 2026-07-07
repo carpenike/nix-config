@@ -72,7 +72,7 @@ in
     container = {
       image = lib.mkOption {
         type = lib.types.str;
-        default = "ghcr.io/home-operations/plex:1.42.2.10156@sha256:9ad8a3506e1d8ebda873a668603c1a2c10e6887969564561be669efd65ae8871";
+        default = "ghcr.io/home-operations/plex:1.42.2.10156";
         description = ''
           Container image for Plex (home-operations).
           Pin to specific version with digest for immutability.

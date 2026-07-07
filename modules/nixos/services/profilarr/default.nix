@@ -172,10 +172,6 @@ in
             assertion = cfg.preseed.enable -> (cfg.preseed.repositoryUrl != "");
             message = "Profilarr preseed.enable requires preseed.repositoryUrl to be set.";
           }
-          {
-            assertion = cfg.preseed.enable -> (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-            message = "Profilarr preseed.enable requires preseed.passwordFile to be set.";
-          }
         ];
 
         warnings =

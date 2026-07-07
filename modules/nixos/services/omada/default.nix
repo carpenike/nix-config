@@ -97,7 +97,7 @@ in
     metrics = lib.mkOption {
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        enable = false; # /api/info is JSON, not Prometheus format
         port = 8043;
         path = "/api/info";
         labels = {
@@ -126,7 +126,7 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
+      default = {
         enable = lib.mkDefault true;
         repository = lib.mkDefault "nas-primary";
         frequency = lib.mkDefault "daily";

@@ -98,6 +98,17 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.frigate = {
+        name = "Frigate";
+        group = "Home Automation";
+        # Local API check: the web UI sits behind caddySecurity, and the frigate
+        # module hardcodes its backend on 127.0.0.1:5000 (no port option).
+        url = "http://127.0.0.1:5000/api/version";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" ];
+      };
+
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "frigate";
 
       # Service availability alerts

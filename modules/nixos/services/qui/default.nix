@@ -344,7 +344,7 @@ in
 
     notifications = lib.mkOption {
       type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = lib.mkIf cfg.enable {
+      default = {
         enable = lib.mkDefault true;
         channels = {
           onFailure = [ "media-alerts" ];
@@ -439,10 +439,6 @@ in
           {
             assertion = !cfg.preseed.enable || cfg.preseed.repositoryUrl != "";
             message = "qui preseed.enable requires preseed.repositoryUrl to be set.";
-          }
-          {
-            assertion = !cfg.preseed.enable || (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-            message = "qui preseed.enable requires preseed.passwordFile to be set.";
           }
           {
             assertion = lib.hasPrefix "/" cfg.baseUrl;

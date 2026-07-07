@@ -87,7 +87,7 @@ in
 
     image = mkOption {
       type = types.str;
-      default = "grafana/oncall:v1.16.7@sha256:173a1e6139f30d881f2df58d480990579287e0ee2f3eb279d978a71ea968ae55";
+      default = "grafana/oncall:v1.16.7";
       description = ''
         Grafana OnCall container image with pinned digest.
         Override to upgrade to newer versions.
@@ -309,7 +309,7 @@ in
     metrics = mkOption {
       type = types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        enable = false; # scraped via the explicit grafana-oncall job in prometheus.nix; avoid duplicate discovery scrape
         port = 8093;
         path = "/metrics/";
         labels = {

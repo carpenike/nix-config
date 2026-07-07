@@ -15,6 +15,9 @@ in
       modules.services.recyclarr = {
         enable = true;
 
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/recyclarr/recyclarr:7.5.2@sha256:2550848d43a453f2c6adf3582f2198ac719f76670691d76de0819053103ef2fb";
+
         # Sync TRaSH guides once per day at a random time
         schedule = "daily";
 

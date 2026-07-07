@@ -34,7 +34,7 @@ in
         };
 
         # Allow *arr services to connect to SABnzbd API
-        extraHostWhitelist = [ "sonarr" "radarr" "readarr" "lidarr" "sabnzbd.holthome.net" ];
+        extraHostWhitelist = [ "sonarr" "radarr" "readarr" "lidarr" "sabnzbd.${config.networking.domain}" ];
 
         # Declarative API key management via sops-nix (matches *arr pattern)
         apiKeyFile = config.sops.secrets."sabnzbd/api-key".path;
@@ -71,7 +71,7 @@ in
 
         reverseProxy = {
           enable = true;
-          hostName = "sabnzbd.holthome.net";
+          hostName = "sabnzbd.${config.networking.domain}";
           caddySecurity = forgeDefaults.caddySecurity.media;
         };
 
@@ -101,12 +101,12 @@ in
         group = "Downloads";
         name = "SABnzbd";
         icon = "sabnzbd";
-        href = "https://sabnzbd.holthome.net";
+        href = "https://sabnzbd.${config.networking.domain}";
         description = "Usenet Client";
-        siteMonitor = "http://localhost:8082";
+        siteMonitor = "http://localhost:${toString config.modules.services.sabnzbd.port}";
         widget = {
           type = "sabnzbd";
-          url = "http://localhost:8082";
+          url = "http://localhost:${toString config.modules.services.sabnzbd.port}";
           key = "{{HOMEPAGE_VAR_SABNZBD_API_KEY}}";
         };
       };

@@ -85,7 +85,7 @@ in
 
     image = lib.mkOption {
       type = lib.types.str;
-      default = "ghcr.io/home-operations/esphome:2025.12.3@sha256:d000147ad5598dbcabe59be0426b0b52b095d7f51b5e2a97addf68072218581f";
+      default = "ghcr.io/home-operations/esphome:2025.12.3";
       description = ''
         Container image for ESPHome (home-operations).
         Pin to specific version with digest for immutability.

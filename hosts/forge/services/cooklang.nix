@@ -78,7 +78,7 @@ in
         # Reverse proxy via Caddy (unauthenticated by design)
         reverseProxy = {
           enable = true;
-          hostName = "cook.holthome.net";
+          hostName = "cook.${config.networking.domain}";
           # Intentional: no SSO guard so the shared recipe site stays public to household guests.
         };
 
@@ -137,7 +137,7 @@ in
         mode = "0750";
       };
 
-      modules.services.resilioSync = {
+      modules.services.resilio-sync = {
         enable = true;
         deviceName = "${config.networking.hostName}-cooklang";
         listeningPort = 4444;
@@ -158,8 +158,8 @@ in
 
           # Explicit hosts for direct connection (optional but helpful)
           knownHosts = [
-            "nas-1.holthome.net:4444"
-            "forge.holthome.net:4444" # Add forge's own hostname for external access
+            "nas-1.${config.networking.domain}:4444"
+            "forge.${config.networking.domain}:4444" # Add forge's own hostname for external access
           ];
         };
       };

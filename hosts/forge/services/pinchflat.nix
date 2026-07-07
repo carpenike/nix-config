@@ -53,7 +53,7 @@ in
         # Reverse proxy configuration for external access via Caddy
         reverseProxy = {
           enable = true;
-          hostName = "pinchflat.holthome.net";
+          hostName = "pinchflat.${config.networking.domain}";
 
           # Protect via PocketID; grant "media" role
           caddySecurity = forgeDefaults.caddySecurity.media;
@@ -84,7 +84,7 @@ in
       modules.services.gatus.contributions.pinchflat = {
         name = "Pinchflat";
         group = "Media";
-        url = "http://127.0.0.1:8945/";
+        url = "http://127.0.0.1:${toString config.modules.services.pinchflat.port}/";
         interval = "60s";
         conditions = [
           "[STATUS] == 200"
@@ -107,9 +107,9 @@ in
         group = "Media";
         name = "Pinchflat";
         icon = "pinchflat";
-        href = "https://pinchflat.holthome.net";
+        href = "https://pinchflat.${config.networking.domain}";
         description = "YouTube media manager";
-        siteMonitor = "http://localhost:8945";
+        siteMonitor = "http://localhost:${toString config.modules.services.pinchflat.port}";
       };
     })
   ];

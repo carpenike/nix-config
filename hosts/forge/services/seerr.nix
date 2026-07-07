@@ -17,6 +17,8 @@ in
         # Seerr - Request management for Plex/Jellyfin/Emby
         # Using official ghcr.io/seerr-team/seerr image
         enable = true;
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "ghcr.io/seerr-team/seerr:sha-adbcf80@sha256:2bfd7605fe24e3edbf704e893ac4b56a40a068facd30d2d0a524b915277a10f6";
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
@@ -25,7 +27,7 @@ in
 
         reverseProxy = {
           enable = true;
-          hostName = "requests.holthome.net";
+          hostName = "requests.${config.networking.domain}";
           # No Authelia - Seerr has native authentication with Plex/Jellyfin OAuth
         };
 
@@ -40,6 +42,15 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.seerr = {
+        name = "Seerr";
+        group = "Media";
+        url = "https://${config.modules.services.seerr.reverseProxy.hostName}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" "[RESPONSE_TIME] < 3000" ];
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/seerr" = forgeDefaults.mkSanoidDataset "seerr";
 

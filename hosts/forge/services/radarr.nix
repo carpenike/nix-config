@@ -26,7 +26,7 @@ in
         # Reverse proxy configuration for external access
         reverseProxy = {
           enable = true;
-          hostName = "radarr.holthome.net";
+          hostName = "radarr.${config.networking.domain}";
 
           # Protect via Pocket ID + caddy-security; grant media role via claim mapping
           # API bypass for /api, /feed, /ping - protected by Radarr's built-in API key auth
@@ -57,14 +57,14 @@ in
         group = "Media";
         name = "Radarr";
         icon = "radarr";
-        href = "https://radarr.holthome.net";
+        href = "https://radarr.${config.networking.domain}";
         description = "Movie collection manager";
-        siteMonitor = "http://localhost:7878";
+        siteMonitor = "http://localhost:${toString config.modules.services.radarr.port}";
         # Widget displays queue and movie stats
         # API key injected via HOMEPAGE_VAR_RADARR_API_KEY environment variable
         widget = {
           type = "radarr";
-          url = "http://localhost:7878";
+          url = "http://localhost:${toString config.modules.services.radarr.port}";
           key = "{{HOMEPAGE_VAR_RADARR_API_KEY}}";
           enableQueue = true;
         };

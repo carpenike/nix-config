@@ -68,7 +68,7 @@ in
         # No caddySecurity - Tracearr authenticates via Plex/Jellyfin SSO
         reverseProxy = {
           enable = true;
-          hostName = "tracearr.holthome.net";
+          hostName = "tracearr.${config.networking.domain}";
         };
 
         # Enable backups (external mode only backs up app data, not databases)
@@ -114,9 +114,9 @@ in
         group = "Media";
         name = "Tracearr";
         icon = "mdi-radar"; # No official icon yet, using radar icon
-        href = "https://tracearr.holthome.net";
+        href = "https://tracearr.${config.networking.domain}";
         description = "Media server account monitoring";
-        siteMonitor = "http://localhost:3004";
+        siteMonitor = "http://localhost:${toString config.modules.services.tracearr.port}";
       };
 
       # Gatus availability monitoring
@@ -124,7 +124,7 @@ in
       modules.services.gatus.contributions.tracearr = {
         name = "Tracearr";
         group = "Media";
-        url = "https://tracearr.holthome.net";
+        url = "https://tracearr.${config.networking.domain}";
         interval = "60s";
         conditions = [
           "[STATUS] == 200"

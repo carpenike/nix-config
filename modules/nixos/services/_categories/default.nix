@@ -1,6 +1,10 @@
 # Service categories index
-# Import this to get ALL service modules (backward compatible)
-# Or import specific category files for selective loading
+#
+# All categories are imported unconditionally by design: every service module
+# is gated behind its own `modules.services.<name>.enable` option, so importing
+# a module a host never enables costs nothing at runtime. The category files
+# exist purely to keep this list organized/readable — there is no selective
+# category loading mechanism.
 #
 # Categories:
 #   ./media.nix           - *arr stack, Plex, media management

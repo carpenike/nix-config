@@ -99,7 +99,7 @@ in
     # Standardized backup integration
     backup = mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = mkIf cfg.enable {
+      default = {
         enable = mkDefault true;
         repository = mkDefault "nas-primary";
         frequency = mkDefault "daily";
@@ -160,10 +160,6 @@ in
         {
           assertion = !cfg.preseed.enable || cfg.preseed.repositoryUrl != "";
           message = "Tautulli preseed.enable requires preseed.repositoryUrl to be set.";
-        }
-        {
-          assertion = !cfg.preseed.enable || (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-          message = "Tautulli preseed.enable requires preseed.passwordFile to be set.";
         }
       ];
 
@@ -307,8 +303,10 @@ in
     # The native module creates tmpfiles with correct user/group since we set them above
     (mkIf cfg.enable {
       systemd.services."${serviceName}".serviceConfig = {
-        # Explicitly grant write access to the data directory (for systemd sandboxing)
-        ReadWritePaths = lib.mkForce [ cfg.dataDir ];
+        # Explicitly grant write access to the data directory (for systemd
+        # sandboxing). Plain list (not mkForce) so it merges with any paths the
+        # upstream module or other config add instead of clobbering them.
+        ReadWritePaths = [ cfg.dataDir ];
       };
     })
   ];

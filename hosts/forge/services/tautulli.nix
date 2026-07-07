@@ -48,7 +48,7 @@ in
         group = "Media";
         name = "Tautulli";
         icon = "tautulli";
-        href = "https://tautulli.holthome.net";
+        href = "https://tautulli.${config.networking.domain}";
         description = "Plex media server monitoring and statistics";
         siteMonitor = "http://localhost:8181";
         widget = {
@@ -63,6 +63,15 @@ in
 
     # Infrastructure contributions (guarded by service enable)
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.tautulli = {
+        name = "Tautulli";
+        group = "Media";
+        url = "https://${config.modules.services.tautulli.reverseProxy.hostName}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" "[RESPONSE_TIME] < 3000" ];
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/tautulli" =
         forgeDefaults.mkSanoidDataset "tautulli";

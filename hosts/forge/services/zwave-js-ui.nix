@@ -81,6 +81,16 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Gatus black-box availability monitoring
+      modules.services.gatus.contributions.zwave-js-ui = {
+        name = "Z-Wave JS UI";
+        group = "Home Automation";
+        # Local UI check: the public URL sits behind caddySecurity SSO
+        url = "http://127.0.0.1:${toString config.modules.services."zwave-js-ui".ui.port}";
+        interval = "60s";
+        conditions = [ "[STATUS] == 200" ];
+      };
+
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "zwave-js-ui";
 
       modules.alerting.rules."zwave-js-ui-service-down" =

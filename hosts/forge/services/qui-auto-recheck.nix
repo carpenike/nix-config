@@ -60,7 +60,7 @@ in
       script = ''
         set -euo pipefail
 
-        QUI_URL="http://127.0.0.1:7476"
+        QUI_URL="http://127.0.0.1:${toString config.modules.services.qui.port}"
         API_KEY=$(cat ${config.sops.secrets."qui/api-key".path})
         INSTANCE_ID=1
 

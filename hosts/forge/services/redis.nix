@@ -9,7 +9,7 @@
 # Connection from containers: redis://host.containers.internal:6379/<db>
 # Connection from host: redis://127.0.0.1:6379/<db>
 
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -32,7 +32,7 @@ in
         # The "-" prefix makes the bridge address optional so Redis still starts
         # if podman0 is not up yet. Previously 0.0.0.0 (LAN-reachable, only the
         # firewall stood between Redis and the network).
-        bind = "127.0.0.1 -10.88.0.1";
+        bind = "127.0.0.1 -${forgeDefaults.podmanDefaultBridgeGateway}";
 
         # Persistence settings
         save = [

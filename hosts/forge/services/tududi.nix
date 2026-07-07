@@ -16,8 +16,8 @@ in
       modules.services.tududi = {
         enable = true;
 
-        # Pin container image with digest for immutability
-        image = "chrisvel/tududi:latest@sha256:b0588c817a5e16caa1282dfa03ea816a29a7b2a343879f34505581c749e5531f";
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "chrisvel/tududi:1.2.0@sha256:1f4c68205f18e5db44cb1b846b12024035085c73abbc7379476ec08f2ee97a4d";
 
         # Admin credentials
         adminEmail = "ryan@ryanholt.net";
@@ -29,7 +29,7 @@ in
         # Reverse proxy configuration for external access via Caddy
         reverseProxy = {
           enable = true;
-          hostName = "tududi.holthome.net";
+          hostName = "tududi.${config.networking.domain}";
 
           # No SSO integration - Tududi uses built-in multi-user authentication
           # Users will authenticate directly with Tududi's session-based auth
@@ -60,16 +60,16 @@ in
         group = "Productivity";
         name = "Tududi";
         icon = "tududi";
-        href = "https://tududi.holthome.net";
+        href = "https://tududi.${config.networking.domain}";
         description = "Task and project management";
-        siteMonitor = "http://localhost:3005";
+        siteMonitor = "http://localhost:${toString config.modules.services.tududi.port}";
       };
 
       # Gatus monitoring contribution
       modules.services.gatus.contributions.tududi = {
         name = "Tududi";
         group = "Productivity";
-        url = "https://tududi.holthome.net";
+        url = "https://tududi.${config.networking.domain}";
         interval = "60s";
         conditions = [
           "[STATUS] == 200"

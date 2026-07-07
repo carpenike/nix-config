@@ -19,7 +19,7 @@ in
         # Reverse proxy for external access
         reverseProxy = {
           enable = true;
-          hostName = "glances.forge.holthome.net";
+          hostName = "glances.forge.${config.networking.domain}";
           # Uses PocketID/caddy-security for authentication
           caddySecurity = forgeDefaults.caddySecurity.admin;
         };
@@ -35,10 +35,10 @@ in
       # All widgets link to the main Glances UI
       modules.services.homepage.contributions =
         let
-          glancesUrl = "https://glances.forge.holthome.net";
+          glancesUrl = "https://glances.forge.${config.networking.domain}";
           baseWidget = {
             type = "glances";
-            url = "http://localhost:61208";
+            url = "http://localhost:${toString config.modules.services.glances.port}";
             version = 4;
           };
         in

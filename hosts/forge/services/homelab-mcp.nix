@@ -88,24 +88,24 @@ in
         # PocketID issuer + client ID are not sensitive (the client ID
         # appears in every auth URL Claude constructs).
         settings = {
-          HOMELAB_MCP_POCKETID_ISSUER = "https://id.holthome.net";
+          HOMELAB_MCP_POCKETID_ISSUER = "https://id.${config.networking.domain}";
           # Client ID registered in PocketID admin UI (display name
           # also "mcp"). Not sensitive — it appears in every auth URL.
           HOMELAB_MCP_POCKETID_CLIENT_ID = "mcp";
-          HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.holthome.net";
-          HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.holthome.net";
-          HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.holthome.net";
+          HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.${config.networking.domain}";
+          HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.${config.networking.domain}";
+          HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.${config.networking.domain}";
           # Grocy REST API base. The /api path is intentionally exempt from
           # the PocketID gate (see hosts/forge/services/grocy.nix
           # caddySecurity.bypassPaths); the grocy_* tools authenticate with
           # the GROCY-API-KEY header sourced from the env file below.
-          HOMELAB_MCP_GROCY_BASE_URL = "https://grocy.holthome.net/api";
+          HOMELAB_MCP_GROCY_BASE_URL = "https://grocy.${config.networking.domain}/api";
           # Home Assistant REST/WebSocket API base. The ha.holthome.net vhost
           # is a plain reverse-proxy pass-through (no PocketID gate at Caddy),
           # so HA's own bearer-token auth gates the API. The ha_* tools
           # authenticate with the long-lived token (HOMELAB_MCP_HA_TOKEN)
           # sourced from the env file below.
-          HOMELAB_MCP_HA_BASE_URL = "https://ha.holthome.net";
+          HOMELAB_MCP_HA_BASE_URL = "https://ha.${config.networking.domain}";
 
           # Hardening (recommended once the ha_* tools can actuate a
           # physical control plane). Neither value is a secret.

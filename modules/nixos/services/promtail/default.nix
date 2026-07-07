@@ -258,7 +258,7 @@ in
     # - Persistent storage is REQUIRED for operation, but state is disposable in DR scenarios
     backup = mkOption {
       type = types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
+      default = {
         enable = lib.mkDefault false; # Disabled per Gemini Pro recommendation
       };
       description = "Backup configuration for Promtail (disabled by default - see NOTE above)";

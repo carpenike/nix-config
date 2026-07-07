@@ -23,6 +23,9 @@ in
       modules.services.apprise = {
         enable = true;
 
+        # Canonical image pin (Renovate manages host-level pins; module default is an unpinned fallback)
+        image = "docker.io/caronc/apprise:1.3.0@sha256:e365025a7bf1fed39ef66b5f22c9855d500ee7bdea27441365e5b95ea972e843";
+
         # Simple stateful mode - URLs stored by key name
         statefulMode = "simple";
 
@@ -64,14 +67,14 @@ in
         icon = "apprise";
         href = "https://${serviceDomain}";
         description = "Notification gateway";
-        siteMonitor = "http://127.0.0.1:8000/status";
+        siteMonitor = "http://127.0.0.1:${toString config.modules.services.apprise.port}/status";
       };
 
       # Gatus health check
       modules.services.gatus.contributions.apprise = {
         name = "Apprise";
         group = "Infrastructure";
-        url = "http://127.0.0.1:8000/status";
+        url = "http://127.0.0.1:${toString config.modules.services.apprise.port}/status";
         interval = "60s";
         conditions = [ "[STATUS] == 200" ];
       };

@@ -252,7 +252,7 @@ in
     metrics = lib.mkOption {
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        enable = false; # /api/health is a health check, not Prometheus format
         port = 9191;
         path = "/api/health";
         labels = {
@@ -281,7 +281,7 @@ in
     # Standardized backup integration
     backup = lib.mkOption {
       type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
+      default = {
         enable = lib.mkDefault true;
         repository = lib.mkDefault "nas-primary";
         frequency = lib.mkDefault "daily";
@@ -402,10 +402,6 @@ in
         ++ (lib.optional cfg.preseed.enable {
           assertion = cfg.preseed.repositoryUrl != "";
           message = "Dispatcharr preseed.enable requires preseed.repositoryUrl to be set.";
-        })
-        ++ (lib.optional cfg.preseed.enable {
-          assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
-          message = "Dispatcharr preseed.enable requires preseed.passwordFile to be set.";
         })
         ++ (lib.optional (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
           assertion = cfg.reverseProxy.hostName != null;

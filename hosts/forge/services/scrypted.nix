@@ -154,7 +154,7 @@ in
         # MQTT plugin in Scrypted's web UI with the same broker/username/password.
         mqtt = {
           enable = true;
-          server = "mqtt://127.0.0.1:1883";
+          server = "mqtt://127.0.0.1:${toString config.modules.services.emqx.listeners.mqtt.port}";
           username = "scrypted";
           passwordFile = config.sops.secrets."scrypted/mqtt_password".path;
           topicPrefix = "scrypted";
