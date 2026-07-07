@@ -1,0 +1,129 @@
+name: Update flake input
+
+# Targeted single-input flake.lock update ("Tier 3" push-to-deploy).
+#
+# Triggered two ways:
+#   1. repository_dispatch (event-type: flake-input-updated) fired by one of
+#      our own app repos on push to main — see each app's
+#      .github/workflows/notify-nix-config.yml. The input name rides in
+#      client_payload.input.
+#   2. workflow_dispatch for a manual, on-demand bump of a single input.
+#
+# Unlike the weekly update-flake-lock.yml (which updates *all* inputs), this
+# bumps exactly one input to its latest upstream rev, so a push to e.g.
+# whiskey-whiskey-whiskey lands in this repo within minutes instead of waiting
+# for the Sunday job. The PR is gated on `nix flake check` and the per-PR
+# nix-build matrix (an app-token-authored PR triggers those workflows), then
+# auto-merged — the same safety model as update-flake-lock.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      input:
+        description: Flake input to update
+        required: true
+        type: choice
+        options:
+          - whiskey-whiskey-whiskey
+          - replog
+          - marginalia
+          - homelab-mcp
+          - coachiq
+  repository_dispatch:
+    types: [flake-input-updated]
+
+concurrency:
+  # One in-flight update per input; a newer push supersedes an older one.
+  group: update-flake-input-${{ github.event.client_payload.input || github.event.inputs.input }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write # Required for creating/merging PRs
+
+jobs:
+  update-input:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve and validate input name
+        id: resolve
+        env:
+          DISPATCH_INPUT: ${{ github.event.client_payload.input }}
+          MANUAL_INPUT: ${{ github.event.inputs.input }}
+        run: |
+          name="${DISPATCH_INPUT:-$MANUAL_INPUT}"
+          # Allowlist gate: a repository_dispatch is attacker-influenceable, so
+          # never feed an arbitrary string into `nix flake lock --update-input`.
+          case "$name" in
+            whiskey-whiskey-whiskey|replog|marginalia|homelab-mcp|coachiq) ;;
+            *)
+              echo "::error::Unknown or disallowed flake input '$name'"
+              exit 1
+              ;;
+          esac
+          echo "input=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Token
+        uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          # `client-id` accepts both Client IDs and legacy App IDs.
+          # Our `CARPENIKE_APP_ID` secret stores an App ID; the action handles it.
+          client-id: ${{ secrets.CARPENIKE_APP_ID }}
+          private-key: ${{ secrets.CARPENIKE_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          # Inject access-tokens for private flake inputs (our app repos are
+          # private). Without this, the `nix flake lock` fetch 404s.
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+
+      - name: Update ${{ steps.resolve.outputs.input }}
+        id: update
+        run: |
+          nix flake lock --update-input "${{ steps.resolve.outputs.input }}"
+          if git diff --quiet flake.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No change — input already at latest rev."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify flake evaluates
+        if: steps.update.outputs.changed == 'true'
+        run: nix flake check --no-build
+
+      - name: Create Pull Request
+        id: cpr
+        if: success() && steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: automated/update-${{ steps.resolve.outputs.input }}
+          title: "chore(deps): update ${{ steps.resolve.outputs.input }}"
+          commit-message: "chore(deps): update ${{ steps.resolve.outputs.input }}"
+          body: |
+            Targeted update of the `${{ steps.resolve.outputs.input }}` flake input
+            to its latest upstream rev, triggered by a push to that repo's `main`
+            (or a manual run).
+
+            Gated on `nix flake check` and the per-PR nix-build matrix before
+            auto-merge. Devices pick this up on their next `autoUpgrade` run.
+          labels: |
+            dependencies
+            automated
+          delete-branch: true
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        run: gh pr merge --auto --squash "${{ steps.cpr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
