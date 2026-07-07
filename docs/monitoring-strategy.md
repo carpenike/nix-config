@@ -2,7 +2,7 @@
 
 This document establishes the strategic division of monitoring responsibilities between Gatus (black-box) and Prometheus/Alertmanager (white-box) for homelab services.
 
-**Last Updated**: December 4, 2025
+**Last Updated**: July 7, 2026
 **Architecture**: Gatus replaces Uptime Kuma as the black-box monitoring solution
 
 ---
@@ -27,7 +27,7 @@ External validation from the user's perspective. Answers: **"Is this service ava
 - **Binary checks**: Service is UP ✅ or DOWN ❌
 - **Immediate alerts**: User-facing failures require immediate action
 - **Public status page**: Family/users can see service availability
-- **Declarative configuration**: Services contribute their own endpoints
+- **Declarative configuration**: Services contribute their own endpoints — the service factory auto-contributes one for every reverse-proxied factory service
 
 ### What to Monitor in Gatus
 
@@ -50,7 +50,7 @@ Add to Gatus if the service meets ANY of these criteria:
 ### Alert Routing
 - **Target**: Phone notifications (critical/immediate)
 - **When**: User-visible service failures
-- **Configure in**: NixOS configuration via `modules.services.gatus.contributions`
+- **Configure in**: NixOS configuration via `modules.services.gatus.contributions` (factory services contribute automatically; explicit contributions are only needed for non-factory services or overrides)
 
 ---
 
@@ -73,6 +73,8 @@ Add to Prometheus if the service meets ANY of these criteria:
 - ✅ Needs predictive alerting (trending toward failure)
 - ✅ Requires historical trending and dashboards
 
+Services declare a real Prometheus endpoint by setting `metrics.enable = true` (default is `false` everywhere, including factory-generated services). The observability module auto-discovers these declarations and contributes scrape configs to the host's Prometheus server — including a natively configured hub (`services.prometheus.enable`, as on forge) — so no manual scrape config is needed. See [Metrics Pattern Usage](./metrics-pattern-usage.md).
+
 ### Metric Sources
 
 | Source | Purpose | Examples |
@@ -80,7 +82,9 @@ Add to Prometheus if the service meets ANY of these criteria:
 | **node_exporter** | System-level metrics | CPU, memory, disk, network, systemd units |
 | **postgres_exporter** | Database internals | Connection pools, query latency, replication lag |
 | **Application exporters** | App-specific metrics | Auth failures, request rates, queue depths |
-| **Textfile collectors** | Custom metrics | ZFS health, GPU usage, container stats |
+| **Textfile collectors** | Custom metrics | ZFS health, zpool error counters, GPU usage, container stats |
+
+**Textfile collector staleness**: a stale `.prom` file silently freezes its gauges, blinding every alert built on them. Generic watchdog alerts (`TextfileCollectorStale` at 2h, `TextfileCollectorStaleCritical` at 12h) cover the `zfs`/`smart`/`tls`/`containers`/`ups`/`zfs_snapshots`/`zpool_errors`/`pgbackrest` files. ZFS pool error counters come from a dedicated `zpool-errors` textfile exporter (`zfs_pool_vdev_errors`, `zfs_pool_scrub_errors`, `zfs_pool_data_errors`) that complements ZED — ZED (re-enabled fleet-wide) pushes discrete events (vdev faults, scrub errors, checksum/IO errors) through the notification system, while the exporter provides the queryable state for alerting and trending.
 
 ### Alert Types
 
@@ -94,7 +98,7 @@ Add to Prometheus if the service meets ANY of these criteria:
 ### Alert Routing
 - **Target**: Alertmanager → Slack/Email/Phone (severity-based)
 - **When**: System trending toward failure or internal problems
-- **Configure in**: NixOS configuration (`modules.alerting.rules`)
+- **Configure in**: NixOS configuration (`modules.alerting.rules`) — every rule must declare `type = "promql"` and an `expr`; rules without it fail at eval time instead of being silently dropped
 
 ---
 
@@ -165,6 +169,8 @@ Use both monitoring systems when:
 
 **Critical Pattern**: Use systemd health check timers to probe Gatus, then monitor the timer state in Prometheus. This avoids the "monitoring the monitor" complexity trap.
 
+The alert delivery path itself is watched the same way: Grafana OnCall is scraped via an explicit `grafana-oncall` job, and the `OnCallDown` alert (`up{job="grafana-oncall"} == 0`) routes directly to Pushover so a broken escalation path cannot silently swallow its own alert.
+
 ---
 
 ## Implementation Checklist
@@ -212,17 +218,22 @@ When adding a service to your homelab, follow this decision tree:
 **Current exporters to maintain:**
 - ✅ `node_exporter` - System metrics (already configured)
 - ✅ `postgres_exporter` - Database metrics (already configured)
-- ✅ Systemd unit state monitoring (already configured)
-- ✅ Textfile collectors: ZFS, GPU, containers (already configured)
+- ✅ Systemd unit state monitoring (already configured; daily timers alert at 36h staleness via `SystemdTimerStale`, weekly timers get a 9-day window via `SystemdWeeklyTimerStale`)
+- ✅ Textfile collectors: ZFS, zpool error counters, GPU, containers (already configured, with staleness watchdogs — see above)
+- ✅ Auto-discovered service endpoints: services with `metrics.enable = true` (on forge: gatus, loki, promtail, miniflux, grafana, pinchflat) plus an explicit `grafana-oncall` scrape job
 
 **When to add application exporters:**
 - Only for **critical services** where internal metrics provide significant value
 - Examples: caddy-security (auth failures), Caddy (request latency), critical APIs
-- **Default to NO** - infrastructure monitoring is usually sufficient
+- **Default to NO** - infrastructure monitoring is usually sufficient; `metrics.enable = true` is reserved for services that really expose a Prometheus endpoint
+
+**Log-derived metrics**: Promtail pipelines can turn kernel/journal log patterns into counters where no exporter exists — e.g. `promtail_custom_nfs_server_not_responding_total` counts kernel "nfs: server not responding" lines and drives the `NFSSoftMountTimeouts` alert.
 
 ### Gatus Configuration (Declarative)
 
-For each **user-facing** service, add a Gatus contribution in the service's NixOS configuration:
+**Factory services are automatic**: every reverse-proxied service generated by `lib/service-factory.nix` auto-contributes a status-page endpoint probing its through-Caddy URL (default conditions `[STATUS] < 400`, 60s interval), grouped by category (Media, Productivity, Infrastructure, ...). All generated values use `mkDefault`, so a host-level contribution under the same name overrides them.
+
+For **non-factory** user-facing services (or to override the generated endpoint), add a Gatus contribution in the service's NixOS configuration:
 
 ```nix
 # In service module or host service file
@@ -290,6 +301,7 @@ modules.services.gatus.contributions.myservice = {
 - **Purpose**: Operational visibility and analysis
 - **Audience**: Homelab operator (you)
 - **Content**: Resource trends, performance metrics, capacity planning
+- **Provisioning**: Three dashboards are provisioned declaratively from `hosts/forge/infrastructure/observability/dashboards/` (host-overview, zfs-backups, alerts-overview) into the Grafana folder "Forge"
 
 **Separation of Concerns**: Users see "Is Plex up?", operators see "Why is Plex using 8GB RAM?"
 
@@ -305,7 +317,7 @@ modules.services.gatus.contributions.myservice = {
 - ✅ Gatus deployed with contributory endpoint pattern
 
 ### To Implement
-1. **Add Gatus contributions** for user-facing services (in NixOS config)
+1. **Add Gatus contributions** for non-factory user-facing services (factory services contribute their own endpoints automatically)
 2. **Review Prometheus alert rules** - ensure they follow "alert on symptoms" philosophy
 3. **Document runbooks** for each alert type (what to do when it fires)
 4. **Test alert delivery** - verify both Gatus and Prometheus alerts reach you
@@ -381,14 +393,21 @@ modules.services.gatus.contributions.myservice = {
 ## References
 
 - **Gatus Module**: `modules/nixos/services/gatus/default.nix`
-- **Prometheus Configuration**: `hosts/forge/monitoring.nix`
-- **Alerting Module**: `modules/nixos/alerting.nix`
+- **Prometheus Configuration**: `hosts/forge/infrastructure/observability/prometheus.nix`
+- **Metrics Auto-Discovery**: `modules/nixos/services/observability/default.nix`
+- **Alerting Module**: `modules/nixos/alerting/default.nix`
 - **Alert Definitions**: Co-located with services (e.g., `hosts/forge/services/*.nix`)
 
 ---
 
 ## Revision History
 
+- **Jul 7, 2026**: Updated for metrics trust model and blind-spot coverage
+  - `metrics.enable` now defaults to false; setting it true declares a real Prometheus endpoint
+  - Auto-discovery feeds the native Prometheus hub (`services.prometheus.enable`), not just the bundled instance
+  - `modules.alerting.rules` requires `type = "promql"` on every rule (eval-time assertion)
+  - Factory services auto-contribute Gatus status-page endpoints
+  - Documented textfile staleness watchdogs, zpool error exporter + ZED re-enable, weekly timer staleness split, NFS soft-mount alert, OnCallDown, and declarative Grafana dashboards
 - **Dec 4, 2025**: Updated to use Gatus as black-box monitoring solution
   - Replaced Uptime Kuma references with Gatus
   - Added declarative configuration patterns via NixOS contributions

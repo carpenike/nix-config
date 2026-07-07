@@ -1,7 +1,7 @@
 # Unified Backup Design Patterns
 
-**Last Updated**: 2025-10-29
-**Status**: Active - Replaces previous backup patterns
+**Last Updated**: 2026-07-07
+**Status**: Active - Replaces previous backup patterns (legacy modules deleted)
 **Architecture**: Unified control plane with opt-in snapshots
 
 ## Overview
@@ -166,44 +166,31 @@ Comprehensive alerting covers all backup scenarios:
 - **PostgresBackupVerificationFailed**: Database verification failure (high)
 - **BackupMonitoringUnhealthy**: Monitoring system issues (high)
 
-## Migration Patterns
+## Migration History (Complete)
 
-### From Legacy System
+The migration from the legacy modules is **complete**. The `backup-integration` and `backup-services` modules have been deleted from the repository; `modules.services.backup` is the only backup control plane. All hosts (forge, luna) now use:
 
-Gradual migration from existing backup-integration:
+- **Auto-discovery**: Services declare a `backup` submodule; the system discovers them and creates `service-<name>` jobs (systemd units `restic-backup-service-<name>.service` / `.timer`).
+- **Offsite clones**: `modules.services.backup.restic.offsite` declares which discovered jobs are cloned as `offsite-<name>` jobs targeting the offsite repository (same paths/excludes, staggered after the primary backup window).
+- **Manual jobs**: Host-critical state that doesn't belong to a single service is declared via `modules.services.backup.restic.jobs` (e.g. forge's `system-state` and `system-state-offsite` jobs covering `/persist` + `/home` with `privileged = true` so root-only files like sops host keys are readable).
 
-```nix
-# Phase 1: Run both systems in parallel
-modules.services.backup-integration.enable = true;  # Existing system
-modules.services.backup.enable = false;             # New system (staged)
-
-# Phase 2: Enable new system alongside old
-modules.services.backup-integration.enable = true;  # Keep running
-modules.services.backup.enable = true;              # Start testing
-
-# Phase 3: Migrate to unified system
-modules.services.backup-integration.enable = false; # Disable old
-modules.services.backup.enable = true;              # Use new system
-```
-
-### Service Migration
-
-Update service configurations to use unified patterns:
+### Current Service Pattern
 
 ```nix
-# OLD: Manual backup-integration configuration
-modules.services.backup-integration = {
-  enable = true;
-  defaultRepository = "nas-primary";
-};
-
-# NEW: Service declares backup needs, system handles automatically
+# Service declares backup needs, system handles automatically
 modules.services.myservice = {
   backup = {
     enable = true;
     repository = "nas-primary";
     useSnapshots = true;  # If needed
   };
+};
+
+# Host declares which discovered jobs also go offsite
+modules.services.backup.restic.offsite = {
+  repository = "r2-offsite";
+  frequency = "05:00";  # + 4h randomized delay, after the nas window (00:00-04:00)
+  services = [ "myservice" ];
 };
 ```
 
@@ -269,20 +256,19 @@ verification = {
 
 ## Migration Timeline
 
-The unified backup system is implemented and ready for deployment:
+The unified backup system is fully deployed:
 
-1. **Current State**: Legacy backup-integration system operational
-2. **Phase 1**: Deploy unified system alongside existing (testing)
-3. **Phase 2**: Migrate services to unified patterns (gradual)
-4. **Phase 3**: Deprecate legacy system (complete migration)
-5. **Future**: Enhanced verification and compliance features
+1. **Complete**: Legacy `backup-integration`/`backup-services` modules deleted
+2. **Current State**: Unified system operational on all hosts - auto-discovered `service-<name>` jobs, `offsite-<name>` clones via `restic.offsite`, and manual `system-state` jobs
+3. **Current State**: Per-repository verification (`backup-verify-<repo>.timer`) and restore testing (`backup-restore-test-<repo>.timer`) scheduled automatically
+4. **Future**: Enhanced verification and compliance features
 
 ## Reference Implementation
 
 See the complete implementation in:
 - `modules/nixos/services/backup/` - Unified backup module
-- `hosts/forge/default.nix:542-556` - Grafana Sanoid integration example
-- `hosts/forge/backup.nix:121-159` - Migration configuration example
-- `lib/types.nix` - Backup submodule type definition
+- `hosts/forge/infrastructure/backup.nix` - Repositories, `restic.offsite` list, and `system-state` jobs
+- `hosts/luna/default.nix` - Per-service backup submodules + `luna-backup-dumps` staging pattern
+- `lib/types/backup.nix` - Backup submodule type definition
 
 This unified approach provides enterprise-grade backup management while maintaining the simplicity and directness appropriate for homelab environments.

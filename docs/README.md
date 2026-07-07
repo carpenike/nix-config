@@ -153,8 +153,8 @@ mkdocs build
 
 ## Network Services
 
-- **[AdGuard Modular Config](./adguard-modular-config.md)** - AdGuard Home patterns
-- **[DNSdist Shared Config](./dnsdist-shared-config.md)** - DNS infrastructure
+- **[AdGuard Modular Config](./adguard-modular-config.md)** - DNS infrastructure (AdGuard Home on luna + nixpi)
+- **[DNSdist Shared Config](./dnsdist-shared-config.md)** - Historical (dnsdist module removed)
 - **[Cloudflare Tunnel Implementation](./cloudflare-tunnel-implementation.md)** - External access
 
 ---

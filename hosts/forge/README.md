@@ -35,7 +35,8 @@ hosts/forge/
 
 **Contents**:
 - `backup.nix` - Restic backup configuration and monitoring (including zfs-holds-stale)
-- `storage.nix` - **Complete ZFS lifecycle: datasets, Sanoid/Syncoid config, replication, all ZFS/snapshot/replication alerts**
+- `storage.nix` - **ZFS lifecycle: datasets, Sanoid/Syncoid config, replication, snapshot/replication/NFS alerts**
+- `monitoring.nix` - Hardware/platform exporters and alerts (GPU, SMART, zpool error counters, textfile collectors)
 - `containerization.nix` - Podman networking, generic container health alerts
 - `notifications.nix` - Notification system (Pushover, system events)
 - `reverse-proxy.nix` - Caddy reverse proxy configuration
@@ -156,9 +157,10 @@ Alerts are distributed according to their scope following the **co-location prin
 
 | Alert Type | Location | Example |
 |------------|----------|---------|
-| Core OS health | `core/monitoring.nix` | CPU, memory, disk, systemd units, watchdog |
+| Core OS health | `core/monitoring.nix` | CPU, memory, disk, systemd units/timers (incl. weekly-timer staleness), textfile-collector staleness, watchdog |
 | GPU hardware | `infrastructure/monitoring.nix` | GPU exporter, utilization, engine stalls |
-| ZFS storage & snapshots | `infrastructure/storage.nix` | Pool health, capacity, fragmentation, snapshot age (24hr/48hr) |
+| ZFS error counters | `infrastructure/monitoring.nix` | zpool-errors exporter, ZfsVdevErrors/ZfsScrubErrors/ZfsDataErrors |
+| ZFS storage & snapshots | `infrastructure/storage.nix` | Pool health, capacity, fragmentation, snapshot age (24hr/48hr), NFS soft-mount timeouts |
 | ZFS replication | `infrastructure/storage.nix` | Replication lag, stale, never-run, syncoid failures |
 | Restic backups | `infrastructure/backup.nix` | Backup errors, zfs-holds-stale (Restic cleanup) |
 | Container health | `infrastructure/containerization.nix` | Health check failed, high memory, service down |
@@ -168,7 +170,7 @@ Alerts are distributed according to their scope following the **co-location prin
 | pgBackRest | `services/pgbackrest.nix` | Backup failures, spool usage, config generator |
 | Application services | With service | `services/sonarr.nix` → sonarr-service-down alert |
 
-**Key Principle**: Configuration and monitoring are co-located. For example, `storage.nix` defines both the Sanoid/Syncoid configuration AND all the alerts that monitor ZFS health, snapshots, and replication.
+**Key Principle**: Configuration and monitoring are co-located. For example, `storage.nix` defines both the Sanoid/Syncoid configuration AND the alerts that monitor ZFS snapshots and replication, while the zpool error-counter exporter and its alerts live next to the other hardware exporters in `infrastructure/monitoring.nix`.
 
 ### Monitoring Coverage
 

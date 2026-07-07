@@ -66,13 +66,13 @@
 ├── modules/                  # Reusable NixOS/Darwin modules
 │   ├── common/               # Cross-platform modules
 │   ├── darwin/               # macOS-specific modules
-│   └── nixos/                # NixOS-specific modules (85+ service modules)
+│   └── nixos/                # NixOS-specific modules (75+ service modules)
 │       └── services/         # Service modules
 │
 ├── lib/                      # Shared library functions (mylib)
 │   ├── types.nix             # Shared type definitions
+│   ├── service-factory.nix   # Container service module generator
 │   ├── monitoring-helpers.nix
-│   ├── backup-helpers.nix
 │   └── ...                   # Other helper libraries
 │
 ├── hosts/                    # Host-specific configurations
@@ -82,7 +82,8 @@
 │   │   ├── services/         # 60+ application services
 │   │   └── lib/              # Host-specific helpers (forgeDefaults)
 │   │
-│   ├── luna/                 # Secondary server (NixOS)
+│   ├── luna/                 # Secondary server (NixOS) - primary DNS
+│   ├── nixpi/                # Raspberry Pi 4 (NixOS) - secondary DNS
 │   ├── nas-1/                # NAS configuration (NixOS)
 │   ├── rymac/                # MacBook Pro (nix-darwin)
 │   └── rydev/                # Development VM (NixOS)
@@ -276,11 +277,14 @@ task backup:orchestrate
 | `forge` | NixOS | Intel i9-9900K, 32GB RAM, GTX 1080 Ti + Intel UHD 630, 2×NVMe (ZFS mirror) | Primary homelab (60+ services) |
 | `nas-0` | TrueNAS | Intel i3-7100, 64GB RAM, 28×HDD (14 mirrored vdevs, 117TB) | Primary storage, NFS exports |
 | `nas-1` | NixOS | Intel i3-7100, 32GB RAM, 4×HDD (RAIDZ1, 51TB raw) | Backup target, ZFS replication |
-| `luna` | NixOS | Intel Celeron J3455, 8GB RAM, 128GB SSD | Infrastructure services |
+| `luna` | NixOS | Intel Celeron J3455, 8GB RAM, 128GB SSD | Infrastructure services, primary DNS |
+| `nixpi` | NixOS | Raspberry Pi 4 | Secondary DNS, RV integrations |
 | `rymac` | nix-darwin | Apple M1 Max, 32GB RAM | MacBook Pro workstation |
 | `rydev` | NixOS | VM (aarch64) | Development environment |
 
 **Network**: Mikrotik CCR2004-16G-2S+ router with VLANs (Servers/10.20.x, Wired/10.10.x, Wireless/10.30.x, IoT/10.40.x, Video/10.50.x)
+
+**DNS**: Two AdGuardHome resolvers — `luna` (primary) and `nixpi` (secondary, declaratively mirrors luna's config) — so DNS survives luna's nightly auto-upgrade reboot.
 
 ---
 
@@ -343,6 +347,7 @@ User-facing availability checks displayed on public status page:
 - HTTP/HTTPS endpoint health
 - DNS resolution verification
 - Certificate expiry warnings
+- Every reverse-proxied factory service auto-contributes its own Gatus endpoint (opt out per service via `gatus.enable = false`)
 
 ### White-Box Monitoring (Prometheus)
 
@@ -350,8 +355,16 @@ Internal metrics and predictive alerting:
 
 - System resources (node_exporter)
 - Container health
-- ZFS pool/dataset metrics
+- ZFS pool/dataset metrics + zpool error counters (textfile exporter) + ZED event notifications
 - Application-specific exporters
+- Metrics auto-discovery: services with `metrics.enable = true` are scraped automatically (the flag defaults to `false` and is an explicit declaration of a real Prometheus endpoint)
+- Textfile-collector staleness watchdogs so exporter breakage can't silently blind alerts
+
+### Dashboards (Grafana)
+
+Declarative dashboards provisioned from the repo into the **Forge** folder
+(`hosts/forge/infrastructure/observability/dashboards/`): host overview,
+ZFS & backups, and alerts overview.
 
 ### Alerting Flow
 
@@ -387,8 +400,13 @@ See [docs/monitoring-strategy.md](docs/monitoring-strategy.md) for detailed guid
 
 1. **ZFS Snapshots** (Sanoid) - Hourly/daily/weekly/monthly local snapshots
 2. **ZFS Replication** (Syncoid) - Local replication to nas-1
-3. **Restic** - Encrypted backups to NAS (local) + Cloudflare R2 (offsite)
+3. **Restic** - Encrypted backups to nas-1 (`nas-primary`, all auto-discovered service jobs) + Cloudflare R2 (`r2-offsite`)
+   - `restic.offsite` clones critical service jobs to R2: paperless, actual, pocketid, zigbee2mqtt, zwave-js-ui, home-assistant, esphome, mealie, miniflux
+   - Privileged `system-state` jobs back up `/persist` + `/home` (incl. sops host keys) to **both** repositories
+   - Scheduled repository verification (`backup-verify-<repo>.timer`) and restore tests (`backup-restore-test-<repo>.timer`)
 4. **pgBackRest** - PostgreSQL PITR to Cloudflare R2 (offsite)
+
+Luna uses the same unified backup system (AdGuardHome, UniFi, Omada dumps to nas-1 via `luna-backup-dumps`).
 
 ### Disaster Recovery
 
@@ -420,9 +438,16 @@ task sops:edit host=forge
 
 ### Network Security
 
-- Services bind to localhost only
+- Services bind to localhost only — factory containers publish their WebUI port on `127.0.0.1` by default (`bindAddress`), since podman port publishes bypass the NixOS firewall
 - Caddy handles TLS termination
 - Cloudflare Tunnel for external access (no port forwarding)
+
+### Container Hardening
+
+Defaults applied by `podmanLib.mkContainer` / the service factory:
+
+- `--security-opt=no-new-privileges` for all non-privileged containers (opt out per service: `hardening.allowPrivilegeEscalation = true`)
+- `--cap-drop=ALL` for containers running as a non-root user (add back specific caps via `hardening.capAdd`)
 
 ---
 
@@ -467,6 +492,7 @@ task nix:test-vm host=rydev
 3. Import in `hosts/forge/default.nix`
 4. Follow contribution pattern (service + storage + backup + alerts)
 5. Use `forgeDefaults` helpers for consistency
+6. Container images: plain-tag fallback in the module, digest-pinned `image` in the host file (Renovate manages host pins only — see [docs/container-image-management.md](docs/container-image-management.md))
 
 See [docs/modular-design-patterns.md](docs/modular-design-patterns.md) for detailed patterns.
 

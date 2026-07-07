@@ -2,95 +2,101 @@
 
 ## Architecture Overview
 
-The reverse proxy configuration has been refactored to support modular service registration from both:
+Reverse proxy configuration is contributory: virtual hosts are registered from both:
 - **Service modules** (`modules/nixos/services/*/`)
-- **Host-specific configs** (`hosts/*/service.nix`)
+- **Host-specific configs** (`hosts/*/services/*.nix`)
 
-This design decouples service registration from the Caddy implementation, preventing circular dependencies and enabling clean separation of concerns.
+Contributors write to `modules.services.caddy.virtualHosts.<name>`; the Caddy module aggregates all registrations and generates the Caddyfile. This keeps service registration declarative and co-located with each service while Caddy remains the single implementation point.
 
 ### Version 2.0 Improvements (2025-10)
 
 The configuration has been enhanced with structured types and security improvements based on comprehensive code review:
 
 ✅ **Security Enhancements**:
-- Safe TLS backend handling with explicit verification defaults
-- Structured backend configuration (no more string-based `proxyTo`)
-- Required acknowledgment for insecure TLS (`acknowledgeInsecure`)
-- Configurable HSTS per-service with sensible defaults
+- Safe TLS backend handling with explicit verification defaults (`backend.tls.verify`)
+- Structured backend configuration (preferred over string-based `proxyTo`)
+- Configurable HSTS per-service with sensible defaults (`security.hsts`)
+- Structured custom headers (`security.customHeaders`)
+- caddy-security integration for authentication enforcement (`caddySecurity`)
 - Comprehensive validation and assertions
-
-✅ **Backend Agnosticism**:
-- Structured `securityHeaders` (attrset, not string blobs)
-- Vendor extensions for Caddy-specific config (`vendorExtensions.caddy`)
-- Generic options that can translate to any proxy backend
 
 ✅ **DRY Improvements**:
 - Centralized ACME configuration (no per-vhost duplication)
-- Specialized helpers (`mkPublicService`, `mkAuthenticatedService`, `mkSecureWebApp`)
+- Factory-generated services register automatically via their `reverseProxy` option
 - Consistent pattern matching storage and backup modules
 
 ✅ **Validation**:
-- FQDN validation with regex
-- Port range validation
-- Uniqueness checks across virtual hosts
-- Security acknowledgment requirements
+- Every enabled vhost must declare a `backend`, a legacy `proxyTo`, or `handleOnly = true` with `extraConfig`
+- Uniqueness and consistency checks across virtual hosts
 
 ## Key Components
 
-### 1. Registry Module
-**Location**: `modules/nixos/services/reverse-proxy/registry.nix`
-
-Declares the shared registration interface:
-- `modules.reverseProxy.domain` - Base domain for virtual hosts
-- `modules.reverseProxy.virtualHosts.<name>` - Virtual host registration
-
-This module is imported globally, so any config (module or host-level) can register virtual hosts without depending on Caddy.
-
-### 2. Caddy Module (Updated)
+### 1. Caddy Module
 **Location**: `modules/nixos/services/caddy/default.nix`
 
-**Changes**:
-- Removed `modules.services.caddy.virtualHosts` option (moved to registry)
-- Added `mkRenamedOptionModule` alias for backward compatibility
-- Reads virtual hosts from `config.modules.reverseProxy.virtualHosts`
-- Generates Caddyfile from registry entries
+Owns the registration interface and the implementation:
+- `modules.services.caddy.virtualHosts.<name>` - Virtual host registration (attrset of submodules)
+- Generates the Caddyfile from all registered virtual hosts
+- Validates registrations with assertions at eval time
 
-**Backward Compatibility**: Existing service modules that write to `modules.services.caddy.virtualHosts` continue working via the alias.
+Each virtual host submodule supports:
 
-### 3. Helper Function
-**Location**: `lib/register-vhost.nix`
+| Option | Purpose |
+|--------|---------|
+| `enable` | Enable this virtual host |
+| `hostName` | Fully qualified domain name (e.g. `myservice.holthome.net`) |
+| `backend` | Structured backend: `{ scheme, host, port, tls }` (**preferred**) |
+| `proxyTo` | Legacy string backend address (use `backend` instead) |
+| `handleOnly` | No `reverse_proxy` directive; serve entirely from `extraConfig` |
+| `auth` | Basic auth (`user`, `passwordHashEnvVar`) |
+| `caddySecurity` | caddy-security portal/policy enforcement, bypass paths, API keys |
+| `security` | HSTS configuration and custom headers |
+| `extraConfig` | Additional raw Caddyfile directives |
+| `cloudflare` | Expose via Cloudflare Tunnel |
 
-Provides a DRY registration helper (optional):
+### 2. Service Factory Integration
+**Location**: `lib/service-factory.nix`
+
+Factory-generated container services (`mylib.mkContainerService`) get Caddy registration automatically from their `reverseProxy` submodule option:
 
 ```nix
-{ registerVirtualHost } = import ../lib/register-vhost.nix { inherit lib; };
-
-config = registerVirtualHost {
-  name = "myservice";
-  subdomain = "myservice";
-  port = 8080;
-  domain = config.networking.domain;  # Optional
-  httpsBackend = false;
-  auth = null;
-  headers = "";
-  extraConfig = "";
-  condition = true;  # Optional enable condition
+modules.services.myservice = {
+  enable = true;
+  reverseProxy = {
+    enable = true;
+    hostName = "myservice.holthome.net";
+  };
 };
 ```
 
-### 4. DNS Aggregation (Updated)
-**Location**: `lib/dns-aggregate.nix`
+This registers `modules.services.caddy.virtualHosts.myservice` with a structured `backend` pointing at the container's loopback-published port (the factory's `bindAddress` defaults to `127.0.0.1`, so Caddy is the LAN entry point). It also auto-contributes a Gatus status-page endpoint probing `https://<hostName>` (tunable via the factory's `gatus.{enable,interval,conditions}` options).
 
-**Changes**:
-- Now reads from `config.modules.reverseProxy.virtualHosts` (clean break)
-- Still works with existing hosts due to the alias
-- Generates DNS records from all registered virtual hosts across fleet
+### 3. DNS Record Generation
+**Locations**: `modules/nixos/services/caddy/dns-records.nix`, `lib/dns-aggregate.nix`
+
+- **Per-host**: `modules.services.caddy.dnsRecords` (read-only) renders A records from the host's registered virtual hosts
+- **Fleet-wide**: `lib/dns-aggregate.nix` scans all hosts' virtual host registrations and emits combined zone records
 
 ## Usage Patterns
 
-### Pattern 1: Service Module Registration (Existing)
+### Pattern 1: Factory Service (Preferred for Containers)
 
-Service modules in `modules/nixos/services/*/` can register directly:
+For factory-generated services, just set the `reverseProxy` option — no direct Caddy wiring needed:
+
+```nix
+# hosts/forge/services/myservice.nix
+modules.services.myservice = {
+  enable = true;
+  reverseProxy = {
+    enable = true;
+    hostName = "myservice.${config.networking.domain}";
+  };
+};
+```
+
+### Pattern 2: Direct Registration (Hand-Rolled Modules)
+
+Service modules in `modules/nixos/services/*/` register directly with a structured backend:
 
 ```nix
 # modules/nixos/services/myservice/default.nix
@@ -105,18 +111,15 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Direct registration (new path)
-    modules.reverseProxy.virtualHosts.myservice = {
+    modules.services.caddy.virtualHosts.myservice = {
       enable = true;
       hostName = "myservice.${config.networking.domain}";
-      proxyTo = "localhost:8080";
-      httpsBackend = false;
-      auth = null;
-      extraConfig = "";
+      backend = {
+        scheme = "http";
+        host = "127.0.0.1";
+        port = 8080;
+      };
     };
-
-    # OR use the old path (backward compatible via alias)
-    modules.services.caddy.virtualHosts.myservice = { ... };
 
     # Service configuration
     systemd.services.myservice = { ... };
@@ -124,131 +127,92 @@ in
 }
 ```
 
-### Pattern 2: Host-Specific Registration (New)
+### Pattern 3: Host-Specific Registration
 
-Host config files (e.g., `hosts/forge/dispatcharr.nix`) can now register:
+Host config files can register virtual hosts the same way, including security headers:
 
 ```nix
-# hosts/forge/dispatcharr.nix
+# hosts/forge/services/dispatcharr.nix
 { config, lib, ... }:
-let
-  dispatcharrEnabled = true;
-  dispatcharrPort = 9191;
-in
 {
-  config = lib.mkMerge [
-    # Reverse proxy registration
-    (lib.mkIf dispatcharrEnabled {
-      modules.reverseProxy.virtualHosts.dispatcharr = {
-        enable = true;
-        hostName = "dispatcharr.${config.networking.domain}";
-        proxyTo = "localhost:${toString dispatcharrPort}";
-        httpsBackend = false;
-        auth = null;
-        extraConfig = ''
-          header {
-            X-Frame-Options "SAMEORIGIN"
-            X-Content-Type-Options "nosniff"
-          }
-        '';
-      };
-    })
-
-    # Service configuration
-    {
-      modules.services.dispatcharr = {
-        enable = dispatcharrEnabled;
-        # ... rest of config
-      };
-    }
-  ];
+  modules.services.caddy.virtualHosts.dispatcharr = {
+    enable = true;
+    hostName = "dispatcharr.${config.networking.domain}";
+    backend = {
+      scheme = "http";
+      host = "127.0.0.1";
+      port = 9191;
+    };
+    security.customHeaders = {
+      X-Frame-Options = "SAMEORIGIN";
+      X-Content-Type-Options = "nosniff";
+    };
+  };
 }
 ```
 
-### Pattern 3: Using the Helper Function
+### Pattern 4: Handle-Only Virtual Hosts
 
-For even more concise registration:
+For hosts that serve content without proxying (redirects, static responses):
 
 ```nix
-{ config, lib, ... }:
-let
-  vhostHelper = import ../../../../lib/register-vhost.nix { inherit lib; };
-  cfg = config.modules.services.myservice;
-in
-{
-  config = lib.mkIf cfg.enable (lib.mkMerge [
-    (vhostHelper.registerVirtualHost {
-      name = "myservice";
-      subdomain = "myservice";
-      port = cfg.port;
-      domain = config.networking.domain;
-      httpsBackend = false;
-    })
-    {
-      # Service configuration
-      systemd.services.myservice = { ... };
-    }
-  ]);
-}
+modules.services.caddy.virtualHosts.redirect = {
+  enable = true;
+  hostName = "old.${config.networking.domain}";
+  handleOnly = true;
+  extraConfig = ''
+    redir https://new.${config.networking.domain}{uri} permanent
+  '';
+};
 ```
 
-## Migration Guide
+## Migrating Legacy Registrations
 
-### Migrating Existing Service Modules
+Prefer the structured `backend` over the legacy string options:
 
-**Option A: No changes needed** (backward compatible via alias)
-- Existing modules using `modules.services.caddy.virtualHosts` continue working
-
-**Option B: Update to new path** (recommended)
 ```nix
-# Old:
-modules.services.caddy.virtualHosts.myservice = { ... };
+# Old (legacy, still works):
+modules.services.caddy.virtualHosts.myservice = {
+  proxyTo = "localhost:8080";
+  httpsBackend = false;
+};
 
-# New:
-modules.reverseProxy.virtualHosts.myservice = { ... };
+# New (preferred):
+modules.services.caddy.virtualHosts.myservice = {
+  backend = {
+    scheme = "http";
+    host = "127.0.0.1";
+    port = 8080;
+  };
+};
 ```
 
-### Adding New Services
-
-**For service modules**: Use either path (new preferred)
-**For host configs**: Use `modules.reverseProxy.virtualHosts.*`
+> **Historical note**: An earlier refactor introduced a standalone registry (`modules.reverseProxy.virtualHosts` via `modules/nixos/services/reverse-proxy/registry.nix`) and a `registerVirtualHost` helper (`lib/register-vhost.nix`). That indirection was removed — registration happens directly on `modules.services.caddy.virtualHosts`, and `lib/register-vhost.nix` and `lib/caddy-helpers.nix` were deleted as dead code.
 
 ## Benefits
 
-1. **Decoupled Architecture**
-   - Services don't depend on Caddy module
-   - Host configs can register without module wrappers
-   - Future flexibility to swap proxy backends
-
-2. **No Circular Dependencies**
-   - Registry is a standalone, shared interface
-   - Service modules and host configs write to registry
-   - Caddy reads from registry to generate config
-
-3. **Backward Compatible**
-   - Existing service modules work unchanged
-   - Gradual migration path available
-   - DNS aggregation continues functioning
-
-4. **Clean Separation of Concerns**
-   - Registration interface separate from implementation
-   - Host-level and module-level use same interface
+1. **Contributory Architecture**
+   - Services declare their own virtual hosts, co-located with their config
+   - Caddy aggregates all contributions into a single Caddyfile
    - Single source of truth for virtual host definitions
 
-5. **DRY with Helper**
-   - Optional helper reduces boilerplate
-   - Consistent registration pattern
-   - Easy to extend with new features
+2. **Structured, Validated Configuration**
+   - Typed `backend` submodule instead of free-form strings
+   - Assertions catch misconfigured vhosts at eval time
+   - Security options (HSTS, headers, auth) are first-class
+
+3. **Zero Boilerplate for Factory Services**
+   - `reverseProxy = { enable = true; hostName = ...; }` is all a container service needs
+   - Loopback-bound container ports plus Caddy as the LAN entry point by default
+   - Gatus monitoring comes along for free
 
 ## DNS Record Generation
 
 DNS records are automatically generated from registered virtual hosts:
 
-1. **Per-Host**: `modules.services.caddy.dnsRecords` (reads from registry)
-2. **Fleet-Wide**: `lib/dns-aggregate.nix` scans all hosts' registry entries
+1. **Per-Host**: `modules.services.caddy.dnsRecords` (reads from `modules.services.caddy.virtualHosts`)
+2. **Fleet-Wide**: `lib/dns-aggregate.nix` scans all hosts' registrations
 3. **Output**: `nix eval .#allCaddyDnsRecords --raw`
-
-The DNS aggregation now reads from `modules.reverseProxy.virtualHosts`, ensuring consistency across the fleet.
 
 ## Testing
 
@@ -267,20 +231,3 @@ nixos-rebuild build --flake .#forge
 # Preview Caddy configuration
 ssh forge.holthome.net 'sudo cat /etc/caddy/Caddyfile'
 ```
-
-## Files Modified
-
-- ✅ **Created**: `modules/nixos/services/reverse-proxy/registry.nix`
-- ✅ **Created**: `lib/register-vhost.nix`
-- ✅ **Updated**: `modules/nixos/services/caddy/default.nix`
-- ✅ **Updated**: `modules/nixos/services/caddy/dns-records.nix`
-- ✅ **Updated**: `modules/nixos/services/default.nix`
-- ✅ **Updated**: `lib/dns-aggregate.nix`
-- ✅ **Updated**: `hosts/forge/dispatcharr.nix`
-
-## Next Steps
-
-1. **Test on forge**: Deploy and verify Dispatcharr is accessible
-2. **Migrate other services**: Gradually update service modules to use new path
-3. **Add authentication**: Configure basic auth for Dispatcharr if needed
-4. **Monitor DNS**: Verify DNS records are generated correctly

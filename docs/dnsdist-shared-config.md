@@ -1,5 +1,7 @@
 # DNSDist Shared Configuration
 
+> **⚠️ HISTORICAL DOCUMENT**: The dnsdist module has been **removed** from this repository and no host runs dnsdist anymore. DNS for the home network is now served directly by AdGuard Home on two resolvers: **luna** (primary) and **nixpi** (secondary). See [AdGuard Modular Config](./adguard-modular-config.md) for the current DNS architecture. This document is retained for historical reference only.
+
 This document explains the DNSDist shared configuration pattern implemented for holthome.net infrastructure.
 
 ## Overview

@@ -35,7 +35,7 @@ Cooklang needed a reproducible way to pull personal recipes onto a rebuilt node.
 3. **Enable the helper module** alongside the service that needs data:
 
    ```nix
-   modules.services.resilioSync = {
+   modules.services.resilio-sync = {
      enable = true;
      folders.cooklang = {
        path = "/data/cooklang/recipes";
@@ -68,7 +68,7 @@ For critical workflows, consider a `systemd.path` or `systemd.timer` that only s
 
 ## Configuration reference
 
-`modules.services.resilioSync` exposes the following options:
+`modules.services.resilio-sync` exposes the following options:
 
 | Option | Type | Default | Notes |
 |--------|------|---------|-------|
@@ -117,7 +117,7 @@ Assertions guarantee that paths are absolute and that permissions are only enfor
     recipeDir = "/data/cooklang/recipes";
   };
 
-  modules.services.resilioSync = {
+  modules.services.resilio-sync = {
     enable = true;
     deviceName = "forge-recipes";
     folders.cooklang = {

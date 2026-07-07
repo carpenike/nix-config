@@ -1,6 +1,6 @@
 # Modular Design Patterns
 
-**Last Updated**: 2025-12-31
+**Last Updated**: 2026-07-07
 
 This document establishes standardized design patterns for NixOS service modules based on the refined Caddy and PostgreSQL reference implementations. Following these patterns ensures consistency, maintainability, and type safety across the entire infrastructure configuration.
 
@@ -838,8 +838,13 @@ metrics = mkOption {
 config = mkIf cfg.enable {
   # Services are automatically discovered when they define a metrics submodule
   # The observability module uses discoverMetricsTargets() to find all services with:
+  # - (service.enable or false) == true
   # - (service.metrics or null) != null
   # - (service.metrics.enable or false) == true
+  # (optionally constrained further by autoDiscovery.allowedServices)
+  #
+  # Note: factory-generated services default metrics.enable = false — most apps
+  # have no native Prometheus endpoint. Opt in explicitly via spec.metricsEnable = true.
 
   # Generated Prometheus scrape config will include:
   # - job_name: "service-${serviceName}"
@@ -1521,10 +1526,11 @@ ls -ld /var/lib/<service>  # Should still be drwxr-x---
 Reusable helper functions in `lib/` for common patterns:
 
 - `lib/types.nix` - ✅ **Implemented** - Shared type definitions (split into `lib/types/*.nix`)
-- `lib/monitoring-helpers.nix` - ✅ **Implemented** - Metrics and alert configuration
-- `lib/backup-helpers.nix` - ✅ **Implemented** - Backup job generation
-- `lib/caddy-helpers.nix` - ✅ **Implemented** - Reverse proxy configuration
+- `lib/monitoring-helpers.nix` - ✅ **Implemented** - Container alert template helpers (`mkThresholdAlert`, `mkContainerDownAlert`, etc.; host-level helpers like `mkServiceDownAlert` live in `lib/host-defaults.nix`)
+- `lib/service-factory.nix` - ✅ **Implemented** - Container service factory (`mylib.mkContainerService`)
 - `modules/nixos/storage/helpers-lib.nix` - ✅ **Implemented** - Storage/preseed helpers (via `mylib.storageHelpers pkgs`)
+
+(Reverse proxy configuration has no separate helper library: the pattern lives in the Caddy module's `virtualHosts` option plus the factory's `reverseProxy` submodule.)
 
 ## Migration Strategy
 

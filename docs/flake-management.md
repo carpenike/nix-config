@@ -34,9 +34,12 @@ This document describes how flake inputs are managed, updated, and pinned in thi
 - Accessed via `pkgs.unstable.*` overlay (see `overlays/default.nix`)
 - Use sparingly for packages needing latest versions
 
-**Pure Module Flakes**: `hardware`, `catppuccin`, `impermanence`
+**Pure Module Flakes**: `hardware`, `catppuccin`
 - Don't depend on nixpkgs (pure Nix modules)
 - No `follows` needed
+- Note: `impermanence` used to be in this category, but upstream now declares
+  `nixpkgs`/`home-manager` inputs (for its tests/dev shell), so we `follows`
+  ours to avoid duplicate locked copies in `flake.lock`
 
 **Utility Flakes**: Everything else
 - Follow `nixpkgs` to ensure consistent package versions

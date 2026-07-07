@@ -337,15 +337,15 @@ Services using `pkgs.unstable.*` instead of stable packages:
 | **Related** | An earlier related workaround (`EXCLUDE_OPTS="--exclude=.config --exclude=.local"`, 2026-02-02) addressed a different `[073]` instance where `.config`/`.local` dirs polluted PGDATA. Today's `pg_dynshmem` failure is a normal PG directory and can't be excluded that way. |
 | **Verified** | 2026-05-11: the retry fired exactly as designed in production. The 2026-05-11 02:00 full backup hit a `[061]` error at 02:02, systemd waited 15 min, retried at 02:17, and completed successfully at 02:24 (NFS) and 02:44 (R2). No alert fired. |
 
-### Profilarr - Disabled (Upstream Image Gone)
+### Profilarr - Disabled (Upstream Image Moved; 2.x Unvalidated)
 
 | Field | Value |
 |-------|-------|
-| **Added** | 2026-05-11 |
+| **Added** | 2026-05-11 (updated 2026-07-07) |
 | **Location** | `hosts/forge/services/profilarr.nix` (`enable = false`) |
-| **Reason** | The original `ghcr.io/profilarr/profilarr` image registry returns 403 Forbidden as of May 2026. The project moved to <https://github.com/Dictionarry-Hub/profilarr> but no public container image is published yet at the new location (the org's packages page shows "No packages published"). The README documents `ghcr.io/dictionarry-hub/profilarr:latest` but that path is also unauthorized. The service had also never produced any output on this host: `/var/lib/profilarr/` was empty and the journal had zero successful runs in retention. |
-| **Workaround** | `enable = false` with a FIXME comment pointing at the upstream situation. `recyclarr` (still enabled) does the equivalent TRaSH-guides sync work, so disabling profilarr has no functional impact on this host. |
-| **Check** | Periodically check <https://github.com/orgs/Dictionarry-Hub/packages?repo_name=profilarr> for a published image. When V2 ships and an image lands, update the `image` ref in `hosts/forge/services/profilarr.nix` and toggle `enable = true`. |
+| **Reason** | The original `ghcr.io/profilarr/profilarr` image registry returns 403 Forbidden as of May 2026. The project moved to <https://github.com/Dictionarry-Hub/profilarr>. **Update 2026-07-07**: the new location now publishes public images (2.0.x series); the module's `image` points at `ghcr.io/dictionarry-hub/profilarr:2.0.9` (digest-pinned, Renovate-managed). The service had never produced any output on this host: `/var/lib/profilarr/` was empty and the journal had zero successful runs in retention. |
+| **Workaround** | Still `enable = false`, now pending an operator decision rather than a missing image: 2.x is a major rework vs. the 1.x this config targeted, so the config/volume layout needs validation before enabling. `recyclarr` (still enabled) does the equivalent TRaSH-guides sync work, so leaving profilarr disabled has no functional impact on this host. |
+| **Check** | If profilarr 2.x is wanted, validate its config/volume layout against the module, then toggle `enable = true` in `hosts/forge/services/profilarr.nix`. Otherwise consider deleting the module. |
 | **Related** | Same FIXME-disable pattern used for n8n in `hosts/forge/services/n8n.nix`. |
 
 ---

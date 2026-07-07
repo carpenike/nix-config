@@ -1,6 +1,6 @@
 # Preseed Restore Methods Configuration Guide
 
-**Last Updated**: 2025-11-10
+**Last Updated**: 2026-07-07
 **Quick Reference**: Which `restoreMethods` should I use?
 
 ## TL;DR
@@ -60,6 +60,11 @@ restoreMethods = [ "syncoid" "local" ];
 - ❌ Hides infrastructure issues (silent failover)
 
 **Use case**: Manual disaster recovery only
+
+**Behavior notes:**
+
+- Snapshot-based backup jobs store paths under `/var/lib/backup-snapshots/service-<name>` (the temporary ZFS clone), not the live data directory. The preseed restic restore automatically probes the clone path first, then the configured paths, and restores the contents of whichever path the repository actually contains.
+- A restore that completes but leaves the mountpoint empty is treated as a failure — it is never marked `preseed_complete`.
 
 ## Configuration Patterns
 
@@ -202,13 +207,18 @@ Better approach: Fix nas-1 issue, then rebuild. Preseed works correctly.
 
 ```bash
 # 1. Deploy service (preseed fails as expected)
-# 2. Manually restore
-restic -r /mnt/nas-backup restore latest --target /var/lib/SERVICE --path /var/lib/SERVICE
+# 2. Check which path the repository's snapshots contain - snapshot-based
+#    jobs back up the ZFS clone path, not the live directory
+restic -r /mnt/nas-backup snapshots --path /var/lib/backup-snapshots/service-SERVICE
 
-# 3. Set preseed complete to prevent future restore attempts
+# 3. Manually restore the contents of that path into the live directory
+restic -r /mnt/nas-backup restore "latest:/var/lib/backup-snapshots/service-SERVICE" \
+  --target /var/lib/SERVICE
+
+# 4. Set preseed complete to prevent future restore attempts
 zfs set holthome:preseed_complete=yes tank/services/SERVICE
 
-# 4. Rebuild to start service
+# 5. Rebuild to start service
 nixos-rebuild switch
 ```
 

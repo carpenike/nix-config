@@ -42,6 +42,46 @@ image = "lscr.io/linuxserver/sonarr:4.0.4.1491-ls185@sha256:f3ad4f59e6e5e4a...";
 - **Cons**: Slightly more verbose
 - **Use Case**: Production systems with Renovate automation
 
+## Repository Pin Policy (2026-07)
+
+This repository enforces a single-source-of-truth rule for image pins, encoded
+in `.github/renovate.json5`:
+
+| Location | Role | Renovate |
+|----------|------|----------|
+| `hosts/**` | **Canonical pin** — full `tag@sha256:digest`, one per deployed service | Managed (digest bumps via PR) |
+| `modules/**` | **Unmanaged fallback** — plain version tag only, no digest | Ignored (`enabled: false` for docker datasource) |
+
+**Why**: Renovate previously bumped both the module default and the host
+override, and the two diverged. The host value always wins at eval time, so
+module bumps were dead weight that still generated PR noise and implied a
+precision the module default doesn't have.
+
+**Exceptions** (pinned with digest in the *module*, Renovate-managed there):
+
+- `modules/nixos/services/omada/**`
+- `modules/nixos/services/unifi/**`
+- `modules/nixos/services/onepassword-connect/**`
+
+These are luna-only services that are enabled without a host-level `image`
+override, so the module default *is* the effective pin.
+
+**When adding a new service:**
+
+1. Give the module an `image` option with a plain-tag default (e.g.
+   `"ghcr.io/foo/bar:1.2.3"`) — no digest.
+2. Set the digest-pinned image in the host file
+   (`hosts/forge/services/<name>.nix`):
+   `image = "ghcr.io/foo/bar:1.2.3@sha256:...";`
+3. Renovate picks up the host pin automatically (regex manager matches
+   `image = "..."` in `.nix` files) and keeps it bumped.
+
+**Note on `--pull=newer`**: the service factory previously passed
+`--pull=newer` to every container. This was removed (2026-07): with digest
+pins it's a no-op registry round-trip, and for unpinned tags it silently
+auto-updated containers outside Renovate's control. Image updates now happen
+exclusively through Renovate PRs.
+
 ## Implementation
 
 ### Module Configuration
@@ -84,7 +124,10 @@ modules.services.sonarr = {
 
 ### Setup
 
-Create or update `renovate.json` in your repository root:
+The live configuration is `.github/renovate.json5` — it contains the
+`packageRules` that implement the pin policy above (docker datasource disabled
+for `modules/**`, re-enabled for the three exception modules). A minimal
+generic setup looks like:
 
 ```json
 {
@@ -139,21 +182,24 @@ Create or update `renovate.json` in your repository root:
 
 ## Current Status
 
-### Services with Pinned Versions ✅
-- **Omada Controller**: `mbentley/omada-controller:5.15.24.19` (pinned to v5.x — see [`workarounds.md`](workarounds.md#omada-controller-pinned-to-v5x-no-avx-on-luna))
-- **UniFi Controller**: `jacobalberty/unifi-docker:v8.4.62`
-- **1Password Connect API**: `1password/connect-api:1.7.2`
-- **1Password Connect Sync**: `1password/connect-sync:1.7.2`
+The policy above is fully deployed:
 
-### Services Needing Configuration ⚠️
-- **Sonarr**: Now configurable via `image` option (default: `:latest`)
-  - Update in `hosts/forge/default.nix` to pin version
-
-### Action Items
-1. Pin Sonarr image in host configuration
-2. Set up Renovate bot in GitHub repository
-3. Configure regex manager for `.nix` file detection
-4. Enable `pinDigests` for automatic digest pinning
+- **All deployed services** carry their digest pin in `hosts/**` (forge
+  service files under `hosts/forge/services/`), managed by Renovate.
+- **Module defaults** under `modules/**` carry plain-tag fallbacks and are
+  excluded from Renovate.
+- **Module-pinned exceptions** (luna, no host override — Renovate manages the
+  module default):
+  - **Omada Controller**: `mbentley/omada-controller` (pinned to v5.x — see
+    [`workarounds.md`](workarounds.md#omada-controller-pinned-to-v5x-no-avx-on-luna))
+  - **UniFi Controller**: `jacobalberty/unifi-docker`
+  - **1Password Connect** (API + Sync): `1password/connect-api` /
+    `1password/connect-sync`
+- **Deliberate tag pins** (not `:latest`): `tracearr` is pinned to `1.3.8`
+  in `hosts/forge/services/tracearr.nix` (replacing a floating `latest` tag
+  that Renovate could never pin or update); `profilarr` points at
+  `ghcr.io/dictionarry-hub/profilarr:2.0.9` (service currently disabled —
+  see [`workarounds.md`](workarounds.md)).
 
 ## Migration Guide
 
@@ -282,5 +328,5 @@ image = "registry/image:tag@sha256:...";
 - Check for stuck/abandoned PRs
 - Update this documentation as needed
 
-**Last Updated**: 2025-10-09
+**Last Updated**: 2026-07-07
 **Maintainer**: System Administrator

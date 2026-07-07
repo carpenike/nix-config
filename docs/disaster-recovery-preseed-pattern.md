@@ -1,6 +1,6 @@
 # Disaster Recovery Preseed Pattern
 
-**Last Updated**: 2025-12-31
+**Last Updated**: 2026-07-07
 **Status**: Active - Production Pattern
 **Architecture**: ZFS Syncoid-based Multi-tier Restoration
 
@@ -33,6 +33,11 @@ The preseed system attempts restoration in order of preference:
    - Geographic redundancy (NFS/cloud)
    - Use only for true disaster recovery when ZFS sources unavailable
    - Requires manual intervention to re-establish replication after restore
+
+**Restic restore behavior notes:**
+
+- Snapshot-based backup jobs back up a temporary ZFS clone mounted at `/var/lib/backup-snapshots/service-<name>`, not the live data directory. The restic restore therefore probes which path the repository's snapshots actually contain — the clone path first, then the configured `resticPaths` — and restores the **contents** of that path (`restore latest:<path>`) into the mountpoint, avoiding a nested `<mountpoint>/<absolute-path>` layout.
+- A restore that reports success but leaves the mountpoint empty is treated as a **failure** — an empty result is never marked `preseed_complete`.
 
 ### Restore Method Selection
 
@@ -302,6 +307,10 @@ The `mkPreseedService` helper function accepts:
 | `hasCentralizedNotifications` | bool | Whether to send notifications |
 | `owner` | string | Dataset owner user |
 | `group` | string | Dataset owner group |
+| `chownRestored` | bool | Recursively chown restored files to owner:group (default true; set false for multi-owner system datasets like `/persist`/`/home` where ZFS receive/restic already preserve per-file ownership) |
+| `manageMountpoint` | bool | Set the ZFS mountpoint property and mount via `zfs mount` (default true; set false for legacy-mounted datasets managed via `fileSystems`, e.g. disko system datasets) |
+| `markCompleteOnFailure` | bool | Mark `preseed_complete` even when every restore method failed, bootstrapping an empty dataset once (default true; set false for host-critical datasets where an empty result must keep signalling) |
+| `skipIfSnapshotsExist` | bool | Treat existing local snapshots as proof the dataset is live: mark complete and skip all restores (default false; prevents restore attempts against healthy in-use datasets that predate the preseed property) |
 
 > 💡 `mkPreseedService` automatically emits Prometheus textfile metrics (`zfs_preseed_*`) and, when `hasCentralizedNotifications = true`, uses the shared `notify@` infrastructure to announce successes or failures.
 
@@ -323,6 +332,10 @@ The `mkPreseedService` helper function accepts:
 | Service | Reason | Implementation |
 |---------|--------|----------------|
 | PostgreSQL | Custom PITR with pgBackRest | `postgresql-preseed.nix` |
+
+### Host System Datasets
+
+`modules/nixos/storage/system-preseed.nix` applies the same pattern to the host system datasets (on forge: `rpool/safe/persist` → `/persist` and `rpool/safe/home` → `/home` — dataset names must match disko-config). These use safety settings appropriate for host-critical, multi-owner data: `restoreMethods = [ "syncoid" "local" ]`, `chownRestored = false`, `manageMountpoint = false` (legacy mounts managed by disko `fileSystems`), `markCompleteOnFailure = false`, and `skipIfSnapshotsExist = true`.
 
 ### Services Without Preseed
 
@@ -464,6 +477,12 @@ New services with no pre-existing backups could lose data if a system rebuild oc
 **Solution Implemented:**
 
 The preseed script now sets `holthome:preseed_complete=yes` property even when all restore methods fail. This treats "bootstrap with empty dataset" as a successful one-time event, preventing automatic rollback on subsequent rebuilds.
+
+**Refinements (2026):**
+
+- This behavior is now controlled by `markCompleteOnFailure` (default `true`). Host-critical datasets set it to `false` so an empty dataset keeps signalling until data is actually recovered.
+- A restic restore that produces an empty mountpoint is treated as a failure, never marked complete.
+- `skipIfSnapshotsExist = true` handles the inverse case: a live dataset that predates the preseed property (has existing local snapshots) is marked complete without attempting any restore.
 
 **Trade-off Accepted (Homelab Context):**
 

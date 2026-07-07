@@ -127,6 +127,8 @@ nav:
       - Reverse Proxy: reverse-proxy-pattern.md
       - Structured Logging: structured-logging-framework.md
   - Operations:
+      - Runbooks:
+          - Audit Remediation Deploy: runbooks/audit-remediation-deploy.md
       - Backup System: backup-system-onboarding.md
       - Unified Backup Design: unified-backup-design-patterns.md
       - Disaster Recovery: disaster-recovery-preseed-pattern.md
@@ -146,7 +148,7 @@ nav:
       - API Key Auth: api-key-authentication.md
       - Cloudflare Tunnels: cloudflare-tunnel-implementation.md
       - Container Images: container-image-management.md
-      - DNSdist: dnsdist-shared-config.md
+      - DNSdist (historical): dnsdist-shared-config.md
       - AdGuard: adguard-modular-config.md
   - Databases:
       - PostgreSQL PITR: postgresql-pitr-guide.md

@@ -1,7 +1,7 @@
 # *arr Services Module Implementation Plan
 
-**Last Updated**: 2025-12-31
-**Status**: Design Complete, Ready for Implementation
+**Last Updated**: 2026-07-07
+**Status**: Prowlarr/Radarr/Bazarr implemented; Lidarr/Readarr design-only (never deployed, placeholder modules removed)
 **Collaborators**: GitHub Copilot + Gemini 2.5 Pro
 
 ## Overview
@@ -48,20 +48,20 @@ The following modules have been **fully designed** by Gemini 2.5 Pro and are rea
 - Volume mounts: `/tv`, `/movies`
 
 #### 3. Lidarr (Music)
-**File**: `modules/nixos/services/lidarr/default.nix`
+**Status**: **NOT DEPLOYED** — never enabled; the placeholder module (`modules/nixos/services/lidarr/default.nix`) has been removed. If implemented later, a new module would be generated from `lib/service-factory.nix` like Sonarr/Radarr.
 **Port**: 8686
 **UID/GID**: 571
-**Key Features**:
+**Key Features** (historical design):
 - Similar to Radarr but for music library
 - Volume mount: `/music`
 - Quality profile complexity (FLAC, MP3 bitrates)
 - Media group integration
 
 #### 4. Readarr (Books/Audiobooks)
-**File**: `modules/nixos/services/readarr/default.nix`
+**Status**: **NOT DEPLOYED** — never enabled; the placeholder module (`modules/nixos/services/readarr/default.nix`) has been removed. If implemented later, a new module would be generated from `lib/service-factory.nix` like Sonarr/Radarr.
 **Port**: 8787
 **UID/GID**: 572
-**Key Features**:
+**Key Features** (historical design):
 - E-books and audiobooks management
 - Volume mount: `/books`
 - Optional Calibre integration (configured via UI)
@@ -103,6 +103,8 @@ graph TD
     Radarr[Radarr<br/>Movies] -->|API & Library| Bazarr[Bazarr<br/>Subtitles]
 ```
 
+*Note: Lidarr and Readarr in this diagram are design-only — they were never deployed and their placeholder modules have been removed.*
+
 **Integration Method**:
 - Prowlarr is configured first with all indexers
 - Other *arr services add Prowlarr as a single indexer source
@@ -111,10 +113,10 @@ graph TD
 ## Implementation Order
 
 1. ✅ **Prowlarr** - COMPLETE
-2. **Radarr** - Ready to implement (most common after Sonarr)
-3. **Bazarr** - Ready to implement (complements Sonarr+Radarr)
-4. **Lidarr** - Ready to implement
-5. **Readarr** - Ready to implement
+2. ✅ **Radarr** - COMPLETE (most common after Sonarr)
+3. ✅ **Bazarr** - COMPLETE (complements Sonarr+Radarr)
+4. **Lidarr** - Not deployed; placeholder module removed (regenerate from the service factory if needed)
+5. **Readarr** - Not deployed; placeholder module removed (regenerate from the service factory if needed)
 6. **Whisparr** - Optional, skip for now
 
 ## Container Images
@@ -204,13 +206,10 @@ All services ship logs to Loki via Promtail:
 
 ## Next Steps
 
-1. **Implement Radarr**: Copy generated module to `modules/nixos/services/radarr/default.nix`
-2. **Implement Bazarr**: Copy generated module with special attention to `dependencies` submodule
-3. **Implement Lidarr**: Copy generated module
-4. **Implement Readarr**: Copy generated module
-5. **Configure host**: Add service declarations to `hosts/forge/default.nix`
-6. **Test deployment**: Build and deploy to verify all integrations work
-7. **Document usage**: Add configuration examples to service docs
+1. ✅ **Implement Radarr**: `modules/nixos/services/radarr/default.nix` — done
+2. ✅ **Implement Bazarr**: `modules/nixos/services/bazarr/default.nix` — done
+3. **Lidarr / Readarr**: Not deployed — placeholder modules removed. If needed later, generate new modules from `lib/service-factory.nix` (like Sonarr/Radarr)
+4. **Document usage**: Add configuration examples to service docs
 
 ## Bazarr Special Configuration
 

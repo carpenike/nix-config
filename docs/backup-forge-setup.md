@@ -8,7 +8,8 @@ Forge uses a comprehensive backup system with:
 
 - **ZFS snapshots** for point-in-time consistency
 - **Restic** for encrypted, deduplicated file-based backups
-- **NFS** to store backups on nas-1
+- **NFS** to store primary backups on nas-1 (`nas-primary` repository)
+- **Cloudflare R2** for offsite copies of critical config/state (`r2-offsite` repository)
 - **Automated monitoring** and verification
 
 ## Architecture
@@ -31,7 +32,7 @@ forge (source)                     nas-1 (destination)
 
 ## Configuration Files
 
-- **hosts/forge/backup.nix** - Main backup configuration
+- **hosts/forge/infrastructure/backup.nix** - Main backup configuration
 - **hosts/forge/secrets.nix** - SOPS secrets including Restic password
 - **hosts/forge/secrets.sops.yaml** - Encrypted secrets file
 
@@ -52,16 +53,29 @@ backup/forge/zfs-recv        # 500GB quota - Future ZFS replication
 
 ## Backup Jobs
 
-### System Backup
+### System State Backups (`system-state` / `system-state-offsite`)
 
 - **Paths**: `/home`, `/persist`
-- **Schedule**: Daily
-- **Repository**: nas-primary (nas-1 via NFS)
+- **Jobs**:
+  - `system-state`: repository nas-primary (nas-1 via NFS), daily (nightly 00:00-04:00 window)
+  - `system-state-offsite`: repository r2-offsite (Cloudflare R2), 05:00 + 4h randomized delay (staggered after the nas window)
 - **Retention**: 14 daily, 8 weekly, 6 monthly, 2 yearly
 - **Features**:
-  - Backed up from ZFS snapshots for consistency
+  - `privileged = true` grants CAP_DAC_READ_SEARCH so root-only files (sops host key material, ssh host keys, machine-id in `/persist`) are actually read instead of silently skipped (restic exit code 3)
   - Excludes cache directories and build artifacts
   - Resource-limited to avoid impacting system performance
+
+### Auto-Discovered Service Jobs
+
+Services with `backup.enable = true` in their per-service `backup` submodule get an auto-discovered `service-<name>` job to nas-primary (unit: `restic-backup-service-<name>.service`). No manual job definition needed.
+
+### Offsite Clones (`restic.offsite`)
+
+Critical service config/state is additionally cloned offsite via `modules.services.backup.restic.offsite`: each listed service's discovered `service-<name>` job is cloned as `offsite-<name>` targeting r2-offsite, with identical paths/excludes, scheduled at 05:00 + 4h randomized delay. On forge the offsite list is:
+
+- paperless, actual, pocketid, zigbee2mqtt, zwave-js-ui, home-assistant, esphome, mealie, miniflux
+
+Media and other bulky data stay NFS-only; PostgreSQL offsite DR is handled by pgBackRest repo2 (see `hosts/forge/services/pgbackrest.nix`).
 
 ### Excluded Patterns
 
@@ -111,7 +125,7 @@ Forge uses NixOS impermanence, which means:
 
 ```nix
 jobs = {
-  system = {
+  system-state = {
     paths = [ "/home" "/persist" ];
     # Backs up everything in one consistent snapshot
   };
@@ -236,9 +250,9 @@ Consider adding separate backup jobs when:
 If you later decide to split out Plex, here's how:
 
 ```nix
-# In hosts/forge/backup.nix
+# In hosts/forge/infrastructure/backup.nix
 jobs = {
-  system = {
+  system-state = {
     enable = true;
     paths = [ "/home" "/persist" ];
     excludePatterns = [
@@ -274,8 +288,8 @@ jobs = {
 
 ### Automated Checks
 
-- **Repository verification**: Weekly
-- **Restore testing**: Monthly (tests random file samples)
+- **Repository verification**: Weekly, per repository via `backup-verify-<repo>.timer` (e.g. `backup-verify-nas-primary`, `backup-verify-r2-offsite`; 2h randomized delay to stay clear of the backup window)
+- **Restore testing**: Monthly per repository via `backup-restore-test-<repo>.timer` (tests random file samples)
 - **Error analysis**: Automatic categorization of failures
 - **Prometheus metrics**: Exported to `/var/lib/node_exporter/textfile_collector`
 
@@ -391,7 +405,7 @@ ssh forge.holthome.net
 ls -la /mnt/nas-backup
 
 # Check backup service
-systemctl status restic-backups-system.service
+systemctl status restic-backup-system-state.service
 systemctl list-timers restic-*
 
 # Check ZFS snapshot service
@@ -402,10 +416,10 @@ systemctl status zfs-snapshot.service
 
 ```bash
 # Manually trigger the first backup
-sudo systemctl start restic-backups-system.service
+sudo systemctl start restic-backup-system-state.service
 
 # Watch the logs
-sudo journalctl -u restic-backups-system.service -f
+sudo journalctl -u restic-backup-system-state.service -f
 ```
 
 ### 5. Verify Backup
@@ -423,7 +437,7 @@ restic -r /mnt/nas-backup stats
 ### Manual Backup
 
 ```bash
-sudo systemctl start restic-backups-system.service
+sudo systemctl start restic-backup-system-state.service
 ```
 
 ### Check Backup Status
@@ -433,10 +447,10 @@ sudo systemctl start restic-backups-system.service
 systemctl list-timers restic-*
 
 # View recent logs
-sudo journalctl -u restic-backups-system.service -n 50
+sudo journalctl -u restic-backup-system-state.service -n 50
 
 # Check last backup status
-systemctl status restic-backups-system.service
+systemctl status restic-backup-system-state.service
 ```
 
 ### List Backups
@@ -644,7 +658,7 @@ showmount -e nas-1.holthome.net
 
 ```bash
 # View detailed logs
-sudo journalctl -u restic-backups-system.service -n 100
+sudo journalctl -u restic-backup-system-state.service -n 100
 
 # Check error analysis
 cat /var/log/backup/error-analysis.jsonl | jq .
@@ -670,7 +684,7 @@ restic -r /mnt/nas-backup unlock
 
 ```bash
 # Check I/O scheduling
-systemctl show restic-backups-system.service | grep -i io
+systemctl show restic-backup-system-state.service | grep -i io
 
 # Monitor resource usage during backup
 sudo systemd-cgtop
@@ -745,7 +759,7 @@ sudo exportfs -ra
 cd /Users/ryan/src/nix-config
 
 # Copy forge configuration as a template
-cp hosts/forge/backup.nix hosts/$NODE/backup.nix
+cp hosts/forge/infrastructure/backup.nix hosts/$NODE/backup.nix
 
 # Update the NFS mount path in the new backup.nix:
 # Change: device = "nas-1.holthome.net:/backup/forge/restic"
@@ -815,7 +829,7 @@ sudo zfs allow zfs-replication receive,create,mount,hold backup/$NODE/zfs-recv
 nixos-rebuild switch --flake .#$NODE --target-host $NODE.holthome.net
 
 # Test the backup
-ssh $NODE.holthome.net 'sudo systemctl start restic-backups-system.service'
+ssh $NODE.holthome.net 'sudo systemctl start restic-backup-system-state.service'
 
 # Verify
 ssh $NODE.holthome.net 'restic -r /mnt/nas-backup snapshots'
@@ -835,15 +849,15 @@ Implementation would use `backup/forge/zfs-recv` dataset on nas-1.
 
 ### Additional Repositories
 
-Add cloud backup as secondary repository:
+Implemented: forge now has a second repository, `r2-offsite` (Cloudflare R2), used by the `system-state-offsite` job and the `restic.offsite` service clones:
 
 ```nix
 repositories = {
   nas-primary = { ... };
-  cloud-secondary = {
-    url = "b2:bucket-name:/forge";
+  r2-offsite = {
+    url = "s3:https://<account-id>.r2.cloudflarestorage.com/<bucket>/forge";
     passwordFile = config.sops.secrets."restic/password".path;
-    environmentFile = config.sops.secrets."restic/b2-credentials".path;
+    environmentFile = config.sops.secrets."restic/r2-prod-env".path;
     primary = false;
   };
 };

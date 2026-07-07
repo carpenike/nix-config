@@ -2,6 +2,15 @@
 
 This guide explains the modular configuration approach for AdGuard Home in our NixOS infrastructure.
 
+## Current Deployment: Two Resolvers
+
+AdGuard Home runs on **two hosts** so DNS is no longer a single point of failure (e.g. during luna's nightly auto-upgrade reboot):
+
+- **luna (primary, 10.20.0.15)**: Full instance with declarative settings from `hosts/luna/config/adguard.nix`, reverse-proxied web UI, and sops-managed admin password. Luna's host firewall is **enabled**, opening only the DNS service ports (53 TCP/UDP) plus 123 UDP for chrony NTP — everything else goes through service-managed rules.
+- **nixpi (secondary)**: Independent second instance (`hosts/nixpi/dns.nix`) that mirrors luna's declarative settings by importing `hosts/luna/config/adguard.nix`, so the two stay in sync declaratively (no runtime sync of web-UI changes yet). Its web UI binds to loopback only — reach it via SSH tunnel (`ssh -L 3000:127.0.0.1:3000 nixpi`). **nixpi currently has no admin user configured** (`passwordSecret = null`): its sops file has no AdGuard password key yet, and since the UI is loopback-only this is a deliberate, acceptable interim state until the secret is provisioned.
+
+The former dnsdist/BIND routing layer has been removed; AdGuard Home serves clients directly, with local `holthome.net` resolution forwarded to the Mikrotik router.
+
 ## Philosophy: Minimal Baseline + Web UI Management
 
 Based on best practices research, we use a **minimal declarative baseline** approach:
@@ -42,7 +51,7 @@ Based on best practices research, we use a **minimal declarative baseline** appr
       adminUser = "ryan";
 
       # Only configure internal DNS forwarding
-      localDnsServer = "127.0.0.1:5391";  # Your BIND server
+      localDnsServer = "10.20.0.1:53";  # Local DNS upstream (Mikrotik router; the BIND module was removed)
       localDomains = [
         "holthome.net"
         "in-addr.arpa"
@@ -120,8 +129,8 @@ The following should **always** be managed via web UI for flexibility:
 - Verify service running: `systemctl status adguardhome`
 
 ### Internal Domains Not Resolving
-- Verify BIND is running on configured port
-- Check `localDnsServer` points to correct BIND instance
+- Verify the local DNS upstream (Mikrotik router in the current deployment) is reachable
+- Check `localDnsServer` (or the `[/holthome.net/]...` upstream in `hosts/luna/config/adguard.nix`) points to the correct upstream
 - Ensure `localDomains` includes all internal domains
 
 ### Configuration Not Persisting

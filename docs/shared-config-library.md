@@ -1,6 +1,6 @@
 # Shared Config Library: Helm-like Patterns for NixOS
 
-**Last Updated**: 2026-01-23
+**Last Updated**: 2026-07-07
 
 This document describes the service factory pattern in this repository, which provides Helm-like templating for NixOS service modules.
 
@@ -34,9 +34,11 @@ lib/
 ├── host-defaults.nix         # Parameterized host-specific helpers
 ├── service-uids.nix          # Centralized UID/GID registry
 ├── monitoring-helpers.nix    # Alert template helpers
-├── caddy-helpers.nix         # Reverse proxy helpers
-└── storage-helpers.nix       # ZFS/NFS/preseed helpers
+├── dns.nix / dns-aggregate.nix  # DNS record generation
+└── mkSystem.nix              # NixOS/Darwin system builders
 ```
+
+(Storage/ZFS/NFS/preseed helpers live in `modules/nixos/storage/helpers-lib.nix`, exposed as `mylib.storageHelpers pkgs`.)
 
 ---
 
@@ -71,11 +73,12 @@ mylib.mkContainerService {
 ```
 
 This single call generates:
-- ✅ All standard options (enable, dataDir, port, user, group, image, timezone, resources, healthcheck, reverseProxy, metrics, logging, backup, notifications, preseed)
-- ✅ Caddy reverse proxy registration
+- ✅ All standard options (enable, dataDir, port, user, group, image, timezone, resources, healthcheck, reverseProxy, bindAddress, hardening, gatus, metrics, logging, backup, notifications, preseed)
+- ✅ Caddy reverse proxy registration (WebUI port publishes on loopback by default; Caddy is the LAN entry point)
+- ✅ Gatus status-page endpoint probing `https://<reverseProxy.hostName>` (tunable via `gatus.{enable,interval,conditions}`)
 - ✅ ZFS dataset with optimized properties
 - ✅ System user creation
-- ✅ Container definition with healthchecks
+- ✅ Container definition with healthchecks and hardening (`--security-opt=no-new-privileges`; `--cap-drop=ALL` for non-root containers)
 - ✅ Systemd dependencies
 
 ### Service Categories
@@ -128,6 +131,8 @@ spec = {
   zfsProperties = { };              # Additional ZFS properties
 
   # Metrics
+  metricsEnable = true;             # Opt-in: metrics.enable defaults to FALSE;
+                                    # set true only for apps with a real Prometheus endpoint
   metricsPath = "/metrics";         # Prometheus scrape path
   metricsPort = 9090;               # If different from service port
 
@@ -229,7 +234,7 @@ in
       description = "Path to Sonarr data directory";
     };
 
-    # ... 30+ more options, all nearly identical to radarr, lidarr, etc. ...
+    # ... 30+ more options, all nearly identical to radarr, prowlarr, etc. ...
 
     reverseProxy = lib.mkOption {
       type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
@@ -326,7 +331,7 @@ cp modules/nixos/services/tududi/default.nix modules/nixos/services/tududi/defau
 
 Migrate services by category:
 1. **Productivity** (simpler): tududi, privatebin, it-tools
-2. **Media stack**: sonarr, radarr, lidarr, readarr, prowlarr, bazarr
+2. **Media stack**: sonarr, radarr, prowlarr, bazarr
 3. **Downloads**: qbittorrent, sabnzbd
 4. **Complex services**: Last (may need special handling)
 

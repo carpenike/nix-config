@@ -63,7 +63,8 @@ Service configuration, storage datasets, backup policies, and alerts are co-loca
 | Host | Role | Architecture |
 |------|------|--------------|
 | **forge** | Primary homelab server | Two-disk ZFS, tank pool for services |
-| **luna** | Secondary server | Single-disk, impermanent root |
+| **luna** | Secondary server, primary DNS resolver (AdGuard Home) | Single-disk, impermanent root |
+| **nixpi** | Secondary DNS resolver (AdGuard Home, mirrors luna's config) | Raspberry Pi (SD image) |
 
 ## Architecture Decision Records
 

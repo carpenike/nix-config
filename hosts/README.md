@@ -90,7 +90,7 @@
 | Host | Hardware | Role | Status |
 |------|----------|------|--------|
 | `rydev` | VM (aarch64-linux) | Development environment | Active |
-| `nixpi` | Raspberry Pi | Experimental | Inactive |
+| `nixpi` | Raspberry Pi 4 | Secondary DNS (AdGuardHome mirroring luna), RV integrations | Active |
 
 ---
 
@@ -160,7 +160,7 @@
 - **Memory**: 8GB RAM
 - **Storage**: 128GB SATA SSD (`rpool` 118GB)
 
-**Role**: Lightweight infrastructure services (DNS, etc.)
+**Role**: Lightweight infrastructure services — primary DNS (AdGuardHome), UniFi/Omada controllers, 1Password Connect. `nixpi` runs a second AdGuardHome instance mirroring luna's config so DNS survives luna's nightly auto-upgrade reboot.
 
 ---
 
@@ -248,7 +248,7 @@ hosts/
 ├── nas-1/              # Backup NAS
 ├── rymac/              # MacBook Pro (nix-darwin)
 ├── rydev/              # Development VM
-├── nixpi/              # Raspberry Pi (experimental)
+├── nixpi/              # Raspberry Pi (secondary DNS, RV integrations)
 │
 ├── common/             # Shared host configuration
 ├── files/              # Static files for hosts

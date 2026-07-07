@@ -2,6 +2,8 @@
 
 **Last Updated**: 2025-12-31
 
+> **⚠️ SUPERSEDED**: This guide describes the original Restic-based PITR mechanism (WAL archiving + `restic-backups-postgresql-main-wal`/`-base` jobs). PostgreSQL backup and PITR have since moved to **pgBackRest** — those restic jobs and units no longer exist. See [postgresql-pgbackrest-migration.md](./postgresql-pgbackrest-migration.md) for the current setup, plus [pgbackrest-unified-config.md](./pgbackrest-unified-config.md) and [pgbackrest-multi-repo-workaround.md](./pgbackrest-multi-repo-workaround.md) for operations (repo1 = NFS with PITR, repo2 = R2 offsite DR). This document is retained for historical reference only.
+
 ## Table of Contents
 
 1. [Overview](#overview)

@@ -198,6 +198,7 @@ in {
   - Retention: 30 full backups
   - **NO continuous WAL archiving** (intentional, for cost optimization)
   - **Recovery**: Limited to last backup timestamp (~1 hour RPO)
+  - **Encryption**: Optional client-side encryption (aes-256-cbc) is plumbed via `modules.services.backup.postgres.pgbackrest.repo2Cipher` but **disabled by default** — enabling it requires a new sops passphrase secret and a destructive re-baseline of repo2 (delete repo2 contents, `stanza-create`, full backup), because a cipher cannot be added to an existing repository
 
 ## Monitoring
 

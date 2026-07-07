@@ -1,5 +1,7 @@
 # PostgreSQL Offsite Backup - Setup Guide
 
+> **⚠️ SUPERSEDED**: PostgreSQL offsite DR is now handled by **pgBackRest repo2** (R2), not the Restic `postgresql-offsite` job described below — see [postgresql-pgbackrest-migration.md](./postgresql-pgbackrest-migration.md) and [pgbackrest-multi-repo-workaround.md](./pgbackrest-multi-repo-workaround.md). Optional client-side encryption for repo2 exists via `modules.services.backup.postgres.pgbackrest.repo2Cipher` (disabled by default; enabling requires re-baselining repo2). The R2 bucket/token setup steps below remain useful reference.
+
 ## Overview
 PostgreSQL backups have been integrated into the existing Restic backup system for Cloudflare R2 offsite storage, instead of adding pgBackRest as a separate tool.
 

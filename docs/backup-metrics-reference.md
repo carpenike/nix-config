@@ -20,13 +20,28 @@ Generated per backup job after each backup run.
 
 ```promql
 # Duration of backup operation
-restic_backup_duration_seconds{job="system",repository="/mnt/nas-backup",hostname="forge"}
+restic_backup_duration_seconds{backup_job="system-state",repository="nas-primary",hostname="forge"}
 
 # Last successful backup timestamp (Unix timestamp)
-restic_backup_last_success_timestamp{job="system",repository="/mnt/nas-backup",hostname="forge"}
+restic_backup_last_success_timestamp{backup_job="system-state",repository="nas-primary",hostname="forge"}
 
 # Backup job status (1=success, 0=failure)
-restic_backup_status{job="system",repository="/mnt/nas-backup",hostname="forge"}
+restic_backup_status{backup_job="system-state",repository="nas-primary",hostname="forge"}
+
+# Partial backup indicator (1 = snapshot was created but some files were
+# unreadable - restic exit code 3, whitelisted as success at the unit level)
+restic_backup_partial{backup_job="system-state",repository="nas-primary",hostname="forge"}
+```
+
+### Expected Job Metrics
+
+Written independently of job execution by `backup-expected-jobs-metrics.service` (refreshed daily via its timer), so alerts can detect configured jobs that have never run. Note the filename deliberately does not match the `restic_backup_*.prom` glob reaped for unknown jobs.
+
+**File**: `/var/lib/node_exporter/textfile_collector/restic_expected_jobs.prom`
+
+```promql
+# Backup job is configured on this host (1=expected), one series per enabled job
+restic_backup_job_expected{backup_job="system-state",hostname="forge"}
 ```
 
 ### Repository Verification Metrics
@@ -44,7 +59,14 @@ restic_verification_last_run_timestamp{repository="nas-primary",hostname="forge"
 
 # Verification status (1=success, 0=failure)
 restic_verification_status{repository="nas-primary",hostname="forge"}
+
+# Number of snapshots created in the last 24h
+restic_recent_snapshots_count{repository="nas-primary",hostname="forge"}
 ```
+
+> **Note**: `restic_recent_snapshots_count` is emitted by the verification script's metrics cleanup trap alongside the other verification metrics, so the single atomic rewrite of the metrics file no longer clobbers it (it was previously appended mid-script and lost).
+
+Verification runs on a schedule: each repository gets a `backup-verify-<repository>.timer` (fires on the configured verification schedule with a 2h randomized delay to stay clear of the nightly backup window), and restore testing gets a `backup-restore-test-<repository>.timer`.
 
 ### Restore Test Metrics
 
@@ -107,8 +129,8 @@ backup_documentation_last_generated_timestamp{hostname="forge"}
 All metrics include these common labels:
 
 - `hostname`: The hostname of the system (e.g., "forge")
-- `job`: The backup job name (for job-specific metrics)
-- `repository`: The repository name or URL (for repository-specific metrics)
+- `backup_job`: The backup job name (for job-specific metrics, e.g. "service-paperless", "offsite-paperless", "system-state")
+- `repository`: The repository name (for repository-specific metrics, e.g. "nas-primary", "r2-offsite")
 
 ## Useful Queries
 
@@ -195,7 +217,27 @@ groups:
           severity: critical
         annotations:
           summary: "Repository verification failed on {{ $labels.hostname }}"
+
+      - alert: ResticBackupPartial
+        expr: restic_backup_partial{backup_job!=""} == 1
+        for: 5m
+        labels:
+          severity: medium
+        annotations:
+          summary: "Restic backup job {{ $labels.backup_job }} was partial on {{ $labels.hostname }}"
+          description: "Snapshot was created but some files were unreadable (restic exit code 3) - data may be silently missing from backups"
+
+      - alert: ResticBackupNeverRun
+        expr: restic_backup_job_expected == 1 unless on (backup_job, hostname) restic_backup_last_success_timestamp
+        for: 26h
+        labels:
+          severity: high
+        annotations:
+          summary: "Restic backup job {{ $labels.backup_job }} is configured but has never succeeded on {{ $labels.hostname }}"
+          description: "Complements the stale alert, which only fires for jobs that have succeeded at least once"
 ```
+
+> These two rules ship with the backup monitoring module (`modules/nixos/services/backup/monitoring.nix`) as `ResticBackupPartial` (medium) and `ResticBackupNeverRun` (high). Investigate failed jobs with `journalctl -u restic-backup-<job>.service` and `systemctl list-timers restic-backup-<job>.timer`.
 
 ## Testing Metrics
 

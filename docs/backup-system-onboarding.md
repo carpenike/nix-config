@@ -1,10 +1,12 @@
 # NixOS Backup System Onboarding Guide
 
-**Last Updated**: 2025-10-08
+**Last Updated**: 2026-07-07
 
 ## Overview
 
 This guide provides comprehensive instructions for onboarding new hosts and services to the centralized NixOS backup system. The backup system is built on Restic with ZFS snapshot integration, comprehensive monitoring, automated testing, and enterprise-grade features including error analysis and documentation generation.
+
+> **Note (2026-07)**: The legacy `backup-integration` and `backup-services` modules have been **deleted**. All hosts use the unified backup system (`modules.services.backup`, implemented in `modules/nixos/services/backup/`): services opt in via their per-service `backup` submodule (auto-discovered as `service-<name>` jobs), host-level jobs are declared under `modules.services.backup.restic.jobs`, and offsite clones via `modules.services.backup.restic.offsite`. Systemd units are named `restic-backup-<job>.service` / `.timer` (slice: `restic-backups.slice`).
 
 ## Table of Contents
 
@@ -29,9 +31,9 @@ The backup system consists of several integrated components:
 1. **Restic Backup Engine**: Modern, encrypted, deduplicated file-based backup solution
 2. **ZFS Snapshot Integration**: Consistent point-in-time backups via ZFS snapshots
 3. **Sanoid/Syncoid (Optional)**: Automated ZFS snapshot management and block-level replication
-4. **Service Module**: Pre-configured backup profiles for common services (UniFi, Omada, 1Password Connect, Attic, System configs)
+4. **Service Auto-Discovery**: Enabled services that declare a `backup` submodule are automatically discovered and turned into per-service restic jobs (`service-<name>`); selected jobs can be cloned to an offsite repository (`offsite-<name>`) via `restic.offsite`
 5. **Monitoring System**: Multi-tier monitoring with Prometheus metrics, error analysis, and notifications
-6. **Automated Testing**: Repository verification and restore testing
+6. **Automated Testing**: Repository verification and restore testing (scheduled per repository via `backup-verify-<repo>.timer` and `backup-restore-test-<repo>.timer`)
 7. **Documentation Generator**: Self-documenting system with runbooks
 
 ### Architecture Diagram
@@ -166,17 +168,14 @@ This minimal configuration provides:
 
 ### Step 1: Import the Backup Module
 
-The backup module is located at `/modules/nixos/backup.nix` and is automatically imported via the default module imports.
-
-Verify it's imported:
+The unified backup module lives at `/modules/nixos/services/backup/` and is imported via the services module set on most hosts. Hosts that don't pull in the full services category (e.g. luna) import it directly:
 
 ```nix
-# In /modules/nixos/default.nix
+# In the host's default.nix
 {
   imports = [
-    # ... other modules
-    ./backup.nix
-    ./services/backup-services.nix
+    # ... other imports
+    ../../modules/nixos/services/backup
   ];
 }
 ```
@@ -495,13 +494,13 @@ modules.backup.schedule = "02:00";  # Backup time (24-hour format)
 sudo nixos-rebuild switch
 
 # Verify backup services are enabled
-systemctl list-timers "restic-*"
+systemctl list-timers "restic-backup-*"
 
 # Check service status
-systemctl status restic-backups-*
+systemctl status restic-backup-*
 
 # View logs
-journalctl -u restic-backups-* -f
+journalctl -u restic-backup-* -f
 ```
 
 ### Step 9: Configure ZFS Replication (Optional but Recommended)
@@ -707,202 +706,126 @@ ssh nas-1.holthome.net 'zfs list -t snapshot backup/forge/zfs-recv/home | wc -l'
 
 ## Service Onboarding
 
-The backup system includes pre-configured profiles for common homelab services. These profiles handle service-specific requirements like database dumps, application quiescence, and proper exclusion patterns.
+Services are onboarded through **auto-discovery**: any *enabled* service module that declares a `backup` submodule with `backup.enable = true` is automatically turned into a restic job named `service-<name>` (systemd units `restic-backup-service-<name>.service` / `.timer`). The legacy `backup-services` profile module has been deleted — there is nothing to import and no per-service profile list to maintain.
 
-### Available Service Profiles
-
-1. **UniFi Controller**: MongoDB dumps and configuration backup
-2. **Omada Controller**: Database export and configuration
-3. **1Password Connect**: Vault and credentials backup
-4. **Attic Binary Cache**: Large dataset backup with optional ZFS send
-5. **System Configuration**: NixOS generation and flake tracking
-
-### Enabling Service Backups
-
-Import the service backup module (already imported by default):
+### Per-Service Backup Submodule (Auto-Discovery)
 
 ```nix
-# In /modules/nixos/default.nix
-imports = [
-  ./backup.nix
-  ./services/backup-services.nix
-];
-```
-
-### UniFi Controller Backup
-
-```nix
-modules.services.backup-services = {
+# In the host configuration - the service declares its backup needs
+modules.services.paperless = {
   enable = true;
+  # ... service options ...
 
-  unifi = {
+  backup = {
     enable = true;
-    dataPath = "/var/lib/unifi";  # Default path
-    mongoCredentialsFile = config.sops.secrets.unifi-mongo-creds.path;
+    repository = "nas-primary";   # Defaults to serviceDiscovery.defaultRepository
+    frequency = "daily";
+    tags = [ "documents" "critical" ];
+    excludePatterns = [ "**/log/**" ];
+    useSnapshots = true;                     # Opt-in ZFS snapshot coordination
+    zfsDataset = "tank/services/paperless";  # Required when useSnapshots = true
   };
 };
 ```
 
-**What it backs up:**
-- MongoDB database with oplog (point-in-time consistency)
-- Configuration files
-- Keystore
-- Excludes: logs, work, temp directories
+What auto-discovery does for each service:
 
-**SOPS secret format** (mongoCredentialsFile):
-```bash
-MONGO_USER=admin
-MONGO_PASSWORD=your_secure_password
-```
+- Creates job `service-<name>` targeting the declared repository
+- Defaults `paths` to the service's `dataDir` (or `/var/lib/<name>`) when unset
+- Appends `serviceDiscovery.globalExcludes` to the exclude patterns
+- Uses `performance.resources` defaults when the service declares none
+- Wires the job into monitoring and metrics automatically
 
-### Omada Controller Backup
+Use `preBackupScript`/`postBackupScript` in the submodule for service-specific dump or quiesce logic, or the staging-service pattern below when the dump must run as root.
+
+### Offsite Clones of Service Backups
+
+To send selected service backups to an offsite repository, list them once per host in `restic.offsite`. Each entry clones the discovered `service-<name>` job as `offsite-<name>` with identical paths/excludes, staggered after the primary backup window:
 
 ```nix
-modules.services.backup-services = {
+modules.services.backup.restic.offsite = {
+  repository = "r2-offsite";
+  frequency = "05:00";  # + 4h randomized delay (after the 00:00-04:00 nas window)
+  services = [
+    "paperless" "actual" "pocketid" "zigbee2mqtt" "zwave-js-ui"
+    "home-assistant" "esphome" "mealie" "miniflux"
+  ];
+};
+```
+
+Keep media and other bulky data NFS-only; PostgreSQL offsite DR is handled by pgBackRest repo2 (see the pgBackRest docs).
+
+### Manual Jobs (Host System State)
+
+Data that doesn't belong to a single service is declared as a manual job under `modules.services.backup.restic.jobs`. Example: forge's system state, backed up to **both** repositories:
+
+```nix
+modules.services.backup.restic.jobs = {
+  system-state = {
+    paths = [ "/persist" "/home" ];
+    repository = "nas-primary";
+    frequency = "daily";
+    tags = [ "system-state" "persist" "home" ];
+    # CAP_DAC_READ_SEARCH: actually read root-only files (e.g. sops host key
+    # material) instead of silently skipping them (restic exit code 3)
+    privileged = true;
+    excludePatterns = [ "**/.cache" "**/cache" "**/*.tmp" ];
+  };
+
+  # Offsite copy: same paths, staggered after the nas window
+  system-state-offsite = {
+    paths = [ "/persist" "/home" ];
+    repository = "r2-offsite";
+    frequency = "05:00";
+    privileged = true;
+  };
+};
+```
+
+### Staging Root-Only or Live Data (luna Pattern)
+
+Some services keep state the unprivileged `restic-backup` user cannot read (0600 root/service-owned files), or need a database dump for consistency. On luna, a root-run `luna-backup-dumps.service` stages AdGuardHome state, a UniFi mongodump, and Omada exports into `/var/lib/backup-dumps/<name>` (atomically, then re-chowned `root:restic-backup` with group read); each per-service `backup` submodule points at the staged dump:
+
+```nix
+# hosts/luna/default.nix (excerpt)
+modules.services.unifi = {
   enable = true;
-
-  omada = {
+  # ... service options ...
+  backup = {
     enable = true;
-    dataPath = "/var/lib/omada";
-    containerName = "omada";      # If running in container
+    repository = "nas-primary";
+    paths = [ "/var/lib/backup-dumps/unifi" ];
+    tags = [ "unifi" "controller" "database" "luna" ];
   };
+};
+
+# Refresh the dumps right before each discovered job runs
+systemd.services."restic-backup-service-unifi" = {
+  wants = [ "luna-backup-dumps.service" ];
+  after = [ "luna-backup-dumps.service" ];
 };
 ```
 
-**What it backs up:**
-- MongoDB collections (sites, devices)
-- Controller data and configuration
-- Excludes: logs, work, temp directories
+**What the luna dumps stage:**
 
-### 1Password Connect Backup
+- **AdGuardHome**: `/var/lib/AdGuardHome` (config + state; 0600 adguardhome-owned)
+- **UniFi**: `podman exec unifi mongodump ...` of the embedded MongoDB — no credentials required (the jacobalberty container's embedded mongod runs without auth) — plus controller config/keystore
+- **Omada**: mongoexport of key collections (sites, devices) plus the controller backup directory
+
+### Adding Backup Support to a Service Module
+
+Service modules gain backup support by exposing a `backup` option of the shared submodule type (modules built via the service factory already have it):
 
 ```nix
-modules.services.backup-services = {
-  enable = true;
-
-  onepassword-connect = {
-    enable = true;
-    dataPath = "/var/lib/onepassword-connect/data";
-    credentialsFile = config.sops.secrets.op-connect-creds.path;
-  };
+# In the service module options
+backup = lib.mkOption {
+  type = lib.types.nullOr sharedTypes.backupSubmodule;
+  default = null;
+  description = "Backup configuration for this service (auto-discovered by modules.services.backup)";
 };
 ```
 
-**What it backs up:**
-- Vault data
-- Credentials and sync state
-- Excludes: temporary files, cache
-
-### Attic Binary Cache Backup
-
-```nix
-modules.services.backup-services = {
-  enable = true;
-
-  attic = {
-    enable = true;
-    dataPath = "/var/lib/attic";
-
-    # Option 1: Standard Restic backup (smaller caches)
-    useZfsSend = false;
-
-    # Option 2: ZFS send/receive (recommended for large caches)
-    useZfsSend = true;
-    nasDestination = "backup@nas.holthome.net";
-  };
-};
-```
-
-**What it backs up:**
-- Binary cache data
-- Cache metadata
-- Option for efficient ZFS replication
-
-**ZFS Send Method:**
-- More efficient for large datasets
-- Incremental sends to NAS
-- Preserves ZFS features (compression, dedup)
-
-### System Configuration Backup
-
-```nix
-modules.services.backup-services = {
-  enable = true;
-
-  system = {
-    enable = true;
-    paths = [
-      "/etc/nixos"
-      "/home/ryan/.config"
-      "/var/log"
-    ];
-    excludePatterns = [
-      "*.tmp"
-      "*.cache"
-      "*/.git"
-      "*/node_modules"
-    ];
-  };
-};
-```
-
-**What it backs up:**
-- NixOS configuration
-- System generations list
-- Flake lock files
-- User configurations
-- System logs (with exclusions)
-
-### Creating Custom Service Profiles
-
-To add a new service profile, edit `/modules/nixos/services/backup-services.nix`:
-
-```nix
-# Add to options section
-myservice = {
-  enable = mkEnableOption "MyService backup";
-
-  dataPath = mkOption {
-    type = types.str;
-    default = "/var/lib/myservice";
-    description = "Path to MyService data directory";
-  };
-
-  # Additional service-specific options
-};
-
-# Add to config section
-(mkIf cfg.myservice.enable {
-  myservice = {
-    enable = true;
-    paths = [ cfg.myservice.dataPath ];
-    repository = "primary";
-    tags = [ "myservice" "application" ];
-
-    preBackupScript = ''
-      # Service-specific preparation
-      echo "Preparing MyService for backup..."
-      # Example: Stop service, dump database, etc.
-    '';
-
-    postBackupScript = ''
-      # Service-specific cleanup
-      echo "Cleaning up MyService backup..."
-      # Example: Restart service, remove temp files
-    '';
-
-    excludePatterns = [
-      "*/logs/*"
-      "*/temp/*"
-    ];
-
-    resources = {
-      memory = "512m";
-      cpus = "1.0";
-    };
-  };
-})
-```
+No other wiring is required — job creation, scheduling, and monitoring are handled by the unified module (`modules/nixos/services/backup/`).
 
 ## Configuration Reference
 
@@ -1124,18 +1047,29 @@ modules.backup.restic.jobs = {
 
 ```bash
 # List all backup timers
-systemctl list-timers "restic-*"
+systemctl list-timers "restic-backup-*"
+
+# List verification and restore-test timers (one per repository)
+systemctl list-timers "backup-verify-*" "backup-restore-test-*"
 
 # Check specific backup job status
-systemctl status restic-backups-system
+systemctl status restic-backup-system-state
 
 # View real-time logs
-journalctl -u restic-backups-* -f
+journalctl -u restic-backup-* -f
 
 # Check last run result
-systemctl show -p ActiveEnterTimestamp restic-backups-system
-systemctl show -p ActiveState restic-backups-system
+systemctl show -p ActiveEnterTimestamp restic-backup-system-state
+systemctl show -p ActiveState restic-backup-system-state
 ```
+
+Scheduled timers include:
+
+- `restic-backup-<job>.timer` — one per backup job (discovered `service-<name>`, offsite `offsite-<name>`, and manual jobs)
+- `backup-verify-<repo>.timer` — repository verification on the verification schedule (2h randomized delay, clear of the nightly backup window)
+- `backup-restore-test-<repo>.timer` — restore testing per repository (when enabled)
+- `backup-expected-jobs-metrics.timer` — daily refresh of the expected-jobs metric file
+- `backup-verification-report.timer` — weekly verification report (when reporting enabled)
 
 ### Structured Logs
 
@@ -1161,13 +1095,20 @@ Available metrics (when `prometheus.enable = true`):
 
 ```promql
 # Backup job duration
-restic_backup_duration_seconds{job="system"}
+restic_backup_duration_seconds{backup_job="system-state"}
 
 # Last successful backup timestamp
-restic_backup_last_success_timestamp{job="system"}
+restic_backup_last_success_timestamp{backup_job="system-state"}
 
 # Backup status (1=success, 0=failure)
-restic_backup_status{job="system"}
+restic_backup_status{backup_job="system-state"}
+
+# Partial backup (1 = snapshot created but some files unreadable, restic exit code 3)
+restic_backup_partial{backup_job="system-state"}
+
+# Job is configured on this host (written daily by backup-expected-jobs-metrics,
+# file restic_expected_jobs.prom; enables never-run detection)
+restic_backup_job_expected{backup_job="system-state"}
 
 # Error counts by category
 backup_errors_by_category_total{category="network"}
@@ -1178,9 +1119,14 @@ backup_errors_by_severity_total{severity="critical"}
 # Repository verification status
 restic_verification_status{repository="primary"}
 
+# Snapshots created in the last 24h (written by the verification metrics trap)
+restic_recent_snapshots_count{repository="primary"}
+
 # Restore test results
 restic_restore_test_status{repository="primary"}
 ```
+
+Shipped alert rules include `ResticBackupPartial` (medium — snapshot succeeded but files were unreadable) and `ResticBackupNeverRun` (high — `restic_backup_job_expected == 1 unless on(backup_job, hostname) restic_backup_last_success_timestamp` for 26h, catching configured jobs that have never succeeded).
 
 ### Alert Rules
 
@@ -1390,7 +1336,7 @@ Enable verbose logging for troubleshooting:
 sudo -u restic-backup restic -r <repo-url> backup /path --verbose
 
 # Check systemd service logs with all details
-journalctl -u restic-backups-system -b --no-pager
+journalctl -u restic-backup-system-state -b --no-pager
 
 # Enable debug logging in Restic
 export RESTIC_DEBUG=1
@@ -1701,12 +1647,12 @@ users.users = {
     schedule = "02:30";
   };
 
-  # Enable service backups
-  modules.services.backup-services = {
+  # Service backups are auto-discovered: any enabled service that declares
+  # backup.enable = true in its backup submodule gets a restic job
+  # (see "Service Onboarding" above). Example:
+  modules.services.paperless.backup = {
     enable = true;
-
-    # Add service-specific backups as needed
-    system.enable = true;
+    repository = "primary";
   };
 }
 ```

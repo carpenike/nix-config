@@ -1,6 +1,6 @@
 # Repository Architecture
 
-**Last Updated**: 2025-12-31
+**Last Updated**: 2026-07-07
 
 This document describes the high-level architecture of the NixOS configuration repository, including directory structure, module patterns, and key design decisions.
 
@@ -24,10 +24,11 @@ nix-config/
 │   │   └── ...            # logging, storage, container, etc.
 │   ├── host-defaults.nix  # Parameterized factory for host-specific defaults
 │   ├── monitoring-helpers.nix  # Prometheus alert helpers
-│   ├── backup-helpers.nix      # Backup configuration helpers
-│   ├── caddy-helpers.nix       # Reverse proxy helpers
-│   ├── mkSystem.nix       # NixOS/Darwin system builders
-│   └── ...
+│   ├── service-factory.nix     # Container service factory (mkContainerService)
+│   ├── service-uids.nix        # Centralized UID/GID registry
+│   ├── dns.nix            # DNS record utilities
+│   ├── dns-aggregate.nix  # Fleet-wide DNS record aggregation
+│   └── mkSystem.nix       # NixOS/Darwin system builders
 │
 ├── modules/               # Reusable NixOS/Darwin modules
 │   ├── common/            # Shared between NixOS and Darwin

@@ -6,6 +6,12 @@ This guide demonstrates how to use the new standardized metrics collection patte
 
 The standardized metrics pattern eliminates manual Prometheus configuration by allowing services to declare their metrics endpoints declaratively. When a service enables `metrics.enable = true`, it automatically appears in the Prometheus scrape configuration.
 
+### Trust Model
+
+`metrics.enable` defaults to **`false`** everywhere — both in the service factory (`lib/service-factory.nix`, opt-in via `spec.metricsEnable = true`) and in hand-rolled modules. Most applications have no native Prometheus endpoint, so setting `metrics.enable = true` is an explicit, trustworthy declaration that the service *really* serves Prometheus metrics at the configured port/path. Auto-discovery trusts this declaration and scrapes every enabled service that makes it.
+
+Discovered scrape configs are contributed to **any Prometheus server running on the host** — either the observability module's bundled instance (`modules.services.observability.prometheus.enable`) or a natively configured hub (`services.prometheus.enable` set elsewhere, as on forge). Hosts can additionally constrain discovery with the optional allowlist `modules.services.observability.autoDiscovery.allowedServices` (default `null` = no restriction).
+
 ## Basic Usage
 
 ### 1. Import Shared Types
@@ -27,7 +33,9 @@ in
     metrics = lib.mkOption {
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
-        enable = true;
+        # Off by default — only flip to true if the service actually
+        # exposes a Prometheus endpoint at the port/path below.
+        enable = false;
         port = 9100;
         path = "/metrics";
         labels = {
@@ -86,7 +94,8 @@ modules.services.glances = {
 
 ```nix
 metrics = {
-  enable = true;                    # Enable metrics collection
+  enable = true;                    # Enable metrics collection (default: false —
+                                    # declares a real Prometheus endpoint)
   port = 9090;                      # Metrics endpoint port
   path = "/metrics";                # HTTP path (default: /metrics)
   interface = "127.0.0.1";          # Bind interface (default: 127.0.0.1)
@@ -192,9 +201,9 @@ scrape_configs:
 ### 3. Discovery Process
 
 1. **Evaluation Time**: The observability module calls `discoverMetricsTargets config`
-2. **Scanning**: Function scans `config.modules.services.*` for enabled metrics
+2. **Scanning**: Function scans `config.modules.services.*` for services that are enabled **and** declare `metrics.enable = true` (optionally filtered by `autoDiscovery.allowedServices`)
 3. **Generation**: Creates Prometheus scrape configurations automatically
-4. **Integration**: Configurations are merged with any static targets
+4. **Integration**: Configurations are merged with any static targets and appended to `services.prometheus.scrapeConfigs` whenever a Prometheus server runs on the host — the module's bundled instance or a native hub (`services.prometheus.enable`), as on forge
 
 ## Best Practices
 
