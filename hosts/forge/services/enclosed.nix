@@ -74,7 +74,10 @@ in
 
       # Enable external access via Cloudflare Tunnel
       # Public access - anyone with a link can view notes (decryption happens client-side)
-      # Authentication only required to CREATE notes (handled by caddySecurity above)
+      # NOTE: Note creation is also public - there is NO auth layer in front of
+      # this vhost (no caddySecurity/forward-auth configured). This is accepted
+      # by design: the service is zero-knowledge and security lives in the URL
+      # (which contains the decryption key), not in who can reach the app.
       modules.services.caddy.virtualHosts.enclosed.cloudflare = {
         enable = true;
         tunnel = "forge";

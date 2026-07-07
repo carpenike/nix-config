@@ -58,7 +58,9 @@ in
 
         # Basic configuration
         port = 7476;
-        hostAddress = "0.0.0.0"; # Bind to all interfaces for port mapping to work
+        hostAddress = "0.0.0.0"; # In-container bind - required for port mapping to work
+        # Host-side publish stays on the module default (127.0.0.1);
+        # external access goes through Caddy (https://qui.holthome.net)
         baseUrl = "/";
         timezone = "America/New_York";
         logLevel = "INFO";

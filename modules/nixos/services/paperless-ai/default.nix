@@ -535,9 +535,13 @@ in
       # paperless-ai reads configuration from /app/data/.env file, not from
       # environment variables. We mount this file directly into the container.
       sops.templates."${serviceName}-env" = {
-        owner = "root";
-        group = "root";
-        mode = "0444"; # Readable by container user
+        # Bind-mounted into the container, which runs as cfg.user:cfg.group
+        # (see --user flag below). Owner/group must match so 0440 suffices;
+        # was 0444, which exposed PAPERLESS_API_TOKEN/CUSTOM_API_KEY to every
+        # local user.
+        owner = cfg.user;
+        group = cfg.group;
+        mode = "0440";
         content = ''
           # Initial Setup - always 'no' since .env is read-only (managed by NixOS/SOPS)
           # All configuration must be done via NixOS module options

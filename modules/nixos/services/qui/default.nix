@@ -104,9 +104,22 @@ in
       type = lib.types.str;
       default = "0.0.0.0";
       description = ''
-        Host address to bind to.
-        Use "0.0.0.0" for container environments (allows external access).
-        Use "localhost" or "127.0.0.1" for local-only access.
+        Address qui binds *inside* the container (QUI__HOST).
+        Must be "0.0.0.0" for the podman port mapping to work.
+        See bindAddress for the host-side publish address.
+      '';
+    };
+
+    bindAddress = lib.mkOption {
+      type = lib.types.str;
+      default = "127.0.0.1";
+      description = ''
+        Host-side address the WebUI port is published on.
+
+        Podman port publishing bypasses the NixOS firewall, so the default
+        binds to localhost only - access goes through the Caddy reverse
+        proxy. Set to "0.0.0.0" to expose the port LAN-wide (not
+        recommended).
       '';
     };
 
@@ -519,7 +532,10 @@ in
           ] ++ cfg.extraVolumes;
 
           ports = [
-            "${toString cfg.port}:${toString cfg.port}"
+            # Publish on bindAddress (default 127.0.0.1) - podman publishes
+            # bypass the NixOS firewall, so an unqualified mapping would
+            # expose the WebUI LAN-wide past Caddy/OIDC.
+            "${cfg.bindAddress}:${toString cfg.port}:${toString cfg.port}"
           ] ++ lib.optionals cfg.metricsEnabled [
             "${cfg.metricsHost}:${toString cfg.metricsPort}:${toString cfg.metricsPort}"
           ];

@@ -28,7 +28,9 @@ in
         };
 
         settings = {
-          host = "0.0.0.0";
+          host = "0.0.0.0"; # In-container bind - required for port mapping to work.
+          # Host-side publish stays on the module default (127.0.0.1);
+          # external access goes through Caddy (https://autobrr.holthome.net).
           port = 7474;
           logLevel = "INFO";
           checkForUpdates = false; # Managed via Nix/Renovate
@@ -45,7 +47,7 @@ in
           disableBuiltInLogin = false;
         };
 
-        # Prometheus metrics
+        # Prometheus metrics (in-container bind; published on 127.0.0.1 host-side)
         metrics = {
           enable = true;
           host = "0.0.0.0";

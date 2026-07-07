@@ -21,10 +21,12 @@ in
         # Harden
         PasswordAuthentication = false;
         PermitRootLogin = "no";
-        # Automatically remove stale sockets
+        # Automatically remove stale sockets (needed for the GPG agent
+        # socket RemoteForward from rymac - see home/ryan/hosts/rymac.nix)
         StreamLocalBindUnlink = "yes";
-        # Allow forwarding ports to everywhere
-        GatewayPorts = "clientspecified";
+        # GatewayPorts deliberately left at the default ("no"): remote TCP
+        # forwards bind loopback only. The GPG socket forward above is a unix
+        # socket forward and does not need GatewayPorts.
       };
     };
 

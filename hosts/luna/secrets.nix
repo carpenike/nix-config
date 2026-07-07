@@ -14,6 +14,13 @@ in
       pkgs.age
     ];
 
+    # Fixed-gid group matching the in-container opuser gid (999) of the
+    # 1Password Connect images, so the credentials secret can be locked to
+    # 0440 instead of world-readable.
+    users.groups.onepassword-connect = {
+      gid = 999;
+    };
+
     sops = {
       defaultSopsFile = ./secrets.sops.yaml;
       age.sshKeyPaths = [
@@ -21,7 +28,11 @@ in
       ];
       secrets = {
         onepassword-credentials = {
-          mode = "0444";
+          # Read via bind mount by the 1Password Connect containers, which run
+          # as opuser (uid/gid 999 - see modules/nixos/services/onepassword-connect).
+          # Group-readable by gid 999 only; was 0444 (world-readable).
+          mode = "0440";
+          group = "onepassword-connect";
         };
         "networking/cloudflare/ddns/apiToken" = { };
         "networking/cloudflare/ddns/records" = { };

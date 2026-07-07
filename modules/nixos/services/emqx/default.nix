@@ -221,9 +221,17 @@ in
       description = "EMQX node name (format: name@host).";
     };
     nodeCookie = mkOption {
-      type = types.str;
-      default = lib.substring 0 64 (builtins.hashString "sha256" config.networking.hostName);
-      description = "Erlang cookie used for cluster authentication (must match across nodes).";
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        Erlang cookie used for cluster authentication (must match across nodes).
+
+        When null (default), a random per-host cookie is generated once at
+        startup into <dataDir>/.erlang.cookie (mode 0400) and passed to the
+        container. Only set this explicitly for multi-node clusters; note the
+        value ends up world-readable in the Nix store, and deterministic
+        values (e.g. hashes of the hostname) are guessable.
+      '';
     };
 
     listeners = {
@@ -613,12 +621,23 @@ in
           script = ''
                         set -euo pipefail
                         install -d -m 700 ${envDir}
+                        ${lib.optionalString (cfg.nodeCookie == null) ''
+                          # Generate a random per-host Erlang cookie on first start.
+                          # Kept out of the Nix store and unguessable (the previous
+                          # default was sha256(hostname), which is deterministic).
+                          cookie_file=${lib.escapeShellArg "${cfg.dataDir}/.erlang.cookie"}
+                          if [ ! -s "$cookie_file" ]; then
+                            (umask 377; ${pkgs.openssl}/bin/openssl rand -hex 32 > "$cookie_file")
+                          fi
+                          chown ${cfg.user}:${cfg.group} "$cookie_file"
+                          chmod 0400 "$cookie_file"
+                        ''}
                         tmp="${envFile}.tmp"
                         trap 'rm -f "$tmp"' EXIT
                         {
                           printf "TZ=%s\n" ${lib.escapeShellArg cfg.timezone}
                           printf "EMQX_NODE__NAME=%s\n" ${lib.escapeShellArg cfg.nodeName}
-                          printf "EMQX_NODE__COOKIE=%s\n" ${lib.escapeShellArg cfg.nodeCookie}
+                          printf "EMQX_NODE__COOKIE=%s\n" ${if cfg.nodeCookie != null then lib.escapeShellArg cfg.nodeCookie else ''"$(cat "$cookie_file")"''}
                           printf "EMQX_LISTENERS__TCP__DEFAULT__ENABLE=%s\n" false
                           printf "EMQX_LISTENERS__TCP__EXTERNAL__BIND=%s:%s\n" ${lib.escapeShellArg cfg.listeners.mqtt.host} ${lib.escapeShellArg (toString cfg.listeners.mqtt.port)}
                           printf "EMQX_LISTENERS__TCP__EXTERNAL__MAX_CONNECTIONS=%s\n" ${lib.escapeShellArg (toString cfg.listeners.mqtt.maxConnections)}
@@ -669,19 +688,11 @@ in
           };
         };
 
-        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          emqx = {
-            enable = true;
-            repository = cfg.backup.repository;
-            frequency = cfg.backup.frequency;
-            retention = cfg.backup.retention;
-            paths = if cfg.backup.paths != [ ] then cfg.backup.paths else [ cfg.dataDir ];
-            excludePatterns = cfg.backup.excludePatterns;
-            useSnapshots = cfg.backup.useSnapshots or true;
-            zfsDataset = cfg.backup.zfsDataset or datasetPath;
-            tags = cfg.backup.tags;
-          };
-        };
+        # NOTE: Restic backups are handled by the unified backup system
+        # (modules/nixos/services/backup), which auto-discovers cfg.backup
+        # (paths, excludePatterns, tags) as job "service-emqx". A legacy
+        # duplicate registration into modules.backup.restic.jobs was removed
+        # here - that namespace is inert on hosts using the unified system.
 
         modules.services.caddy.virtualHosts."${serviceName}-dashboard" = mkIf (cfg.dashboard.enable && cfg.dashboard.reverseProxy != null && cfg.dashboard.reverseProxy.enable) (
           let

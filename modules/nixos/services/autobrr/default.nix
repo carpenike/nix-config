@@ -93,6 +93,20 @@ mylib.mkContainerService {
 
   # Extra options beyond factory defaults
   extraOptions = {
+    # Host-side publish address for the WebUI and metrics ports.
+    # Podman port publishing bypasses the NixOS firewall, so the default
+    # binds to localhost only - access goes through the Caddy reverse proxy
+    # and Prometheus scrapes localhost.
+    bindAddress = lib.mkOption {
+      type = lib.types.str;
+      default = "127.0.0.1";
+      description = ''
+        Host address the WebUI (and metrics) container ports are published on.
+        Set to "0.0.0.0" to expose them LAN-wide (not recommended; publishes
+        bypass the NixOS firewall).
+      '';
+    };
+
     # Declarative settings for config.toml generation
     settings = {
       host = lib.mkOption {
@@ -326,9 +340,15 @@ mylib.mkContainerService {
         fi
       '';
 
-      # Add metrics port mapping to container when metrics enabled
-      virtualisation.oci-containers.containers.autobrr.ports =
-        lib.mkIf (cfg.metrics != null && cfg.metrics.enable)
-          (lib.mkAfter [ "${toString cfg.metrics.port}:${toString cfg.metrics.port}" ]);
+      # Publish WebUI/metrics ports on cfg.bindAddress (default 127.0.0.1).
+      # mkForce overrides the factory's unqualified "port:port" mapping, which
+      # podman would otherwise expose LAN-wide (publishes bypass the firewall).
+      # Autobrr defines no extraPorts, so only these two mappings are needed.
+      virtualisation.oci-containers.containers.autobrr.ports = lib.mkForce (
+        [ "${cfg.bindAddress}:${toString cfg.port}:${toString cfg.port}" ]
+        ++ lib.optionals (cfg.metrics != null && cfg.metrics.enable) [
+          "${cfg.bindAddress}:${toString cfg.metrics.port}:${toString cfg.metrics.port}"
+        ]
+      );
     };
 }

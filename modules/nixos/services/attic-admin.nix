@@ -22,7 +22,12 @@ in
         token = "${config.sops.placeholder."attic/admin-token"}"
       '';
       path = "/etc/attic/config.toml";
-      mode = "0644";
+      # Admin token grants full cache management - restrict to root-only CLI
+      # usage (run `attic` via doas/root). Was 0644, which exposed the token
+      # to every local user.
+      owner = "root";
+      group = "root";
+      mode = "0600";
     };
   };
 }

@@ -202,6 +202,17 @@ in
         '';
         example = "10.20.0.30";
       };
+
+      privileged = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Run the daemon container with --privileged instead of the explicit
+          capability set (NET_RAW + NET_ADMIN) needed for raw-socket network
+          scanning. Only enable as a fallback if a scanning feature plainly
+          fails with the default capabilities.
+        '';
+      };
     };
 
     # Database configuration
@@ -620,8 +631,16 @@ in
           "--pull=newer"
           # Host network required for network scanning
           "--network=host"
-          # Privileged required for raw socket access (scanning)
-          "--privileged"
+        ] ++ (
+          # Raw socket access for ICMP/ARP scanning. Explicit capabilities by
+          # default; --privileged only via the daemon.privileged escape hatch.
+          if cfg.daemon.privileged then [
+            "--privileged"
+          ] else [
+            "--cap-add=NET_RAW"
+            "--cap-add=NET_ADMIN"
+          ]
+        ) ++ [
           # Health check for daemon
           ''--health-cmd=sh -c 'curl -sf http://127.0.0.1:${toString cfg.daemon.port}/api/health || exit 1' ''
           "--health-interval=30s"
