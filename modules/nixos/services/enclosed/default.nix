@@ -8,7 +8,12 @@
 #
 # Port: 8787 (HTTP)
 # Data: /app/.data (SQLite database + encrypted attachments)
-# Security: Client-side AES-GCM encryption - server never sees plaintext
+# Security: Client-side AES-GCM encryption - server never sees plaintext.
+# The service is PUBLIC BY DESIGN: there is no auth layer in front of it.
+# Security lives in the note URL (which contains the decryption key), not
+# in who can reach the app. The ZFS storageQuota below is the abuse guard.
+#
+# Factory-based implementation (mylib.mkContainerService).
 #
 { lib
 , mylib
@@ -17,62 +22,60 @@
 , podmanLib
 , ...
 }:
-let
-  sharedTypes = mylib.types;
-  # Storage helpers via mylib injection (centralized import)
-  storageHelpers = mylib.storageHelpers pkgs;
 
-  cfg = config.modules.services.enclosed;
-  notificationsCfg = config.modules.notifications;
-  storageCfg = config.modules.storage;
-  hasCentralizedNotifications = notificationsCfg.enable or false;
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-  serviceName = "enclosed";
-  enclosedPort = 8787;
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-${serviceName}.service";
-  datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
+  name = "enclosed";
+  description = "Enclosed encrypted note sharing service";
 
-  # Build replication config for preseed (walks up dataset tree to find inherited config)
-  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
-in
-{
-  options.modules.services.enclosed = {
-    enable = lib.mkEnableOption "Enclosed encrypted note sharing service";
+  spec = {
+    description = "Enclosed encrypted note sharing service";
+    port = 8787;
+    image = "ghcr.io/corentinth/enclosed:1.16.0";
+    category = "productivity";
+    displayName = "Enclosed";
+    function = "note_sharing";
 
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/enclosed";
-      description = "Path to Enclosed data directory (maps to /app/.data in container)";
+    # The image entrypoint runs as root and writes /app/.data itself;
+    # no --user pinning (matches the pre-factory deployment).
+    runAsRoot = true;
+
+    # Data is mounted at /app/.data, not the factory's default /config
+    skipDefaultConfigMount = true;
+    volumes = cfg: [
+      "${cfg.dataDir}:/app/.data:rw"
+    ];
+
+    # Image lacks curl; simple HTTP probe with wget (container listens on 8787)
+    healthCommand = "wget --no-verbose --spider http://127.0.0.1:8787/ || exit 1";
+    startPeriod = "30s";
+
+    # Optimal for small encrypted files and SQLite; zstd compresses well
+    zfsRecordSize = "16K";
+    zfsCompression = "zstd";
+    zfsProperties = {
+      "com.sun:auto-snapshot" = "true";
     };
 
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "enclosed";
-      description = "User account under which Enclosed runs.";
+    # Enclosed is very lightweight
+    resources = {
+      memory = "256M";
+      memoryReservation = "128M";
+      cpus = "0.5";
     };
 
-    group = lib.mkOption {
-      type = lib.types.str;
-      default = "enclosed";
-      description = "Group under which Enclosed runs.";
+    environment = { cfg, ... }: {
+      # Size limits
+      NOTES_MAX_ENCRYPTED_PAYLOAD_LENGTH = toString cfg.maxPayloadSize;
+      # UX defaults for note creation
+      PUBLIC_DEFAULT_NOTE_TTL_SECONDS = toString cfg.settings.defaultTtlSeconds;
+      PUBLIC_DEFAULT_DELETE_NOTE_AFTER_READING = lib.boolToString cfg.settings.defaultDeleteAfterReading;
+      PUBLIC_IS_SETTING_NO_EXPIRATION_ALLOWED = lib.boolToString cfg.settings.allowNoExpiration;
     };
+  };
 
-    image = lib.mkOption {
-      type = lib.types.str;
-      default = "ghcr.io/corentinth/enclosed:1.9.2@sha256:be7576d6d1074698bb572162eaa5fdefaabfb1b70bcb4a936d1f46ab07051285";
-      description = ''
-        Full container image name including tag and digest.
-        Use Renovate bot to automate version updates with digest pinning.
-      '';
-      example = "ghcr.io/corentinth/enclosed:1.9.2@sha256:...";
-    };
-
-    timezone = lib.mkOption {
-      type = lib.types.str;
-      default = "America/New_York";
-      description = "Timezone for the container";
-    };
-
+  extraOptions = {
     maxPayloadSize = lib.mkOption {
       type = lib.types.int;
       default = 52428800; # 50 MB
@@ -126,246 +129,18 @@ in
         '';
       };
     };
-
-    resources = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = {
-        memory = "256M";
-        memoryReservation = "128M";
-        cpus = "0.5";
-      };
-      description = "Resource limits for the container (Enclosed is very lightweight)";
-    };
-
-    healthcheck = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
-      default = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "30s";
-      };
-      description = "Container health check configuration";
-    };
-
-    # Standardized reverse proxy integration
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration for Enclosed web interface";
-    };
-
-    # Standardized logging integration
-    logging = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.loggingSubmodule;
-      default = {
-        enable = true;
-        journalUnit = mainServiceUnit;
-        labels = {
-          service = serviceName;
-          service_type = "notes";
-        };
-      };
-      description = "Log shipping configuration for Enclosed logs";
-    };
-
-    # Standardized backup integration
-    backup = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = null;
-      description = "Backup configuration for Enclosed data";
-    };
-
-    # Standardized notifications
-    notifications = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = {
-        enable = true;
-        channels = {
-          onFailure = [ "service-alerts" ];
-        };
-        customMessages = {
-          failure = "Enclosed note sharing service failed on ${config.networking.hostName}";
-        };
-      };
-      description = "Notification configuration for Enclosed service events";
-    };
-
-    preseed = {
-      enable = lib.mkEnableOption "automatic data restore before service start";
-      repositoryUrl = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        description = "Restic repository URL for restore operations";
-      };
-      passwordFile = lib.mkOption {
-        type = lib.types.path;
-        default = "/dev/null";
-        description = "Path to Restic password file";
-      };
-      environmentFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = "Optional environment file for Restic (e.g., for B2 credentials)";
-      };
-      restoreMethods = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
-        default = [ "syncoid" "local" ];
-        description = ''
-          Order and selection of restore methods to attempt.
-          Note: restic intentionally excluded from defaults - offsite restore
-          is a manual DR decision when syncoid/local sources are unavailable.
-        '';
-      };
-    };
   };
 
-  config = lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      # Assertions
-      assertions = [
-        {
-          assertion = cfg.backup == null || !cfg.backup.enable || cfg.backup.repository != null;
-          message = "Enclosed backup.enable requires backup.repository to be set.";
-        }
-      ];
-
-      # Create system user and group
-      users.users.${cfg.user} = {
-        isSystemUser = true;
-        group = cfg.group;
-        description = "Enclosed service user";
-        home = "/var/empty";
-      };
-
-      users.groups.${cfg.group} = { };
-
-      # Declare dataset requirements for ZFS isolation
-      # OCI containers don't support StateDirectory, so we explicitly set permissions
-      modules.storage.datasets.services.${serviceName} = {
-        mountpoint = cfg.dataDir;
-        recordsize = "16K"; # Optimal for small encrypted files and SQLite
-        compression = "zstd"; # Good compression for encrypted data
-        properties = {
-          "com.sun:auto-snapshot" = "true";
-        } // lib.optionalAttrs (cfg.storageQuota != null) {
-          # ZFS quota provides hard limit against abuse
-          quota = cfg.storageQuota;
-        };
-        owner = cfg.user;
-        group = cfg.group;
-        mode = "0750";
-      };
-
-      # Container configuration
-      virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
-        image = cfg.image;
-        environment = {
-          TZ = cfg.timezone;
-          # Size limits
-          NOTES_MAX_ENCRYPTED_PAYLOAD_LENGTH = toString cfg.maxPayloadSize;
-          # UX defaults for note creation
-          PUBLIC_DEFAULT_NOTE_TTL_SECONDS = toString cfg.settings.defaultTtlSeconds;
-          PUBLIC_DEFAULT_DELETE_NOTE_AFTER_READING = lib.boolToString cfg.settings.defaultDeleteAfterReading;
-          PUBLIC_IS_SETTING_NO_EXPIRATION_ALLOWED = lib.boolToString cfg.settings.allowNoExpiration;
-        };
-        volumes = [
-          "${cfg.dataDir}:/app/.data:rw"
-        ];
-        ports = [
-          "127.0.0.1:${toString enclosedPort}:8787"
-        ];
-        resources = cfg.resources;
-        extraOptions = [
-          "--pull=newer"
-          "--umask=0027"
-        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          # Simple HTTP health check
-          ''--health-cmd=wget --no-verbose --spider http://127.0.0.1:8787/ || exit 1''
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-          "--health-on-failure=${cfg.healthcheck.onFailure}"
-        ];
-      };
-
-      # Systemd service configuration
-      systemd.services."${config.virtualisation.oci-containers.backend}-${serviceName}" = lib.mkMerge [
-        # Add failure notifications via systemd
-        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-          unitConfig.OnFailure = [ "notify@${serviceName}-failure:%n.service" ];
-        })
-        # Add dependency on the preseed service
-        (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-${serviceName}.service" ];
-          after = [ "preseed-${serviceName}.service" ];
-        })
-      ];
-
-
-      # Automatically register with Caddy reverse proxy if enabled
-      modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
-
-        backend = {
-          scheme = "http";
-          host = "127.0.0.1";
-          port = enclosedPort;
-        };
-
-        auth = cfg.reverseProxy.auth;
-        caddySecurity = cfg.reverseProxy.caddySecurity;
-        security = cfg.reverseProxy.security;
-        extraConfig = cfg.reverseProxy.extraConfig;
-      };
-
-      # Register notification template
-      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        "${serviceName}-failure" = {
-          enable = lib.mkDefault true;
-          priority = lib.mkDefault "high";
-          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Enclosed</font></b>'';
-          body = lib.mkDefault ''
-            <b>Host:</b> ''${hostname}
-            <b>Service:</b> <code>''${serviceName}</code>
-
-            The Enclosed note sharing service has entered a failed state.
-
-            <b>Quick Actions:</b>
-            1. Check logs:
-               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-            2. Restart service:
-               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-          '';
-        };
-      };
-    })
-
-    # Preseed service for disaster recovery
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        inherit serviceName;
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        inherit mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
-          recordsize = "16K";
-          compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
-        };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        inherit hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
+  extraConfig = cfg: {
+    # ZFS quota provides a hard limit against abuse on this public-by-design
+    # service. Overrides the factory's mkDefault'd dataset properties so the
+    # quota can be derived from cfg.storageQuota.
+    modules.storage.datasets.services.enclosed.properties =
+      {
+        "com.sun:auto-snapshot" = "true";
       }
-    ))
-  ];
+      // lib.optionalAttrs (cfg.storageQuota != null) {
+        quota = cfg.storageQuota;
+      };
+  };
 }

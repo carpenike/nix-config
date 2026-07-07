@@ -590,6 +590,13 @@
     extraGroups = [ ];
   };
 
+  it-tools = {
+    uid = 942;
+    gid = 942;
+    description = "IT-Tools web-based developer utilities (stateless)";
+    extraGroups = [ ];
+  };
+
   bichon = {
     uid = 944;
     gid = 944;

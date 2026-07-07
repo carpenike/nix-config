@@ -6,7 +6,12 @@
 # - Color converters, hash generators, and more
 #
 # This service is completely stateless - no persistent data required.
-# All tools run client-side in the browser.
+# All tools run client-side in the browser. Backup and failure
+# notifications are therefore disabled by default (see extraOptions
+# overrides below); the factory-standard ZFS dataset remains unused by
+# the container (no config volume is mounted).
+#
+# Factory-based implementation (mylib.mkContainerService).
 #
 # Usage:
 #   modules.services.it-tools = {
@@ -19,153 +24,57 @@
 
 { lib
 , mylib
+, pkgs
 , config
 , podmanLib
 , ...
 }:
-let
-  # Import shared type definitions
-  sharedTypes = mylib.types;
 
-  cfg = config.modules.services.it-tools;
-  serviceName = "it-tools";
-  backend = config.virtualisation.oci-containers.backend;
-  containerPort = 8080; # home-operations IT-Tools image listens on port 8080
-  domain = config.networking.domain or null;
-  defaultHostname = if domain == null || domain == "" then "it-tools.local" else "it-tools.${domain}";
-in
-{
-  options.modules.services.it-tools = {
-    enable = lib.mkEnableOption "IT-Tools - web-based developer utilities collection";
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 8380;
-      description = "Host port to expose IT-Tools web interface";
-    };
+  name = "it-tools";
+  description = "IT-Tools - web-based developer utilities collection";
 
-    image = lib.mkOption {
-      type = lib.types.str;
-      default = "ghcr.io/home-operations/it-tools:2024.10.22@sha256:7f26ae8d7a4a58b8d70b685cba5cbaa54d7df876d9f8bae702207f45b06d9b7c";
-      description = ''
-        Container image for IT-Tools (home-operations).
-        Pin to specific version with digest for immutability.
-        Use Renovate bot to automate version updates.
-      '';
-      example = "ghcr.io/home-operations/it-tools:2024.10.22@sha256:...";
-    };
+  spec = {
+    description = "IT-Tools - web-based developer utilities collection";
+    port = 8380;
+    containerPort = 8080; # home-operations IT-Tools image listens on port 8080
+    image = "ghcr.io/home-operations/it-tools:2024.10.22";
+    category = "productivity";
+    displayName = "IT-Tools";
+    function = "developer_utilities";
 
-    hostname = lib.mkOption {
-      type = lib.types.str;
-      default = defaultHostname;
-      description = "Friendly hostname used for reverse proxy and alerts.";
-    };
+    # Completely stateless - do not mount the data directory into the container
+    skipDefaultConfigMount = true;
 
-    timezone = lib.mkOption {
-      type = lib.types.str;
-      default = "America/New_York";
-      description = "Timezone for the container";
-    };
+    # Image lacks curl; use wget for the health probe (containerPort 8080)
+    healthCommand = "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/ || exit 1";
+    # IT-Tools serves static content and starts quickly
+    startPeriod = "10s";
 
-    resources = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = {
-        memory = "128M";
-        memoryReservation = "64M";
-        cpus = "0.5";
-      };
-      description = ''
-        Resource limits for the container.
-        IT-Tools is lightweight and serves static content, so minimal resources are needed.
-      '';
-    };
-
-    healthcheck = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
-      default = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "10s";
-      };
-      description = "Container health check configuration. IT-Tools starts quickly.";
-    };
-
-    # Standardized reverse proxy integration
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration for IT-Tools web interface";
+    # Lightweight static content server
+    resources = {
+      memory = "128M";
+      memoryReservation = "64M";
+      cpus = "0.5";
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    # Automatically register with Caddy reverse proxy if enabled
-    modules.services.caddy.virtualHosts.it-tools = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-
-      # Use structured backend configuration
-      backend = {
-        scheme = "http";
-        host = "127.0.0.1";
-        port = cfg.port;
-      };
-
-      # Authentication configuration from shared types
-      auth = cfg.reverseProxy.auth;
-
-      # PocketID / caddy-security configuration (if needed)
-      caddySecurity = cfg.reverseProxy.caddySecurity;
-
-      # Security configuration from shared types
-      security = cfg.reverseProxy.security;
-
-      extraConfig = cfg.reverseProxy.extraConfig;
+  extraOptions = {
+    # Stateless service: keep the pre-factory behavior of no backup job.
+    # (Overrides the factory default, which enables backups.)
+    backup = lib.mkOption {
+      type = lib.types.nullOr mylib.types.backupSubmodule;
+      default = null;
+      description = "Backup configuration. Disabled: IT-Tools holds no state worth backing up.";
     };
 
-    # IT-Tools container configuration
-    # Note: IT-Tools is completely stateless - no volumes needed
-    virtualisation.oci-containers.containers.it-tools = podmanLib.mkContainer serviceName {
-      image = cfg.image;
-
-      environment = {
-        TZ = cfg.timezone;
-      };
-
-      # Map host port to container port 80
-      ports = [ "${toString cfg.port}:${toString containerPort}" ];
-
-      # No volumes needed - IT-Tools is stateless
-
-      extraOptions =
-        (lib.optionals (cfg.resources != null) [
-          "--memory=${cfg.resources.memory}"
-          "--memory-reservation=${cfg.resources.memoryReservation}"
-          "--cpus=${cfg.resources.cpus}"
-        ])
-        ++ (lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          "--health-cmd=wget --no-verbose --tries=1 --spider http://127.0.0.1:${toString containerPort}/ || exit 1"
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-          "--health-on-failure=${cfg.healthcheck.onFailure}"
-        ]);
-    };
-
-    # Override systemd service for better integration
-    systemd.services."${backend}-${serviceName}" = {
-      description = "IT-Tools - Web-based developer utilities";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
-
-      serviceConfig = {
-        Restart = "always";
-        RestartSec = "10s";
-      };
+    # No failure notifications pre-factory; keep that behavior.
+    notifications = lib.mkOption {
+      type = lib.types.nullOr mylib.types.notificationSubmodule;
+      default = null;
+      description = "Notification configuration. Disabled by default for this stateless service.";
     };
   };
 }
