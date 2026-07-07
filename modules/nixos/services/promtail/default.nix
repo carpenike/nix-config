@@ -77,6 +77,24 @@ in
         ];
         description = "Systemd unit identifiers to drop (reduce noise)";
       };
+
+      extraPipelineStages = mkOption {
+        type = types.listOf types.attrs;
+        default = [ ];
+        description = ''
+          Additional pipeline stages appended to the systemd journal scrape job.
+          Useful for host-specific log-derived metrics (Promtail 'metrics' stages,
+          exposed on the Promtail /metrics endpoint as promtail_custom_*).
+        '';
+        example = lib.literalExpression ''
+          [{
+            match = {
+              selector = "{job=\"systemd-journal\"} |~ \"nfs: server\"";
+              stages = [ ... ];
+            };
+          }]
+        '';
+      };
     };
 
     containers = {
@@ -385,7 +403,7 @@ in
                     environment = "homelab";
                   };
                 }
-              ];
+              ] ++ cfg.journal.extraPipelineStages;
             }) ++
 
             # Container logs (journald source)

@@ -139,27 +139,53 @@ in
       # Previous hard mount caused uninterruptible D-state cascade (full host freeze 2026-02-21)
       # With soft, NFS ops return EIO on timeout instead of blocking forever.
       # timeo=150 = 15 seconds (in deciseconds), retrans=3 = 3 retries before EIO.
+      #
+      # TRADEOFF: soft mounts trade freeze-safety for silent write corruption risk —
+      # download clients writing here get EIO on timeout, which apps may swallow,
+      # leaving truncated/corrupt files. Detection: Promtail counts kernel
+      # "nfs: server ... not responding" messages into a metric
+      # (promtail_custom_nfs_server_not_responding_total, see
+      # observability/promtail.nix) and the NFSSoftMountTimeouts alert below fires
+      # on any occurrence. Do NOT switch back to hard mounts without re-validating
+      # the freeze scenario.
       mountOptions = [ "nfsvers=4.2" "soft" "timeo=150" "retrans=3" "rw" "noatime" ];
     };
   };
 
-  # ZFS monitoring alerts (co-located with storage configuration following contribution pattern)
-  modules.alerting.rules = lib.mkIf config.modules.filesystems.zfs.enable {
-    # ZFS pool health degraded
-    "zfs-pool-degraded" = {
-      type = "promql";
-      alertname = "ZFSPoolDegraded";
-      expr = "node_zfs_zpool_state{state!=\"online\",zpool!=\"\"} > 0";
-      for = "5m";
-      severity = "critical";
-      labels = { service = "zfs"; category = "storage"; };
-      annotations = {
-        summary = "ZFS pool {{ $labels.zpool }} is degraded on {{ $labels.instance }}";
-        description = "Pool state: {{ $labels.state }}. Check 'zpool status {{ $labels.zpool }}' for details.";
-        command = "zpool status {{ $labels.zpool }}";
+  modules.alerting.rules = lib.mkMerge [
+    {
+      # NFS soft-mount timeout detection (co-located with the nfsMounts.media config above)
+      # Kernel logs "nfs: server nas.holthome.net not responding" when a soft mount
+      # times out and returns EIO to the writer. Promtail turns those journal lines
+      # into promtail_custom_nfs_server_not_responding_total (observability/promtail.nix).
+      "nfs-soft-mount-timeouts" = {
+        type = "promql";
+        alertname = "NFSSoftMountTimeouts";
+        # Two cases: the counter just appeared (first timeout ever creates the
+        # series, which increase() alone cannot see), or it incremented.
+        expr = ''
+          (promtail_custom_nfs_server_not_responding_total unless promtail_custom_nfs_server_not_responding_total offset 15m)
+          or (increase(promtail_custom_nfs_server_not_responding_total[15m]) > 0)
+        '';
+        for = "0s";
+        severity = "high";
+        labels = { service = "nfs"; category = "storage"; };
+        annotations = {
+          summary = "NFS soft-mount timeouts detected on {{ $labels.host }}";
+          description = "The kernel reported NFS server timeouts in the last 15 minutes. Writes to /mnt/data (soft mount) may have failed with EIO — check download clients for truncated/corrupt files and verify NAS reachability.";
+          command = "journalctl -k --since '-1h' | grep -i 'nfs.*not responding'; mount | grep nfs";
+        };
       };
-    };
+    }
 
+    # ZFS monitoring alerts (co-located with storage configuration following contribution pattern)
+    #
+    # NOTE: The node_exporter ZFS collector is force-disabled on forge
+    # (infrastructure/monitoring.nix) because its statfs() calls can hang the kernel.
+    # Pool health/capacity alerts therefore use the textfile-based zfs_pool_* metrics
+    # (see ZfsPoolUnhealthy / ZfsPoolCapacity* below); alerts on node_zfs_* metrics
+    # would never fire and have been removed.
+    (lib.mkIf config.modules.filesystems.zfs.enable {
     # ZFS snapshot count too low
     "zfs-snapshot-count-low" = {
       type = "promql";
@@ -175,35 +201,9 @@ in
       };
     };
 
-    # ZFS pool space usage high
-    "zfs-pool-space-high" = {
-      type = "promql";
-      alertname = "ZFSPoolSpaceHigh";
-      expr = "(node_zfs_zpool_used_bytes{zpool!=\"\"} / node_zfs_zpool_size_bytes) > 0.80";
-      for = "15m";
-      severity = "high";
-      labels = { service = "zfs"; category = "storage"; };
-      annotations = {
-        summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
-        description = "Pool usage exceeds 80%. Consider expanding pool or cleaning up data.";
-        command = "zpool list {{ $labels.zpool }} && zfs list -o space";
-      };
-    };
-
-    # ZFS pool space critical
-    "zfs-pool-space-critical" = {
-      type = "promql";
-      alertname = "ZFSPoolSpaceCritical";
-      expr = "(node_zfs_zpool_used_bytes{zpool!=\"\"} / node_zfs_zpool_size_bytes) > 0.90";
-      for = "5m";
-      severity = "critical";
-      labels = { service = "zfs"; category = "storage"; };
-      annotations = {
-        summary = "ZFS pool {{ $labels.zpool }} is {{ $value | humanizePercentage }} full on {{ $labels.instance }}";
-        description = "CRITICAL: Pool usage exceeds 90%. Immediate action required to prevent write failures.";
-        command = "zpool list {{ $labels.zpool }} && df -h";
-      };
-    };
+    # ZFS pool space alerts use the textfile zfs_pool_capacity_percent metric
+    # (ZfsPoolCapacityHigh >85% / ZfsPoolCapacityCritical >95% below) since the
+    # node_exporter ZFS collector is disabled on forge.
 
     # ZFS preseed restore failed
     "zfs-preseed-failed" = {
@@ -240,6 +240,7 @@ in
 
     # ZFS Snapshot Age Monitoring (24hr threshold)
     zfs-snapshot-too-old = {
+      type = "promql";
       alertname = "zfs-snapshot-too-old";
       expr = ''
         zfs_latest_snapshot_age_seconds > 86400
@@ -256,6 +257,7 @@ in
 
     # ZFS Snapshot Age Critical (48hr threshold)
     zfs-snapshot-critical = {
+      type = "promql";
       alertname = "zfs-snapshot-critical";
       expr = ''
         zfs_latest_snapshot_age_seconds > 172800
@@ -511,7 +513,8 @@ in
         command = "ls -lh /var/lib/node_exporter/textfile_collector/{{ $labels.file }} && systemctl list-timers --all | grep syncoid";
       };
     };
-  };
+    })
+  ];
 
   # ZFS snapshot metrics exporter
   # Collects snapshot count, age, and space usage for all datasets with backup policies

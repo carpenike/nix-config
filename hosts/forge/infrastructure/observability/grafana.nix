@@ -87,6 +87,16 @@ in
           prometheus = true;
         };
 
+        # Declarative dashboards (provisioned from the repo, editable copies can
+        # be exported back to ./dashboards/*.json). The JSONs select Prometheus
+        # via a hidden DS_PROMETHEUS datasource variable, so they work with the
+        # auto-provisioned datasource regardless of its uid.
+        provisioning.dashboards.forge-infrastructure = {
+          name = "forge-infrastructure";
+          folder = "Forge";
+          path = ./dashboards;
+        };
+
         # Backup configuration
         backup = {
           enable = true;

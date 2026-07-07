@@ -127,13 +127,14 @@ in
         forgeDefaults.mkSanoidDataset "kometa";
 
       # Note: Kometa is a timer-based batch job, not a long-running service.
-      # We monitor the timer's last success instead of service-down alerts.
-      # The healthcheck-stale alert will fire if the timer hasn't run successfully.
+      # We monitor the timer's last trigger instead of service-down alerts.
+      # The timer runs every 4 hours (schedule above) with up to 15m randomized
+      # delay, so 5h of silence means at least one missed run.
       modules.alerting.rules."kometa-sync-failed" = {
         type = "promql";
         alertname = "KometaSyncFailed";
-        expr = ''systemd_timer_last_trigger_seconds{name="kometa-sync.timer"} - systemd_timer_last_trigger_seconds{name="kometa-sync.timer"} offset 1d < -14400'';
-        for = "5h";
+        expr = ''time() - node_systemd_timer_last_trigger_seconds{name="kometa-sync.timer"} > 18000'';
+        for = "30m";
         severity = "medium";
         labels = {
           service = "kometa";
@@ -141,7 +142,7 @@ in
         };
         annotations = {
           summary = "Kometa sync has not run in over 5 hours";
-          description = "The Kometa Plex metadata sync timer should run every 4 hours but hasn't triggered recently.";
+          description = "The Kometa Plex metadata sync timer should run every 4 hours but hasn't triggered recently. Check: systemctl list-timers kometa-sync.timer";
           command = "journalctl -u kometa-sync.service -n 50";
         };
       };

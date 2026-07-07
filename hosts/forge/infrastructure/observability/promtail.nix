@@ -40,6 +40,37 @@
           host = "forge";
           environment = "homelab";
         };
+
+        # Log-derived metrics for NFS soft-mount timeout detection.
+        # /mnt/data is deliberately a soft NFS mount (see infrastructure/storage.nix)
+        # so a hung NAS returns EIO instead of freezing the host — but those EIOs
+        # can silently corrupt downloads. The kernel logs
+        # "nfs: server nas.holthome.net not responding" on each timeout; count
+        # them into a Prometheus counter exposed on Promtail's /metrics
+        # (promtail_custom_nfs_server_not_responding_total), consumed by the
+        # NFSSoftMountTimeouts alert in infrastructure/storage.nix.
+        extraPipelineStages = [
+          {
+            match = {
+              selector = ''{job="systemd-journal"} |~ "nfs: server .* not responding"'';
+              stages = [
+                {
+                  metrics.nfs_server_not_responding_total = {
+                    type = "Counter";
+                    description = "Kernel NFS 'server not responding' messages (soft-mount timeouts, potential EIO to writers)";
+                    # Keep the series alive well past the incident (default idle
+                    # eviction is 5m, which would hide isolated timeouts)
+                    max_idle_duration = "24h";
+                    config = {
+                      match_all = true;
+                      action = "inc";
+                    };
+                  };
+                }
+              ];
+            };
+          }
+        ];
       };
 
       # Disable syslog receiver to avoid duplicates (we tail files instead)

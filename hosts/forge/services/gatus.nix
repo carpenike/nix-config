@@ -110,15 +110,21 @@ in
       };
 
       # Custom metrics staleness alert for blackbox monitoring reliability
+      # Gatus is scraped via the observability module's auto-discovery
+      # (job="service-gatus", see infrastructure/observability/default.nix).
+      # Gatus exposes no "last execution timestamp" metric, so detect a frozen
+      # scheduler as: the results counter stops increasing while the /metrics
+      # endpoint itself is still up (a fully down Gatus is covered by the
+      # GatusServiceDown alert above).
       modules.alerting.rules."gatus-metrics-stale" = mylib.monitoring-helpers.mkThresholdAlert {
         name = "gatus";
         alertname = "GatusMetricsStale";
-        expr = ''time() - gatus_results_last_execution_timestamp_seconds > 300'';
+        expr = ''(sum(rate(gatus_results_total[10m])) == 0) and on () (up{job="service-gatus"} == 1)'';
         for = "5m";
         severity = "high";
         category = "availability";
         summary = "Gatus endpoint checks are stale on {{ $labels.instance }}";
-        description = "Gatus has not executed endpoint checks for over 5 minutes. The monitoring service may be frozen or overloaded.";
+        description = "Gatus is reachable but has not executed any endpoint checks in the last 10 minutes. The monitoring service may be frozen or overloaded.";
       };
     })
   ];

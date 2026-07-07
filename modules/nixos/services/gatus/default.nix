@@ -510,8 +510,11 @@ in
       extraConfig = cfg.reverseProxy.extraConfig or "";
     };
 
-    # Prometheus scrape config (Gatus has native /metrics)
-    # Auto-discovery via observability module will pick this up from cfg.metrics
+    # Prometheus scrape config (Gatus has native /metrics on cfg.port)
+    # The observability module's auto-discovery reads cfg.metrics and contributes
+    # a scrape job named "service-gatus" to services.prometheus.scrapeConfigs.
+    # NOTE: on hosts using an allowlist (autoDiscovery.allowedServices), "gatus"
+    # must be included for this to take effect.
 
     # Backup integration
     modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {

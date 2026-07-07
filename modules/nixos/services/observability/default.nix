@@ -29,11 +29,22 @@ let
       # Extract all modules.services.* configurations (excluding observability to prevent recursion)
       allServices = lib.filterAttrs (name: _service: name != "observability") (config.modules.services or { });
 
-      # Filter services that have metrics enabled
+      # Filter services that are enabled and have metrics enabled.
+      #
+      # IMPORTANT (metrics trust model): discovery must only scrape services that
+      # actually expose a Prometheus endpoint. lib/service-factory.nix currently
+      # defaults metrics.enable = true for every generated service even though most
+      # apps (sonarr, radarr, plex, ...) have no native /metrics endpoint — that
+      # default should flip to false so metrics.enable becomes an explicit,
+      # trustworthy declaration. Until then, hosts can constrain discovery with
+      # autoDiscovery.allowedServices (see option description below).
       servicesWithMetrics = lib.filterAttrs
-        (_name: service:
+        (name: service:
+          (service.enable or false) &&
           (service.metrics or null) != null &&
-          (service.metrics.enable or false)
+          (service.metrics.enable or false) &&
+          (cfg.autoDiscovery.allowedServices == null
+            || lib.elem name cfg.autoDiscovery.allowedServices)
         )
         allServices;
 
@@ -110,6 +121,23 @@ in
         description = "Enable automatic discovery of service metrics endpoints";
       };
 
+      allowedServices = mkOption {
+        type = types.nullOr (types.listOf types.str);
+        default = null;
+        example = [ "gatus" "loki" "promtail" ];
+        description = ''
+          Optional allowlist of service names (attribute names under
+          modules.services.*) that auto-discovery may scrape. When null, every
+          enabled service with metrics.enable = true is scraped.
+
+          This exists because lib/service-factory.nix currently defaults
+          metrics.enable = true for all generated services, including ones with
+          no real /metrics endpoint. Hosts should set an explicit allowlist
+          until that default flips to false, after which this can be reset to
+          null.
+        '';
+      };
+
       staticTargets = mkOption {
         type = types.listOf types.attrs;
         default = [ ];
@@ -124,49 +152,13 @@ in
     };
 
     # Default alerting rules for the stack
-    alerts = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Enable default alerting rules for Loki and Promtail";
-      };
-
-      rules = mkOption {
-        type = types.listOf types.attrs;
-        default = [
-          {
-            alert = "LokiNoLogsIngested";
-            expr = "rate(loki_distributor_bytes_received_total[5m]) == 0";
-            for = "10m";
-            labels = { severity = "warning"; service = "loki"; };
-            annotations = {
-              summary = "Loki is not ingesting logs";
-              description = "No logs have been ingested by Loki in the last 10 minutes";
-            };
-          }
-          {
-            alert = "LokiQueryErrors";
-            expr = "increase(loki_querier_queries_failed_total[5m]) > 0";
-            for = "5m";
-            labels = { severity = "warning"; service = "loki"; };
-            annotations = {
-              summary = "Loki query failures detected";
-              description = "{{ $value }} query failures in the last 5 minutes";
-            };
-          }
-          {
-            alert = "PromtailDroppingLogs";
-            expr = "increase(promtail_client_dropped_bytes_total[5m]) > 0";
-            for = "5m";
-            labels = { severity = "critical"; service = "promtail"; };
-            annotations = {
-              summary = "Promtail is dropping logs";
-              description = "Promtail has dropped {{ $value }} bytes of logs in the last 5 minutes";
-            };
-          }
-        ];
-        description = "Default alerting rules for the observability stack";
-      };
+    # Rules are contributed to modules.alerting.rules (rendered into the
+    # Prometheus rule file by the alerting module) and require the Loki and
+    # Promtail metrics endpoints to be scraped (see auto-discovery above).
+    alerts.enable = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Enable default alerting rules for Loki and Promtail health";
     };
   };
 
@@ -187,18 +179,78 @@ in
     };
 
     # Prometheus configuration with auto-discovery
-    services.prometheus = mkIf cfg.prometheus.enable {
-      enable = true;
-      scrapeConfigs = discoveredScrapeConfigs ++ cfg.autoDiscovery.staticTargets;
-      globalConfig = lib.mkDefault {
-        scrape_interval = "15s";
-        evaluation_interval = "15s";
-        external_labels = {
-          instance = config.networking.hostName;
-          environment = "homelab";
+    #
+    # Scrape configs are contributed whenever a Prometheus server runs on this
+    # host — either the bundled one (cfg.prometheus.enable) or a natively
+    # configured hub (services.prometheus.enable set elsewhere, e.g.
+    # hosts/forge/infrastructure/observability/prometheus.nix). This lets hosts
+    # keep full control of the Prometheus server while still consuming the
+    # per-service metrics auto-discovery (list options merge, so discovered
+    # jobs are appended to any host-defined scrapeConfigs).
+    services.prometheus = lib.mkMerge [
+      (mkIf cfg.prometheus.enable {
+        enable = true;
+        globalConfig = lib.mkDefault {
+          scrape_interval = "15s";
+          evaluation_interval = "15s";
+          external_labels = {
+            instance = config.networking.hostName;
+            environment = "homelab";
+          };
         };
-      };
-    };
+      })
+      (mkIf (cfg.autoDiscovery.enable && (cfg.prometheus.enable || config.services.prometheus.enable)) {
+        scrapeConfigs = discoveredScrapeConfigs ++ cfg.autoDiscovery.staticTargets;
+      })
+    ];
+
+    # Default observability stack alerts (contribution pattern)
+    # These are PromQL rules over Loki/Promtail's own metrics, so they only
+    # provide signal when those endpoints are scraped (auto-discovery above).
+    modules.alerting.rules = mkIf cfg.alerts.enable (lib.mkMerge [
+      (mkIf cfg.loki.enable {
+        "loki-no-logs-ingested" = {
+          type = "promql";
+          alertname = "LokiNoLogsIngested";
+          expr = "sum(rate(loki_distributor_bytes_received_total[5m])) == 0";
+          for = "10m";
+          severity = "medium";
+          labels = { service = "loki"; category = "observability"; };
+          annotations = {
+            summary = "Loki is not ingesting logs";
+            description = "No logs have been ingested by Loki in the last 10 minutes. Check promtail.service and loki.service.";
+          };
+        };
+        "loki-query-errors" = {
+          type = "promql";
+          alertname = "LokiQueryErrors";
+          expr = "increase(loki_querier_queries_failed_total[5m]) > 0";
+          for = "5m";
+          severity = "medium";
+          labels = { service = "loki"; category = "observability"; };
+          annotations = {
+            summary = "Loki query failures detected";
+            description = "{{ $value }} Loki query failures in the last 5 minutes. Check loki.service logs.";
+          };
+        };
+      })
+      (mkIf cfg.promtail.enable {
+        "promtail-dropping-logs" = {
+          type = "promql";
+          alertname = "PromtailDroppingLogs";
+          # promtail_dropped_bytes_total is the client-side drop counter
+          # (the previously used promtail_client_dropped_bytes_total does not exist)
+          expr = "increase(promtail_dropped_bytes_total[5m]) > 0";
+          for = "5m";
+          severity = "critical";
+          labels = { service = "promtail"; category = "observability"; };
+          annotations = {
+            summary = "Promtail is dropping logs";
+            description = "Promtail has dropped {{ $value }} bytes of logs in the last 5 minutes. Check Loki availability and Promtail backpressure.";
+          };
+        };
+      })
+    ]);
 
     # CLI tools for log analysis
     environment.systemPackages =

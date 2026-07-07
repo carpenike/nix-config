@@ -171,19 +171,84 @@
     # Systemd timer not firing - detect timers that stopped triggering
     # Uses node_systemd_timer_last_trigger_seconds from node_exporter
     # Excludes transient/ephemeral timers (podman healthchecks have hash names)
+    # and weekly-cadence timers (covered by SystemdWeeklyTimerStale below).
+    # Threshold 36h: the slowest remaining cadence is daily (+RandomizedDelaySec),
+    # so 36h means a missed run without flapping on catch-up after reboots.
     "systemd-timer-stale" = {
       type = "promql";
       alertname = "SystemdTimerStale";
       expr = ''
-        (time() - node_systemd_timer_last_trigger_seconds{name!~".*[0-9a-f]{64}.*"}) > 86400 * 2
+        (time() - node_systemd_timer_last_trigger_seconds{name!~".*[0-9a-f]{64}.*", name!~"(pgbackrest-check|backup-verification-report|zfs-scrub|restic-prune-.*)\\.timer"}) > 129600
         and node_systemd_unit_state{name=~".*\\.timer", state="active"} == 1
       '';
       for = "30m";
       severity = "medium";
       labels = { service = "system"; category = "systemd"; };
       annotations = {
-        summary = "Systemd timer {{ $labels.name }} hasn't fired in 2+ days on {{ $labels.instance }}";
+        summary = "Systemd timer {{ $labels.name }} hasn't fired in 36+ hours on {{ $labels.instance }}";
         description = "Timer {{ $labels.name }} last triggered {{ $value | humanizeDuration }} ago. Check: systemctl list-timers {{ $labels.name }}";
+      };
+    };
+
+    # Weekly-cadence timers get their own staleness window (9 days = one missed
+    # weekly run with margin). Keep this name list in sync with the exclusion in
+    # systemd-timer-stale above.
+    "systemd-weekly-timer-stale" = {
+      type = "promql";
+      alertname = "SystemdWeeklyTimerStale";
+      expr = ''
+        (time() - node_systemd_timer_last_trigger_seconds{name=~"(pgbackrest-check|backup-verification-report|zfs-scrub|restic-prune-.*)\\.timer"}) > 86400 * 9
+        and node_systemd_unit_state{name=~".*\\.timer", state="active"} == 1
+      '';
+      for = "30m";
+      severity = "medium";
+      labels = { service = "system"; category = "systemd"; };
+      annotations = {
+        summary = "Weekly systemd timer {{ $labels.name }} hasn't fired in 9+ days on {{ $labels.instance }}";
+        description = "Timer {{ $labels.name }} last triggered {{ $value | humanizeDuration }} ago. Check: systemctl list-timers {{ $labels.name }}";
+      };
+    };
+
+    # Generic textfile-collector staleness watchdog
+    # A stale .prom file freezes its gauges at the last written values, so alerts
+    # based on them (pool health, SMART, TLS expiry, containers, UPS, pgBackRest)
+    # go silently blind. All files matched here are produced by timers running at
+    # least every 15 minutes, so 2h of no updates means the producer is broken.
+    # Deliberately excluded:
+    #   - syncoid-*.prom      -> dedicated ZFSReplicationExporterStale (30m, storage.nix)
+    #   - GPU metrics         -> dedicated GpuExporterStale on gpu_metrics_last_run_timestamp
+    #   - event-driven files  -> preseed/backup-report files update rarely by design
+    "textfile-collector-stale" = {
+      type = "promql";
+      alertname = "TextfileCollectorStale";
+      expr = ''
+        time() - node_textfile_mtime_seconds{file=~"(zfs|smart|tls|containers|ups|zfs_snapshots|zpool_errors|pgbackrest)\\.prom"} > 2 * 3600
+      '';
+      for = "15m";
+      severity = "medium";
+      labels = { service = "system"; category = "monitoring"; };
+      annotations = {
+        summary = "Textfile collector {{ $labels.file }} is stale on {{ $labels.instance }}";
+        description = "Metrics file {{ $labels.file }} has not been updated in {{ $value | humanizeDuration }} (producers run every <=15m). Alerts derived from it are blind. Check the matching *-exporter/*-metrics timer and service.";
+        command = "ls -lh /var/lib/node_exporter/textfile_collector/{{ $labels.file }} && systemctl list-timers | grep -Ei 'metrics|exporter'";
+      };
+    };
+
+    # Escalation: half a day without updates means storage/hardware alerting has
+    # been blind long enough to hide a real failure window.
+    "textfile-collector-stale-critical" = {
+      type = "promql";
+      alertname = "TextfileCollectorStaleCritical";
+      expr = ''
+        time() - node_textfile_mtime_seconds{file=~"(zfs|smart|tls|containers|ups|zfs_snapshots|zpool_errors|pgbackrest)\\.prom"} > 12 * 3600
+      '';
+      for = "15m";
+      severity = "critical";
+      labels = { service = "system"; category = "monitoring"; };
+      annotations = {
+        summary = "Textfile collector {{ $labels.file }} stale for 12+ hours on {{ $labels.instance }}";
+        description = "Metrics file {{ $labels.file }} has not been updated in {{ $value | humanizeDuration }}. Storage/hardware alert coverage from this file has been blind for half a day.";
+        command = "ls -lh /var/lib/node_exporter/textfile_collector/ && systemctl --failed";
       };
     };
   };

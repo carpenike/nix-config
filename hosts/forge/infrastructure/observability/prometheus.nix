@@ -425,6 +425,11 @@ in
   # host/platform concerns rather than application-specific.
 
   # Prometheus self-monitoring alert
+  # NOTE: This rule is self-referential (a dead Prometheus can't evaluate it) and
+  # only catches partial failures such as a broken self-scrape. Real coverage for
+  # total Prometheus/Alertmanager failure is the always-firing Watchdog alert
+  # (hosts/forge/core/monitoring.nix) routed to the external healthchecks.io
+  # dead-man's-switch — if the pipeline dies, the missing heartbeat pages us.
   modules.alerting.rules."prometheus-down" = {
     type = "promql";
     alertname = "PrometheusDown";
@@ -435,6 +440,25 @@ in
     annotations = {
       summary = "Prometheus is down on {{ $labels.instance }}";
       description = "Monitoring system is not functioning. Check prometheus.service status.";
+    };
+  };
+
+  # Grafana OnCall meta-monitoring alert
+  # OnCall is the default Alertmanager receiver, so its failure would silently
+  # swallow all notifications. The alerting module already routes
+  # alertname=OnCallDown straight to Pushover (bypassing OnCall) — this rule
+  # provides the missing alert definition for that route, using the
+  # grafana-oncall scrape job defined above.
+  modules.alerting.rules."oncall-down" = lib.mkIf (config.modules.services.grafana-oncall.enable or false) {
+    type = "promql";
+    alertname = "OnCallDown";
+    expr = "up{job=\"grafana-oncall\"} == 0";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "monitoring"; category = "oncall"; };
+    annotations = {
+      summary = "Grafana OnCall is down on {{ $labels.instance }}";
+      description = "OnCall (default alert receiver) is not responding to metrics scrapes. Alert delivery via OnCall is likely broken; this alert is routed directly to Pushover. Check: systemctl status podman-grafana-oncall-engine.service";
     };
   };
 

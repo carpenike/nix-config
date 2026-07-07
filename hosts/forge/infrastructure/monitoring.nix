@@ -85,6 +85,67 @@ let
     mv "$TMP_METRICS_FILE" "$METRICS_FILE"
     chmod 644 "$METRICS_FILE"
   '';
+
+  # ZFS pool error counter exporter (ZED complement)
+  # ZED notifies on discrete events; this exporter provides the queryable state:
+  # per-vdev READ/WRITE/CKSUM counters and scrub results from `zpool status -p`.
+  # Deliberately uses zpool commands only (no statfs) — see the node_exporter
+  # ZFS collector note above.
+  zpoolErrorsScript = pkgs.writeShellScriptBin "export-zpool-errors" ''
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PATH="${lib.makeBinPath [ pkgs.zfs pkgs.coreutils pkgs.gawk pkgs.gnused pkgs.gnugrep ]}"
+
+    METRICS_FILE="/var/lib/node_exporter/textfile_collector/zpool_errors.prom"
+    TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
+
+    {
+      echo "# HELP zfs_pool_vdev_errors Per-vdev error counters from zpool status (type=read|write|cksum)"
+      echo "# TYPE zfs_pool_vdev_errors gauge"
+      echo "# HELP zfs_pool_scrub_errors Errors found by the most recent scrub"
+      echo "# TYPE zfs_pool_scrub_errors gauge"
+      echo "# HELP zfs_pool_scrub_repaired_bytes Bytes repaired by the most recent scrub"
+      echo "# TYPE zfs_pool_scrub_repaired_bytes gauge"
+      echo "# HELP zfs_pool_data_errors Known data errors reported by zpool status"
+      echo "# TYPE zfs_pool_data_errors gauge"
+
+      for pool in $(zpool list -H -o name); do
+        status=$(zpool status -p "$pool")
+
+        # Per-vdev READ/WRITE/CKSUM counters from the config section.
+        # With -p the counters are exact integers; skip the header row and
+        # section headers (logs/cache/spares) which have no counter columns.
+        echo "$status" | awk -v pool="$pool" '
+          $1 == "NAME" && $2 == "STATE" { inconfig=1; next }
+          inconfig && NF == 0 { inconfig=0 }
+          inconfig && NF >= 5 && $3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ && $5 ~ /^[0-9]+$/ {
+            printf "zfs_pool_vdev_errors{pool=\"%s\",vdev=\"%s\",type=\"read\"} %s\n", pool, $1, $3
+            printf "zfs_pool_vdev_errors{pool=\"%s\",vdev=\"%s\",type=\"write\"} %s\n", pool, $1, $4
+            printf "zfs_pool_vdev_errors{pool=\"%s\",vdev=\"%s\",type=\"cksum\"} %s\n", pool, $1, $5
+          }
+        '
+
+        # Scrub results from the scan line, e.g.
+        #   scan: scrub repaired 0B in 00:25:12 with 0 errors on Sun ...
+        scan_line=$(echo "$status" | grep 'scan:' || true)
+        scrub_errors=$(echo "$scan_line" | sed -n 's/.*with \([0-9]\+\) errors.*/\1/p')
+        repaired=$(echo "$scan_line" | sed -n 's/.*scrub repaired \([0-9]\+\).*/\1/p')
+        echo "zfs_pool_scrub_errors{pool=\"$pool\"} ''${scrub_errors:-0}"
+        echo "zfs_pool_scrub_repaired_bytes{pool=\"$pool\"} ''${repaired:-0}"
+
+        # Trailing errors line: "errors: No known data errors" or a count
+        if echo "$status" | grep -q 'No known data errors'; then
+          echo "zfs_pool_data_errors{pool=\"$pool\"} 0"
+        else
+          data_errors=$(echo "$status" | sed -n 's/^errors: \([0-9]\+\).*/\1/p')
+          echo "zfs_pool_data_errors{pool=\"$pool\"} ''${data_errors:-1}"
+        fi
+      done
+    } > "$TMP_METRICS_FILE"
+
+    mv "$TMP_METRICS_FILE" "$METRICS_FILE"
+    chmod 644 "$METRICS_FILE"
+  '';
 in
 {
   imports = [
@@ -241,6 +302,73 @@ in
       OnBootSec = "2m";
       OnUnitActiveSec = "5m";
       Unit = "smart-metrics-exporter.service";
+    };
+  };
+
+  # ZFS pool error counter monitoring (ZED complement)
+  # ZED (re-enabled in the ZFS module) emits event notifications; these metrics
+  # make the underlying error counters visible to Prometheus for alerting/trending.
+  systemd.services.zpool-errors-exporter = {
+    description = "ZFS Pool Error Counter Exporter for Prometheus";
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root"; # zpool commands require root
+      ExecStart = "${zpoolErrorsScript}/bin/export-zpool-errors";
+    };
+  };
+
+  systemd.timers.zpool-errors-exporter = {
+    description = "Run ZFS pool error exporter every 5 minutes";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "3m";
+      OnUnitActiveSec = "5m";
+      Unit = "zpool-errors-exporter.service";
+    };
+  };
+
+  # ZFS pool error alerts
+  # Any nonzero device error counter deserves attention (ZFS clears counters only
+  # on 'zpool clear', so these persist until acknowledged).
+  modules.alerting.rules."zpool-vdev-errors" = {
+    type = "promql";
+    alertname = "ZfsVdevErrors";
+    expr = "zfs_pool_vdev_errors > 0";
+    for = "5m";
+    severity = "medium";
+    labels = { service = "zfs"; category = "hardware"; };
+    annotations = {
+      summary = "ZFS {{ $labels.type }} errors on {{ $labels.pool }}/{{ $labels.vdev }} ({{ $value }})";
+      description = "Device {{ $labels.vdev }} in pool {{ $labels.pool }} has {{ $value }} {{ $labels.type }} errors. Investigate the device, then acknowledge with 'zpool clear {{ $labels.pool }}'.";
+      command = "zpool status -v {{ $labels.pool }}";
+    };
+  };
+
+  modules.alerting.rules."zpool-scrub-errors" = {
+    type = "promql";
+    alertname = "ZfsScrubErrors";
+    expr = "zfs_pool_scrub_errors > 0 or zfs_pool_scrub_repaired_bytes > 0";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "zfs"; category = "hardware"; };
+    annotations = {
+      summary = "ZFS scrub found/repaired errors on pool {{ $labels.pool }}";
+      description = "The most recent scrub on {{ $labels.pool }} found errors or repaired data — a disk or cabling problem is corrupting data. Check 'zpool status -v {{ $labels.pool }}' and SMART health.";
+      command = "zpool status -v {{ $labels.pool }}";
+    };
+  };
+
+  modules.alerting.rules."zpool-data-errors" = {
+    type = "promql";
+    alertname = "ZfsDataErrors";
+    expr = "zfs_pool_data_errors > 0";
+    for = "5m";
+    severity = "critical";
+    labels = { service = "zfs"; category = "hardware"; };
+    annotations = {
+      summary = "ZFS known data errors on pool {{ $labels.pool }}";
+      description = "zpool status reports known data errors on {{ $labels.pool }} — files may be corrupt. Run 'zpool status -v {{ $labels.pool }}' to list affected files and restore them from backup.";
+      command = "zpool status -v {{ $labels.pool }}";
     };
   };
 

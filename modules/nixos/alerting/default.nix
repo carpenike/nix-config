@@ -82,7 +82,12 @@ let
       type = mkOption {
         type = types.enum [ "event" "promql" ];
         default = "event";
-        description = "Alert type: direct event injection or PromQL rule.";
+        description = ''
+          Alert type. Only "promql" rules are rendered into the Prometheus rule
+          file; "event" rules are rejected at eval time (the event pipeline was
+          removed). The default is intentionally left as "event" so rules that
+          forget to declare their type fail loudly instead of being dropped.
+        '';
       };
 
       alertname = mkOption {
@@ -270,6 +275,19 @@ in
             message = "modules.alerting: Pushover user secret '${cfg.receivers.pushover.userSecret}' not found in sops.secrets. Either define the secret or disable alerting.";
           }
         ]
+        ++
+        # Event rules are silently ignored: only type = "promql" rules are rendered
+        # into the Prometheus rule file (the event pipeline was removed, see note above).
+        # Fail eval loudly instead of dropping rules on the floor.
+        (
+          let
+            eventRules = builtins.filter (r: cfg.rules.${r}.type == "event") ruleNames;
+          in
+          [{
+            assertion = eventRules == [ ];
+            message = "modules.alerting: rules with type = \"event\" are not supported (the event pipeline was removed) and would be silently dropped: ${builtins.concatStringsSep ", " eventRules}. Set type = \"promql\" and provide an 'expr'.";
+          }]
+        )
         ++
         # PromQL rules must have expr set
         (map
