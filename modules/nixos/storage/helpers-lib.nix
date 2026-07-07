@@ -84,6 +84,12 @@
       order = builtins.filter (m: m != "restic" || resticConfigured) filteredMethods;
       resticConfiguredFlag = if resticConfigured then "true" else "false";
 
+      # Null-safe values for script interpolation: restore_restic is always
+      # DEFINED in the script (the runtime flag above makes it a no-op), so a
+      # null repo/password must not reach Nix string interpolation.
+      resticRepoUrlStr = if resticRepoUrl == null then "" else resticRepoUrl;
+      resticPasswordFileStr = if resticPasswordFile == null then "" else toString resticPasswordFile;
+
       # Method enable checks are computed inline in script; remove unused bindings
 
       # Recursive ownership fixup after a restore. Skipped for multi-owner
@@ -467,7 +473,7 @@
                       return 1
                     fi
                     echo "restore_method=restic" >> "$PROGRESS_MARKER"
-                    echo "Attempting Restic restore from repository '${resticRepoUrl}'..."
+                    echo "Attempting Restic restore from repository '${resticRepoUrlStr}'..."
 
                     ${lib.optionalString (resticEnvironmentFile != null) ''
                       # Source environment file for restic credentials
@@ -478,7 +484,7 @@
 
                     # PRE-FLIGHT CHECK: Verify repository is accessible before attempting restore
                     echo "Performing Restic pre-flight check..."
-                    if ! restic -r "${resticRepoUrl}" --password-file "${resticPasswordFile}" cat config >/dev/null 2>&1; then
+                    if ! restic -r "${resticRepoUrlStr}" --password-file "${resticPasswordFileStr}" cat config >/dev/null 2>&1; then
                       echo "Restic pre-flight check failed: repository is unreachable or misconfigured."
                       return 1
                     fi
@@ -505,7 +511,7 @@
                     # one still being written to.
                     RESTORE_SOURCE=""
                     for candidate in ${lib.escapeShellArg "/var/lib/backup-snapshots/service-${serviceName}"} ${lib.concatMapStringsSep " " lib.escapeShellArg resticPaths}; do
-                      if restic -r "${resticRepoUrl}" --password-file "${resticPasswordFile}" \
+                      if restic -r "${resticRepoUrlStr}" --password-file "${resticPasswordFileStr}" \
                           snapshots --no-lock --latest 1 --path "$candidate" --json 2>/dev/null \
                           | ${pkgs.jq}/bin/jq -e 'length > 0' >/dev/null 2>&1; then
                         RESTORE_SOURCE="$candidate"
@@ -520,8 +526,8 @@
                     echo "Restoring contents of '$RESTORE_SOURCE' from latest snapshot into ${mountpoint}..."
 
                     RESTIC_ARGS=(
-                      -r "${resticRepoUrl}"
-                      --password-file "${resticPasswordFile}"
+                      -r "${resticRepoUrlStr}"
+                      --password-file "${resticPasswordFileStr}"
                       restore "latest:$RESTORE_SOURCE"
                       --path "$RESTORE_SOURCE"
                       --target "${mountpoint}"
@@ -567,7 +573,7 @@
                     write_metrics "success" "restic" "$DURATION"
 
                     rm -f "$PROGRESS_MARKER"
-                    ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
+                    ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrlStr}."}
                     return 0
                   }
 

@@ -26,17 +26,10 @@
     # Auto-discovery still contributes scrape configs to that native hub (the
     # observability module appends discovered jobs to services.prometheus.scrapeConfigs).
     prometheus.enable = false;
-    # Only scrape services with real, verified /metrics endpoints.
-    # lib/service-factory.nix currently defaults metrics.enable = true for every
-    # generated service even when no Prometheus endpoint exists, so an explicit
-    # allowlist is required to avoid scraping dozens of dead targets.
-    # TODO: drop this allowlist (reset to null) once the factory default flips
-    # to metrics.enable = false and services declare metrics explicitly.
-    autoDiscovery.allowedServices = [
-      "gatus" # native /metrics on :8090
-      "loki" # native /metrics on :3100
-      "promtail" # native /metrics on :9080
-    ];
+    # No allowlist: the service factory defaults metrics.enable = false, so a
+    # service appearing in discovery is an explicit, trustworthy declaration
+    # that it exposes a real Prometheus endpoint (gatus/loki/promtail today,
+    # autobrr via its module-level metrics option).
     # Enable default stack alerts (Loki/Promtail health)
     alerts.enable = true;
   };
