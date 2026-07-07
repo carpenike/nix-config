@@ -26,11 +26,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783336465,
-        "narHash": "sha256-uG/cRE40aUMI62Iu2WoEKZfFMOyyCoeUIpjpWm+4YWY=",
+        "lastModified": 1783444028,
+        "narHash": "sha256-RNkqYOvKOnHHKDxE3ukmvssxBaaILKQb8YoS5bfCkEI=",
         "owner": "carpenike",
         "repo": "coachiq",
-        "rev": "bbc4dc149f5f3d57e86196b6a6fccc48c67d69b8",
+        "rev": "688a757cb8c90472fd8940813d76542456609e92",
         "type": "github"
       },
       "original": {
