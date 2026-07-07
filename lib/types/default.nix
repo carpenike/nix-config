@@ -61,5 +61,5 @@ in
   inherit (containerTypes) containerResourcesSubmodule;
   inherit (resourcesTypes) systemdResourcesSubmodule;
   inherit (authTypes) staticApiKeySubmodule;
-  inherit (serviceSpecTypes) serviceSpecSubmodule validateServiceSpec;
+  inherit (serviceSpecTypes) validateServiceSpec;
 }

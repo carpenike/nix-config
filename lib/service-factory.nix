@@ -52,9 +52,12 @@
 #
 # WHAT THE FACTORY PROVIDES:
 # - Standard options: enable, dataDir, user, group, image, timezone, resources,
-#   healthcheck, reverseProxy, metrics, logging, backup, notifications, preseed
+#   healthcheck, reverseProxy, bindAddress, hardening, gatus, metrics, logging,
+#   backup, notifications, preseed
 # - For media services: mediaDir, nfsMountDependency, mediaGroup, podmanNetwork
-# - Standard config: Caddy registration, ZFS dataset, user creation, systemd deps
+# - Standard config: Caddy registration, ZFS dataset, user creation, systemd deps,
+#   localhost-bound port publish, container hardening (no-new-privileges,
+#   cap-drop for non-root), Gatus status-page endpoint for proxied services
 
 { lib }:
 
@@ -67,6 +70,7 @@ let
       hasNfsMount = true;
       defaultMediaGroup = "media";
       tags = [ "media" ];
+      gatusGroup = "Media";
     };
     productivity = {
       serviceType = "productivity";
@@ -74,6 +78,7 @@ let
       hasNfsMount = false;
       defaultMediaGroup = null;
       tags = [ "productivity" ];
+      gatusGroup = "Productivity";
     };
     infrastructure = {
       serviceType = "infrastructure";
@@ -81,6 +86,7 @@ let
       hasNfsMount = false;
       defaultMediaGroup = null;
       tags = [ "infrastructure" ];
+      gatusGroup = "Infrastructure";
     };
     home-automation = {
       serviceType = "home_automation";
@@ -88,6 +94,7 @@ let
       hasNfsMount = false;
       defaultMediaGroup = null;
       tags = [ "home-automation" ];
+      gatusGroup = "Home Automation";
     };
     downloads = {
       serviceType = "downloads";
@@ -95,6 +102,7 @@ let
       hasNfsMount = true;
       defaultMediaGroup = "media";
       tags = [ "downloads" ];
+      gatusGroup = "Downloads";
     };
     monitoring = {
       serviceType = "observability";
@@ -102,6 +110,7 @@ let
       hasNfsMount = false;
       defaultMediaGroup = null;
       tags = [ "monitoring" ];
+      gatusGroup = "Monitoring";
     };
     ai = {
       serviceType = "ai";
@@ -109,6 +118,7 @@ let
       hasNfsMount = false;
       defaultMediaGroup = null;
       tags = [ "ai" ];
+      gatusGroup = "AI";
     };
   };
 
@@ -186,10 +196,97 @@ let
         description = "Reverse proxy configuration for ${name} web interface";
       };
 
+      bindAddress = lib.mkOption {
+        type = lib.types.str;
+        default = "127.0.0.1";
+        description = ''
+          Host address the main WebUI port is published on. Podman port
+          publishes bypass the NixOS firewall (DNAT happens before INPUT),
+          so the default binds to localhost only — external access goes
+          through the Caddy reverse proxy, and localhost consumers
+          (Caddy, Homepage widgets, Prometheus) keep working. Set to
+          "0.0.0.0" only for genuinely LAN-facing services.
+
+          Note: extraPorts are still published unqualified (all interfaces)
+          because they exist for direct LAN/WAN access (e.g. torrent ports).
+        '';
+      };
+
+      # Container hardening. The mechanics live in podmanLib.mkContainer
+      # (modules/nixos/services/podman/lib.nix); these options feed it.
+      hardening = {
+        allowPrivilegeEscalation = lib.mkOption {
+          type = lib.types.bool;
+          default = spec.hardening.allowPrivilegeEscalation or false;
+          description = ''
+            Opt out of the default --security-opt=no-new-privileges for this
+            container. Only needed for images whose runtime user must gain
+            privileges across execve (sudo, setuid binaries, file
+            capabilities). Root entrypoints that merely *drop* privileges
+            (gosu/su-exec/s6-setuidgid) work fine under no-new-privileges.
+          '';
+        };
+        capAdd = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = spec.hardening.capAdd or [ ];
+          example = [ "NET_BIND_SERVICE" ];
+          description = ''
+            Capabilities to add back when dropAllCapabilities applies.
+          '';
+        };
+        dropAllCapabilities = lib.mkOption {
+          type = lib.types.bool;
+          default = !(spec.runAsRoot or false);
+          description = ''
+            Apply --cap-drop=ALL to the container. Defaults to true only for
+            non-root containers (the factory runs those with --user, where
+            processes have no effective capabilities anyway, so this just
+            shrinks the bounding set). Root containers (spec.runAsRoot) keep
+            podman's default capability set because their entrypoints
+            chown/setuid at startup (CAP_CHOWN, CAP_SETUID, CAP_SETGID, ...)
+            and dropping ALL breaks first-boot initialization.
+          '';
+        };
+      };
+
+      # Gatus black-box monitoring auto-contribution (see gatus module's
+      # `contributions` option). Applied only when reverseProxy is enabled
+      # and the gatus module is imported on the host.
+      gatus = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            Auto-contribute a Gatus endpoint monitoring the through-Caddy
+            URL (https://<reverseProxy.hostName>) for this service. All
+            generated values use mkDefault, so host-level contributions
+            under modules.services.gatus.contributions.${name} win.
+          '';
+        };
+        interval = lib.mkOption {
+          type = lib.types.str;
+          default = "60s";
+          description = "How often Gatus checks the endpoint";
+        };
+        conditions = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ "[STATUS] < 400" ];
+          description = ''
+            Gatus conditions for the auto-generated endpoint. The default
+            accepts 2xx/3xx because SSO-protected vhosts answer
+            unauthenticated probes with a redirect to the auth portal.
+          '';
+        };
+      };
+
       metrics = lib.mkOption {
         type = lib.types.nullOr sharedTypes.metricsSubmodule;
+        # enable defaults to false: most apps have no native Prometheus endpoint,
+        # and auto-discovery must only scrape declared-real metrics endpoints.
+        # Set spec.metricsEnable = true (or override this option) for apps that
+        # actually expose Prometheus metrics at metricsPath on the service port.
         default = {
-          enable = true;
+          enable = spec.metricsEnable or false;
           port = spec.port;
           path = spec.metricsPath or "/metrics";
           labels = {
@@ -335,7 +432,11 @@ let
           };
         });
         default = [ ];
-        description = "Additional ports beyond the main WebUI port (e.g., torrent port)";
+        description = ''
+          Additional ports beyond the main WebUI port (e.g., torrent port).
+          Unlike the WebUI port (see bindAddress), these are published on all
+          interfaces since they exist for direct LAN/WAN access.
+        '';
         example = [{ port = 6881; protocol = "both"; }];
       };
 
@@ -443,6 +544,33 @@ in
         && (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable);
     in
     {
+      imports = [
+        # Gatus black-box monitoring auto-contribution.
+        # Every reverse-proxied service gets a status-page endpoint probing the
+        # through-Caddy URL. Guarded on the option *declaration* (via the
+        # `options` module argument, inside an imported submodule) so hosts that
+        # don't import the gatus module are unaffected. Guarding on `options` is
+        # safe — option declarations never depend on config, so no recursion —
+        # whereas guarding on `config.modules.services ? gatus` would recurse.
+        # All generated values use mkDefault so host-level contributions win.
+        ({ options, ... }: {
+          config = lib.optionalAttrs (options.modules.services ? gatus) {
+            modules.services.gatus.contributions.${name} = lib.mkIf
+              (cfg.enable
+                && cfg.gatus.enable
+                && cfg.reverseProxy != null
+                && cfg.reverseProxy.enable)
+              {
+                name = lib.mkDefault (if validatedSpec.displayName != null then validatedSpec.displayName else name);
+                group = lib.mkDefault category.gatusGroup;
+                url = lib.mkDefault "https://${cfg.reverseProxy.hostName}";
+                interval = lib.mkDefault cfg.gatus.interval;
+                conditions = lib.mkDefault cfg.gatus.conditions;
+              };
+          };
+        })
+      ];
+
       options.modules.services.${name} = mkStandardOptions
         {
           inherit lib sharedTypes serviceIds name extraOptions;
@@ -589,13 +717,26 @@ in
                   )
                   (cfg.extraPorts or [ ]));
               in
-              [ "${toString cfg.port}:${toString containerPort}" ] ++ extraPortMappings;
+              # Main WebUI port binds to cfg.bindAddress (default 127.0.0.1):
+              # podman publishes bypass the NixOS firewall, so unqualified
+              # "port:port" would expose the service LAN-wide. Access goes
+              # through Caddy. extraPorts stay unqualified (see option docs).
+              [ "${cfg.bindAddress}:${toString cfg.port}:${toString containerPort}" ] ++ extraPortMappings;
             resources = cfg.resources;
+            # Hardening knobs consumed by podmanLib.mkContainer (emits
+            # --security-opt=no-new-privileges / --cap-drop=ALL / --cap-add).
+            allowPrivilegeEscalation = cfg.hardening.allowPrivilegeEscalation;
+            dropAllCapabilities = cfg.hardening.dropAllCapabilities;
+            capAdd = cfg.hardening.capAdd;
             extraOptions =
               let containerPort = if validatedSpec.containerPort != null then validatedSpec.containerPort else cfg.port;
               in [
                 "--umask=0027"
-                "--pull=newer"
+                # NOTE: --pull=newer was removed (2026-07). All deployed
+                # consumers pin images by @sha256 digest (Renovate manages
+                # bumps), where the flag is a no-op registry round-trip; for
+                # unpinned tags it silently auto-updated containers outside
+                # Renovate's control. Pin images with a digest instead.
               ]
               ++ lib.optionals (!validatedSpec.runAsRoot) [
                 "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
@@ -609,10 +750,13 @@ in
               ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) (
                 let
                   # Use custom health command if provided in spec, otherwise default to curl-based check
+                  # NOTE: validated specs always contain healthEndpoint (null when
+                  # unset), so `or "/"` would never fire — use an explicit null check.
+                  healthPath = if validatedSpec.healthEndpoint != null then validatedSpec.healthEndpoint else "/";
                   healthCmd =
                     if validatedSpec.healthCommand or null != null
                     then validatedSpec.healthCommand
-                    else ''sh -c '[ "$(curl -sL -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString containerPort}${validatedSpec.healthEndpoint or "/"})" = 200 ]' '';
+                    else ''sh -c '[ "$(curl -sL -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 8 http://127.0.0.1:${toString containerPort}${healthPath})" = 200 ]' '';
                   # Use spec-level healthcheck overrides if provided, otherwise use cfg defaults
                   specHealthcheck = validatedSpec.healthcheck or { };
                   interval = specHealthcheck.interval or cfg.healthcheck.interval;
@@ -773,8 +917,10 @@ in
 
       metrics = lib.mkOption {
         type = lib.types.nullOr sharedTypes.metricsSubmodule;
+        # enable defaults to false — declare real Prometheus endpoints
+        # explicitly via spec.metricsEnable (see mkStandardOptions).
         default = {
-          enable = true;
+          enable = spec.metricsEnable or false;
           port = spec.metricsPort or spec.port;
           path = spec.metricsPath or "/metrics";
           labels = {

@@ -8,14 +8,62 @@ let
 in
 {
   _module.args.podmanLib = rec {
-    # Helper to create a container with standard logging configuration and optional resource limits
+    # Helper to create a container with standard logging configuration, hardening
+    # defaults, and optional resource limits.
+    #
+    # Recognized hardening attrs (stripped before passing to oci-containers):
+    #   allowPrivilegeEscalation = true;   # opt out of no-new-privileges
+    #   dropAllCapabilities = true/false;  # force/suppress --cap-drop=ALL
+    #   capAdd = [ "NET_RAW" ];            # add back individual capabilities
     mkContainer = _name: containerConfig:
       let
+        userExtraOptions = containerConfig.extraOptions or [ ];
+
+        # --- Container hardening defaults --------------------------------
+        # Podman on this fleet is rootful, so a container escape is root on
+        # the host. Two cheap mitigations are applied by default:
+        #
+        # 1. --security-opt=no-new-privileges — blocks privilege gains across
+        #    execve (setuid binaries, file capabilities). Safe for root
+        #    entrypoints that *drop* privileges (gosu/su-exec/s6-setuidgid
+        #    use plain setuid() syscalls, which NNP does not affect). Opt out
+        #    with `allowPrivilegeEscalation = true` only for images whose
+        #    non-root user genuinely needs sudo/setuid at runtime.
+        #
+        # 2. --cap-drop=ALL — applied by default ONLY when the container runs
+        #    as a non-root user (detected via a --user= flag or the `user`
+        #    attr, or forced with `dropAllCapabilities = true`). Non-root
+        #    processes have no effective capabilities anyway, so this merely
+        #    shrinks the bounding set. Root containers keep podman's default
+        #    capability set: LinuxServer-style entrypoints chown files and
+        #    setuid to PUID/PGID at startup (CAP_CHOWN, CAP_SETUID,
+        #    CAP_SETGID, CAP_FOWNER, CAP_DAC_OVERRIDE, ...) and dropping ALL
+        #    would break that first-boot path. Add back individual caps for
+        #    non-root containers with `capAdd`.
+        #
+        # Both are skipped for --privileged containers and when the consumer
+        # already passes its own conflicting flag.
+        isPrivileged = lib.elem "--privileged" userExtraOptions;
+        hasExplicitNNP = lib.any (opt: lib.hasPrefix "--security-opt=no-new-privileges" opt) userExtraOptions;
+        hasExplicitCapDrop = lib.any (opt: lib.hasPrefix "--cap-drop" opt) userExtraOptions;
+        runsAsNonRoot =
+          (containerConfig.user or null) != null
+          || lib.any (opt: lib.hasPrefix "--user=" opt) userExtraOptions;
+        allowPrivilegeEscalation = containerConfig.allowPrivilegeEscalation or false;
+        dropAllCapabilities = containerConfig.dropAllCapabilities or runsAsNonRoot;
+        capAdd = containerConfig.capAdd or [ ];
+        hardeningOptions =
+          lib.optional (!allowPrivilegeEscalation && !isPrivileged && !hasExplicitNNP)
+            "--security-opt=no-new-privileges"
+          ++ lib.optional (dropAllCapabilities && !isPrivileged && !hasExplicitCapDrop)
+            "--cap-drop=ALL"
+          ++ map (cap: "--cap-add=${cap}") capAdd;
+
         defaults = {
           log-driver = cfg.containerDefaults.logDriver;
           extraOptions = [
             "--log-opt=tag=${cfg.containerDefaults.logTag}"
-          ] ++ (containerConfig.extraOptions or [ ]);
+          ] ++ userExtraOptions ++ hardeningOptions;
         };
         # Add resource limits if specified in containerConfig
         # Supports: memory, memoryReservation, cpus
@@ -32,9 +80,16 @@ in
           }
           else defaults;
       in
-      # Remove both "resources" and "extraOptions" from containerConfig to prevent overwriting
-        # the merged extraOptions that includes logging config and resource limits
-      withResourceLimits // (builtins.removeAttrs containerConfig [ "resources" "extraOptions" ]);
+      # Remove helper-only attrs ("resources", "extraOptions", hardening knobs) from
+        # containerConfig so they don't overwrite the merged extraOptions (logging,
+        # hardening, resource limits) or leak unknown attrs into oci-containers.
+      withResourceLimits // (builtins.removeAttrs containerConfig [
+        "resources"
+        "extraOptions"
+        "allowPrivilegeEscalation"
+        "dropAllCapabilities"
+        "capAdd"
+      ]);
 
     # Helper to create logrotate configuration for a container's application logs
     # Note: This helper ONLY creates the logrotate configuration.
