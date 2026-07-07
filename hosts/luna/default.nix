@@ -411,7 +411,8 @@ in
     };
 
     # Restic backup storage on nas-1 (same automount pattern as forge).
-    # MANUAL STEP: create/export /mnt/backup/luna/restic on nas-1.
+    # The export + directory are declared in hosts/nas-1/infrastructure/nfs.nix -
+    # deploy nas-1 before (or with) this change so the mount resolves.
     fileSystems."/mnt/nas-backup" = {
       device = "nas-1.holthome.net:/mnt/backup/luna/restic";
       fsType = "nfs";

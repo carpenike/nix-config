@@ -6,6 +6,7 @@
 # - /mnt/backup/forge/restic      - Restic backup repository (non-database data)
 # - /mnt/backup/forge/postgresql  - pgBackRest backups (PostgreSQL only)
 # - /mnt/backup/forge/docs        - Documentation backups
+# - /mnt/backup/luna/restic       - Restic backup repository for luna
 
 { ... }:
 
@@ -27,8 +28,19 @@
 
       # Documentation backups (disaster recovery docs, runbooks)
       /mnt/backup/forge/docs forge.holthome.net(rw,sync,no_subtree_check,no_root_squash)
+
+      # Restic backup storage for luna (adguardhome/unifi/omada dumps)
+      /mnt/backup/luna/restic luna.holthome.net(rw,sync,no_subtree_check,no_root_squash)
     '';
   };
+
+  # The luna directory has no ZFS replication dataset backing it (forge's
+  # paths exist as backup/forge/* datasets); create it under the backup pool
+  # mount so the export is valid before luna's first backup run.
+  systemd.tmpfiles.rules = [
+    "d /mnt/backup/luna 0755 root root -"
+    "d /mnt/backup/luna/restic 0770 root root -"
+  ];
 
   # Use NFSv4 with proper ID mapping (new format - replaces deprecated extraNfsdConfig)
   services.nfs.settings = {

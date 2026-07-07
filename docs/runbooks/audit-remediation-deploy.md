@@ -77,12 +77,9 @@ creation:
    sudo zfs set recordsize=1M backup/luna/restic
    ```
 
-2. Add the export to `hosts/nas-1/infrastructure/nfs.nix` (this `.nix`
-   change is **not** on this branch):
-
-   ```text
-   /mnt/backup/luna/restic luna.holthome.net(rw,sync,no_subtree_check,no_root_squash)
-   ```
+2. The export and a fallback directory (tmpfiles) are already declared on
+   this branch in `hosts/nas-1/infrastructure/nfs.nix` — the dataset from
+   step 1 mounts over the empty fallback directory and takes precedence.
 
 3. Deploy nas-1: `task nix:apply-nixos host=nas-1 NIXOS_DOMAIN=holthome.net`
 
