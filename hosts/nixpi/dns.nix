@@ -29,8 +29,16 @@
       enable = true;
       mutableSettings = true; # Allow web UI changes to persist
       # Mirror luna's essential settings (upstreams, local holthome.net/holtel.io
-      # routing via Mikrotik, blocklists, client VLAN policies).
-      settings = import ../luna/config/adguard.nix { inherit config lib; };
+      # routing via Mikrotik, blocklists, client VLAN policies) - but WITHOUT
+      # the declarative admin user: nixpi's sops file has no adguardhome
+      # password key yet and sops-nix fails the build for missing keys. The UI
+      # is loopback-only (SSH tunnel), so no-auth is acceptable until then.
+      # TO ENABLE AUTH: provision the secret (see ./secrets.nix), then remove
+      # `passwordSecret = null` and the `users` override below.
+      passwordSecret = null;
+      settings = (import ../luna/config/adguard.nix { inherit config lib; }) // {
+        users = [ ];
+      };
       # No reverseProxy: nixpi's Caddy only serves holtel.io (see ./caddy.nix)
     };
 

@@ -20,6 +20,18 @@ in
       default = { };
       type = lib.types.attrs;
     };
+    passwordSecret = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = "networking/adguardhome/password";
+      description = ''
+        Name of the sops secret holding the web UI password. It is bcrypt-hashed
+        into AdGuardHome.yaml at service start, replacing the ADGUARDPASS
+        placeholder in settings.users. Set to null on hosts that do not have
+        the secret provisioned yet - the UI then runs without the declarative
+        user (keep it loopback-only in that case).
+      '';
+    };
+
     mutableSettings = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -138,33 +150,38 @@ in
     systemd.services.adguardhome = {
       # Override the default NixOS adguardhome preStart with improved logic
       # that separates password injection from config sync
-      preStart = lib.mkForce ''
-        # Password injection: Always replace ADGUARDPASS placeholder if present
-        # This ensures initial deployments and mutableSettings=true hosts get bcrypt hash
-        if [ -f "$STATE_DIRECTORY/AdGuardHome.yaml" ] && grep -q "ADGUARDPASS" "$STATE_DIRECTORY/AdGuardHome.yaml"; then
-          echo "Injecting bcrypt password hash..."
-          PASSWORD=$(cat ${config.sops.secrets."networking/adguardhome/password".path})
-          HASH=$(${pkgs.apacheHttpd}/bin/htpasswd -B -C 10 -n -b dummy "$PASSWORD" | cut -d: -f2-)
-          ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
-        fi
+      preStart =
+        let
+          injectPassword = lib.optionalString (cfg.passwordSecret != null) ''
+            if [ -f "$STATE_DIRECTORY/AdGuardHome.yaml" ] && grep -q "ADGUARDPASS" "$STATE_DIRECTORY/AdGuardHome.yaml"; then
+              echo "Injecting bcrypt password hash..."
+              PASSWORD=$(cat ${config.sops.secrets.${cfg.passwordSecret}.path})
+              HASH=$(${pkgs.apacheHttpd}/bin/htpasswd -B -C 10 -n -b dummy "$PASSWORD" | cut -d: -f2-)
+              ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
+            fi
+          '';
+        in
+        lib.mkForce ''
+          # Password injection: Always replace ADGUARDPASS placeholder if present
+          # This ensures initial deployments and mutableSettings=true hosts get bcrypt hash
+          # (skipped entirely when passwordSecret = null)
+          ${injectPassword}
 
-        ${lib.optionalString (!cfg.mutableSettings) ''
-          # Declarative config sync: Only when mutableSettings = false
-          # The NixOS module's default preStart has broken logic: [ "" = "1" ] always fails
-          # This ensures declarative config is applied on every service start
-          # Runtime data (query logs, statistics) are stored separately and not affected
+          ${lib.optionalString (!cfg.mutableSettings) ''
+            # Declarative config sync: Only when mutableSettings = false
+            # The NixOS module's default preStart has broken logic: [ "" = "1" ] always fails
+            # This ensures declarative config is applied on every service start
+            # Runtime data (query logs, statistics) are stored separately and not affected
 
-          echo "Syncing declarative AdGuard Home configuration..."
-          CONFIG_FILE="${pkgs.writeText "AdGuardHome.yaml" (builtins.toJSON config.services.adguardhome.settings)}"
-          cp --force "$CONFIG_FILE" "$STATE_DIRECTORY/AdGuardHome.yaml"
-          chmod 600 "$STATE_DIRECTORY/AdGuardHome.yaml"
+            echo "Syncing declarative AdGuard Home configuration..."
+            CONFIG_FILE="${pkgs.writeText "AdGuardHome.yaml" (builtins.toJSON config.services.adguardhome.settings)}"
+            cp --force "$CONFIG_FILE" "$STATE_DIRECTORY/AdGuardHome.yaml"
+            chmod 600 "$STATE_DIRECTORY/AdGuardHome.yaml"
 
-          # Re-inject password after config sync (placeholder gets restored)
-          PASSWORD=$(cat ${config.sops.secrets."networking/adguardhome/password".path})
-          HASH=$(${pkgs.apacheHttpd}/bin/htpasswd -B -C 10 -n -b dummy "$PASSWORD" | cut -d: -f2-)
-          ${pkgs.gnused}/bin/sed -i "s,ADGUARDPASS,$HASH," "$STATE_DIRECTORY/AdGuardHome.yaml"
-        ''}
-      '';
+            # Re-inject password after config sync (placeholder gets restored)
+            ${injectPassword}
+          ''}
+        '';
       serviceConfig.User = adguardUser;
     };
 

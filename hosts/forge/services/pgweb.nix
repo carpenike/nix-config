@@ -56,9 +56,10 @@ in
           };
         };
 
-        metrics = {
-          enable = true;
-        };
+        # No metrics block: pgweb has no Prometheus endpoint. The previous
+        # `metrics.enable = true` (with no port) was never read while
+        # auto-discovery was broken; now that discovery feeds the native
+        # Prometheus hub it would fail eval / create a dead scrape target.
       };
 
       sops.secrets."postgresql/pgweb_password" = {
