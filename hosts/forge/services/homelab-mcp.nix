@@ -77,11 +77,12 @@ in
         # Must match the URL Cloudflare Tunnel / Caddy exposes externally.
         publicBaseUrl = "https://${serviceDomain}";
 
-        # MCP user joins the cooklang group via the upstream module's
-        # `recipesGroup` option (default "cooklang") so save_recipe
-        # writes work. Confirmed via `getent group cooklang` on forge.
+        # Cooklang recipes root, surfaced to the app only to compute
+        # recipe-relative paths. The cooklang tools reach recipes over
+        # cook.holthome.net's HTTP API and never touch this path on disk,
+        # so no group membership / filesystem permission is required
+        # (the upstream `recipesGroup` option was removed in 0.4.0).
         recipesDir = config.modules.services.cooklang.recipeDir or "/data/cooklang/recipes";
-        recipesGroup = config.modules.services.cooklang.group or "cooklang";
 
         # Non-secret declarative settings (visible in /nix/store).
         # PocketID issuer + client ID are not sensitive (the client ID
@@ -99,6 +100,26 @@ in
           # caddySecurity.bypassPaths); the grocy_* tools authenticate with
           # the GROCY-API-KEY header sourced from the env file below.
           HOMELAB_MCP_GROCY_BASE_URL = "https://grocy.holthome.net/api";
+          # Home Assistant REST/WebSocket API base. The ha.holthome.net vhost
+          # is a plain reverse-proxy pass-through (no PocketID gate at Caddy),
+          # so HA's own bearer-token auth gates the API. The ha_* tools
+          # authenticate with the long-lived token (HOMELAB_MCP_HA_TOKEN)
+          # sourced from the env file below.
+          HOMELAB_MCP_HA_BASE_URL = "https://ha.holthome.net";
+
+          # Hardening (recommended once the ha_* tools can actuate a
+          # physical control plane). Neither value is a secret.
+          #
+          # Restrict who may complete a PocketID login and mint a bearer
+          # token to named users (matched against PocketID's `email`
+          # claim). Empty upstream default = any PocketID user. Parsed as
+          # JSON by pydantic, so this must be a JSON array literal.
+          HOMELAB_MCP_OAUTH_USER_ALLOWLIST = ''["ryan@ryanholt.net", "stefanie@stefanieholt.com"]'';
+          # Shrink issued bearer-token lifetime from the 24h default to 4h.
+          # Refresh tokens (30d, rotated on every use) mean this does not
+          # force interactive re-login — it only shortens the window a
+          # leaked access token stays valid.
+          HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS = 4 * 60 * 60;
         };
 
         # Sops-managed env file containing at minimum:
@@ -108,6 +129,13 @@ in
         #     Authenticates to grocy.holthome.net/api via the GROCY-API-KEY
         #     header. The /api path is exempt from PocketID at Caddy (see
         #     hosts/forge/services/grocy.nix), so the key alone gates the API.
+        # Required for the ha_* tools:
+        #   HOMELAB_MCP_HA_TOKEN=<long-lived access token from a dedicated HA user>
+        #     Create in HA under the user's Profile → Security → Long-lived
+        #     access tokens. Use a dedicated non-admin user for read/query
+        #     tools; an admin user is only required if you want the HA
+        #     automation/service-call tools. Sent as an Authorization: Bearer
+        #     header to ha.holthome.net.
         # Optionally:
         #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA PEM, escaped \n>
         #     If absent, the service auto-generates and persists a
