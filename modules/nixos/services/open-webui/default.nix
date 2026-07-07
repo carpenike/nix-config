@@ -661,17 +661,8 @@ in
         # Note: Do NOT use Caddy auth layer - Open WebUI handles auth via OIDC
       };
 
-      # Backup integration
-      modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
-        enable = true;
-        paths = [ cfg.dataDir ];
-        repository = cfg.backup.repository;
-        tags = cfg.backup.tags or [ serviceName "ai-chat" ];
-        excludePatterns = cfg.backup.excludePatterns or [
-          "**/cache/**"
-          "**/*.log"
-        ];
-      };
+      # Backup integration: cfg.backup is auto-discovered by the unified backup
+      # module (modules/nixos/services/backup) - no explicit job needed here
     })
   ];
 }

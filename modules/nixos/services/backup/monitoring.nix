@@ -191,6 +191,44 @@ in
         };
       };
 
+      # Expected-jobs metric: written independently of job execution so alerts
+      # can detect jobs that never run (metrics from the jobs themselves only
+      # exist after a job has run at least once). Refreshed daily so the file's
+      # mtime stays ahead of the retention cleanup above.
+      # NOTE: filename deliberately does NOT match restic_backup_*.prom - that
+      # glob is reaped by the activation cleanup script for unknown jobs.
+      systemd.services.backup-expected-jobs-metrics = {
+        description = "Export expected restic backup jobs metric";
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          Type = "oneshot";
+          # No RemainAfterExit: the daily timer must be able to re-trigger the
+          # unit to keep the metric file's mtime fresh
+          ExecStart = pkgs.writeShellScript "backup-expected-jobs-metrics" ''
+            set -euo pipefail
+
+            METRICS_FILE="${monitoringCfg.textfileCollector.directory}/restic_expected_jobs.prom"
+
+            {
+              echo "# HELP restic_backup_job_expected Backup job is configured on this host (1=expected)"
+              echo "# TYPE restic_backup_job_expected gauge"
+              ${lib.concatStringsSep "\n" (lib.mapAttrsToList
+                (jobName: _job: ''echo 'restic_backup_job_expected{backup_job="${jobName}",hostname="${config.networking.hostName}"} 1' '')
+                enabledJobs)}
+            } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
+          '';
+        };
+      };
+
+      systemd.timers.backup-expected-jobs-metrics = {
+        description = "Timer for expected restic backup jobs metric";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "daily";
+          Persistent = true;
+        };
+      };
+
       # Health check service for monitoring system
       systemd.services.backup-monitoring-health = {
         description = "Backup monitoring health check";
@@ -253,7 +291,7 @@ in
           annotations = {
             summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
             description = "Backup to {{ $labels.repository }} failed. Immediate investigation required.";
-            command = "systemctl status restic-backups-{{ $labels.backup_job }}.service && journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
+            command = "systemctl status restic-backup-{{ $labels.backup_job }}.service && journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '24h'";
           };
         };
 
@@ -268,7 +306,42 @@ in
           annotations = {
             summary = "Restic backup job {{ $labels.backup_job }} hasn't run in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours on {{ $labels.hostname }}";
             description = "Last successful backup: {{ $value | humanizeDuration }} ago. Check timer status and scheduling.";
-            command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer && systemctl list-timers restic-backups-{{ $labels.backup_job }}.timer";
+            command = "systemctl status restic-backup-{{ $labels.backup_job }}.timer && systemctl list-timers restic-backup-{{ $labels.backup_job }}.timer";
+          };
+        };
+
+        # Restic partial backup (exit code 3: snapshot created, files unreadable)
+        # Whitelisted as success at the unit level, so this metric is the only
+        # signal that data is silently missing from snapshots
+        "restic-backup-partial" = {
+          type = "promql";
+          alertname = "ResticBackupPartial";
+          expr = "restic_backup_partial{backup_job!=\"\"} == 1";
+          for = "5m";
+          severity = "medium";
+          labels = { service = "backup"; category = "restic"; };
+          annotations = {
+            summary = "Restic backup job {{ $labels.backup_job }} was partial on {{ $labels.hostname }}";
+            description = "Last backup to {{ $labels.repository }} completed but some files were unreadable (restic exit code 3). Check permissions/group membership for the restic-backup user.";
+            command = "journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '24h' | grep -i 'error\\|permission'";
+          };
+        };
+
+        # Restic backup job never ran
+        # Complements restic-backup-stale, which only fires for jobs that have
+        # succeeded at least once (their metrics files exist). Expected-job
+        # metrics are written independently at boot/daily.
+        "restic-backup-never-run" = {
+          type = "promql";
+          alertname = "ResticBackupNeverRun";
+          expr = "restic_backup_job_expected == 1 unless on (backup_job, hostname) restic_backup_last_success_timestamp";
+          for = "26h";
+          severity = "high";
+          labels = { service = "backup"; category = "restic"; };
+          annotations = {
+            summary = "Restic backup job {{ $labels.backup_job }} is configured but has never succeeded on {{ $labels.hostname }}";
+            description = "No successful backup recorded since the job appeared >26h ago. The timer may not be firing or every run is failing.";
+            command = "systemctl list-timers restic-backup-{{ $labels.backup_job }}.timer && journalctl -u restic-backup-{{ $labels.backup_job }}.service --since '48h'";
           };
         };
 

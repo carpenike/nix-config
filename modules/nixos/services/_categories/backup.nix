@@ -4,7 +4,6 @@
 {
   imports = [
     ../backup # Unified backup management system
-    ../backup-integration.nix # Legacy auto-discovery
     ../resilio-sync # Peer-to-peer sync
   ];
 }

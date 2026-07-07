@@ -55,12 +55,15 @@ let
             METRICS_FILE="/var/lib/node_exporter/textfile_collector/restic_verification_${repoName}.prom"
             LOG_FILE="/var/log/backup/verification-${repoName}.log"
             START_TIME=$(date +%s)
+            # Populated later in the script; referenced by the EXIT trap so it
+            # must exist before any early exit (set -u)
+            RECENT_SNAPSHOTS=0
 
             # Cleanup function for metrics
             cleanup() {
               local exit_code=$?
               local end_time=$(date +%s)
-              local duration=$((end_time - start_time))
+              local duration=$((end_time - START_TIME))
 
               {
                 echo "# HELP restic_verification_status Repository verification status (1=success, 0=failure)"
@@ -76,6 +79,12 @@ let
                   echo "# TYPE restic_verification_last_success_timestamp gauge"
                   echo "restic_verification_last_success_timestamp{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $end_time"
                 fi
+
+                # Emitted here (not mid-script) so the single atomic rewrite of
+                # the metrics file doesn't clobber it
+                echo "# HELP restic_recent_snapshots_count Number of snapshots in last 24h"
+                echo "# TYPE restic_recent_snapshots_count gauge"
+                echo "restic_recent_snapshots_count{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $RECENT_SNAPSHOTS"
               } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
             }
             trap cleanup EXIT
@@ -108,13 +117,7 @@ let
             else
               echo "Found $RECENT_SNAPSHOTS recent snapshots"
             fi
-
-            # Write snapshot count metric
-            {
-              echo "# HELP restic_recent_snapshots_count Number of snapshots in last 24h"
-              echo "# TYPE restic_recent_snapshots_count gauge"
-              echo "restic_recent_snapshots_count{repository=\"${repoName}\",hostname=\"${config.networking.hostName}\"} $RECENT_SNAPSHOTS"
-            } >> "$METRICS_FILE.tmp"
+            # Note: snapshot count metric is written by the cleanup trap
 
             echo "$(date): Verification completed successfully for repository ${repoName}"
           '';
@@ -168,7 +171,7 @@ let
             cleanup() {
               local exit_code=$?
               local end_time=$(date +%s)
-              local duration=$((end_time - start_time))
+              local duration=$((end_time - START_TIME))
 
               # Clean up test directory
               rm -rf "$TEST_DIR" || true
@@ -390,15 +393,51 @@ in
       }
     ];
 
-    # Timer for reporting
-    systemd.timers.backup-verification-report = lib.mkIf verificationCfg.reporting.enable {
-      description = "Timer for verification reporting";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnCalendar = "weekly";
-        Persistent = true;
-      };
-    };
+    # Timers for verification, restore testing and reporting
+    systemd.timers = lib.mkMerge [
+      # Repository verification timers (one per repository)
+      (lib.mkMerge (lib.mapAttrsToList
+        (repoName: _repoConfig: {
+          "backup-verify-${repoName}" = {
+            description = "Timer for ${repoName} repository verification";
+            wantedBy = [ "timers.target" ];
+            timerConfig = {
+              OnCalendar = verificationCfg.schedule;
+              Persistent = true;
+              # Keep verification clear of the nightly backup window (00:00-04:00)
+              RandomizedDelaySec = "2h";
+            };
+          };
+        })
+        repositories))
+
+      # Restore test timers (one per repository, when restore testing enabled)
+      (lib.mkMerge (lib.mapAttrsToList
+        (repoName: _repoConfig: {
+          "backup-restore-test-${repoName}" = {
+            description = "Timer for ${repoName} restore testing";
+            wantedBy = [ "timers.target" ];
+            timerConfig = {
+              OnCalendar = verificationCfg.restoreTesting.schedule;
+              Persistent = true;
+              RandomizedDelaySec = "2h";
+            };
+          };
+        })
+        (lib.filterAttrs (_name: _repo: verificationCfg.restoreTesting.enable) repositories)))
+
+      # Timer for reporting
+      {
+        backup-verification-report = lib.mkIf verificationCfg.reporting.enable {
+          description = "Timer for verification reporting";
+          wantedBy = [ "timers.target" ];
+          timerConfig = {
+            OnCalendar = "weekly";
+            Persistent = true;
+          };
+        };
+      }
+    ];
 
     # Ensure test directory exists
     systemd.tmpfiles.rules = [

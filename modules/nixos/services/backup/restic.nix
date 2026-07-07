@@ -77,13 +77,21 @@ let
           # Security hardening
           PrivateTmp = true;
           ProtectSystem = "strict";
-          ProtectHome = true;
+          # Privileged jobs (host system state incl. /home) still need to read
+          # home directories; "read-only" keeps them visible but unwritable
+          ProtectHome = if jobConfig.privileged then "read-only" else true;
           NoNewPrivileges = true;
 
           # Resource limits
           MemoryMax = jobConfig.resources.memory;
           MemoryLow = jobConfig.resources.memoryReservation;
           CPUQuota = "${toString (builtins.floor (builtins.fromJSON jobConfig.resources.cpus * 100))}%";
+        } // lib.optionalAttrs jobConfig.privileged {
+          # Host-state jobs (e.g. /persist with sops host key material) must read
+          # root-only files. CAP_DAC_READ_SEARCH grants read-everything without
+          # running the whole job as root (compatible with NoNewPrivileges).
+          AmbientCapabilities = [ "CAP_DAC_READ_SEARCH" ];
+        } // {
 
           # I/O scheduling
           IOSchedulingClass = if cfg.performance.ioScheduling.enable then cfg.performance.ioScheduling.ioClass else null;
@@ -109,6 +117,8 @@ let
           # Metrics collection
           METRICS_FILE="/var/lib/node_exporter/textfile_collector/restic_backup_${jobName}.prom"
           START_TIME=$(date +%s)
+          # Set to 1 when restic exits 3 (snapshot created, some files unreadable)
+          PARTIAL=0
 
           # Cleanup function for metrics
           cleanup() {
@@ -172,6 +182,10 @@ let
               echo "# HELP restic_backup_repo_healthy Repository is accessible and readable (1=healthy, 0=unhealthy)"
               echo "# TYPE restic_backup_repo_healthy gauge"
               echo "restic_backup_repo_healthy{$labels} $repo_healthy"
+
+              echo "# HELP restic_backup_partial Backup completed but some files were unreadable (restic exit code 3)"
+              echo "# TYPE restic_backup_partial gauge"
+              echo "restic_backup_partial{$labels} ''${PARTIAL:-0}"
             } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
           }
           trap cleanup EXIT
@@ -200,6 +214,7 @@ let
           # This is common with permission issues on temp files, plugin dirs, etc.
           if [[ $restic_exit -eq 3 ]]; then
             echo "Warning: Backup completed with some unreadable files (exit code 3)"
+            PARTIAL=1
           elif [[ $restic_exit -ne 0 ]]; then
             echo "Backup failed with exit code $restic_exit"
             exit $restic_exit
@@ -306,10 +321,56 @@ in
             default = null;
             description = "ZFS dataset for snapshot-based backups";
           };
+
+          privileged = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Grant CAP_DAC_READ_SEARCH so the job can read root-only files
+              (e.g. sops host key material in /persist). Intended for
+              host-state jobs only; service jobs should rely on group access.
+            '';
+          };
         };
       });
       default = { };
       description = "Restic backup jobs configuration";
+    };
+
+    offsite = lib.mkOption {
+      type = lib.types.submodule {
+        options = {
+          repository = lib.mkOption {
+            type = lib.types.str;
+            default = "r2-offsite";
+            description = "Repository that offsite clone jobs back up to";
+          };
+
+          frequency = lib.mkOption {
+            type = lib.types.str;
+            default = "05:00";
+            description = ''
+              OnCalendar schedule for offsite clone jobs. Defaults to 05:00 so
+              (with the 4h randomized delay) offsite jobs run after the
+              primary nas backup window (00:00-04:00).
+            '';
+          };
+
+          services = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            example = [ "paperless" "home-assistant" ];
+            description = ''
+              Discovered service backup jobs to clone to the offsite
+              repository. Each entry must name an enabled service with
+              backup.enable = true (its discovered job "service-<name>" is
+              cloned as "offsite-<name>" with the same paths/excludes).
+            '';
+          };
+        };
+      };
+      default = { };
+      description = "Offsite clones of selected discovered service backup jobs";
     };
   };
 

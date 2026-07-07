@@ -53,6 +53,34 @@ in
             ];
             description = "Patterns to exclude from pgBackRest offsite backup";
           };
+
+          repo2Cipher = lib.mkOption {
+            type = lib.types.submodule {
+              options = {
+                enable = lib.mkOption {
+                  type = lib.types.bool;
+                  default = false;
+                  description = ''
+                    Enable client-side encryption (aes-256-cbc) for the pgBackRest
+                    offsite repository (repo2). DISABLED by default because enabling
+                    it requires manual steps:
+                    1. Provision a sops secret with the cipher passphrase and point
+                       passphraseFile at it.
+                    2. Re-baseline repo2 - a cipher cannot be added to an existing
+                       repository (delete repo2 contents, stanza-create, full backup).
+                  '';
+                };
+
+                passphraseFile = lib.mkOption {
+                  type = lib.types.nullOr lib.types.path;
+                  default = null;
+                  description = "Path to a file containing the repo2 cipher passphrase (e.g. a sops secret path).";
+                };
+              };
+            };
+            default = { };
+            description = "Client-side encryption for the pgBackRest offsite repository";
+          };
         };
       };
       default = { };
@@ -229,7 +257,12 @@ in
     };
 
     # Ensure pgBackRest configuration exists
-    assertions = lib.mkIf postgresCfg.pgbackrest.enableOffsite [
+    assertions = [
+      {
+        assertion = postgresCfg.pgbackrest.repo2Cipher.enable -> postgresCfg.pgbackrest.repo2Cipher.passphraseFile != null;
+        message = "modules.services.backup.postgres.pgbackrest.repo2Cipher.enable requires passphraseFile to be set (a sops secret with the cipher passphrase)";
+      }
+    ] ++ lib.optionals postgresCfg.pgbackrest.enableOffsite [
       {
         assertion = lib.hasAttr postgresCfg.pgbackrest.offsiteRepository cfg.repositories;
         message = "pgBackRest offsite repository '${postgresCfg.pgbackrest.offsiteRepository}' must be defined in backup repositories";

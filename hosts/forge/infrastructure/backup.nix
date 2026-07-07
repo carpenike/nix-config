@@ -21,13 +21,17 @@
 # Non-Database Services (This file - Restic backups):
 # ----------------------------------------------------
 # This file configures Restic backups for system state and service configurations:
-# - System state: /home, /persist
-# - Service configurations and application data
+# - System state: /home, /persist (system-state jobs below, to BOTH repositories -
+#   /persist includes sops host key material needed for disaster recovery)
+# - Service configurations and application data (auto-discovered jobs -> nas-primary)
+# - Offsite clones of critical service config/state (restic.offsite -> r2-offsite)
 # - Documentation and scripts
 # - ZFS snapshots: Service data only (tank/services - PostgreSQL PGDATA excluded)
 # - ZFS replication: Service data to nas-1 every 15 minutes (excludes PostgreSQL)
 #
-# Repository: Cloudflare R2 bucket "nix-homelab-backups"
+# Repositories:
+# - nas-primary: NFS mount /mnt/nas-backup on nas-1 (primary, all jobs)
+# - r2-offsite: Cloudflare R2 bucket (offsite DR for critical config/state)
 # Credentials: Configured via config.my.r2.* (centralized in default.nix)
 #
 # Setup Requirements:
@@ -76,15 +80,8 @@ in
         ];
       };
 
-      # MIGRATED: Legacy backup-integration system disabled in favor of unified backup system
-      # modules.services.backup-integration = {
-      #   enable = true;
-      #   autoDiscovery.enable = true;
-      #   defaultRepository = "nas-primary";
-      # };
-
       # ACTIVE: Unified backup system integration
-      # Migrated from legacy backup-integration system
+      # (legacy backup-integration auto-discovery module has been removed)
 
       modules.services.backup = {
         enable = true;
@@ -184,6 +181,71 @@ in
             repositoryLocation = "offsite";
           };
         };
+
+        # Offsite (R2) clones of critical service config/state backups.
+        # Single declarative list: each entry names an enabled service with
+        # backup.enable = true; its discovered nas-primary job is cloned as
+        # "offsite-<name>" with identical paths/excludes/snapshot settings.
+        # Media and other bulky data stay NFS-only; PostgreSQL offsite DR is
+        # handled by pgBackRest repo2 (see pgbackrest.nix).
+        # Schedule: 05:00 + 4h randomized delay, staggered after the
+        # nas-primary window (00:00-04:00).
+        restic.offsite = {
+          repository = "r2-offsite";
+          frequency = "05:00";
+          services = [
+            "paperless"
+            "actual"
+            "pocketid"
+            "zigbee2mqtt"
+            "zwave-js-ui"
+            "home-assistant"
+            "esphome"
+            "mealie"
+            "miniflux"
+          ];
+        };
+
+        # Host-critical system state: /persist (incl. sops host key material,
+        # ssh host keys, machine-id) and /home. Backed up to BOTH repositories.
+        # privileged grants CAP_DAC_READ_SEARCH so root-only files are actually
+        # read instead of silently skipped (restic exit code 3).
+        # No ZFS snapshot coordination: these are rpool datasets and the clone
+        # mechanism only supports the tank pool; content is low-churn.
+        restic.jobs =
+          let
+            systemStateJob = {
+              paths = [ "/persist" "/home" ];
+              tags = [ "system-state" "persist" "home" "forge" ];
+              privileged = true;
+              excludePatterns = [
+                "**/.cache"
+                "**/cache"
+                "**/*.tmp"
+                "**/.Trash*"
+              ];
+              # Manual jobs don't inherit performance.resources (that fallback
+              # only applies to discovered service jobs) - match the 2G/1G
+              # floor set above to avoid OOM kills on index load
+              resources = {
+                memory = "2G";
+                memoryReservation = "1G";
+                cpus = "1.5";
+              };
+            };
+          in
+          {
+            # nas-primary copy: nightly window (00:00-04:00)
+            system-state = systemStateJob // {
+              repository = "nas-primary";
+              frequency = "daily";
+            };
+            # r2-offsite copy: staggered after the nas window, like restic.offsite
+            system-state-offsite = systemStateJob // {
+              repository = "r2-offsite";
+              frequency = "05:00";
+            };
+          };
       };
 
       # Forge-specific backup monitoring alerts

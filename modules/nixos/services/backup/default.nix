@@ -59,8 +59,26 @@ let
       })
       servicesWithBackup;
 
-  # Combine discovered jobs with manual jobs - this is the single source of truth
-  allJobs = discoverServiceBackups // (cfg.restic.jobs or { });
+  # Offsite clones of discovered service jobs (declared once per host via
+  # modules.services.backup.restic.offsite.services). Each clone reuses the
+  # discovered job's paths/excludes/snapshot settings but targets the offsite
+  # repository on a staggered schedule. Unknown names are filtered here and
+  # reported via an assertion below.
+  offsiteCfg = cfg.restic.offsite or { repository = "r2-offsite"; frequency = "05:00"; services = [ ]; };
+  offsiteJobs = lib.listToAttrs
+    (map
+      (serviceName: {
+        name = "offsite-${serviceName}";
+        value = discoverServiceBackups."service-${serviceName}" // {
+          repository = offsiteCfg.repository;
+          frequency = offsiteCfg.frequency;
+          tags = discoverServiceBackups."service-${serviceName}".tags ++ [ "offsite" ];
+        };
+      })
+      (lib.filter (s: discoverServiceBackups ? "service-${s}") offsiteCfg.services));
+
+  # Combine discovered jobs with offsite clones and manual jobs - this is the single source of truth
+  allJobs = discoverServiceBackups // offsiteJobs // (cfg.restic.jobs or { });
 
   # Submodules are imported below
 in
@@ -93,6 +111,7 @@ in
             resources = lib.mkOption { type = lib.types.attrs; default = { }; };
             useSnapshots = lib.mkOption { type = lib.types.bool; default = false; };
             zfsDataset = lib.mkOption { type = lib.types.nullOr lib.types.str; default = null; };
+            privileged = lib.mkOption { type = lib.types.bool; default = false; };
           };
         });
         default = { };
@@ -453,6 +472,16 @@ in
       {
         assertion = lib.length (lib.filter (repo: repo.primary) (lib.attrValues cfg.repositories)) <= 1;
         message = "Only one repository can be marked as primary";
+      }
+      {
+        assertion = lib.all (s: discoverServiceBackups ? "service-${s}") cfg.restic.offsite.services;
+        message = ''
+          modules.services.backup.restic.offsite.services contains entries without a discovered backup job: ${lib.concatStringsSep ", " (lib.filter (s: !(discoverServiceBackups ? "service-${s}")) cfg.restic.offsite.services)}.
+          Each entry must name an enabled service with backup.enable = true.'';
+      }
+      {
+        assertion = cfg.restic.offsite.services == [ ] || cfg.repositories ? ${cfg.restic.offsite.repository};
+        message = "modules.services.backup.restic.offsite.repository '${cfg.restic.offsite.repository}' is not a configured repository";
       }
     ];
   };

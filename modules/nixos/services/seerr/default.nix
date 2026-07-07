@@ -349,19 +349,8 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        # Backup integration using standardized restic pattern
-        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          seerr = {
-            enable = true;
-            paths = [ cfg.dataDir ];
-            repository = cfg.backup.repository;
-            frequency = cfg.backup.frequency;
-            tags = cfg.backup.tags;
-            excludePatterns = cfg.backup.excludePatterns;
-            useSnapshots = cfg.backup.useSnapshots;
-            zfsDataset = cfg.backup.zfsDataset;
-          };
-        };
+        # Backup integration: cfg.backup is auto-discovered by the unified backup
+        # module (modules/nixos/services/backup) - no explicit job needed here
       })
 
       # Preseed service

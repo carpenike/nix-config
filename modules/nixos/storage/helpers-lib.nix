@@ -25,10 +25,28 @@
       - resticPasswordFile: (string) Path to the Restic password file.
       - resticEnvironmentFile: (string or null) Path to environment file for Restic (optional).
       - resticPaths: (list of strings) Paths to restore from the Restic backup.
+        Snapshot-based backup jobs are handled automatically: the restore also
+        probes /var/lib/backup-snapshots/service-<name> (the ZFS clone path
+        those jobs back up) and restores from whichever path the repository
+        actually contains.
       - hasCentralizedNotifications: (bool) Whether centralized notifications are enabled.
       - timeoutSec: (int) Timeout for the preseed operation (default: 1800).
       - owner: (string) User to own the restored files (default: "root").
       - group: (string) Group to own the restored files (default: "root").
+      - chownRestored: (bool) Recursively chown restored files to owner:group
+        (default: true). Set false for multi-owner system datasets (/persist,
+        /home) where ZFS receive / restic already preserve correct ownership.
+      - manageMountpoint: (bool) Set the ZFS mountpoint property and mount via
+        `zfs mount` (default: true). Set false for legacy-mounted datasets
+        managed via fileSystems (e.g. disko system datasets).
+      - markCompleteOnFailure: (bool) Mark preseed_complete even when every
+        restore method failed, so the service bootstraps an empty dataset
+        exactly once (default: true). Set false for host-critical datasets
+        where an empty result must keep signalling until restored.
+      - skipIfSnapshotsExist: (bool) Treat existing local snapshots as proof
+        the dataset is live: mark complete and skip all restores (default:
+        false). Prevents restore attempts against healthy, in-use system
+        datasets that predate the preseed property.
   */
   mkPreseedService =
     { serviceName
@@ -48,6 +66,10 @@
     , timeoutSec ? 1800
     , owner ? "root"
     , group ? "root"
+    , chownRestored ? true
+    , manageMountpoint ? true
+    , markCompleteOnFailure ? true
+    , skipIfSnapshotsExist ? false
     }:
     let
       hasReplication = replicationCfg != null && (replicationCfg.targetHost or null) != null;
@@ -63,6 +85,16 @@
       resticConfiguredFlag = if resticConfigured then "true" else "false";
 
       # Method enable checks are computed inline in script; remove unused bindings
+
+      # Recursive ownership fixup after a restore. Skipped for multi-owner
+      # system datasets (/persist, /home) where ZFS receive and restic already
+      # preserve the original per-file ownership and a blanket chown would
+      # destroy it.
+      chownRestoredCmd =
+        if chownRestored then
+          ''${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +''
+        else
+          ''echo "Skipping recursive chown (chownRestored = false)"'';
 
       # Helper to trigger a notification
       notify = template: message: ''
@@ -166,8 +198,15 @@
                   ensure_mounted() {
                     if "$ZFS" list "${dataset}" &>/dev/null; then
                       mkdir -p "${mountpoint}"
+                      ${lib.optionalString manageMountpoint ''
                       "$ZFS" set mountpoint="${mountpoint}" "${dataset}" 2>/dev/null || true
                       "$ZFS" mount "${dataset}" 2>/dev/null || true
+                      ''}
+                      ${lib.optionalString (!manageMountpoint) ''
+                      # Legacy-mounted dataset (fileSystems/fstab manages the mount);
+                      # never rewrite the mountpoint property
+                      : # no-op
+                      ''}
                     fi
                   }
 
@@ -274,7 +313,14 @@
                       # Explicitly set mountpoint and mount before chown.
                       echo "Ensuring dataset is mounted at ${mountpoint}..."
                       mkdir -p "${mountpoint}"
+                      ${if manageMountpoint then ''
                       "$ZFS" set mountpoint="${mountpoint}" "${dataset}"
+                      '' else ''
+                      # Legacy-mounted dataset: mount via mount(8), keep mountpoint=legacy
+                      ${pkgs.util-linux}/bin/mountpoint -q "${mountpoint}" \
+                        || ${pkgs.util-linux}/bin/mount -t zfs "${dataset}" "${mountpoint}" \
+                        || echo "Mount failed or already mounted (legacy dataset)"
+                      ''}
 
                       # NOTE: ZFS send/receive may not preserve all properties depending on send flags.
                       # If source replication doesn't use -p flag, properties will be wrong.
@@ -285,10 +331,12 @@
                         ''"$ZFS" set ${lib.escapeShellArg prop}=${lib.escapeShellArg value} "${dataset}" || echo "Failed to set ${lib.escapeShellArg prop}"''
                       ) datasetProperties)}
 
+                      ${lib.optionalString manageMountpoint ''
                       "$ZFS" mount "${dataset}" || echo "Dataset already mounted or mount failed (may already be mounted)"
+                      ''}
 
                       # Avoid read-only .zfs snapshot directory when changing ownership
-                      ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
+                      ${chownRestoredCmd}
 
                       # Take protective snapshot if none exist to close vulnerability window
                       SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
@@ -378,7 +426,7 @@
                         "$ZFS" release preseed "$LATEST_SNAPSHOT" 2>/dev/null || true
 
                         # Ensure correct ownership after rollback
-                        ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
+                        ${chownRestoredCmd}
 
                         # Take protective snapshot if none exist (shouldn't happen after rollback, but safety first)
                         SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
@@ -445,74 +493,82 @@
                     fi
                     ensure_mounted
 
+                    # Determine which path the repository's snapshots actually contain.
+                    # Snapshot-based backup jobs back up a temporary ZFS clone mounted
+                    # at /var/lib/backup-snapshots/service-<name>, NOT the live data
+                    # directory, so probe the declared paths first and fall back to
+                    # the clone path. Restoring "latest:<path>" places the CONTENTS of
+                    # that directory at the target, avoiding the nested
+                    # <target>/<absolute-path> layout a plain restore would create.
+                    # Clone path is probed first: snapshot-based jobs are the default,
+                    # so when both path styles exist in the repo the clone path is the
+                    # one still being written to.
+                    RESTORE_SOURCE=""
+                    for candidate in ${lib.escapeShellArg "/var/lib/backup-snapshots/service-${serviceName}"} ${lib.concatMapStringsSep " " lib.escapeShellArg resticPaths}; do
+                      if restic -r "${resticRepoUrl}" --password-file "${resticPasswordFile}" \
+                          snapshots --no-lock --latest 1 --path "$candidate" --json 2>/dev/null \
+                          | ${pkgs.jq}/bin/jq -e 'length > 0' >/dev/null 2>&1; then
+                        RESTORE_SOURCE="$candidate"
+                        break
+                      fi
+                    done
+
+                    if [ -z "$RESTORE_SOURCE" ]; then
+                      echo "No Restic snapshots contain any expected path (checked: ${lib.concatStringsSep ", " resticPaths}, /var/lib/backup-snapshots/service-${serviceName})."
+                      return 1
+                    fi
+                    echo "Restoring contents of '$RESTORE_SOURCE' from latest snapshot into ${mountpoint}..."
+
                     RESTIC_ARGS=(
                       -r "${resticRepoUrl}"
                       --password-file "${resticPasswordFile}"
-                      restore latest
+                      restore "latest:$RESTORE_SOURCE"
+                      --path "$RESTORE_SOURCE"
                       --target "${mountpoint}"
                     )
-                    # Append --path arguments as discrete array elements to avoid word-splitting issues
-                    ${lib.concatMapStringsSep "\n" (p: ''
-                      RESTIC_ARGS+=( --path ${lib.escapeShellArg p} )
-                    '') resticPaths}
 
-                    if restic "''${RESTIC_ARGS[@]}"; then
-                      echo "Restic restore successful."
-                      # Ensure correct ownership after restore
-                      ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
-
-                      # Take protective snapshot if none exist to close vulnerability window
-                      SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
-                      if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
-                        echo "Taking protective snapshot after successful Restic restore..."
-                        "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
-                        cleanup_protective_snapshots
-                      fi
-
-                      # Set ZFS property to mark preseed as complete
-                      echo "Marking preseed as complete..."
-                      "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
-
-                      # Write success metrics
-                      END_TIME=$(date +%s)
-                      DURATION=$((END_TIME - START_TIME))
-                      write_metrics "success" "restic" "$DURATION"
-
-                      rm -f "$PROGRESS_MARKER"
-                      ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
-                      return 0
-                    else
+                    if ! restic "''${RESTIC_ARGS[@]}"; then
                       echo "Restic restore failed on first attempt. Retrying once after transient failure..."
                       sleep 5
-                      if restic "''${RESTIC_ARGS[@]}"; then
-                        echo "Restic restore successful on retry."
-                        ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
-
-                        # Take protective snapshot if none exist to close vulnerability window
-                        SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
-                        if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
-                          echo "Taking protective snapshot after successful Restic restore (retry)..."
-                          "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
-                          cleanup_protective_snapshots
-                        fi
-
-                        # Set ZFS property to mark preseed as complete
-                        echo "Marking preseed as complete..."
-                        "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
-
-                        # Write success metrics
-                        END_TIME=$(date +%s)
-                        DURATION=$((END_TIME - START_TIME))
-                        write_metrics "success" "restic" "$DURATION"
-
-                        rm -f "$PROGRESS_MARKER"
-                        ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl} (retry)."}
-                        return 0
-                      else
+                      if ! restic "''${RESTIC_ARGS[@]}"; then
                         echo "Restic restore failed after retry."
                         return 1
                       fi
+                      echo "Restic restore successful on retry."
+                    else
+                      echo "Restic restore successful."
                     fi
+
+                    # Verify the restore actually produced files before declaring success;
+                    # an empty result must not be marked preseed_complete
+                    if [ -z "$(ls -A "${mountpoint}" 2>/dev/null)" ]; then
+                      echo "Restic restore reported success but ${mountpoint} is empty. Treating as failure."
+                      return 1
+                    fi
+
+                    # Ensure correct ownership after restore
+                    ${chownRestoredCmd}
+
+                    # Take protective snapshot if none exist to close vulnerability window
+                    SNAPSHOT_COUNT=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+                    if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+                      echo "Taking protective snapshot after successful Restic restore..."
+                      "$ZFS" snapshot "${dataset}@preseed_protect_$(date +%s)" || true
+                      cleanup_protective_snapshots
+                    fi
+
+                    # Set ZFS property to mark preseed as complete
+                    echo "Marking preseed as complete..."
+                    "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
+
+                    # Write success metrics
+                    END_TIME=$(date +%s)
+                    DURATION=$((END_TIME - START_TIME))
+                    write_metrics "success" "restic" "$DURATION"
+
+                    rm -f "$PROGRESS_MARKER"
+                    ${notify "preseed-success" "Successfully restored ${serviceName} data from Restic repository ${resticRepoUrl}."}
+                    return 0
                   }
 
                   echo "Starting preseed check for ${serviceName} at ${mountpoint}..."
@@ -578,6 +634,21 @@
                     exit 0
                   fi
 
+                  ${lib.optionalString skipIfSnapshotsExist ''
+                  # Safety valve for live datasets that predate the preseed property:
+                  # existing local snapshots prove the dataset has real history, so
+                  # mark it complete instead of attempting any restore against
+                  # in-use data (e.g. a mounted /persist or /home).
+                  EXISTING_SNAPSHOTS=$("$ZFS" list -H -t snapshot -r "${dataset}" 2>/dev/null | ${pkgs.coreutils}/bin/wc -l || echo "0")
+                  if [ "$EXISTING_SNAPSHOTS" -gt 0 ]; then
+                    echo "Dataset ${dataset} already has $EXISTING_SNAPSHOTS snapshots; treating as live and marking preseed complete."
+                    "$ZFS" set "$PRESEED_PROPERTY=yes" "${dataset}"
+                    write_metrics "success" "skipped" "0"
+                    rm -f "$PROGRESS_MARKER"
+                    exit 0
+                  fi
+                  ''}
+
                   echo "Dataset ${dataset} requires preseed (property $PRESEED_PROPERTY is not set). Attempting restore..."
 
                   # Build restore method sequence from Nix-normalized list
@@ -625,11 +696,12 @@
                         ) datasetProperties)} \
                         "${dataset}"
                       "$ZFS" mount "${dataset}" || echo "Dataset already mounted"
-                      ${pkgs.findutils}/bin/find "${mountpoint}" -path "*/.zfs" -prune -o -exec chown ${owner}:${group} {} +
+                      ${chownRestoredCmd}
                       echo "Empty dataset created. Service can now start fresh."
                     fi
                   ''}
 
+                  ${if markCompleteOnFailure then ''
                   # CRITICAL FIX: Mark preseed as complete to prevent future rollbacks on this
                   # newly-bootstrapped dataset. This prevents the data loss scenario where
                   # a subsequent rebuild would roll back to the first sanoid snapshot, losing
@@ -643,6 +715,14 @@
                     # This should be an exceptional case - warn but allow service to start
                     echo "WARNING: Dataset ${dataset} does not exist after restore failures. Cannot mark as complete."
                   fi
+                  '' else ''
+                  # markCompleteOnFailure = false: nothing was restored, so the
+                  # preseed property is deliberately left unset. The restore will be
+                  # retried on the next boot and metrics/alerts keep signalling until
+                  # data is actually recovered (an empty host-critical dataset must
+                  # never be silently marked complete).
+                  echo "NOT marking preseed complete: no restore succeeded and markCompleteOnFailure is disabled."
+                  ''}
 
                   exit 0 # Exit successfully to not block service start
         '';

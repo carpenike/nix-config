@@ -664,18 +664,11 @@ in
             "Scrypted runs privileged with hardware passthrough; NVR recordings are written as uid 0";
         };
 
-        modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          enable = true;
-          repository = cfg.backup.repository;
-          paths = if (cfg.backup.paths != [ ]) then cfg.backup.paths else [ cfg.dataDir ];
-          excludePatterns = (cfg.backup.excludePatterns or [ ]) ++ lib.optionals cfg.nvr.enable [ "${cfg.nvr.path}/**" ];
-          frequency = cfg.backup.frequency;
-          retention = cfg.backup.retention;
-          tags = if (cfg.backup.tags != [ ]) then cfg.backup.tags else [ "scrypted" "nvr" "config" ];
-          useSnapshots = cfg.backup.useSnapshots;
-          zfsDataset = cfg.backup.zfsDataset;
-          preBackupScript = cfg.backup.preBackupScript;
-          postBackupScript = cfg.backup.postBackupScript;
+        # Keep bulky NVR recordings out of the discovered Restic job
+        # (service-scrypted, created by the unified backup module from
+        # cfg.backup) - only config/state is worth backing up
+        modules.services.scrypted.backup = lib.mkIf cfg.nvr.enable {
+          excludePatterns = [ "${cfg.nvr.path}/**" ];
         };
 
         # EMQX MQTT integration - auto-register user and ACLs

@@ -643,19 +643,8 @@ in
         };
       };
 
-      modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-        teslamate = {
-          enable = true;
-          repository = cfg.backup.repository;
-          frequency = cfg.backup.frequency;
-          retention = cfg.backup.retention;
-          paths = if cfg.backup.paths != [ ] then cfg.backup.paths else [ cfg.dataDir ];
-          excludePatterns = cfg.backup.excludePatterns;
-          useSnapshots = cfg.backup.useSnapshots or true;
-          zfsDataset = cfg.backup.zfsDataset or datasetPath;
-          tags = cfg.backup.tags;
-        };
-      };
+      # Backup integration: cfg.backup is auto-discovered by the unified backup
+      # module (modules/nixos/services/backup) - no explicit job needed here
 
       modules.services.caddy.virtualHosts.${serviceName} = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) (
         let

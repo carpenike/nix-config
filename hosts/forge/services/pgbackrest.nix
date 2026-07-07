@@ -4,6 +4,17 @@ let
   serviceEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
+
+  # Repo2 (R2) client-side encryption. Gated behind
+  # modules.services.backup.postgres.pgbackrest.repo2Cipher (default: DISABLED).
+  # Enabling requires a new sops secret with the passphrase AND a full
+  # re-baseline of repo2 - a cipher cannot be added to an existing repository:
+  #   1. Add sops secret (e.g. "pgbackrest/repo2-cipher-pass") and set
+  #      repo2Cipher.passphraseFile to its path.
+  #   2. Delete repo2 contents in R2, then: pgbackrest --stanza=main --repo=2
+  #      stanza-create && pgbackrest --stanza=main --type=full --repo=2 backup
+  repo2CipherCfg = config.modules.services.backup.postgres.pgbackrest.repo2Cipher or { enable = false; passphraseFile = null; };
+  repo2CipherEnabled = repo2CipherCfg.enable && repo2CipherCfg.passphraseFile != null;
   hardenedServiceConfig = {
     ProtectSystem = "full";
     ProtectHome = true;
@@ -104,6 +115,11 @@ in
       # Credentials will be substituted by pgbackrest-config-generator service
       repo2-s3-key=__R2_ACCESS_KEY_ID__
       repo2-s3-key-secret=__R2_SECRET_ACCESS_KEY__
+    ${lib.optionalString repo2CipherEnabled ''
+      # Client-side encryption for offsite repo (passphrase substituted by
+      # pgbackrest-config-generator service - see repo2CipherCfg above)
+      repo2-cipher-type=aes-256-cbc
+      repo2-cipher-pass=__R2_CIPHER_PASS__''}
 
       # Global archive settings (apply to all repositories with archiving enabled)
       # Archive async with local spool to decouple DB availability from repos
@@ -144,10 +160,16 @@ in
       ExecStart = pkgs.writeShellScript "generate-pgbackrest-conf" ''
         set -euo pipefail
 
+        ${lib.optionalString repo2CipherEnabled ''
+        # Repo2 cipher passphrase from dedicated sops secret
+        R2_CIPHER_PASS=$(cat ${repo2CipherCfg.passphraseFile})
+        ''}
+
         # Read template and substitute credentials
         sed -e "s|__R2_ACCESS_KEY_ID__|$AWS_ACCESS_KEY_ID|g" \
             -e "s|__R2_SECRET_ACCESS_KEY__|$AWS_SECRET_ACCESS_KEY|g" \
-            /etc/pgbackrest.conf.template > /etc/pgbackrest.conf
+            ${lib.optionalString repo2CipherEnabled ''-e "s|__R2_CIPHER_PASS__|$R2_CIPHER_PASS|g" \
+            ''}/etc/pgbackrest.conf.template > /etc/pgbackrest.conf
 
         # Set secure permissions (postgres user needs to read this)
         chmod 640 /etc/pgbackrest.conf
@@ -1059,6 +1081,9 @@ in
 
     # pgBackRest Config Generator Failure Monitoring
     pgbackrest-config-generator-failed = {
+      # type is required: the alerting module only renders promql rules and
+      # silently drops rules without it
+      type = "promql";
       alertname = "PgBackRestConfigGeneratorFailed";
       expr = ''node_systemd_unit_state{name="pgbackrest-config-generator.service",state="failed"} == 1'';
       for = "5m";

@@ -410,18 +410,17 @@ in
           };
         };
 
-        modules.backup.restic.jobs.frigate = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          enable = true;
-          repository = cfg.backup.repository;
-          paths = [ cfg.dataDir ];
-          excludePatterns = (cfg.backup.excludePatterns or [ ]) ++ [
+        # Keep bulky NVR media out of the discovered Restic job (service-frigate,
+        # created by the unified backup module from cfg.backup). Recordings live
+        # on their own dataset and are policy-pruned; only config/state is worth
+        # backing up. The relative pattern also matches inside ZFS snapshot-clone
+        # backups, where paths are rooted at /var/lib/backup-snapshots/<job>.
+        modules.services.frigate.backup = {
+          excludePatterns = [
             "${recordingsPath}/**"
+            "**/recordings/**"
             "${cfg.cacheDir}/**"
           ];
-          frequency = cfg.backup.frequency or "daily";
-          tags = cfg.backup.tags or [ "frigate" "nvr" ];
-          useSnapshots = cfg.backup.useSnapshots or true;
-          zfsDataset = cfg.backup.zfsDataset or (if parentDataset == null then null else "${parentDataset}/frigate");
         };
       })
 
