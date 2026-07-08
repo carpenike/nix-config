@@ -89,7 +89,7 @@ jobs:
       - name: Update ${{ steps.resolve.outputs.input }}
         id: update
         run: |
-          nix flake lock --update-input "${{ steps.resolve.outputs.input }}"
+          nix flake update "${{ steps.resolve.outputs.input }}"
           if git diff --quiet flake.lock; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No change — input already at latest rev."
