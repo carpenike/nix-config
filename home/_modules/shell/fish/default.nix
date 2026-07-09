@@ -37,6 +37,10 @@ in
 
           # NixOS deployment (short and memorable)
           naf = "task -d ~/src/nix-config nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net";
+          # nixpi is a Raspberry Pi on the holtel.io zone. Build here (aarch64-linux
+          # offloads to the linux-builder VM on Darwin) and push the closure so the
+          # Pi only activates — hence deploy-nixos, not apply-nixos.
+          nap = "task -d ~/src/nix-config nix:deploy-nixos host=nixpi NIXOS_DOMAIN=holtel.io";
           nal = "task -d ~/src/nix-config nix:apply-nixos host=luna NIXOS_DOMAIN=holthome.net";
           nan1 = "task -d ~/src/nix-config nix:apply-nixos host=nas-1 NIXOS_DOMAIN=holthome.net";
           nbf = "task -d ~/src/nix-config nix:build-forge";

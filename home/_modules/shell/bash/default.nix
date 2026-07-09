@@ -25,6 +25,17 @@ in
     programs.bash = {
       enable = true;
 
+      # Task shortcuts for deploying NixOS hosts from any directory.
+      # Mirror the fish abbreviations (naf/nap) so bash sessions — e.g. the
+      # VS Code Copilot terminal on rymac — get the same one-liner UX.
+      # `task -d` makes them work from anywhere. forge builds on itself
+      # (apply-nixos); nixpi is a Raspberry Pi on holtel.io, so we build here
+      # and push the closure (deploy-nixos) rather than compiling on the Pi.
+      shellAliases = {
+        naf = "task -d ~/src/nix-config nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net";
+        nap = "task -d ~/src/nix-config nix:deploy-nixos host=nixpi NIXOS_DOMAIN=holtel.io";
+      };
+
       # Simple, VS Code Copilot-friendly prompt
       # No fancy escape sequences that confuse terminal parsers
       initExtra = ''

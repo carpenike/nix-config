@@ -97,7 +97,7 @@
             useUserPackages = true;
             useGlobalPkgs = true;
             sharedModules = [
-              inputs.sops-nix.homeManagerModules.sops
+              inputs.sops-nix.homeModules.sops
               inputs.catppuccin.homeManagerModules.catppuccin
             ];
             extraSpecialArgs = {
@@ -141,8 +141,8 @@
             useGlobalPkgs = true;
             backupFileExtension = "backup";
             sharedModules = [
-              inputs.sops-nix.homeManagerModules.sops
-              inputs.nixvim.homeManagerModules.nixvim
+              inputs.sops-nix.homeModules.sops
+              inputs.nixvim.homeModules.nixvim
               inputs.catppuccin.homeManagerModules.catppuccin
             ];
             extraSpecialArgs = {
