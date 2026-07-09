@@ -28,23 +28,40 @@
 #   (see ups.nix / music-assistant.nix) rather than the web-UI service factory.
 #
 # ⚠️ RESOURCE COST — READ BEFORE CHANGING THE EXTRACT ⚠️
-#   Tile size and the first-run build cost scale with the OSM extract:
-#     * A single US state (the default below, ~Pennsylvania): ~a few GB of
-#       tiles, a few minutes to build, serves in ~1–2 GB RAM.
-#     * "north-america-latest" (the whole continent): tens of GB of disk and a
-#       MULTI-HOUR, multi-GB-RAM tile build. Do NOT point `tileUrls` at the
-#       continental extract without first raising `memory`, `serverThreads`,
-#       and the dataset's expected size, and expect a long first deploy.
-#   Start regional (states you actually travel), prove it out end-to-end with
-#   the app, then grow. The tile data is REBUILDABLE from OSM, so this dataset
-#   is deliberately NOT snapshotted or replicated (see the storage block).
+#   This instance serves the WHOLE UNITED STATES (Geofabrik `us-latest`).
+#   Steady-state SERVING is cheap: Valhalla mmaps the tile tar, so resident
+#   memory is only a few GB (mostly reclaimable page cache) — fine on forge.
+#   The expensive part is the ONE-TIME tile build (and any later rebuild when
+#   the extract changes):
+#     * Full-US `valhalla_build_tiles` + `build_admins` (spatialite over the
+#       whole US) is a MULTI-HOUR build that can peak well above forge's spare
+#       RAM (32 GB box, ~60 services, no disk swap, ARC capped at 8 GB).
+#     * Disk: the built graph is ~40–60 GB on `tank` (677 GB free — fine).
 #
-# HOW TO GROW THE MAP
-#   Either add more (space-separated) Geofabrik URLs to `tileUrls`, or drop
-#   extra `*.osm.pbf` files into the dataset dir (${dataDir}) and restart the
-#   container — the image rebuilds tiles when the set of PBFs changes (md5
-#   hashing). Upstream now recommends a single merged extract over many URLs
-#   for large builds (valhalla/valhalla#3925).
+#   HOST-SAFETY MECHANISM: the hard `--memory` cgroup cap below CONTAINS any
+#   build OOM to this container — the kernel reclaims ZFS ARC and kills inside
+#   this cgroup before touching the other services. `server_threads` is kept
+#   low (2) to bound the build's peak RAM. Net effect: worst case the build
+#   itself is killed (recoverable), NOT the rest of forge. If the build can't
+#   fit, fall back to the off-box tar path (see below); serving needs little.
+#
+# OFF-BOX BUILD FALLBACK (safest for a 32 GB box)
+#   Build `valhalla_tiles.tar` on a machine with more RAM (or a throwaway VM):
+#     docker run --rm -v $PWD/cf:/custom_files \
+#       -e tile_urls=https://download.geofabrik.de/north-america/us-latest.osm.pbf \
+#       -e build_admins=True -e build_time_zones=True \
+#       ghcr.io/valhalla/valhalla-scripted:latest
+#   then copy the resulting files to forge's ${dataDir}, set
+#   use_tiles_ignore_pbf=True / force_rebuild=False (already the case), and add
+#   the tar's md5 to ${dataDir}/.file_hashes.txt. No heavy build runs on forge.
+#
+# HOW TO GROW/CHANGE THE MAP
+#   Change `tileUrls` (or drop `*.osm.pbf` files into ${dataDir}) and restart;
+#   the image rebuilds tiles when the set of PBFs changes (md5 hashing). NOTE:
+#   when shrinking/replacing the extract, delete stale PBFs from ${dataDir}
+#   first (e.g. the old pennsylvania-latest.osm.pbf) or the image will rebuild
+#   from ALL PBFs present. Upstream recommends a single merged extract over
+#   many URLs for large builds (valhalla/valhalla#3925).
 #
 # ENDPOINT
 #   The app posts to  http://forge.holthome.net:8002/trace_route  with
@@ -68,14 +85,16 @@ let
   # dataset (tank/services/valhalla) is provisioned by the storage block below.
   dataDir = "/data/valhalla";
 
-  # Start regional. Space-separated list of Geofabrik PBF URLs the image will
-  # download and build on first run. Add neighbouring states as the coach's
-  # range grows (or drop PBFs into ${dataDir} and restart).
-  tileUrls = "https://download.geofabrik.de/north-america/us/pennsylvania-latest.osm.pbf";
+  # Whole United States. Geofabrik's `us-latest` is a single merged extract
+  # (upstream recommends one extract over many state URLs — valhalla#3925).
+  # See the RESOURCE COST / OFF-BOX BUILD notes in the header before changing.
+  tileUrls = "https://download.geofabrik.de/north-america/us-latest.osm.pbf";
 
-  # Tile builds are CPU/RAM hungry. Keep threads modest so the build can't OOM
-  # the box; raise for larger extracts (and lower if the builder gets killed).
-  serverThreads = 4;
+  # Keep the build single-/low-threaded so its peak RAM stays bounded on this
+  # 32 GB box; combined with the container memory cap below, a hungry full-US
+  # build is contained to this cgroup rather than OOM-ing the host. Raising
+  # this speeds the build but increases peak RAM — do so only off-box.
+  serverThreads = 2;
 in
 {
   # Active on import (same convention as ups.nix / music-assistant.nix).
@@ -106,11 +125,15 @@ in
     ports = [ "${listenAddress}:${toString port}:8002" ];
 
     extraOptions = [
-      # Serving is light; the first-run tile build is the heavy part. These
-      # limits suit a single-state extract — raise them for larger extracts.
-      "--memory=4g"
-      "--memory-reservation=1g"
-      "--cpus=4.0"
+      # HARD memory cap = host-safety boundary: any OOM during the multi-hour
+      # full-US tile build is contained to this container (kernel reclaims ARC
+      # + kills inside this cgroup) instead of taking down the other ~60
+      # services on this 32 GB box. Steady-state serving needs only a few GB;
+      # the headroom is for the build. If the full-US build gets OOM-killed
+      # here, use the off-box tar path in the header rather than raising this.
+      "--memory=14g"
+      "--memory-reservation=2g"
+      "--cpus=6.0"
     ];
   };
 
