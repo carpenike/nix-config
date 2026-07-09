@@ -116,6 +116,7 @@ in
     ./services/marginalia.nix # Marginalia — cook log service (carpenike/marginalia)
     ./services/replog.nix # RepLog — self-hosted family fitness tracker (carpenike/replog)
     ./services/worldmonitor.nix # World Monitor real-time intelligence dashboard
+    ./services/valhalla.nix # Valhalla OSM routing / map-matching engine (CoachIQ snap-to-road)
   ];
 
   config = {
