@@ -428,6 +428,7 @@ in
             port = tdarrServerPort;
           };
           auth = cfg.reverseProxy.auth;
+          caddySecurity = cfg.reverseProxy.caddySecurity or null;
           security = cfg.reverseProxy.security;
           extraConfig = cfg.reverseProxy.extraConfig;
         };

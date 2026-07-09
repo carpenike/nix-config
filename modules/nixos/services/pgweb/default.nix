@@ -202,6 +202,8 @@ in
           port = cfg.port;
         };
 
+        caddySecurity = cfg.reverseProxy.caddySecurity or null;
+
         security = mkDefault {
           hsts.enable = true;
         };

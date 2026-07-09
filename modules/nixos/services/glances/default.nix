@@ -108,6 +108,7 @@ in
 
       # Authentication from shared types
       auth = cfg.reverseProxy.auth;
+      caddySecurity = cfg.reverseProxy.caddySecurity or null;
 
       # Security configuration
       security = cfg.reverseProxy.security;

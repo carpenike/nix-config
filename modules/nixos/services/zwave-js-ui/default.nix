@@ -345,6 +345,7 @@ in
           hostName = cfg.reverseProxy.hostName;
           backend = caddyBackend;
           auth = cfg.reverseProxy.auth;
+          caddySecurity = cfg.reverseProxy.caddySecurity or null;
           security = cfg.reverseProxy.security;
           extraConfig = cfg.reverseProxy.extraConfig;
         };

@@ -304,6 +304,7 @@ in
           host = "127.0.0.1";
           port = cfg.port;
         };
+        caddySecurity = cfg.reverseProxy.caddySecurity or null;
         extraConfig = cfg.reverseProxy.extraConfig or "";
       };
     })

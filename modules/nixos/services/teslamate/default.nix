@@ -671,6 +671,7 @@ in
           hostName = cfg.reverseProxy.hostName;
           backend = lib.recursiveUpdate defaultBackend configuredBackend;
           auth = cfg.reverseProxy.auth;
+          caddySecurity = cfg.reverseProxy.caddySecurity or null;
           security = cfg.reverseProxy.security;
           extraConfig = cfg.reverseProxy.extraConfig;
         }
