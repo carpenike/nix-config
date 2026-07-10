@@ -21,7 +21,7 @@ in
     virtualisation = {
       podman = {
         enable = true;
-        dockerCompat = true;
+        dockerCompat = lib.mkDefault true;
         autoPrune.enable = true;
         # Enable socket for secure monitoring access
         dockerSocket.enable = true;

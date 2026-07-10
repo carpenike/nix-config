@@ -530,7 +530,7 @@
   omada = {
     uid = 508;
     gid = 508;
-    description = "TP-Link Omada network controller (not yet deployed)";
+    description = "TP-Link Omada network controller";
     extraGroups = [ ];
   };
 

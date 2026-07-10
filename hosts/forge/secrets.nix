@@ -1416,7 +1416,7 @@ in
               (lib.optionalString autobrrEnabled "HOMEPAGE_VAR_AUTOBRR_API_KEY=${config.sops.placeholder."autobrr/api-key"}")
               (lib.optionalString cloudflaredEnabled "HOMEPAGE_VAR_CLOUDFLARED_API_TOKEN=${config.sops.placeholder."networking/cloudflare/homepage-api-token"}")
               (lib.optionalString cloudflaredEnabled "HOMEPAGE_VAR_CLOUDFLARED_ACCOUNT_ID=${config.sops.placeholder."networking/cloudflare/account-id"}")
-              # Omada SDN controller widget (runs on luna, accessed remotely)
+              # Omada SDN controller widget
               "HOMEPAGE_VAR_OMADA_USERNAME=${config.sops.placeholder."omada/homepage-username"}"
               "HOMEPAGE_VAR_OMADA_PASSWORD=${config.sops.placeholder."omada/homepage-password"}"
               # Mikrotik router widget (always enabled when homepage is enabled)

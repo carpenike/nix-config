@@ -163,6 +163,7 @@ nav:
       - Cooklang Quick Reference: services/cooklang-quick-reference.md
       - Cooklang Feed Sync: services/cooklang-federation-feed-sync.md
       - Loki Deployment: services/loki-deployment.md
+      - Omada Luna to Forge Migration: services/omada-luna-to-forge.md
       - TeslaMate Operations: teslamate-operations.md
       - Resilio Sync: resilio-sync.md
   - Reference:

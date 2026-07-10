@@ -31,12 +31,11 @@
       enabled: false,
     },
     {
-      // WORKAROUND (2026-03-10): Pin Omada to 5.x - luna's Celeron J3455 lacks AVX
-      // which is required by MongoDB 8 (shipped in Omada 6.x+)
-      // See docs/workarounds.md for details
+      // Keep Omada within v6; major controller upgrades require explicit
+      // database migration and rollback planning.
       matchDatasources: ['docker'],
       matchPackageNames: ['docker.io/mbentley/omada-controller'],
-      allowedVersions: '<6',
+      allowedVersions: '>=6 <7',
     },
     {
       matchDatasources: [

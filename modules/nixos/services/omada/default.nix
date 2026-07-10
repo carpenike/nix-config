@@ -9,9 +9,11 @@ let
   cfg = config.modules.services.omada;
   storageCfg = config.modules.storage;
   datasetPath = "${storageCfg.datasets.parentDataset}/omada";
+  stateDir = builtins.dirOf cfg.dataDir;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-omada.service";
   hasCentralizedNotifications = config.modules.notifications.enable or false;
-  omadaTcpPorts = [ 8043 8843 29814 ];
+  serviceIds = mylib.serviceUids.omada;
+  omadaTcpPorts = [ 8043 8843 29814 29817 ];
   omadaUdpPorts = [ 29810 ];
   # Import shared type definitions
   sharedTypes = mylib.types;
@@ -34,12 +36,12 @@ in
     };
     user = lib.mkOption {
       type = lib.types.str;
-      default = "508";
+      default = "omada";
       description = "User ID to own the data and log directories (omada:omada in container)";
     };
     group = lib.mkOption {
       type = lib.types.str;
-      default = "508";
+      default = "omada";
       description = "Group ID to own the data and log directories (omada:omada in container)";
     };
     blockOnActivation = lib.mkOption {
@@ -198,6 +200,14 @@ in
 
       modules.services.podman.enable = true;
 
+      users.users.omada = {
+        uid = serviceIds.uid;
+        isSystemUser = true;
+        group = "omada";
+        home = stateDir;
+      };
+      users.groups.omada.gid = serviceIds.gid;
+
       # Automatically register with Caddy reverse proxy if enabled
       modules.services.caddy.virtualHosts.omada = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
         enable = true;
@@ -262,24 +272,14 @@ in
       };
 
       # Omada Controller with embedded MongoDB
-      # WORKAROUND (2026-03-10, last reviewed 2026-05-04): Pinned to v5.x because
-      # luna's Celeron J3455 lacks AVX. Omada v6.x bundles MongoDB 8 which requires
-      # AVX (or armv8.2-a on arm64). v5.15.24.19 is the latest of the v5 line and
-      # is still being refreshed by upstream.
-      # Affects: Omada Controller on luna (any non-AVX host)
-      # Upstream: https://github.com/mbentley/docker-omada-controller/blob/master/README.md#your-system-does-not-support-avx-or-armv82-a
-      # Planned resolution: migrate this controller to forge (Intel Xeon, has AVX),
-      # then bump to the v6 line. See docs/workarounds.md and #434 for details.
-      # Check: re-evaluate if luna is replaced, the controller is migrated to forge,
-      # or upstream archives the v5 line.
       virtualisation.oci-containers.containers.omada = podmanLib.mkContainer "omada" {
-        image = "docker.io/mbentley/omada-controller:5.15.24.19@sha256:2f99a7d4ab782b24081997fba298969f12a4c42df5c987fdd4a9c32d692e4583";
+        image = "docker.io/mbentley/omada-controller:6.2.10.17@sha256:e7e44ee8f230039a331ac9ca70d91c9a4e3f9acecdbdbead7957a97d7356cc82";
         environment = {
           "TZ" = "America/New_York";
           # Using embedded MongoDB (default behavior when MONGO_EXTERNAL is not set)
         };
         autoStart = true;
-        ports = [ "8043:8043" "8843:8843" "29814:29814" "29810:29810/udp" ];
+        ports = [ "8043:8043" "8843:8843" "29814:29814" "29817:29817" "29810:29810/udp" ];
         volumes = [
           "${cfg.dataDir}:/opt/tplink/EAPController/data"
           "${cfg.logDir}:/opt/tplink/EAPController/logs"
@@ -290,8 +290,13 @@ in
       # Override systemd service to handle Omada's initialization behavior
       systemd.services."${config.virtualisation.oci-containers.backend}-omada" = lib.mkMerge [
         {
-          after = lib.mkForce [ "network-online.target" ];
-          wants = lib.mkForce [ "network-online.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+
+          preStart = lib.mkBefore ''
+            ${pkgs.coreutils}/bin/install -d -m 0755 -o ${cfg.user} -g ${cfg.group} \
+              "${cfg.dataDir}" "${cfg.logDir}"
+          '';
 
           # Allow more restart attempts during activation
           unitConfig = {
@@ -326,10 +331,28 @@ in
           unitConfig.OnFailure = [ "notify@omada-failure:%n.service" ];
         })
         (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-omada.service" ];
-          after = [ "preseed-omada.service" ];
+          wants = [ "zfs-service-datasets.service" "preseed-omada.service" ];
+          after = [ "zfs-service-datasets.service" "preseed-omada.service" ];
         })
       ];
+
+      systemd.services."preseed-omada" = lib.mkIf cfg.preseed.enable {
+        wants = [ "zfs-service-datasets.service" ];
+      };
+
+      modules.notifications.templates.omada-failure = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        enable = lib.mkDefault true;
+        priority = lib.mkDefault "high";
+        title = lib.mkDefault "Service Failed: Omada";
+        body = lib.mkDefault ''
+          <b>Host:</b> ${config.networking.hostName}
+          <b>Service:</b> ${mainServiceUnit}
+
+          ${cfg.notifications.customMessages.failure or "Omada Controller failed on ${config.networking.hostName}"}
+
+          Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
+        '';
+      };
 
       # If not blocking on activation, start Omada after the main system is up
       # This prevents deployment failures due to Omada's slow initialization
@@ -348,7 +371,7 @@ in
       storageHelpers.mkPreseedService {
         serviceName = "omada";
         dataset = datasetPath;
-        mountpoint = cfg.dataDir;
+        mountpoint = stateDir;
         mainServiceUnit = mainServiceUnit;
         replicationCfg = null; # Replication config handled at host level
         datasetProperties = {
@@ -359,7 +382,7 @@ in
         resticRepoUrl = cfg.preseed.repositoryUrl;
         resticPasswordFile = cfg.preseed.passwordFile;
         resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
+        resticPaths = [ cfg.dataDir cfg.logDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
         owner = cfg.user;

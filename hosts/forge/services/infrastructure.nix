@@ -66,25 +66,6 @@ in
       };
     };
 
-    # Omada SDN Controller (runs on luna)
-    # Shows: Connected devices, clients, alerts
-    # Credentials: omada/homepage-username and omada/homepage-password in SOPS
-    # Create a read-only user in Omada controller for Homepage
-    modules.services.homepage.contributions.omada = {
-      group = "Infrastructure";
-      name = "Omada";
-      icon = "omada";
-      href = "https://omada.holthome.net";
-      description = "SDN Controller";
-      widget = {
-        type = "omada";
-        url = "https://omada.holthome.net";
-        username = "{{HOMEPAGE_VAR_OMADA_USERNAME}}";
-        password = "{{HOMEPAGE_VAR_OMADA_PASSWORD}}";
-        site = "SLC"; # Site name in Omada controller
-      };
-    };
-
     # Future infrastructure widgets can be added here:
     # - TrueNAS / Synology NAS
     # - Managed switches

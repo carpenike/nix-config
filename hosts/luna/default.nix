@@ -153,17 +153,9 @@ in
               host = "127.0.0.1";
               port = 61208;
             };
-            caddySecurity = {
-              enable = true;
-              portal = "pocketid";
-              policy = "admins";
-              claimRoles = [
-                {
-                  claim = "groups";
-                  value = "admins";
-                  role = "admins";
-                }
-              ];
+            auth = {
+              user = "admin";
+              passwordHashEnvVar = "CADDY_GLANCES_HASH";
             };
           };
         };
@@ -192,24 +184,6 @@ in
               host = "127.0.0.1";
               port = 8443;
             };
-          };
-        };
-
-        omada = {
-          enable = true;
-          reverseProxy = {
-            enable = true;
-            hostName = "omada.${config.networking.domain}";
-            backend = {
-              scheme = "https";
-              host = "127.0.0.1";
-              port = 8043;
-            };
-          };
-          resources = {
-            memory = "4g"; # Recommended by Perplexity for Omada 5.14 with embedded MongoDB
-            memoryReservation = "2g"; # Reserve half for stable operation
-            cpus = "2.0"; # 2 cores recommended for Omada + MongoDB
           };
         };
 
@@ -268,7 +242,6 @@ in
         # =====================================================================
         directories = [
           # Network controllers
-          "/var/lib/omada"
           "/var/lib/unifi"
 
           # Reverse proxy (ACME certificates)
@@ -293,11 +266,6 @@ in
         unifi = {
           enable = config.modules.services.unifi.enable or false;
           mongoCredentialsFile = "/run/secrets/rendered/unifi-mongo-credentials";
-        };
-
-        omada = {
-          enable = config.modules.services.omada.enable or false;
-          containerName = "omada";
         };
 
         onepassword-connect = {

@@ -58,6 +58,7 @@ in
     ./services/gatus.nix # Gatus black-box monitoring and status page
     ./services/ups.nix # UPS monitoring configuration
     ./services/infrastructure.nix # Infrastructure device widgets (Mikrotik, etc.)
+    ./services/omada.nix # TP-Link Omada SDN Controller
     ./services/it-tools.nix # IT-Tools developer utilities
     ./services/glances.nix # Glances system monitoring
     ./services/github-runner.nix # GitHub Actions self-hosted runner
