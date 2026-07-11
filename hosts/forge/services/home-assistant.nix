@@ -147,6 +147,13 @@ in
                 show_in_sidebar = true;
                 filename = "dashboards/mobile.yaml";
               };
+              lovelace-mobile-v2 = {
+                mode = "yaml";
+                title = "Mobile v2";
+                icon = "mdi:cellphone-star";
+                show_in_sidebar = true;
+                filename = "dashboards/mobile_v2.yaml";
+              };
             };
           };
           automation = "!include automations.yaml";
