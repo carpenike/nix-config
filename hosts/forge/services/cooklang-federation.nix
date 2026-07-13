@@ -74,6 +74,22 @@ in
         owner = config.modules.services.cooklangFederation.user;
         group = config.modules.services.cooklangFederation.group;
         mode = "0750";
+        protection = {
+          class = "ephemeral";
+          objectives = {
+            onsiteRpoSeconds = null;
+            offsiteRpoSeconds = null;
+            rtoSeconds = null;
+          };
+          requiredTiers = [ ];
+          consistency = "crash-consistent";
+          validator = null;
+          allowEmptyBootstrap = true;
+          mechanism = {
+            name = "none";
+            reason = "The database and search index are rebuilt from declarative Git feed configuration.";
+          };
+        };
       };
 
       modules.backup.sanoid.datasets."tank/services/cooklang-federation" = forgeDefaults.mkSanoidDataset "cooklang-federation";

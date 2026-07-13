@@ -537,6 +537,7 @@
                   autobrr = "podman-autobrr";
                   bazarr = "podman-bazarr";
                   bichon = "podman-bichon";
+                  cooklang = "cooklang";
                   esphome = "podman-esphome";
                   "grafana-oncall" = "podman-grafana-oncall-redis";
                   "home-assistant" = "home-assistant";
@@ -552,6 +553,7 @@
                 };
                 ephemeralPaths = [
                   "tank/services/alertmanager"
+                  "tank/services/cooklang-federation"
                   "tank/services/prometheus"
                   "tank/services/promtail"
                   "tank/services/redis"
@@ -571,6 +573,7 @@
                   "tank/services/apprise"
                   "tank/services/autobrr"
                   "tank/services/bazarr"
+                  "tank/services/cooklang"
                   "tank/services/esphome"
                   "tank/services/grafana-oncall"
                   "tank/services/music-assistant"
@@ -582,11 +585,11 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 28;
+              assert manifest.summary.classified == 30;
               assert manifest.summary.byClass == {
                 critical = 8;
-                ephemeral = 8;
-                standard = 10;
+                ephemeral = 9;
+                standard = 11;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];

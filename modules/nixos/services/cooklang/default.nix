@@ -67,6 +67,10 @@ let
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 in
 {
   options.modules.services.cooklang = {
@@ -730,6 +734,7 @@ in
         resticPaths = [ cfg.recipeDir ];
         restoreMethods = preseedCfg.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         timeoutSec = 1800;
         owner = cfg.user;
         group = cfg.group;

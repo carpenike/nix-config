@@ -135,6 +135,24 @@ in
         owner = config.modules.services.cooklang.user;
         group = config.modules.services.cooklang.group;
         mode = "0750";
+        protection = {
+          class = "standard";
+          objectives = {
+            onsiteRpoSeconds = 86400;
+            offsiteRpoSeconds = null;
+            rtoSeconds = 28800;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "nas-backup"
+            "automated-restore"
+          ];
+          consistency = "crash-consistent";
+          validator = "cooklang-repository";
+          allowEmptyBootstrap = false;
+          notes = "Git and Resilio provide supplemental independent copies of the recipe source data.";
+        };
       };
 
       modules.services.resilioSync = {
