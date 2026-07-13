@@ -496,6 +496,13 @@
     extraGroups = [ ];
   };
 
+  peanut = {
+    uid = 997;
+    gid = 997;
+    description = "PeaNUT UPS monitoring dashboard";
+    extraGroups = [ ];
+  };
+
   # ============================================================================
   # SERVICES NOT YET DEPLOYED (placeholders for future use)
   # These use idealized allocations - update when actually deployed
@@ -701,12 +708,13 @@
   # ============================================================================
 
   _meta = {
-    version = 5;
-    lastUpdated = "2026-01-03";
+    version = 6;
+    lastUpdated = "2026-07-13";
     lastAuditedAgainst = "forge.holthome.net";
     sharedUids = [ 911 ]; # Document intentional sharing (lidarr/readarr)
     sharedGids = [ 973 ]; # cooklang and cooklang-federation share a group
     changes = [
+      "v6: Added PeaNUT service identity"
       "v5: Added extraGroups to all service entries"
       "v5: Added sharedGroups section for infrastructure groups"
       "v5: Added helper functions mkUserConfig, getExtraGroups, getBackupGroups"

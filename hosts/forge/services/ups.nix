@@ -13,6 +13,7 @@
 let
   serviceEnabled = config.power.ups.enable or false;
   peanutPort = 8089; # Port for PeaNUT web dashboard
+  peanutIds = mylib.serviceUids.peanut;
 in
 {
   # UPS system control (graceful shutdown on low battery)
@@ -341,7 +342,7 @@ in
 
     # Config persistence
     volumes = [
-      "/var/lib/peanut:/config:rw"
+      "/var/lib/peanut:/config:rw,idmap=uids=${toString peanutIds.uid}-1000-1;gids=${toString peanutIds.gid}-1000-1"
     ];
 
     # Only expose on localhost - accessed via reverse proxy or directly
@@ -365,8 +366,21 @@ in
 
   # Create data directory and pre-configure PeaNUT to connect to local NUT server
   systemd.tmpfiles.rules = lib.mkIf serviceEnabled [
-    "d /var/lib/peanut 0755 root root -"
+    "d /var/lib/peanut 0750 peanut peanut -"
   ];
+
+  users.users.peanut = lib.mkIf serviceEnabled {
+    uid = peanutIds.uid;
+    group = "peanut";
+    isSystemUser = true;
+    home = "/var/lib/peanut";
+    createHome = false;
+    description = peanutIds.description;
+  };
+
+  users.groups.peanut = lib.mkIf serviceEnabled {
+    gid = peanutIds.gid;
+  };
 
   # Pre-configure PeaNUT to connect to the local NUT server
   # This runs before the container starts and sets up the NUT server connection
@@ -418,7 +432,8 @@ in
       ${pkgs.gnused}/bin/sed -i "s|@UPSMON_PASSWORD@|$UPSMON_PASSWORD|g" /var/lib/peanut/settings.yml
 
       # Set appropriate permissions
-      ${pkgs.coreutils}/bin/chmod 644 /var/lib/peanut/settings.yml
+      ${pkgs.coreutils}/bin/chown -R peanut:peanut /var/lib/peanut
+      ${pkgs.coreutils}/bin/chmod 640 /var/lib/peanut/settings.yml
     '';
   };
 

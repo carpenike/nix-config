@@ -218,7 +218,7 @@ in
           # Domain defaults to networking.domain (holthome.net)
           # Bind only to main interface, localhost, and podman bridge - prevents wireless clients
           # on VLAN 30 from bypassing router ACLs by accessing Caddy directly via 10.30.0.30
-          # 10.89.0.1 is the podman1 bridge gateway - required for container→host service access
+          # 10.89.0.1 is the media-services bridge gateway - required for container→host service access
           bindAddresses = [ "127.0.0.1" "10.20.0.30" "10.89.0.1" ];
           # Trust private network ranges for X-Forwarded-For header processing
           # Ensures backend services see real client IPs instead of Caddy's IP

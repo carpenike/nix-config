@@ -1,6 +1,15 @@
 { lib, config, pkgs, ... }:
 
 let
+  activeCaddyDomains = map
+    (virtualHost: virtualHost.hostName)
+    (lib.filter
+      (virtualHost: virtualHost.enable)
+      (lib.attrValues config.modules.services.caddy.virtualHosts));
+  activeCaddyDomainsFile = pkgs.writeText "caddy-active-domains" (
+    lib.concatStringsSep "\n" activeCaddyDomains + "\n"
+  );
+
   # ZFS metrics exporter script - safe alternative to node_exporter ZFS collector
   # Uses zpool commands only (no statfs() calls that cause kernel hangs)
   zfsMetricsScript = pkgs.writeShellScriptBin "export-zfs-metrics" ''
@@ -80,6 +89,7 @@ let
     METRICS_FILE="/var/lib/node_exporter/textfile_collector/tls.prom"
     TMP_METRICS_FILE="''${METRICS_FILE}.tmp"
     CADDY_CERT_DIR="/var/lib/caddy/.local/share/caddy/certificates"
+    ACTIVE_DOMAINS_FILE="${activeCaddyDomainsFile}"
 
     # Clean up the temp file on script exit
     trap 'rm -f "''${TMP_METRICS_FILE}"' EXIT
@@ -165,13 +175,21 @@ let
       echo "# TYPE tls_certificate_check_success gauge"
       echo "# HELP tls_certificate_expiry_seconds Time until TLS certificate expires"
       echo "# TYPE tls_certificate_expiry_seconds gauge"
-      echo "# HELP tls_certificates_found Total number of certificate files found"
+      echo "# HELP tls_certificates_found Total number of active virtual-host certificate files found"
       echo "# TYPE tls_certificates_found gauge"
 
-      # Find all certificate files in Caddy's storage directory
+      # Caddy retains certificates after a virtual host is disabled. Only monitor
+      # files whose storage directory matches an enabled structured virtual host.
       if [[ -d "''${CADDY_CERT_DIR}" ]]; then
-        mapfile -t cert_files < <(find "''${CADDY_CERT_DIR}" -type f -name "*.crt")
-        log_debug "Found ''${#cert_files[@]} certificate files"
+        mapfile -t cert_files < <(
+          while IFS= read -r certfile; do
+            cert_domain=$(basename "$(dirname "$certfile")")
+            if grep -Fqx -- "$cert_domain" "$ACTIVE_DOMAINS_FILE"; then
+              echo "$certfile"
+            fi
+          done < <(find "''${CADDY_CERT_DIR}" -type f -name "*.crt")
+        )
+        log_debug "Found ''${#cert_files[@]} active virtual-host certificate files"
 
         echo "tls_certificates_found ''${#cert_files[@]}"
 

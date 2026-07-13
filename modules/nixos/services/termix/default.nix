@@ -292,7 +292,7 @@ in
         };
         environmentFiles = lib.optional cfg.oidc.enable "/run/termix/oidc.env";
         volumes = [
-          "${cfg.dataDir}:/app/data:rw"
+          "${cfg.dataDir}:/app/data:rw,idmap=uids=0-0-1#${toString cfg.uid}-1000-1;gids=0-0-1#${toString cfg.gid}-1000-1"
         ];
         ports = [
           "127.0.0.1:${toString termixPort}:${toString termixPort}"
@@ -326,7 +326,11 @@ in
             RuntimeDirectory = "termix";
             RuntimeDirectoryMode = "0700";
           };
-          preStart = lib.mkIf cfg.oidc.enable ''
+          preStart = ''
+            # Migrate files created by the image's UID 1000 before the idmapped mount.
+            ${pkgs.coreutils}/bin/chown -R ${toString cfg.uid}:${toString cfg.gid} ${cfg.dataDir}
+
+            ${lib.optionalString cfg.oidc.enable ''
             # Generate OIDC environment file with secret
             cat > /run/termix/oidc.env << 'EOF'
             OIDC_ENABLED=true
@@ -337,6 +341,7 @@ in
             EOF
             echo "OIDC_CLIENT_SECRET=$(cat ${cfg.oidc.clientSecretFile})" >> /run/termix/oidc.env
             chmod 600 /run/termix/oidc.env
+            ''}
           '';
         }
         # Add failure notifications via systemd

@@ -82,6 +82,38 @@
       };
     };
 
+    # CPU temperature warning - catches sustained thermal pressure before throttling
+    "cpu-temperature-high" = {
+      type = "promql";
+      alertname = "CpuTemperatureHigh";
+      expr = ''
+        max by (instance, host) (node_hwmon_temp_celsius{chip="platform_coretemp_0"}) > 90
+      '';
+      for = "2m";
+      severity = "high";
+      labels = { service = "system"; category = "hardware"; };
+      annotations = {
+        summary = "CPU temperature high on {{ $labels.instance }}";
+        description = "Hottest CPU sensor is {{ $value }} C. Investigate CPU load and cooling.";
+      };
+    };
+
+    # CPU temperature critical - immediate warning at the processor's thermal limit
+    "cpu-temperature-critical" = {
+      type = "promql";
+      alertname = "CpuTemperatureCritical";
+      expr = ''
+        max by (instance, host) (node_hwmon_temp_celsius{chip="platform_coretemp_0"}) >= 100
+      '';
+      for = "0m";
+      severity = "critical";
+      labels = { service = "system"; category = "hardware"; };
+      annotations = {
+        summary = "CPU temperature critical on {{ $labels.instance }}";
+        description = "Hottest CPU sensor is {{ $value }} C. Reduce load or shut down immediately and inspect cooling.";
+      };
+    };
+
     # High memory usage
     # Note: NAS instances use the ZFS-aware NASHighMemory alert in nas-monitoring.nix
     # which accounts for ARC cache being reclaimable under pressure

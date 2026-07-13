@@ -48,6 +48,13 @@ let
     StartLimitBurst = 3;
     StartLimitIntervalSec = "2h";
   };
+
+  backupLockScript = ''
+    BACKUP_LOCK="/run/postgresql/pgbackrest-backup.lock"
+    exec 9>"$BACKUP_LOCK"
+    echo "[$(date -Iseconds)] Waiting for exclusive pgBackRest backup lock..."
+    ${pkgs.util-linux}/bin/flock 9
+  '';
 in
 {
   # pgBackRest - PostgreSQL Backup & Recovery
@@ -583,6 +590,7 @@ in
       };
       script = ''
         set -euo pipefail
+        ${backupLockScript}
 
         # Exclude hidden directories that may be created if something treats PGDATA as home
         # WORKAROUND (2026-02-02): Some process created .config/.local in PGDATA
@@ -628,6 +636,7 @@ in
       };
       script = ''
         set -euo pipefail
+        ${backupLockScript}
 
         # Exclude hidden directories that may be created if something treats PGDATA as home
         EXCLUDE_OPTS="--exclude=.config --exclude=.local"
@@ -668,6 +677,7 @@ in
       };
       script = ''
         set -euo pipefail
+        ${backupLockScript}
         EXCLUDE_OPTS="--exclude=.config --exclude=.local"
 
         echo "[$(date -Iseconds)] Starting daily incremental backup to repo2 (R2)..."

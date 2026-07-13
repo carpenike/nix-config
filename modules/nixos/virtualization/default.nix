@@ -78,8 +78,8 @@ in
         lib.nameValuePair "podman-network-${networkName}" {
           description = "Podman network: ${networkName}";
           wantedBy = [ "multi-user.target" ];
-          after = [ "podman.service" ];
-          requires = [ "podman.service" ];
+          # The Podman CLI manages networks directly; it does not require the
+          # socket-activated API service to be running.
           script =
             let
               options = lib.concatStringsSep " " (

@@ -34,7 +34,7 @@ in
       wantedBy = lib.mkForce [ "sockets.target" ];
       socketConfig = lib.mkMerge [
         (lib.mkIf config.virtualisation.podman.dockerSocket.enable {
-          SocketGroup = lib.mkForce "podman-socket";
+          SocketGroup = lib.mkForce "podman";
         })
       ];
     };

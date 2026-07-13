@@ -2,6 +2,7 @@
 
 let
   pocketIdEnabled = config.modules.services.pocketid.enable or false;
+  paperlessAiEnabled = config.modules.services.paperless-ai.enable or false;
 in
 {
   # Caddy reverse proxy infrastructure configuration
@@ -22,10 +23,12 @@ in
         "-/run/caddy/monitoring-auth.env"
       ];
     };
+    # Caddy binds the media-services bridge gateway (10.89.0.1).
+    requires = [ "podman-network-media-services.service" ];
     # Wait for PocketID to be ready before starting Caddy
     # This prevents caddy-security from failing to initialize the OAuth identity provider
     # due to PocketID not being available during startup
-    after = lib.optionals pocketIdEnabled [ "pocket-id.service" ];
+    after = [ "podman-network-media-services.service" ] ++ lib.optionals pocketIdEnabled [ "pocket-id.service" ];
     wants = lib.optionals pocketIdEnabled [ "pocket-id.service" ];
   };
 
@@ -87,7 +90,7 @@ in
       CADDY_LOKI_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/loki-admin-bcrypt"}
       PGWEB_ADMIN_BCRYPT=${lib.strings.removeSuffix "\n" config.sops.placeholder."services/caddy/environment/pgweb-admin-bcrypt"}
       PROMETHEUS_BACKUP_API_KEY=${lib.strings.removeSuffix "\n" config.sops.placeholder."prometheus/api-keys/backup-taskfile"}
-      PAPERLESS_AI_API_KEY=${lib.strings.removeSuffix "\n" config.sops.placeholder."paperless-ai/api_key"}
+      ${lib.optionalString paperlessAiEnabled "PAPERLESS_AI_API_KEY=${lib.strings.removeSuffix "\n" config.sops.placeholder."paperless-ai/api_key"}"}
       ${lib.optionalString pocketIdEnabled "CADDY_SECURITY_POCKETID_CLIENT_SECRET=${lib.strings.removeSuffix "\\n" config.sops.placeholder."caddy/pocket-id-client-secret"}"}
     '';
     owner = config.services.caddy.user;

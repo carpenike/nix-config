@@ -263,7 +263,8 @@ in
       storageCfg = config.modules.storage;
       tdarrWebPort = 8265;
       tdarrServerPort = 8266;
-      mainServiceUnit = "${config.virtualisation.oci-containers.backend}-tdarr.service";
+      mainServiceName = "${config.virtualisation.oci-containers.backend}-tdarr";
+      mainServiceUnit = "${mainServiceName}.service";
       datasetPath = "${storageCfg.datasets.parentDataset}/tdarr";
 
       # Look up the NFS mount configuration if a dependency is declared
@@ -401,7 +402,7 @@ in
         };
 
         # Systemd service dependencies and security
-        systemd.services."${mainServiceUnit}" = lib.mkMerge [
+        systemd.services."${mainServiceName}" = lib.mkMerge [
           (lib.mkIf (cfg.podmanNetwork != null) {
             requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
             after = [ "podman-network-${cfg.podmanNetwork}.service" ];
@@ -411,6 +412,7 @@ in
               ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
             after = [ "network-online.target" ]
               ++ lib.optional (nfsMountName != null) nfsMountConfig.mountUnitName;
+            unitConfig.RequiresMountsFor = [ cfg.mediaDir ];
             serviceConfig = {
               Restart = lib.mkForce "always";
               RestartSec = "30s";

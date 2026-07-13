@@ -159,8 +159,17 @@ in
       modules.alerting.rules."grafana-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "grafana" "Grafana" "metrics visualization";
 
+      # Keep the OnCall bridge separate from the media-services bridge, whose
+      # 10.89.0.1 gateway is the shared container-to-host service address.
+      modules.virtualization.podman.networks."grafana-oncall-network" = lib.mkIf oncallEnabled {
+        subnet = "10.89.2.0/24";
+        gateway = "10.89.2.1";
+      };
+
       # OnCall plugin auto-installation and configuration
       # Required for OnCall plugin's service account authentication (Grafana 11+)
+      systemd.services.grafana.requires = [ "podman-network-media-services.service" ];
+      systemd.services.grafana.after = [ "podman-network-media-services.service" ];
       systemd.services.grafana.environment = lib.mkIf oncallEnabled {
         # Preinstall the OnCall plugin at Grafana startup
         GF_PLUGINS_PREINSTALL_SYNC = "grafana-oncall-app";

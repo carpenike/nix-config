@@ -25,7 +25,10 @@ in
     # =========================================================================
     {
       modules.services.paperless-ai = {
-        enable = true;
+        # Disabled 2026-07-13: the configured LiteLLM gateway is intentionally
+        # disabled, so Paperless-AI cannot validate or execute its core AI flow.
+        # Re-enable both services together or configure a direct LLM provider.
+        enable = false;
         port = listenPort;
 
         # Storage
@@ -39,8 +42,8 @@ in
         # Paperless-ngx Integration
         # =====================================================================
         paperless = {
-          # Connect to local paperless-ngx instance via container bridge
-          apiUrl = "http://host.containers.internal:28981/api";
+          # Reach Paperless through Caddy on the shared container bridge.
+          apiUrl = "https://paperless.${domain}/api";
           tokenFile = config.sops.secrets."paperless-ai/paperless_token".path;
           # Paperless-ngx web UI username (must match the API token owner)
           username = "paperless-ai";
@@ -116,6 +119,21 @@ in
     # Host-level Resources (guarded by service enable)
     # =========================================================================
     (lib.mkIf serviceEnabled {
+      virtualisation.oci-containers.containers."paperless-ai".extraOptions = [
+        "--network=${forgeDefaults.podmanNetwork}"
+        "--add-host=paperless.${domain}:10.89.0.1"
+      ];
+
+      systemd.services.podman-paperless-ai = {
+        requires = [ "podman-network-${forgeDefaults.podmanNetwork}.service" ];
+        after = [
+          "podman-network-${forgeDefaults.podmanNetwork}.service"
+          "caddy.service"
+          "paperless-web.service"
+        ];
+        wants = [ "caddy.service" "paperless-web.service" ];
+      };
+
       # ZFS snapshot and replication
       modules.backup.sanoid.datasets.${dataset} =
         forgeDefaults.mkSanoidDataset "paperless-ai";

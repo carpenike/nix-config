@@ -25,6 +25,8 @@ let
     {
       echo "# HELP container_cpu_percent CPU usage percentage"
       echo "# TYPE container_cpu_percent gauge"
+      echo "# HELP container_cpu_limit_percent Configured CPU capacity percentage (100 = one CPU core)"
+      echo "# TYPE container_cpu_limit_percent gauge"
       echo "# HELP container_memory_usage_bytes Memory usage in bytes"
       echo "# TYPE container_memory_usage_bytes gauge"
       echo "# HELP container_memory_limit_bytes Memory limit in bytes"
@@ -97,31 +99,38 @@ let
           health_data=$(${pkgs.podman}/bin/podman inspect --format '{{json .}}' $running_ids 2>/dev/null | ${pkgs.jq}/bin/jq -s '.' 2>/dev/null || echo "[]")
 
           if [[ "''${health_data}" != "[]" ]]; then
-            echo "''${health_data}" | ${pkgs.jq}/bin/jq -r '
+            host_cpu_limit_percent=$(($(nproc) * 100))
+            echo "''${health_data}" | ${pkgs.jq}/bin/jq -r --argjson host_cpu_limit_percent "$host_cpu_limit_percent" '
               .[] |
               (.State.Health.Status // "unknown") as $status |
+              (.HostConfig.NanoCpus // 0) as $nano_cpus |
+              (.HostConfig.CpuQuota // 0) as $cpu_quota |
+              (.HostConfig.CpuPeriod // 0) as $cpu_period |
               # Check if container has a healthcheck configured (not null and has Test command)
               (if (.Config.Healthcheck != null and (.Config.Healthcheck.Test | length) > 0) then "true" else "false" end) as $has_healthcheck |
               (if $status == "healthy" then 0
                elif $status == "unhealthy" then 1
                elif $status == "starting" then 3
                else 2 end) as $metric_value |
-              "container_health_status{name=\"" + (.Name | sub("^/"; "")) + "\",health=\"" + $status + "\",has_healthcheck=\"" + $has_healthcheck + "\"} " + ($metric_value | tostring)
+              (if $nano_cpus > 0 then ($nano_cpus / 10000000)
+               elif ($cpu_quota > 0 and $cpu_period > 0) then ($cpu_quota * 100 / $cpu_period)
+               else $host_cpu_limit_percent end) as $cpu_limit_percent |
+              "container_health_status{name=\"" + (.Name | sub("^/"; "")) + "\",health=\"" + $status + "\",has_healthcheck=\"" + $has_healthcheck + "\"} " + ($metric_value | tostring) + "\n" +
+              "container_cpu_limit_percent{name=\"" + (.Name | sub("^/"; "")) + "\",id=\"" + .Id[0:12] + "\"} " + ($cpu_limit_percent | tostring)
             ' 2>/dev/null || true
           fi
         fi
       fi
 
-      # Per-container OOM and memory pressure events from cgroup v2
-      # This reads memory.events from each container's cgroup to track OOM kills
-      # The cgroup path for podman containers is: /sys/fs/cgroup/machine.slice/libpod-<container_id>.scope/
-      if [[ "''${container_list}" != "[]" ]] && [[ -n "''${container_list}" ]]; then
-        echo "''${container_list}" | ${pkgs.jq}/bin/jq -r '.[] | select(.State == "running") | .Names[0] + " " + .Id' 2>/dev/null | \
-        while read -r container_name container_id; do
-          if [[ -n "$container_id" ]]; then
-            # Try to find the cgroup path for this container
-            # Podman uses libpod-<full_id>.scope under machine.slice
-            cgroup_path="/sys/fs/cgroup/machine.slice/libpod-''${container_id}.scope"
+      # Per-container OOM and memory pressure events from the live cgroup v2 path.
+      # Reading the parent libpod scope over-counts events from transient child
+      # cgroups such as health checks, so resolve the leaf through /proc/<pid>.
+      if [[ "''${health_data:-[]}" != "[]" ]]; then
+        echo "''${health_data}" | ${pkgs.jq}/bin/jq -r '.[] | select(.State.Status == "running" and (.State.Pid // 0) > 0) | ((.Name | sub("^/"; "")) + " " + .Id + " " + (.State.Pid | tostring))' 2>/dev/null | \
+        while read -r container_name container_id container_pid; do
+          if [[ -n "$container_id" && -r "/proc/$container_pid/cgroup" ]]; then
+            cgroup_relative=$(${pkgs.gawk}/bin/awk -F: '$1 == "0" {print $3}' "/proc/$container_pid/cgroup")
+            cgroup_path="/sys/fs/cgroup''${cgroup_relative}"
 
             if [[ -f "''${cgroup_path}/memory.events" ]]; then
               # Parse memory.events file for OOM and memory pressure counters
@@ -196,6 +205,8 @@ in
     networks = {
       "media-services" = {
         driver = "bridge";
+        subnet = "10.89.0.0/24";
+        gateway = "10.89.0.1";
         # DNS resolution is enabled by default for bridge networks
         # Containers on this network can reach each other by container name
       };
@@ -290,13 +301,16 @@ in
   modules.alerting.rules."container-high-cpu" = {
     type = "promql";
     alertname = "ContainerHighCpu";
-    expr = "container_cpu_percent > 80";
+    expr = ''
+      100 * container_cpu_percent
+        / on (name, id) container_cpu_limit_percent > 80
+    '';
     for = "10m";
     severity = "medium";
     labels = { service = "container"; category = "resources"; };
     annotations = {
       summary = "Container {{ $labels.name }} high CPU usage";
-      description = "Container {{ $labels.name }} is using {{ $value }}% CPU for 10+ minutes.";
+      description = "Container {{ $labels.name }} is using {{ $value | printf \"%.1f\" }}% of its configured CPU capacity for 10+ minutes.";
     };
   };
 

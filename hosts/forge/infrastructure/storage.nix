@@ -623,7 +623,8 @@ in
   systemd.services.syncoid-post-fixup-nas1 = {
     description = "Fix canmount properties on nas-1 after ZFS replication";
     # Run after the syncoid target completes (all replication jobs)
-    after = [ "syncoid.target" ];
+    after = [ "syncoid.target" "network-online.target" "nss-lookup.target" ];
+    wants = [ "network-online.target" ];
     wantedBy = [ "syncoid.target" ];
     # Only run if SSH key exists
     unitConfig.ConditionPathExists = [ (toString config.sops.secrets."zfs-replication/ssh-key".path) ];
@@ -634,6 +635,8 @@ in
       Group = "zfs-replication";
       # Use the same SSH key as syncoid
       Environment = "SSH_AUTH_SOCK=";
+      Restart = "on-failure";
+      RestartSec = "30s";
     };
 
     script = ''

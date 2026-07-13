@@ -131,9 +131,11 @@ in
         # Updated 2025-12-31: Increased from 2560M to 4096M (sustained high usage)
         # Updated 2026-01-09: Increased to 6GB - container hitting 83% (3.58GB/4.3GB) with OOM
         #                     events occurring on subprocesses (node killed at 11:53:14)
+        # Updated 2026-07-13: Increased to 8GB after the live cgroup reached the
+        #                     6GB cap and recorded 46 memory.max events.
         resources = {
-          memory = "6144M";
-          memoryReservation = "3072M";
+          memory = "8192M";
+          memoryReservation = "4096M";
           cpus = "4.0";
         };
 
