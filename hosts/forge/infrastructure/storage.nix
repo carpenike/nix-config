@@ -126,6 +126,60 @@ in
       };
     };
 
+    protection.externalDatasets = {
+      "rpool/safe/persist" = {
+        mountpoint = "/persist";
+        externalBootstrap = true;
+        protection = {
+          class = "system";
+          objectives = {
+            onsiteRpoSeconds = 900;
+            offsiteRpoSeconds = 86400;
+            rtoSeconds = 3600;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "offsite-backup"
+            "external-bootstrap"
+          ];
+          consistency = "crash-consistent";
+          validator = "forge-system-identity";
+          allowEmptyBootstrap = false;
+          mechanism = {
+            name = "external-bootstrap";
+            reason = "RECOVER=true restores the SSH and SOPS identity before full activation.";
+          };
+        };
+      };
+
+      "rpool/safe/home" = {
+        mountpoint = "/home";
+        externalBootstrap = true;
+        protection = {
+          class = "system";
+          objectives = {
+            onsiteRpoSeconds = 900;
+            offsiteRpoSeconds = 86400;
+            rtoSeconds = 3600;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "offsite-backup"
+            "external-bootstrap"
+          ];
+          consistency = "crash-consistent";
+          validator = "forge-home-metadata";
+          allowEmptyBootstrap = false;
+          mechanism = {
+            name = "external-bootstrap";
+            reason = "RECOVER=true restores home before the full Forge configuration is deployed.";
+          };
+        };
+      };
+    };
+
     # Shared NFS mount for media access from NAS
     nfsMounts.media = {
       enable = true;

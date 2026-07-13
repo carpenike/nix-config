@@ -71,6 +71,24 @@ in
         owner = config.modules.services.actual.user;
         group = config.modules.services.actual.group;
         mode = "0750";
+        protection = {
+          class = "critical";
+          objectives = {
+            onsiteRpoSeconds = 900;
+            offsiteRpoSeconds = 86400;
+            rtoSeconds = 7200;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "nas-backup"
+            "offsite-backup"
+            "automated-restore"
+          ];
+          consistency = "crash-consistent";
+          validator = "actual-sqlite-integrity";
+          allowEmptyBootstrap = false;
+        };
       };
 
       # ZFS snapshot and replication configuration

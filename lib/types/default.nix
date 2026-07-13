@@ -43,6 +43,7 @@ let
   healthcheckTypes = import ./healthcheck.nix { inherit lib; };
   reverseProxyTypes = import ./reverse-proxy.nix { inherit lib; };
   backupTypes = import ./backup.nix { inherit lib; };
+  protectionTypes = import ./protection.nix { inherit lib; };
   notificationTypes = import ./notification.nix { inherit lib; };
   containerTypes = import ./container.nix { inherit lib; };
   resourcesTypes = import ./resources.nix { inherit lib; };
@@ -57,6 +58,7 @@ in
   inherit (healthcheckTypes) healthcheckSubmodule;
   inherit (reverseProxyTypes) reverseProxySubmodule;
   inherit (backupTypes) backupSubmodule;
+  inherit (protectionTypes) protectionPolicySubmodule;
   inherit (notificationTypes) notificationSubmodule;
   inherit (containerTypes) containerResourcesSubmodule;
   inherit (resourcesTypes) systemdResourcesSubmodule;

@@ -469,6 +469,20 @@ in
     owner = "prometheus";
     group = "prometheus";
     mode = "0755";
+    protection = {
+      class = "ephemeral";
+      objectives = {
+        onsiteRpoSeconds = null;
+        offsiteRpoSeconds = null;
+        rtoSeconds = null;
+      };
+      requiredTiers = [ ];
+      consistency = "crash-consistent";
+      validator = null;
+      allowEmptyBootstrap = true;
+      mechanism.name = "none";
+      mechanism.reason = "Prometheus metrics are disposable and regenerate from scrape targets.";
+    };
     properties = {
       # Industry best practice: Do NOT snapshot Prometheus TSDB (metrics are disposable)
       # Reasoning: 15-day retention doesn't justify 6-month snapshots; configs in Git, data replaceable

@@ -511,6 +511,32 @@
                 test "$lock_release_line" -gt "$snapshot_destroy_line"
                 touch $out
               '';
+
+            protection-manifest =
+              let
+                forge = inputs.self.nixosConfigurations.forge.config;
+                manifest = forge.modules.storage.protection.manifest;
+                rendered = builtins.fromJSON forge.environment.etc."homelab/protection-manifest.json".text;
+                actual = manifest.datasets."tank/services/actual";
+                homeAssistant = manifest.datasets."tank/services/home-assistant";
+                prometheus = manifest.datasets."tank/services/prometheus";
+              in
+              assert manifest.schemaVersion == 1;
+              assert manifest.summary.total >= 60;
+              assert manifest.summary.classified == 5;
+              assert manifest.summary.unknownRepositories == [ ];
+              assert builtins.hasAttr "rpool/safe/persist" manifest.datasets;
+              assert manifest.datasets."rpool/safe/persist".missingRequiredTiers == [ "offsite-backup" ];
+              assert manifest.datasets."rpool/safe/home".missingRequiredTiers == [ "offsite-backup" ];
+              assert actual.classification == "critical";
+              assert actual.missingRequiredTiers == [ "offsite-backup" "automated-restore" ];
+              assert homeAssistant.missingRequiredTiers == [ "offsite-backup" ];
+              assert prometheus.classification == "ephemeral";
+              assert prometheus.missingRequiredTiers == [ ];
+              assert rendered == manifest;
+              pkgs.runCommand "protection-manifest-check" { } ''
+                touch $out
+              '';
           };
         };
 

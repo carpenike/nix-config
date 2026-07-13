@@ -341,6 +341,25 @@ in
 
     # Infrastructure contributions (guarded by service enable)
     (lib.mkIf haEnabled {
+      modules.storage.datasets.services.home-assistant.protection = {
+        class = "critical";
+        objectives = {
+          onsiteRpoSeconds = 900;
+          offsiteRpoSeconds = 86400;
+          rtoSeconds = 7200;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "offsite-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "home-assistant-config";
+        allowEmptyBootstrap = false;
+      };
+
       # Dataset replication via Sanoid
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "home-assistant";
 

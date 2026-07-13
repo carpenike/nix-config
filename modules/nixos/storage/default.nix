@@ -11,6 +11,7 @@ with lib;
     ./sanoid.nix
     ./preseed.nix
     ./system-preseed.nix
+    ./protection-manifest.nix
     # helpers.nix removed - now using pure helpers-lib.nix imported directly in modules
   ];
 

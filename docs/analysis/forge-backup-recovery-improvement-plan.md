@@ -132,14 +132,14 @@ Priority: Immediate
 
 ## Phase 1: Establish Protection Policy
 
-Status: Not started
+Status: In progress
 
 ### Deliverables
 
 - [ ] Inventory and classify every Forge dataset as system, critical, standard, or ephemeral.
 - [ ] Record RPO, RTO, consistency requirement, repositories, preseed behavior, validator, and empty-bootstrap policy.
-- [ ] Add a shared protection type through `mylib.types`.
-- [ ] Generate `/etc/homelab/protection-manifest.json` from evaluated configuration.
+- [x] Add a shared protection type through `mylib.types`.
+- [x] Generate `/etc/homelab/protection-manifest.json` from evaluated configuration.
 - [ ] Add assertions for unclassified datasets and missing required protection tiers.
 - [ ] Add explicit mechanism exceptions, such as PostgreSQL using pgBackRest.
 - [ ] Generate backup, replication, preseed, monitoring, and status tooling from the same manifest.
@@ -386,3 +386,7 @@ The improvement program is complete only when all of the following are demonstra
 - Added `task backup:test-restic-results` and proved complete, partial, fatal, and TERM-interrupted outcomes against the deployed wrapper without touching a real repository or production metric.
 - Added `task backup:test-restic-restore` and restored real files with matching size, mode, UID, and GID from Actual, Home Assistant, Music Assistant, and ESPHome snapshots.
 - Full affected-job execution and per-job restore sampling remain open acceptance gates.
+- Began Phase 1 with a nullable dataset protection policy using numeric RPO/RTO objectives and explicit required tiers.
+- Generated an advisory manifest covering 64 managed and Sanoid-only datasets without enforcing classifications.
+- Classified `/persist` and `/home` as system, Actual and Home Assistant as critical, and Prometheus as ephemeral; the manifest exposes their current missing tiers.
+- Built and deployed the read-only manifest at `/etc/homelab/protection-manifest.json`; Forge retained all 115 backup timers with no failed units.

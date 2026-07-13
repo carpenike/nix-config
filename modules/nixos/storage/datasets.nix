@@ -1,4 +1,4 @@
-{ lib, config, pkgs, ... }:
+{ lib, config, mylib, pkgs, ... }:
 # Declarative ZFS dataset management for per-service isolation
 #
 # Architecture:
@@ -135,6 +135,12 @@ in
               Has no effect when `owner` is not "root".
             '';
           };
+
+          protection = lib.mkOption {
+            type = lib.types.nullOr mylib.types.protectionPolicySubmodule;
+            default = null;
+            description = "Recovery objectives and required protection tiers for this dataset.";
+          };
         };
       });
       default = { };
@@ -208,6 +214,12 @@ in
             type = lib.types.str;
             default = "0750";
             description = "Permission mode for the mountpoint directory (if not 'none')";
+          };
+
+          protection = lib.mkOption {
+            type = lib.types.nullOr mylib.types.protectionPolicySubmodule;
+            default = null;
+            description = "Recovery objectives and required protection tiers for this utility dataset.";
           };
         };
       });
