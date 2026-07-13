@@ -490,6 +490,7 @@
                   && builtins.elem "-/etc/resolv.conf" (service.serviceConfig.BindReadOnlyPaths or [ ])
                   && builtins.elem (toString repository.passwordFile) (service.serviceConfig.BindReadOnlyPaths or [ ])
                   && lib.any (lib.hasPrefix "SSL_CERT_FILE=") (service.serviceConfig.Environment or [ ])
+                  && service.serviceConfig.KillMode == "mixed"
                   && !(service.serviceConfig ? ExecStartPost)
                   && !(service.serviceConfig ? SuccessExitStatus);
                 resultScript = forge.systemd.services.restic-backup-service-actual.script;
@@ -501,6 +502,9 @@
               assert lib.hasInfix "result_complete=1" resultScript;
               assert lib.hasInfix "result_partial=1" resultScript;
               assert lib.hasInfix "result_failed=1" resultScript;
+              assert lib.hasInfix ''restic_pid=$!'' resultScript;
+              assert lib.hasInfix ''kill -TERM "$restic_pid"'' resultScript;
+              assert lib.hasInfix ''wait "$restic_pid"'' resultScript;
               assert !(lib.hasInfix "chown root:restic-backup" snapshotModule);
               assert !(lib.hasInfix "chmod g+rx" snapshotModule);
               pkgs.runCommand "backup-phase0-check" { nativeBuildInputs = [ pkgs.coreutils pkgs.gnugrep ]; } ''

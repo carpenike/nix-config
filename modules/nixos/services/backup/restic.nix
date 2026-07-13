@@ -72,6 +72,9 @@ let
 
         serviceConfig = {
           Type = "oneshot";
+          # Let the wrapper stop Restic and publish failure metrics before
+          # systemd kills any remaining processes in the service cgroup.
+          KillMode = "mixed";
           User = "restic-backup";
           Group = "restic-backup";
 
@@ -259,6 +262,12 @@ let
           handle_signal() {
             local exit_code="$1"
             trap - TERM INT
+
+            if [[ -n "''${restic_pid:-}" ]] && kill -0 "$restic_pid" 2>/dev/null; then
+              kill -TERM "$restic_pid" 2>/dev/null || true
+              wait "$restic_pid" 2>/dev/null || true
+            fi
+
             exit "$exit_code"
           }
 
@@ -284,7 +293,14 @@ let
             ${tagArgs} \
             --verbose \
             --read-concurrency ${toString cfg.globalSettings.readConcurrency} \
-            --compression ${cfg.globalSettings.compression} || restic_exit=$?
+            --compression ${cfg.globalSettings.compression} &
+          restic_pid=$!
+          if wait "$restic_pid"; then
+            restic_exit=0
+          else
+            restic_exit=$?
+          fi
+          restic_pid=""
 
           # Exit code 3 means Restic created an incomplete snapshot. Preserve the
           # code so systemd, notifications, and metrics all report a failure.

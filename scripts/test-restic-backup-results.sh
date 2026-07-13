@@ -143,10 +143,81 @@ METRIC
   rm -rf "$work"
 }
 
+run_systemd_stop_case() {
+  local work unit metric result timestamp exit_code
+
+  work=$(mktemp -d)
+  unit="restic-result-systemd-stop-$RANDOM"
+  install -d -m 0750 -o restic-backup -g restic-backup "$work/metrics"
+
+  cat > "$work/restic" <<'MOCK'
+#!/run/current-system/sw/bin/bash
+set -u
+
+case ${1:-} in
+  backup)
+    /run/current-system/sw/bin/systemd-notify --ready
+    exec /run/current-system/sw/bin/tail -f /dev/null
+    ;;
+  snapshots)
+    printf '%s\n' '[]'
+    exit 0
+    ;;
+esac
+exit 1
+MOCK
+  chmod 0755 "$work/restic"
+
+  metric="$work/metrics/restic_backup_${job}.prom"
+  cat > "$metric" <<METRIC
+restic_backup_last_success_timestamp{seed="true"} $seed_timestamp
+METRIC
+  chown restic-backup:restic-backup "$metric"
+
+  systemd-run --quiet --unit="$unit" \
+    -p User=restic-backup \
+    -p Group=restic-backup \
+    -p Type=notify \
+    -p NotifyAccess=all \
+    -p KillMode=mixed \
+    -p Environment=PATH=/run/current-system/sw/bin \
+    -p "BindReadOnlyPaths=$work/restic:$restic_bin" \
+    -p "BindPaths=$work/metrics:/var/lib/node_exporter/textfile_collector" \
+    "$service_script"
+
+  if systemctl is-active --quiet "$unit.service"; then
+    pass "systemd-stop-started"
+  else
+    fail "systemd-stop-started"
+  fi
+
+  if systemctl stop "$unit.service"; then
+    pass "systemd-stop-command"
+  else
+    fail "systemd-stop-command"
+  fi
+
+  result=$(awk '/^restic_backup_result\{/ && $NF == 1 {
+    match($0, /result="[^"]+"/)
+    print substr($0, RSTART + 8, RLENGTH - 9)
+    exit
+  }' "$metric")
+  timestamp=$(awk '/^restic_backup_last_success_timestamp\{/ {print $NF; exit}' "$metric")
+  exit_code=$(awk '/^restic_backup_exit_code\{/ {print $NF; exit}' "$metric")
+
+  check_equal "systemd-stop-result" "$result" failed
+  check_equal "systemd-stop-exit-code" "$exit_code" 143
+  check_equal "systemd-stop-last-success-preserved" "$timestamp" "$seed_timestamp"
+
+  systemctl reset-failed "$unit.service" >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+
 run_case complete 0 complete newer
 run_case partial 3 partial preserved
 run_case failed 1 failed preserved
 run_case interrupted 143 failed preserved
+run_systemd_stop_case
 
 final_checksum=missing
 if [[ -f $production_metric ]]; then
