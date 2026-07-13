@@ -69,6 +69,22 @@
     owner = "alertmanager";
     group = "alertmanager";
     mode = "0750";
+    protection = {
+      class = "ephemeral";
+      objectives = {
+        onsiteRpoSeconds = null;
+        offsiteRpoSeconds = null;
+        rtoSeconds = null;
+      };
+      requiredTiers = [ ];
+      consistency = "crash-consistent";
+      validator = null;
+      allowEmptyBootstrap = true;
+      mechanism = {
+        name = "none";
+        reason = "Silences and notification deduplication state may be lost; duplicate notifications are acceptable.";
+      };
+    };
     properties = {
       "com.sun:auto-snapshot" = "false"; # Do not snapshot (non-critical state)
       logbias = "throughput";

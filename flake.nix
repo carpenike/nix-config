@@ -522,8 +522,10 @@
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 ephemeralPaths = [
+                  "tank/services/alertmanager"
                   "tank/services/prometheus"
                   "tank/services/promtail"
+                  "tank/services/redis"
                   "tank/services/tdarr-cache"
                   "tank/services/valhalla"
                   "tank/temp"
@@ -537,10 +539,10 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 14;
+              assert manifest.summary.classified == 16;
               assert manifest.summary.byClass == {
                 critical = 6;
-                ephemeral = 6;
+                ephemeral = 8;
                 standard = 0;
                 system = 2;
               };
@@ -556,7 +558,9 @@
               assert prometheus.classification == "ephemeral";
               assert prometheus.missingRequiredTiers == [ ];
               assert builtins.all
-                (path: manifest.datasets.${path}.missingRequiredTiers == [ ])
+                (path:
+                  manifest.datasets.${path}.classification == "ephemeral"
+                  && manifest.datasets.${path}.missingRequiredTiers == [ ])
                 ephemeralPaths;
               assert builtins.all
                 (path:

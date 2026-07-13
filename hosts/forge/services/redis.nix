@@ -70,6 +70,23 @@ in
         owner = "redis-default";
         group = "redis-default";
         mode = "0750";
+        protection = {
+          class = "ephemeral";
+          objectives = {
+            onsiteRpoSeconds = null;
+            offsiteRpoSeconds = null;
+            rtoSeconds = null;
+          };
+          requiredTiers = [ ];
+          consistency = "crash-consistent";
+          validator = null;
+          allowEmptyBootstrap = true;
+          mechanism = {
+            name = "none";
+            reason = "Redis stores Tracearr cache and sessions; durable application records live in PostgreSQL.";
+          };
+          notes = "AOF, RDB, snapshots, and replication preserve routine continuity but are not required for disaster recovery.";
+        };
         properties = {
           "com.sun:auto-snapshot" = "true";
         };
