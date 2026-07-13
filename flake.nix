@@ -529,12 +529,17 @@
                   "tank/temp"
                   "tank/services"
                 ];
+                criticalServicePaths = [
+                  "tank/services/pocketid"
+                  "tank/services/zigbee2mqtt"
+                  "tank/services/zwave-js-ui"
+                ];
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 11;
+              assert manifest.summary.classified == 14;
               assert manifest.summary.byClass == {
-                critical = 3;
+                critical = 6;
                 ephemeral = 6;
                 standard = 0;
                 system = 2;
@@ -553,6 +558,11 @@
               assert builtins.all
                 (path: manifest.datasets.${path}.missingRequiredTiers == [ ])
                 ephemeralPaths;
+              assert builtins.all
+                (path:
+                  manifest.datasets.${path}.classification == "critical"
+                  && manifest.datasets.${path}.missingRequiredTiers == [ "offsite-backup" ])
+                criticalServicePaths;
               assert rendered == manifest;
               pkgs.runCommand "protection-manifest-check" { } ''
                 touch $out

@@ -117,6 +117,25 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.pocketid.protection = {
+        class = "critical";
+        objectives = {
+          onsiteRpoSeconds = 900;
+          offsiteRpoSeconds = 86400;
+          rtoSeconds = 7200;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "offsite-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "pocketid-sqlite";
+        allowEmptyBootstrap = false;
+      };
+
       # Service availability alert
       modules.alerting.rules."pocketid-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "pocket-id" "PocketID" "identity provider";

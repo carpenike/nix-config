@@ -118,6 +118,25 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.zigbee2mqtt.protection = {
+        class = "critical";
+        objectives = {
+          onsiteRpoSeconds = 900;
+          offsiteRpoSeconds = 86400;
+          rtoSeconds = 7200;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "offsite-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "zigbee2mqtt-state";
+        allowEmptyBootstrap = false;
+      };
+
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "zigbee2mqtt";
 
       modules.alerting.rules."zigbee2mqtt-service-down" =
