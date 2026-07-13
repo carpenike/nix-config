@@ -395,3 +395,4 @@ The improvement program is complete only when all of the following are demonstra
 - Built and deployed the 11-dataset expansion; the live manifest reports PostgreSQL missing only `independent-restore`, with 115 backup timers active and no failed units.
 - Extended the live inventory to 14 classified datasets by marking PocketID, Zigbee2MQTT, and Z-Wave JS UI critical; each reports only `offsite-backup` as missing.
 - Extended the live inventory to 16 datasets by marking Alertmanager and Redis ephemeral. Redis retains AOF, snapshots, and replication for routine continuity, but may bootstrap empty because durable Tracearr records live in PostgreSQL.
+- Established the first standard-state cohort for Autobrr, Bazarr, Prowlarr, Radarr, and Sonarr. The live inventory now classifies 21 datasets, and all five standard entries satisfy their required tiers without allowing empty bootstrap.

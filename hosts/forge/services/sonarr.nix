@@ -55,6 +55,24 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.sonarr.protection = {
+        class = "standard";
+        objectives = {
+          onsiteRpoSeconds = 86400;
+          offsiteRpoSeconds = null;
+          rtoSeconds = 28800;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "sonarr-state";
+        allowEmptyBootstrap = false;
+      };
+
       # ZFS snapshot and replication configuration for Sonarr dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
       modules.backup.sanoid.datasets."tank/services/sonarr" =

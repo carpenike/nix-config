@@ -536,14 +536,21 @@
                   "tank/services/zigbee2mqtt"
                   "tank/services/zwave-js-ui"
                 ];
+                standardServicePaths = [
+                  "tank/services/autobrr"
+                  "tank/services/bazarr"
+                  "tank/services/prowlarr"
+                  "tank/services/radarr"
+                  "tank/services/sonarr"
+                ];
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 16;
+              assert manifest.summary.classified == 21;
               assert manifest.summary.byClass == {
                 critical = 6;
                 ephemeral = 8;
-                standard = 0;
+                standard = 5;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];
@@ -567,6 +574,12 @@
                   manifest.datasets.${path}.classification == "critical"
                   && manifest.datasets.${path}.missingRequiredTiers == [ "offsite-backup" ])
                 criticalServicePaths;
+              assert builtins.all
+                (path:
+                  manifest.datasets.${path}.classification == "standard"
+                  && !manifest.datasets.${path}.policy.allowEmptyBootstrap
+                  && manifest.datasets.${path}.missingRequiredTiers == [ ])
+                standardServicePaths;
               assert rendered == manifest;
               pkgs.runCommand "protection-manifest-check" { } ''
                 touch $out

@@ -64,6 +64,24 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.bazarr.protection = {
+        class = "standard";
+        objectives = {
+          onsiteRpoSeconds = 86400;
+          offsiteRpoSeconds = null;
+          rtoSeconds = 28800;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "bazarr-state";
+        allowEmptyBootstrap = false;
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/bazarr" = forgeDefaults.mkSanoidDataset "bazarr";
 
