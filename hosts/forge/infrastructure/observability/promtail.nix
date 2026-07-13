@@ -90,6 +90,23 @@
       ];
     };
 
+    modules.storage.datasets.services.promtail.protection = {
+      class = "ephemeral";
+      objectives = {
+        onsiteRpoSeconds = null;
+        offsiteRpoSeconds = null;
+        rtoSeconds = null;
+      };
+      requiredTiers = [ ];
+      consistency = "crash-consistent";
+      validator = null;
+      allowEmptyBootstrap = true;
+      mechanism = {
+        name = "none";
+        reason = "Restoring stale positions or WAL can skip logs; starting empty is safer.";
+      };
+    };
+
     # ZFS snapshot and replication configuration for Promtail dataset
     # NOTE (Gemini Pro 2.5 validated): Snapshots/replication DISABLED for Promtail
     # Rationale:

@@ -56,9 +56,17 @@ let
         if managed != null then managed.protection
         else if external != null then external.protection
         else null;
+      usesPgBackRest = protection != null && protection.mechanism.name == "pgbackrest";
+      pgBackRestNas = usesPgBackRest
+        && lib.elem "pgbackrest-full-backup" serviceNames
+        && lib.elem "pgbackrest-incr-backup" serviceNames;
+      pgBackRestOffsite = usesPgBackRest
+        && lib.elem "pgbackrest-full-backup" serviceNames
+        && lib.elem "pgbackrest-incr-r2-backup" serviceNames;
       preseedUnit =
         if external != null && external.preseedUnit != null
         then external.preseedUnit
+        else if usesPgBackRest then "postgresql-preseed"
         else if kind == "service" then "preseed-${name}"
         else null;
       jobs = lib.filterAttrs
@@ -85,14 +93,16 @@ let
           && (sanoid.autosnap or false)
           && ((sanoid.useTemplate or [ ]) != [ ] || (sanoid.retention or { }) != { });
         replication = sanoidEnabled && sanoid != null && (sanoid.replication or null) != null;
-        nasBackup = lib.any (job: job.repositoryType == "local") backupJobs;
-        offsiteBackup = lib.any
+        nasBackup = pgBackRestNas || lib.any (job: job.repositoryType == "local") backupJobs;
+        offsiteBackup = pgBackRestOffsite || lib.any
           (job: lib.elem job.repositoryType [ "s3" "b2" "rest" ])
           backupJobs;
         automatedRestore = preseedUnit != null
           && lib.elem preseedUnit serviceNames
           && (config.systemd.services.${preseedUnit}.enable or true);
+        independentRestore = external != null && external.independentRestore;
         externalBootstrap = external != null && external.externalBootstrap;
+        pgBackRest = pgBackRestNas && pgBackRestOffsite;
       };
       tierSatisfied = tier: {
         local-snapshot = coverage.localSnapshot;
@@ -100,6 +110,7 @@ let
         nas-backup = coverage.nasBackup;
         offsite-backup = coverage.offsiteBackup;
         automated-restore = coverage.automatedRestore;
+        independent-restore = coverage.independentRestore;
         external-bootstrap = coverage.externalBootstrap;
       }.${tier};
       requiredTiers = if protection != null then protection.requiredTiers else [ ];
@@ -172,6 +183,12 @@ in
             type = lib.types.bool;
             default = false;
             description = "Whether recovery is implemented by an external bootstrap workflow.";
+          };
+
+          independentRestore = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "Whether restore has been proven independent of the primary backup tier.";
           };
 
           protection = lib.mkOption {

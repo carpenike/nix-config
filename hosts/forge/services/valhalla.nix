@@ -159,6 +159,22 @@ in
     owner = "root";
     group = "root";
     mode = "0755";
+    protection = {
+      class = "ephemeral";
+      objectives = {
+        onsiteRpoSeconds = null;
+        offsiteRpoSeconds = null;
+        rtoSeconds = null;
+      };
+      requiredTiers = [ ];
+      consistency = "crash-consistent";
+      validator = null;
+      allowEmptyBootstrap = true;
+      mechanism = {
+        name = "none";
+        reason = "The tile graph is reproducible from the configured OSM extract.";
+      };
+    };
   };
 
   # Alert if the container's systemd unit stops (node_exporter systemd collector,

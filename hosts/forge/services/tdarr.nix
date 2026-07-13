@@ -41,6 +41,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.tdarr-cache.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "The dataset contains temporary transcode files only.";
+        };
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/tdarr" = forgeDefaults.mkSanoidDataset "tdarr";
 

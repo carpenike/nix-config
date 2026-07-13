@@ -58,22 +58,14 @@ in
           max_wal_size = "2GB";
           min_wal_size = "512MB";
           archive_mode = "on";
-          # DESIGN DECISION: WAL archiving to repo1 (NFS) only - repo2 (R2) is for DR backups
+          # DESIGN DECISION: Archive WAL continuously to both pgBackRest repositories.
           #
-          # WALs are archived continuously to the primary NFS repo for fast local PITR.
-          # The /etc/pgbackrest.conf uses repo1-archive-push=y to ensure archive operations
-          # ONLY use repo1, preventing archive_command from requiring repo2 S3 credentials.
-          #
-          # Repo2 (Cloudflare R2) is intentionally configured as a pure DR repository:
-          # - Receives full/diff/incr backups via scheduled jobs (--no-archive-check)
-          # - Does NOT receive continuous WAL archiving
-          # - Provides geographic redundancy for disaster recovery scenarios
-          # - RPO for R2 recovery: last successful backup job (hourly incremental = ~1 hour RPO)
-          #
-          # This design optimizes for:
-          # 1. Fast local recovery (repo1: continuous WALs, low-latency NFS)
-          # 2. Cost-effective cloud DR (repo2: backup jobs only, no continuous WAL transfer costs)
-          # 3. Operational simplicity (archive operations restricted to repo1 via config)
+          # pgBackRest archive-push writes each segment to repo1 (NFS) and repo2 (R2).
+          # archive-async decouples PostgreSQL from repository latency through the local
+          # spool, while archive_timeout forces a segment switch every five minutes.
+          # This gives both repositories PITR coverage with a nominal five-minute RPO.
+          # Scheduled full and incremental jobs maintain independent backup chains;
+          # repository-independent restore remains a separate, unproven DR requirement.
           archive_command = "${pkgs.pgbackrest}/bin/pgbackrest --stanza=main archive-push %p";
           archive_timeout = "300"; # Force WAL switch every 5 minutes (bounds RPO)
 
@@ -246,6 +238,28 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.postgresql.protection = {
+        class = "critical";
+        objectives = {
+          onsiteRpoSeconds = 300;
+          offsiteRpoSeconds = 300;
+          rtoSeconds = 7200;
+        };
+        requiredTiers = [
+          "nas-backup"
+          "offsite-backup"
+          "automated-restore"
+          "independent-restore"
+        ];
+        consistency = "transaction-consistent";
+        validator = "postgresql-cluster-health";
+        allowEmptyBootstrap = false;
+        mechanism = {
+          name = "pgbackrest";
+          reason = "Continuous WAL archiving and application-consistent backups provide PITR.";
+        };
+      };
+
       # Co-located alert rules for PostgreSQL
       # pgBackRest alerts have been moved to pgbackrest.nix for proper service co-location
       # These rules are automatically enabled when PostgreSQL is enabled

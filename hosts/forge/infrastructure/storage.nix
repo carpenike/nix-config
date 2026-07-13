@@ -122,6 +122,22 @@ in
           properties = {
             "com.sun:auto-snapshot" = "false"; # Don't snapshot temporary clones
           };
+          protection = {
+            class = "ephemeral";
+            objectives = {
+              onsiteRpoSeconds = null;
+              offsiteRpoSeconds = null;
+              rtoSeconds = null;
+            };
+            requiredTiers = [ ];
+            consistency = "crash-consistent";
+            validator = null;
+            allowEmptyBootstrap = true;
+            mechanism = {
+              name = "none";
+              reason = "The dataset contains disposable backup clones only.";
+            };
+          };
         };
       };
     };
@@ -175,6 +191,25 @@ in
           mechanism = {
             name = "external-bootstrap";
             reason = "RECOVER=true restores home before the full Forge configuration is deployed.";
+          };
+        };
+      };
+
+      "tank/services" = {
+        protection = {
+          class = "ephemeral";
+          objectives = {
+            onsiteRpoSeconds = null;
+            offsiteRpoSeconds = null;
+            rtoSeconds = null;
+          };
+          requiredTiers = [ ];
+          consistency = "crash-consistent";
+          validator = null;
+          allowEmptyBootstrap = true;
+          mechanism = {
+            name = "none";
+            reason = "This is an unmounted logical parent; child datasets hold service state.";
           };
         };
       };

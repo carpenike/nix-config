@@ -36,6 +36,7 @@ in
           "nas-backup"
           "offsite-backup"
           "automated-restore"
+          "independent-restore"
           "external-bootstrap"
         ]);
         description = "Protection mechanisms required to satisfy this dataset's recovery objectives.";

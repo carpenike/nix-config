@@ -141,7 +141,7 @@ Status: In progress
 - [x] Add a shared protection type through `mylib.types`.
 - [x] Generate `/etc/homelab/protection-manifest.json` from evaluated configuration.
 - [ ] Add assertions for unclassified datasets and missing required protection tiers.
-- [ ] Add explicit mechanism exceptions, such as PostgreSQL using pgBackRest.
+- [x] Add explicit mechanism exceptions, such as PostgreSQL using pgBackRest.
 - [ ] Generate backup, replication, preseed, monitoring, and status tooling from the same manifest.
 - [ ] Correct nested contribution gaps such as Beszel.
 
@@ -390,3 +390,6 @@ The improvement program is complete only when all of the following are demonstra
 - Generated an advisory manifest covering 64 managed and Sanoid-only datasets without enforcing classifications.
 - Classified `/persist` and `/home` as system, Actual and Home Assistant as critical, and Prometheus as ephemeral; the manifest exposes their current missing tiers.
 - Built and deployed the read-only manifest at `/etc/homelab/protection-manifest.json`; Forge retained all 115 backup timers with no failed units.
+- Expanded advisory classification to 11 datasets using explicit evidence: six rebuildable datasets, two system datasets, and three critical datasets.
+- Modeled PostgreSQL pgBackRest NAS/offsite and automated restore coverage while retaining `independent-restore` as a missing tier until the NFS-coupled fallback is fixed.
+- Built and deployed the 11-dataset expansion; the live manifest reports PostgreSQL missing only `independent-restore`, with 115 backup timers active and no failed units.

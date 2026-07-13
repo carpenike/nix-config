@@ -519,11 +519,26 @@
                 rendered = builtins.fromJSON forge.environment.etc."homelab/protection-manifest.json".text;
                 actual = manifest.datasets."tank/services/actual";
                 homeAssistant = manifest.datasets."tank/services/home-assistant";
+                postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
+                ephemeralPaths = [
+                  "tank/services/prometheus"
+                  "tank/services/promtail"
+                  "tank/services/tdarr-cache"
+                  "tank/services/valhalla"
+                  "tank/temp"
+                  "tank/services"
+                ];
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 5;
+              assert manifest.summary.classified == 11;
+              assert manifest.summary.byClass == {
+                critical = 3;
+                ephemeral = 6;
+                standard = 0;
+                system = 2;
+              };
               assert manifest.summary.unknownRepositories == [ ];
               assert builtins.hasAttr "rpool/safe/persist" manifest.datasets;
               assert manifest.datasets."rpool/safe/persist".missingRequiredTiers == [ "offsite-backup" ];
@@ -531,8 +546,13 @@
               assert actual.classification == "critical";
               assert actual.missingRequiredTiers == [ "offsite-backup" "automated-restore" ];
               assert homeAssistant.missingRequiredTiers == [ "offsite-backup" ];
+              assert postgresql.coverage.pgBackRest;
+              assert postgresql.missingRequiredTiers == [ "independent-restore" ];
               assert prometheus.classification == "ephemeral";
               assert prometheus.missingRequiredTiers == [ ];
+              assert builtins.all
+                (path: manifest.datasets.${path}.missingRequiredTiers == [ ])
+                ephemeralPaths;
               assert rendered == manifest;
               pkgs.runCommand "protection-manifest-check" { } ''
                 touch $out
