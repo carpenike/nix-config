@@ -54,6 +54,24 @@ in
         owner = config.modules.services.omada.user;
         group = config.modules.services.omada.group;
         mode = "0750";
+        protection = {
+          class = "critical";
+          objectives = {
+            onsiteRpoSeconds = 900;
+            offsiteRpoSeconds = 86400;
+            rtoSeconds = 7200;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "nas-backup"
+            "offsite-backup"
+            "automated-restore"
+          ];
+          consistency = "crash-consistent";
+          validator = "omada-mongodb";
+          allowEmptyBootstrap = false;
+        };
       };
 
       modules.backup.sanoid.datasets.${dataset} =

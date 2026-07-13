@@ -19,6 +19,11 @@ let
   sharedTypes = mylib.types;
   # Storage helpers via mylib injection (centralized import)
   storageHelpers = mylib.storageHelpers pkgs;
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = "omada";
+  };
 in
 {
   options.modules.services.omada = {
@@ -331,7 +336,9 @@ in
           unitConfig.OnFailure = [ "notify@omada-failure:%n.service" ];
         })
         (lib.mkIf cfg.preseed.enable {
-          wants = [ "zfs-service-datasets.service" "preseed-omada.service" ];
+          requires = lib.optional (!allowEmptyBootstrap) "preseed-omada.service";
+          wants = [ "zfs-service-datasets.service" ]
+            ++ lib.optional allowEmptyBootstrap "preseed-omada.service";
           after = [ "zfs-service-datasets.service" "preseed-omada.service" ];
         })
       ];
@@ -373,7 +380,7 @@ in
         dataset = datasetPath;
         mountpoint = stateDir;
         mainServiceUnit = mainServiceUnit;
-        replicationCfg = null; # Replication config handled at host level
+        replicationCfg = replicationConfig;
         datasetProperties = {
           recordsize = "16K";
           compression = "zstd";
@@ -385,6 +392,7 @@ in
         resticPaths = [ cfg.dataDir cfg.logDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

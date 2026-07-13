@@ -535,6 +535,7 @@
                   "home-assistant" = "home-assistant";
                   "music-assistant" = "music-assistant";
                   netvisor = "podman-netvisor-server";
+                  omada = "podman-omada";
                   pocketid = "pocket-id";
                   prowlarr = "podman-prowlarr";
                   radarr = "podman-radarr";
@@ -554,6 +555,7 @@
                 ];
                 criticalServicePaths = [
                   "tank/services/bichon"
+                  "tank/services/omada"
                   "tank/services/pocketid"
                   "tank/services/zigbee2mqtt"
                   "tank/services/zwave-js-ui"
@@ -572,9 +574,9 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 26;
+              assert manifest.summary.classified == 27;
               assert manifest.summary.byClass == {
-                critical = 7;
+                critical = 8;
                 ephemeral = 8;
                 standard = 9;
                 system = 2;
