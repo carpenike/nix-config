@@ -84,6 +84,23 @@ in
     }
 
     (lib.mkIf dispatcharrEnabled {
+      modules.storage.datasets.services.dispatcharr.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Durable IPTV configuration lives in PostgreSQL; the mounted application dataset is empty runtime state.";
+        };
+      };
+
       # ZFS snapshot and replication configuration for Dispatcharr dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
       modules.backup.sanoid.datasets."tank/services/dispatcharr" =

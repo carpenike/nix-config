@@ -97,6 +97,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.tracearr.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Durable monitoring records live in PostgreSQL, Redis is disposable, and local secrets are materialized from SOPS.";
+        };
+      };
+
       # ZFS snapshot and replication configuration for Tracearr dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
       modules.backup.sanoid.datasets."tank/services/tracearr" =

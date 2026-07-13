@@ -555,6 +555,7 @@
                 ephemeralPaths = [
                   "tank/services/alertmanager"
                   "tank/services/cooklang-federation"
+                  "tank/services/dispatcharr"
                   "tank/services/homepage"
                   "tank/services/kometa"
                   "tank/services/miniflux"
@@ -565,6 +566,7 @@
                   "tank/services/searxng"
                   "tank/services/tdarr-cache"
                   "tank/services/teslamate"
+                  "tank/services/tracearr"
                   "tank/services/valhalla"
                   "tank/temp"
                   "tank/services"
@@ -595,10 +597,10 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 39;
+              assert manifest.summary.classified == 41;
               assert manifest.summary.byClass == {
                 critical = 8;
-                ephemeral = 17;
+                ephemeral = 19;
                 standard = 12;
                 system = 2;
               };
