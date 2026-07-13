@@ -121,6 +121,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.miniflux.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Durable feeds, users, and read state live in PostgreSQL; the local dataset is an empty runtime workspace.";
+        };
+      };
+
       # ZFS snapshot and replication for service state dataset
       modules.backup.sanoid.datasets.${dataset} =
         forgeDefaults.mkSanoidDataset "miniflux";

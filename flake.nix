@@ -557,15 +557,19 @@
                   "tank/services/cooklang-federation"
                   "tank/services/homepage"
                   "tank/services/kometa"
+                  "tank/services/miniflux"
                   "tank/services/prometheus"
                   "tank/services/promtail"
                   "tank/services/redis"
                   "tank/services/recyclarr"
+                  "tank/services/searxng"
                   "tank/services/tdarr-cache"
+                  "tank/services/teslamate"
                   "tank/services/valhalla"
                   "tank/temp"
                   "tank/services"
                   "tank/services/worldmonitor"
+                  "tank/services/go2rtc"
                 ];
                 criticalServicePaths = [
                   "tank/services/bichon"
@@ -591,10 +595,10 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 35;
+              assert manifest.summary.classified == 39;
               assert manifest.summary.byClass == {
                 critical = 8;
-                ephemeral = 13;
+                ephemeral = 17;
                 standard = 12;
                 system = 2;
               };

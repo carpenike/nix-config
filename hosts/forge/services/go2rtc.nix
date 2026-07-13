@@ -57,6 +57,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.go2rtc.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Camera stream definitions are generated from Nix and the relay keeps no durable local state.";
+        };
+      };
+
       # ZFS replication for DR
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "go2rtc";
 

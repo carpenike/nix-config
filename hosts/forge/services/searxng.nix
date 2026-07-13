@@ -64,6 +64,22 @@ in
         owner = "searx";
         group = "searx";
         mode = "0750";
+        protection = {
+          class = "ephemeral";
+          objectives = {
+            onsiteRpoSeconds = null;
+            offsiteRpoSeconds = null;
+            rtoSeconds = null;
+          };
+          requiredTiers = [ ];
+          consistency = "crash-consistent";
+          validator = null;
+          allowEmptyBootstrap = true;
+          mechanism = {
+            name = "none";
+            reason = "SearXNG configuration and secrets are generated declaratively; local search and rate-limit state is disposable.";
+          };
+        };
       };
 
       # Sanoid snapshot/replication to NAS

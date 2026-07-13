@@ -94,6 +94,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.teslamate.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Vehicle telemetry and application records live in PostgreSQL; the local dataset is an empty runtime workspace.";
+        };
+      };
+
       # Dataset replication (sanoid contribution)
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "teslamate";
 
