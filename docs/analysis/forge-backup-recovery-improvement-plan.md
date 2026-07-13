@@ -115,7 +115,7 @@ Priority: Immediate
 - [ ] Run the 16 affected jobs and then the complete expected job set.
 - [ ] Keep incomplete snapshots until clean replacements exist, then expire them deliberately.
 - [x] Add generated-unit regression checks for result handling, capability confinement, credentials, and cleanup ordering.
-- [ ] Add executable mocked tests for exit codes 0, 3, fatal nonzero, and interruption.
+- [x] Add executable mocked tests for exit codes 0, 3, fatal nonzero, and interruption.
 
 ### Acceptance Gate
 
@@ -383,4 +383,6 @@ The improvement program is complete only when all of the following are demonstra
 - Validated complete backups, correct one-hot metrics, and clean teardown for Actual, Apprise, Bichon, Cooklang, Cooklang Federation, ESPHome, Grafana OnCall, Home Assistant, Music Assistant, NetVisor, and Radarr.
 - Stopped the forced validation batch after ESPHome reached its 2 GiB memory ceiling and Forge peaked at 85 C; all timers and temporary state were restored cleanly.
 - Plex, SABnzbd, TDarr, Termix, and Tududi remain pending and will validate through staggered timers rather than another forced high-load batch.
-- Full affected-job execution, restore sampling, and controlled partial/fatal result tests remain open acceptance gates.
+- Added `task backup:test-restic-results` and proved complete, partial, fatal, and TERM-interrupted outcomes against the deployed wrapper without touching a real repository or production metric.
+- Added `task backup:test-restic-restore` and restored real files with matching size, mode, UID, and GID from Actual, Home Assistant, Music Assistant, and ESPHome snapshots.
+- Full affected-job execution and per-job restore sampling remain open acceptance gates.

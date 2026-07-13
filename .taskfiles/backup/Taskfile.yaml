@@ -775,6 +775,64 @@ tasks:
       - sh: test -f scripts/validate-restic-job.sh
         msg: "scripts/validate-restic-job.sh not found"
 
+  test-restic-results:
+    desc: Test Restic complete, partial, fatal, and interrupted results
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      job: '{{.job | default "service-actual"}}'
+    summary: |
+      Runs the deployed Restic wrapper against an isolated mock binary. The
+      test does not access a real repository or production metric file.
+
+      Args:
+        job: Restic job name without the restic-backup- prefix
+        host: Target host (default: forge)
+
+      Example:
+        task backup:test-restic-results job=service-actual
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo bash -s -- {{.job}}" < scripts/test-restic-backup-results.sh
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: test -f scripts/test-restic-backup-results.sh
+        msg: "scripts/test-restic-backup-results.sh not found"
+
+  test-restic-restore:
+    desc: Restore and verify one file from a Restic snapshot
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Selects the newest snapshot for a job, restores one small regular file
+      into an isolated temporary directory, and verifies size, mode, UID, and
+      GID metadata.
+
+      Args:
+        job: Restic job name without the restic-backup- prefix (required)
+        host: Target host (default: forge)
+
+      Additional arguments:
+        --tag TAG
+        --max-size BYTES
+
+      Examples:
+        task backup:test-restic-restore job=service-actual -- --tag actual
+        task backup:test-restic-restore job=service-plex -- --tag plex
+    requires:
+      vars:
+        - job
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo bash -s -- {{.job}} {{.CLI_ARGS}}" < scripts/test-restic-restore.sh
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: test -f scripts/test-restic-restore.sh
+        msg: "scripts/test-restic-restore.sh not found"
+
   restic:
     desc: List Restic backup status from Prometheus metrics (fast)
     silent: false
