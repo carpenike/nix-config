@@ -520,14 +520,24 @@
                 actual = manifest.datasets."tank/services/actual";
                 homeAssistant = manifest.datasets."tank/services/home-assistant";
                 musicAssistant = manifest.datasets."tank/services/music-assistant";
-                legacyPreseed = forge.systemd.services.preseed-mealie;
+                legacyDirectPreseed = forge.systemd.services.preseed-mealie;
+                legacyFactoryMain = forge.systemd.services.podman-qbittorrent;
+                legacyFactoryPreseed = forge.systemd.services.preseed-qbittorrent;
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 failClosedUnits = {
+                  apprise = "podman-apprise";
+                  autobrr = "podman-autobrr";
+                  bazarr = "podman-bazarr";
                   bichon = "podman-bichon";
+                  esphome = "podman-esphome";
                   "home-assistant" = "home-assistant";
                   "music-assistant" = "music-assistant";
+                  netvisor = "podman-netvisor-server";
                   pocketid = "pocket-id";
+                  prowlarr = "podman-prowlarr";
+                  radarr = "podman-radarr";
+                  sonarr = "podman-sonarr";
                   zigbee2mqtt = "zigbee2mqtt";
                   "zwave-js-ui" = "zwave-js-ui";
                 };
@@ -590,7 +600,10 @@
                   && preseedUnit.environment.ALLOW_EMPTY_BOOTSTRAP == "false"
                   && pkgs.lib.hasInfix "Refusing to start ${name} with an empty data directory" preseedUnit.script)
                 (builtins.attrNames failClosedUnits);
-              assert !(pkgs.lib.hasInfix "Refusing to start mealie with an empty data directory" legacyPreseed.script);
+              assert !(pkgs.lib.hasInfix "Refusing to start mealie with an empty data directory" legacyDirectPreseed.script);
+              assert builtins.elem "preseed-qbittorrent.service" legacyFactoryMain.wants;
+              assert !(builtins.elem "preseed-qbittorrent.service" legacyFactoryMain.requires);
+              assert !(pkgs.lib.hasInfix "Refusing to start qbittorrent with an empty data directory" legacyFactoryPreseed.script);
               assert postgresql.coverage.pgBackRest;
               assert postgresql.missingRequiredTiers == [ "independent-restore" ];
               assert prometheus.classification == "ephemeral";

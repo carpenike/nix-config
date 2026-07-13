@@ -14,12 +14,17 @@ let
   hasCentralizedNotifications = notificationsCfg.enable or false;
   serviceName = "esphome";
   backend = config.virtualisation.oci-containers.backend;
-  mainServiceUnit = "${backend}-${serviceName}.service";
+  mainServiceName = "${backend}-${serviceName}";
+  mainServiceUnit = "${mainServiceName}.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
   esphomePort = cfg.port;
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 
 in
 {
@@ -319,7 +324,7 @@ in
         ];
       };
 
-      systemd.services.${mainServiceUnit} = lib.mkMerge [
+      systemd.services.${mainServiceName} = lib.mkMerge [
         (lib.mkIf (cfg.podmanNetwork != null && !cfg.hostNetwork) {
           requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
           after = [ "podman-network-${cfg.podmanNetwork}.service" ];
@@ -328,7 +333,8 @@ in
           unitConfig.OnFailure = [ "notify@esphome-failure:%n.service" ];
         })
         (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-esphome.service" ];
+          requires = lib.optional (!allowEmptyBootstrap) "preseed-esphome.service";
+          wants = lib.optional allowEmptyBootstrap "preseed-esphome.service";
           after = [ "preseed-esphome.service" ];
         })
         (lib.mkIf (cfg.secretsFile != null) {
@@ -399,6 +405,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         owner = "esphome";
         group = "esphome";
       }

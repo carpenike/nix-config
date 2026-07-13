@@ -33,6 +33,13 @@ let
   # Service identity
   serviceName = "apprise";
   serviceIds = mylib.serviceUids.${serviceName};
+  storageCfg = config.modules.storage;
+  datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 in
 {
   options.modules.services.apprise = {
@@ -290,7 +297,8 @@ in
         }
         # Add dependency on preseed service if enabled
         (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-apprise.service" ];
+          requires = lib.optional (!allowEmptyBootstrap) "preseed-apprise.service";
+          wants = lib.optional allowEmptyBootstrap "preseed-apprise.service";
           after = [ "preseed-apprise.service" ];
         })
       ];
@@ -311,11 +319,6 @@ in
 
     # Preseed / disaster recovery service
     (mkIf (cfg.enable && cfg.preseed.enable) (
-      let
-        storageCfg = config.modules.storage;
-        datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
-        replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
-      in
       storageHelpers.mkPreseedService {
         inherit serviceName;
         dataset = datasetPath;
@@ -331,6 +334,7 @@ in
         resticPasswordFile = cfg.preseed.passwordFile;
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

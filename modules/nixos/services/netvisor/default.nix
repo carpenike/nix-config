@@ -42,6 +42,10 @@ let
 
   # Build replication config for preseed
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 
   # Environment file locations
   envDir = "/run/${serviceName}";
@@ -634,10 +638,13 @@ in
 
       # Systemd service dependencies
       systemd.services."${backend}-${serviceName}-server" = {
-        requires = [ "netvisor-env.service" "postgresql.service" ];
+        requires = [ "netvisor-env.service" "postgresql.service" ]
+          ++ lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) "preseed-${serviceName}.service";
         after = [ "netvisor-env.service" "postgresql.service" ]
-          ++ lib.optionals cfg.oidc.enable [ "netvisor-oidc-config.service" ];
-        wants = lib.optionals cfg.oidc.enable [ "netvisor-oidc-config.service" ];
+          ++ lib.optionals cfg.oidc.enable [ "netvisor-oidc-config.service" ]
+          ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
+        wants = lib.optionals cfg.oidc.enable [ "netvisor-oidc-config.service" ]
+          ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) "preseed-${serviceName}.service";
 
         # Failure notifications
         unitConfig = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
@@ -696,6 +703,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

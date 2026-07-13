@@ -436,6 +436,10 @@ in
       nfsMountName = if category.hasNfsMount then (cfg.nfsMountDependency or null) else null;
       nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
       replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+      allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+        inherit config;
+        datasetName = name;
+      };
 
       usesExternalAuth =
         cfg.reverseProxy != null
@@ -669,7 +673,8 @@ in
             })
             # Preseed dependency
             (lib.mkIf (cfg.preseed.enable or false) {
-              wants = [ "preseed-${name}.service" ];
+              requires = lib.optional (!allowEmptyBootstrap) "preseed-${name}.service";
+              wants = lib.optional allowEmptyBootstrap "preseed-${name}.service";
               after = [ "preseed-${name}.service" ];
             })
             # Config generator dependency
@@ -732,6 +737,7 @@ in
             resticPaths = [ cfg.dataDir ];
             restoreMethods = cfg.preseed.restoreMethods;
             hasCentralizedNotifications = notificationsCfg.enable or false;
+            inherit allowEmptyBootstrap;
             owner = cfg.user;
             group = cfg.group;
           }
