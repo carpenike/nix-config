@@ -12,16 +12,26 @@
 # This module configures OIDC via PocketID for SSO.
 # See: https://actualbudget.org/docs/config/oauth-auth/
 #
-{ config, lib, mylib, ... }:
+{ config, lib, mylib, pkgs, ... }:
 
 let
   cfg = config.modules.services.actual;
   serviceName = "actual";
+  serviceUnit = "${serviceName}.service";
   # Import service UIDs from centralized registry
   serviceIds = mylib.serviceUids.actual;
 
   # Import shared types for standard submodules
   sharedTypes = mylib.types;
+  storageHelpers = mylib.storageHelpers pkgs;
+  storageCfg = config.modules.storage;
+  datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
+  hasCentralizedNotifications = config.modules.notifications.enable or false;
 
 in
 {
@@ -188,89 +198,116 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    # Use native NixOS Actual service
-    services.actual = {
-      enable = true;
-      openFirewall = false; # We handle firewall ourselves
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      # Use native NixOS Actual service
+      services.actual = {
+        enable = true;
+        openFirewall = false; # We handle firewall ourselves
 
-      settings = {
-        hostname = "127.0.0.1"; # Only listen on localhost (behind reverse proxy)
-        port = cfg.port;
-      } // lib.optionalAttrs cfg.oidc.enable {
-        # OIDC configuration via native settings format
-        # The NixOS module supports _secret for secure file-based secrets
-        loginMethod = "openid";
-        openId = {
-          discoveryURL = cfg.oidc.discoveryUrl;
-          client_id = cfg.oidc.clientId;
-          client_secret._secret = cfg.oidc.clientSecretFile;
-          server_hostname = cfg.oidc.serverHostname;
-          authMethod = cfg.oidc.authMethod; # 'openid' or 'oauth2' based on provider
+        settings = {
+          hostname = "127.0.0.1"; # Only listen on localhost (behind reverse proxy)
+          port = cfg.port;
+        } // lib.optionalAttrs cfg.oidc.enable {
+          # OIDC configuration via native settings format
+          # The NixOS module supports _secret for secure file-based secrets
+          loginMethod = "openid";
+          openId = {
+            discoveryURL = cfg.oidc.discoveryUrl;
+            client_id = cfg.oidc.clientId;
+            client_secret._secret = cfg.oidc.clientSecretFile;
+            server_hostname = cfg.oidc.serverHostname;
+            authMethod = cfg.oidc.authMethod; # 'openid' or 'oauth2' based on provider
+          };
         };
       };
-    };
 
-    # Override systemd service for ZFS integration and stable user
-    systemd.services.actual = {
-      # Wait for ZFS datasets
-      after = [ "local-fs.target" "zfs-mount.service" ];
-      wants = [ "zfs-mount.service" ];
+      # Override systemd service for ZFS integration and stable user
+      systemd.services.actual = {
+        # Wait for ZFS datasets
+        after = [ "local-fs.target" "zfs-mount.service" ]
+          ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
+        requires = lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) "preseed-${serviceName}.service";
+        wants = [ "zfs-mount.service" ]
+          ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) "preseed-${serviceName}.service";
 
-      serviceConfig = {
-        # Override DynamicUser for persistent storage with stable UID
-        DynamicUser = lib.mkForce false;
-        User = cfg.user;
-        Group = cfg.group;
+        serviceConfig = {
+          # Override DynamicUser for persistent storage with stable UID
+          DynamicUser = lib.mkForce false;
+          User = cfg.user;
+          Group = cfg.group;
 
-        # Explicit state/runtime directories with correct ownership
-        # RuntimeDirectory is needed for config.json with expanded secrets
-        StateDirectory = lib.mkForce serviceName;
-        StateDirectoryMode = lib.mkForce "0750";
-        RuntimeDirectory = lib.mkForce serviceName;
-        RuntimeDirectoryMode = lib.mkForce "0750";
+          # Explicit state/runtime directories with correct ownership
+          # RuntimeDirectory is needed for config.json with expanded secrets
+          StateDirectory = lib.mkForce serviceName;
+          StateDirectoryMode = lib.mkForce "0750";
+          RuntimeDirectory = lib.mkForce serviceName;
+          RuntimeDirectoryMode = lib.mkForce "0750";
 
-        # Working directory for data storage
-        WorkingDirectory = cfg.dataDir;
+          # Working directory for data storage
+          WorkingDirectory = cfg.dataDir;
 
-        # Security hardening - allow reading secret files
-        ReadWritePaths = [ cfg.dataDir "/run/${serviceName}" ];
+          # Security hardening - allow reading secret files
+          ReadWritePaths = [ cfg.dataDir "/run/${serviceName}" ];
+        };
       };
-    };
 
-    # Create actual user/group with stable UID/GID
-    users.users.${cfg.user} = {
-      isSystemUser = true;
-      uid = cfg.uid;
-      group = cfg.group;
-      home = lib.mkForce "/var/empty";
-      description = lib.mkForce "Actual Budget service user";
-    };
+      # Create actual user/group with stable UID/GID
+      users.users.${cfg.user} = {
+        isSystemUser = true;
+        uid = cfg.uid;
+        group = cfg.group;
+        home = lib.mkForce "/var/empty";
+        description = lib.mkForce "Actual Budget service user";
+      };
 
-    users.groups.${cfg.group} = {
-      gid = cfg.gid;
-    };
+      users.groups.${cfg.group} = {
+        gid = cfg.gid;
+      };
 
-    # Caddy reverse proxy integration
-    modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-      backend = cfg.reverseProxy.backend;
-      caddySecurity = cfg.reverseProxy.caddySecurity or null;
-      extraConfig = cfg.reverseProxy.extraConfig or "";
-    };
+      # Caddy reverse proxy integration
+      modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+        enable = true;
+        hostName = cfg.reverseProxy.hostName;
+        backend = cfg.reverseProxy.backend;
+        caddySecurity = cfg.reverseProxy.caddySecurity or null;
+        extraConfig = cfg.reverseProxy.extraConfig or "";
+      };
 
-    # Backup integration
-    modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      enable = true;
-      paths = [ cfg.dataDir ];
-      repository = cfg.backup.repository;
-      tags = cfg.backup.tags or [ "finance" serviceName "budget" ];
-      useSnapshots = cfg.backup.useSnapshots or true;
-      zfsDataset = cfg.backup.zfsDataset or null;
-    };
+      # Backup integration
+      modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+        enable = true;
+        paths = [ cfg.dataDir ];
+        repository = cfg.backup.repository;
+        tags = cfg.backup.tags or [ "finance" serviceName "budget" ];
+        useSnapshots = cfg.backup.useSnapshots or true;
+        zfsDataset = cfg.backup.zfsDataset or null;
+      };
 
-    # Firewall - only allow localhost access (internal service behind reverse proxy)
-    networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ];
-  };
+      # Firewall - only allow localhost access (internal service behind reverse proxy)
+      networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ];
+    })
+
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
+        inherit serviceName allowEmptyBootstrap;
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        mainServiceUnit = serviceUnit;
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "lz4";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        inherit hasCentralizedNotifications;
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
+  ];
 }

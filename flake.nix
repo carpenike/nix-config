@@ -526,6 +526,7 @@
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 failClosedUnits = {
+                  actual = "actual";
                   apprise = "podman-apprise";
                   autobrr = "podman-autobrr";
                   bazarr = "podman-bazarr";
@@ -583,7 +584,7 @@
               assert manifest.datasets."rpool/safe/persist".missingRequiredTiers == [ "offsite-backup" ];
               assert manifest.datasets."rpool/safe/home".missingRequiredTiers == [ "offsite-backup" ];
               assert actual.classification == "critical";
-              assert actual.missingRequiredTiers == [ "offsite-backup" "automated-restore" ];
+              assert actual.missingRequiredTiers == [ "offsite-backup" ];
               assert homeAssistant.missingRequiredTiers == [ "offsite-backup" ];
               assert musicAssistant.coverage.automatedRestore;
               assert builtins.all
