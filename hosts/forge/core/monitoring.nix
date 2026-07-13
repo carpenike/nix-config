@@ -114,6 +114,39 @@
       };
     };
 
+    # Aquaero channels 1 and 2 are the active cooling-loop fan channels.
+    "aquaero-cooling-channel-low" = {
+      type = "promql";
+      alertname = "AquaeroCoolingChannelLow";
+      expr = ''
+        node_hwmon_fan_rpm{chip=~".*0c70:f001.*",sensor=~"fan1|fan2"} < 200
+      '';
+      for = "2m";
+      severity = "critical";
+      labels = { service = "system"; category = "hardware"; };
+      annotations = {
+        summary = "Aquaero cooling channel {{ $labels.sensor }} stopped on {{ $labels.instance }}";
+        description = "Aquaero {{ $labels.sensor }} is reporting {{ $value }} RPM. Inspect fan/pump power and the liquid-cooling loop immediately.";
+      };
+    };
+
+    "aquaero-cooling-telemetry-missing" = {
+      type = "promql";
+      alertname = "AquaeroCoolingTelemetryMissing";
+      expr = ''
+        absent(node_hwmon_fan_rpm{chip=~".*0c70:f001.*",sensor="fan1"})
+        or
+        absent(node_hwmon_fan_rpm{chip=~".*0c70:f001.*",sensor="fan2"})
+      '';
+      for = "5m";
+      severity = "high";
+      labels = { service = "system"; category = "monitoring"; };
+      annotations = {
+        summary = "Aquaero cooling telemetry missing on forge";
+        description = "One or both active Aquaero cooling channels are absent from node-exporter. Check the Aquaero USB connection and hwmon driver.";
+      };
+    };
+
     # High memory usage
     # Note: NAS instances use the ZFS-aware NASHighMemory alert in nas-monitoring.nix
     # which accounts for ARC cache being reclaimable under pressure

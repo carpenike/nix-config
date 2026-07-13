@@ -735,74 +735,72 @@ in
             ExecStart =
               let
                 gcScript = pkgs.writeShellScript "zfs-hold-gc" ''
-                                  set -euo pipefail
+                  set -euo pipefail
 
-                                  echo "[$(date -Iseconds)] Starting ZFS hold garbage collection on ${config.networking.hostName}"
+                  echo "[$(date -Iseconds)] Starting ZFS hold garbage collection on ${config.networking.hostName}"
 
-                                  # CRITICAL: Skip GC if any restic backup is currently running
-                                  # This prevents releasing holds during long-running backups (>=24h)
-                                  if ${pkgs.systemd}/bin/systemctl list-units --type=service --state=running "restic-backups-*" 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q "restic-backups-"; then
-                                    echo "[$(date -Iseconds)] Active restic backup detected; skipping hold GC to avoid releasing in-use holds"
-                                    exit 0
-                                  fi
+                  # Never release holds while a Restic backup job is active.
+                  if ${pkgs.systemd}/bin/systemctl list-jobs --no-legend --no-pager 2>/dev/null \
+                    | ${pkgs.gawk}/bin/awk '{print $2}' \
+                    | ${pkgs.gnugrep}/bin/grep -Eq '^restic-backups?-.*\.service$'; then
+                    echo "[$(date -Iseconds)] Active restic backup detected; skipping hold GC to avoid releasing in-use holds"
+                    exit 0
+                  fi
 
-                                  # Find all holds with restic- prefix older than 24 hours
-                                  STALE_HOLD_COUNT=0
+                  STALE_HOLD_COUNT=0
+                  now=$(${pkgs.coreutils}/bin/date +%s)
 
-                                  # Iterate through all ZFS snapshots (not datasets - holds are on snapshots)
-                                  ${pkgs.zfs}/bin/zfs list -H -t snapshot -o name | while read -r snapshot; do
-                                    # Get holds for this snapshot
-                                    # zfs holds -H output format: FILESYSTEM<TAB>TAG<TAB>TIMESTAMP
-                                    ${pkgs.zfs}/bin/zfs holds -H "$snapshot" 2>/dev/null \
-                                    | ${pkgs.gawk}/bin/awk -F "\t" '{print $2 "\t" $3}' \
-                                    | while IFS=$'\t' read -r tag when; do
-                                        # Check if hold starts with restic-
-                                        case "$tag" in
-                                          restic-*)
-                                            # Convert creation time to seconds since epoch
-                                            hold_epoch=$(${pkgs.coreutils}/bin/date -d "$when" +%s 2>/dev/null || echo 0)
-                                            now=$(${pkgs.coreutils}/bin/date +%s)
-                                            age_hours=$(( (now - hold_epoch) / 3600 ))
+                  # Process substitutions keep counters in this shell rather than
+                  # losing updates in pipeline-created subshells.
+                  while IFS= read -r snapshot; do
+                    while IFS=$'\t' read -r _filesystem tag when; do
+                      case "$tag" in
+                        restic-*)
+                          hold_epoch=$(${pkgs.coreutils}/bin/date -d "$when" +%s 2>/dev/null || echo 0)
+                          if (( hold_epoch > 0 )); then
+                            age_hours=$(( (now - hold_epoch) / 3600 ))
+                            if (( age_hours > 24 )); then
+                              echo "[$(date -Iseconds)] Releasing stale hold '$tag' on $snapshot (age: $age_hours hours)"
+                              if ${pkgs.zfs}/bin/zfs release "$tag" "$snapshot"; then
+                                STALE_HOLD_COUNT=$((STALE_HOLD_COUNT + 1))
+                              else
+                                echo "WARNING: Failed to release hold $tag on $snapshot" >&2
+                              fi
+                            fi
+                          fi
+                          ;;
+                      esac
+                    done < <(${pkgs.zfs}/bin/zfs holds -H "$snapshot" 2>/dev/null || true)
+                  done < <(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name)
 
-                                            # Release holds older than 24 hours
-                                            if [ "$age_hours" -gt 24 ]; then
-                                              echo "[$(date -Iseconds)] Releasing stale hold '$tag' on $snapshot (age: $age_hours hours)"
-                                              if ${pkgs.zfs}/bin/zfs release "$tag" "$snapshot"; then
-                                                STALE_HOLD_COUNT=$((STALE_HOLD_COUNT + 1))
-                                              else
-                                                echo "WARNING: Failed to release hold $tag on $snapshot" >&2
-                                              fi
-                                            fi
-                                            ;;
-                                        esac
-                                      done
-                                  done
+                  ACTIVE_HOLDS=0
+                  while IFS= read -r snapshot; do
+                    hold_count=$(
+                      { ${pkgs.zfs}/bin/zfs holds -H "$snapshot" 2>/dev/null || true; } \
+                        | ${pkgs.gawk}/bin/awk -F '\t' '$2 ~ /^restic-/ { count++ } END { print count + 0 }'
+                    )
+                    ACTIVE_HOLDS=$((ACTIVE_HOLDS + hold_count))
+                  done < <(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name)
 
-                                  # Recompute active restic holds after GC
-                                  ACTIVE_HOLDS=$(${pkgs.zfs}/bin/zfs list -H -t snapshot -o name \
-                                    | xargs -r -n1 ${pkgs.zfs}/bin/zfs holds -H 2>/dev/null \
-                                    | ${pkgs.gnugrep}/bin/grep -c $'^restic-' || echo 0)
+                  METRIC_FILE="/var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom"
+                  ${pkgs.coreutils}/bin/mkdir -p /var/lib/node_exporter/textfile_collector
+                  {
+                    printf '%s\n' '# HELP zfs_hold_gc_released_total Number of stale ZFS holds released in last GC run'
+                    printf '%s\n' '# TYPE zfs_hold_gc_released_total gauge'
+                    printf 'zfs_hold_gc_released_total %d\n' "$STALE_HOLD_COUNT"
+                    printf '%s\n' '# HELP zfs_active_restic_holds_total Current number of active restic-* holds across all snapshots'
+                    printf '%s\n' '# TYPE zfs_active_restic_holds_total gauge'
+                    printf 'zfs_active_restic_holds_total %d\n' "$ACTIVE_HOLDS"
+                  } > "$METRIC_FILE.tmp"
+                  ${pkgs.coreutils}/bin/mv "$METRIC_FILE.tmp" "$METRIC_FILE"
 
-                                  # Export metrics for monitoring (both released count and active hold count)
-                                  METRIC_FILE="/var/lib/node_exporter/textfile_collector/zfs-hold-gc.prom"
-                                  mkdir -p /var/lib/node_exporter/textfile_collector
-                                  cat > "$METRIC_FILE.tmp" <<EOF
-                  # HELP zfs_hold_gc_released_total Number of stale ZFS holds released in last GC run
-                  # TYPE zfs_hold_gc_released_total gauge
-                  zfs_hold_gc_released_total $STALE_HOLD_COUNT
-                  # HELP zfs_active_restic_holds_total Current number of active restic-* holds across all snapshots
-                  # TYPE zfs_active_restic_holds_total gauge
-                  zfs_active_restic_holds_total $ACTIVE_HOLDS
-                  EOF
-                                  ${pkgs.coreutils}/bin/mv "$METRIC_FILE.tmp" "$METRIC_FILE"
+                  if (( STALE_HOLD_COUNT > 0 )); then
+                    echo "[$(date -Iseconds)] Released $STALE_HOLD_COUNT stale ZFS holds"
+                  else
+                    echo "[$(date -Iseconds)] No stale holds found"
+                  fi
 
-                                  if [ "$STALE_HOLD_COUNT" -gt 0 ]; then
-                                    echo "[$(date -Iseconds)] Released $STALE_HOLD_COUNT stale ZFS holds"
-                                  else
-                                    echo "[$(date -Iseconds)] No stale holds found"
-                                  fi
-
-                                  echo "[$(date -Iseconds)] ZFS hold garbage collection completed: $ACTIVE_HOLDS active holds remaining"
+                  echo "[$(date -Iseconds)] ZFS hold garbage collection completed: $ACTIVE_HOLDS active holds remaining"
                 '';
               in
               "${gcScript}";

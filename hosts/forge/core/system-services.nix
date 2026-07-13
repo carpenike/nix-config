@@ -22,6 +22,10 @@
   # DBus is required for Avahi (usually enabled by default, but ensure it's explicit)
   services.dbus.enable = true;
 
+  # Add software thermal management on top of the CPU's hardware protection.
+  # This provides earlier throttling if the liquid-cooling loop degrades again.
+  services.thermald.enable = true;
+
   # Rsyslog configuration for Omada device log relay
   # Receives syslog from Omada network devices and forwards to Loki
   services.rsyslogd = {

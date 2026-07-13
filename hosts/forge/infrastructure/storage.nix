@@ -484,13 +484,17 @@ in
     "zfs-fragmentation-high" = {
       type = "promql";
       alertname = "ZfsPoolFragmentationHigh";
-      expr = "zfs_pool_fragmentation_percent{pool!=\"\"} > 50";
+      expr = ''
+        zfs_pool_fragmentation_percent{pool!=""} > 70
+        and on (instance, pool)
+        zfs_pool_capacity_percent{pool!=""} > 60
+      '';
       for = "30m";
       severity = "medium";
       labels = { service = "zfs"; category = "performance"; };
       annotations = {
-        summary = "ZFS pool {{ $labels.pool }} highly fragmented";
-        description = "Pool {{ $labels.pool }} is {{ $value }}% fragmented. May impact performance.";
+        summary = "ZFS pool {{ $labels.pool }} fragmented under capacity pressure";
+        description = "Pool {{ $labels.pool }} is {{ $value }}% fragmented and over 60% full. May impact performance.";
         command = "zpool list -v {{ $labels.pool }}";
       };
     };

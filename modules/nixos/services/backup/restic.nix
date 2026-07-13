@@ -108,16 +108,36 @@ let
 
           # Metrics collection
           METRICS_FILE="/var/lib/node_exporter/textfile_collector/restic_backup_${jobName}.prom"
-          START_TIME=$(date +%s)
+          START_TIME=$(${pkgs.coreutils}/bin/date +%s)
 
           # Cleanup function for metrics
           cleanup() {
             local exit_code=$?
-            local end_time=$(date +%s)
+            trap - EXIT TERM INT
+
+            local end_time
+            end_time=$(${pkgs.coreutils}/bin/date +%s 2>/dev/null || true)
+            if [[ ! "$end_time" =~ ^[0-9]+$ ]]; then
+              end_time="$START_TIME"
+            fi
+
             local duration=$((end_time - START_TIME))
+            if (( duration < 0 )); then
+              duration=0
+            fi
 
             # Common labels for all metrics
             local labels="backup_job=\"${jobName}\",repository=\"${jobConfig.repository}\",repository_name=\"${repository.repositoryName}\",repository_location=\"${repository.repositoryLocation}\",hostname=\"${config.networking.hostName}\""
+
+            # Preserve the prior success timestamp when this run is interrupted
+            # or fails. A failed run must not erase the last known good backup.
+            local previous_last_success=""
+            if [[ -f "$METRICS_FILE" ]]; then
+              previous_last_success=$(${pkgs.gawk}/bin/awk '/^restic_backup_last_success_timestamp\{/ { print $NF; exit }' "$METRICS_FILE" 2>/dev/null || true)
+              if [[ ! "$previous_last_success" =~ ^[0-9]+$ ]]; then
+                previous_last_success=""
+              fi
+            fi
 
             # Collect snapshot stats on success
             local files_total=0
@@ -155,6 +175,8 @@ let
               echo "# TYPE restic_backup_last_success_timestamp gauge"
               if [[ $exit_code -eq 0 ]]; then
                 echo "restic_backup_last_success_timestamp{$labels} $end_time"
+              elif [[ -n "$previous_last_success" ]]; then
+                echo "restic_backup_last_success_timestamp{$labels} $previous_last_success"
               fi
 
               echo "# HELP restic_backup_files_total Number of new files in the latest backup snapshot"
@@ -174,6 +196,15 @@ let
               echo "restic_backup_repo_healthy{$labels} $repo_healthy"
             } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
           }
+
+          handle_signal() {
+            local exit_code="$1"
+            trap - TERM INT
+            exit "$exit_code"
+          }
+
+          trap 'handle_signal 143' TERM
+          trap 'handle_signal 130' INT
           trap cleanup EXIT
 
           echo "Starting backup for ${jobName}..."

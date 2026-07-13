@@ -343,13 +343,13 @@ in
         "postgres-database-size-large" = {
           type = "promql";
           alertname = "PostgresDatabaseSizeLarge";
-          expr = "pg_database_size_bytes > 5 * 1024 * 1024 * 1024"; # 5GB
+          expr = "pg_database_size_bytes > 20 * 1024 * 1024 * 1024"; # 20 GiB
           for = "30m";
           severity = "medium";
           labels = { service = "postgresql"; category = "capacity"; };
           annotations = {
             summary = "PostgreSQL database {{ $labels.datname }} is large on {{ $labels.instance }}";
-            description = "Database {{ $labels.datname }} is {{ $value }} bytes (>5GB). Consider cleanup or archiving.";
+            description = "Database {{ $labels.datname }} is {{ $value }} bytes (>20 GiB). Consider cleanup or archiving.";
           };
         };
       };
