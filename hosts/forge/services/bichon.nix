@@ -54,7 +54,7 @@ in
         };
 
         # Standard backup configuration
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "bichon";
 
         # Preseed configuration for disaster recovery
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];

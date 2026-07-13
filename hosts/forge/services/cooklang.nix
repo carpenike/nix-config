@@ -94,7 +94,7 @@ in
         };
 
         # Backup configuration
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "cooklang";
 
         # Disaster recovery via preseed
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];

@@ -3,13 +3,12 @@
 # Host-specific configuration for the TP-Link Omada SDN Controller on forge.
 # Initial data cutover: docs/services/omada-luna-to-forge.md
 
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   serviceEnabled = config.modules.services.omada.enable or false;
   serviceDomain = "omada.${config.networking.domain}";
   dataset = "tank/services/omada";
-  backupClone = "/var/lib/backup-snapshots/service-omada";
 in
 {
   config = lib.mkMerge [
@@ -59,14 +58,6 @@ in
 
       modules.backup.sanoid.datasets.${dataset} =
         forgeDefaults.mkSanoidDataset "omada";
-
-      # Grant Restic read access only on the disposable ZFS backup clone.
-      systemd.services."zfs-snapshot-service-omada".serviceConfig.ExecStartPost = lib.mkAfter [
-        (pkgs.writeShellScript "prepare-omada-backup-clone" ''
-          ${pkgs.coreutils}/bin/chgrp -R restic-backup "${backupClone}"
-          ${pkgs.coreutils}/bin/chmod -R g+rX,o-rwx "${backupClone}"
-        '')
-      ];
 
       modules.alerting.rules."omada-service-down" =
         forgeDefaults.mkServiceDownAlert "omada" "Omada" "SDN controller";

@@ -50,7 +50,7 @@ in
         };
 
         # Backup configuration
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "actual";
 
         # Enable failure notifications
         notifications.enable = true;

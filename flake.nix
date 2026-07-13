@@ -451,6 +451,66 @@
               deadnix --fail --exclude pkgs/_sources/generated.nix ${./.} || exit 1
               touch $out
             '';
+
+            backup-phase0 =
+              let
+                lib = inputs.nixpkgs.lib;
+                forge = inputs.self.nixosConfigurations.forge.config;
+                affectedJobs = [
+                  "music-assistant"
+                  "service-actual"
+                  "service-apprise"
+                  "service-bichon"
+                  "service-cooklang"
+                  "service-cooklangFederation"
+                  "service-esphome"
+                  "service-grafana-oncall"
+                  "service-home-assistant"
+                  "service-netvisor"
+                  "service-omada"
+                  "service-plex"
+                  "service-radarr"
+                  "service-sabnzbd"
+                  "service-tdarr"
+                  "service-termix"
+                  "service-tududi"
+                ];
+                jobIsProtected = jobName:
+                  let
+                    job = forge.modules.services.backup._internal.allJobs.${jobName};
+                    repository = forge.modules.services.backup.repositories.${job.repository};
+                    service = forge.systemd.services."restic-backup-${jobName}";
+                  in
+                  job.useSnapshots
+                  && job.zfsDataset != null
+                  && builtins.hasAttr "zfs-snapshot-${jobName}" forge.systemd.services
+                  && (service.serviceConfig.AmbientCapabilities or [ ]) == [ "CAP_DAC_READ_SEARCH" ]
+                  && (service.serviceConfig.CapabilityBoundingSet or [ ]) == [ "CAP_DAC_READ_SEARCH" ]
+                  && builtins.elem "/etc:ro" (service.serviceConfig.TemporaryFileSystem or [ ])
+                  && builtins.elem "-/etc/resolv.conf" (service.serviceConfig.BindReadOnlyPaths or [ ])
+                  && builtins.elem (toString repository.passwordFile) (service.serviceConfig.BindReadOnlyPaths or [ ])
+                  && lib.any (lib.hasPrefix "SSL_CERT_FILE=") (service.serviceConfig.Environment or [ ])
+                  && !(service.serviceConfig ? ExecStartPost)
+                  && !(service.serviceConfig ? SuccessExitStatus);
+                resultScript = forge.systemd.services.restic-backup-service-actual.script;
+                snapshotModule = builtins.readFile ./modules/nixos/services/backup/snapshots.nix;
+              in
+              assert lib.all jobIsProtected affectedJobs;
+              assert lib.hasInfix ''exit "$restic_exit"'' resultScript;
+              assert lib.hasInfix "restic_backup_result" resultScript;
+              assert lib.hasInfix "result_complete=1" resultScript;
+              assert lib.hasInfix "result_partial=1" resultScript;
+              assert lib.hasInfix "result_failed=1" resultScript;
+              assert !(lib.hasInfix "chown root:restic-backup" snapshotModule);
+              assert !(lib.hasInfix "chmod g+rx" snapshotModule);
+              pkgs.runCommand "backup-phase0-check" { nativeBuildInputs = [ pkgs.coreutils pkgs.gnugrep ]; } ''
+                snapshot_destroy_line=$(grep -n 'zfs}/bin/zfs destroy "''${dataset}@''${snapshotName}"' ${./modules/nixos/services/backup/snapshots.nix} | tail -1 | cut -d: -f1)
+                lock_release_line=$(grep -n 'rm -f "\$DATASET_LOCK"' ${./modules/nixos/services/backup/snapshots.nix} | tail -1 | cut -d: -f1)
+                test -n "$snapshot_destroy_line"
+                test -n "$lock_release_line"
+                test "$lock_release_line" -gt "$snapshot_destroy_line"
+                touch $out
+              '';
           };
         };
 

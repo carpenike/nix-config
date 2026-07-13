@@ -118,14 +118,6 @@ let
               ${pkgs.zfs}/bin/zfs mount "${cloneName}"
             fi
 
-            # Grant the backup user access to the mountpoint directory itself.
-            # This is NOT recursive and does NOT alter the permissions within the clone.
-            # The clone inherits the original dataset's permissions structure, we just need
-            # to allow the backup user to traverse into the mountpoint directory.
-            echo "Setting permissions on ${cloneMountpoint}"
-            ${pkgs.coreutils}/bin/chown root:restic-backup "${cloneMountpoint}"
-            ${pkgs.coreutils}/bin/chmod g+rx "${cloneMountpoint}"
-
             # Record snapshot creation time for monitoring
             echo "zfs_backup_snapshot_created{dataset=\"${dataset}\",snapshot=\"${snapshotName}\",job=\"${jobName}\",hostname=\"${config.networking.hostName}\"} $(date +%s)" \
               > /var/lib/node_exporter/textfile_collector/zfs_snapshot_${jobName}.prom
@@ -137,11 +129,8 @@ let
           ExecStop = pkgs.writeShellScript "cleanup-snapshot-${jobName}" ''
             set -euo pipefail
 
-            # CRITICAL: Remove lock file first to allow syncoid to proceed as soon as possible
             LOCK_DIR="/run/lock/backup-active"
             DATASET_LOCK="$LOCK_DIR/${lib.strings.replaceStrings ["/"] ["-"] dataset}"
-            rm -f "$DATASET_LOCK"
-            echo "Removed backup lock at $DATASET_LOCK"
 
             # Unmount and destroy clone if it exists
             if ${pkgs.zfs}/bin/zfs list "${cloneName}" >/dev/null 2>&1; then
@@ -161,6 +150,10 @@ let
 
             # Clean up metrics file
             rm -f /var/lib/node_exporter/textfile_collector/zfs_snapshot_${jobName}.prom
+
+            # Release replication only after all temporary ZFS state is gone.
+            rm -f "$DATASET_LOCK"
+            echo "Removed backup lock at $DATASET_LOCK"
           '';
 
           # Timeout settings

@@ -36,7 +36,7 @@ in
         };
 
         # Enable backups via the custom backup module integration
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "tududi";
 
         # Enable failure notifications
         notifications.enable = true;

@@ -44,7 +44,7 @@ in
         };
 
         # Enable backups (increased memory: default 512M triggers OOM during index loading)
-        backup = forgeDefaults.backup // {
+        backup = forgeDefaults.mkBackupWithSnapshots "termix" // {
           resources = {
             memory = "1G";
             memoryReservation = "512M";

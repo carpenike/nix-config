@@ -34,7 +34,7 @@ in
         };
 
         # Enable backups
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "radarr";
 
         # Enable failure notifications
         notifications.enable = true;

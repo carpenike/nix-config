@@ -746,6 +746,35 @@ tasks:
   # Restic Application Backup Tasks
   # ============================================================================
 
+  validate-restic:
+    desc: Validate one Restic job and optionally run it
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Validates unit status, one-hot metrics, journal completeness, snapshot
+      cleanup, lock cleanup, and timer state for one Restic job.
+
+      Args:
+        job: Restic job name without the restic-backup- prefix (required)
+        host: Target host (default: forge)
+
+      Examples:
+        task backup:validate-restic job=service-actual
+        task backup:validate-restic job=service-actual -- --run
+        task backup:validate-restic job=service-actual -- --expect partial
+    requires:
+      vars:
+        - job
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo bash -s -- {{.job}} {{.CLI_ARGS}}" < scripts/validate-restic-job.sh
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: test -f scripts/validate-restic-job.sh
+        msg: "scripts/validate-restic-job.sh not found"
+
   restic:
     desc: List Restic backup status from Prometheus metrics (fast)
     silent: false

@@ -40,9 +40,18 @@ let
         "RESTIC_REPOSITORY=${repository.url}"
         "RESTIC_PASSWORD_FILE=${repository.passwordFile}"
         "RESTIC_CACHE_DIR=${cfg.performance.cacheDir}"
+        "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
       ] ++ lib.optionals (repository.environmentFile != null) [
         # Cloud credentials will be loaded via EnvironmentFile
       ];
+
+      writablePaths = [
+        cfg.performance.cacheDir
+        "/var/lib/node_exporter/textfile_collector"
+        "/var/log/backup"
+      ] ++ lib.optional (repository.type == "local") repository.url;
+
+      privilegedRead = jobConfig.useSnapshots;
 
     in
     {
@@ -70,15 +79,48 @@ let
           # Prevents backup storms from saturating host memory/CPU
           Slice = "restic-backups.slice";
 
-          # Restic exit codes: 0=success, 3=warning (some files couldn't be read but backup succeeded)
-          # We treat warnings as success since the backup itself succeeded
-          SuccessExitStatus = [ 3 ];
-
           # Security hardening
           PrivateTmp = true;
           ProtectSystem = "strict";
           ProtectHome = true;
           NoNewPrivileges = true;
+          PrivateDevices = true;
+          ProtectClock = true;
+          ProtectControlGroups = true;
+          ProtectKernelLogs = true;
+          ProtectKernelModules = true;
+          ProtectKernelTunables = true;
+          ProtectProc = "invisible";
+          RestrictNamespaces = true;
+
+          # Snapshot clones retain source ownership and modes. Grant only the
+          # read-bypass capability needed to preserve that metadata, then hide
+          # host data and bind back the paths required by this job.
+          AmbientCapabilities = lib.optionals privilegedRead [ "CAP_DAC_READ_SEARCH" ];
+          CapabilityBoundingSet = lib.optionals privilegedRead [ "CAP_DAC_READ_SEARCH" ];
+          TemporaryFileSystem = lib.optionals privilegedRead [
+            "/etc:ro"
+            "/mnt:ro"
+            "/run:ro"
+            "/var:ro"
+          ];
+          InaccessiblePaths = lib.optionals privilegedRead [
+            "-/boot"
+            "-/data"
+            "-/home"
+            "-/persist"
+            "-/root"
+            "-/srv"
+          ];
+          BindReadOnlyPaths = lib.optionals privilegedRead (
+            snapshotPaths ++ [
+              "-/etc/hosts"
+              "-/etc/nsswitch.conf"
+              "-/etc/resolv.conf"
+              (toString repository.passwordFile)
+            ]
+          );
+          BindPaths = lib.optionals privilegedRead writablePaths;
 
           # Resource limits
           MemoryMax = jobConfig.resources.memory;
@@ -94,11 +136,7 @@ let
           EnvironmentFile = lib.mkIf (repository.environmentFile != null) repository.environmentFile;
 
           # Paths that need to be accessible
-          ReadWritePaths = [
-            cfg.performance.cacheDir
-            "/var/lib/node_exporter/textfile_collector"
-            "/var/log/backup"
-          ] ++ lib.optional (repository.type == "local") repository.url;
+          ReadWritePaths = writablePaths;
           # When using snapshots, only grant access to snapshot paths (not original paths)
           ReadOnlyPaths = if jobConfig.useSnapshots then snapshotPaths else jobConfig.paths;
         };
@@ -144,6 +182,17 @@ let
             local size_bytes=0
             local snapshots_total=0
             local repo_healthy=0
+            local result_complete=0
+            local result_partial=0
+            local result_failed=0
+
+            if [[ $exit_code -eq 0 ]]; then
+              result_complete=1
+            elif [[ $exit_code -eq 3 ]]; then
+              result_partial=1
+            else
+              result_failed=1
+            fi
 
             if [[ $exit_code -eq 0 ]]; then
               # Get latest snapshot stats for THIS job's tags - if this works, repo is healthy
@@ -166,6 +215,16 @@ let
               echo "# HELP restic_backup_status Backup job status (1=success, 0=failure)"
               echo "# TYPE restic_backup_status gauge"
               echo "restic_backup_status{$labels} $([[ $exit_code -eq 0 ]] && echo 1 || echo 0)"
+
+              echo "# HELP restic_backup_result Backup result by state (one-hot gauge)"
+              echo "# TYPE restic_backup_result gauge"
+              echo "restic_backup_result{$labels,result=\"complete\"} $result_complete"
+              echo "restic_backup_result{$labels,result=\"partial\"} $result_partial"
+              echo "restic_backup_result{$labels,result=\"failed\"} $result_failed"
+
+              echo "# HELP restic_backup_exit_code Exit code from the backup job"
+              echo "# TYPE restic_backup_exit_code gauge"
+              echo "restic_backup_exit_code{$labels} $exit_code"
 
               echo "# HELP restic_backup_duration_seconds Backup job duration in seconds"
               echo "# TYPE restic_backup_duration_seconds gauge"
@@ -227,13 +286,14 @@ let
             --read-concurrency ${toString cfg.globalSettings.readConcurrency} \
             --compression ${cfg.globalSettings.compression} || restic_exit=$?
 
-          # Exit code 3 = partial success (snapshot created, some files unreadable)
-          # This is common with permission issues on temp files, plugin dirs, etc.
+          # Exit code 3 means Restic created an incomplete snapshot. Preserve the
+          # code so systemd, notifications, and metrics all report a failure.
           if [[ $restic_exit -eq 3 ]]; then
-            echo "Warning: Backup completed with some unreadable files (exit code 3)"
+            echo "Backup incomplete: some source data was unreadable (exit code 3)" >&2
+            exit "$restic_exit"
           elif [[ $restic_exit -ne 0 ]]; then
             echo "Backup failed with exit code $restic_exit"
-            exit $restic_exit
+            exit "$restic_exit"
           fi
 
           # Post-backup script

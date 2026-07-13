@@ -111,20 +111,53 @@ if (( ${#timers[@]} > 0 )); then
   sudo systemctl stop "${timers[@]}"
 fi
 
+backup_unit_pattern='^(restic-backups?-|pgbackrest-.*backup|syncoid-|sanoid\.service)'
+
+failed_jobs=$(
+  systemctl list-units --type=service --state=failed --no-pager --no-legend --plain \
+    | awk '{ print $1 }' \
+    | grep -E "$backup_unit_pattern" \
+    | sort -u \
+    || true
+)
+if [[ -n "$failed_jobs" ]]; then
+  printf 'Refusing deployment; backup jobs are failed after timer quiescence:\n%s\n' "$failed_jobs" >&2
+  exit 1
+fi
+
 active_jobs=$(
   {
     systemctl list-units --type=service --all --no-pager --no-legend --plain \
-      | awk '$3 == "activating" || $3 == "deactivating" || $3 == "failed" || $4 == "running" { print $1 }'
+      | awk '$3 == "activating" || $3 == "deactivating" || $4 == "running" { print $1 }'
     systemctl list-jobs --no-pager --no-legend \
       | awk '$3 == "start" { print $2 }'
   } \
-    | grep -E '^(restic-backups?-|pgbackrest-.*backup|syncoid-|sanoid\.service)' \
+    | grep -E "$backup_unit_pattern" \
     | sort -u \
     || true
 )
 
 if [[ -n "$active_jobs" ]]; then
-  printf 'Refusing deployment; backup jobs are active, queued, or failed after timer quiescence:\n%s\n' "$active_jobs" >&2
+  printf 'Waiting for in-flight backup jobs after timer quiescence:\n%s\n' "$active_jobs"
+  after_units=$(printf '%s ' $active_jobs)
+  sudo systemd-run \
+    --quiet \
+    --wait \
+    --collect \
+    --unit="nixos-apply-backup-drain-$$" \
+    --property="After=$after_units" \
+    /run/current-system/sw/bin/true
+fi
+
+remaining_jobs=$(
+  systemctl list-units --type=service --all --no-pager --no-legend --plain \
+    | awk '$3 == "activating" || $3 == "deactivating" || $3 == "failed" || $4 == "running" { print $1 }' \
+    | grep -E "$backup_unit_pattern" \
+    | sort -u \
+    || true
+)
+if [[ -n "$remaining_jobs" ]]; then
+  printf 'Refusing deployment; backup jobs did not drain cleanly:\n%s\n' "$remaining_jobs" >&2
   exit 1
 fi
 

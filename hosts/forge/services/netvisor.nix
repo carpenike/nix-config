@@ -90,7 +90,7 @@ in
         healthcheck.enable = true;
 
         # Backup configuration
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "netvisor";
 
         # Notification on service failure
         notifications.enable = true;

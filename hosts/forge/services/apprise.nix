@@ -41,7 +41,7 @@ in
         };
 
         # Standard backup config
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "apprise";
 
         # Preseed for disaster recovery
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
