@@ -140,6 +140,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.recyclarr.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Configuration is declared in Nix and cached TRaSH repositories are fetched from upstream.";
+        };
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/recyclarr" = forgeDefaults.mkSanoidDataset "recyclarr";
 

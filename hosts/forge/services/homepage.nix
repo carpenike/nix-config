@@ -115,6 +115,23 @@ in
 
     # Infrastructure contributions (guarded by service enable)
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.homepage.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Dashboard settings, widgets, and service entries are generated from Nix configuration.";
+        };
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/homepage" =
         forgeDefaults.mkSanoidDataset "homepage";

@@ -43,6 +43,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.worldmonitor.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "The dataset contains rebuildable API cache; configuration and credentials are managed declaratively.";
+        };
+      };
+
       # ZFS dataset for persistent state (cache, etc.)
       modules.storage.datasets.services."worldmonitor" = {
         mountpoint = "/data/worldmonitor";

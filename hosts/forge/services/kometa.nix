@@ -122,6 +122,23 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.kometa.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Kometa configuration is generated from Nix and Plex metadata can be recreated by the scheduled sync.";
+        };
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/kometa" =
         forgeDefaults.mkSanoidDataset "kometa";
