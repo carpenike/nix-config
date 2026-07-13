@@ -519,6 +519,10 @@
                 rendered = builtins.fromJSON forge.environment.etc."homelab/protection-manifest.json".text;
                 actual = manifest.datasets."tank/services/actual";
                 homeAssistant = manifest.datasets."tank/services/home-assistant";
+                musicAssistant = manifest.datasets."tank/services/music-assistant";
+                musicAssistantService = forge.systemd.services.music-assistant;
+                musicAssistantPreseed = forge.systemd.services.preseed-music-assistant;
+                esphomePreseed = forge.systemd.services.preseed-esphome;
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 ephemeralPaths = [
@@ -542,6 +546,7 @@
                   "tank/services/autobrr"
                   "tank/services/bazarr"
                   "tank/services/esphome"
+                  "tank/services/music-assistant"
                   "tank/services/netvisor"
                   "tank/services/prowlarr"
                   "tank/services/radarr"
@@ -550,11 +555,11 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 25;
+              assert manifest.summary.classified == 26;
               assert manifest.summary.byClass == {
                 critical = 7;
                 ephemeral = 8;
-                standard = 8;
+                standard = 9;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];
@@ -564,6 +569,14 @@
               assert actual.classification == "critical";
               assert actual.missingRequiredTiers == [ "offsite-backup" "automated-restore" ];
               assert homeAssistant.missingRequiredTiers == [ "offsite-backup" ];
+              assert musicAssistant.coverage.automatedRestore;
+              assert builtins.elem "preseed-music-assistant.service" musicAssistantService.after;
+              assert builtins.elem "preseed-music-assistant.service" musicAssistantService.requires;
+              assert builtins.elem "music-assistant.service" musicAssistantPreseed.before;
+              assert builtins.elem "storage-preseed.target" musicAssistantPreseed.wantedBy;
+              assert musicAssistantPreseed.environment.ALLOW_EMPTY_BOOTSTRAP == "false";
+              assert pkgs.lib.hasInfix "Refusing to start music-assistant with an empty data directory" musicAssistantPreseed.script;
+              assert !(pkgs.lib.hasInfix "Refusing to start esphome with an empty data directory" esphomePreseed.script);
               assert postgresql.coverage.pgBackRest;
               assert postgresql.missingRequiredTiers == [ "independent-restore" ];
               assert prometheus.classification == "ephemeral";

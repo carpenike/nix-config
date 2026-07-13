@@ -78,9 +78,10 @@
 #     point it at the server URL `http://127.0.0.1:8095` (co-located) — or let
 #     it auto-discover via mDNS.
 
-{ config, lib, ... }:
+{ config, lib, mylib, pkgs, ... }:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
+  storageHelpers = mylib.storageHelpers pkgs;
 
   serviceName = "music-assistant";
   serviceDomain = "music.${config.networking.domain}";
@@ -97,6 +98,11 @@ let
   # `--config /var/lib/music-assistant` default → this path.
   dataDir = "/var/lib/${serviceName}";
   dataset = "tank/services/${serviceName}";
+  nasRepository = config.modules.services.backup.repositories.nas-primary;
+  replicationConfig = storageHelpers.mkReplicationConfig {
+    inherit config;
+    datasetPath = dataset;
+  };
 
   serviceEnabled = config.services.music-assistant.enable or false;
 in
@@ -192,6 +198,11 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      systemd.services.music-assistant = {
+        requires = lib.mkAfter [ "preseed-music-assistant.service" ];
+        after = lib.mkAfter [ "preseed-music-assistant.service" ];
+      };
+
       # ZFS dataset for MA's library database + metadata cache.
       # owner=root is intentional: the upstream module uses systemd DynamicUser
       # + StateDirectory, so the runtime UID is ephemeral. systemd bind-mounts
@@ -209,6 +220,23 @@ in
         group = "root";
         mode = "0700";
         rootOwnedReason = "Upstream module uses systemd DynamicUser; systemd manages runtime ownership via StateDirectory bind mount.";
+        protection = {
+          class = "standard";
+          objectives = {
+            onsiteRpoSeconds = 86400;
+            offsiteRpoSeconds = null;
+            rtoSeconds = 28800;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "nas-backup"
+            "automated-restore"
+          ];
+          consistency = "crash-consistent";
+          validator = "music-assistant-state";
+          allowEmptyBootstrap = false;
+        };
       };
 
       # ZFS snapshots + replication to nas-1 via the standard forge template.
@@ -264,5 +292,29 @@ in
         }];
       };
     })
+
+    (lib.mkIf serviceEnabled (
+      storageHelpers.mkPreseedService {
+        replicationCfg = replicationConfig;
+        serviceName = serviceName;
+        dataset = dataset;
+        mountpoint = dataDir;
+        mainServiceUnit = "music-assistant.service";
+        datasetProperties = {
+          recordsize = "16K";
+          compression = "zstd";
+          atime = "off";
+          "com.sun:auto-snapshot" = "true";
+        };
+        resticRepoUrl = nasRepository.url;
+        resticPasswordFile = nasRepository.passwordFile;
+        resticPaths = [ dataDir ];
+        restoreMethods = [ "syncoid" "local" ];
+        hasCentralizedNotifications = config.modules.notifications.enable or false;
+        allowEmptyBootstrap = false;
+        owner = "root";
+        group = "root";
+      }
+    ))
   ];
 }

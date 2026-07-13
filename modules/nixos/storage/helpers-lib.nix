@@ -26,6 +26,7 @@
       - resticEnvironmentFile: (string or null) Path to environment file for Restic (optional).
       - resticPaths: (list of strings) Paths to restore from the Restic backup.
       - hasCentralizedNotifications: (bool) Whether centralized notifications are enabled.
+      - allowEmptyBootstrap: (bool) Whether total restore failure may initialize empty state.
       - timeoutSec: (int) Timeout for the preseed operation (default: 1800).
       - owner: (string) User to own the restored files (default: "root").
       - group: (string) Group to own the restored files (default: "root").
@@ -45,6 +46,7 @@
     , restoreMethods ? [ "syncoid" "local" "restic" ]
     , # Configurable restore order (default maintains current behavior)
       hasCentralizedNotifications ? false
+    , allowEmptyBootstrap ? true
     , timeoutSec ? 1800
     , owner ? "root"
     , group ? "root"
@@ -104,6 +106,10 @@
           Type = "oneshot";
           User = "root"; # Root is required for zfs rollback and chown
           TimeoutStartSec = timeoutSec;
+        };
+
+        environment = lib.optionalAttrs (!allowEmptyBootstrap) {
+          ALLOW_EMPTY_BOOTSTRAP = "false";
         };
 
         script = ''
@@ -609,6 +615,12 @@
                   write_metrics "failure" "all" "$DURATION"
 
                   rm -f "$PROGRESS_MARKER"
+                  ${lib.optionalString (!allowEmptyBootstrap) ''
+                    ${notify "preseed-failure" "All restore attempts for ${serviceName} failed. Service startup is blocked to prevent empty initialization."}
+                    echo "Refusing to start ${serviceName} with an empty data directory."
+                    exit 1
+                  ''}
+
                   ${notify "preseed-failure" "All restore attempts for ${serviceName} failed. Service will start with an empty data directory."}
                   echo "Allowing ${serviceName} to start with an empty data directory."
 
