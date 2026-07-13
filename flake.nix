@@ -547,6 +547,7 @@
                   pocketid = "pocket-id";
                   prowlarr = "podman-prowlarr";
                   radarr = "podman-radarr";
+                  seerr = "podman-seerr";
                   sonarr = "podman-sonarr";
                   zigbee2mqtt = "zigbee2mqtt";
                   "zwave-js-ui" = "zwave-js-ui";
@@ -584,16 +585,17 @@
                   "tank/services/netvisor"
                   "tank/services/prowlarr"
                   "tank/services/radarr"
+                  "tank/services/seerr"
                   "tank/services/sonarr"
                 ];
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 34;
+              assert manifest.summary.classified == 35;
               assert manifest.summary.byClass == {
                 critical = 8;
                 ephemeral = 13;
-                standard = 11;
+                standard = 12;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];

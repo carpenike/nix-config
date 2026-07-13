@@ -212,11 +212,16 @@ in
       # Move config-dependent variables here to avoid infinite recursion
       storageCfg = config.modules.storage;
       seerrPort = 5055;
-      mainServiceUnit = "${config.virtualisation.oci-containers.backend}-seerr.service";
+      mainServiceName = "${config.virtualisation.oci-containers.backend}-seerr";
+      mainServiceUnit = "${mainServiceName}.service";
       datasetPath = "${storageCfg.datasets.parentDataset}/seerr";
 
       # Build replication config for preseed (walks up dataset tree to find inherited config)
       replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+      allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+        inherit config;
+        datasetName = "seerr";
+      };
 
       hasCentralizedNotifications = config.modules.notifications.alertmanager.enable or false;
     in
@@ -320,14 +325,17 @@ in
         };
 
         # Systemd service dependencies and security
-        systemd.services."${mainServiceUnit}" = lib.mkMerge [
+        systemd.services."${mainServiceName}" = lib.mkMerge [
           {
             requires = [ "network-online.target" ]
               ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
-              ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
+              ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn)
+              ++ lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) "preseed-seerr.service";
             after = [ "network-online.target" ]
               ++ lib.optionals (cfg.podmanNetwork != null) [ "podman-network-${cfg.podmanNetwork}.service" ]
-              ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn);
+              ++ (map (s: "${config.virtualisation.oci-containers.backend}-${s}.service") cfg.dependsOn)
+              ++ lib.optional cfg.preseed.enable "preseed-seerr.service";
+            wants = lib.optional (cfg.preseed.enable && allowEmptyBootstrap) "preseed-seerr.service";
             serviceConfig = {
               Restart = lib.mkForce "always";
               RestartSec = "10s";
@@ -383,6 +391,7 @@ in
           resticPaths = [ cfg.dataDir ];
           restoreMethods = cfg.preseed.restoreMethods;
           hasCentralizedNotifications = hasCentralizedNotifications;
+          inherit allowEmptyBootstrap;
           owner = cfg.user;
           group = cfg.group;
         }
