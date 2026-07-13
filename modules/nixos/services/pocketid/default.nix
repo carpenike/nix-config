@@ -22,6 +22,11 @@ let
 
   storageCfg = config.modules.storage;
   datasetPath = "${storageCfg.datasets.parentDataset}/pocketid";
+  preseedUnit = "preseed-pocketid.service";
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = "pocketid";
+  };
 
   sqlitePath = if cfg.database.sqlite.path != null then cfg.database.sqlite.path else "${cfg.dataDir}/db.sqlite3";
 
@@ -394,8 +399,9 @@ in
       systemd.services.${serviceName} = {
         description = "Pocket ID";
         wantedBy = [ "multi-user.target" ];
-        after = [ "network.target" ] ++ lib.optionals cfg.preseed.enable [ "preseed-pocketid.service" ];
-        wants = [ "network.target" ] ++ lib.optionals cfg.preseed.enable [ "preseed-pocketid.service" ];
+        after = [ "network.target" ] ++ lib.optional cfg.preseed.enable preseedUnit;
+        requires = lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) preseedUnit;
+        wants = [ "network.target" ] ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) preseedUnit;
         unitConfig = {
           RequiresMountsFor = [ cfg.dataDir ];
         };
@@ -457,6 +463,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasNotifications;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

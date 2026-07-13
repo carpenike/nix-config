@@ -520,11 +520,17 @@
                 actual = manifest.datasets."tank/services/actual";
                 homeAssistant = manifest.datasets."tank/services/home-assistant";
                 musicAssistant = manifest.datasets."tank/services/music-assistant";
-                musicAssistantService = forge.systemd.services.music-assistant;
-                musicAssistantPreseed = forge.systemd.services.preseed-music-assistant;
-                esphomePreseed = forge.systemd.services.preseed-esphome;
+                legacyPreseed = forge.systemd.services.preseed-mealie;
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
+                failClosedUnits = {
+                  bichon = "podman-bichon";
+                  "home-assistant" = "home-assistant";
+                  "music-assistant" = "music-assistant";
+                  pocketid = "pocket-id";
+                  zigbee2mqtt = "zigbee2mqtt";
+                  "zwave-js-ui" = "zwave-js-ui";
+                };
                 ephemeralPaths = [
                   "tank/services/alertmanager"
                   "tank/services/prometheus"
@@ -570,13 +576,21 @@
               assert actual.missingRequiredTiers == [ "offsite-backup" "automated-restore" ];
               assert homeAssistant.missingRequiredTiers == [ "offsite-backup" ];
               assert musicAssistant.coverage.automatedRestore;
-              assert builtins.elem "preseed-music-assistant.service" musicAssistantService.after;
-              assert builtins.elem "preseed-music-assistant.service" musicAssistantService.requires;
-              assert builtins.elem "music-assistant.service" musicAssistantPreseed.before;
-              assert builtins.elem "storage-preseed.target" musicAssistantPreseed.wantedBy;
-              assert musicAssistantPreseed.environment.ALLOW_EMPTY_BOOTSTRAP == "false";
-              assert pkgs.lib.hasInfix "Refusing to start music-assistant with an empty data directory" musicAssistantPreseed.script;
-              assert !(pkgs.lib.hasInfix "Refusing to start esphome with an empty data directory" esphomePreseed.script);
+              assert builtins.all
+                (name:
+                  let
+                    mainName = failClosedUnits.${name};
+                    mainUnit = forge.systemd.services.${mainName};
+                    preseedUnit = forge.systemd.services."preseed-${name}";
+                  in
+                  builtins.elem "preseed-${name}.service" mainUnit.after
+                  && builtins.elem "preseed-${name}.service" mainUnit.requires
+                  && builtins.elem "${mainName}.service" preseedUnit.before
+                  && builtins.elem "storage-preseed.target" preseedUnit.wantedBy
+                  && preseedUnit.environment.ALLOW_EMPTY_BOOTSTRAP == "false"
+                  && pkgs.lib.hasInfix "Refusing to start ${name} with an empty data directory" preseedUnit.script)
+                (builtins.attrNames failClosedUnits);
+              assert !(pkgs.lib.hasInfix "Refusing to start mealie with an empty data directory" legacyPreseed.script);
               assert postgresql.coverage.pgBackRest;
               assert postgresql.missingRequiredTiers == [ "independent-restore" ];
               assert prometheus.classification == "ephemeral";

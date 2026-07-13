@@ -26,6 +26,10 @@ let
   serviceUnit = "${serviceName}.service";
   storageCfg = config.modules.storage;
   datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 
   secretFileName = "secret.yaml";
   secretFilePath = "${cfg.dataDir}/${secretFileName}";
@@ -665,7 +669,8 @@ in
         systemd.services.${serviceName} = mkMerge [
           {
             after = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
-            wants = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
+            requires = lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) "preseed-${serviceName}.service";
+            wants = [ "network-online.target" ] ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) "preseed-${serviceName}.service";
             serviceConfig = {
               StateDirectory = mkForce serviceName;
               StateDirectoryMode = mkForce "0750";
@@ -760,6 +765,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

@@ -24,6 +24,10 @@ let
   serviceUnit = "${serviceName}.service";
   storageCfg = config.modules.storage;
   datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
   storeRoot = cfg.dataDir;
   configDbPath = "${storeRoot}/.config-db";
   runtimeEnvPath = "${cfg.dataDir}/.zwavejs-env";
@@ -434,7 +438,8 @@ in
             description = "Z-Wave JS UI";
             wantedBy = [ "multi-user.target" ];
             after = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
-            wants = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
+            requires = lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) "preseed-${serviceName}.service";
+            wants = [ "network-online.target" ] ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) "preseed-${serviceName}.service";
             serviceConfig = mkMerge [
               {
                 ExecStart = mkForce "${cfg.package}/bin/zwave-js-ui";
@@ -617,6 +622,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

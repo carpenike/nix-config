@@ -40,6 +40,10 @@ let
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 in
 {
   options.modules.services.bichon = {
@@ -302,7 +306,8 @@ in
         })
         # Add dependency on the preseed service
         (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-${serviceName}.service" ];
+          requires = lib.optional (!allowEmptyBootstrap) "preseed-${serviceName}.service";
+          wants = lib.optional allowEmptyBootstrap "preseed-${serviceName}.service";
           after = [ "preseed-${serviceName}.service" ];
         })
       ];
@@ -365,6 +370,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         inherit hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

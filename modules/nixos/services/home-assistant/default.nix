@@ -21,6 +21,10 @@ let
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 in
 {
   options.modules.services.home-assistant = {
@@ -351,7 +355,8 @@ in
         } // (mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           OnFailure = [ "notify@home-assistant-failure:%n.service" ];
         });
-        wants = mkIf cfg.preseed.enable [ "preseed-${serviceName}.service" ];
+        requires = mkIf (cfg.preseed.enable && !allowEmptyBootstrap) [ "preseed-${serviceName}.service" ];
+        wants = mkIf (cfg.preseed.enable && allowEmptyBootstrap) [ "preseed-${serviceName}.service" ];
         after = mkIf cfg.preseed.enable [ "preseed-${serviceName}.service" ];
         environment = mkIf (cfg.extraLibs != [ ]) {
           LD_LIBRARY_PATH = lib.makeLibraryPath cfg.extraLibs;
@@ -421,6 +426,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = hasCentralizedNotifications;
+        inherit allowEmptyBootstrap;
         owner = "hass";
         group = "hass";
       }

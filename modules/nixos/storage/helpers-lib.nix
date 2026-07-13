@@ -4,6 +4,15 @@
 
 { pkgs, lib }:
 {
+  allowEmptyBootstrapFor = { config, datasetName }:
+    let
+      policy = lib.attrByPath
+        [ "modules" "storage" "datasets" "services" datasetName "protection" ]
+        null
+        config;
+    in
+    policy == null || policy.allowEmptyBootstrap;
+
   /*
     Generates a systemd service to pre-seed a service's data directory.
 
