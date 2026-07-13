@@ -62,6 +62,24 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.esphome.protection = {
+        class = "standard";
+        objectives = {
+          onsiteRpoSeconds = 86400;
+          offsiteRpoSeconds = null;
+          rtoSeconds = 28800;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "esphome-config";
+        allowEmptyBootstrap = false;
+      };
+
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "esphome";
 
       modules.alerting.rules."esphome-service-down" =

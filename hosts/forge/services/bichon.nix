@@ -83,6 +83,25 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.bichon.protection = {
+        class = "critical";
+        objectives = {
+          onsiteRpoSeconds = 900;
+          offsiteRpoSeconds = 86400;
+          rtoSeconds = 7200;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "offsite-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "bichon-archive";
+        allowEmptyBootstrap = false;
+      };
+
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "bichon";
 

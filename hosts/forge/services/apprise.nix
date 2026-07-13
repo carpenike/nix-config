@@ -49,6 +49,24 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.apprise.protection = {
+        class = "standard";
+        objectives = {
+          onsiteRpoSeconds = 86400;
+          offsiteRpoSeconds = null;
+          rtoSeconds = 28800;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "apprise-state";
+        allowEmptyBootstrap = false;
+      };
+
       # ZFS snapshot/replication config
       modules.backup.sanoid.datasets."tank/services/apprise" =
         forgeDefaults.mkSanoidDataset "apprise";

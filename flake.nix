@@ -532,13 +532,17 @@
                   "tank/services"
                 ];
                 criticalServicePaths = [
+                  "tank/services/bichon"
                   "tank/services/pocketid"
                   "tank/services/zigbee2mqtt"
                   "tank/services/zwave-js-ui"
                 ];
                 standardServicePaths = [
+                  "tank/services/apprise"
                   "tank/services/autobrr"
                   "tank/services/bazarr"
+                  "tank/services/esphome"
+                  "tank/services/netvisor"
                   "tank/services/prowlarr"
                   "tank/services/radarr"
                   "tank/services/sonarr"
@@ -546,11 +550,11 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 21;
+              assert manifest.summary.classified == 25;
               assert manifest.summary.byClass == {
-                critical = 6;
+                critical = 7;
                 ephemeral = 8;
-                standard = 5;
+                standard = 8;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];
