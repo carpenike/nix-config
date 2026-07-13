@@ -49,6 +49,11 @@ let
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  preseedUnit = "preseed-${serviceName}.service";
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
 
   # Network name for inter-container communication
   networkName = "${serviceName}-network";
@@ -590,18 +595,22 @@ in
 
       # Systemd service ordering - add network dependencies
       systemd.services."${redisServiceName}" = {
-        requires = [ "podman-network-${networkName}.service" ];
-        after = [ "podman-network-${networkName}.service" ];
+        requires = [ "podman-network-${networkName}.service" ]
+          ++ lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) preseedUnit;
+        after = [ "podman-network-${networkName}.service" ]
+          ++ lib.optional cfg.preseed.enable preseedUnit;
+        wants = lib.optional (cfg.preseed.enable && allowEmptyBootstrap) preseedUnit;
       };
 
       systemd.services."${engineServiceName}" = {
-        requires = [ "podman-network-${networkName}.service" ];
+        requires = [
+          "podman-network-${networkName}.service"
+          "${migrationServiceName}.service"
+        ];
         after = [
           "podman-network-${networkName}.service"
           "${redisServiceName}.service"
           "${migrationServiceName}.service"
-        ] ++ lib.optionals cfg.preseed.enable [
-          "${serviceName}-preseed.service"
         ] ++ lib.optionals (cfg.database.usePostgresql && cfg.database.localInstance) [
           "postgresql.service"
         ];
@@ -623,16 +632,17 @@ in
 
       # Run migration before engine starts
       systemd.services."${migrationServiceName}" = {
-        requires = [ "podman-network-${networkName}.service" ];
+        requires = [ "podman-network-${networkName}.service" ]
+          ++ lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) preseedUnit;
         after = [
           "podman-network-${networkName}.service"
           "${redisServiceName}.service"
-        ] ++ lib.optionals (cfg.database.usePostgresql && cfg.database.localInstance) [
+        ] ++ lib.optional cfg.preseed.enable preseedUnit
+        ++ lib.optionals (cfg.database.usePostgresql && cfg.database.localInstance) [
           "postgresql.service"
         ];
-        wants = [
-          "${redisServiceName}.service"
-        ];
+        wants = [ "${redisServiceName}.service" ]
+          ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) preseedUnit;
         wantedBy = [ "${engineServiceName}.service" ];
         before = [ "${engineServiceName}.service" ];
         serviceConfig = {
@@ -680,7 +690,7 @@ in
         serviceName = serviceName;
         dataset = datasetPath;
         mountpoint = cfg.dataDir;
-        mainServiceUnit = "${engineServiceName}.service";
+        mainServiceUnit = "${redisServiceName}.service";
         replicationCfg = replicationConfig;
         datasetProperties = {
           recordsize = "16K";
@@ -692,6 +702,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = (config.modules.notifications or { }).enable or false;
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }

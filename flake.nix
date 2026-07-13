@@ -527,6 +527,8 @@
                 legacyDirectPreseed = forge.systemd.services.preseed-mealie;
                 legacyFactoryMain = forge.systemd.services.podman-qbittorrent;
                 legacyFactoryPreseed = forge.systemd.services.preseed-qbittorrent;
+                onCallEngine = forge.systemd.services.podman-grafana-oncall-engine;
+                onCallMigration = forge.systemd.services.podman-grafana-oncall-migration;
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 failClosedUnits = {
@@ -536,6 +538,7 @@
                   bazarr = "podman-bazarr";
                   bichon = "podman-bichon";
                   esphome = "podman-esphome";
+                  "grafana-oncall" = "podman-grafana-oncall-redis";
                   "home-assistant" = "home-assistant";
                   "music-assistant" = "music-assistant";
                   netvisor = "podman-netvisor-server";
@@ -569,6 +572,7 @@
                   "tank/services/autobrr"
                   "tank/services/bazarr"
                   "tank/services/esphome"
+                  "tank/services/grafana-oncall"
                   "tank/services/music-assistant"
                   "tank/services/netvisor"
                   "tank/services/prowlarr"
@@ -578,11 +582,11 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 27;
+              assert manifest.summary.classified == 28;
               assert manifest.summary.byClass == {
                 critical = 8;
                 ephemeral = 8;
-                standard = 9;
+                standard = 10;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];
@@ -607,6 +611,9 @@
                   && preseedUnit.environment.ALLOW_EMPTY_BOOTSTRAP == "false"
                   && pkgs.lib.hasInfix "Refusing to start ${name} with an empty data directory" preseedUnit.script)
                 (builtins.attrNames failClosedUnits);
+              assert builtins.elem "podman-grafana-oncall-migration.service" onCallEngine.requires;
+              assert builtins.elem "preseed-grafana-oncall.service" onCallMigration.requires;
+              assert builtins.elem "preseed-grafana-oncall.service" onCallMigration.after;
               assert !(pkgs.lib.hasInfix "Refusing to start mealie with an empty data directory" legacyDirectPreseed.script);
               assert builtins.elem "preseed-qbittorrent.service" legacyFactoryMain.wants;
               assert !(builtins.elem "preseed-qbittorrent.service" legacyFactoryMain.requires);

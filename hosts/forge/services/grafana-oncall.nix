@@ -104,8 +104,8 @@ in
           "forge"
         ];
 
-        # Disaster recovery preseed (disabled - preseed service not yet implemented)
-        # preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
+        # Disaster recovery preseed
+        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
 
         # Enable notifications for service events
         notifications.enable = true;
@@ -113,6 +113,24 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.grafana-oncall.protection = {
+        class = "standard";
+        objectives = {
+          onsiteRpoSeconds = 86400;
+          offsiteRpoSeconds = null;
+          rtoSeconds = 28800;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "grafana-oncall-sqlite";
+        allowEmptyBootstrap = false;
+      };
+
       # Homepage dashboard contribution (host-level, not module-level)
       modules.services.homepage.contributions.grafana-oncall = {
         group = "Monitoring";
