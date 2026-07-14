@@ -105,6 +105,26 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      modules.storage.datasets.services.plex.protection = {
+        class = "critical";
+        objectives = {
+          onsiteRpoSeconds = 900;
+          offsiteRpoSeconds = 86400;
+          rtoSeconds = 7200;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "offsite-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = "plex-library-database";
+        allowEmptyBootstrap = false;
+        notes = "This policy protects Plex metadata, watch history, collections, and preferences; media files remain on NAS storage.";
+      };
+
       # ZFS snapshot and replication configuration for Plex dataset
       # Contributes to host-level Sanoid configuration following the contribution pattern
       modules.backup.sanoid.datasets."tank/services/plex" =

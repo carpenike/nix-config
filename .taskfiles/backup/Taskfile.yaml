@@ -833,6 +833,27 @@ tasks:
       - sh: test -f scripts/test-restic-restore.sh
         msg: "scripts/test-restic-restore.sh not found"
 
+  test-plex-restore:
+    desc: Restore and validate Plex library databases
+    silent: false
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+    summary: |
+      Restores Plex's active library database, WAL, and newest dated database
+      copy from the latest Restic snapshot into /transcode. Validates both
+      isolated copies with Plex's bundled SQLite engine, then removes them.
+
+      Example:
+        task backup:test-plex-restore
+    cmds:
+      - ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo bash -s" < scripts/test-plex-restore.sh
+    preconditions:
+      - sh: which ssh
+        msg: "ssh not found"
+      - sh: test -f scripts/test-plex-restore.sh
+        msg: "scripts/test-plex-restore.sh not found"
+
   restic:
     desc: List Restic backup status from Prometheus metrics (fast)
     silent: false

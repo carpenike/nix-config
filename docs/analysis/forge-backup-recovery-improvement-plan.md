@@ -382,7 +382,7 @@ The improvement program is complete only when all of the following are demonstra
 - Built and activated the Phase 0 configuration on Forge with all backup timers restored.
 - Validated complete backups, correct one-hot metrics, and clean teardown for Actual, Apprise, Bichon, Cooklang, Cooklang Federation, ESPHome, Grafana OnCall, Home Assistant, Music Assistant, NetVisor, and Radarr.
 - Stopped the forced validation batch after ESPHome reached its 2 GiB memory ceiling and Forge peaked at 85 C; all timers and temporary state were restored cleanly.
-- Plex, SABnzbd, TDarr, Termix, and Tududi remain pending and will validate through staggered timers rather than another forced high-load batch.
+- SABnzbd, TDarr, Termix, and Tududi remain pending and will validate through staggered timers rather than another forced high-load batch.
 - Added `task backup:test-restic-results` and proved complete, partial, fatal, and TERM-interrupted outcomes against the deployed wrapper without touching a real repository or production metric.
 - Added `task backup:test-restic-restore` and restored real files with matching size, mode, UID, and GID from Actual, Home Assistant, Music Assistant, and ESPHome snapshots.
 - Full affected-job execution and per-job restore sampling remain open acceptance gates.
@@ -415,3 +415,4 @@ The improvement program is complete only when all of the following are demonstra
 - Classified Seerr's request, user, and integration SQLite state as standard and repaired its systemd override to target the real OCI unit rather than a `.service`-suffixed phantom attribute. The deployed unit now requires fail-closed preseed; SQLite integrity, endpoint, and container health all pass.
 - Classified Go2RTC and SearXNG local datasets as ephemeral declarative/cache state. Classified Miniflux and TeslaMate local datasets as ephemeral runtime workspaces while retaining PostgreSQL as the durable owner of feed/user state and vehicle telemetry.
 - Classified Dispatcharr and Tracearr local datasets as ephemeral external-database workspaces. Their running containers use empty or SOPS-materialized local paths while durable IPTV and monitoring records remain in PostgreSQL; stale Tracearr embedded-mode files are not mounted by the active container.
+- Classified Plex metadata, watch history, collections, and preferences as critical and enforced fail-closed preseed startup. Added `task backup:test-plex-restore`, which restored the active DB/WAL set and newest dated database copy from Restic and validated both with Plex's bundled SQLite engine (82 tables and about 33.7k metadata records).

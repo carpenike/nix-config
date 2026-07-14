@@ -545,6 +545,7 @@
                   netvisor = "podman-netvisor-server";
                   omada = "podman-omada";
                   pocketid = "pocket-id";
+                  plex = "podman-plex";
                   prowlarr = "podman-prowlarr";
                   radarr = "podman-radarr";
                   seerr = "podman-seerr";
@@ -577,6 +578,7 @@
                   "tank/services/bichon"
                   "tank/services/omada"
                   "tank/services/pocketid"
+                  "tank/services/plex"
                   "tank/services/zigbee2mqtt"
                   "tank/services/zwave-js-ui"
                 ];
@@ -597,9 +599,9 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 41;
+              assert manifest.summary.classified == 42;
               assert manifest.summary.byClass == {
-                critical = 8;
+                critical = 9;
                 ephemeral = 19;
                 standard = 12;
                 system = 2;

@@ -23,6 +23,10 @@ let
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = "plex";
+  };
 
   # Container mode helpers
   isContainerMode = cfg.deploymentMode == "container";
@@ -625,7 +629,8 @@ in
         })
         (lib.mkIf cfg.preseed.enable {
           After = [ "preseed-plex.service" ];
-          Wants = [ "preseed-plex.service" ];
+          Requires = lib.optional (!allowEmptyBootstrap) "preseed-plex.service";
+          Wants = lib.optional allowEmptyBootstrap "preseed-plex.service";
         })
       ];
 
@@ -803,7 +808,8 @@ in
         })
         # Preseed dependency
         (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-plex.service" ];
+          requires = lib.optional (!allowEmptyBootstrap) "preseed-plex.service";
+          wants = lib.optional allowEmptyBootstrap "preseed-plex.service";
           after = [ "preseed-plex.service" ];
         })
         # Failure notifications
@@ -882,6 +888,7 @@ in
         resticPaths = [ cfg.dataDir ];
         restoreMethods = cfg.preseed.restoreMethods;
         hasCentralizedNotifications = true; # Plex integrates with centralized alerting
+        inherit allowEmptyBootstrap;
         owner = cfg.user;
         group = cfg.group;
       }
