@@ -16,7 +16,6 @@ let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   serviceDomain = "search.${domain}";
-  dataset = "tank/services/searxng";
   dataDir = "/var/lib/searxng";
   listenPort = 8888;
   serviceEnabled = config.modules.services.searxng.enable or false;
@@ -45,11 +44,6 @@ in
           };
         };
 
-        # Backup configuration
-        backup = forgeDefaults.backup;
-
-        # Enable self-healing restore from backups before service start
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
     }
 
@@ -81,10 +75,6 @@ in
           };
         };
       };
-
-      # Sanoid snapshot/replication to NAS
-      modules.backup.sanoid.datasets.${dataset} =
-        forgeDefaults.mkSanoidDataset "searxng";
 
       # Service-down alert (native systemd service)
       modules.alerting.rules."searxng-service-down" =

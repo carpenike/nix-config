@@ -70,14 +70,11 @@ in
           hostName = "tracearr.holthome.net";
         };
 
-        # Enable backups (external mode only backs up app data, not databases)
-        backup = forgeDefaults.backup;
+        # External mode keeps durable records in centralized PostgreSQL.
+        backup = null;
 
         # Enable failure notifications via Pushover
         notifications.enable = true;
-
-        # Enable self-healing restore from backups before service start
-        preseed = forgeDefaults.preseed;
       };
 
       # Provision tracearr database in centralized PostgreSQL
@@ -113,11 +110,6 @@ in
           reason = "Durable monitoring records live in PostgreSQL, Redis is disposable, and local secrets are materialized from SOPS.";
         };
       };
-
-      # ZFS snapshot and replication configuration for Tracearr dataset
-      # Contributes to host-level Sanoid configuration following the contribution pattern
-      modules.backup.sanoid.datasets."tank/services/tracearr" =
-        forgeDefaults.mkSanoidDataset "tracearr";
 
       # Service-specific monitoring alerts
       # Contributes to host-level alerting configuration following the contribution pattern

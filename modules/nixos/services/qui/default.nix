@@ -13,11 +13,16 @@ let
 
   cfg = config.modules.services.qui;
   storageCfg = config.modules.storage;
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-qui.service";
+  mainServiceName = "${config.virtualisation.oci-containers.backend}-qui";
+  mainServiceUnit = "${mainServiceName}.service";
   datasetPath = "${storageCfg.datasets.parentDataset}/qui";
 
   # Build replication config for preseed (walks up dataset tree to find inherited config)
   replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = "qui";
+  };
 in
 {
   options.modules.services.qui = {
@@ -544,20 +549,21 @@ in
         };
 
         # Apply additional service configuration
-        systemd.services.${mainServiceUnit} = lib.mkMerge [
+        systemd.services.${mainServiceName} = lib.mkMerge [
           {
             serviceConfig = {
               Restart = "always";
               RestartSec = "10s";
             };
-            # Ensure SOPS secrets are available before qui starts
-            # Prevents crash-loop when /run/qui-env doesn't exist yet
-            requires = [ "sops-nix.service" ];
-            after = [ "sops-nix.service" ];
           }
           (lib.mkIf (cfg.podmanNetwork != null) {
             requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
             after = [ "podman-network-${cfg.podmanNetwork}.service" ];
+          })
+          (lib.mkIf cfg.preseed.enable {
+            requires = lib.optional (!allowEmptyBootstrap) "preseed-qui.service";
+            wants = lib.optional allowEmptyBootstrap "preseed-qui.service";
+            after = [ "preseed-qui.service" ];
           })
         ];
 
@@ -629,6 +635,7 @@ in
           resticEnvironmentFile = cfg.preseed.environmentFile;
           resticPaths = [ cfg.dataDir ];
           restoreMethods = cfg.preseed.restoreMethods;
+          inherit allowEmptyBootstrap;
           hasCentralizedNotifications = config.modules.notifications.enable or false;
           owner = cfg.user;
           group = cfg.group;

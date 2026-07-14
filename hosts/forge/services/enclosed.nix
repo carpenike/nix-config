@@ -24,7 +24,6 @@ let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   inherit (config.networking) domain;
   serviceDomain = "share.${domain}";
-  dataset = "tank/services/enclosed";
   dataDir = "/var/lib/enclosed";
   serviceEnabled = config.modules.services.enclosed.enable or false;
 in
@@ -47,12 +46,6 @@ in
           # Security is in the URL (contains decryption key), not in who can access
         };
 
-        # Standard backup configuration
-        backup = forgeDefaults.backup;
-
-        # Preseed configuration for disaster recovery
-        preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
-
         notifications.enable = true;
 
         # Lightweight resources - 7d peak (25M) × 2.5 = 128M minimum
@@ -65,8 +58,22 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      # ZFS snapshot and replication configuration
-      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "enclosed";
+      modules.storage.datasets.services.enclosed.protection = {
+        class = "ephemeral";
+        objectives = {
+          onsiteRpoSeconds = null;
+          offsiteRpoSeconds = null;
+          rtoSeconds = null;
+        };
+        requiredTiers = [ ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+        mechanism = {
+          name = "none";
+          reason = "Encrypted notes are short-lived or self-destructing; restoring retained payloads would violate their deletion semantics.";
+        };
+      };
 
       # Service availability alert
       modules.alerting.rules."enclosed-service-down" =

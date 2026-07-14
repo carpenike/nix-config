@@ -40,6 +40,8 @@ in
         # Increased memory from default 512M to 1G - Sonarr's 1.3GB dataset
         # caused OOM kills during restic indexing (2026-02-03)
         backup = forgeDefaults.backup // {
+          useSnapshots = true;
+          zfsDataset = "tank/services/sonarr";
           resources = {
             memory = "1G";
             memoryReservation = "512M";

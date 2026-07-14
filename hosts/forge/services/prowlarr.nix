@@ -36,8 +36,11 @@ in
 
         # Resource limits: use module defaults (256M memory, 1 CPU)
 
-        # Enable backups
-        backup = forgeDefaults.backup;
+        # Enable crash-consistent backups from a read-only ZFS snapshot.
+        backup = forgeDefaults.backup // {
+          useSnapshots = true;
+          zfsDataset = "tank/services/prowlarr";
+        };
 
         # Enable failure notifications
         notifications.enable = true;

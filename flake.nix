@@ -547,16 +547,30 @@
                   pocketid = "pocket-id";
                   plex = "podman-plex";
                   prowlarr = "podman-prowlarr";
+                  qui = "podman-qui";
                   radarr = "podman-radarr";
                   seerr = "podman-seerr";
                   sonarr = "podman-sonarr";
+                  thelounge = "thelounge";
                   zigbee2mqtt = "zigbee2mqtt";
                   "zwave-js-ui" = "zwave-js-ui";
                 };
+                disposableServices = [
+                  "enclosed"
+                  "searxng"
+                  "tracearr"
+                ];
+                snapshotBackupServices = [
+                  "prowlarr"
+                  "qui"
+                  "sonarr"
+                  "thelounge"
+                ];
                 ephemeralPaths = [
                   "tank/services/alertmanager"
                   "tank/services/cooklang-federation"
                   "tank/services/dispatcharr"
+                  "tank/services/enclosed"
                   "tank/services/homepage"
                   "tank/services/kometa"
                   "tank/services/miniflux"
@@ -592,18 +606,20 @@
                   "tank/services/music-assistant"
                   "tank/services/netvisor"
                   "tank/services/prowlarr"
+                  "tank/services/qui"
                   "tank/services/radarr"
                   "tank/services/seerr"
                   "tank/services/sonarr"
+                  "tank/services/thelounge"
                 ];
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 42;
+              assert manifest.summary.classified == 45;
               assert manifest.summary.byClass == {
                 critical = 9;
-                ephemeral = 19;
-                standard = 12;
+                ephemeral = 20;
+                standard = 14;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];
@@ -628,6 +644,21 @@
                   && preseedUnit.environment.ALLOW_EMPTY_BOOTSTRAP == "false"
                   && pkgs.lib.hasInfix "Refusing to start ${name} with an empty data directory" preseedUnit.script)
                 (builtins.attrNames failClosedUnits);
+              assert builtins.all
+                (name:
+                  !(builtins.hasAttr "restic-backup-service-${name}" forge.systemd.timers)
+                  && !(builtins.hasAttr "preseed-${name}" forge.systemd.services)
+                  && !(builtins.hasAttr "tank/services/${name}" forge.modules.backup.sanoid.datasets))
+                disposableServices;
+              assert builtins.all
+                (name:
+                  let
+                    serviceConfig = forge.systemd.services."restic-backup-service-${name}".serviceConfig;
+                  in
+                  serviceConfig.AmbientCapabilities == [ "CAP_DAC_READ_SEARCH" ]
+                  && serviceConfig.CapabilityBoundingSet == [ "CAP_DAC_READ_SEARCH" ]
+                  && serviceConfig.ReadOnlyPaths == [ "/var/lib/backup-snapshots/service-${name}" ])
+                snapshotBackupServices;
               assert builtins.elem "podman-grafana-oncall-migration.service" onCallEngine.requires;
               assert builtins.elem "preseed-grafana-oncall.service" onCallMigration.requires;
               assert builtins.elem "preseed-grafana-oncall.service" onCallMigration.after;

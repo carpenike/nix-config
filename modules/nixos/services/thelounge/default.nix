@@ -17,7 +17,7 @@
 # via the `defaults` object. Additional networks are per-user in their
 # user.json files. Use `lockNetwork = true` to force the default network.
 #
-{ config, lib, mylib, ... }:
+{ config, lib, mylib, pkgs, ... }:
 
 let
   cfg = config.modules.services.thelounge;
@@ -27,6 +27,15 @@ let
 
   # Import shared types for standard submodules
   sharedTypes = mylib.types;
+  storageHelpers = mylib.storageHelpers pkgs;
+  storageCfg = config.modules.storage;
+  datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
+  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
+    inherit config;
+    datasetName = serviceName;
+  };
+  mainServiceUnit = "${serviceName}.service";
 
   # IRC network defaults submodule
   ircNetworkSubmodule = lib.types.submodule {
@@ -258,87 +267,118 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    # Use native NixOS TheLounge service
-    services.thelounge = {
-      enable = true;
-      port = cfg.port;
-      public = cfg.public;
-      plugins = cfg.plugins;
+  config = lib.mkMerge [
+    (lib.mkIf cfg.enable {
+      # Use native NixOS TheLounge service
+      services.thelounge = {
+        enable = true;
+        port = cfg.port;
+        public = cfg.public;
+        plugins = cfg.plugins;
 
-      extraConfig = lib.mkMerge [
-        # Default network configuration
-        (lib.mkIf (cfg.defaultNetwork != null) {
-          defaults = {
-            inherit (cfg.defaultNetwork) name host port tls nick password join lockNetwork;
-          } // lib.optionalAttrs (cfg.defaultNetwork.username != null) {
-            username = cfg.defaultNetwork.username;
-          } // lib.optionalAttrs (cfg.defaultNetwork.realname != null) {
-            realname = cfg.defaultNetwork.realname;
-          };
-        })
+        extraConfig = lib.mkMerge [
+          # Default network configuration
+          (lib.mkIf (cfg.defaultNetwork != null) {
+            defaults = {
+              inherit (cfg.defaultNetwork) name host port tls nick password join lockNetwork;
+            } // lib.optionalAttrs (cfg.defaultNetwork.username != null) {
+              username = cfg.defaultNetwork.username;
+            } // lib.optionalAttrs (cfg.defaultNetwork.realname != null) {
+              realname = cfg.defaultNetwork.realname;
+            };
+          })
 
-        # Enable reverse proxy mode (trust X-Forwarded-* headers)
-        (lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-          reverseProxy = true;
-        })
+          # Enable reverse proxy mode (trust X-Forwarded-* headers)
+          (lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+            reverseProxy = true;
+          })
 
-        # User-provided extra config
-        cfg.extraConfig
-      ];
-    };
-
-    # Override systemd service for ZFS integration and stable user
-    systemd.services.thelounge = {
-      # Wait for ZFS datasets
-      after = [ "local-fs.target" "zfs-mount.service" ];
-      wants = [ "zfs-mount.service" ];
-
-      # Override DynamicUser for persistent storage with stable UID
-      serviceConfig = {
-        DynamicUser = lib.mkForce false;
-        User = cfg.user;
-        Group = cfg.group;
-
-        # Security hardening
-        ReadWritePaths = [ cfg.dataDir ];
+          # User-provided extra config
+          cfg.extraConfig
+        ];
       };
-    };
 
-    # Create thelounge user/group with stable UID/GID
-    # Use mkForce for description since native module also defines this user
-    users.users.${cfg.user} = {
-      isSystemUser = true;
-      uid = cfg.uid;
-      group = cfg.group;
-      home = lib.mkForce "/var/empty";
-      description = lib.mkForce "TheLounge IRC client service user";
-    };
+      # Override systemd service for ZFS integration and stable user
+      systemd.services.thelounge = lib.mkMerge [
+        {
+          # Wait for ZFS datasets
+          after = [ "local-fs.target" "zfs-mount.service" ];
+          wants = [ "zfs-mount.service" ];
 
-    users.groups.${cfg.group} = {
-      gid = cfg.gid;
-    };
+          # Override DynamicUser for persistent storage with stable UID
+          serviceConfig = {
+            DynamicUser = lib.mkForce false;
+            User = cfg.user;
+            Group = cfg.group;
 
-    # Caddy reverse proxy integration
-    modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-      enable = true;
-      hostName = cfg.reverseProxy.hostName;
-      backend = cfg.reverseProxy.backend;
-      caddySecurity = cfg.reverseProxy.caddySecurity or null;
-      extraConfig = cfg.reverseProxy.extraConfig or "";
-    };
+            # Security hardening
+            ReadWritePaths = [ cfg.dataDir ];
+          };
+        }
+        (lib.mkIf cfg.preseed.enable {
+          requires = lib.optional (!allowEmptyBootstrap) "preseed-thelounge.service";
+          wants = lib.optional allowEmptyBootstrap "preseed-thelounge.service";
+          after = [ "preseed-thelounge.service" ];
+        })
+      ];
 
-    # Backup integration
-    modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      enable = true;
-      paths = [ cfg.dataDir ];
-      repository = cfg.backup.repository;
-      tags = cfg.backup.tags or [ "communication" serviceName "irc" ];
-      useSnapshots = cfg.backup.useSnapshots or true;
-      zfsDataset = cfg.backup.zfsDataset or null;
-    };
+      # Create thelounge user/group with stable UID/GID
+      # Use mkForce for description since native module also defines this user
+      users.users.${cfg.user} = {
+        isSystemUser = true;
+        uid = cfg.uid;
+        group = cfg.group;
+        home = lib.mkForce "/var/empty";
+        description = lib.mkForce "TheLounge IRC client service user";
+      };
 
-    # Firewall - only allow localhost access (internal service behind reverse proxy)
-    networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ];
-  };
+      users.groups.${cfg.group} = {
+        gid = cfg.gid;
+      };
+
+      # Caddy reverse proxy integration
+      modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+        enable = true;
+        hostName = cfg.reverseProxy.hostName;
+        backend = cfg.reverseProxy.backend;
+        caddySecurity = cfg.reverseProxy.caddySecurity or null;
+        extraConfig = cfg.reverseProxy.extraConfig or "";
+      };
+
+      # Backup integration
+      modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
+        enable = true;
+        paths = [ cfg.dataDir ];
+        repository = cfg.backup.repository;
+        tags = cfg.backup.tags or [ "communication" serviceName "irc" ];
+        useSnapshots = cfg.backup.useSnapshots or true;
+        zfsDataset = cfg.backup.zfsDataset or null;
+      };
+
+      # Firewall - only allow localhost access (internal service behind reverse proxy)
+      networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ];
+    })
+
+    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
+      storageHelpers.mkPreseedService {
+        inherit serviceName;
+        dataset = datasetPath;
+        mountpoint = cfg.dataDir;
+        inherit mainServiceUnit;
+        replicationCfg = replicationConfig;
+        datasetProperties = {
+          recordsize = "128K";
+          compression = "lz4";
+        };
+        resticRepoUrl = cfg.preseed.repositoryUrl;
+        resticPasswordFile = cfg.preseed.passwordFile;
+        resticPaths = [ cfg.dataDir ];
+        restoreMethods = cfg.preseed.restoreMethods;
+        inherit allowEmptyBootstrap;
+        hasCentralizedNotifications = config.modules.notifications.enable or false;
+        owner = cfg.user;
+        group = cfg.group;
+      }
+    ))
+  ];
 }

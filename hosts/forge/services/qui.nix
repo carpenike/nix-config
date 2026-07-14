@@ -170,7 +170,7 @@ in
         };
 
         # Backup configuration
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots "qui";
 
         # Preseed/DR configuration
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
@@ -189,6 +189,23 @@ in
         owner = "980";
         group = "media";
         mode = "0750"; # Allow group read access for backup systems
+        protection = {
+          class = "standard";
+          objectives = {
+            onsiteRpoSeconds = 86400;
+            offsiteRpoSeconds = null;
+            rtoSeconds = 28800;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "nas-backup"
+            "automated-restore"
+          ];
+          consistency = "crash-consistent";
+          validator = "qui-sqlite";
+          allowEmptyBootstrap = false;
+        };
       };
 
       # Co-located ZFS snapshot & replication (Sanoid/Syncoid)
