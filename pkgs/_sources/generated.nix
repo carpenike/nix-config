@@ -66,7 +66,7 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v3.5.4";
+    version = "v3.5.5";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
