@@ -216,7 +216,7 @@ jobs:
       # Check flake health (outdated inputs, etc.).
       # Pinned to v12 (2025-07-15) for supply-chain hygiene; bump deliberately.
       - name: Flake health check
-        uses: DeterminateSystems/flake-checker-action@v12
+        uses: DeterminateSystems/flake-checker-action@v13
         continue-on-error: true
 
       - name: Garbage collect build dependencies
