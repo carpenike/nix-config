@@ -36,10 +36,23 @@
     depends = [ "/nix" ];
   };
 
-  # Firmware + kernel (vfat); 512 MiB on the rebuilt image so the kernel fits.
+  # The SD image stores extlinux, kernels, and initrds in the ext4 root
+  # partition. That partition is mounted at /nix on this appliance, so expose
+  # its boot directory at the conventional runtime path. Otherwise rebuilds
+  # update the FAT firmware partition while U-Boot keeps reading the stale
+  # /boot directory from NIXOS_SD.
   fileSystems."/boot" = {
+    device = "/nix/boot";
+    fsType = "none";
+    options = [ "bind" ];
+    depends = [ "/nix" ];
+  };
+
+  # Raspberry Pi firmware only; generic-extlinux boot artifacts live above.
+  fileSystems."/boot/firmware" = {
     device = "/dev/disk/by-label/FIRMWARE";
     fsType = "vfat";
+    options = [ "nofail" "noauto" ];
   };
 
   swapDevices = [ ];

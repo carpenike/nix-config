@@ -42,7 +42,17 @@
       neededForBoot = true;
       depends = [ "/nix" ];
     };
-    "/boot" = { device = "/dev/disk/by-label/FIRMWARE"; fsType = "vfat"; };
+    "/boot" = {
+      device = "/nix/boot";
+      fsType = "none";
+      options = [ "bind" ];
+      depends = [ "/nix" ];
+    };
+    "/boot/firmware" = {
+      device = "/dev/disk/by-label/FIRMWARE";
+      fsType = "vfat";
+      options = [ "nofail" "noauto" ];
+    };
     "/persist" = {
       device = "/dev/disk/by-id/usb-SABRENT_ASM1153E_0000000000B7-0:0-part1";
       fsType = "btrfs";

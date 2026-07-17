@@ -55,6 +55,11 @@ in
       loader = {
         systemd-boot.enable = false;
         efi.canTouchEfiVariables = false;
+        # U-Boot follows the bootable NIXOS_SD partition, whose /boot directory
+        # is exposed at /nix/boot on the tmpfs-root appliance. Target it
+        # directly so the first switch after a reflash updates the booted menu
+        # before systemd remounts /boot.
+        generic-extlinux-compatible.mirroredBoots = [{ path = "/nix/boot"; }];
       };
 
       kernel.sysctl = {
