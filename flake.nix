@@ -190,7 +190,7 @@
         lib = inputs.nixpkgs.lib;
       };
     in
-    flake-parts.lib.mkFlake { inherit inputs; } {
+    flake-parts.lib.mkFlake { inherit inputs; } ({ config, ... }: {
       systems = [
         "aarch64-darwin"
         "x86_64-linux"
@@ -198,6 +198,8 @@
       ];
       imports = [
         inputs.git-hooks.flakeModule
+        inputs.flake-parts.flakeModules.modules
+        ./features
       ];
 
       # Per-system outputs (packages, devShells, formatter, checks)
@@ -452,6 +454,33 @@
               touch $out
             '';
 
+            oci-image-pinning =
+              let
+                lib = inputs.nixpkgs.lib;
+                images = lib.concatLists (lib.mapAttrsToList
+                  (hostName: nixosConfiguration:
+                    lib.mapAttrsToList
+                      (unitName: container: {
+                        inherit hostName unitName;
+                        image = container.image or "";
+                      })
+                      (nixosConfiguration.config.virtualisation.oci-containers.containers or { }))
+                  inputs.self.nixosConfigurations);
+                unpinnedImages = lib.filter
+                  (entry: builtins.match ".*@sha256:[0-9a-f]{64}" entry.image == null)
+                  images;
+                unpinnedDescription = lib.concatMapStringsSep "\n"
+                  (entry: "${entry.hostName}/${entry.unitName}: ${entry.image}")
+                  unpinnedImages;
+              in
+              assert lib.assertMsg (unpinnedImages == [ ]) ''
+                All effective OCI images must end in a sha256 digest. Unpinned images:
+                ${unpinnedDescription}
+              '';
+              pkgs.runCommand "oci-image-pinning-check" { } ''
+                touch $out
+              '';
+
             backup-phase0 =
               let
                 lib = inputs.nixpkgs.lib;
@@ -693,104 +722,137 @@
           };
         };
 
-      flake = {
-        #################### NixOS Configurations ####################
-        #
-        # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
-        nixosConfigurations = {
-          # Bootstrap deployment - uses minimal builder to avoid compatibility issues
-          nixos-bootstrap = mkSystemLib.mkNixosBootstrapSystem "x86_64-linux" "nixos-bootstrap";
-          # Parallels devlab - minimal dev environment
-          rydev = mkSystemLib.mkNixosSystem {
-            system = "aarch64-linux";
-            hostname = "rydev";
-            serviceCategories = [
-              "infrastructure"
-              "observability"
-            ];
+      flake =
+        let
+          fishModules = {
+            nixos = config.flake.modules.nixos.fish;
+            darwin = config.flake.modules.darwin.fish;
+            homeManager = config.flake.modules.homeManager.fish;
           };
-          # Luna - DNS/network infrastructure server
-          luna = mkSystemLib.mkNixosSystem {
-            system = "x86_64-linux";
-            hostname = "luna";
-            serviceCategories = [
-              "auth"
-              "development"
-              "infrastructure"
-              "network"
-              "observability"
-            ];
+          mkNixosSystem = args:
+            mkSystemLib.mkNixosSystem (args // {
+              extraModules = (args.extraModules or [ ]) ++ [ fishModules.nixos ];
+              extraHomeModules = (args.extraHomeModules or [ ]) ++ [ fishModules.homeManager ];
+            });
+        in
+        {
+          #################### NixOS Configurations ####################
+          #
+          # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`
+          nixosConfigurations = {
+            # Bootstrap deployment - uses minimal builder to avoid compatibility issues
+            nixos-bootstrap = mkSystemLib.mkNixosBootstrapSystem "x86_64-linux" "nixos-bootstrap";
+            # Parallels devlab - minimal dev environment
+            rydev = mkNixosSystem {
+              system = "aarch64-linux";
+              hostname = "rydev";
+              serviceCategories = [
+                "infrastructure"
+                "observability"
+              ];
+            };
+            # Luna - DNS/network infrastructure server
+            luna = mkNixosSystem {
+              system = "x86_64-linux";
+              hostname = "luna";
+              serviceCategories = [
+                "auth"
+                "development"
+                "infrastructure"
+                "network"
+                "observability"
+              ];
+            };
+            # Forge - main homelab server (all categories)
+            forge = mkNixosSystem {
+              system = "x86_64-linux";
+              hostname = "forge";
+              serviceCategories = [
+                "ai"
+                "auth"
+                "automotive"
+                "backup"
+                "development"
+                "downloads"
+                "home-automation"
+                "infrastructure"
+                "media"
+                "media-automation"
+                "network"
+                "observability"
+                "productivity"
+              ];
+            };
+            # NAS-0 - Primary bulk storage NAS (117TB) - not yet deployed
+            nas-0 = mkNixosSystem {
+              system = "x86_64-linux";
+              hostname = "nas-0";
+              # Storage services use native NixOS modules in the host config;
+              # no custom service category is required.
+              serviceCategories = [ ];
+            };
+            # NAS-1 - Secondary NAS / Backup target - not yet deployed
+            nas-1 = mkNixosSystem {
+              system = "x86_64-linux";
+              hostname = "nas-1";
+              serviceCategories = [
+                # Attic server/admin modules.
+                "development"
+                # Caddy reverse proxy and shared service infrastructure.
+                "infrastructure"
+              ];
+            };
+            # Raspberry Pi RV system
+            nixpi = mkNixosSystem {
+              system = "aarch64-linux";
+              hostname = "nixpi";
+              serviceCategories = [
+                "infrastructure"
+                "observability"
+              ];
+            };
+            # Flashable SD image for nixpi (512 MiB firmware so the kernel fits).
+            # Build: nix build .#nixosConfigurations.nixpi-image.config.system.build.sdImage
+            nixpi-image = mkNixosSystem {
+              system = "aarch64-linux";
+              hostname = "nixpi";
+              serviceCategories = [
+                "infrastructure"
+                "observability"
+              ];
+              extraModules = [ ./hosts/nixpi/sd-image.nix ];
+            };
           };
-          # Forge - main homelab server (all categories)
-          forge = mkSystemLib.mkNixosSystem {
-            system = "x86_64-linux";
-            hostname = "forge";
-            serviceCategories = [
-              "ai"
-              "auth"
-              "automotive"
-              "backup"
-              "development"
-              "downloads"
-              "home-automation"
-              "infrastructure"
-              "media"
-              "media-automation"
-              "network"
-              "observability"
-              "productivity"
-            ];
+
+          darwinConfigurations = {
+            rymac = mkSystemLib.mkDarwinSystem {
+              system = "aarch64-darwin";
+              hostname = "rymac";
+              extraModules = [ fishModules.darwin ];
+              extraHomeModules = [ fishModules.homeManager ];
+            };
           };
-          # NAS-0 - Primary bulk storage NAS (117TB) - not yet deployed
-          nas-0 = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "nas-0"; };
-          # NAS-1 - Secondary NAS / Backup target - not yet deployed
-          nas-1 = mkSystemLib.mkNixosSystem { system = "x86_64-linux"; hostname = "nas-1"; };
-          # Raspberry Pi RV system
-          nixpi = mkSystemLib.mkNixosSystem {
-            system = "aarch64-linux";
-            hostname = "nixpi";
-            serviceCategories = [
-              "infrastructure"
-              "observability"
-            ];
-          };
-          # Flashable SD image for nixpi (512 MiB firmware so the kernel fits).
-          # Build: nix build .#nixosConfigurations.nixpi-image.config.system.build.sdImage
-          nixpi-image = mkSystemLib.mkNixosSystem {
-            system = "aarch64-linux";
-            hostname = "nixpi";
-            serviceCategories = [
-              "infrastructure"
-              "observability"
-            ];
-            extraModules = [ ./hosts/nixpi/sd-image.nix ];
-          };
+
+          # Aggregated DNS records from all hosts' Caddy virtual hosts
+          # View with: nix eval .#allCaddyDnsRecords --raw
+          allCaddyDnsRecords = aggregateDnsRecords (
+            inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
+          );
+
+          # Convenience output that aggregates the outputs for home, nixos.
+          # Also used in ci to build targets generally.
+          ciSystems =
+            let
+              nixos =
+                inputs.nixpkgs.lib.genAttrs
+                  (builtins.attrNames inputs.self.nixosConfigurations)
+                  (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
+              darwin =
+                inputs.nixpkgs.lib.genAttrs
+                  (builtins.attrNames inputs.self.darwinConfigurations)
+                  (attr: inputs.self.darwinConfigurations.${attr}.system);
+            in
+            nixos // darwin;
         };
-
-        darwinConfigurations = {
-          rymac = mkSystemLib.mkDarwinSystem "aarch64-darwin" "rymac"; # overlays flake-packages;
-        };
-
-        # Aggregated DNS records from all hosts' Caddy virtual hosts
-        # View with: nix eval .#allCaddyDnsRecords --raw
-        allCaddyDnsRecords = aggregateDnsRecords (
-          inputs.self.nixosConfigurations // inputs.self.darwinConfigurations
-        );
-
-        # Convenience output that aggregates the outputs for home, nixos.
-        # Also used in ci to build targets generally.
-        ciSystems =
-          let
-            nixos =
-              inputs.nixpkgs.lib.genAttrs
-                (builtins.attrNames inputs.self.nixosConfigurations)
-                (attr: inputs.self.nixosConfigurations.${attr}.config.system.build.toplevel);
-            darwin =
-              inputs.nixpkgs.lib.genAttrs
-                (builtins.attrNames inputs.self.darwinConfigurations)
-                (attr: inputs.self.darwinConfigurations.${attr}.system);
-          in
-          nixos // darwin;
-      };
-    };
+    });
 }

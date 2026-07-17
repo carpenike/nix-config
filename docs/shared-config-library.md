@@ -1,17 +1,23 @@
 # Shared Config Library: Helm-like Patterns for NixOS
 
-**Last Updated**: 2026-01-23
+<!-- markdownlint-disable MD013 -->
 
-This document describes the service factory pattern in this repository, which provides Helm-like templating for NixOS service modules.
+**Last Updated**: 2026-07-17
+
+This document describes the OCI service factory and runtime-neutral service
+capability fragments used by NixOS service modules in this repository.
 
 ---
 
 ## Overview
 
-The service factory (`lib/service-factory.nix`) provides factory functions that dramatically reduce boilerplate when creating service modules. Similar to Helm's `values.yaml` + `_helpers.tpl` pattern:
+The OCI service factory (`lib/service-factory.nix`) reduces boilerplate for
+conventional container services. Runtime-neutral options are composed from
+`lib/service-options.nix`. The factory remains similar to Helm's `values.yaml`
+and `_helpers.tpl` pattern:
 
 | Helm Concept | NixOS Equivalent |
-|--------------|------------------|
+| --- | --- |
 | `values.yaml` | Service `spec` passed to factory |
 | `_helpers.tpl` | Factory functions in `lib/service-factory.nix` |
 | Chart templates | Generated NixOS module (options + config) |
@@ -21,7 +27,7 @@ The service factory (`lib/service-factory.nix`) provides factory functions that 
 
 ## Current Library Structure
 
-```
+```text
 lib/
 ├── default.nix               # Aggregates all helpers into mylib
 ├── service-factory.nix       # ← NEW: Helm-like service factories
@@ -45,6 +51,7 @@ lib/
 ### When to Use
 
 Use `mylib.mkContainerService` when your service:
+
 - Runs in a Podman container
 - Has a web interface (optional Caddy integration)
 - Needs ZFS dataset storage
@@ -65,12 +72,13 @@ mylib.mkContainerService {
   spec = {
     port = 8080;
     image = "ghcr.io/org/myservice:latest";
-    category = "productivity";  # media, infrastructure, home-automation, etc.
+    operationalProfile = "productivity";  # media, infrastructure, home-automation, etc.
   };
 }
 ```
 
 This single call generates:
+
 - ✅ All standard options (enable, dataDir, port, user, group, image, timezone, resources, healthcheck, reverseProxy, metrics, logging, backup, notifications, preseed)
 - ✅ Caddy reverse proxy registration
 - ✅ ZFS dataset with optimized properties
@@ -78,12 +86,12 @@ This single call generates:
 - ✅ Container definition with healthchecks
 - ✅ Systemd dependencies
 
-### Service Categories
+### Operational Profiles
 
-Categories provide sensible defaults:
+Operational profiles provide sensible defaults:
 
-| Category | `serviceType` | Alert Channel | NFS Mount | Default Group |
-|----------|---------------|---------------|-----------|---------------|
+| Operational Profile | `serviceType` | Alert Channel | NFS Mount | Default Group |
+| --- | --- | --- | --- | --- |
 | `media` | `media_management` | `media-alerts` | Yes | `media` |
 | `downloads` | `downloads` | `media-alerts` | Yes | `media` |
 | `productivity` | `productivity` | `system-alerts` | No | Service GID |
@@ -100,8 +108,8 @@ spec = {
   port = 8080;                      # Service port
   image = "org/image:tag";          # Container image
 
-  # Category (determines defaults)
-  category = "media";               # See categories table above
+  # Operational profile (determines defaults)
+  operationalProfile = "media";     # See operational profiles table above
 
   # Display/identification
   description = "Human readable";   # Used in option descriptions
@@ -272,7 +280,7 @@ mylib.mkContainerService {
   spec = {
     port = 8989;
     image = "lscr.io/linuxserver/sonarr:latest";
-    category = "media";
+    operationalProfile = "media";
     function = "tv_series";
     healthEndpoint = "/ping";
     startPeriod = "300s";
@@ -324,7 +332,8 @@ cp modules/nixos/services/tududi/default.nix modules/nixos/services/tududi/defau
 
 ### Phase 3: Batch Migration
 
-Migrate services by category:
+Migrate services by operational profile:
+
 1. **Productivity** (simpler): tududi, privatebin, it-tools
 2. **Media stack**: sonarr, radarr, lidarr, readarr, prowlarr, bazarr
 3. **Downloads**: qbittorrent, sabnzbd
@@ -333,6 +342,7 @@ Migrate services by category:
 ### Phase 4: Deprecate Old Patterns
 
 After all migrations:
+
 1. Update `docs/modular-design-patterns.md`
 2. Add migration guide
 3. Remove duplicated code from individual modules
@@ -343,7 +353,7 @@ After all migrations:
 
 The factory is optimized for the common case. Don't use it when:
 
-- **Native services** (not containers) - Use `mkNativeServiceOptions` helper instead
+- **Native services** (not containers) - Compose the capability fragments in `mylib.serviceOptions` and wrap the upstream module directly
 - **Multi-container stacks** (e.g., TeslaMate with PostgreSQL) - Manual composition
 - **Complex lifecycle** (e.g., pgBackRest with WAL archiving) - Needs custom logic
 - **Non-standard patterns** (e.g., StatefulSet-like behavior) - Manual implementation
@@ -356,7 +366,7 @@ The factory is optimized for the common case. Don't use it when:
 
 **Symptom**: Container fails with `chown: Operation not permitted` or similar permission errors during startup.
 
-```
+```text
 chown: /app/backend/dist/locales/ko/quotes.json: Operation not permitted
 ```
 
@@ -377,17 +387,17 @@ spec = {
 
 **Symptom**: Container fails with exit code 125 and error:
 
-```
+```text
 Error: /data: duplicate mount destination
 ```
 
-**Cause**: The factory automatically adds `${downloadsDir}:/data` for media/downloads categories. If your `volumes` spec also mounts to `/data`, you get a conflict.
+**Cause**: The factory automatically adds `${downloadsDir}:/data` for media/downloads operational profiles. If your `volumes` spec also mounts to `/data`, you get a conflict.
 
 **Solution**: The factory now only adds the default mount when `volumes = null`. If you define custom volumes, you're responsible for all mounts:
 
 ```nix
 spec = {
-  category = "media";
+  operationalProfile = "media";
   # Custom volumes override the default downloadsDir:/data mount
   volumes = cfg: [
     "${cfg.mediaDir}:/data:rw"
@@ -399,11 +409,11 @@ spec = {
 
 **Symptom**: Container fails with:
 
-```
+```text
 Error: statfs /mnt/downloads: no such file or directory
 ```
 
-**Cause**: The `media` and `downloads` categories set default `downloadsDir = /mnt/downloads` and/or `mediaDir = /mnt/media`. If your host doesn't have these NFS mounts (or the service doesn't need them), the container won't start.
+**Cause**: The `media` and `downloads` operational profiles set default `downloadsDir = /mnt/downloads` and/or `mediaDir = /mnt/media`. If your host doesn't have these NFS mounts (or the service doesn't need them), the container won't start.
 
 **Solution**: Override the defaults in your host config:
 
@@ -424,6 +434,7 @@ Error: statfs /mnt/downloads: no such file or directory
 ### Understanding Exit Code 125
 
 Exit code 125 means "container failed to start" (before the entrypoint even runs). Common causes:
+
 - Duplicate volume mounts
 - Missing source directories
 - Invalid container options
@@ -439,29 +450,32 @@ nix eval .#nixosConfigurations.forge.config.modules.services.sonarr._debug --jso
 ```
 
 This shows:
+
 - Resolved spec values
 - Computed defaults
-- Category-specific settings
+- Operational-profile-specific settings
 - Validation status
 
 ---
 
 ## Migration Lessons Learned
 
-### Lesson 1: Test Each Service Category
+### Lesson 1: Test Each Operational Profile
 
-Different categories have different defaults. What works for `productivity` may fail for `media` due to:
+Different operational profiles have different defaults. What works for `productivity` may fail for `media` due to:
+
 - NFS mount requirements (`downloadsDir`, `mediaDir`)
 - Different user/group membership (`media` group)
 - Volume mount patterns
 
-**Best Practice**: Migrate one service per category first, verify it works, then batch migrate the rest.
+**Best Practice**: Migrate one service per operational profile first, verify it works, then batch migrate the rest.
 
 ### Lesson 2: Watch for Entrypoint Assumptions
 
 Many container images assume they start as root and drop privileges themselves. The factory's default of running with `--user` breaks these containers.
 
 **Signs you need `runAsRoot = true`**:
+
 - `chown` or `chmod` in the entrypoint
 - `gosu` or `su-exec` in the entrypoint
 - LinuxServer.io images with `PUID`/`PGID` environment variables
@@ -483,12 +497,12 @@ modules.services.prowlarr = {
 };
 ```
 
-### Lesson 4: Category Defaults vs Service Reality
+### Lesson 4: Operational Profile Defaults vs Service Reality
 
-Category defaults are educated guesses, not guarantees:
+Operational profile defaults are educated guesses, not guarantees:
 
-| Category | Default Assumption | But Some Services... |
-|----------|-------------------|---------------------|
+| Operational Profile | Default Assumption | But Some Services... |
+| --- | --- | --- |
 | `media` | Needs `/data` mount | Only need indexing (prowlarr) |
 | `downloads` | Writes to downloads | Only orchestrates (sonarr, radarr) |
 | `productivity` | No NFS needed | May share data across network |

@@ -22,7 +22,7 @@
 #     spec = {
 #       port = 8989;
 #       image = "ghcr.io/home-operations/sonarr:latest";
-#       category = "media";
+#       operationalProfile = "media";
 #       healthEndpoint = "/ping";
 #
 #       # Service-specific environment variables
@@ -59,8 +59,10 @@
 { lib }:
 
 let
+  serviceOptions = import ./service-options.nix { inherit lib; };
+
   # Service categories with default configurations
-  categoryDefaults = {
+  operationalProfileDefaults = {
     media = {
       serviceType = "media_management";
       alertChannel = "media-alerts";
@@ -115,22 +117,38 @@ let
   # Standard options that every container service gets
   mkStandardOptions = { lib, sharedTypes, serviceIds, spec, name, extraOptions ? { } }:
     let
-      category = categoryDefaults.${spec.category or "productivity"};
+      profile = operationalProfileDefaults.${spec.operationalProfile or "productivity"};
+      backupDefault = {
+        enable = true;
+        repository = "nas-primary";
+        frequency = "daily";
+        tags = profile.tags ++ [ name "config" ];
+        useSnapshots = spec.useZfsSnapshots or true;
+        zfsDataset = "tank/services/${name}";
+        excludePatterns = [
+          "**/*.log"
+          "**/cache/**"
+          "**/logs/**"
+        ] ++ (spec.backupExcludePatterns or [ ]);
+      };
     in
-    {
-      enable = lib.mkEnableOption "${spec.description or name}";
-
-      dataDir = lib.mkOption {
-        type = lib.types.path;
-        default = "/var/lib/${name}";
-        description = "Path to ${name} data directory";
-      };
-
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = spec.port;
-        description = "Port for ${name} web interface";
-      };
+    serviceOptions.mkBaseOptions
+      {
+        description = spec.description or name;
+      }
+    // serviceOptions.mkWebOptions {
+      defaultPort = spec.port;
+      portDescription = "Port for ${name} web interface";
+      reverseProxyDescription = "Reverse proxy configuration for ${name} web interface";
+      inherit sharedTypes;
+    }
+    // serviceOptions.mkStatefulOptions {
+      defaultDataDir = "/var/lib/${name}";
+      dataDirDescription = "Path to ${name} data directory";
+      inherit backupDefault sharedTypes;
+      backupDescription = "Backup configuration";
+    }
+    // {
 
       user = lib.mkOption {
         type = lib.types.str;
@@ -140,7 +158,7 @@ let
 
       group = lib.mkOption {
         type = lib.types.str;
-        default = if category.hasNfsMount then category.defaultMediaGroup else name;
+        default = if profile.hasNfsMount then profile.defaultMediaGroup else name;
         description = "Group under which ${name} runs";
       };
 
@@ -180,12 +198,6 @@ let
         description = "Container healthcheck configuration";
       };
 
-      reverseProxy = lib.mkOption {
-        type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-        default = null;
-        description = "Reverse proxy configuration for ${name} web interface";
-      };
-
       metrics = lib.mkOption {
         type = lib.types.nullOr sharedTypes.metricsSubmodule;
         default = {
@@ -193,7 +205,7 @@ let
           port = spec.port;
           path = spec.metricsPath or "/metrics";
           labels = {
-            service_type = category.serviceType;
+            service_type = profile.serviceType;
             exporter = name;
             function = spec.function or name;
           };
@@ -208,28 +220,10 @@ let
           journalUnit = "podman-${name}.service";
           labels = {
             service = name;
-            service_type = category.serviceType;
+            service_type = profile.serviceType;
           };
         };
         description = "Log shipping configuration";
-      };
-
-      backup = lib.mkOption {
-        type = lib.types.nullOr sharedTypes.backupSubmodule;
-        default = {
-          enable = true;
-          repository = "nas-primary";
-          frequency = "daily";
-          tags = category.tags ++ [ name "config" ];
-          useSnapshots = spec.useZfsSnapshots or true;
-          zfsDataset = "tank/services/${name}";
-          excludePatterns = [
-            "**/*.log"
-            "**/cache/**"
-            "**/logs/**"
-          ] ++ (spec.backupExcludePatterns or [ ]);
-        };
-        description = "Backup configuration";
       };
 
       notifications = lib.mkOption {
@@ -237,7 +231,7 @@ let
         default = {
           enable = true;
           channels = {
-            onFailure = [ category.alertChannel ];
+            onFailure = [ profile.alertChannel ];
           };
           customMessages = {
             failure = "${spec.displayName or name} service failed on \${config.networking.hostName}";
@@ -271,10 +265,10 @@ let
       };
 
       # Media/download service options - always declared, conditionally used
-      # This ensures consistent option interface regardless of service category
+      # This ensures a consistent option interface for existing factory services.
       mediaDir = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
-        default = if category.hasNfsMount then "/mnt/media" else null;
+        default = if profile.hasNfsMount then "/mnt/media" else null;
         description = "Path to media library. Only used by media/download services.";
       };
 
@@ -287,7 +281,7 @@ let
 
       mediaGroup = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
-        default = category.defaultMediaGroup;
+        default = profile.defaultMediaGroup;
         description = "Group with permissions to the media library";
       };
 
@@ -301,7 +295,7 @@ let
       # Download client specific options (sabnzbd, qbittorrent, etc.)
       downloadsDir = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
-        default = if category.hasNfsMount then "/mnt/downloads" else null;
+        default = if profile.hasNfsMount then "/mnt/downloads" else null;
         description = "Path to downloads directory (separate from mediaDir for download clients)";
       };
 
@@ -386,8 +380,8 @@ let
     // extraOptions;
 
   # Standard assertions that every container service gets
-  mkStandardAssertions = { cfg, name, nfsMountConfig, category }:
-    (lib.optional (category.hasNfsMount && cfg.nfsMountDependency or null != null) {
+  mkStandardAssertions = { cfg, name, nfsMountConfig, profile }:
+    (lib.optional (profile.hasNfsMount && cfg.nfsMountDependency or null != null) {
       assertion = nfsMountConfig != null;
       message = "${name} nfsMountDependency '${cfg.nfsMountDependency}' does not exist in modules.storage.nfsMounts.";
     })
@@ -429,11 +423,11 @@ in
       storageCfg = config.modules.storage;
       notificationsCfg = config.modules.notifications;
 
-      category = categoryDefaults.${validatedSpec.category};
+      profile = operationalProfileDefaults.${validatedSpec.operationalProfile};
       mainServiceUnit = "${config.virtualisation.oci-containers.backend}-${name}.service";
       datasetPath = "${storageCfg.datasets.parentDataset}/${name}";
 
-      nfsMountName = if category.hasNfsMount then (cfg.nfsMountDependency or null) else null;
+      nfsMountName = if profile.hasNfsMount then (cfg.nfsMountDependency or null) else null;
       nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
       replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
       allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
@@ -445,6 +439,20 @@ in
         cfg.reverseProxy != null
         && cfg.reverseProxy.enable
         && (cfg.reverseProxy.caddySecurity != null && cfg.reverseProxy.caddySecurity.enable);
+      runtimeFacts = {
+        kind = "oci";
+        units = [ mainServiceUnit ];
+        endpoints.web = {
+          scheme = validatedSpec.backendScheme or "http";
+          host = "127.0.0.1";
+          port = cfg.port;
+        };
+        identity = {
+          user = cfg.user;
+          group = cfg.group;
+        };
+        statePaths = [ (toString cfg.dataDir) ];
+      };
     in
     {
       options.modules.services.${name} = mkStandardOptions
@@ -465,15 +473,17 @@ in
         (lib.mkIf cfg.enable {
           # Service-specific config - grouped to avoid duplicate attribute keys
           modules.services.${name} = {
+            _runtime = runtimeFacts;
+
             # Populate debug attribute for introspection
             _debug = {
               factoryVersion = "1.0";
               serviceName = name;
-              category = {
-                name = validatedSpec.category;
-                hasNfsMount = category.hasNfsMount;
-                defaultMediaGroup = category.defaultMediaGroup;
-                tags = category.tags;
+              operationalProfile = {
+                name = validatedSpec.operationalProfile;
+                hasNfsMount = profile.hasNfsMount;
+                defaultMediaGroup = profile.defaultMediaGroup;
+                tags = profile.tags;
               };
               validatedSpec = {
                 port = validatedSpec.port;
@@ -504,17 +514,13 @@ in
               (lib.mkDefault nfsMountConfig.localPath);
           };
 
-          assertions = mkStandardAssertions { inherit cfg name nfsMountConfig category; };
+          assertions = mkStandardAssertions { inherit cfg name nfsMountConfig profile; };
 
           # Caddy reverse proxy registration
           modules.services.caddy.virtualHosts.${name} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
             enable = true;
             hostName = cfg.reverseProxy.hostName;
-            backend = {
-              scheme = validatedSpec.backendScheme or "http";
-              host = "127.0.0.1";
-              port = cfg.port;
-            };
+            backend = runtimeFacts.endpoints.web;
             auth = cfg.reverseProxy.auth;
             caddySecurity = cfg.reverseProxy.caddySecurity;
             security = cfg.reverseProxy.security;
@@ -576,7 +582,7 @@ in
               (lib.optional (!validatedSpec.skipDefaultConfigMount) "${cfg.dataDir}:/config:rw")
                 # Only add downloadsDir:/data if spec doesn't define its own volumes
                 # (spec.volumes typically handles the /data mount differently, e.g., mediaDir:/data for *arr services)
-                ++ (lib.optional (cfg.downloadsDir or null != null && category.hasNfsMount && validatedSpec.volumes == null) "${cfg.downloadsDir}:/data:rw")
+                ++ (lib.optional (cfg.downloadsDir or null != null && profile.hasNfsMount && validatedSpec.volumes == null) "${cfg.downloadsDir}:/data:rw")
                 ++ (if validatedSpec.volumes != null then validatedSpec.volumes cfg else [ ]);
             # Note: containerPort defaults to null, so use explicit if/else since Nix 'or'
             # doesn't treat null as falsy (toString null = "")
@@ -607,7 +613,7 @@ in
               ++ lib.optionals (cfg.macAddress or null != null) [
                 "--mac-address=${cfg.macAddress}"
               ]
-              ++ lib.optionals (nfsMountConfig != null && category.hasNfsMount) [
+              ++ lib.optionals (nfsMountConfig != null && profile.hasNfsMount) [
                 "--group-add=${toString config.users.groups.${cfg.mediaGroup or "media"}.gid}"
               ]
               ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) (
@@ -748,75 +754,6 @@ in
       ];
     };
 
-  # Expose category defaults for services that want to reference them
-  inherit categoryDefaults;
-
-  # Helper to generate options for native (non-container) services
-  mkNativeServiceOptions = { lib, sharedTypes, serviceIds, spec, name, extraOptions ? { } }:
-    let
-      category = categoryDefaults.${spec.category or "infrastructure"};
-    in
-    {
-      enable = lib.mkEnableOption "${spec.description or name}";
-
-      dataDir = lib.mkOption {
-        type = lib.types.path;
-        default = "/var/lib/${name}";
-        description = "Path to ${name} data directory";
-      };
-
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = spec.port;
-        description = "Port for ${name}";
-      };
-
-      reverseProxy = lib.mkOption {
-        type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-        default = null;
-        description = "Reverse proxy configuration";
-      };
-
-      metrics = lib.mkOption {
-        type = lib.types.nullOr sharedTypes.metricsSubmodule;
-        default = {
-          enable = true;
-          port = spec.metricsPort or spec.port;
-          path = spec.metricsPath or "/metrics";
-          labels = {
-            service_type = category.serviceType;
-            exporter = name;
-            function = spec.function or name;
-          };
-        };
-        description = "Prometheus metrics collection";
-      };
-
-      logging = lib.mkOption {
-        type = lib.types.nullOr sharedTypes.loggingSubmodule;
-        default = {
-          enable = true;
-          journalUnit = "${name}.service";
-          labels = {
-            service = name;
-            service_type = category.serviceType;
-          };
-        };
-        description = "Log shipping configuration";
-      };
-
-      backup = lib.mkOption {
-        type = lib.types.nullOr sharedTypes.backupSubmodule;
-        default = {
-          enable = true;
-          repository = "nas-primary";
-          frequency = "daily";
-          tags = category.tags ++ [ name ];
-          useSnapshots = true;
-          zfsDataset = "tank/services/${name}";
-          excludePatterns = [ "**/*.log" "**/cache/**" ];
-        };
-        description = "Backup configuration";
-      };
-    } // extraOptions;
+  # Expose operational profile defaults for services that need them.
+  inherit operationalProfileDefaults;
 }

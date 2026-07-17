@@ -1,5 +1,5 @@
 # Attic Binary Cache Server Configuration
-{ config, lib, pkgs, mylib, ... }:
+{ config, lib, options, pkgs, mylib, ... }:
 
 let
   cfg = config.modules.services.attic;
@@ -17,6 +17,7 @@ let
     else null;
   mainServiceUnit = "atticd.service";
   hasCentralizedNotifications = config.modules.notifications.enable or false;
+  hasCaddyIntegration = options.modules.services ? caddy;
 in
 {
   options.modules.services.attic = {
@@ -273,28 +274,30 @@ in
       };
 
       # Register with Caddy using standardized pattern
-      modules.services.caddy.virtualHosts.attic = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
+      modules.services = lib.optionalAttrs hasCaddyIntegration {
+        caddy.virtualHosts.attic = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
+          enable = true;
+          hostName = cfg.reverseProxy.hostName;
 
-        # Use structured backend configuration from shared types
-        backend = cfg.reverseProxy.backend;
+          # Use structured backend configuration from shared types
+          backend = cfg.reverseProxy.backend;
 
-        # Authentication configuration from shared types
-        auth = cfg.reverseProxy.auth;
+          # Authentication configuration from shared types
+          auth = cfg.reverseProxy.auth;
 
-        # Security configuration from shared types with additional headers
-        security = cfg.reverseProxy.security // {
-          customHeaders = cfg.reverseProxy.security.customHeaders // {
-            "X-Frame-Options" = "DENY";
-            "X-Content-Type-Options" = "nosniff";
-            "X-XSS-Protection" = "1; mode=block";
-            "Referrer-Policy" = "strict-origin-when-cross-origin";
+          # Security configuration from shared types with additional headers
+          security = cfg.reverseProxy.security // {
+            customHeaders = cfg.reverseProxy.security.customHeaders // {
+              "X-Frame-Options" = "DENY";
+              "X-Content-Type-Options" = "nosniff";
+              "X-XSS-Protection" = "1; mode=block";
+              "Referrer-Policy" = "strict-origin-when-cross-origin";
+            };
           };
-        };
 
-        # Additional Caddy configuration
-        extraConfig = cfg.reverseProxy.extraConfig;
+          # Additional Caddy configuration
+          extraConfig = cfg.reverseProxy.extraConfig;
+        };
       };
 
       # Firewall configuration for direct access (if not using reverse proxy)

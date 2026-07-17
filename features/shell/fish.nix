@@ -1,0 +1,154 @@
+{ ... }:
+
+let
+  systemModule = { pkgs, ... }:
+    {
+      # Bash remains available for tools that require a POSIX login shell.
+      environment.shells = with pkgs; [ bash fish ];
+
+      programs.fish = {
+        enable = true;
+        vendor = {
+          completions.enable = true;
+          config.enable = true;
+          functions.enable = true;
+        };
+      };
+    };
+
+  homeManagerModule =
+    { pkgs
+    , lib
+    , config
+    , ...
+    }:
+    let
+      inherit (pkgs.stdenv.hostPlatform) isDarwin;
+      inherit (config.home) username homeDirectory;
+      cfg = config.modules.shell.fish;
+      hasPackage = pname:
+        lib.any (package: package ? pname && package.pname == pname) config.home.packages;
+      hasAnyNixShell = hasPackage "any-nix-shell";
+    in
+    {
+      options.modules.shell.fish = {
+        enable = lib.mkEnableOption "fish";
+      };
+
+      config = lib.mkMerge [
+        (lib.mkIf cfg.enable {
+          programs.fish = {
+            enable = true;
+            catppuccin.enable = true;
+
+            plugins = [
+              { name = "done"; inherit (pkgs.fishPlugins.done) src; }
+              { name = "puffer"; inherit (pkgs.fishPlugins.puffer) src; }
+              { name = "autopair"; inherit (pkgs.fishPlugins.autopair) src; }
+              { name = "sponge"; inherit (pkgs.fishPlugins.sponge) src; }
+            ];
+
+            # Use abbreviations instead of aliases for better UX.
+            shellAbbrs = {
+              backups = "task backup:status";
+
+              naf = "task -d ~/src/nix-config nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net";
+              nap = "task -d ~/src/nix-config nix:deploy-nixos host=nixpi NIXOS_DOMAIN=holtel.io";
+              nal = "task -d ~/src/nix-config nix:apply-nixos host=luna NIXOS_DOMAIN=holthome.net";
+              nan1 = "task -d ~/src/nix-config nix:apply-nixos host=nas-1 NIXOS_DOMAIN=holthome.net";
+              nbf = "task -d ~/src/nix-config nix:build-forge";
+              nbl = "task -d ~/src/nix-config nix:build-luna";
+              nbn1 = "task -d ~/src/nix-config nix:build-nas-1";
+
+              dar = "task -d ~/src/nix-config nix:apply-darwin host=rymac";
+              dbr = "task -d ~/src/nix-config nix:build-darwin host=rymac";
+
+              g = "git";
+              ga = "git add";
+              gaa = "git add --all";
+              gc = "git commit";
+              gcm = "git commit -m";
+              gco = "git checkout";
+              gd = "git diff";
+              gds = "git diff --staged";
+              gl = "git log --oneline --graph";
+              gp = "git push";
+              gpl = "git pull";
+              gs = "git status";
+              gsw = "git switch";
+
+              "." = "cd ..";
+              ".." = "cd ../..";
+              "..." = "cd ../../..";
+              md = "mkdir -p";
+              rd = "rmdir";
+
+              nrs = "sudo nixos-rebuild switch --flake .";
+              nrt = "sudo nixos-rebuild test --flake .";
+              nfu = "nix flake update";
+              nfc = "nix flake check";
+              ndev = "nix develop";
+            };
+
+            interactiveShellInit = ''
+              # Only add paths that exist (avoids cluttering PATH)
+              # Order matters: fish_add_path -gm moves to front, so last listed = first in PATH
+              # /run/wrappers/bin MUST be last to ensure setuid wrappers (doas, etc.) are found first
+              for p in \
+                /opt/homebrew/bin \
+                /nix/var/nix/profiles/default/bin \
+                /run/current-system/sw/bin \
+                /etc/profiles/per-user/${username}/bin \
+                ${homeDirectory}/go/bin \
+                ${homeDirectory}/.cargo/bin \
+                ${homeDirectory}/.local/bin \
+                /run/wrappers/bin
+                test -d $p; and fish_add_path -gm $p
+              end
+
+              # GPG/SSH agent setup
+              if command -q gpgconf
+                set -gx SSH_AUTH_SOCK (gpgconf --list-dirs agent-ssh-socket)
+                gpg-connect-agent /bye 2>/dev/null
+              end
+
+              # Transient prompt function for starship
+              # Shows minimal prompt for previous commands (just the character)
+              function starship_transient_prompt_func
+                starship module character
+              end
+            '' + (
+              if hasAnyNixShell then
+                ''
+                  any-nix-shell fish --info-right | source
+                ''
+              else
+                ""
+            );
+          };
+
+          home.sessionVariables.fish_greeting = "";
+
+          programs.nix-index.enable = true;
+        })
+
+        (lib.mkIf (cfg.enable && isDarwin) {
+          programs.fish.functions = {
+            flushdns = {
+              description = "Flush DNS cache";
+              body = builtins.readFile ./functions/flushdns.fish;
+            };
+            www-prod-pat = {
+              description = "Load WWW prod PAT from macOS Keychain into WWW_PROD_PAT";
+              body = builtins.readFile ./functions/www-prod-pat.fish;
+            };
+          };
+        })
+      ];
+    };
+in
+{
+  flake.modules.nixos.fish = systemModule;
+  flake.modules.darwin.fish = systemModule;
+  flake.modules.homeManager.fish = homeManagerModule;
+}

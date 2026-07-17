@@ -21,7 +21,7 @@ mylib.mkContainerService {
     # Core service configuration
     port = 9696;
     image = "ghcr.io/home-operations/prowlarr:latest";
-    category = "media";
+    operationalProfile = "media";
     displayName = "Prowlarr";
     function = "indexer_management";
 

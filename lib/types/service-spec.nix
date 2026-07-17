@@ -11,8 +11,8 @@
 let
   inherit (lib) types mkOption literalExpression;
 
-  # Valid service categories
-  categoryEnum = types.enum [
+  # Valid operational profiles
+  operationalProfileEnum = types.enum [
     "media"
     "productivity"
     "infrastructure"
@@ -40,9 +40,9 @@ in
         example = "ghcr.io/home-operations/sonarr:rolling";
       };
 
-      category = mkOption {
-        type = categoryEnum;
-        description = "Service category determining defaults for alerts, networking, and backup tags";
+      operationalProfile = mkOption {
+        type = operationalProfileEnum;
+        description = "Operational profile determining defaults for alerts, networking, and backup tags";
         example = "media";
       };
 
@@ -268,9 +268,9 @@ in
           type = types.str;
           description = "Container image for the service";
         };
-        category = mkOption {
-          type = categoryEnum;
-          description = "Service category determining defaults";
+        operationalProfile = mkOption {
+          type = operationalProfileEnum;
+          description = "Operational profile determining defaults";
         };
         # Optional fields with defaults
         description = mkOption { type = types.nullOr types.str; default = null; };

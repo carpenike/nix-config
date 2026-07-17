@@ -1,4 +1,4 @@
-{ lib, pkgs, config, ... }:
+{ lib, pkgs, config, options, ... }:
 # PostgreSQL Module - Simplified Single-Instance Design
 #
 # This module defines options and generates PostgreSQL service configuration.
@@ -1111,6 +1111,7 @@ in
               (dbCfg.grafanaDatasources or [ ])
           )
           cfg.databases);
+      hasGrafanaIntegration = options.modules.services ? grafana;
     in
     lib.mkMerge [
       # PostgreSQL service implementation
@@ -1270,8 +1271,10 @@ in
         };
       })
 
-      (lib.mkIf (cfg.enable && (config.modules.services.grafana.enable or false) && postgresGrafanaIntegrations != [ ]) {
-        modules.services.grafana.integrations = lib.mkMerge postgresGrafanaIntegrations;
+      (lib.optionalAttrs hasGrafanaIntegration {
+        modules.services.grafana.integrations = lib.mkIf
+          (cfg.enable && (config.modules.services.grafana.enable or false) && postgresGrafanaIntegrations != [ ])
+          (lib.mkMerge postgresGrafanaIntegrations);
       })
 
       # Notification templates

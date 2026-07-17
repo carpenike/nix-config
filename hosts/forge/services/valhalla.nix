@@ -99,10 +99,9 @@ in
 {
   # Active on import (same convention as ups.nix / music-assistant.nix).
   virtualisation.oci-containers.containers.${serviceName} = {
-    # NOTE: pin to a digest via Renovate on first deploy (repo convention — see
-    # peanut/bgutil). Left as a floating tag here to avoid committing a guessed
-    # digest; Renovate will rewrite this to image@sha256:… .
-    image = "ghcr.io/valhalla/valhalla-scripted:latest";
+    # Upstream's latest channel currently has no equivalent release tag; pin
+    # its content digest so Renovate can update it explicitly.
+    image = "ghcr.io/valhalla/valhalla-scripted:latest@sha256:572cfbfc64c9c4efaeba84fae394cd2d3875e1a78e2418ff9b88045a5ec00741";
     autoStart = true;
 
     environment = {
@@ -158,6 +157,7 @@ in
     # its internal valhalla user on start), so root:root 0755 is sufficient.
     owner = "root";
     group = "root";
+    rootOwnedReason = "The scripted image initializes /custom_files as root and then assigns its internal runtime ownership.";
     mode = "0755";
     protection = {
       class = "ephemeral";

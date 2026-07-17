@@ -21,7 +21,7 @@ mylib.mkContainerService {
     # Core service configuration
     port = 8787;
     image = "ghcr.io/home-operations/readarr:latest";
-    category = "media";
+    operationalProfile = "media";
     displayName = "Readarr";
     function = "books";
 

@@ -725,9 +725,7 @@ let
 
 in
 {
-  # Note: Option definitions have been moved to database-interface.nix
-  # This module only implements the provisioning logic (config block)
-  # See: modules/nixos/services/postgresql/database-interface.nix
+  # Option definitions live in default.nix; this module implements provisioning.
 
   config =
     let

@@ -15,10 +15,6 @@
     ./hardware
     ./virtualization # Podman network and container infrastructure
     ./services/attic.nix
-    # FIXME: Circular dependency - database-interface.nix defines options.modules.services.postgresql.databases
-    # but postgresql/default.nix defines options.modules.services.postgresql as attrsOf submodule
-    # These conflict - need to move databases option inside the submodule
-    # ./services/postgresql/database-interface.nix  # PostgreSQL database interface (option declaration only)
     ./postgresql-preseed.nix # PostgreSQL automatic pre-seeding for new servers
     ./backup.nix
     ./services/backup-services.nix

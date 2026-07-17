@@ -35,7 +35,7 @@ mylib.mkContainerService {
     # Default to home-operations image per ADR-005
     # Host can override with pinned digest
     image = "ghcr.io/home-operations/qbittorrent:5.2.3";
-    category = "downloads";
+    operationalProfile = "downloads";
     displayName = "qBittorrent";
     function = "torrent";
 
@@ -58,7 +58,7 @@ mylib.mkContainerService {
     runAsRoot = false;
 
     # Environment variables (TZ handled by factory, PUID/PGID not needed)
-    environment = { cfg, config, ... }: {
+    environment = _: {
       WEBUI_PORT = "8080";
     };
 
@@ -74,7 +74,7 @@ mylib.mkContainerService {
       ];
 
     # Extra podman options
-    extraOptions = { cfg, config }: [
+    extraOptions = { cfg, ... }: [
       "--umask=0027"
       # Give qBittorrent up to 60s to flush state on SIGTERM before podman
       # falls back to SIGKILL. Default of 10s wasn't enough during the

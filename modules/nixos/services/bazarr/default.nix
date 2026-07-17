@@ -21,7 +21,7 @@ mylib.mkContainerService {
     # Core service configuration
     port = 6767;
     image = "ghcr.io/home-operations/bazarr:latest";
-    category = "media";
+    operationalProfile = "media";
     displayName = "Bazarr";
     function = "subtitles";
 

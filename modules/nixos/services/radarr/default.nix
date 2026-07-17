@@ -21,7 +21,7 @@ mylib.mkContainerService {
     # Core service configuration
     port = 7878;
     image = "ghcr.io/home-operations/radarr:latest";
-    category = "media";
+    operationalProfile = "media";
     displayName = "Radarr";
     function = "movies";
 

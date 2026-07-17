@@ -19,12 +19,6 @@
   ],
   packageRules: [
     {
-      // Skip pinning for 'latest' tags - these are intentionally floating
-      matchDatasources: ['docker'],
-      matchCurrentVersion: '/^latest$/',
-      pinDigests: false,
-    },
-    {
       // Skip kubernetes busybox - not a real container dependency
       matchDatasources: ['docker'],
       matchPackageNames: ['busybox'],

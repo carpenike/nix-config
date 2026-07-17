@@ -21,7 +21,7 @@ mylib.mkContainerService {
     # Core service configuration
     port = 8989;
     image = "ghcr.io/home-operations/sonarr:latest";
-    category = "media";
+    operationalProfile = "media";
     displayName = "Sonarr";
     function = "tv_series";
 

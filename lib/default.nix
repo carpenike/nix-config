@@ -35,6 +35,9 @@ let
 in
 
 {
+  # Runtime-neutral service capability option fragments.
+  serviceOptions = import ./service-options.nix { inherit lib; };
+
   # Shared type definitions for standardized service module patterns
   # Provides reusable submodule types (metrics, logging, backup, reverseProxy, etc.)
   types = import ./types.nix { inherit lib; };
@@ -79,9 +82,6 @@ in
   # Generates options, config, users, ZFS datasets, Caddy registration, etc.
   inherit (serviceFactory) mkContainerService;
 
-  # Factory for native (non-container) services
-  inherit (serviceFactory) mkNativeServiceOptions;
-
-  # Service category defaults (media, productivity, infrastructure, etc.)
-  inherit (serviceFactory) categoryDefaults;
+  # Operational profile defaults (media, productivity, infrastructure, etc.)
+  inherit (serviceFactory) operationalProfileDefaults;
 }

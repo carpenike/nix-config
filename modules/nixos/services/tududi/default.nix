@@ -21,7 +21,7 @@ mylib.mkContainerService {
     port = 3005;
     containerPort = 3002;
     image = "chrisvel/tududi:1.2.4@sha256:4dd5842ab6065435fe70dad71fe23fcc261e8d15991fde13009c595f77726fca";
-    category = "productivity";
+    operationalProfile = "productivity";
 
     displayName = "Tududi";
     function = "task_management";

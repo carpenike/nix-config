@@ -31,27 +31,13 @@
     , hostname
     , serviceCategories ? null  # null = all categories, list = selective
     , extraModules ? [ ]        # extra modules (e.g. sd-image builder)
+    , extraHomeModules ? [ ]    # feature modules shared with Home Manager
     }:
     let
       # Import custom library helpers for injection into modules
       mylib = import ./default.nix { lib = inputs.nixpkgs.lib; };
 
-      # Category module paths
-      categoryModules = {
-        ai = ../modules/nixos/services/_categories/ai.nix;
-        auth = ../modules/nixos/services/_categories/auth.nix;
-        automotive = ../modules/nixos/services/_categories/automotive.nix;
-        backup = ../modules/nixos/services/_categories/backup.nix;
-        development = ../modules/nixos/services/_categories/development.nix;
-        downloads = ../modules/nixos/services/_categories/downloads.nix;
-        home-automation = ../modules/nixos/services/_categories/home-automation.nix;
-        infrastructure = ../modules/nixos/services/_categories/infrastructure.nix;
-        media = ../modules/nixos/services/_categories/media.nix;
-        media-automation = ../modules/nixos/services/_categories/media-automation.nix;
-        network = ../modules/nixos/services/_categories/network.nix;
-        observability = ../modules/nixos/services/_categories/observability.nix;
-        productivity = ../modules/nixos/services/_categories/productivity.nix;
-      };
+      categoryModules = import ../modules/nixos/services/_categories/registry.nix;
 
       # Select which service modules to import
       serviceModules =
@@ -60,7 +46,14 @@
           [ ../modules/nixos/services ]
         else
         # Import only selected categories
-          map (cat: categoryModules.${cat}) serviceCategories;
+          let
+            unknownCategories = builtins.filter
+              (category: !(builtins.hasAttr category categoryModules))
+              serviceCategories;
+          in
+          assert inputs.nixpkgs.lib.assertMsg (unknownCategories == [ ])
+            "Unknown service categories: ${builtins.concatStringsSep ", " unknownCategories}";
+          map (category: categoryModules.${category}) serviceCategories;
 
       # Select which base module to use
       # When using selective categories, use base.nix (excludes services)
@@ -99,7 +92,7 @@
             sharedModules = [
               inputs.sops-nix.homeModules.sops
               inputs.catppuccin.homeManagerModules.catppuccin
-            ];
+            ] ++ extraHomeModules;
             extraSpecialArgs = {
               inherit inputs hostname system;
             };
@@ -116,7 +109,12 @@
       };
     };
 
-  mkDarwinSystem = system: hostname:
+  mkDarwinSystem =
+    { system
+    , hostname
+    , extraModules ? [ ]
+    , extraHomeModules ? [ ]
+    }:
     inputs.nix-darwin.lib.darwinSystem {
       inherit system;
       pkgs = import inputs.nixpkgs {
@@ -144,7 +142,7 @@
               inputs.sops-nix.homeModules.sops
               inputs.nixvim.homeModules.nixvim
               inputs.catppuccin.homeManagerModules.catppuccin
-            ];
+            ] ++ extraHomeModules;
             extraSpecialArgs = {
               inherit inputs hostname system;
             };
@@ -153,6 +151,7 @@
         }
         ../modules/common
         ../modules/darwin
+      ] ++ extraModules ++ [
         ../hosts/${hostname}
       ];
       specialArgs = {

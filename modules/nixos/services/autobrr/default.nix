@@ -47,7 +47,7 @@ mylib.mkContainerService {
     port = 7474;
     image = "ghcr.io/autobrr/autobrr:v1.82.1@sha256:63a014b42992ada7e03fa1bbd4f02ad02d96665b172bf42106ccfcb7e23144d8";
 
-    category = "downloads";
+    operationalProfile = "downloads";
     displayName = "Autobrr";
     function = "announce-bot";
 
@@ -68,7 +68,7 @@ mylib.mkContainerService {
     # Extra podman flags. Currently used to inject `--add-host` entries from
     # cfg.extraHosts so the container can override DNS for hosts that aren't
     # routable via its podman bridge (hairpin-NAT workaround for OIDC).
-    extraOptions = { cfg, config, ... }:
+    extraOptions = { cfg, ... }:
       lib.optionals (cfg.extraHosts != { })
         (lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts);
 

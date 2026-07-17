@@ -2,8 +2,8 @@
 
 This document tracks temporary workarounds, package overrides, and unstable package usage that should be periodically reviewed. These exist due to upstream bugs, missing features in stable, or test failures in the Nix build sandbox.
 
-**Last Reviewed**: 2026-05-23
-**Next Review**: 2026-06-23 (monthly)
+**Last Reviewed**: 2026-07-17
+**Next Review**: 2026-08-17 (monthly)
 
 ---
 
@@ -18,6 +18,19 @@ When reviewing workarounds:
 ---
 
 ## Package Overrides (overlays/default.nix)
+
+### Starship and Lima - Stable Darwin Linker for macOS 26
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-07-17 |
+| **Affects** | `pkgs.unstable.starship` 1.26.0 and `pkgs.unstable.lima` 2.1.4 on `aarch64-darwin` |
+| **Reason** | Unstable ld64 957.1 crashes with `EXC_BREAKPOINT`/`SIGTRAP` in `ld::passes::stubs::Pass::process` while linking both packages on macOS 26.5. Disassembly maps the trap to the virtual `atom->fixupsEnd()` call. Apple ld64 contains one-past-the-end `vector::operator[]` iterator implementations, which the unstable libc++ build rejects through `__libcpp_verbose_abort`. |
+| **Workaround** | Keep the unstable application versions but pass `--ld-path=<stable Nix ld64>` only to their builds. Lima also receives `-Wno-unused-command-line-argument` because cgo compiles with `-Werror` before the final link. The linker is still a pinned Nix store input; `/usr/bin/ld` is not used. |
+| **Validation** | Starship built with 1,228 tests passing. Lima built, codesigned, passed its 2.1.4 version check, and validated its default template. The complete nix-darwin closure subsequently built successfully. |
+| **Check** | Remove the overrides and build both packages whenever unstable ld64 changes. Delete this workaround once both native unstable builds and `task nix:build-darwin host=rymac` pass. |
+| **Upstream** | No exact public issue matched ld64 957.1 + macOS 26 as of 2026-07-17. Relevant source: Apple ld64 `src/ld/passes/stubs/stubs.cpp` and iterator implementations under `src/ld`. |
+| **Impact** | Without the workaround, the Darwin system closure cannot build because both Lima and Starship fail during linking. |
 
 ### cooklang-federation - Tailwind v4 Import → v3 Compatibility Patch
 

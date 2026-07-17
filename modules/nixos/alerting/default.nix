@@ -1,10 +1,11 @@
 # modules/nixos/alerting/default.nix
-{ lib, config, pkgs, ... }:
+{ lib, config, options, pkgs, ... }:
 
 let
   inherit (lib) mkOption types mkIf filterAttrs mapAttrsToList;
 
   cfg = config.modules.alerting;
+  hasGrafanaIntegration = options.modules.services ? grafana;
 
   # Helper function to generate Pushover receiver configurations
   # Reduces duplication by generating all severity-level receivers from a simple spec
@@ -320,18 +321,20 @@ in
 
       # Contribute Alertmanager as a Grafana datasource (contribution pattern)
       # This enables Grafana to query Alertmanager for active alerts, silences, etc.
-      modules.services.grafana.integrations.alertmanager = lib.mkIf (config.modules.services.grafana.enable or false) {
-        datasources.alertmanager = {
-          name = "Alertmanager";
-          uid = "alertmanager";
-          type = "alertmanager";
-          access = "proxy";
-          url = cfg.alertmanager.url;
-          jsonData = {
-            # Use Prometheus alertmanager implementation (vs Mimir/Cortex)
-            implementation = "prometheus";
-            # Allow Grafana to manage silences via this datasource
-            handleGrafanaManagedAlerts = false;
+      modules.services = lib.optionalAttrs hasGrafanaIntegration {
+        grafana.integrations.alertmanager = lib.mkIf (config.modules.services.grafana.enable or false) {
+          datasources.alertmanager = {
+            name = "Alertmanager";
+            uid = "alertmanager";
+            type = "alertmanager";
+            access = "proxy";
+            url = cfg.alertmanager.url;
+            jsonData = {
+              # Use Prometheus alertmanager implementation (vs Mimir/Cortex)
+              implementation = "prometheus";
+              # Allow Grafana to manage silences via this datasource
+              handleGrafanaManagedAlerts = false;
+            };
           };
         };
       };

@@ -21,7 +21,7 @@ mylib.mkContainerService {
     # Core service configuration
     port = 8686;
     image = "ghcr.io/home-operations/lidarr:latest";
-    category = "media";
+    operationalProfile = "media";
     displayName = "Lidarr";
     function = "music";
 

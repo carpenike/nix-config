@@ -1,6 +1,6 @@
 # Repository Architecture
 
-**Last Updated**: 2025-12-31
+**Last Updated**: 2026-07-17
 
 This document describes the high-level architecture of the NixOS configuration repository, including directory structure, module patterns, and key design decisions.
 
@@ -8,7 +8,7 @@ This document describes the high-level architecture of the NixOS configuration r
 
 ## Directory Structure
 
-```
+```text
 nix-config/
 ├── flake.nix              # Flake entry point
 ├── flake.lock             # Locked dependencies
@@ -26,8 +26,13 @@ nix-config/
 │   ├── monitoring-helpers.nix  # Prometheus alert helpers
 │   ├── backup-helpers.nix      # Backup configuration helpers
 │   ├── caddy-helpers.nix       # Reverse proxy helpers
+│   ├── service-options.nix     # Runtime-neutral service capability fragments
 │   ├── mkSystem.nix       # NixOS/Darwin system builders
 │   └── ...
+│
+├── features/              # Auto-imported cross-class feature modules
+│   ├── default.nix        # Isolated recursive importer
+│   └── shell/fish.nix     # NixOS + Darwin + Home Manager Fish feature
 │
 ├── modules/               # Reusable NixOS/Darwin modules
 │   ├── common/            # Shared between NixOS and Darwin
@@ -82,6 +87,7 @@ in
 ```
 
 **Benefits**:
+
 - No relative path calculations
 - Single import point
 - Available everywhere automatically
@@ -91,7 +97,7 @@ in
 Hosts like `forge` use a layered organization:
 
 | Layer | Directory | Purpose | Examples |
-|-------|-----------|---------|----------|
+| --- | --- | --- | --- |
 | **Core** | `core/` | OS fundamentals | boot, networking, users, packages |
 | **Infrastructure** | `infrastructure/` | Cross-cutting platforms | storage, backup, observability, reverse-proxy |
 | **Services** | `services/` | Application configs | sonarr.nix, plex.nix, postgresql.nix |
@@ -136,6 +142,28 @@ in
 ```
 
 The actual logic lives in `lib/host-defaults.nix` - hosts just provide their specific parameters (pool names, replication targets, etc.).
+
+### 5. Cross-Class Features
+
+Features that genuinely span NixOS, nix-darwin, and Home Manager may live under
+`features/`. Every Nix file below that subtree is a flake-parts module imported
+by `features/default.nix`.
+
+Each feature publishes named lower-level modules through `flake.modules`:
+
+```nix
+flake.modules.nixos.fish = systemModule;
+flake.modules.darwin.fish = systemModule;
+flake.modules.homeManager.fish = homeManagerModule;
+```
+
+System builders receive the selected lower-level modules through
+`extraModules` and `extraHomeModules`. Keep host-specific choices, such as the
+actual login shell, in host configuration.
+
+This feature pattern is intentionally scoped. Service modules remain in the
+typed `modules.services.*` registry, and packages, overlays, helper libraries,
+disk constructors, and generated expressions are not auto-imported as features.
 
 ---
 
@@ -187,6 +215,19 @@ Common submodule types are defined in `lib/types.nix`:
 - `loggingSubmodule` - Log shipping configuration
 - `notificationSubmodule` - Alert notification channels
 
+### Service Capability Fragments
+
+`lib/service-options.nix` declares small runtime-neutral option fragments:
+
+- `mkBaseOptions` - enablement and internal runtime metadata
+- `mkWebOptions` - port and reverse-proxy options
+- `mkStatefulOptions` - data directory and backup options
+
+Native NixOS wrappers, custom systemd services, and OCI services compose only
+the capabilities they implement. Their runtime behavior remains explicit in the
+owning module. Enabled pilot services publish internal unit, endpoint, identity,
+and state-path facts under `modules.services.<name>._runtime`.
+
 ### Storage Helpers
 
 Complex storage logic is centralized in `modules/nixos/storage/helpers-lib.nix`:
@@ -200,7 +241,7 @@ Complex storage logic is centralized in `modules/nixos/storage/helpers-lib.nix`:
 ## Host Architecture Differences
 
 | Aspect | Forge (two-disk) | Luna (single-disk) |
-|--------|------------------|-------------------|
+| --- | --- | --- |
 | **Root pool** | `rpool` (impermanent) | `rpool` (impermanent) |
 | **Service data** | `tank/services/*` (persistent) | `/persist/var/lib/*` (bind-mount) |
 | **Storage method** | ZFS datasets | Impermanence module |
@@ -212,12 +253,17 @@ Complex storage logic is centralized in `modules/nixos/storage/helpers-lib.nix`:
 
 ## Import Flow
 
-```
+```text
 flake.nix
     │
-    ├── lib/mkSystem.nix
+  ├── features/default.nix
+  │       └── features/**/*.nix → flake.modules.<class>.<feature>
+  │
+  ├── lib/mkSystem.nix
     │       │
-    │       ├── modules/nixos/default.nix  (all NixOS modules)
+  │       ├── selected feature modules
+  │       ├── modules/nixos/base.nix
+  │       ├── selected service categories from _categories/registry.nix
     │       │       ├── services/*.nix
     │       │       ├── storage/*.nix
     │       │       └── ...

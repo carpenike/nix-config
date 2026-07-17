@@ -7,7 +7,6 @@
     ./bash
     ./direnv
     ./eza
-    ./fish
     ./fzf
     ./git
     ./starship

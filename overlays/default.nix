@@ -306,6 +306,26 @@ in
               });
             })
           ];
+        } // prev.lib.optionalAttrs final.stdenv.hostPlatform.isDarwin {
+          # WORKAROUND (2026-07-17): unstable ld64 957.1 traps in
+          # ld::passes::stubs::Pass::process on macOS 26.5. The linker calls
+          # atom->fixupsEnd(), and upstream ld64 contains one-past-the-end
+          # vector::operator[] implementations that libc++ rejects with SIGTRAP.
+          # Affects: unstable starship 1.26.0 and lima 2.1.4 on aarch64-darwin.
+          # Upstream: No exact nixpkgs issue as of 2026-07-17.
+          # Check: Build both packages without these overrides after unstable
+          # ld64 changes; remove once the native builds and Darwin closure pass.
+          starship = prev.starship.overrideAttrs (old: {
+            NIX_CFLAGS_COMPILE =
+              (old.NIX_CFLAGS_COMPILE or "")
+                + " --ld-path=${final.stdenv.cc.bintools.bintools}/bin/ld";
+          });
+          lima = prev.lima.overrideAttrs (old: {
+            NIX_CFLAGS_COMPILE =
+              (old.NIX_CFLAGS_COMPILE or "")
+                + " --ld-path=${final.stdenv.cc.bintools.bintools}/bin/ld"
+                + " -Wno-unused-command-line-argument";
+          });
         })
       ];
     };

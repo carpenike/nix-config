@@ -32,11 +32,41 @@ let
     datasetName = serviceName;
   };
   hasCentralizedNotifications = config.modules.notifications.enable or false;
+  runtimeFacts = {
+    kind = "nixos-module";
+    units = [ serviceUnit ];
+    endpoints.web = {
+      scheme = "http";
+      host = "127.0.0.1";
+      port = cfg.port;
+    };
+    identity = {
+      user = cfg.user;
+      group = cfg.group;
+    };
+    statePaths = [ (toString cfg.dataDir) ];
+  };
 
 in
 {
-  options.modules.services.actual = {
-    enable = lib.mkEnableOption "Actual Budget personal finance app";
+  options.modules.services.actual = mylib.serviceOptions.mkBaseOptions
+    {
+      description = "Actual Budget personal finance app";
+    }
+  // mylib.serviceOptions.mkWebOptions {
+    defaultPort = 5006;
+    portDescription = "Port for Actual web interface";
+    reverseProxyDescription = "Reverse proxy configuration for Actual web interface";
+    inherit sharedTypes;
+  }
+  // mylib.serviceOptions.mkStatefulOptions {
+    backupDefault = null;
+    backupDescription = "Backup configuration for Actual data";
+    dataDirDescription = "Path to Actual data directory";
+    defaultDataDir = "/var/lib/actual";
+    inherit sharedTypes;
+  }
+  // {
 
     user = lib.mkOption {
       type = lib.types.str;
@@ -60,18 +90,6 @@ in
       type = lib.types.int;
       default = serviceIds.gid;
       description = "GID for Actual service group (from lib/service-uids.nix)";
-    };
-
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/actual";
-      description = "Path to Actual data directory";
-    };
-
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 5006;
-      description = "Port for Actual web interface";
     };
 
     # =========================================================================
@@ -126,12 +144,6 @@ in
     # Standard Integration Submodules
     # =========================================================================
 
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration for Actual web interface";
-    };
-
     metrics = lib.mkOption {
       type = lib.types.nullOr sharedTypes.metricsSubmodule;
       default = {
@@ -145,12 +157,6 @@ in
         };
       };
       description = "Prometheus metrics configuration (Actual doesn't have native metrics, used for auto-discovery)";
-    };
-
-    backup = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = null;
-      description = "Backup configuration for Actual data";
     };
 
     # Standardized notifications
@@ -200,6 +206,8 @@ in
 
   config = lib.mkMerge [
     (lib.mkIf cfg.enable {
+      modules.services.actual._runtime = runtimeFacts;
+
       # Use native NixOS Actual service
       services.actual = {
         enable = true;

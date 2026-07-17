@@ -44,6 +44,23 @@ let
 
   serviceName = "cooklang";
   serviceUnitFile = "${serviceName}.service";
+  runtimeFacts = {
+    kind = "custom-systemd";
+    units = [ serviceUnitFile ];
+    endpoints.web = {
+      scheme = "http";
+      host = cfg.listenAddress;
+      port = cfg.port;
+    };
+    identity = {
+      user = cfg.user;
+      group = cfg.group;
+    };
+    statePaths = [
+      (toString cfg.dataDir)
+      (toString cfg.recipeDir)
+    ];
+  };
 
   # Default to ZFS dataset path if storage is configured
   defaultRecipeDir =
@@ -73,8 +90,24 @@ let
   };
 in
 {
-  options.modules.services.cooklang = {
-    enable = mkEnableOption "Cooklang recipe management server";
+  options.modules.services.cooklang = mylib.serviceOptions.mkBaseOptions
+    {
+      description = "Cooklang recipe management server";
+    }
+  // mylib.serviceOptions.mkWebOptions {
+    defaultPort = 9080;
+    portDescription = "Port for the Cooklang web server";
+    reverseProxyDescription = "Reverse proxy configuration for Cooklang web interface";
+    inherit sharedTypes;
+  }
+  // mylib.serviceOptions.mkStatefulOptions {
+    backupDefault = null;
+    backupDescription = "Backup configuration for recipe files";
+    dataDirDescription = "State directory for Cooklang server runtime data";
+    defaultDataDir = "/var/lib/cooklang";
+    inherit sharedTypes;
+  }
+  // {
 
     package = mkOption {
       type = types.package;
@@ -115,22 +148,10 @@ in
       example = "tank/services/cooklang";
     };
 
-    dataDir = mkOption {
-      type = types.path;
-      default = "/var/lib/cooklang";
-      description = "State directory for Cooklang server runtime data";
-    };
-
     listenAddress = mkOption {
       type = types.str;
       default = "127.0.0.1";
       description = "Address to bind the web server to (use 127.0.0.1 for localhost only)";
-    };
-
-    port = mkOption {
-      type = types.port;
-      default = 9080;
-      description = "Port for the Cooklang web server";
     };
 
     openBrowser = mkOption {
@@ -190,13 +211,6 @@ in
       };
     };
 
-    # Standardized reverse proxy integration
-    reverseProxy = mkOption {
-      type = types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration for Cooklang web interface";
-    };
-
     # Standardized metrics collection (limited - no native metrics)
     metrics = mkOption {
       type = types.nullOr sharedTypes.metricsSubmodule;
@@ -220,13 +234,6 @@ in
         };
       };
       description = "Log shipping configuration";
-    };
-
-    # Standardized backup integration
-    backup = mkOption {
-      type = types.nullOr sharedTypes.backupSubmodule;
-      default = null;
-      description = "Backup configuration for recipe files";
     };
 
     # Standardized notification integration
@@ -416,6 +423,8 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
+      modules.services.cooklang._runtime = runtimeFacts;
+
       users.users =
         {
           ${cfg.user} = {

@@ -17,20 +17,9 @@
 #   ./network.nix         - UniFi, Omada, network controllers
 #   ./automotive.nix      - TeslaMate, vehicle telemetry
 { ... }:
+let
+  categories = import ./registry.nix;
+in
 {
-  imports = [
-    ./ai.nix
-    ./auth.nix
-    ./automotive.nix
-    ./backup.nix
-    ./development.nix
-    ./downloads.nix
-    ./home-automation.nix
-    ./infrastructure.nix
-    ./media.nix
-    ./media-automation.nix
-    ./network.nix
-    ./observability.nix
-    ./productivity.nix
-  ];
+  imports = builtins.attrValues categories;
 }

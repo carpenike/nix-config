@@ -27,7 +27,7 @@ mylib.mkContainerService {
 
     # Default to home-operations image per ADR-005
     image = "ghcr.io/home-operations/sabnzbd:latest";
-    category = "downloads";
+    operationalProfile = "downloads";
     displayName = "SABnzbd";
     function = "usenet";
 
