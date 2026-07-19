@@ -16,7 +16,7 @@ in
         enable = true;
 
         # Pin container image to specific version with digest
-        image = "ghcr.io/home-operations/prowlarr:2.5.1.5464@sha256:5014bec2085b72759570ae958cdee251956c059bf82ca6244a3ce99e1c327a12";
+        image = "ghcr.io/home-operations/prowlarr:2.5.2.5483@sha256:dbe7685eb134cd63eaa130fbf60060f33f26d7482b5fc5a81da9fca8552aa4ed";
 
         # Prowlarr is an indexer manager - it doesn't need access to downloads/media directories
         downloadsDir = null;
