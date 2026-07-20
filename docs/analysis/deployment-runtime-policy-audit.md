@@ -126,10 +126,11 @@ second, top-level module system.
   database interface because it and the PostgreSQL module define incompatible
   shapes under `modules.services.postgresql`. Resolve this before introducing
   deferred-module merging under another module layer.
-4. **Low: NAS-0 and NAS-1 still use the legacy all-services path.** They do not
-  pass `serviceCategories` to `mkNixosSystem`, so they evaluate the entire
-  service tree. Give both hosts explicit categories before using evaluation
-  performance as evidence for or against Dendritic.
+4. **Resolved (2026-07): selective category loading removed.** A controlled
+  measurement (same host, nixpi, 24 vs 87 imported service modules) showed
+  identical eval time — the December 2025 numbers compared different hosts and
+  attributed enabled-service cost to module imports. All hosts now import the
+  full service tree; enable gates carry the actual cost.
 5. **Low: all systems evaluate, but the baseline is not warning-free.** The
   current warnings include intentional root ownership for Valhalla without the
   corresponding `rootOwnedReason`, two deprecated `system` accesses that may

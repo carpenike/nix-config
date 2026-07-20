@@ -29,9 +29,14 @@ let
       # Extract all modules.services.* configurations (excluding observability to prevent recursion)
       allServices = lib.filterAttrs (name: _service: name != "observability") (config.modules.services or { });
 
-      # Filter services that have metrics enabled
+      # Filter services that are enabled AND have metrics enabled.
+      # The service-level enable check matters: every service module is
+      # imported on every host, and several metrics submodules default to
+      # enabled — without this check, disabled services produce phantom
+      # scrape targets.
       servicesWithMetrics = lib.filterAttrs
         (_name: service:
+          (service.enable or false) &&
           (service.metrics or null) != null &&
           (service.metrics.enable or false)
         )

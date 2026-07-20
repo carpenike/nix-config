@@ -19,6 +19,9 @@ in
     {
       modules.services.frigate = {
         enable = false;
+        # Keep the frigate account while the service is staged-but-disabled so
+        # the tank/services/frigate dataset ownership stays stable.
+        ensureSystemUser = true;
         hostname = serviceDomain;
         dataDir = dataDir;
         mediaDir = dataDir;

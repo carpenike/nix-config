@@ -746,42 +746,16 @@
             rydev = mkNixosSystem {
               system = "aarch64-linux";
               hostname = "rydev";
-              serviceCategories = [
-                "infrastructure"
-                "observability"
-              ];
             };
             # Luna - DNS/network infrastructure server
             luna = mkNixosSystem {
               system = "x86_64-linux";
               hostname = "luna";
-              serviceCategories = [
-                "auth"
-                "development"
-                "infrastructure"
-                "network"
-                "observability"
-              ];
             };
             # Forge - main homelab server (all categories)
             forge = mkNixosSystem {
               system = "x86_64-linux";
               hostname = "forge";
-              serviceCategories = [
-                "ai"
-                "auth"
-                "automotive"
-                "backup"
-                "development"
-                "downloads"
-                "home-automation"
-                "infrastructure"
-                "media"
-                "media-automation"
-                "network"
-                "observability"
-                "productivity"
-              ];
             };
             # NAS-0 - Primary bulk storage NAS (117TB) - not yet deployed
             nas-0 = mkNixosSystem {
@@ -789,37 +763,22 @@
               hostname = "nas-0";
               # Storage services use native NixOS modules in the host config;
               # no custom service category is required.
-              serviceCategories = [ ];
             };
             # NAS-1 - Secondary NAS / Backup target - not yet deployed
             nas-1 = mkNixosSystem {
               system = "x86_64-linux";
               hostname = "nas-1";
-              serviceCategories = [
-                # Attic server/admin modules.
-                "development"
-                # Caddy reverse proxy and shared service infrastructure.
-                "infrastructure"
-              ];
             };
             # Raspberry Pi RV system
             nixpi = mkNixosSystem {
               system = "aarch64-linux";
               hostname = "nixpi";
-              serviceCategories = [
-                "infrastructure"
-                "observability"
-              ];
             };
             # Flashable SD image for nixpi (512 MiB firmware so the kernel fits).
             # Build: nix build .#nixosConfigurations.nixpi-image.config.system.build.sdImage
             nixpi-image = mkNixosSystem {
               system = "aarch64-linux";
               hostname = "nixpi";
-              serviceCategories = [
-                "infrastructure"
-                "observability"
-              ];
               extraModules = [ ./hosts/nixpi/sd-image.nix ];
             };
           };
