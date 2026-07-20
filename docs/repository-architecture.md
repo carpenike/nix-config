@@ -24,8 +24,6 @@ nix-config/
 │   │   └── ...            # logging, storage, container, etc.
 │   ├── host-defaults.nix  # Parameterized factory for host-specific defaults
 │   ├── monitoring-helpers.nix  # Prometheus alert helpers
-│   ├── backup-helpers.nix      # Backup configuration helpers
-│   ├── caddy-helpers.nix       # Reverse proxy helpers
 │   ├── service-options.nix     # Runtime-neutral service capability fragments
 │   ├── mkSystem.nix       # NixOS/Darwin system builders
 │   └── ...

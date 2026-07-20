@@ -1522,9 +1522,9 @@ Reusable helper functions in `lib/` for common patterns:
 
 - `lib/types.nix` - ✅ **Implemented** - Shared type definitions (split into `lib/types/*.nix`)
 - `lib/monitoring-helpers.nix` - ✅ **Implemented** - Metrics and alert configuration
-- `lib/backup-helpers.nix` - ✅ **Implemented** - Backup job generation
-- `lib/caddy-helpers.nix` - ✅ **Implemented** - Reverse proxy configuration
 - `modules/nixos/storage/helpers-lib.nix` - ✅ **Implemented** - Storage/preseed helpers (via `mylib.storageHelpers pkgs`)
+
+> Note (2026-07): `lib/caddy-helpers.nix` and `lib/register-vhost.nix` were removed — they wrote to the deprecated `modules.reverseProxy.virtualHosts` registry and had no call sites. Services register directly with `modules.services.caddy.virtualHosts` (see `docs/reverse-proxy-pattern.md`).
 
 ## Migration Strategy
 

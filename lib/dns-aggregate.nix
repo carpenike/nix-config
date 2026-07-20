@@ -13,23 +13,17 @@ let
   collectHostRecords = _name: hostCfg:
     let
       # Use tryEval to safely access potentially undefined options
+      # (darwin hosts don't load the caddy module at all)
       ipResult = builtins.tryEval (hostCfg.config.my.hostIp or null);
-      # NOTE: Changed from modules.services.caddy to modules.reverseProxy (clean break)
-      registryResult = builtins.tryEval (hostCfg.config.modules.reverseProxy or null);
       caddyResult = builtins.tryEval (hostCfg.config.modules.services.caddy or null);
 
       # Extract values if evaluation succeeded
       hostIp = if ipResult.success then ipResult.value else null;
-      registryCfg = if registryResult.success then registryResult.value else null;
       caddyCfg = if caddyResult.success then caddyResult.value else null;
-      domain =
-        if registryCfg != null then (registryCfg.domain or "holthome.net")
-        else if caddyCfg != null then (caddyCfg.domain or "holthome.net")
-        else "holthome.net";
+      domain = if caddyCfg != null then (caddyCfg.domain or "holthome.net") else "holthome.net";
     in
-    # Only process hosts with virtual hosts configured and IP configured
-      # Check Caddy is enabled (if caddy module is loaded) or if registry has vhosts
-    if hostIp != null && registryCfg != null && (caddyCfg == null || caddyCfg.enable or false) then
+    # Only process hosts with Caddy enabled and an IP configured
+    if hostIp != null && caddyCfg != null && (caddyCfg.enable or false) then
       lib.mapAttrsToList
         (_vhostName: vhost:
           if (vhost.enable or false) && (vhost.publishDns or true) then
@@ -44,7 +38,7 @@ let
             "${recordName}    IN    A    ${hostIp}"
           else null
         )
-        (registryCfg.virtualHosts or { })
+        (caddyCfg.virtualHosts or { })
     else [ ];
 
   # Collect from all hosts and flatten
