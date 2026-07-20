@@ -134,7 +134,7 @@ let
     in
     serviceOptions.mkBaseOptions
       {
-        description = spec.description or name;
+        description = if spec.description != null then spec.description else name;
       }
     // serviceOptions.mkWebOptions {
       defaultPort = spec.port;
@@ -177,11 +177,12 @@ let
 
       resources = lib.mkOption {
         type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-        default = spec.resources or {
-          memory = "512M";
-          memoryReservation = "256M";
-          cpus = "1.0";
-        };
+        default =
+          if spec.resources != null then spec.resources else {
+            memory = "512M";
+            memoryReservation = "256M";
+            cpus = "1.0";
+          };
         description = "Resource limits for the container";
       };
 
@@ -207,7 +208,7 @@ let
           labels = {
             service_type = profile.serviceType;
             exporter = name;
-            function = spec.function or name;
+            function = if spec.function != null then spec.function else name;
           };
         };
         description = "Prometheus metrics collection configuration";
@@ -234,7 +235,7 @@ let
             onFailure = [ profile.alertChannel ];
           };
           customMessages = {
-            failure = "${spec.displayName or name} service failed on \${config.networking.hostName}";
+            failure = "${if spec.displayName != null then spec.displayName else name} service failed on \${config.networking.hostName}";
           };
         };
         description = "Notification configuration";
