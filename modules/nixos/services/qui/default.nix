@@ -1,3 +1,8 @@
+# modules/nixos/services/qui/default.nix
+#
+# qui - Modern web interface for qBittorrent
+#
+# Factory-based implementation (see lib/service-factory.nix).
 { lib
 , mylib
 , pkgs
@@ -5,85 +10,72 @@
 , podmanLib
 , ...
 }:
+
 let
-  # Storage helpers via mylib injection (centralized import)
-  storageHelpers = mylib.storageHelpers pkgs;
-  # Import shared type definitions
-  sharedTypes = mylib.types;
-
-  cfg = config.modules.services.qui;
-  storageCfg = config.modules.storage;
-  mainServiceName = "${config.virtualisation.oci-containers.backend}-qui";
-  mainServiceUnit = "${mainServiceName}.service";
-  datasetPath = "${storageCfg.datasets.parentDataset}/qui";
-
-  # Build replication config for preseed (walks up dataset tree to find inherited config)
-  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
-  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
-    inherit config;
-    datasetName = "qui";
-  };
+  # Resolved lazily after option evaluation - safe to reference here.
+  quiPort = config.modules.services.qui.port;
 in
-{
-  options.modules.services.qui = {
-    enable = lib.mkEnableOption "qui - Modern web interface for qBittorrent";
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/qui";
-      description = ''
-        Path to qui data directory.
+  name = "qui";
+  description = "qui";
 
-        This directory stores:
-        - config.toml (auto-generated on first run)
-        - qui.db (SQLite database for state)
-        - tracker-icons/ (cached tracker favicons)
-        - logs (if logPath is configured)
-      '';
+  spec = {
+    # Core service configuration
+    port = 7476;
+    image = "ghcr.io/autobrr/qui:latest";
+    operationalProfile = "media";
+    displayName = "qui";
+    function = "qbittorrent_ui";
+
+    healthCommand = "wget --no-verbose --tries=1 --spider http://localhost:${toString quiPort}/health || exit 1";
+    startPeriod = "30s";
+
+    # ZFS tuning - 16K recordsize optimal for the SQLite database (qui.db),
+    # lz4 for fast compression of database and config files.
+    zfsRecordSize = "16K";
+    zfsCompression = "lz4";
+
+    # qui is lightweight but may consume more resources with multiple
+    # qBittorrent instances or large torrent collections (>1000 torrents).
+    resources = {
+      memory = "512M";
+      memoryReservation = "256M";
+      cpus = "1.0";
     };
 
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "980";
-      description = "User account under which qui runs (numeric UID as string).";
+    environment = { cfg, ... }: {
+      QUI__HOST = cfg.hostAddress;
+      QUI__PORT = toString cfg.port;
+      QUI__BASE_URL = cfg.baseUrl;
+      QUI__LOG_LEVEL = cfg.logLevel;
+      QUI__CHECK_FOR_UPDATES = if cfg.checkForUpdates then "true" else "false";
+    } // lib.optionalAttrs cfg.metricsEnabled {
+      QUI__METRICS_ENABLED = "true";
+      QUI__METRICS_HOST = cfg.metricsHost;
+      QUI__METRICS_PORT = toString cfg.metricsPort;
+    } // lib.optionalAttrs (cfg.oidc != null && cfg.oidc.enabled) {
+      QUI__OIDC_ENABLED = "true";
+      QUI__OIDC_ISSUER = cfg.oidc.issuer;
+      QUI__OIDC_CLIENT_ID = cfg.oidc.clientId;
+      QUI__OIDC_REDIRECT_URL = cfg.oidc.redirectUrl;
+      QUI__OIDC_DISABLE_BUILT_IN_LOGIN = if cfg.oidc.disableBuiltInLogin then "true" else "false";
     };
 
-    group = lib.mkOption {
-      type = lib.types.str;
-      default = "media";
-      description = "Group under which qui runs.";
-    };
+    # Own volume list (dataDir without explicit :rw, plus host-provided
+    # extra volumes for cross-seed hardlink mode).
+    skipDefaultConfigMount = true;
+    volumes = cfg: [
+      "${cfg.dataDir}:/config"
+    ] ++ cfg.extraVolumes;
 
-    image = lib.mkOption {
-      type = lib.types.str;
-      default = "ghcr.io/autobrr/qui:latest";
-      description = ''
-        Full container image name including tag or digest.
+    # Extra /etc/hosts entries (hairpin NAT workaround)
+    extraOptions = { cfg, ... }:
+      lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts;
+  };
 
-        Best practices:
-        - Pin to specific version tags
-        - Use digest pinning for immutability
-        - Avoid 'latest' tag for production systems
-
-        Use Renovate bot to automate version updates with digest pinning.
-
-        Multi-architecture support: linux/amd64, linux/arm64
-      '';
-      example = "ghcr.io/autobrr/qui:v1.7.0@sha256:abc...";
-    };
-
-    podmanNetwork = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = ''
-        Podman network to attach the container to.
-
-        Use "media-services" to enable DNS resolution to qBittorrent and other media services.
-        Required for qui to act as a client proxy for Sonarr/Radarr/autobrr.
-      '';
-      example = "media-services";
-    };
-
+  extraOptions = {
     extraHosts = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       default = { };
@@ -97,12 +89,6 @@ in
         "id.holthome.net" = "10.89.0.1";
         "auth.example.com" = "10.89.0.1";
       };
-    };
-
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 7476;
-      description = "Port for qui web interface";
     };
 
     hostAddress = lib.mkOption {
@@ -128,12 +114,6 @@ in
         Must include trailing slash when using subdirectory.
       '';
       example = "/qui/";
-    };
-
-    timezone = lib.mkOption {
-      type = lib.types.str;
-      default = "America/New_York";
-      description = "Timezone for the container";
     };
 
     logLevel = lib.mkOption {
@@ -267,54 +247,19 @@ in
       '';
     };
 
-    resources = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = {
-        memory = "512M";
-        memoryReservation = "256M";
-        cpus = "1.0";
-      };
-      description = ''
-        Resource limits for the container.
-
-        qui is lightweight but may consume more resources with:
-        - Multiple qBittorrent instances
-        - Large torrent collections (>1000 torrents)
-        - Frequent backup operations
-      '';
-    };
-
-    healthcheck = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
-      default = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "30s";
-      };
-      description = "Container health check configuration";
-    };
-
-    # Standardized reverse proxy integration
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+    # Backups are configured explicitly by hosts (overrides the factory
+    # default of enabled). qui has a built-in qBittorrent backup/restore
+    # feature; this option is for qui's own state only.
+    backup = lib.mkOption {
+      type = lib.types.nullOr mylib.types.backupSubmodule;
       default = null;
-      description = ''
-        Reverse proxy configuration for qui web interface.
-
-        qui includes built-in client proxy feature that can:
-        - Proxy qBittorrent API for Sonarr/Radarr/autobrr
-        - Manage authentication automatically
-        - Reduce qBittorrent login thrashing
-
-        Configure proxy keys in qui UI after deployment.
-      '';
+      description = "Backup configuration for qui data (config.toml, qui.db, tracker-icons)";
     };
 
-    # Standardized metrics collection pattern
+    # Scrape registration is opt-in and separate from qui's own
+    # metricsEnabled toggle (overrides the factory default of enabled).
     metrics = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.metricsSubmodule;
+      type = lib.types.nullOr mylib.types.metricsSubmodule;
       default = null;
       description = ''
         Prometheus metrics collection configuration for qui.
@@ -323,323 +268,76 @@ in
         This option controls whether to register qui with Prometheus scraping.
       '';
     };
-
-    # Standardized logging integration
-    logging = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.loggingSubmodule;
-      default = {
-        enable = true;
-        driver = "journald";
-      };
-      description = "Logging configuration for qui container";
-    };
-
-    notifications = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = lib.mkIf cfg.enable {
-        enable = lib.mkDefault true;
-        channels = {
-          onFailure = [ "media-alerts" ];
-        };
-        customMessages = {
-          failure = "qui qBittorrent web interface failed on ${config.networking.hostName}";
-        };
-      };
-      description = "Notification configuration for qui service events";
-    };
-
-    # Standardized backup configuration
-    backup = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = null;
-      description = ''
-        Backup configuration for qui data.
-
-        qui stores:
-        - config.toml (configuration file)
-        - qui.db (SQLite database with users, instances, proxy keys, API keys)
-        - tracker-icons/ (cached favicon PNGs)
-
-        Recommended recordsize: 16K (optimal for SQLite database)
-
-        Note: qui has built-in qBittorrent backup/restore feature.
-        This backup config is for qui's own state, not qBittorrent backups.
-      '';
-    };
-
-    # NOTE: Dataset is managed via modules.storage.datasets.services.qui (declarative pattern).
-    # This option is removed as it was unused - the module only checked for null/non-null.
-    # Dataset configuration happens automatically when the service is enabled.
-
-    preseed = {
-      enable = lib.mkEnableOption "automatic data restore before service start";
-      repositoryUrl = lib.mkOption {
-        type = lib.types.str;
-        description = "Restic repository URL for restore operations";
-      };
-      passwordFile = lib.mkOption {
-        type = lib.types.path;
-        description = "Path to Restic password file";
-      };
-      environmentFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = "Optional environment file for Restic (e.g., for B2 credentials)";
-      };
-      restoreMethods = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
-        default = [ "syncoid" "local" "restic" ];
-        description = ''
-          Order and selection of restore methods to attempt. Methods are tried
-          sequentially until one succeeds.
-        '';
-      };
-    };
   };
 
-  config =
-    let
-      # Build environment variables
-      environmentVars = {
-        TZ = cfg.timezone;
-        QUI__HOST = cfg.hostAddress;
-        QUI__PORT = toString cfg.port;
-        QUI__BASE_URL = cfg.baseUrl;
-        QUI__LOG_LEVEL = cfg.logLevel;
-        QUI__CHECK_FOR_UPDATES = if cfg.checkForUpdates then "true" else "false";
-      } // lib.optionalAttrs cfg.metricsEnabled {
-        QUI__METRICS_ENABLED = "true";
-        QUI__METRICS_HOST = cfg.metricsHost;
-        QUI__METRICS_PORT = toString cfg.metricsPort;
-      } // lib.optionalAttrs (cfg.oidc != null && cfg.oidc.enabled) {
-        QUI__OIDC_ENABLED = "true";
-        QUI__OIDC_ISSUER = cfg.oidc.issuer;
-        QUI__OIDC_CLIENT_ID = cfg.oidc.clientId;
-        QUI__OIDC_REDIRECT_URL = cfg.oidc.redirectUrl;
-        QUI__OIDC_DISABLE_BUILT_IN_LOGIN = if cfg.oidc.disableBuiltInLogin then "true" else "false";
-      };
-
-    in
-    lib.mkMerge [
-      (lib.mkIf cfg.enable {
-        # Validate configuration
-        assertions = [
-          {
-            assertion = cfg.backup == null || !cfg.backup.enable || cfg.backup.repository != null;
-            message = "qui backup.enable requires backup.repository to be set (use primaryRepo.name from host config).";
-          }
-          {
-            assertion = !cfg.preseed.enable || cfg.preseed.repositoryUrl != "";
-            message = "qui preseed.enable requires preseed.repositoryUrl to be set.";
-          }
-          {
-            assertion = !cfg.preseed.enable || (builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile);
-            message = "qui preseed.enable requires preseed.passwordFile to be set.";
-          }
-          {
-            assertion = lib.hasPrefix "/" cfg.baseUrl;
-            message = "qui baseUrl must be an absolute path starting with '/' (e.g., '/' or '/qui/').";
-          }
-          {
-            assertion = cfg.baseUrl == "/" || lib.hasSuffix "/" cfg.baseUrl;
-            message = "qui baseUrl must end with a trailing slash ('/') when using subdirectory paths (e.g., '/qui/').";
-          }
-          {
-            assertion = let path = lib.removeSuffix "/" cfg.baseUrl; in path == "" || !lib.hasSuffix "/" path;
-            message = "qui baseUrl contains redundant trailing slashes (e.g., '//' or '/qui//').";
-          }
-          {
-            assertion = cfg.oidc == null || !cfg.oidc.enabled || (builtins.isPath cfg.oidc.clientSecretFile || builtins.isString cfg.oidc.clientSecretFile);
-            message = "qui OIDC authentication requires oidc.clientSecretFile to be set.";
-          }
-          {
-            assertion = cfg.oidc == null || !cfg.oidc.enabled || (cfg.oidc.issuer != "" && lib.hasPrefix "http" cfg.oidc.issuer);
-            message = "qui OIDC authentication requires oidc.issuer to be a valid URL starting with 'http' (e.g., 'https://auth.example.com/realms/main').";
-          }
-          {
-            assertion = cfg.oidc == null || !cfg.oidc.enabled || cfg.oidc.clientId != "";
-            message = "qui OIDC authentication requires oidc.clientId to be set.";
-          }
-          {
-            assertion = cfg.oidc == null || !cfg.oidc.enabled || (cfg.oidc.redirectUrl != "" && lib.hasPrefix "http" cfg.oidc.redirectUrl);
-            message = "qui OIDC authentication requires oidc.redirectUrl to be a valid URL starting with 'http' (e.g., 'https://qui.example.com/api/auth/oidc/callback').";
-          }
-        ];
-
-        # User configuration
-        users.users.qui = {
-          uid = lib.mkDefault (lib.toInt cfg.user);
-          group = cfg.group;
-          isSystemUser = true;
-          description = "qui service user";
-          home = cfg.dataDir;
-          createHome = true;
-        };
-
-        users.groups.${cfg.group} = { };
-
-        # Declare dataset requirements for per-service ZFS isolation
-        # This integrates with the storage.datasets module to automatically
-        # create tank/services/qui with appropriate ZFS properties
-        # Note: OCI containers don't support StateDirectory, so we explicitly set permissions
-        # via tmpfiles by keeping owner/group/mode here
-        modules.storage.datasets.services.qui = {
-          mountpoint = cfg.dataDir;
-          recordsize = lib.mkDefault "16K"; # Optimal for SQLite databases (qui.db)
-          compression = lib.mkDefault "lz4"; # Fast compression for database and config files
-          properties = {
-            "com.sun:auto-snapshot" = "true"; # Enable automatic snapshots
-            # snapdir managed by sanoid module - no longer needed with clone-based backups
-          };
-          # Ownership matches the container user/group
-          owner = cfg.user;
-          group = cfg.group;
-          mode = "0750"; # Allow group read access for backup systems
-        };
-
-        # NOTE: ZFS snapshots and replication for qui dataset should be configured
-        # in the host-level config (e.g., hosts/forge/default.nix), not here.
-        # Reason: Replication targets are host-specific (forge → nas-1, luna → nas-2, etc.)
-        # Defining them in a shared module would hardcode "forge" in the target path,
-        # breaking reusability across different hosts.
-
-        # Note: Backup integration now handled by backup-integration module
-        # The backup submodule configuration will be auto-discovered and converted
-        # to a Restic job named "service-qui" with the specified settings
-
-        # Container configuration
-        virtualisation.oci-containers.containers.qui = podmanLib.mkContainer "qui" {
-          image = cfg.image;
-          autoStart = true;
-
-          environment = environmentVars;
-
-          # Use environmentFiles for OIDC client secret
-          environmentFiles = lib.optionals (cfg.oidc != null && cfg.oidc.enabled) [
-            config.sops.templates."qui-env".path
-          ];
-
-          volumes = [
-            "${cfg.dataDir}:/config"
-          ] ++ cfg.extraVolumes;
-
-          ports = [
-            "${toString cfg.port}:${toString cfg.port}"
-          ] ++ lib.optionals cfg.metricsEnabled [
-            "${cfg.metricsHost}:${toString cfg.metricsPort}:${toString cfg.metricsPort}"
-          ];
-
-          resources = cfg.resources;
-
-          extraOptions = [
-            "--pull=newer" # Automatically pull newer images
-            "--user=${cfg.user}:${toString config.users.groups.${cfg.group}.gid}"
-          ] ++ lib.optionals (cfg.podmanNetwork != null) [
-            "--network=${cfg.podmanNetwork}"
-          ] ++ lib.optionals (cfg.extraHosts != { }) (
-            lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts
-          ) ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-            "--health-cmd=wget --no-verbose --tries=1 --spider http://localhost:${toString cfg.port}/health || exit 1"
-            "--health-interval=${cfg.healthcheck.interval}"
-            "--health-timeout=${cfg.healthcheck.timeout}"
-            "--health-retries=${toString cfg.healthcheck.retries}"
-            "--health-start-period=${cfg.healthcheck.startPeriod}"
-            "--health-on-failure=${cfg.healthcheck.onFailure}"
-          ];
-        };
-
-        # Apply additional service configuration
-        systemd.services.${mainServiceName} = lib.mkMerge [
-          {
-            serviceConfig = {
-              Restart = "always";
-              RestartSec = "10s";
-            };
-          }
-          (lib.mkIf (cfg.podmanNetwork != null) {
-            requires = [ "podman-network-${cfg.podmanNetwork}.service" ];
-            after = [ "podman-network-${cfg.podmanNetwork}.service" ];
-          })
-          (lib.mkIf cfg.preseed.enable {
-            requires = lib.optional (!allowEmptyBootstrap) "preseed-qui.service";
-            wants = lib.optional allowEmptyBootstrap "preseed-qui.service";
-            after = [ "preseed-qui.service" ];
-          })
-        ];
-
-        # Automatically register with Caddy reverse proxy if enabled
-        modules.services.caddy.virtualHosts.qui = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-          enable = true;
-          hostName = cfg.reverseProxy.hostName;
-
-          # Use structured backend configuration from shared types
-          backend = {
-            scheme = "http"; # qui uses HTTP locally
-            host = "127.0.0.1";
-            port = cfg.port;
-          };
-
-          # Authentication configuration from shared types
-          auth = cfg.reverseProxy.auth;
-
-          # Security configuration from shared types
-          security = cfg.reverseProxy.security;
-
-          extraConfig = cfg.reverseProxy.extraConfig;
-        };
-
-        # Note: Prometheus scrape config should be added manually in host configuration
-        # Example:
-        #   services.prometheus.scrapeConfigs = [{
-        #     job_name = "qui";
-        #     static_configs = [{ targets = [ "127.0.0.1:9074" ]; }];
-        #   }];
-
-        # Notifications integration
-        modules.notifications.templates = lib.mkIf ((config.modules.notifications.enable or false) && cfg.notifications != null && cfg.notifications.enable) {
-          "qui-failure" = {
-            enable = lib.mkDefault true;
-            priority = lib.mkDefault "high";
-            title = lib.mkDefault ''<b><font color="red">✗ Service Failed: qui</font></b>'';
-            body = lib.mkDefault ''
-              <b>Host:</b> ''${hostname}
-              <b>Service:</b> <code>''${serviceName}</code>
-
-              The qui qBittorrent interface service has entered a failed state.
-
-              <b>Quick Actions:</b>
-              1. Check logs:
-                 <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-              2. Restart service:
-                 <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-            '';
-          };
-        };
-      })
-
-      # Add the preseed service itself
-      (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-        storageHelpers.mkPreseedService {
-          serviceName = "qui";
-          dataset = datasetPath;
-          mountpoint = cfg.dataDir;
-          mainServiceUnit = mainServiceUnit;
-          replicationCfg = replicationConfig; # Pass the auto-discovered replication config
-          datasetProperties = {
-            recordsize = "16K"; # Optimal for SQLite databases
-            compression = "zstd"; # Better compression for text/config files
-            "com.sun:auto-snapshot" = "true"; # Enable sanoid snapshots for this dataset
-          };
-          resticRepoUrl = cfg.preseed.repositoryUrl;
-          resticPasswordFile = cfg.preseed.passwordFile;
-          resticEnvironmentFile = cfg.preseed.environmentFile;
-          resticPaths = [ cfg.dataDir ];
-          restoreMethods = cfg.preseed.restoreMethods;
-          inherit allowEmptyBootstrap;
-          hasCentralizedNotifications = config.modules.notifications.enable or false;
-          owner = cfg.user;
-          group = cfg.group;
-        }
-      ))
+  extraConfig = cfg: {
+    assertions = [
+      {
+        assertion = lib.hasPrefix "/" cfg.baseUrl;
+        message = "qui baseUrl must be an absolute path starting with '/' (e.g., '/' or '/qui/').";
+      }
+      {
+        assertion = cfg.baseUrl == "/" || lib.hasSuffix "/" cfg.baseUrl;
+        message = "qui baseUrl must end with a trailing slash ('/') when using subdirectory paths (e.g., '/qui/').";
+      }
+      {
+        assertion = let path = lib.removeSuffix "/" cfg.baseUrl; in path == "" || !lib.hasSuffix "/" path;
+        message = "qui baseUrl contains redundant trailing slashes (e.g., '//' or '/qui//').";
+      }
+      {
+        assertion = cfg.oidc == null || !cfg.oidc.enabled || (builtins.isPath cfg.oidc.clientSecretFile || builtins.isString cfg.oidc.clientSecretFile);
+        message = "qui OIDC authentication requires oidc.clientSecretFile to be set.";
+      }
+      {
+        assertion = cfg.oidc == null || !cfg.oidc.enabled || (cfg.oidc.issuer != "" && lib.hasPrefix "http" cfg.oidc.issuer);
+        message = "qui OIDC authentication requires oidc.issuer to be a valid URL starting with 'http' (e.g., 'https://auth.example.com/realms/main').";
+      }
+      {
+        assertion = cfg.oidc == null || !cfg.oidc.enabled || cfg.oidc.clientId != "";
+        message = "qui OIDC authentication requires oidc.clientId to be set.";
+      }
+      {
+        assertion = cfg.oidc == null || !cfg.oidc.enabled || (cfg.oidc.redirectUrl != "" && lib.hasPrefix "http" cfg.oidc.redirectUrl);
+        message = "qui OIDC authentication requires oidc.redirectUrl to be a valid URL starting with 'http' (e.g., 'https://qui.example.com/api/auth/oidc/callback').";
+      }
     ];
+
+    # qui's home is its data directory (pre-factory behavior)
+    users.users.qui = {
+      home = cfg.dataDir;
+      createHome = true;
+    };
+
+    virtualisation.oci-containers.containers.qui = {
+      # OIDC client secret via SOPS template
+      environmentFiles = lib.optionals (cfg.oidc != null && cfg.oidc.enabled) [
+        config.sops.templates."qui-env".path
+      ];
+      # Prometheus metrics endpoint on a separate port
+      ports = lib.optionals cfg.metricsEnabled [
+        "${cfg.metricsHost}:${toString cfg.metricsPort}:${toString cfg.metricsPort}"
+      ];
+    };
+
+    systemd.services."${config.virtualisation.oci-containers.backend}-qui" = {
+      serviceConfig.RestartSec = "10s";
+    };
+
+    # Preserve the pre-factory notification wording
+    modules.notifications.templates."qui-failure" =
+      lib.mkIf (config.modules.notifications.enable or false && cfg.notifications != null && cfg.notifications.enable) {
+        body = ''
+          <b>Host:</b> ''${hostname}
+          <b>Service:</b> <code>''${serviceName}</code>
+
+          The qui qBittorrent interface service has entered a failed state.
+
+          <b>Quick Actions:</b>
+          1. Check logs:
+             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+          2. Restart service:
+             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+        '';
+      };
+  };
 }
