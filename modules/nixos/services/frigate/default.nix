@@ -284,14 +284,14 @@ in
 
     ensureSystemUser = lib.mkOption {
       type = lib.types.bool;
-      default = true;
-      description = "Create the frigate system user/group even when the upstream service is disabled (useful when other modules reference the account).";
+      default = false;
+      description = "Create the frigate system user/group even when the upstream service is disabled (useful when other modules reference the account, e.g. for dataset ownership). Hosts that stage frigate config with enable = false must set this explicitly.";
     };
   };
 
   config =
     lib.mkMerge [
-      (lib.mkIf cfg.ensureSystemUser {
+      (lib.mkIf (cfg.enable || cfg.ensureSystemUser) {
         users.users.${frigateUser} = {
           isSystemUser = true;
           group = frigateGroup;

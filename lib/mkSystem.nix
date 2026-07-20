@@ -29,40 +29,12 @@
   mkNixosSystem =
     { system
     , hostname
-    , serviceCategories ? null  # null = all categories, list = selective
     , extraModules ? [ ]        # extra modules (e.g. sd-image builder)
     , extraHomeModules ? [ ]    # feature modules shared with Home Manager
     }:
     let
       # Import custom library helpers for injection into modules
       mylib = import ./default.nix { lib = inputs.nixpkgs.lib; };
-
-      categoryModules = import ../modules/nixos/services/_categories/registry.nix;
-
-      # Select which service modules to import
-      serviceModules =
-        if serviceCategories == null then
-        # Import all services (backward compatible - uses default.nix which imports all)
-          [ ../modules/nixos/services ]
-        else
-        # Import only selected categories
-          let
-            unknownCategories = builtins.filter
-              (category: !(builtins.hasAttr category categoryModules))
-              serviceCategories;
-          in
-          assert inputs.nixpkgs.lib.assertMsg (unknownCategories == [ ])
-            "Unknown service categories: ${builtins.concatStringsSep ", " unknownCategories}";
-          map (category: categoryModules.${category}) serviceCategories;
-
-      # Select which base module to use
-      # When using selective categories, use base.nix (excludes services)
-      # When importing all, use default.nix (includes services)
-      nixosBaseModule =
-        if serviceCategories == null then
-          ../modules/nixos           # default.nix includes ./services
-        else
-          ../modules/nixos/base.nix; # base.nix excludes services
     in
     inputs.nixpkgs.lib.nixosSystem {
       inherit system;
@@ -100,8 +72,11 @@
           };
         }
         ../modules/common
-        nixosBaseModule
-      ] ++ serviceModules ++ [
+        # All NixOS modules including every service module. Service modules are
+        # enable-gated and default off, so importing them everywhere is free:
+        # measured eval cost of all 87 vs a 2-category subset is identical
+        # (within noise) — selective category loading was removed accordingly.
+        ../modules/nixos
         ../hosts/${hostname}
       ] ++ extraModules;
       specialArgs = {
