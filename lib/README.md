@@ -21,12 +21,12 @@ This directory contains custom library functions that are injected into the NixO
 
 ### How It Works
 
-The library is aggregated in `default.nix` and made available through `specialArgs`:
+The library is aggregated in `default.nix` and made available through `specialArgs` (see `lib/mkSystem.nix`):
 
 ```nix
-# In flake.nix or similar
+# In lib/mkSystem.nix
 specialArgs = {
-  mylib = import ./lib { inherit lib; };
+  inherit inputs hostname mylib;
 };
 
 # In any module
@@ -37,55 +37,43 @@ specialArgs = {
 
 ## 🛠️ Available Helpers
 
-### `backup-helpers.nix`
+### `service-factory.nix`
 
-Backup configuration generators for Restic and ZFS.
+The container service factory (`mkContainerService`) — generates a complete service module (options, container, Caddy vhost, ZFS dataset, user/group, firewall, preseed, notifications) from a concise spec. See ADR-011 and the file's own documentation.
 
 ```nix
-mylib.backup-helpers.mkResticJob {
-  name = "myservice";
-  paths = [ "/var/lib/myservice" ];
-  repository = "primary";
+mylib.mkContainerService {
+  name = "sonarr";
+  category = "media";
+  port = 8989;
+  # ...
 }
 ```
 
-### `caddy-helpers.nix`
+### `service-options.nix`
 
-Reverse proxy configuration builders for Caddy.
+Runtime-neutral service capability option fragments (`mylib.serviceOptions`) — small composable option sets shared by service modules regardless of runtime.
+
+### `types.nix` / `types/`
+
+Shared submodule types (metrics, logging, backup, reverseProxy, healthcheck, protection, …) so factory-based and hand-rolled services expose the same option schema. See ADR-003.
 
 ```nix
-mylib.caddy-helpers.mkVirtualHost {
-  domain = "app.example.com";
-  backend = "localhost:8080";
-  auth = "pocketid";
-}
+someOption = lib.mkOption {
+  type = mylib.types.metricsSubmodule;
+};
 ```
 
 ### `dns.nix`
 
-DNS record generators for internal and external zones.
-
-```nix
-mylib.dns.mkARecord {
-  name = "forge";
-  ip = "10.20.0.30";
-}
-```
+Shared DNS utilities (subdomain extraction, record formatting) used by the Caddy DNS modules.
 
 ### `dns-aggregate.nix`
 
-Aggregates DNS records across multiple sources into unified zone files.
+Fleet-wide DNS aggregation: reads `modules.services.caddy.virtualHosts` from every host and renders zone A-records. Exposed as the `allCaddyDnsRecords` flake output:
 
-### `register-vhost.nix`
-
-Virtual host registration helpers for service discovery.
-
-```nix
-mylib.registerVhost {
-  name = "grafana";
-  port = 3000;
-  public = true;
-}
+```bash
+nix eval .#allCaddyDnsRecords --raw
 ```
 
 ### `monitoring-helpers.nix`
@@ -98,12 +86,23 @@ mylib.monitoring-helpers.mkServiceDownAlert {
   severity = "critical";
   for = "2m";
 }
-
-mylib.monitoring-helpers.mkHighMemoryAlert {
-  job = "myservice";
-  threshold = 90;
-}
 ```
+
+### `service-uids.nix`
+
+Central static UID/GID registry for all service accounts (`mylib.serviceUids`) — keeps ownership consistent across ZFS datasets, containers, and NFS shares.
+
+### `host-defaults.nix`
+
+Contributory-defaults helper used by host-level `lib/defaults.nix` wrappers (e.g. `hosts/forge/lib/defaults.nix`) to provide per-host presets (podman network, backup, preseed, caddy security). See ADR-002.
+
+### `storageHelpers`
+
+`mylib.storageHelpers pkgs` — ZFS dataset, NFS mount, and preseed service helpers (implemented in `modules/nixos/storage/helpers-lib.nix`).
+
+### `mkSystem.nix`
+
+System builders (`mkNixosSystem`, `mkDarwinSystem`, `mkNixosBootstrapSystem`). Imported directly by `flake.nix`, not part of the `mylib` aggregation.
 
 ---
 
@@ -126,26 +125,10 @@ in
         severity = "high";
       };
 
-    modules.services.caddy.virtualHosts.myapp =
-      mylib.caddy-helpers.mkVirtualHost {
-        domain = "myapp.holthome.net";
-        backend = "localhost:${toString cfg.port}";
-      };
-  };
-}
-```
-
-### In Host Configurations
-
-```nix
-{ config, lib, mylib, ... }:
-
-{
-  modules.backup.restic.jobs = {
-    critical-data = mylib.backup-helpers.mkResticJob {
-      name = "critical";
-      paths = [ "/persist/important" ];
-      tags = [ "critical" "daily" ];
+    # Register a reverse-proxy vhost directly (see docs/reverse-proxy-pattern.md)
+    modules.services.caddy.virtualHosts.myapp = {
+      hostName = "myapp.holthome.net";
+      proxyTo = "localhost:${toString cfg.port}";
     };
   };
 }
@@ -175,14 +158,7 @@ in
 
 ```nix
 # lib/default.nix
-{ lib }:
-
 {
-  backup = import ./backup-helpers.nix { inherit lib; };
-  caddy = import ./caddy-helpers.nix { inherit lib; };
-  dns = import ./dns.nix { inherit lib; };
-  monitoring = import ./monitoring-helpers.nix { inherit lib; };
-
   # Add your new helper
   myhelpers = import ./my-helpers.nix { inherit lib; };
 }
@@ -205,12 +181,16 @@ in
 ```
 lib/
 ├── default.nix            # Aggregator (exports all helpers as mylib)
-├── backup-helpers.nix     # Restic/ZFS backup utilities
-├── caddy-helpers.nix      # Reverse proxy configuration
-├── dns.nix                # DNS record generators
-├── dns-aggregate.nix      # Zone file aggregation
-├── register-vhost.nix     # Service registration
-└── monitoring-helpers.nix # Prometheus alert templates
+├── mkSystem.nix           # System builders (used directly by flake.nix)
+├── service-factory.nix    # Container service factory (mkContainerService)
+├── service-options.nix    # Runtime-neutral service capability fragments
+├── types.nix              # Shared type aggregator
+├── types/                 # Shared submodule types (backup, metrics, …)
+├── dns.nix                # DNS record utilities
+├── dns-aggregate.nix      # Fleet-wide zone record aggregation
+├── monitoring-helpers.nix # Prometheus alert templates
+├── service-uids.nix       # Central UID/GID registry
+└── host-defaults.nix      # Per-host contributory defaults (ADR-002)
 ```
 
 ---

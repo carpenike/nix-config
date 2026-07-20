@@ -1,5 +1,8 @@
 # Modular Caddy/Reverse Proxy Configuration
 
+> [!WARNING]
+> **Superseded (2026-07).** This document describes the deprecated `modules.reverseProxy.virtualHosts` registry and its helpers (`lib/register-vhost.nix`, `lib/caddy-helpers.nix`), which have been removed from the repo — they had no call sites, and the fleet DNS aggregator reading this registry silently produced no records. The current pattern is direct registration in `modules.services.caddy.virtualHosts`; see [reverse-proxy-pattern.md](reverse-proxy-pattern.md). Kept for historical context only.
+
 ## Architecture Overview
 
 The reverse proxy configuration has been refactored to support modular service registration from both:

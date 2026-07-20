@@ -42,15 +42,9 @@ in
   # Provides reusable submodule types (metrics, logging, backup, reverseProxy, etc.)
   types = import ./types.nix { inherit lib; };
 
-  # Caddy reverse proxy configuration helpers
-  caddy-helpers = import ./caddy-helpers.nix { inherit lib; };
-
   # DNS record management helpers
   dns = import ./dns.nix { inherit lib; };
   dns-aggregate = import ./dns-aggregate.nix { inherit lib; };
-
-  # Virtual host registration helpers
-  register-vhost = import ./register-vhost.nix { inherit lib; };
 
   # System builder (used in flake.nix)
   # Note: This is imported separately in flake.nix, not via this aggregation

@@ -39,9 +39,7 @@ lib/
 │   └── ...
 ├── host-defaults.nix         # Parameterized host-specific helpers
 ├── service-uids.nix          # Centralized UID/GID registry
-├── monitoring-helpers.nix    # Alert template helpers
-├── caddy-helpers.nix         # Reverse proxy helpers
-└── storage-helpers.nix       # ZFS/NFS/preseed helpers
+└── monitoring-helpers.nix    # Alert template helpers
 ```
 
 ---
