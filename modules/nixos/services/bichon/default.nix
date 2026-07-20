@@ -1,3 +1,5 @@
+# modules/nixos/services/bichon/default.nix
+#
 # Bichon - Self-hosted email archiving system
 # https://github.com/rustmailer/bichon
 #
@@ -13,6 +15,7 @@
 # The built-in access token auth is single-user only (root), so we skip it
 # and use PocketID SSO at the reverse proxy layer instead.
 #
+# Factory-based implementation (see lib/service-factory.nix).
 { lib
 , mylib
 , pkgs
@@ -20,62 +23,62 @@
 , podmanLib
 , ...
 }:
+
 let
-  sharedTypes = mylib.types;
-  # Storage helpers via mylib injection (centralized import)
-  storageHelpers = mylib.storageHelpers pkgs;
-
-  cfg = config.modules.services.bichon;
-  notificationsCfg = config.modules.notifications;
-  storageCfg = config.modules.storage;
-  hasCentralizedNotifications = notificationsCfg.enable or false;
-
-  serviceName = "bichon";
-  bichonPort = 15630;
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-${serviceName}.service";
-  datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
-
   domain = config.networking.domain or "local";
   defaultHostname = "bichon.${domain}";
-
-  # Build replication config for preseed (walks up dataset tree to find inherited config)
-  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
-  allowEmptyBootstrap = storageHelpers.allowEmptyBootstrapFor {
-    inherit config;
-    datasetName = serviceName;
-  };
 in
-{
-  options.modules.services.bichon = {
-    enable = lib.mkEnableOption "Bichon email archiving system";
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/bichon";
-      description = "Path to Bichon data directory (metadata, indexes, and EML storage)";
+  name = "bichon";
+  description = "Bichon";
+
+  spec = {
+    # Core service configuration
+    port = 15630;
+    # Renovate: datasource=docker depName=rustmailer/bichon
+    image = "rustmailer/bichon:0.1.4@sha256:eb09da0f018ad6b0129e5ff320dab64838e75761bad5a249f5e4191e44ab7697";
+    operationalProfile = "productivity";
+    displayName = "Bichon";
+    function = "email_archiving";
+
+    # Health check using Bichon's status endpoint
+    healthCommand = "curl -fs http://127.0.0.1:15630/api/status || exit 1";
+
+    # ZFS tuning - optimal for SQLite metadata and Tantivy index; zstd
+    # compresses email storage well.
+    zfsRecordSize = "16K";
+
+    resources = {
+      memory = "512M";
+      memoryReservation = "256M";
+      cpus = "1.0";
     };
 
+    # The bichon user was deployed with a dynamic UID/GID; the container runs
+    # as its image-internal user, so no --user flag is passed (see extraConfig
+    # below where the PUID/PGID injection is neutralized).
+    runAsRoot = true;
+
+    # LoadCredential provides the encryption password securely; the preStart
+    # script creates this env file from the credential.
+    environmentFiles = [ "/run/bichon/env" ];
+
+    # Data lives at /data, not /config
+    skipDefaultConfigMount = true;
+    volumes = cfg: [
+      "${cfg.dataDir}:/data:rw"
+    ];
+  };
+
+  extraOptions = {
+    # The bichon system user pre-dates the UID registry and is deployed with
+    # a dynamically allocated UID - keep ownership operations name-based.
     user = lib.mkOption {
       type = lib.types.str;
       default = "bichon";
       description = "User account under which Bichon runs.";
-    };
-
-    group = lib.mkOption {
-      type = lib.types.str;
-      default = "bichon";
-      description = "Group under which Bichon runs.";
-    };
-
-    image = lib.mkOption {
-      type = lib.types.str;
-      # Renovate: datasource=docker depName=rustmailer/bichon
-      default = "rustmailer/bichon:0.1.4@sha256:eb09da0f018ad6b0129e5ff320dab64838e75761bad5a249f5e4191e44ab7697";
-      description = ''
-        Full container image name including tag and digest.
-        Note: GHCR not available, using Docker Hub.
-      '';
-      example = "rustmailer/bichon:0.1.5@sha256:...";
     };
 
     encryptPasswordFile = lib.mkOption {
@@ -105,24 +108,9 @@ in
       description = "Bichon log verbosity level.";
     };
 
-    timezone = lib.mkOption {
-      type = lib.types.str;
-      default = "America/New_York";
-      description = "Timezone for the container";
-    };
-
-    resources = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = {
-        memory = "512M";
-        memoryReservation = "256M";
-        cpus = "1.0";
-      };
-      description = "Resource limits for the container";
-    };
-
+    # Bichon's healthcheck uses a tighter timeout than the factory default.
     healthcheck = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
+      type = lib.types.nullOr mylib.types.healthcheckSubmodule;
       default = {
         enable = true;
         interval = "30s";
@@ -133,247 +121,83 @@ in
       description = "Container health check configuration";
     };
 
-    # Standardized reverse proxy integration
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration for Bichon web interface";
-    };
-
-    # Standardized logging integration
-    logging = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.loggingSubmodule;
-      default = {
-        enable = true;
-        journalUnit = mainServiceUnit;
-        labels = {
-          service = serviceName;
-          service_type = "email";
-        };
-      };
-      description = "Log shipping configuration for Bichon logs";
-    };
-
-    # Standardized backup integration
+    # Backups are configured explicitly by hosts (overrides the factory
+    # default of enabled).
     backup = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.backupSubmodule;
+      type = lib.types.nullOr mylib.types.backupSubmodule;
       default = null;
       description = "Backup configuration for Bichon data";
     };
 
-    # Standardized notifications
-    notifications = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = {
-        enable = true;
-        channels = {
-          onFailure = [ "service-alerts" ];
-        };
-        customMessages = {
-          failure = "Bichon email archiving service failed on ${config.networking.hostName}";
-        };
-      };
-      description = "Notification configuration for Bichon service events";
-    };
-
-    preseed = {
-      enable = lib.mkEnableOption "automatic data restore before service start";
-      repositoryUrl = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        description = "Restic repository URL for restore operations";
-      };
-      passwordFile = lib.mkOption {
-        type = lib.types.path;
-        default = "/dev/null";
-        description = "Path to Restic password file";
-      };
-      environmentFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = "Optional environment file for Restic (e.g., for B2 credentials)";
-      };
-      restoreMethods = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
-        default = [ "syncoid" "local" ];
-        description = ''
-          Order and selection of restore methods to attempt.
-          Note: restic intentionally excluded from defaults - offsite restore
-          is a manual DR decision when syncoid/local sources are unavailable.
-        '';
-      };
+    # Bichon exposes no Prometheus metrics endpoint - keep metrics opt-in.
+    metrics = lib.mkOption {
+      type = lib.types.nullOr mylib.types.metricsSubmodule;
+      default = null;
+      description = "Prometheus metrics collection configuration (Bichon has no native metrics)";
     };
   };
 
-  config = lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      # Assertions
-      assertions = [
-        {
-          assertion = cfg.backup == null || !cfg.backup.enable || cfg.backup.repository != null;
-          message = "Bichon backup.enable requires backup.repository to be set.";
-        }
+  extraConfig = cfg: {
+    # Preserve the dynamically allocated UID/GID of the deployed user - the
+    # factory would otherwise pin them from the UID registry, breaking
+    # ownership of existing data.
+    users.users.bichon.uid = lib.mkForce null;
+    users.groups.bichon.gid = lib.mkForce null;
+
+    # The container runs as its image-internal user; drop the PUID/PGID/UMASK
+    # variables that the factory injects for runAsRoot containers.
+    virtualisation.oci-containers.containers.bichon = {
+      environment = lib.mkForce {
+        TZ = cfg.timezone;
+        # Core configuration
+        BICHON_ROOT_DIR = "/data";
+        BICHON_HTTP_PORT = toString cfg.port;
+        BICHON_BIND_ADDR = "0.0.0.0";
+        BICHON_PUBLIC_URL = cfg.publicUrl;
+        BICHON_LOG_LEVEL = cfg.logLevel;
+        # Disable access token auth - we use caddySecurity SSO instead
+        BICHON_ENABLE_ACCESS_TOKEN = "false";
+        # Disable ANSI logs for cleaner journal output
+        BICHON_ANSI_LOGS = "false";
+      };
+      # Only bind to localhost - external access goes through the reverse proxy.
+      ports = lib.mkForce [
+        "127.0.0.1:${toString cfg.port}:${toString cfg.port}"
       ];
+    };
 
-      # Create system user and group
-      users.users.${cfg.user} = {
-        isSystemUser = true;
-        group = cfg.group;
-        description = "Bichon email archiving service user";
-        home = "/var/empty";
-      };
-
-      users.groups.${cfg.group} = { };
-
-      # Declare dataset requirements for ZFS isolation
-      # OCI containers don't support StateDirectory, so we explicitly set permissions
-      modules.storage.datasets.services.${serviceName} = {
-        mountpoint = cfg.dataDir;
-        recordsize = "16K"; # Optimal for SQLite metadata and Tantivy index
-        compression = "zstd"; # Good compression for email storage
-        properties = {
-          "com.sun:auto-snapshot" = "true";
-        };
-        owner = cfg.user;
-        group = cfg.group;
-        mode = "0750";
-      };
-
-      # Container configuration
-      virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
-        image = cfg.image;
-        environmentFiles = [
-          # LoadCredential provides the encryption password securely
-          # The preStart script creates an env file from the credential
-          "/run/${serviceName}/env"
-        ];
-        environment = {
-          TZ = cfg.timezone;
-          # Core configuration
-          BICHON_ROOT_DIR = "/data";
-          BICHON_HTTP_PORT = toString bichonPort;
-          BICHON_BIND_ADDR = "0.0.0.0";
-          BICHON_PUBLIC_URL = cfg.publicUrl;
-          BICHON_LOG_LEVEL = cfg.logLevel;
-          # Disable access token auth - we use caddySecurity SSO instead
-          BICHON_ENABLE_ACCESS_TOKEN = "false";
-          # Disable ANSI logs for cleaner journal output
-          BICHON_ANSI_LOGS = "false";
-        };
-        volumes = [
-          "${cfg.dataDir}:/data:rw"
-        ];
-        ports = [
-          "127.0.0.1:${toString bichonPort}:${toString bichonPort}"
-        ];
-        resources = cfg.resources;
-        extraOptions = [
-          "--pull=newer"
-          "--umask=0027"
-        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          # Health check using Bichon's status endpoint
-          ''--health-cmd=curl -fs http://127.0.0.1:${toString bichonPort}/api/status || exit 1''
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-          "--health-on-failure=${cfg.healthcheck.onFailure}"
-        ];
-      };
-
-      # Systemd service configuration
-      systemd.services."${config.virtualisation.oci-containers.backend}-${serviceName}" = lib.mkMerge [
-        {
-          # Securely load the encryption password and create env file
-          serviceConfig = {
-            LoadCredential = [
-              "encrypt_password:${cfg.encryptPasswordFile}"
-            ];
-          };
-          preStart = ''
-            # Create runtime directory
-            install -d -m 700 /run/${serviceName}
-            # Create env file with encryption password from credential
-            {
-              printf "BICHON_ENCRYPT_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/encrypt_password")"
-            } > /run/${serviceName}/env
-            chmod 600 /run/${serviceName}/env
-          '';
-        }
-        # Add failure notifications via systemd
-        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-          unitConfig.OnFailure = [ "notify@${serviceName}-failure:%n.service" ];
-        })
-        # Add dependency on the preseed service
-        (lib.mkIf cfg.preseed.enable {
-          requires = lib.optional (!allowEmptyBootstrap) "preseed-${serviceName}.service";
-          wants = lib.optional allowEmptyBootstrap "preseed-${serviceName}.service";
-          after = [ "preseed-${serviceName}.service" ];
-        })
+    # Securely load the encryption password and create the env file consumed
+    # by the container.
+    systemd.services."${config.virtualisation.oci-containers.backend}-bichon" = {
+      serviceConfig.LoadCredential = [
+        "encrypt_password:${cfg.encryptPasswordFile}"
       ];
+      preStart = ''
+        # Create runtime directory
+        install -d -m 700 /run/bichon
+        # Create env file with encryption password from credential
+        {
+          printf "BICHON_ENCRYPT_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/encrypt_password")"
+        } > /run/bichon/env
+        chmod 600 /run/bichon/env
+      '';
+    };
 
-      # Automatically register with Caddy reverse proxy if enabled
-      modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
+    # Preserve the pre-factory notification wording
+    modules.notifications.templates."bichon-failure" =
+      lib.mkIf (config.modules.notifications.enable or false && cfg.notifications != null && cfg.notifications.enable) {
+        body = ''
+          <b>Host:</b> ''${hostname}
+          <b>Service:</b> <code>''${serviceName}</code>
 
-        backend = {
-          scheme = "http";
-          host = "127.0.0.1";
-          port = bichonPort;
-        };
+          The Bichon email archiving service has entered a failed state.
 
-        auth = cfg.reverseProxy.auth;
-        caddySecurity = cfg.reverseProxy.caddySecurity;
-        security = cfg.reverseProxy.security;
-        extraConfig = cfg.reverseProxy.extraConfig;
+          <b>Quick Actions:</b>
+          1. Check logs:
+             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+          2. Restart service:
+             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+        '';
       };
-
-      # Register notification template
-      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        "${serviceName}-failure" = {
-          enable = lib.mkDefault true;
-          priority = lib.mkDefault "high";
-          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Bichon</font></b>'';
-          body = lib.mkDefault ''
-            <b>Host:</b> ''${hostname}
-            <b>Service:</b> <code>''${serviceName}</code>
-
-            The Bichon email archiving service has entered a failed state.
-
-            <b>Quick Actions:</b>
-            1. Check logs:
-               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-            2. Restart service:
-               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-          '';
-        };
-      };
-    })
-
-    # Preseed service for disaster recovery
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        inherit serviceName;
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        inherit mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
-          recordsize = "16K";
-          compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
-        };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        inherit hasCentralizedNotifications;
-        inherit allowEmptyBootstrap;
-        owner = cfg.user;
-        group = cfg.group;
-      }
-    ))
-  ];
+  };
 }

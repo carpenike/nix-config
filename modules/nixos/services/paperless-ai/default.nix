@@ -1,3 +1,5 @@
+# modules/nixos/services/paperless-ai/default.nix
+#
 # Paperless-AI - AI-powered document tagging for Paperless-ngx
 # https://github.com/clusterzx/paperless-ai
 #
@@ -10,6 +12,7 @@
 # Data: /app/data (SQLite database for state tracking)
 # Auth: No native OIDC - use caddySecurity for SSO
 #
+# Factory-based implementation (see lib/service-factory.nix).
 { lib
 , mylib
 , pkgs
@@ -17,40 +20,63 @@
 , podmanLib
 , ...
 }:
-let
-  sharedTypes = mylib.types;
-  # Storage helpers via mylib injection (centralized import)
-  storageHelpers = mylib.storageHelpers pkgs;
 
-  cfg = config.modules.services.paperless-ai;
-  notificationsCfg = config.modules.notifications;
-  storageCfg = config.modules.storage;
-  hasCentralizedNotifications = notificationsCfg.enable or false;
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-  serviceName = "paperless-ai";
-  paperlessAiPort = cfg.port;
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-${serviceName}.service";
-  datasetPath = "${storageCfg.datasets.parentDataset}/${serviceName}";
+  name = "paperless-ai";
+  description = "Paperless-AI";
 
-  # Build replication config for preseed (walks up dataset tree to find inherited config)
-  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
-in
-{
-  options.modules.services.paperless-ai = {
-    enable = lib.mkEnableOption "Paperless-AI document tagging service";
+  spec = {
+    # Core service configuration. The container internally always runs on
+    # port 3000; cfg.port is the external mapping.
+    port = 3000;
+    image = "clusterzx/paperless-ai:3.0.9";
+    operationalProfile = "productivity";
+    displayName = "Paperless-AI";
+    function = "document_tagging";
 
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/paperless-ai";
-      description = "Path to Paperless-AI data directory (maps to /app/data in container)";
+    # Health check: verify web UI is responding (uses upstream /health endpoint)
+    healthCommand = "curl -f http://127.0.0.1:3000/health || exit 1";
+    startPeriod = "60s";
+
+    # ZFS tuning - optimal for SQLite database
+    zfsRecordSize = "16K";
+
+    resources = {
+      memory = "256M";
+      memoryReservation = "128M";
+      cpus = "0.5";
     };
 
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 3000;
-      description = "Port for Paperless-AI web interface";
-    };
+    # Runs as the (shared) paperless user via a numeric --user flag added
+    # below - the username does not exist inside the image, so the factory's
+    # name-based --user flag cannot be used. The PUID/PGID injection is
+    # neutralized in extraConfig.
+    runAsRoot = true;
 
+    # Data lives at /app/data plus several writable subdirectory mounts.
+    skipDefaultConfigMount = true;
+    volumes = cfg: [
+      "${cfg.dataDir}:/app/data:rw"
+      # Mount SOPS-rendered .env file directly (symlinks don't work in containers)
+      "${config.sops.templates."paperless-ai-env".path}:/app/data/.env:ro"
+      # Additional writable paths (container expects to write here)
+      "${cfg.dataDir}/logs:/app/logs:rw"
+      "${cfg.dataDir}/.pm2:/app/.pm2:rw"
+      "${cfg.dataDir}/nltk_data:/app/nltk_data:rw"
+      "${cfg.dataDir}/openapi:/app/OPENAPI:rw"
+      # Only mount images subdir - /app/public contains static CSS/JS assets
+      "${cfg.dataDir}/public-images:/app/public/images:rw"
+    ];
+
+    extraOptions = { cfg, config, ... }: [
+      # Use UID:GID (writable paths redirected to /app/data via env vars)
+      "--user=${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}"
+    ];
+  };
+
+  extraOptions = {
     user = lib.mkOption {
       type = lib.types.str;
       default = "paperless";
@@ -67,22 +93,6 @@ in
         Group under which Paperless-AI runs.
         Defaults to 'paperless' to share permissions with paperless-ngx.
       '';
-    };
-
-    image = lib.mkOption {
-      type = lib.types.str;
-      default = "clusterzx/paperless-ai:3.0.9";
-      description = ''
-        Full container image name including tag.
-        Use Renovate bot to automate version updates.
-      '';
-      example = "clusterzx/paperless-ai:3.0.9@sha256:...";
-    };
-
-    timezone = lib.mkOption {
-      type = lib.types.str;
-      default = "America/New_York";
-      description = "Timezone for the container";
     };
 
     # =========================================================================
@@ -355,43 +365,10 @@ in
       '';
     };
 
-    # =========================================================================
-    # Container Configuration
-    # =========================================================================
-    resources = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = {
-        memory = "256M";
-        memoryReservation = "128M";
-        cpus = "0.5";
-      };
-      description = "Resource limits for the container";
-    };
-
-    healthcheck = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
-      default = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "60s";
-      };
-      description = "Container health check configuration";
-    };
-
-    # =========================================================================
-    # Standardized Submodules
-    # =========================================================================
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration for Paperless-AI web interface";
-    };
-
+    # Preserve the pre-factory backup defaults.
     backup = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
+      type = lib.types.nullOr mylib.types.backupSubmodule;
+      default = {
         enable = lib.mkDefault true;
         repository = lib.mkDefault "nas-primary";
         frequency = lib.mkDefault "daily";
@@ -405,310 +382,148 @@ in
       description = "Backup configuration for Paperless-AI";
     };
 
-    notifications = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = {
-        enable = true;
-        channels = {
-          onFailure = [ "service-alerts" ];
-        };
-        customMessages = {
-          failure = "Paperless-AI service failed on ${config.networking.hostName}";
-        };
-      };
-      description = "Notification configuration for Paperless-AI service events";
-    };
-
-    preseed = {
-      enable = lib.mkEnableOption "automatic data restore before service start";
-      repositoryUrl = lib.mkOption {
-        type = lib.types.str;
-        description = "Restic repository URL for restore operations";
-      };
-      passwordFile = lib.mkOption {
-        type = lib.types.path;
-        description = "Path to Restic password file";
-      };
-      environmentFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = "Optional environment file for Restic (e.g., for B2 credentials)";
-      };
-      restoreMethods = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
-        default = [ "syncoid" "local" "restic" ];
-        description = ''
-          Order and selection of restore methods to attempt.
-        '';
-      };
+    # Paperless-AI exposes no Prometheus metrics endpoint - keep metrics opt-in.
+    metrics = lib.mkOption {
+      type = lib.types.nullOr mylib.types.metricsSubmodule;
+      default = null;
+      description = "Prometheus metrics collection configuration (Paperless-AI has no native metrics)";
     };
   };
 
-  config = lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      # =========================================================================
-      # Assertions
-      # =========================================================================
-      assertions = [
-        {
-          assertion = cfg.paperless.apiUrl != "";
-          message = "Paperless-AI requires paperless.apiUrl to be set.";
-        }
-        {
-          assertion = cfg.llm.provider != "custom" || cfg.llm.baseUrl != null;
-          message = "Paperless-AI with 'custom' LLM provider requires llm.baseUrl to be set.";
-        }
-        {
-          assertion = cfg.backup == null || !cfg.backup.enable || cfg.backup.repository != null;
-          message = "Paperless-AI backup.enable requires backup.repository to be set.";
-        }
-        {
-          assertion = !cfg.preseed.enable || cfg.preseed.repositoryUrl != "";
-          message = "Paperless-AI preseed.enable requires preseed.repositoryUrl to be set.";
-        }
+  extraConfig = cfg: {
+    assertions = [
+      {
+        assertion = cfg.paperless.apiUrl != "";
+        message = "Paperless-AI requires paperless.apiUrl to be set.";
+      }
+      {
+        assertion = cfg.llm.provider != "custom" || cfg.llm.baseUrl != null;
+        message = "Paperless-AI with 'custom' LLM provider requires llm.baseUrl to be set.";
+      }
+    ];
+
+    # The service runs as the existing paperless user (created by
+    # paperless-ngx); the factory still declares a paperless-ai user entry,
+    # which must not pin the registry-less fallback UID.
+    users.users.paperless-ai.uid = lib.mkForce null;
+
+    # Pre-factory dataset properties (atime off for the SQLite workload)
+    modules.storage.datasets.services.paperless-ai.properties = {
+      "com.sun:auto-snapshot" = "true";
+      atime = "off";
+    };
+
+    # Create subdirectories that are volume-mounted into the container.
+    # These must exist before the container starts.
+    systemd.tmpfiles.rules = [
+      "d ${cfg.dataDir}/logs 0750 ${cfg.user} ${cfg.group} -"
+      "d ${cfg.dataDir}/.pm2 0750 ${cfg.user} ${cfg.group} -"
+      "d ${cfg.dataDir}/nltk_data 0750 ${cfg.user} ${cfg.group} -"
+      "d ${cfg.dataDir}/openapi 0750 ${cfg.user} ${cfg.group} -"
+      # Only mount images subdir - /app/public contains static assets we must not overwrite
+      "d ${cfg.dataDir}/public-images 0750 ${cfg.user} ${cfg.group} -"
+    ];
+
+    # =========================================================================
+    # SOPS Template for .env Configuration File
+    # =========================================================================
+    # paperless-ai reads configuration from /app/data/.env file, not from
+    # environment variables. We mount this file directly into the container.
+    sops.templates."paperless-ai-env" = {
+      owner = "root";
+      group = "root";
+      mode = "0444"; # Readable by container user
+      content = ''
+        # Initial Setup - always 'no' since .env is read-only (managed by NixOS/SOPS)
+        # All configuration must be done via NixOS module options
+        PAPERLESS_AI_INITIAL_SETUP=no
+
+        # Paperless-ngx Integration
+        PAPERLESS_API_URL=${cfg.paperless.apiUrl}
+        PAPERLESS_API_TOKEN=${config.sops.placeholder."paperless-ai/paperless_token"}
+        PAPERLESS_USERNAME=${cfg.paperless.username}
+        # Python RAG service uses different env var names
+        PAPERLESS_URL=${cfg.paperless.apiUrl}
+
+        # LLM Configuration
+        AI_PROVIDER=${cfg.llm.provider}
+        ${lib.optionalString (cfg.llm.baseUrl != null) "CUSTOM_BASE_URL=${cfg.llm.baseUrl}"}
+        CUSTOM_MODEL=${cfg.llm.model}
+        ${lib.optionalString (cfg.llm.apiKeyFile != null) "CUSTOM_API_KEY=${config.sops.placeholder."paperless-ai/llm_api_key"}"}
+        # Some backends also check these env vars
+        OPENAI_API_KEY=
+        OPENAI_MODEL=
+
+        # Scanning Configuration
+        SCAN_INTERVAL=${cfg.scan.interval}
+        ADD_AI_PROCESSED_TAG=${if cfg.scan.addAiProcessedTag then "yes" else "no"}
+        AI_PROCESSED_TAG_NAME=${cfg.scan.aiProcessedTagName}
+        USE_EXISTING_DATA=${if cfg.scan.useExistingData then "yes" else "no"}
+        PROCESS_PREDEFINED_DOCUMENTS=${if cfg.scan.processPredefinedDocuments then "yes" else "no"}
+
+        # Tag Configuration
+        TAGS=${lib.concatStringsSep "," cfg.tags.trigger}
+        USE_PROMPT_TAGS=${if cfg.tags.usePromptTags then "yes" else "no"}
+        PROMPT_TAGS=${lib.concatStringsSep "," cfg.tags.promptTags}
+
+        # AI Function Limits
+        ACTIVATE_TAGGING=${if cfg.aiFunctions.tagging then "yes" else "no"}
+        ACTIVATE_CORRESPONDENTS=${if cfg.aiFunctions.correspondents then "yes" else "no"}
+        ACTIVATE_DOCUMENT_TYPE=${if cfg.aiFunctions.documentType then "yes" else "no"}
+        ACTIVATE_TITLE=${if cfg.aiFunctions.title then "yes" else "no"}
+        ACTIVATE_CUSTOM_FIELDS=${if cfg.aiFunctions.customFields then "yes" else "no"}
+
+        # System Prompt (newlines escaped for .env format)
+        SYSTEM_PROMPT=${lib.replaceStrings ["\n"] ["\\n"] cfg.systemPrompt}
+
+        # API Authentication (for paperless-ai's own API endpoints)
+        ${lib.optionalString (cfg.apiKeyFile != null) ''API_KEY=${config.sops.placeholder."paperless-ai/api_key"}''}
+
+        # System Configuration
+        TZ=${cfg.timezone}
+      '';
+    };
+
+    virtualisation.oci-containers.containers.paperless-ai = {
+      # Configuration is read from /app/data/.env file; only system-level env
+      # vars needed here for path redirects. Replaces the factory's
+      # PUID/PGID injection for runAsRoot containers.
+      environment = lib.mkForce {
+        TZ = cfg.timezone;
+
+        # Writable paths are mounted from dataDir (allows running as non-root)
+        # These env vars ensure apps write to mounted locations
+        HOME = "/app/data";
+        PM2_HOME = "/app/.pm2"; # Mounted from dataDir/.pm2
+        NLTK_DATA = "/app/nltk_data"; # Mounted from dataDir/nltk_data
+      };
+      # Only bind to localhost - external access goes through the reverse proxy.
+      ports = lib.mkForce [
+        "127.0.0.1:${toString cfg.port}:3000"
       ];
+    };
 
-      # =========================================================================
-      # Caddy Reverse Proxy Registration
-      # =========================================================================
-      modules.services.caddy.virtualHosts.${serviceName} = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
-        backend = {
-          scheme = "http";
-          host = "127.0.0.1";
-          port = paperlessAiPort;
-        };
-        auth = cfg.reverseProxy.auth;
-        caddySecurity = cfg.reverseProxy.caddySecurity;
-        security = cfg.reverseProxy.security;
-        reverseProxyBlock = cfg.reverseProxy.reverseProxyBlock or "";
-        extraConfig = cfg.reverseProxy.extraConfig;
-      };
+    # Wait for SOPS to create the .env file
+    systemd.services."${config.virtualisation.oci-containers.backend}-paperless-ai" = {
+      wants = [ "sops-nix.service" ];
+      after = [ "sops-nix.service" ];
+    };
 
-      # =========================================================================
-      # ZFS Dataset
-      # =========================================================================
-      modules.storage.datasets.services.${serviceName} = {
-        mountpoint = cfg.dataDir;
-        recordsize = "16K"; # Optimal for SQLite database
-        compression = "zstd";
-        properties = {
-          "com.sun:auto-snapshot" = "true";
-          atime = "off";
-        };
-        owner = cfg.user;
-        group = cfg.group;
-        mode = "0750";
-      };
+    # Preserve the pre-factory notification wording
+    modules.notifications.templates."paperless-ai-failure" =
+      lib.mkIf (config.modules.notifications.enable or false && cfg.notifications != null && cfg.notifications.enable) {
+        body = ''
+          <b>Host:</b> ''${hostname}
+          <b>Service:</b> <code>''${serviceName}</code>
 
-      # =========================================================================
-      # User (uses existing paperless user by default)
-      # =========================================================================
-      # Note: User/group typically already exist from paperless-ngx
-      # Only create if using a different user
-      users.users.${cfg.user} = lib.mkIf (cfg.user != "paperless") {
-        isSystemUser = true;
-        group = cfg.group;
-        description = "Paperless-AI service user";
-      };
+          The Paperless-AI document tagging service has entered a failed state.
 
-      users.groups.${cfg.group} = lib.mkIf (cfg.group != "paperless") { };
-
-      # =========================================================================
-      # Tmpfiles Rules for Writable Subdirectories
-      # =========================================================================
-      # Create subdirectories that are volume-mounted into the container
-      # These must exist before the container starts
-      systemd.tmpfiles.rules = [
-        "d ${cfg.dataDir}/logs 0750 ${cfg.user} ${cfg.group} -"
-        "d ${cfg.dataDir}/.pm2 0750 ${cfg.user} ${cfg.group} -"
-        "d ${cfg.dataDir}/nltk_data 0750 ${cfg.user} ${cfg.group} -"
-        "d ${cfg.dataDir}/openapi 0750 ${cfg.user} ${cfg.group} -"
-        # Only mount images subdir - /app/public contains static assets we must not overwrite
-        "d ${cfg.dataDir}/public-images 0750 ${cfg.user} ${cfg.group} -"
-      ];
-
-      # =========================================================================
-      # SOPS Template for .env Configuration File
-      # =========================================================================
-      # paperless-ai reads configuration from /app/data/.env file, not from
-      # environment variables. We mount this file directly into the container.
-      sops.templates."${serviceName}-env" = {
-        owner = "root";
-        group = "root";
-        mode = "0444"; # Readable by container user
-        content = ''
-          # Initial Setup - always 'no' since .env is read-only (managed by NixOS/SOPS)
-          # All configuration must be done via NixOS module options
-          PAPERLESS_AI_INITIAL_SETUP=no
-
-          # Paperless-ngx Integration
-          PAPERLESS_API_URL=${cfg.paperless.apiUrl}
-          PAPERLESS_API_TOKEN=${config.sops.placeholder."paperless-ai/paperless_token"}
-          PAPERLESS_USERNAME=${cfg.paperless.username}
-          # Python RAG service uses different env var names
-          PAPERLESS_URL=${cfg.paperless.apiUrl}
-
-          # LLM Configuration
-          AI_PROVIDER=${cfg.llm.provider}
-          ${lib.optionalString (cfg.llm.baseUrl != null) "CUSTOM_BASE_URL=${cfg.llm.baseUrl}"}
-          CUSTOM_MODEL=${cfg.llm.model}
-          ${lib.optionalString (cfg.llm.apiKeyFile != null) "CUSTOM_API_KEY=${config.sops.placeholder."paperless-ai/llm_api_key"}"}
-          # Some backends also check these env vars
-          OPENAI_API_KEY=
-          OPENAI_MODEL=
-
-          # Scanning Configuration
-          SCAN_INTERVAL=${cfg.scan.interval}
-          ADD_AI_PROCESSED_TAG=${if cfg.scan.addAiProcessedTag then "yes" else "no"}
-          AI_PROCESSED_TAG_NAME=${cfg.scan.aiProcessedTagName}
-          USE_EXISTING_DATA=${if cfg.scan.useExistingData then "yes" else "no"}
-          PROCESS_PREDEFINED_DOCUMENTS=${if cfg.scan.processPredefinedDocuments then "yes" else "no"}
-
-          # Tag Configuration
-          TAGS=${lib.concatStringsSep "," cfg.tags.trigger}
-          USE_PROMPT_TAGS=${if cfg.tags.usePromptTags then "yes" else "no"}
-          PROMPT_TAGS=${lib.concatStringsSep "," cfg.tags.promptTags}
-
-          # AI Function Limits
-          ACTIVATE_TAGGING=${if cfg.aiFunctions.tagging then "yes" else "no"}
-          ACTIVATE_CORRESPONDENTS=${if cfg.aiFunctions.correspondents then "yes" else "no"}
-          ACTIVATE_DOCUMENT_TYPE=${if cfg.aiFunctions.documentType then "yes" else "no"}
-          ACTIVATE_TITLE=${if cfg.aiFunctions.title then "yes" else "no"}
-          ACTIVATE_CUSTOM_FIELDS=${if cfg.aiFunctions.customFields then "yes" else "no"}
-
-          # System Prompt (newlines escaped for .env format)
-          SYSTEM_PROMPT=${lib.replaceStrings ["\n"] ["\\n"] cfg.systemPrompt}
-
-          # API Authentication (for paperless-ai's own API endpoints)
-          ${lib.optionalString (cfg.apiKeyFile != null) ''API_KEY=${config.sops.placeholder."paperless-ai/api_key"}''}
-
-          # System Configuration
-          TZ=${cfg.timezone}
+          <b>Quick Actions:</b>
+          1. Check logs:
+             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+          2. Restart service:
+             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
         '';
       };
-
-      # =========================================================================
-      # Container Configuration
-      # =========================================================================
-      virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
-        image = cfg.image;
-        # Configuration is read from /app/data/.env file
-        # Only system-level env vars needed here for path redirects
-        environment = {
-          TZ = cfg.timezone;
-
-          # Writable paths are mounted from dataDir (allows running as non-root)
-          # These env vars ensure apps write to mounted locations
-          HOME = "/app/data";
-          PM2_HOME = "/app/.pm2"; # Mounted from ${dataDir}/.pm2
-          NLTK_DATA = "/app/nltk_data"; # Mounted from ${dataDir}/nltk_data
-        };
-
-        volumes = [
-          "${cfg.dataDir}:/app/data:rw"
-          # Mount SOPS-rendered .env file directly (symlinks don't work in containers)
-          "${config.sops.templates."${serviceName}-env".path}:/app/data/.env:ro"
-          # Additional writable paths (container expects to write here)
-          "${cfg.dataDir}/logs:/app/logs:rw"
-          "${cfg.dataDir}/.pm2:/app/.pm2:rw"
-          "${cfg.dataDir}/nltk_data:/app/nltk_data:rw"
-          "${cfg.dataDir}/openapi:/app/OPENAPI:rw"
-          # Only mount images subdir - /app/public contains static CSS/JS assets
-          "${cfg.dataDir}/public-images:/app/public/images:rw"
-        ];
-
-        ports = [
-          "127.0.0.1:${toString paperlessAiPort}:3000"
-        ];
-
-        resources = cfg.resources;
-
-        extraOptions = [
-          "--pull=newer"
-          # Use UID:GID (writable paths redirected to /app/data via env vars)
-          "--user=${toString config.users.users.${cfg.user}.uid}:${toString config.users.groups.${cfg.group}.gid}"
-        ] ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-          # Health check: verify web UI is responding (uses upstream /health endpoint)
-          # Note: Container internally always runs on port 3000, cfg.port is external mapping
-          ''--health-cmd=curl -f http://127.0.0.1:3000/health || exit 1''
-          "--health-interval=${cfg.healthcheck.interval}"
-          "--health-timeout=${cfg.healthcheck.timeout}"
-          "--health-retries=${toString cfg.healthcheck.retries}"
-          "--health-start-period=${cfg.healthcheck.startPeriod}"
-          "--health-on-failure=${cfg.healthcheck.onFailure}"
-        ];
-      };
-
-      # =========================================================================
-      # Systemd Service Configuration
-      # =========================================================================
-      systemd.services."${config.virtualisation.oci-containers.backend}-${serviceName}" = lib.mkMerge [
-        # Core dependencies - wait for SOPS to create .env file
-        {
-          wants = [ "sops-nix.service" ];
-          after = [ "sops-nix.service" ];
-        }
-        # Failure notifications
-        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-          unitConfig.OnFailure = [ "notify@${serviceName}-failure:%n.service" ];
-        })
-        # Preseed dependency
-        (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-${serviceName}.service" ];
-          after = [ "preseed-${serviceName}.service" ];
-        })
-      ];
-
-      # =========================================================================
-      # Notification Template
-      # =========================================================================
-      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        "${serviceName}-failure" = {
-          enable = lib.mkDefault true;
-          priority = lib.mkDefault "high";
-          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Paperless-AI</font></b>'';
-          body = lib.mkDefault ''
-            <b>Host:</b> ''${hostname}
-            <b>Service:</b> <code>''${serviceName}</code>
-
-            The Paperless-AI document tagging service has entered a failed state.
-
-            <b>Quick Actions:</b>
-            1. Check logs:
-               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-            2. Restart service:
-               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-          '';
-        };
-      };
-    })
-
-    # =========================================================================
-    # Preseed Service
-    # =========================================================================
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        inherit serviceName;
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
-          recordsize = "16K";
-          compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
-        };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        hasCentralizedNotifications = hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
-      }
-    ))
-  ];
+  };
 }

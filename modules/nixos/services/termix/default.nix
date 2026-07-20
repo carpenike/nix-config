@@ -1,3 +1,5 @@
+# modules/nixos/services/termix/default.nix
+#
 # Termix - Self-hosted SSH web terminal and server management platform
 #
 # Termix provides SSH terminal access, tunnel management, remote file manager,
@@ -5,7 +7,8 @@
 #
 # Reference: https://github.com/Termix-SSH/Termix
 # Docs: https://docs.termix.site/
-
+#
+# Factory-based implementation (see lib/service-factory.nix).
 { lib
 , mylib
 , pkgs
@@ -13,52 +16,55 @@
 , podmanLib
 , ...
 }:
+
 let
-  # Storage helpers via mylib injection (centralized import)
-  storageHelpers = mylib.storageHelpers pkgs;
-  # Import service UIDs from centralized registry
   serviceIds = mylib.serviceUids.termix;
-
-  # Import shared type definitions
-  sharedTypes = mylib.types;
-
-  cfg = config.modules.services.termix;
-  notificationsCfg = config.modules.notifications;
-  storageCfg = config.modules.storage;
-
-  hasCentralizedNotifications = notificationsCfg.enable or false;
-
-  # Default port changed from 8080 (conflicts with qbittorrent) to 8095
-  termixPort = cfg.port;
-
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-termix.service";
-  datasetPath = "${storageCfg.datasets.parentDataset}/termix";
-
-  # Build replication config for preseed
-  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
+  # Resolved lazily after option evaluation - safe to reference here.
+  termixPort = config.modules.services.termix.port;
 in
-{
-  options.modules.services.termix = {
-    enable = lib.mkEnableOption "termix SSH web terminal";
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-    dataDir = lib.mkOption {
-      type = lib.types.path;
-      default = "/var/lib/termix";
-      description = "Path to Termix data directory (SQLite database, uploads, config)";
+  name = "termix";
+  description = "Termix";
+
+  spec = {
+    # Core service configuration.
+    # Default port changed from upstream 8080 to avoid conflicts with qbittorrent.
+    port = 8095;
+    image = "ghcr.io/lukegus/termix:release-1.9.0@sha256:42649d815da4ee2cb71560b04a22641e54d993e05279908711d9056504487feb";
+    operationalProfile = "infrastructure";
+    displayName = "Termix";
+    function = "ssh_management";
+
+    startPeriod = "60s";
+
+    # Use Node.js for the health check since the container lacks wget/curl
+    healthCommand = ''node -e "fetch('http://127.0.0.1:${toString termixPort}/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"'';
+
+    # ZFS tuning - optimal for SQLite database
+    zfsRecordSize = "16K";
+
+    resources = {
+      memory = "512M";
+      memoryReservation = "256M";
+      cpus = "2.0";
     };
 
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "termix";
-      description = "User account under which Termix runs.";
-    };
+    # Container runs as root internally because the entrypoint script needs
+    # to modify nginx config. Security is maintained via:
+    # 1. Container isolation
+    # 2. Localhost-only port binding (127.0.0.1)
+    # 3. OIDC authentication
+    # The PUID/PGID injection is neutralized in extraConfig below; file
+    # ownership is handled by the idmapped volume mount instead.
+    runAsRoot = true;
 
-    group = lib.mkOption {
-      type = lib.types.str;
-      default = "termix";
-      description = "Group under which Termix runs.";
-    };
+    # Data lives at /app/data via an idmapped mount, not /config
+    skipDefaultConfigMount = true;
+  };
 
+  extraOptions = {
     uid = lib.mkOption {
       type = lib.types.int;
       default = serviceIds.uid;
@@ -69,31 +75,6 @@ in
       type = lib.types.int;
       default = serviceIds.gid;
       description = "GID for the Termix service group (from lib/service-uids.nix).";
-    };
-
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 8095;
-      description = ''
-        Port for the Termix web interface.
-        Default changed from upstream 8080 to avoid conflicts with qbittorrent.
-      '';
-    };
-
-    image = lib.mkOption {
-      type = lib.types.str;
-      default = "ghcr.io/lukegus/termix:release-1.9.0@sha256:42649d815da4ee2cb71560b04a22641e54d993e05279908711d9056504487feb";
-      description = ''
-        Full container image name including tag and digest.
-        Use Renovate bot to automate version updates with digest pinning.
-      '';
-      example = "ghcr.io/lukegus/termix:release-1.9.0@sha256:42649d815da4ee2cb71560b04a22641e54d993e05279908711d9056504487feb";
-    };
-
-    timezone = lib.mkOption {
-      type = lib.types.str;
-      default = "America/New_York";
-      description = "Timezone for the container";
     };
 
     # OIDC configuration for PocketID integration
@@ -126,279 +107,87 @@ in
       };
     };
 
-    resources = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = {
-        memory = "512M";
-        memoryReservation = "256M";
-        cpus = "2.0";
-      };
-      description = "Resource limits for the container";
-    };
-
-    healthcheck = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.healthcheckSubmodule;
-      default = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "60s";
-        onFailure = "kill";
-      };
-      description = "Container healthcheck configuration.";
-    };
-
-    # Standardized reverse proxy integration
-    reverseProxy = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.reverseProxySubmodule;
+    # Termix exposes no Prometheus metrics endpoint - keep metrics opt-in.
+    metrics = lib.mkOption {
+      type = lib.types.nullOr mylib.types.metricsSubmodule;
       default = null;
-      description = "Reverse proxy configuration for Termix web interface";
-    };
-
-    # Standardized backup integration
-    backup = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.backupSubmodule;
-      default = lib.mkIf cfg.enable {
-        enable = lib.mkDefault true;
-        repository = lib.mkDefault "nas-primary";
-        frequency = lib.mkDefault "daily";
-        tags = lib.mkDefault [ "infrastructure" "termix" "ssh-management" ];
-        useSnapshots = lib.mkDefault true;
-        zfsDataset = lib.mkDefault "tank/services/termix";
-        excludePatterns = lib.mkDefault [
-          "**/*.log"
-          "**/logs/**"
-        ];
-      };
-      description = "Backup configuration for Termix";
-    };
-
-    # Standardized notifications
-    notifications = lib.mkOption {
-      type = lib.types.nullOr sharedTypes.notificationSubmodule;
-      default = {
-        enable = true;
-        channels = {
-          onFailure = [ "infrastructure-alerts" ];
-        };
-        customMessages = {
-          failure = "Termix SSH terminal service failed on ${config.networking.hostName}";
-        };
-      };
-      description = "Notification configuration for Termix service events";
-    };
-
-    preseed = {
-      enable = lib.mkEnableOption "automatic data restore before service start";
-      repositoryUrl = lib.mkOption {
-        type = lib.types.str;
-        description = "Restic repository URL for restore operations";
-      };
-      passwordFile = lib.mkOption {
-        type = lib.types.path;
-        description = "Path to Restic password file";
-      };
-      environmentFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = "Optional environment file for Restic";
-      };
-      restoreMethods = lib.mkOption {
-        type = lib.types.listOf (lib.types.enum [ "syncoid" "local" "restic" ]);
-        default = [ "syncoid" "local" "restic" ];
-        description = "Order of restore methods to attempt.";
-      };
+      description = "Prometheus metrics collection configuration (Termix has no native metrics)";
     };
   };
 
-  config = lib.mkMerge [
-    (lib.mkIf cfg.enable {
-      # Assertions for configuration validation
-      assertions =
-        (lib.optional (cfg.backup != null && cfg.backup.enable) {
-          assertion = cfg.backup.repository != null;
-          message = "Termix backup.enable requires backup.repository to be set.";
-        })
-        ++ (lib.optional cfg.preseed.enable {
-          assertion = cfg.preseed.repositoryUrl != "";
-          message = "Termix preseed.enable requires preseed.repositoryUrl to be set.";
-        })
-        ++ (lib.optional cfg.preseed.enable {
-          assertion = builtins.isPath cfg.preseed.passwordFile || builtins.isString cfg.preseed.passwordFile;
-          message = "Termix preseed.enable requires preseed.passwordFile to be set.";
-        })
-        ++ (lib.optional cfg.oidc.enable {
-          assertion = cfg.oidc.serverUrl != "";
-          message = "Termix oidc.enable requires oidc.serverUrl to be set.";
-        })
-        ++ (lib.optional cfg.oidc.enable {
-          assertion = cfg.oidc.clientSecretFile != null;
-          message = "Termix oidc.enable requires oidc.clientSecretFile to be set.";
-        });
+  extraConfig = cfg: {
+    assertions =
+      (lib.optional cfg.oidc.enable {
+        assertion = cfg.oidc.serverUrl != "";
+        message = "Termix oidc.enable requires oidc.serverUrl to be set.";
+      })
+      ++ (lib.optional cfg.oidc.enable {
+        assertion = cfg.oidc.clientSecretFile != null;
+        message = "Termix oidc.enable requires oidc.clientSecretFile to be set.";
+      });
 
-      # Automatically register with Caddy reverse proxy if enabled
-      modules.services.caddy.virtualHosts.termix = lib.mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
-
-        backend = {
-          scheme = "http";
-          host = "127.0.0.1";
-          port = termixPort;
-        };
-
-        auth = cfg.reverseProxy.auth;
-        caddySecurity = cfg.reverseProxy.caddySecurity;
-        security = cfg.reverseProxy.security;
-        extraConfig = cfg.reverseProxy.extraConfig;
+    virtualisation.oci-containers.containers.termix = {
+      # The container runs as root internally; drop the PUID/PGID/UMASK
+      # variables that the factory injects for runAsRoot containers.
+      environment = lib.mkForce {
+        PORT = toString cfg.port;
+        TZ = cfg.timezone;
+        # Disable SSL - handled by Caddy reverse proxy
+        ENABLE_SSL = "false";
       };
-
-      # ZFS dataset for persistent storage
-      modules.storage.datasets.services.termix = {
-        mountpoint = cfg.dataDir;
-        recordsize = "16K"; # Optimal for SQLite database
-        compression = "zstd";
-        properties = {
-          "com.sun:auto-snapshot" = "true";
-        };
-        owner = cfg.user;
-        group = cfg.group;
-        mode = "0750";
-      };
-
-      # Create local user and group
-      users.users.${cfg.user} = {
-        uid = cfg.uid;
-        group = cfg.group;
-        isSystemUser = true;
-        description = "Termix service user";
-        home = "/var/empty";
-        createHome = false;
-      };
-
-      users.groups.${cfg.group} = {
-        gid = cfg.gid;
-      };
-
-      # Termix container configuration
-      virtualisation.oci-containers.containers.termix = podmanLib.mkContainer "termix" {
-        image = cfg.image;
-        environment = {
-          PORT = toString termixPort;
-          TZ = cfg.timezone;
-          # Disable SSL - handled by Caddy reverse proxy
-          ENABLE_SSL = "false";
-        };
-        environmentFiles = lib.optional cfg.oidc.enable "/run/termix/oidc.env";
-        volumes = [
-          "${cfg.dataDir}:/app/data:rw,idmap=uids=0-0-1#${toString cfg.uid}-1000-1;gids=0-0-1#${toString cfg.gid}-1000-1"
-        ];
-        ports = [
-          "127.0.0.1:${toString termixPort}:${toString termixPort}"
-        ];
-        resources = cfg.resources;
-        extraOptions =
-          [
-            "--pull=newer"
-            # Note: Container runs as root internally because the entrypoint script
-            # needs to modify nginx config. Security is maintained via:
-            # 1. Container isolation
-            # 2. Localhost-only port binding (127.0.0.1)
-            # 3. OIDC authentication via Caddy reverse proxy
-          ]
-          ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-            # Use Node.js for healthcheck since container lacks wget/curl
-            ''--health-cmd=node -e "fetch('http://127.0.0.1:${toString termixPort}/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"''
-            "--health-interval=${cfg.healthcheck.interval}"
-            "--health-timeout=${cfg.healthcheck.timeout}"
-            "--health-retries=${toString cfg.healthcheck.retries}"
-            "--health-start-period=${cfg.healthcheck.startPeriod}"
-            "--health-on-failure=${cfg.healthcheck.onFailure}"
-          ];
-      };
-
-      # Pre-start service to set up OIDC environment
-      systemd.services."${config.virtualisation.oci-containers.backend}-termix" = lib.mkMerge [
-        {
-          serviceConfig = {
-            # Create runtime directory for OIDC env file
-            RuntimeDirectory = "termix";
-            RuntimeDirectoryMode = "0700";
-          };
-          preStart = ''
-            # Migrate files created by the image's UID 1000 before the idmapped mount.
-            ${pkgs.coreutils}/bin/chown -R ${toString cfg.uid}:${toString cfg.gid} ${cfg.dataDir}
-
-            ${lib.optionalString cfg.oidc.enable ''
-            # Generate OIDC environment file with secret
-            cat > /run/termix/oidc.env << 'EOF'
-            OIDC_ENABLED=true
-            OIDC_ISSUER_URL=${cfg.oidc.serverUrl}
-            OIDC_CLIENT_ID=${cfg.oidc.clientId}
-            OIDC_REDIRECT_URI=https://${cfg.reverseProxy.hostName or "termix.local"}/auth/callback
-            OIDC_AUTO_REDIRECT=${if cfg.oidc.autoRedirect then "true" else "false"}
-            EOF
-            echo "OIDC_CLIENT_SECRET=$(cat ${cfg.oidc.clientSecretFile})" >> /run/termix/oidc.env
-            chmod 600 /run/termix/oidc.env
-            ''}
-          '';
-        }
-        # Add failure notifications via systemd
-        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-          unitConfig.OnFailure = [ "notify@termix-failure:%n.service" ];
-        })
-        # Add dependency on the preseed service
-        (lib.mkIf cfg.preseed.enable {
-          wants = [ "preseed-termix.service" ];
-          after = [ "preseed-termix.service" ];
-        })
+      environmentFiles = lib.optional cfg.oidc.enable "/run/termix/oidc.env";
+      # Idmapped mount: the image writes as UID 1000; map it to the termix
+      # service user on the host.
+      volumes = [
+        "${cfg.dataDir}:/app/data:rw,idmap=uids=0-0-1#${toString cfg.uid}-1000-1;gids=0-0-1#${toString cfg.gid}-1000-1"
       ];
+      # Only bind to localhost - external access goes through the reverse proxy.
+      ports = lib.mkForce [
+        "127.0.0.1:${toString cfg.port}:${toString cfg.port}"
+      ];
+    };
 
-      # Register notification template
-      modules.notifications.templates = lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        "termix-failure" = {
-          enable = lib.mkDefault true;
-          priority = lib.mkDefault "high";
-          title = lib.mkDefault ''<b><font color="red">✗ Service Failed: Termix</font></b>'';
-          body = lib.mkDefault ''
-            <b>Host:</b> ''${hostname}
-            <b>Service:</b> <code>''${serviceName}</code>
-
-            The Termix SSH web terminal service has entered a failed state.
-
-            <b>Quick Actions:</b>
-            1. Check logs:
-               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
-            2. Restart service:
-               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
-          '';
-        };
+    # Pre-start setup: data ownership migration and OIDC environment
+    systemd.services."${config.virtualisation.oci-containers.backend}-termix" = {
+      serviceConfig = {
+        # Create runtime directory for OIDC env file
+        RuntimeDirectory = "termix";
+        RuntimeDirectoryMode = "0700";
       };
-    })
+      preStart = ''
+        # Migrate files created by the image's UID 1000 before the idmapped mount.
+        ${pkgs.coreutils}/bin/chown -R ${toString cfg.uid}:${toString cfg.gid} ${cfg.dataDir}
 
-    # Add the preseed service
-    (lib.mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        serviceName = "termix";
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        mainServiceUnit = mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
-          recordsize = "16K";
-          compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
-        };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        hasCentralizedNotifications = hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
-      }
-    ))
-  ];
+        ${lib.optionalString cfg.oidc.enable ''
+        # Generate OIDC environment file with secret
+        cat > /run/termix/oidc.env << 'EOF'
+        OIDC_ENABLED=true
+        OIDC_ISSUER_URL=${cfg.oidc.serverUrl}
+        OIDC_CLIENT_ID=${cfg.oidc.clientId}
+        OIDC_REDIRECT_URI=https://${cfg.reverseProxy.hostName or "termix.local"}/auth/callback
+        OIDC_AUTO_REDIRECT=${if cfg.oidc.autoRedirect then "true" else "false"}
+        EOF
+        echo "OIDC_CLIENT_SECRET=$(cat ${cfg.oidc.clientSecretFile})" >> /run/termix/oidc.env
+        chmod 600 /run/termix/oidc.env
+        ''}
+      '';
+    };
+
+    # Preserve the pre-factory notification wording
+    modules.notifications.templates."termix-failure" =
+      lib.mkIf (config.modules.notifications.enable or false && cfg.notifications != null && cfg.notifications.enable) {
+        body = ''
+          <b>Host:</b> ''${hostname}
+          <b>Service:</b> <code>''${serviceName}</code>
+
+          The Termix SSH web terminal service has entered a failed state.
+
+          <b>Quick Actions:</b>
+          1. Check logs:
+             <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 100'</code>
+          2. Restart service:
+             <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
+        '';
+      };
+  };
 }
