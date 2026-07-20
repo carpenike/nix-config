@@ -30,7 +30,7 @@ mylib.mkContainerService {
   spec = {
     # Core service configuration
     port = 8787;
-    image = "ghcr.io/corentinth/enclosed:1.9.2@sha256:be7576d6d1074698bb572162eaa5fdefaabfb1b70bcb4a936d1f46ab07051285";
+    image = "ghcr.io/corentinth/enclosed:1.16.0@sha256:d1e78c34ae7027c0c7b7a9ba67f352520049b9f260560fb8a0b3b1c55488cdc8";
     operationalProfile = "productivity";
     displayName = "Enclosed";
     function = "note_sharing";
