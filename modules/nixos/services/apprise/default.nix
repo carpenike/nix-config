@@ -38,7 +38,7 @@ mylib.mkContainerService {
     # Note: Container version (1.3.0) differs from Python apprise package
     # version (1.9.5) - the apprise-api container is versioned independently.
     port = 8000;
-    image = "docker.io/caronc/apprise:v1.3.3@sha256:4bfeac268ba87b8e08e308c9aa0182fe99e9501ec464027afc333d1634e65977";
+    image = "docker.io/caronc/apprise:v1.5.1@sha256:1871ed736799f6320d5061b72a60507f62c8747026e830175dc4b9f8adbf78dd";
     operationalProfile = "infrastructure";
     displayName = "Apprise";
     function = "notification_gateway";
