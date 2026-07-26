@@ -101,7 +101,7 @@ in
   virtualisation.oci-containers.containers.${serviceName} = {
     # Upstream's latest channel currently has no equivalent release tag; pin
     # its content digest so Renovate can update it explicitly.
-    image = "ghcr.io/valhalla/valhalla-scripted:latest@sha256:0b71b01141327f0043bf823e282ee1969887186699cc261c9c44673bfbb68c3f";
+    image = "ghcr.io/valhalla/valhalla-scripted:latest@sha256:0674de00f3b764ff1ee8cfe1c8c11fd481125a5a85543291fa59b07f3479db3d";
     autoStart = true;
 
     environment = {
