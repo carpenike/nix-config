@@ -55,6 +55,13 @@ in
         enable = true;
         package = unstablePkgs.home-assistant;
 
+        # These live under !include_dir_named packages, so the NixOS module
+        # cannot discover them from declarativeConfig.
+        extraComponents = [
+          "command_line"
+          "rest"
+        ];
+
         # Firewall rules for LAN integrations
         homekit.openFirewall = true; # HomeKit bridge ports 21063-21068
         sonos.openFirewall = true; # Sonos callback port 1400
@@ -307,7 +314,6 @@ in
             govee-local-api
             govee-led-wez
             govee-ble
-            jsonpath
             aiohttp-sse
             mcp
             pyipp
