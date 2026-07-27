@@ -227,7 +227,8 @@ index 7b3d058..d11d957 100644
 
  pub struct SearchIndex {
      index: Index,
-@@ -196,19 +208,33 @@ impl SearchIndex {
+@@ -225,15 +237,33 @@ impl SearchIndex {
+                 self.schema.file_path,
              ],
          );
 
@@ -260,6 +261,12 @@ index 7b3d058..d11d957 100644
 +                    });
 +                }
 +            }
+         };
+
+         // AND an exact locale term onto the parsed query when filtering. The locale
+         // field is untokenized (exact match), so normalize the incoming filter to the
+@@ -251,10 +281,6 @@ impl SearchIndex {
+             None => tantivy_query,
          };
 
 -        // Calculate offset

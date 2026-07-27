@@ -8,15 +8,15 @@ rustPlatform.buildRustPackage {
   inherit (src) version;
   inherit (src) src;
 
-  cargoHash = "sha256-jPoDiAAY6tGEYiRDrBETUZNXGfJ72n1m1zjjyrsXuBQ=";
+  cargoHash = "sha256-2W74W/Cx3GUWKxcvpTgp72J9vWCXF/LZiTkXwarp5tA=";
 
   # WORKAROUND (2026-02-11): Wire RSS-crawled recipes into the Tantivy search index.
   # Affects: cooklang-federation (search/filter for RSS-sourced recipes)
   # Upstream: not filed (https://github.com/cooklang/federation — repo has no
-  #   issue tracker enabled and is low-velocity; last commit 2026-04-13).
+  #   issue tracker enabled).
   # Check: re-evaluate when upstream `Crawler` gains a `search_index` field or
   #   when `index_recipes()` is called from `crawl_feed()`. As of upstream HEAD
-  #   d4131c0b (2026-04-13), only the GitHub indexer writes to Tantivy, so RSS
+  #   5d900752 (2026-07-12), only the GitHub indexer writes to Tantivy, so RSS
   #   recipes are invisible to `/search` without this patch. The patch also
   #   adds the INDEXED flag to `servings`/`total_time` so range queries work.
   # See: docs/workarounds.md

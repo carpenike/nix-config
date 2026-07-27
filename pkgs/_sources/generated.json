@@ -22,7 +22,7 @@
     },
     "cooklang-federation": {
         "cargoLock": null,
-        "date": "2026-04-13",
+        "date": "2026-07-12",
         "extract": null,
         "name": "cooklang-federation",
         "passthru": null,
@@ -34,12 +34,12 @@
             "name": null,
             "owner": "cooklang",
             "repo": "federation",
-            "rev": "d4131c0b99ea6cf49db4ab0bd0be3c1b03a3a43e",
-            "sha256": "sha256-VJIse86XOfHaSJzroA2gY0+yGL4g8atT8PIFpvuZ2/I=",
+            "rev": "5d9007525b08bfd861fb8d0e556385d0a0b9f247",
+            "sha256": "sha256-qHcKrqXK+98ZGhUT4s/Wg+zoo0Ewp2m7D/kMHHrJpQo=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "d4131c0b99ea6cf49db4ab0bd0be3c1b03a3a43e"
+        "version": "5d9007525b08bfd861fb8d0e556385d0a0b9f247"
     },
     "shcopy": {
         "cargoLock": null,
@@ -118,11 +118,11 @@
             "name": null,
             "owner": "jdx",
             "repo": "usage",
-            "rev": "v3.5.4",
-            "sha256": "sha256-fqBcdbhoFOnlPqRSSaKPhG6IYilQHvwjgUGEkwQfBQY=",
+            "rev": "v4.0.0",
+            "sha256": "sha256-OY+cwnwaJ9WBufCVp8x1SloWfAwH8obSfinDhdFbSM8=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v3.5.4"
+        "version": "v4.0.0"
     }
 }
