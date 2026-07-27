@@ -41,6 +41,7 @@ in
         settings = {
           AMBIT_OIDC_ISSUER = "https://id.${config.networking.domain}";
           AMBIT_OIDC_CLIENT_ID = serviceName;
+          PUBLIC_READ = true;
         };
 
         environmentFile = config.sops.templates."ambit-env".path;
