@@ -398,8 +398,8 @@ in
                 };
               };
             };
-            default = { };
-            description = "Resource limits for backup job";
+            default = cfg.performance.resources;
+            description = "Resource limits for backup job (defaults to global performance resources)";
           };
 
           useSnapshots = lib.mkOption {

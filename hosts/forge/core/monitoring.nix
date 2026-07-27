@@ -147,21 +147,30 @@
       };
     };
 
-    # High memory usage
-    # Note: NAS instances use the ZFS-aware NASHighMemory alert in nas-monitoring.nix
-    # which accounts for ARC cache being reclaimable under pressure
+    # High memory usage. Add reclaimable ZFS ARC when exported, while the zero
+    # fallback preserves standard MemAvailable accounting on non-ZFS hosts.
+    # NAS instances use the separate NASHighMemory alert in nas-monitoring.nix.
     "high-memory-usage" = {
       type = "promql";
       alertname = "HighMemoryUsage";
       expr = ''
-        (1 - (node_memory_MemAvailable_bytes{instance!~"nas-.*"} / node_memory_MemTotal_bytes{instance!~"nas-.*"})) > 0.90
+        (1 - (
+          (
+            node_memory_MemAvailable_bytes{instance!~"nas-.*"}
+            + on(instance) (
+              node_zfs_arc_size{instance!~"nas-.*"}
+              or on(instance) (0 * node_memory_MemAvailable_bytes{instance!~"nas-.*"})
+            )
+          )
+          / on(instance) node_memory_MemTotal_bytes{instance!~"nas-.*"}
+        )) > 0.90
       '';
       for = "10m";
       severity = "high";
       labels = { service = "system"; category = "performance"; };
       annotations = {
         summary = "High memory usage on {{ $labels.instance }}";
-        description = "Memory usage is {{ $value | humanizePercentage }}. Risk of OOM kills.";
+        description = "Effective memory usage is {{ $value | humanizePercentage }} after excluding reclaimable ZFS ARC where available. Risk of OOM kills.";
       };
     };
 

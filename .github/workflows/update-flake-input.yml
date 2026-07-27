@@ -29,6 +29,7 @@ on:
           - marginalia
           - homelab-mcp
           - coachiq
+          - ambit
   repository_dispatch:
     types: [flake-input-updated]
 
