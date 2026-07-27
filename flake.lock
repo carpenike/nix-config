@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785175193,
-        "narHash": "sha256-G1+vvOu4/21bvhCPSCHO2pDxHADvEjz+ChvpP+zgCuM=",
+        "lastModified": 1785175993,
+        "narHash": "sha256-fpRE3N/BNU7akoSdCb0rVfPxjELxUxASjEjz1XkAZes=",
         "owner": "carpenike",
         "repo": "ambit",
-        "rev": "d67f83e845ac11a488ca8df5c6aa6e44b8ec8256",
+        "rev": "b271d27f5d9e6d8fc97a89efc6909027152f0209",
         "type": "github"
       },
       "original": {
