@@ -69,12 +69,12 @@ When reviewing workarounds:
 | Field | Value |
 |-------|-------|
 | **Added** | 2026-02-11 |
-| **Last reviewed** | 2026-05-23 (still required at upstream HEAD `d4131c0b`) |
+| **Last reviewed** | 2026-07-27 (still required at upstream HEAD `5d900752`) |
 | **Location** | `pkgs/cooklang-federation.nix` + `pkgs/patches/cooklang-federation-normalize-field-query.patch` |
 | **Affects** | `cooklang-federation` recipe search (RSS-sourced recipes) |
 | **Reason** | Upstream `Crawler` (`src/crawler/mod.rs`) does **not** hold a `SearchIndex` reference and never writes to Tantivy after an RSS crawl. Only the GitHub indexer (`src/github/indexer.rs`) commits to the search index. Result on a vanilla build: every recipe pulled from an RSS feed is stored in SQLite but is **invisible to `/search`**. Additionally, the upstream schema defines `servings` and `total_time` as `FAST | STORED` only (no `INDEXED`), so range queries against those fields silently return nothing. |
 | **Workaround** | Local patch adds: (1) `search_index: Option<Arc<SearchIndex>>` field + `set_search_index()` setter on `Crawler`; (2) `process_entry` returns `(ProcessResult, recipe_id)`; (3) new `Crawler::index_recipes()` called after each `crawl_feed()` to commit new/updated recipes to Tantivy and mark them via `mark_recipe_indexed`; (4) GitHub indexer also calls `mark_recipe_indexed` + `search_index.reload()`; (5) schema gets `INDEXED` on `servings` and `total_time`. |
-| **Check** | At each nvfetcher bump: if upstream `Crawler` ever gains a `search_index` field or calls `index_recipes()` from `crawl_feed()`, drop the patch. Currently upstream is low-velocity (last commit 2026-04-13, ~4 commits in 2026) so churn risk is low. |
+| **Check** | At each nvfetcher bump: if upstream `Crawler` ever gains a `search_index` field or calls `index_recipes()` from `crawl_feed()`, drop the patch. As of `5d900752` (2026-07-12), upstream still stores RSS recipes only in SQLite and requires this patch to add them to Tantivy. |
 | **Upstream** | https://github.com/cooklang/federation (issue tracker is disabled; consider submitting as a PR if upstream re-enables contributions). |
 | **Impact** | Without fix: RSS-feed recipes never appear in search results; range filters on servings/cook time return empty. The patch IS the reason the service is useful on this host. |
 
