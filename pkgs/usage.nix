@@ -13,7 +13,7 @@ in
 rustPlatform.buildRustPackage rec {
   inherit (packageData) pname src;
   version = lib.strings.removePrefix "v" packageData.version;
-  cargoHash = "sha256-0j17jlqEy+zbtaIS+pKZKE73j/QMaAvEExoS2TTunEs=";
+  cargoHash = "sha256-vICOSUnHMzzg4LBdzImLSnRxxhnfzB0elXvirYkBPqM=";
 
   # WORKAROUND (2025-02-11): 4 tests fail in complete_word test suite
   # Affects: usage-cli v2.16.1

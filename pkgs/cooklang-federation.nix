@@ -8,7 +8,7 @@ rustPlatform.buildRustPackage {
   inherit (src) version;
   inherit (src) src;
 
-  cargoHash = "sha256-jPoDiAAY6tGEYiRDrBETUZNXGfJ72n1m1zjjyrsXuBQ=";
+  cargoHash = "sha256-2W74W/Cx3GUWKxcvpTgp72J9vWCXF/LZiTkXwarp5tA=";
 
   # WORKAROUND (2026-02-11): Wire RSS-crawled recipes into the Tantivy search index.
   # Affects: cooklang-federation (search/filter for RSS-sourced recipes)
