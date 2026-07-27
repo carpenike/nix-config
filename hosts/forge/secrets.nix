@@ -18,6 +18,7 @@ let
   cooklangEnabled = config.modules.services.cooklang.enable or false;
   cooklangFederationEnabled = config.modules.services.cooklangFederation.enable or false;
   homelabMcpEnabled = config.services.homelab-mcp.enable or false;
+  hermesAgentEnabled = config.services.hermes-agent.enable or false;
   grafanaEnabled = config.modules.services.grafana.enable or false;
   grafanaOncallEnabled = config.modules.services.grafana-oncall.enable or false;
   pocketIdEnabled = config.modules.services.pocketid.enable or false;
@@ -42,6 +43,7 @@ let
   quiEnabled = config.modules.services.qui.enable or false;
   unpackerrEnabled = config.modules.services.unpackerr.enable or false;
   whiskeyWhiskeyWhiskeyEnabled = config.services.whiskey-whiskey-whiskey.enable or false;
+  ambitEnabled = config.services.ambit.enable or false;
   # Opt-in: Partiful calendar sync for whiskey-whiskey-whiskey. See
   # hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
   # When true, the partiful_calendar_url SOPS key is required to exist.
@@ -907,6 +909,23 @@ in
             group = "root";
           };
         }
+        // optionalAttrs hermesAgentEnabled {
+          # Reuse the existing OpenRouter credential through a service-scoped
+          # alias so Hermes does not depend on Whiskey being enabled.
+          "hermes-agent/openrouter-api-key" = {
+            key = "whiskey-whiskey-whiskey/openrouter_api_key";
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Dedicated BotFather token for the Hermes Telegram adapter.
+          "hermes-agent/telegram-bot-token" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
           # Operation W.W.W. secrets. All seven are required at service start.
           # See hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
@@ -1036,6 +1055,37 @@ in
           # generate_op_cover call uses provider=openrouter. Consumed via the
           # env template below.
           "whiskey-whiskey-whiskey/openrouter_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
+        // optionalAttrs ambitEnabled {
+          # Password for the dedicated Ambit PostgreSQL role. Keep this value
+          # URL-safe because it is interpolated into DATABASE_URL below.
+          # Group readability is required by the database provisioning unit.
+          "ambit/db_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          # Shared household browser login passphrase.
+          "ambit/passphrase" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Cookie signing secret; generate with `openssl rand -hex 48`.
+          "ambit/session_secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Secret for Ambit's dedicated PocketID OIDC client.
+          "ambit/oidc_client_secret" = {
             mode = "0400";
             owner = "root";
             group = "root";
@@ -1272,6 +1322,18 @@ in
             group = "root";
           };
         }
+        // optionalAttrs hermesAgentEnabled {
+          "hermes-agent-env" = {
+            content = ''
+              OPENROUTER_API_KEY=${config.sops.placeholder."hermes-agent/openrouter-api-key"}
+              TELEGRAM_BOT_TOKEN=${config.sops.placeholder."hermes-agent/telegram-bot-token"}
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "hermes-agent.service" ];
+          };
+        }
         // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
           # EnvironmentFile assembled at activation from individually-rotatable
           # SOPS secrets. systemd reads this before privileges drop into the
@@ -1309,6 +1371,22 @@ in
             # environment — e.g. a newly-added PLEX_TOKEN (or any rotated key)
             # is silently ignored until the next manual restart.
             restartUnits = [ "whiskey-whiskey-whiskey.service" ];
+          };
+        }
+        // optionalAttrs ambitEnabled {
+          # systemd reads this root-only EnvironmentFile before switching to
+          # Ambit's DynamicUser. Secret values never enter the Nix store.
+          "ambit-env" = {
+            content = ''
+              DATABASE_URL=postgresql://ambit:${config.sops.placeholder."ambit/db_password"}@127.0.0.1:5432/ambit
+              AMBIT_PASSPHRASE=${config.sops.placeholder."ambit/passphrase"}
+              SESSION_SECRET=${config.sops.placeholder."ambit/session_secret"}
+              AMBIT_OIDC_CLIENT_SECRET=${config.sops.placeholder."ambit/oidc_client_secret"}
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "ambit.service" ];
           };
         }
         // optionalAttrs marginaliaEnabled {

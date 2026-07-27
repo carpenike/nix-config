@@ -68,6 +68,7 @@ in
     ./services/qui-auto-recheck.nix # Auto-recheck cross-seeded torrents with missingFiles
     ./services/cloudflare-tunnel.nix # Cloudflare Tunnel for external access
     ./services/litellm.nix # LiteLLM unified AI gateway
+    ./services/hermes-agent.nix # Hermes Agent AI gateway
     ./services/sonarr.nix # Sonarr TV series management
     ./services/prowlarr.nix # Prowlarr indexer manager
     ./services/radarr.nix # Radarr movie manager
@@ -115,6 +116,7 @@ in
     ./services/termix.nix # Termix SSH web terminal
     ./services/whiskeywhiskeywhiskey.nix # Operation W.W.W. command center (carpenike/whiskey-whiskey-whiskey)
     ./services/marginalia.nix # Marginalia — cook log service (carpenike/marginalia)
+    ./services/ambit.nix # Ambit household outings planner (carpenike/ambit)
     ./services/replog.nix # RepLog — self-hosted family fitness tracker (carpenike/replog)
     ./services/worldmonitor.nix # World Monitor real-time intelligence dashboard
     ./services/valhalla.nix # Valhalla OSM routing / map-matching engine (CoachIQ snap-to-road)

@@ -126,6 +126,13 @@
 
     #################### Personal Repositories ####################
 
+    # Hermes Agent — persistent AI agent and messaging gateway
+    # https://github.com/NousResearch/hermes-agent
+    hermes-agent = {
+      url = "github:NousResearch/hermes-agent";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
+
     # whiskey-whiskey-whiskey — Operation W.W.W. Command Center
     # Self-hosted React + Fastify + SQLite + MCP app served from one Node process.
     # https://github.com/carpenike/whiskey-whiskey-whiskey
@@ -148,6 +155,14 @@
     # one-way (no dependency on Whiskey). https://github.com/carpenike/marginalia
     marginalia = {
       url = "github:carpenike/marginalia";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # ambit — half-day outings planner with a browser UI and MCP surface.
+    # Native PocketID OIDC + embedded OAuth AS; durable state lives in the
+    # shared forge PostgreSQL instance. https://github.com/carpenike/ambit
+    ambit = {
+      url = "github:carpenike/ambit";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

@@ -503,6 +503,13 @@
     extraGroups = [ ];
   };
 
+  hermes = {
+    uid = 942;
+    gid = 942;
+    description = "Hermes Agent AI gateway";
+    extraGroups = [ ];
+  };
+
   # ============================================================================
   # SERVICES NOT YET DEPLOYED (placeholders for future use)
   # These use idealized allocations - update when actually deployed
@@ -646,7 +653,7 @@
   # When adding a new service, use the next available UID in the 996+ range
   # and document the actual deployed values after first deployment.
   #
-  # Next available: 996
+  # Next available: 943
   # ============================================================================
 
   # ============================================================================
