@@ -17,6 +17,24 @@ When reviewing workarounds:
 
 ---
 
+## Pinned Flake Inputs
+
+### Hermes Agent - Cold-Store Evaluation Fix
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-07-27 |
+| **Location** | `flake.nix` (`inputs.hermes-agent`) and `flake.lock` |
+| **Affects** | Forge evaluation, all CI flake checks, and automated flake-input update PRs |
+| **Reason** | Hermes's filtered-source refactor passed `lib.fileset.toSource` results to evaluation-time consumers (`uv2nix`, `importNpmLock`, and `builtins.readFile`). A full parallel `nix flake check --no-build` on a cold store could try to read those generated paths before they were valid, failing with `error: path '<hash>-source' is not valid`. Warm stores masked the missing dependency context. |
+| **Workaround** | Pin `hermes-agent` to immutable fork commit [`8ab28b54`](https://github.com/carpenike/hermes-agent/commit/8ab28b54c67c02a5a8c95f9c75b5c8cc4080eb0f), which keeps metadata evaluation on the original flake source while applying filtered sources only at derivation boundaries. |
+| **Validation** | The original revision failed the complete nix-config flake check in a brand-new isolated Nix store. The pinned commit passed that exact cold-store command, Hermes's cross-platform package evaluation check, and a native Hermes Web build. |
+| **Check** | After upstream PR #72689 merges, restore `url = "github:NousResearch/hermes-agent"`, update only the Hermes lock node, and rerun the cold-store flake check before removing this entry. |
+| **Upstream** | [NousResearch/hermes-agent#72689](https://github.com/NousResearch/hermes-agent/pull/72689) |
+| **Impact** | Without the fix, every fresh GitHub runner fails before building and a cold Forge store cannot evaluate the system closure. |
+
+---
+
 ## Package Overrides (overlays/default.nix)
 
 ### Starship and Lima - Stable Darwin Linker for macOS 26
