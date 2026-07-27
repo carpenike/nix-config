@@ -15,7 +15,7 @@
 # 2. Run: nix build .#caddy   (or push the change and read the CI failure)
 # 3. Copy the expected hash from the error message into the `hash` field
 #
-{ pkgs, lib ? pkgs.lib }:
+{ pkgs }:
 
 pkgs.caddy.withPlugins {
   plugins = [
@@ -37,5 +37,7 @@ pkgs.caddy.withPlugins {
   # (plugin versions unchanged). Hash captured from forge build failure.
   # Updated 2026-07-04: caddy-security v1.1.62 → v1.1.64 (Renovate PR #527).
   # Hash captured from CI build failure.
-  hash = "sha256-mfW3VUkDs7q50ziTPAaZPOi2Cg6gykkPRjdTTM+Ixbg=";
+  # Updated 2026-07-26: hash drifted after the lockfile moved Caddy to 2.11.4
+  # (plugin versions unchanged). Hash captured from forge build failure.
+  hash = "sha256-g5nkznriJu/7pSY81na6iXC6fy8P0ipCeMUbum/WpU4=";
 }
