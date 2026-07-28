@@ -809,6 +809,9 @@ in
       # HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
       # TYPE pgbackrest_scrape_success gauge
       pgbackrest_scrape_success{stanza="main"} 0
+            # HELP pgbackrest_scrape_timestamp_seconds Timestamp of the last pgBackRest metrics attempt.
+            # TYPE pgbackrest_scrape_timestamp_seconds gauge
+            pgbackrest_scrape_timestamp_seconds{stanza="main"} $(date +%s)
       EOF
               mv "$METRICS_TEMP" "$METRICS_FILE"
               exit 0 # Exit successfully so systemd timer doesn't mark as failed
@@ -818,6 +821,8 @@ in
             cat > "$METRICS_TEMP" <<'EOF'
       # HELP pgbackrest_scrape_success Indicates if the pgBackRest info scrape was successful.
       # TYPE pgbackrest_scrape_success gauge
+      # HELP pgbackrest_scrape_timestamp_seconds Timestamp of the last pgBackRest metrics attempt.
+      # TYPE pgbackrest_scrape_timestamp_seconds gauge
       # HELP pgbackrest_repo_info Static information about pgBackRest repositories.
       # TYPE pgbackrest_repo_info gauge
       # HELP pgbackrest_stanza_status Stanza status code (0: ok, 1: warning, 2: error).
@@ -843,6 +848,7 @@ in
       EOF
 
             echo 'pgbackrest_scrape_success{stanza="main"} 1' >> "$METRICS_TEMP"
+            echo "pgbackrest_scrape_timestamp_seconds{stanza=\"main\"} $(date +%s)" >> "$METRICS_TEMP"
 
             # Repository info metrics with descriptive labels from environment
             echo "pgbackrest_repo_info{stanza=\"main\",repo_key=\"1\",repo_name=\"''${METRICS_REPO1_NAME:-repo1}\",repo_location=\"''${METRICS_REPO1_LOCATION:-unknown}\"} 1" >> "$METRICS_TEMP"
@@ -934,6 +940,28 @@ in
       annotations = {
         summary = "pgBackRest metrics collection failed on {{ $labels.instance }}";
         description = "Unable to scrape pgBackRest metrics. Check pgbackrest-metrics.service logs.";
+      };
+    };
+
+    "pgbackrest-metrics-stale" = {
+      type = "promql";
+      alertname = "PgBackRestMetricsStale";
+      expr = ''
+        (time() - pgbackrest_scrape_timestamp_seconds > 1800)
+        or on(instance)
+        (
+          node_systemd_unit_state{name="pgbackrest-metrics.timer",state=~"active|activating|deactivating|failed|inactive"} == 1
+          unless on(instance)
+          pgbackrest_scrape_timestamp_seconds
+        )
+      '';
+      for = "10m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "monitoring"; };
+      annotations = {
+        summary = "pgBackRest metrics are stale on {{ $labels.instance }}";
+        description = "The pgBackRest metrics timer has not completed an attempt in at least 30 minutes.";
+        command = "systemctl status pgbackrest-metrics.timer pgbackrest-metrics.service";
       };
     };
 

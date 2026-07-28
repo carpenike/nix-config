@@ -5,6 +5,7 @@
 }: {
   imports = [
     ./auto-upgrade.nix
+    ./deployment-guard.nix
     ./doas.nix
     ./impermanence.nix
     ./nix.nix

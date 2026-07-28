@@ -174,6 +174,9 @@ in
         limitNOFILE = 524288;
       };
 
+      # Keep backup timers quiesced during deployments and verify restoration.
+      deploymentGuard.enable = true;
+
       # Explicitly enable ZFS filesystem module
       filesystems.zfs = {
         enable = true;

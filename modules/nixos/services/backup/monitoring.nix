@@ -113,6 +113,13 @@ in
         (jobName: _jobDef: "restic_backup_${jobName}.prom")
         enabledJobs;
 
+      expectedJobMetrics = lib.concatStringsSep "\n" (
+        lib.mapAttrsToList
+          (jobName: jobDef:
+            ''restic_backup_job_info{backup_job="${jobName}",repository="${jobDef.repository}",hostname="${config.networking.hostName}"} 1'')
+          enabledJobs
+      );
+
       # Cleanup script for stale metric files
       cleanupScript = pkgs.writeShellScript "cleanup-restic-metrics" ''
         #!${pkgs.bash}/bin/bash
@@ -223,6 +230,10 @@ in
               echo "# HELP backup_monitoring_last_check Last health check timestamp"
               echo "# TYPE backup_monitoring_last_check gauge"
               echo "backup_monitoring_last_check{hostname=\"${config.networking.hostName}\"} $(date +%s)"
+
+              echo "# HELP restic_backup_job_info Whether a Restic backup job is declaratively enabled"
+              echo "# TYPE restic_backup_job_info gauge"
+              ${pkgs.coreutils}/bin/printf '%s\n' ${lib.escapeShellArg expectedJobMetrics}
             } > "$METRICS_FILE.tmp" && mv "$METRICS_FILE.tmp" "$METRICS_FILE"
           '';
         };
@@ -269,6 +280,24 @@ in
             summary = "Restic backup job {{ $labels.backup_job }} hasn't run in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours on {{ $labels.hostname }}";
             description = "Last successful backup: {{ $value | humanizeDuration }} ago. Check timer status and scheduling.";
             command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer && systemctl list-timers restic-backups-{{ $labels.backup_job }}.timer";
+          };
+        };
+
+        "restic-backup-success-missing" = {
+          type = "promql";
+          alertname = "ResticBackupSuccessMissing";
+          expr = ''
+            restic_backup_job_info
+            unless on(backup_job, hostname)
+            restic_backup_last_success_timestamp
+          '';
+          for = "1h";
+          severity = "high";
+          labels = { service = "backup"; category = "restic"; };
+          annotations = {
+            summary = "Restic backup job {{ $labels.backup_job }} has no success metric on {{ $labels.hostname }}";
+            description = "The job is declaratively enabled but has not reported a successful backup. Check its timer, service, and metric file.";
+            command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer restic-backups-{{ $labels.backup_job }}.service";
           };
         };
 

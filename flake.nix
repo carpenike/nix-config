@@ -529,17 +529,17 @@
                     service = forge.systemd.services."restic-backup-${jobName}";
                   in
                   job.useSnapshots
-                  && job.zfsDataset != null
-                  && builtins.hasAttr "zfs-snapshot-${jobName}" forge.systemd.services
-                  && (service.serviceConfig.AmbientCapabilities or [ ]) == [ "CAP_DAC_READ_SEARCH" ]
-                  && (service.serviceConfig.CapabilityBoundingSet or [ ]) == [ "CAP_DAC_READ_SEARCH" ]
-                  && builtins.elem "/etc:ro" (service.serviceConfig.TemporaryFileSystem or [ ])
-                  && builtins.elem "-/etc/resolv.conf" (service.serviceConfig.BindReadOnlyPaths or [ ])
-                  && builtins.elem (toString repository.passwordFile) (service.serviceConfig.BindReadOnlyPaths or [ ])
-                  && lib.any (lib.hasPrefix "SSL_CERT_FILE=") (service.serviceConfig.Environment or [ ])
-                  && service.serviceConfig.KillMode == "mixed"
-                  && !(service.serviceConfig ? ExecStartPost)
-                  && !(service.serviceConfig ? SuccessExitStatus);
+                    && job.zfsDataset != null
+                    && builtins.hasAttr "zfs-snapshot-${jobName}" forge.systemd.services
+                    && (service.serviceConfig.AmbientCapabilities or [ ]) == [ "CAP_DAC_READ_SEARCH" ]
+                    && (service.serviceConfig.CapabilityBoundingSet or [ ]) == [ "CAP_DAC_READ_SEARCH" ]
+                    && builtins.elem "/etc:ro" (service.serviceConfig.TemporaryFileSystem or [ ])
+                    && builtins.elem "-/etc/resolv.conf" (service.serviceConfig.BindReadOnlyPaths or [ ])
+                    && builtins.elem (toString repository.passwordFile) (service.serviceConfig.BindReadOnlyPaths or [ ])
+                    && lib.any (lib.hasPrefix "SSL_CERT_FILE=") (service.serviceConfig.Environment or [ ])
+                    && service.serviceConfig.KillMode == "mixed"
+                    && !(service.serviceConfig ? ExecStartPost)
+                    && !(service.serviceConfig ? SuccessExitStatus);
                 resultScript = forge.systemd.services.restic-backup-service-actual.script;
                 snapshotModule = builtins.readFile ./modules/nixos/services/backup/snapshots.nix;
               in
@@ -685,17 +685,17 @@
                     preseedUnit = forge.systemd.services."preseed-${name}";
                   in
                   builtins.elem "preseed-${name}.service" mainUnit.after
-                  && builtins.elem "preseed-${name}.service" mainUnit.requires
-                  && builtins.elem "${mainName}.service" preseedUnit.before
-                  && builtins.elem "storage-preseed.target" preseedUnit.wantedBy
-                  && preseedUnit.environment.ALLOW_EMPTY_BOOTSTRAP == "false"
-                  && pkgs.lib.hasInfix "Refusing to start ${name} with an empty data directory" preseedUnit.script)
+                    && builtins.elem "preseed-${name}.service" mainUnit.requires
+                    && builtins.elem "${mainName}.service" preseedUnit.before
+                    && builtins.elem "storage-preseed.target" preseedUnit.wantedBy
+                    && preseedUnit.environment.ALLOW_EMPTY_BOOTSTRAP == "false"
+                    && pkgs.lib.hasInfix "Refusing to start ${name} with an empty data directory" preseedUnit.script)
                 (builtins.attrNames failClosedUnits);
               assert builtins.all
                 (name:
                   !(builtins.hasAttr "restic-backup-service-${name}" forge.systemd.timers)
-                  && !(builtins.hasAttr "preseed-${name}" forge.systemd.services)
-                  && !(builtins.hasAttr "tank/services/${name}" forge.modules.backup.sanoid.datasets))
+                    && !(builtins.hasAttr "preseed-${name}" forge.systemd.services)
+                    && !(builtins.hasAttr "tank/services/${name}" forge.modules.backup.sanoid.datasets))
                 disposableServices;
               assert builtins.all
                 (name:
@@ -703,8 +703,8 @@
                     serviceConfig = forge.systemd.services."restic-backup-service-${name}".serviceConfig;
                   in
                   serviceConfig.AmbientCapabilities == [ "CAP_DAC_READ_SEARCH" ]
-                  && serviceConfig.CapabilityBoundingSet == [ "CAP_DAC_READ_SEARCH" ]
-                  && serviceConfig.ReadOnlyPaths == [ "/var/lib/backup-snapshots/service-${name}" ])
+                    && serviceConfig.CapabilityBoundingSet == [ "CAP_DAC_READ_SEARCH" ]
+                    && serviceConfig.ReadOnlyPaths == [ "/var/lib/backup-snapshots/service-${name}" ])
                 snapshotBackupServices;
               assert builtins.elem "podman-grafana-oncall-migration.service" onCallEngine.requires;
               assert builtins.elem "preseed-grafana-oncall.service" onCallMigration.requires;
@@ -720,21 +720,87 @@
               assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "ephemeral"
-                  && manifest.datasets.${path}.missingRequiredTiers == [ ])
+                    && manifest.datasets.${path}.missingRequiredTiers == [ ])
                 ephemeralPaths;
               assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "critical"
-                  && manifest.datasets.${path}.missingRequiredTiers == [ "offsite-backup" ])
+                    && manifest.datasets.${path}.missingRequiredTiers == [ "offsite-backup" ])
                 criticalServicePaths;
               assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "standard"
-                  && !manifest.datasets.${path}.policy.allowEmptyBootstrap
-                  && manifest.datasets.${path}.missingRequiredTiers == [ ])
+                    && !manifest.datasets.${path}.policy.allowEmptyBootstrap
+                    && manifest.datasets.${path}.missingRequiredTiers == [ ])
                 standardServicePaths;
               assert rendered == manifest;
               pkgs.runCommand "protection-manifest-check" { } ''
+                touch $out
+              '';
+          } // pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+            deployment-backup-guard =
+              let
+                forge = inputs.self.nixosConfigurations.forge.config;
+                guard = forge.modules.deploymentGuard._internal.guardCommand;
+                metrics = forge.modules.deploymentGuard._internal.metricsCommand;
+                expectedTimers = forge.modules.deploymentGuard._internal.expectedBackupTimers;
+                snapshotDatasets = pkgs.lib.filterAttrs
+                  (_name: dataset: dataset.autosnap)
+                  forge.modules.backup.sanoid.datasets;
+                enabledResticJobs = pkgs.lib.filterAttrs
+                  (_name: job: job.enable)
+                  forge.modules.services.backup._internal.allJobs;
+                snapshotMetricsScript = forge.systemd.services.zfs-snapshot-metrics.script;
+                pgBackRestMetricsScript = forge.systemd.services.pgbackrest-metrics.script;
+                requiredAlerts = [
+                  "deployment-backup-guard-abandoned"
+                  "deployment-backup-guard-monitoring-stale"
+                  "deployment-backup-guard-stale"
+                  "deployment-backup-timer-restoration-failed"
+                  "deployment-backup-timers-inactive"
+                ];
+                requiredFreshnessAlerts = [
+                  "pgbackrest-metrics-stale"
+                  "restic-backup-success-missing"
+                  "zfs-snapshot-exporter-stale"
+                  "zfs-snapshot-never-created"
+                ];
+              in
+              assert builtins.length expectedTimers == 111;
+              assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
+              assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
+              assert builtins.elem "sanoid.timer" expectedTimers;
+              assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
+              assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
+              assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
+              assert builtins.length (builtins.attrNames snapshotDatasets) == 54;
+              assert !(builtins.hasAttr "tank/services" snapshotDatasets);
+              assert builtins.length (builtins.attrNames enabledResticJobs) == 50;
+              assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
+              assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
+              assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;
+              assert pkgs.lib.hasInfix "pgbackrest_scrape_timestamp_seconds" pgBackRestMetricsScript;
+              assert pkgs.lib.hasInfix ".*/syncoid_replication_" forge.modules.alerting.rules.zfs-replication-exporter-stale.expr;
+              assert !(pkgs.lib.hasInfix "syncoid-replication-info" forge.modules.alerting.rules.zfs-replication-exporter-stale.expr);
+              assert pkgs.lib.hasInfix "node_systemd_unit_state" forge.modules.alerting.rules.deployment-backup-guard-monitoring-stale.expr;
+              assert pkgs.lib.hasInfix "node_systemd_unit_state" forge.modules.alerting.rules.pgbackrest-metrics-stale.expr;
+              assert pkgs.lib.hasInfix "node_systemd_unit_state" forge.modules.alerting.rules.zfs-snapshot-exporter-stale.expr;
+              assert !(pkgs.lib.hasInfix "zfs_latest_snapshot_age_seconds" forge.modules.alerting.rules.zfs-snapshot-too-old.expr);
+              pkgs.runCommand "deployment-backup-guard-check"
+                {
+                  nativeBuildInputs = [
+                    pkgs.bash
+                    pkgs.coreutils
+                    pkgs.diffutils
+                    pkgs.gnugrep
+                    metrics
+                  ];
+                } ''
+                ${pkgs.bash}/bin/bash ${./scripts/test-nixos-deploy-backup-guard.sh} \
+                  ${pkgs.lib.getExe guard} \
+                  ${pkgs.lib.getExe metrics}
+                ${pkgs.bash}/bin/bash ${./scripts/test-nix-apply-guarded.sh} \
+                  ${./scripts/nix-apply-guarded.sh}
                 touch $out
               '';
           };

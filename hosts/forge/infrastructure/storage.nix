@@ -331,15 +331,15 @@ in
     zfs-snapshot-too-old = {
       alertname = "zfs-snapshot-too-old";
       expr = ''
-        zfs_latest_snapshot_age_seconds > 86400
+        time() - zfs_snapshot_latest_timestamp > 86400
       '';
       for = "30m";
       severity = "high";
       labels = { category = "storage"; service = "zfs"; };
       annotations = {
-        summary = "ZFS snapshot on {{ $labels.hostname }}:{{ $labels.name }} is older than 24 hours";
-        description = "The latest snapshot for dataset '{{ $labels.name }}' on '{{ $labels.hostname }}' is {{ $value | humanizeDuration }} old. Expected daily snapshots.";
-        command = "zfs list -t snapshot -o name,creation -s creation {{ $labels.name }}";
+        summary = "ZFS snapshot for {{ $labels.dataset }} is older than 24 hours";
+        description = "The latest snapshot for dataset '{{ $labels.dataset }}' on '{{ $labels.instance }}' is {{ $value | humanizeDuration }} old.";
+        command = "zfs list -t snapshot -o name,creation -s creation {{ $labels.dataset }}";
       };
     };
 
@@ -347,15 +347,55 @@ in
     zfs-snapshot-critical = {
       alertname = "zfs-snapshot-critical";
       expr = ''
-        zfs_latest_snapshot_age_seconds > 172800
+        time() - zfs_snapshot_latest_timestamp > 172800
       '';
       for = "1h";
       severity = "critical";
       labels = { category = "storage"; service = "zfs"; };
       annotations = {
-        summary = "ZFS snapshot on {{ $labels.hostname }}:{{ $labels.name }} is critically old (>48 hours)";
-        description = "The latest snapshot for dataset '{{ $labels.name }}' on '{{ $labels.hostname }}' is {{ $value | humanizeDuration }} old. Backup system may be failing.";
-        command = "zfs list -t snapshot -o name,creation -s creation {{ $labels.name }}";
+        summary = "ZFS snapshot for {{ $labels.dataset }} is critically old (>48 hours)";
+        description = "The latest snapshot for dataset '{{ $labels.dataset }}' on '{{ $labels.instance }}' is {{ $value | humanizeDuration }} old. Backup system may be failing.";
+        command = "zfs list -t snapshot -o name,creation -s creation {{ $labels.dataset }}";
+      };
+    };
+
+    "zfs-snapshot-never-created" = {
+      type = "promql";
+      alertname = "ZFSSnapshotNeverCreated";
+      expr = ''
+        zfs_snapshot_dataset_info
+        unless on(dataset)
+        zfs_snapshot_latest_timestamp
+      '';
+      for = "15m";
+      severity = "high";
+      labels = { category = "storage"; service = "zfs"; };
+      annotations = {
+        summary = "No ZFS snapshot exists for {{ $labels.dataset }}";
+        description = "Sanoid manages this dataset, but the snapshot exporter cannot find any snapshot.";
+        command = "systemctl status sanoid.service && zfs list -t snapshot {{ $labels.dataset }}";
+      };
+    };
+
+    "zfs-snapshot-exporter-stale" = {
+      type = "promql";
+      alertname = "ZFSSnapshotExporterStale";
+      expr = ''
+        (time() - node_textfile_mtime_seconds{file=~".*/zfs_snapshots\\.prom"} > 600)
+        or on(instance)
+        (
+          node_systemd_unit_state{name="zfs-snapshot-metrics.timer",state=~"active|activating|deactivating|failed|inactive"} == 1
+          unless on(instance)
+          node_textfile_mtime_seconds{file=~".*/zfs_snapshots\\.prom"}
+        )
+      '';
+      for = "5m";
+      severity = "high";
+      labels = { category = "monitoring"; service = "zfs"; };
+      annotations = {
+        summary = "ZFS snapshot metrics are stale on {{ $labels.instance }}";
+        description = "Snapshot metrics have not updated for at least ten minutes, so snapshot freshness is unknown.";
+        command = "systemctl status zfs-snapshot-metrics.timer zfs-snapshot-metrics.service";
       };
     };
 
@@ -593,7 +633,7 @@ in
       type = "promql";
       alertname = "ZFSReplicationExporterStale";
       expr = ''
-        time() - node_textfile_mtime_seconds{file=~"syncoid.*\\.prom"} > 1800
+        time() - node_textfile_mtime_seconds{file=~".*/syncoid_replication_.*\\.prom"} > 1800
       '';
       for = "10m";
       severity = "medium";
@@ -611,16 +651,10 @@ in
   # Moved from pgbackrest.nix for proper co-location (monitors ZFS lifecycle, not pgBackRest)
   systemd.services.zfs-snapshot-metrics =
     let
-      # Dynamically generate dataset list from backup.zfs.pools configuration
-      # This ensures metrics stay in sync with backup configuration
-      allDatasets = lib.flatten (
-        map
-          (pool:
-            map (dataset: "${pool.pool}/${dataset}") pool.datasets
-          )
-          config.modules.backup.zfs.pools
+      allDatasets = builtins.attrNames (
+        lib.filterAttrs (_name: dataset: dataset.autosnap)
+          config.modules.backup.sanoid.datasets
       );
-      # Convert to bash array format
       datasetsArray = lib.concatMapStrings (ds: ''"${ds}" '') allDatasets;
     in
     {
@@ -637,6 +671,8 @@ in
 
                 # Start metrics file
                 cat > "$METRICS_TEMP" <<'HEADER'
+              # HELP zfs_snapshot_dataset_info Whether a dataset is configured for Sanoid snapshots
+              # TYPE zfs_snapshot_dataset_info gauge
         # HELP zfs_snapshot_count Number of snapshots per dataset
         # TYPE zfs_snapshot_count gauge
         HEADER
@@ -646,6 +682,7 @@ in
 
                 # Count snapshots per dataset
                 for dataset in "''${DATASETS[@]}"; do
+                  echo "zfs_snapshot_dataset_info{dataset=\"$dataset\"} 1" >> "$METRICS_TEMP"
                   SNAPSHOT_COUNT=$(${lib.getExe config.boot.zfs.package} list -H -t snapshot -o name | ${lib.getExe' pkgs.gnugrep "grep"} -c "^$dataset@" || echo 0)
                   echo "zfs_snapshot_count{dataset=\"$dataset\"} $SNAPSHOT_COUNT" >> "$METRICS_TEMP"
                 done

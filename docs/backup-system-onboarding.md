@@ -1137,6 +1137,43 @@ systemctl show -p ActiveEnterTimestamp restic-backups-system
 systemctl show -p ActiveState restic-backups-system
 ```
 
+### Deployment Backup Guard
+
+Hosts with `modules.deploymentGuard.enable = true` keep backup timers paused through a
+target-owned lease while `task nix:apply-nixos` builds and activates a generation. The
+guard runs on the target so an interrupted SSH session, local process failure, or lease
+timeout restores timers from the target-side `EXIT` trap.
+
+Check guard ownership and restoration state:
+
+```bash
+sudo nixos-deploy-backup-guard status
+systemctl status nixos-deploy-backup-guard-metrics.timer
+```
+
+An active deployment reports a live owner and a present marker. Do not remove
+`/run/nixos-apply-paused-backup-timers` or its systemd drop-ins manually. The marker is
+expected for the duration of a deployment.
+
+If the status reports a marker without a live owner, first confirm that no deployment
+is running, then recover through the locked command:
+
+```bash
+pgrep -af 'nixos-rebuild|switch-to-configuration|nix-apply-guarded'
+sudo nixos-deploy-backup-guard recover
+sudo nixos-deploy-backup-guard status
+```
+
+Recovery removes guard drop-ins, reloads systemd, starts every recorded timer that
+still exists in the active generation, and verifies each timer is active before deleting
+the marker. Timers intentionally removed by the new generation are reported separately
+and are not resurrected.
+
+Prometheus exports aggregate and per-timer state through
+`nixos_deploy_backup_guard_*`, `nixos_deploy_backup_timers_*`, and
+`nixos_deploy_backup_timer_*`. Alerts cover abandoned or stale leases, failed timer
+restoration, inactive expected timers, and a stale guard metrics collector.
+
 ### Structured Logs
 
 All backup events are logged in JSON format:
