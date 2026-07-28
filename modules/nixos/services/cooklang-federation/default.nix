@@ -371,6 +371,7 @@ in
       let
         dataDir = cfg.dataDir;
         indexPath = cfg.indexPath;
+        indexGenerationMarker = "${dataDir}/.index-package";
         datasetPath = cfg.datasetPath;
         preseedCfg = cfg.preseed;
         preseedEnabled = preseedCfg.enable or false;
@@ -509,7 +510,20 @@ in
               ExecStartPre = pkgs.writeShellScript "${serviceName}-prepare" ''
                 set -euo pipefail
                 install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${dataDir}
-                install -d -m 0750 -o ${cfg.user} -g ${cfg.group} ${indexPath}
+                deployedPackage=""
+                if [ -f "${indexGenerationMarker}" ]; then
+                  read -r deployedPackage < "${indexGenerationMarker}" || true
+                fi
+                # Tantivy schemas are not forward-compatible; the index is rebuilt from SQLite.
+                if [ "$deployedPackage" != "${cfg.package}" ]; then
+                  rm -rf "${indexPath}"
+                  install -d -m 0750 -o ${cfg.user} -g ${cfg.group} "${indexPath}"
+                  printf '%s\n' "${cfg.package}" > "${indexGenerationMarker}"
+                  chown ${cfg.user}:${cfg.group} "${indexGenerationMarker}"
+                  chmod 0640 "${indexGenerationMarker}"
+                else
+                  install -d -m 0750 -o ${cfg.user} -g ${cfg.group} "${indexPath}"
+                fi
                 if [ -d "${srcSource}" ]; then
                   rm -rf ${dataDir}/src
                   cp -r --no-preserve=ownership "${srcSource}" ${dataDir}/
