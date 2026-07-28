@@ -48,6 +48,7 @@ in
 
     # Application Services
     ./services/actual.nix # Actual Budget personal finance
+    ./services/copyparty.nix # Authenticated web access to NAS media
     ./services/postgresql.nix # PostgreSQL database
     ./services/pgbackrest.nix # pgBackRest PostgreSQL backup system
     ./services/redis.nix # Redis caching/session storage for services

@@ -27,6 +27,25 @@ let
     '';
   });
 
+  # WORKAROUND (2026-07-28): nixpkgs copyparty predates two security fixes.
+  # Affects: copyparty file/dirkey authorization and the optional FTP server
+  # Upstream: GHSA-x5pq-m9p8-f4vx and GHSA-phv8-wgjp-g4p9
+  # Check: Remove when stable and unstable nixpkgs provide copyparty >= 1.20.19.
+  copypartyOverride = prev:
+    let
+      minimumVersion = "1.20.19";
+    in
+    if prev.lib.versionAtLeast prev.copyparty.version minimumVersion then
+      prev.copyparty
+    else
+      prev.copyparty.overrideAttrs (_old: {
+        version = minimumVersion;
+        src = prev.fetchurl {
+          url = "https://github.com/9001/copyparty/releases/download/v${minimumVersion}/copyparty-${minimumVersion}.tar.gz";
+          hash = "sha256-g02X1jdXXLmy1TBSeQtlEvRisyQd/0ic9kFTnvYk/Ww=";
+        };
+      });
+
   # Shared Python override fragment applied to both stable and unstable
   # `pythonPackagesExtensions`. Defined as a single attrset so adding a new
   # workaround applies to both channels in one edit.
@@ -178,6 +197,7 @@ in
 
           # Shared with stable channel - see top of file.
           ctranslate2 = ctranslate2Override prev;
+          copyparty = copypartyOverride prev;
 
           pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
             # Shared overrides applied to both channels
@@ -362,6 +382,7 @@ in
 
     # Shared with unstable channel - see top of file.
     ctranslate2 = ctranslate2Override prev;
+    copyparty = copypartyOverride prev;
 
     pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
       # Shared overrides applied to both channels (see top of file).

@@ -37,6 +37,17 @@ When reviewing workarounds:
 
 ## Package Overrides (overlays/default.nix)
 
+### copyparty - Security Release Pin
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-07-28 |
+| **Affects** | Stable copyparty 1.20.12 and unstable copyparty 1.20.13 in the current lock file |
+| **Reason** | Versions before 1.20.17 allow file-key/directory-key confusion ([GHSA-x5pq-m9p8-f4vx](https://github.com/9001/copyparty/security/advisories/GHSA-x5pq-m9p8-f4vx)); versions before 1.20.19 also allow the optional FTP server to upload outside configured volumes ([GHSA-phv8-wgjp-g4p9](https://github.com/9001/copyparty/security/advisories/GHSA-phv8-wgjp-g4p9)). |
+| **Workaround** | Override only the source and version to upstream 1.20.19 while a channel remains older. Each channel automatically returns to its native nixpkgs package once it reaches 1.20.19 or newer. The forge service also leaves FTP disabled. |
+| **Check** | Remove this override when both pinned nixpkgs channels provide copyparty >= 1.20.19, then rebuild the copyparty package and forge closure. |
+| **Impact** | Without the override, the deployed file service would retain known authorization vulnerabilities. |
+
 ### Starship and Lima - Stable Darwin Linker for macOS 26
 
 | Field | Value |

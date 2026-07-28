@@ -355,6 +355,14 @@
     extraGroups = [ ];
   };
 
+  copyparty = {
+    uid = 943;
+    gid = 65537;
+    groupName = "media";
+    description = "Copyparty web file browser";
+    extraGroups = [ ];
+  };
+
   grafana-oncall = {
     uid = 957;
     gid = 952;
@@ -653,7 +661,7 @@
   # When adding a new service, use the next available UID in the 996+ range
   # and document the actual deployed values after first deployment.
   #
-  # Next available: 943
+  # Next available: 946
   # ============================================================================
 
   # ============================================================================

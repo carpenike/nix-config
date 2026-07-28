@@ -4,6 +4,7 @@
 {
   imports = [
     ../bazarr # Subtitle management
+    ../copyparty # Authenticated web file browser
     ../kometa # Plex metadata manager (formerly PMM)
     ../lidarr # Music collection manager
     ../pinchflat # YouTube media manager
