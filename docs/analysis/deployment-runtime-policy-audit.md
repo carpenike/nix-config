@@ -109,20 +109,20 @@ second, top-level module system.
 ### Structural Findings
 
 1. **Medium: service-category composition has multiple sources of truth.** The
-  category map exists in [the system builder](../../lib/mkSystem.nix), the
+  category map exists in [the system builder](https://github.com/carpenike/nix-config/blob/main/lib/mkSystem.nix), the
   all-category import list exists in
-  [the category index](../../modules/nixos/services/_categories/default.nix),
-  and selected categories are repeated by hosts in [flake.nix](../../flake.nix).
+  [the category index](https://github.com/carpenike/nix-config/blob/main/modules/nixos/services/_categories/default.nix),
+  and selected categories are repeated by hosts in [flake.nix](https://github.com/carpenike/nix-config/blob/main/flake.nix).
   A fourth implementation,
-  [selector.nix](../../modules/nixos/services/_categories/selector.nix), is
+  [selector.nix](https://github.com/carpenike/nix-config/blob/bcdc3f2b6ec49434b703bbc0d8a08887382a8e8b/modules/nixos/services/_categories/selector.nix), is
   orphaned. Category additions and removals can therefore drift.
 2. **Medium: Forge's root import list has reached an ergonomic limit.**
-  [Forge's root module](../../hosts/forge/default.nix) contains 93 explicit
+  [Forge's root module](https://github.com/carpenike/nix-config/blob/main/hosts/forge/default.nix) contains 93 explicit
   imports, including 71 service files. The list is tedious to maintain, but it
   is also a useful manifest of what Forge runs. Automatic discovery must retain
   equivalent activation visibility.
 3. **Medium: a PostgreSQL option-namespace collision remains unresolved.**
-  [The base NixOS module](../../modules/nixos/base.nix) comments out the
+  [The base NixOS module](https://github.com/carpenike/nix-config/blob/main/modules/nixos/base.nix) comments out the
   database interface because it and the PostgreSQL module define incompatible
   shapes under `modules.services.postgresql`. Resolve this before introducing
   deferred-module merging under another module layer.
@@ -139,19 +139,19 @@ second, top-level module system.
 6. **Validation coverage is strong but asymmetric.** Light NixOS hosts receive
   pull-request closure builds, while Forge and Luna receive pull-request
   evaluation plus scheduled closure builds. Darwin is not built in CI. See
-  [the per-PR build workflow](../../.github/workflows/nix-build.yml) and
-  [the heavy-host health workflow](../../.github/workflows/flake-health.yml).
+  [the per-PR build workflow](https://github.com/carpenike/nix-config/blob/main/.github/workflows/nix-build.yml) and
+  [the heavy-host health workflow](https://github.com/carpenike/nix-config/blob/main/.github/workflows/flake-health.yml).
 
 ### Strengths to Preserve
 
 The repository has coherent architecture rather than accidental complexity:
 
-- [The system builder](../../lib/mkSystem.nix) centralizes NixOS and Darwin
+- [The system builder](https://github.com/carpenike/nix-config/blob/main/lib/mkSystem.nix) centralizes NixOS and Darwin
   construction with nested Home Manager.
 - Reusable service modules define typed contracts, while host modules own image
   pins, storage protection, backups, alerts, proxying, and dashboards. Sonarr's
-  [service module](../../modules/nixos/services/sonarr/default.nix) and
-  [Forge deployment](../../hosts/forge/services/sonarr.nix) are representative.
+  [service module](https://github.com/carpenike/nix-config/blob/main/modules/nixos/services/sonarr/default.nix) and
+  [Forge deployment](https://github.com/carpenike/nix-config/blob/main/hosts/forge/services/sonarr.nix) are representative.
 - The queryable `modules.services.*` namespace enables cross-service discovery
   and is deliberately preserved by
   [ADR-011](../adr/011-service-factory-module-architecture.md).
@@ -218,7 +218,7 @@ repository root. Pilot Fish because its behavior already spans:
   Bash for VS Code Remote SSH while other hosts use Fish directly.
 
 Those cross-class contributions and their helper scripts now live together in
-[the Fish feature](../../features/shell/fish.nix).
+[the Fish feature](https://github.com/carpenike/nix-config/blob/main/features/shell/fish.nix).
 
 The pilot must leave `modules.services.*`, `mylib`, service factories, host
 service files, and contributory option paths unchanged.
@@ -367,8 +367,8 @@ the native package is close enough to test those requirements without a
 downgrade. Revisit when the version gap is small and a backup/restore rehearsal
 can be performed.
 
-Evidence: [Forge Mealie configuration](../../hosts/forge/services/mealie.nix)
-and [Mealie service module](../../modules/nixos/services/mealie/default.nix).
+Evidence: [Forge Mealie configuration](https://github.com/carpenike/nix-config/blob/main/hosts/forge/services/mealie.nix)
+and [Mealie service module](https://github.com/carpenike/nix-config/blob/main/modules/nixos/services/mealie/default.nix).
 
 ### UniFi: Keep Container, Revisit Only with a Planned Data Migration
 
@@ -387,7 +387,7 @@ container is digest-pinned, backed up, and operationally proven. Keep it until
 there is a concrete benefit that justifies a database migration and device
 adoption test window.
 
-Evidence: [UniFi module](../../modules/nixos/services/unifi/default.nix).
+Evidence: [UniFi module](https://github.com/carpenike/nix-config/blob/main/modules/nixos/services/unifi/default.nix).
 
 ### Plex: Keep Container Until the Native Hardware Issue Is Resolved
 
@@ -396,7 +396,7 @@ container because hardware transcoding is affected by a native userspace/glibc
 compatibility issue. This is a documented exception, not a general model for
 making every service runtime-selectable.
 
-Evidence: [Plex module](../../modules/nixos/services/plex/default.nix).
+Evidence: [Plex module](https://github.com/carpenike/nix-config/blob/main/modules/nixos/services/plex/default.nix).
 
 ### False-Positive Native Candidates
 
@@ -419,10 +419,10 @@ Of 38 effective OCI units, **34 are digest-pinned**. Four are not:
 
 Relevant sources:
 
-- [Grafana OnCall module](../../modules/nixos/services/grafana-oncall/default.nix)
-- [Scrypted module](../../modules/nixos/services/scrypted/default.nix)
-- [Tracearr host configuration](../../hosts/forge/services/tracearr.nix)
-- [Valhalla host configuration](../../hosts/forge/services/valhalla.nix)
+- [Grafana OnCall module](https://github.com/carpenike/nix-config/blob/main/modules/nixos/services/grafana-oncall/default.nix)
+- [Scrypted module](https://github.com/carpenike/nix-config/blob/main/modules/nixos/services/scrypted/default.nix)
+- [Tracearr host configuration](https://github.com/carpenike/nix-config/blob/main/hosts/forge/services/tracearr.nix)
+- [Valhalla host configuration](https://github.com/carpenike/nix-config/blob/main/hosts/forge/services/valhalla.nix)
 
 ### Correct Digest Semantics
 
@@ -444,7 +444,7 @@ Authoritative references:
 
 ### Renovate Gap
 
-[Renovate configuration](../../.github/renovate.json5) explicitly disables
+[Renovate configuration](https://github.com/carpenike/nix-config/blob/main/.github/renovate.json5) explicitly disables
 digest pinning when the current tag is `latest`. This prevents automated
 remediation for Scrypted, Tracearr, and Valhalla.
 
