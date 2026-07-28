@@ -33,7 +33,7 @@
     systems.url = "github:nix-systems/default";
 
     # Flake-utils - common flake utility functions
-    # Direct input allows nixos-vscode-server etc. to follow
+    # Direct input allows dependent flakes to share one locked dependency.
     flake-utils = {
       url = "github:numtide/flake-utils";
       inputs.systems.follows = "systems";
@@ -88,8 +88,7 @@
     # VSCode Remote SSH server for NixOS hosts
     nixos-vscode-server = {
       url = "github:nix-community/nixos-vscode-server";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "flake-utils";
+      inputs.flake-parts.follows = "flake-parts";
     };
 
     # Rust toolchain overlay
