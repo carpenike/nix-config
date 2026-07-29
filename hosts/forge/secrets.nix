@@ -39,6 +39,7 @@ let
   emqxEnabled = config.modules.services.emqx.enable or false;
   sabnzbdEnabled = config.modules.services.sabnzbd.enable or false;
   actualEnabled = config.modules.services.actual.enable or false;
+  filebrowserQuantumEnabled = config.modules.services.filebrowserQuantum.enable or false;
   autobrrEnabled = config.modules.services.autobrr.enable or false;
   quiEnabled = config.modules.services.qui.enable or false;
   unpackerrEnabled = config.modules.services.unpackerr.enable or false;
@@ -480,6 +481,14 @@ in
             owner = "actual";
             group = "actual";
             restartUnits = [ "actual.service" ];
+          };
+        }
+        // optionalAttrs filebrowserQuantumEnabled {
+          "filebrowser-quantum/oidc-client-secret" = {
+            mode = "0400";
+            owner = "filebrowser-quantum";
+            group = "media";
+            restartUnits = [ "filebrowser-quantum.service" ];
           };
         }
         // optionalAttrs tautulliEnabled {

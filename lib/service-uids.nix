@@ -363,6 +363,14 @@
     extraGroups = [ ];
   };
 
+  filebrowser-quantum = {
+    uid = 946;
+    gid = 65537;
+    groupName = "media";
+    description = "FileBrowser Quantum web file browser";
+    extraGroups = [ ];
+  };
+
   grafana-oncall = {
     uid = 957;
     gid = 952;
@@ -661,7 +669,7 @@
   # When adding a new service, use the next available UID in the 996+ range
   # and document the actual deployed values after first deployment.
   #
-  # Next available: 946
+  # Next available: 947
   # ============================================================================
 
   # ============================================================================
