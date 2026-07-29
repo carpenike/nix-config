@@ -72,7 +72,7 @@ tasks:
       vars:
         - host
     cmds:
-      - bash "{{.ROOT_DIR}}/scripts/nix-apply-guarded.sh" "{{.ssh_user}}" "{{.host}}" "{{.NIXOS_DOMAIN}}" "{{.ROOT_DIR}}"
+      - nix develop --command bash "{{.ROOT_DIR}}/scripts/nix-apply-guarded.sh" "{{.ssh_user}}" "{{.host}}" "{{.NIXOS_DOMAIN}}" "{{.ROOT_DIR}}"
     preconditions:
       - sh: which nix
         msg: "nix not found"

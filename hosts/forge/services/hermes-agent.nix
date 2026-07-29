@@ -49,9 +49,62 @@ in
           TELEGRAM_ALLOWED_USERS = "8903896206";
         };
 
+        mcpServers.holthome = {
+          url = "https://mcp.${config.networking.domain}/mcp";
+          auth = "oauth";
+          connect_timeout = 60;
+          timeout = 120;
+          tools.include = [
+            "cooklang_list_recipes"
+            "cooklang_get_recipe"
+            "cooklang_search_federation"
+            "cooklang_build_shopping_list"
+
+            "homelab_list_status"
+            "homelab_get_endpoint_history"
+
+            "grocy_health"
+            "grocy_find_products"
+            "grocy_attention"
+            "grocy_convert_units"
+            "grocy_product_card"
+            "grocy_consumption_history"
+            "grocy_stock_value"
+            "grocy_stock_by_location"
+
+            "ha_health"
+            "ha_list_entities"
+            "ha_get_state"
+            "ha_get_history"
+            "ha_list_automations"
+            "ha_get_automation"
+            "ha_check_config"
+
+            "arc_search_items"
+            "arc_search_quests"
+            "arc_get_trader_stock"
+            "arc_check_item_keep"
+            "arc_plan_upgrades"
+            "arc_get_enemy"
+            "arc_who_drops"
+            "arc_compare_weapons"
+            "arc_list_raids"
+            "arc_raid_stats"
+            "arc_get_state"
+            "arc_patch_diff"
+            "arc_get_event_schedule"
+            "arc_list_maps"
+            "arc_search_wiki"
+            "arc_get_wiki_page"
+          ];
+          sampling.enabled = false;
+        };
+
         settings = {
           _config_version = 33;
           model.default = "anthropic/claude-sonnet-4";
+          timezone = config.time.timeZone;
+          platform_toolsets.cron = [ "safe" "holthome" ];
           gateway.platforms.telegram = {
             enabled = true;
             dm_policy = "allowlist";
@@ -134,25 +187,33 @@ in
       # The upstream native unit already uses NoNewPrivileges,
       # ProtectSystem=strict, PrivateTmp, and a dedicated user. Tighten the
       # remaining host boundary and cap runaway agent resource consumption.
-      systemd.services.hermes-agent.serviceConfig = {
-        ProtectHome = lib.mkForce true;
-        PrivateDevices = true;
-        ProtectClock = true;
-        ProtectControlGroups = true;
-        ProtectKernelLogs = true;
-        ProtectKernelModules = true;
-        ProtectKernelTunables = true;
-        RestrictSUIDSGID = true;
-        LockPersonality = true;
-        RestrictRealtime = true;
-        SystemCallArchitectures = "native";
-        CapabilityBoundingSet = "";
-        AmbientCapabilities = "";
-        UMask = lib.mkForce "0077";
-        MemoryHigh = "3G";
-        MemoryMax = "4G";
-        CPUQuota = "200%";
-        TasksMax = 512;
+      systemd.services.hermes-agent = {
+        # Upstream merges config.yaml during activation, outside the unit, so
+        # settings changes otherwise leave the running gateway on stale config.
+        restartTriggers = [
+          (pkgs.writeText "hermes-agent-settings" (builtins.toJSON config.services.hermes-agent.settings))
+        ];
+
+        serviceConfig = {
+          ProtectHome = lib.mkForce true;
+          PrivateDevices = true;
+          ProtectClock = true;
+          ProtectControlGroups = true;
+          ProtectKernelLogs = true;
+          ProtectKernelModules = true;
+          ProtectKernelTunables = true;
+          RestrictSUIDSGID = true;
+          LockPersonality = true;
+          RestrictRealtime = true;
+          SystemCallArchitectures = "native";
+          CapabilityBoundingSet = "";
+          AmbientCapabilities = "";
+          UMask = lib.mkForce "0077";
+          MemoryHigh = "3G";
+          MemoryMax = "4G";
+          CPUQuota = "200%";
+          TasksMax = 512;
+        };
       };
     })
   ];
