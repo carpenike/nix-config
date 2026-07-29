@@ -130,6 +130,27 @@ let
     in
     mapAttrs (_: transforms: concatStrings (unique transforms)) (foldl' accumulate { } (attrValues cfg.virtualHosts));
 
+  # Caddy Security rejects post-login redirect_url values unless the portal
+  # explicitly trusts them. Derive exact hosts instead of trusting a suffix.
+  portalTrustedLoginRedirectHosts =
+    let
+      accumulate = acc: vhost:
+        let
+          secCfg = vhost.caddySecurity;
+        in
+        if vhost.enable && secCfg != null && secCfg.enable then
+          let
+            portalName = secCfg.portal;
+            existing = attrByPath [ portalName ] [ ] acc;
+          in
+          acc // { "${portalName}" = existing ++ [ vhost.hostName ]; }
+        else
+          acc;
+    in
+    mapAttrs
+      (_: hosts: builtins.sort builtins.lessThan (unique hosts))
+      (foldl' accumulate { } (attrValues cfg.virtualHosts));
+
   # Generates the global options block containing server settings, security config, etc.
   globalOptionsBlock =
     let
@@ -194,6 +215,10 @@ let
                 builtins.getAttr name portalClaimRoleTransforms
               else
                 "";
+            trustedLoginRedirectHosts = attrByPath [ name ] [ ] portalTrustedLoginRedirectHosts;
+            trustedLoginRedirectLines = map
+              (hostName: "  trust login redirect uri domain exact ${hostName} path prefix /")
+              trustedLoginRedirectHosts;
             extraSnippets = filter (s: s != "") [ portal.extraConfig contributionText ];
             extra = concatStringsSep "\n" extraSnippets;
           in
@@ -203,6 +228,7 @@ let
             ${concatStringsSep "\n" providerLines}
             ${concatStringsSep "\n" storeLines}
             ${concatStringsSep "\n" cookieLines}
+            ${concatStringsSep "\n" trustedLoginRedirectLines}
             ${optionalString (extra != "") extra}
             }''
         )

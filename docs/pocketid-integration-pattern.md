@@ -9,21 +9,17 @@ Pocket ID pairs with the `caddy-security` plugin to provide passwordless SSO for
 - ✅ **Passkey-first authentication** powered by Pocket ID’s WebAuthn flow with optional SMTP recovery.
 - ✅ **Centralized authorization** – services declare which `policy` applies and the portal enforces it before traffic reaches the backend.
 - ✅ **Claim-based roles** – map Pocket ID group claims into Caddy Security roles without editing shared config files.
+- ✅ **Safe return redirects** – the Caddy module automatically trusts each protected virtual host by exact hostname so login returns users to the original app path without enabling open redirects.
 - ✅ **API bypass** – allow automation/IP-bound consumers to skip auth through explicit `allowedNetworks` and bypass resources.
 - ✅ **Cross-host support** – any host can reference the same Pocket ID portal through the shared reverse proxy submodule.
 
 ## Architecture
 
-1. **Pocket ID Service Module** (`modules/nixos/services/pocketid/`)
-   - Exposes the portal at `https://id.${domain}`
-   - Stores SMTP + JWT secrets via SOPS
-   - Publishes the OIDC discovery document for services that need full OAuth integration
-2. **Caddy Security Portal** (`modules.services.caddy.security`)
-   - Defines `portalHost`, TLS, and reusable authorization policies (`admins`, `users`, `bypass`)
-   - Receives claim → role mappings contributed by each service
-3. **Service Reverse Proxy Definitions**
-   - Each service sets `reverseProxy = { enable = true; ...; caddySecurity = { ... }; }`
-   - The shared Caddy module consumes those options and generates the correct site block + security transforms
+| Layer | Responsibilities |
+| --- | --- |
+| Pocket ID service module (`modules/nixos/services/pocketid/`) | Exposes `https://id.${domain}`, stores SMTP and JWT secrets via SOPS, and publishes OIDC discovery metadata. |
+| Caddy Security portal (`modules.services.caddy.security`) | Defines TLS and reusable policies, receives claim-to-role mappings, and derives an exact trusted login redirect for every protected virtual host. |
+| Service reverse proxy definitions | Set `reverseProxy.caddySecurity`; the shared Caddy module generates the site block, authorization policy, and security transforms. |
 
 ## Implementation Steps
 
@@ -105,6 +101,7 @@ Behind the scenes the Caddy module emits:
 | Symptom | Likely Cause | Fix |
 | --- | --- | --- |
 | Portal loop / repeated redirects | `hostName` mismatch or portal disabled | Confirm the service’s `hostName` matches the DNS record and that `modules.services.caddy.security.enable = true`. |
+| Successful login lands on `/caddy-security/portal` | The original `redirect_url` is not trusted by the authentication portal | The shared module generates exact trust rules automatically. Confirm the affected host has `caddySecurity.enable = true` and inspect the live portal block for its `trust login redirect uri` entry. |
 | User denied despite being in admins group | Missing `claimRoles` entry | Add `{ claim = "groups"; value = "admins"; role = "admins"; }` to the service block or extend the global policy. |
 | API bypass ignored | IP not in `allowedNetworks` or path mismatch | Ensure `allowedNetworks` covers the client IP and that the path/regex includes leading slashes. |
 | Pocket ID login fails with SMTP error | Missing or incorrect SMTP secret | Verify `config.sops.secrets."pocketid/smtp_password"` exists and restart the service. |
