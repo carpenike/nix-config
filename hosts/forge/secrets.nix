@@ -350,6 +350,7 @@ in
           #   HOMELAB_MCP_POCKETID_CLIENT_SECRET=<from PocketID admin UI>
           # Optional:
           #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared Actual sidecar token>
+          #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
           #   HOMELAB_MCP_PAPERLESS_TOKEN=<dedicated Paperless service-user token>
           #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA private PEM, escaped \n>
           #   HOMELAB_MCP_OAUTH_SESSION_SECRET=<urlsafe-base64 32+ bytes>
@@ -357,6 +358,7 @@ in
             mode = "0400";
             owner = "homelab-mcp";
             group = "homelab-mcp";
+            restartUnits = [ "homelab-mcp.service" ];
           };
 
           # Actual sidecar credentials. This dotenv is consumed only by the

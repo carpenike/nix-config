@@ -146,6 +146,7 @@ in
         #     header to ha.holthome.net.
         # Required for the pending finances/Paperless tools:
         #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared sidecar token>
+        #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
         #   HOMELAB_MCP_PAPERLESS_TOKEN=<dedicated Paperless service-user token>
         # Optionally:
         #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA PEM, escaped \n>
