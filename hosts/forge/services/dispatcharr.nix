@@ -5,10 +5,11 @@
 # See: https://github.com/Dispatcharr/Dispatcharr
 #
 # Architecture:
-# - Uses shared PostgreSQL instance (main) instead of embedded database
+# - Uses shared PostgreSQL 17 instead of the embedded database
+# - Uses native Redis DB 1 and a separate non-root Celery container
 # - Database provisioned declaratively via PostgreSQL module
 # - ZFS dataset for application data
-# - Backup integration via restic
+# - PostgreSQL durability via pgBackRest; local runtime data via ZFS snapshots
 # - Health monitoring and notifications
 # - Caddy reverse proxy with automatic DNS registration
 let
@@ -54,7 +55,7 @@ in
         # Database connection configuration
         database = {
           passwordFile = config.sops.secrets."postgresql/dispatcharr_password".path;
-          # Other database settings use defaults: host=localhost, port=5432, name=dispatcharr, user=dispatcharr
+          # Other settings use the external-service defaults.
         };
 
         # Reverse proxy integration
@@ -68,9 +69,10 @@ in
         # -- Container Image Configuration --
         # Pin to specific version for stability and prevent unexpected changes
         # Find releases at: https://github.com/Dispatcharr/Dispatcharr/releases
-        # Note: Dispatcharr uses timestamped tags (e.g., 0.10.4-20251014192218)
         # Using digest pinning for immutable references (Renovate will update both tag and digest)
-        image = "ghcr.io/dispatcharr/dispatcharr:0.10.4-20251014192218@sha256:10312911e005ae39a3e814fc03cc8e36f4a92112a96dd5d898ef3cbf13791bf3";
+        image = "ghcr.io/dispatcharr/dispatcharr:0.28.2@sha256:3eb0ec779f3437ec64c08a9b3f545a355a8f512f3740cdeaac42b80f1021637d";
+
+        redis.database = 1;
 
         # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
         healthcheck.enable = true; # Enable container health monitoring

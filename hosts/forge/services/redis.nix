@@ -4,12 +4,13 @@
 #
 # Services use different database indexes (0-15):
 #   - tracearr: 0
+#   - dispatcharr: 1
 #   - (future services can use 1, 2, etc.)
 #
 # Connection from containers: redis://host.containers.internal:6379/<db>
 # Connection from host: redis://127.0.0.1:6379/<db>
 
-{ config, lib, pkgs, ... }:
+{ config, lib, ... }:
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };

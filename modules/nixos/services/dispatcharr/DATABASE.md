@@ -18,7 +18,9 @@ This implementation has been reviewed and hardened based on expert security anal
 
 ## Architecture Overview
 
-Dispatcharr always uses **external PostgreSQL** for data storage. The All-In-One (AIO) mode has been removed due to complex permission requirements that make it incompatible with rootless containers and security best practices.
+This module uses Dispatcharr's upstream **modular** deployment mode with
+external PostgreSQL and Redis. The web and Celery processes run in separate
+containers and share only the application data directory.
 
 ### Current Configuration
 
@@ -29,6 +31,7 @@ modules.services.dispatcharr = {
     passwordFile = config.sops.secrets."dispatcharr/db_password".path;
     # host, port, name, user can be customized if needed
   };
+  redis.database = 1;
 };
 ```
 
@@ -41,13 +44,13 @@ modules.services.dispatcharr = {
 - Better monitoring integration
 - Clearer resource allocation
 - Can share database server with other services
-- Proper security isolation (no embedded database in container)
+- Proper security isolation (no embedded database or Redis in the web container)
 - Easier troubleshooting and maintenance
 
-**AIO Mode Removed Because:**
+**Why This Module Uses Modular Mode:**
 
 - Complex file permissions inside monolithic containers
-- Incompatible with rootless container requirements
+- Separates web and background-worker resource limits and health checks
 - Difficult to backup and restore embedded databases
 - Poor observability for database operations
 - Resource contention between application and database
@@ -55,8 +58,9 @@ modules.services.dispatcharr = {
 ### Components
 
 - **PostgreSQL**: External, managed by NixOS PostgreSQL module
-- **Redis**: Embedded in container via s6-overlay (used for Celery queues only)
-- **Celery**: Embedded in container for async task processing
+- **Redis**: External native NixOS service using a dedicated database index
+- **Web**: Upstream modular web entrypoint (uWSGI, nginx, and Daphne)
+- **Celery**: Separate container running Beat plus default and DVR workers
 
 ## How It Works
 
@@ -103,13 +107,15 @@ dispatcharr:
 This single password is used for:
 
 - Database provisioning (read by postgres user)
-- Runtime connection (URL-encoded and embedded in DATABASE_URL)
+- Runtime connection (`POSTGRES_PASSWORD`)
 
-**Why DATABASE_PASSWORD_FILE Doesn't Work:**
+**Why `POSTGRES_PASSWORD_FILE` Doesn't Work:**
 
-Dispatcharr uses Django's `django-environ` library to parse `DATABASE_URL`. Unlike Docker-style applications, it does **not** support the `_FILE` suffix convention for secrets. The password must be embedded directly in the `DATABASE_URL` connection string.
+Dispatcharr expects individual `POSTGRES_*` variables and does not support the
+Docker `_FILE` convention for its password.
 
-Our solution: A systemd `preStart` script reads the SOPS secret, URL-encodes it (to handle special characters like `@`, `:`, `/`), and generates an environment file with the complete `DATABASE_URL`.
+The systemd `preStart` script reads the password through `LoadCredential` and
+writes a root-only environment file consumed by both containers.
 
 ### 3. Container Configuration (Automatic)
 
@@ -118,31 +124,32 @@ The module automatically configures the container:
 ```nix
 # Container environment (static)
 environment = {
-  DISPATCHARR_ENV = "production";
-  CELERY_BROKER_URL = "redis://localhost:6379/0";
-  CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
+  DISPATCHARR_ENV = "modular";
+  POSTGRES_HOST = "host.containers.internal";
+  REDIS_HOST = "host.containers.internal";
+  REDIS_DB = "1";
   PUID = "569";
   PGID = "569";
   TZ = "America/New_York";
 };
 
-# DATABASE_URL generated at runtime via environmentFiles
+# POSTGRES_PASSWORD generated at runtime via environmentFiles
 environmentFiles = [ "/run/dispatcharr/env" ];
 
 # Systemd preStart generates /run/dispatcharr/env with:
-# DATABASE_URL=postgresql://dispatcharr:<url-encoded-password>@localhost:5432/dispatcharr
+# POSTGRES_PASSWORD=<password>
 ```
 
 **Security Flow (Hardened Implementation):**
 
 1. SOPS secret decrypted to `/run/secrets/dispatcharr-db_password` (mode 0440, owner=root, group=postgres)
 2. Systemd `LoadCredential` loads secret into isolated `$CREDENTIALS_DIRECTORY`
-3. Systemd `preStart` reads credential via stdin piping (never in process list)
-4. Password URL-encoded using `printf` (never logged to journal)
-5. `DATABASE_URL` generated with Unix socket path: `postgresql://user:pass@/db?host=/run/postgresql`
-6. Environment file written to `/run/dispatcharr/env` (mode 0600, root-only)
-7. Container mounts `/run/postgresql` socket (read-only)
-8. Django connects via Unix socket (no network stack, filesystem permissions)
+3. Systemd `preStart` reads the credential without logging it
+4. `POSTGRES_PASSWORD` is written to `/run/dispatcharr/env` (mode 0600)
+5. Both containers consume the environment file through Podman
+6. Containers connect to PostgreSQL and Redis through the Podman host gateway
+7. Celery hands the generated Django secret to UID/GID 569, then drops root
+8. Semantic health checks require the default and DVR workers to answer
 
 **Security Hardening Applied:**
 
@@ -150,7 +157,7 @@ environmentFiles = [ "/run/dispatcharr/env" ];
 - ✅ No password in systemd journal (even with debug logging)
 - ✅ No password passed as command argument
 - ✅ Systemd `LoadCredential` for proper credential isolation
-- ✅ Unix socket instead of TCP (better security + performance)
+- ✅ Host firewall restricts PostgreSQL and Redis to Podman networks
 - ✅ Fail-fast error handling (`set -euo pipefail`)
 - ✅ SELinux-compatible volume mounts (`:Z` flag)
 - ✅ Strong dependency chain (`requires` not `wants`)
@@ -160,7 +167,11 @@ environmentFiles = [ "/run/dispatcharr/env" ];
 The service waits for:
 
 - `postgresql.service` - PostgreSQL server running
-- `postgresql-database-provisioning.service` - Database created and configured
+- `postgresql-provision-databases.service` - Database created and configured
+- `redis-default.service` - External Redis running
+
+The Celery unit additionally requires and starts after the web unit. `PartOf`
+propagates web restarts to Celery.
 
 ## Setup Instructions
 
@@ -169,10 +180,8 @@ The service waits for:
 1. **PostgreSQL enabled on the host:**
 
    ```nix
-   modules.services.postgresql.instances.main = {
+   modules.services.postgresql = {
      enable = true;
-     version = "15";
-     backup.enable = true;  # Recommended
    };
    ```
 
@@ -230,11 +239,9 @@ modules.services.dispatcharr = {
 ### Step 4: Deploy
 
 ```bash
-# Build and activate
-nixos-rebuild switch --flake .#forge
-
-# Or deploy remotely
-deploy .#forge
+# Build and activate through the repository guard
+task nix:build-nixos host=forge
+task nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net
 ```
 
 ### Step 5: Verify
@@ -246,14 +253,19 @@ ssh forge "sudo -u postgres psql -l | grep dispatcharr"
 # Check extensions
 ssh forge "sudo -u postgres psql -d dispatcharr -c '\dx'"
 
-# Check container is running
+# Check both containers are running
 ssh forge "sudo podman ps | grep dispatcharr"
 
 # Check container logs
 ssh forge "sudo journalctl -u podman-dispatcharr -f"
+ssh forge "sudo journalctl -u podman-dispatcharr-celery -f"
 
-# Verify Unix socket connection from container
-ssh forge "sudo podman exec dispatcharr psql -h /run/postgresql -U dispatcharr -d dispatcharr -c 'SELECT version();'"
+# Verify web and worker health
+ssh forge "sudo podman healthcheck run dispatcharr"
+ssh forge "sudo podman healthcheck run dispatcharr-celery"
+
+# Verify the Plex-facing HDHomeRun interface
+ssh forge "curl -fsS http://127.0.0.1:9191/hdhr/discover.json"
 
 # Verify password NOT in process list (security check)
 ssh forge "ps aux | grep dispatcharr" | grep -v PASSWORD  # Should show no password
@@ -269,8 +281,8 @@ ssh forge "sudo journalctl -u podman-dispatcharr | grep -i password"  # Should b
 Check provisioning service:
 
 ```bash
-ssh forge "sudo systemctl status postgresql-database-provisioning"
-ssh forge "sudo journalctl -u postgresql-database-provisioning"
+ssh forge "sudo systemctl status postgresql-provision-databases"
+ssh forge "sudo journalctl -u postgresql-provision-databases"
 ```
 
 ### Permission Denied
@@ -286,10 +298,10 @@ ssh forge "sudo ls -la /run/secrets/ | grep dispatcharr"
 
 ### Container Can't Connect
 
-1. Check password file is mounted:
+1. Check the generated environment file exists without printing it:
 
    ```bash
-   ssh forge "sudo podman exec dispatcharr cat /run/secrets/db_password"
+  ssh forge "sudo stat -c '%a %U:%G' /run/dispatcharr/env"
    ```
 
 2. Test connection manually:
@@ -301,7 +313,7 @@ ssh forge "sudo ls -la /run/secrets/ | grep dispatcharr"
 3. Check container environment:
 
    ```bash
-   ssh forge "sudo podman exec dispatcharr env | grep -E 'DATABASE|DISPATCHARR_ENV'"
+  ssh forge "sudo podman exec dispatcharr env | grep -E 'POSTGRES_HOST|REDIS_HOST|DISPATCHARR_ENV'"
    ```
 
 ## Monitoring
@@ -321,9 +333,11 @@ ssh forge "cat /var/lib/node_exporter/textfile_collector/postgresql_health.prom"
 ```bash
 # Check Dispatcharr service
 ssh forge "sudo systemctl status podman-dispatcharr"
+ssh forge "sudo systemctl status podman-dispatcharr-celery"
 
 # Check health checks
 ssh forge "sudo podman healthcheck run dispatcharr"
+ssh forge "sudo podman healthcheck run dispatcharr-celery"
 ```
 
 ## Benefits of External PostgreSQL
@@ -335,28 +349,29 @@ ssh forge "sudo podman healthcheck run dispatcharr"
 5. **Maintenance:** Centralized PostgreSQL upgrades and maintenance
 6. **Sharing:** Multiple services can use the same PostgreSQL instance
 7. **Security:** Proper role separation and permission management
-8. **Unix Sockets:** Faster, more secure connections via filesystem permissions
+8. **Service Isolation:** Dedicated web, worker, Redis, and PostgreSQL lifecycles
 
 ## Security Hardening Details
 
-This implementation underwent critical security review by Gemini Pro, which identified and fixed 7 major security vulnerabilities:
+This implementation keeps credentials out of Nix-generated container
+configuration while preserving upstream modular-mode behavior.
 
 ### Critical Vulnerabilities Fixed
 
 **1. Process Argument Leak (CRITICAL)**
 - **Problem:** Password passed as command-line argument visible in `/proc/<pid>/cmdline`
-- **Fix:** Changed to stdin piping (`cat | script` instead of `script "$password"`)
+- **Fix:** Systemd writes it to a root-only Podman environment file
 - **Impact:** Password never appears in system process list
 
 **2. Systemd Journal Leak (CRITICAL)**
 - **Problem:** Shell expansion in here-doc would log plaintext password to journal
-- **Fix:** Replaced `cat << EOF` with `printf` to avoid shell expansion
+- **Fix:** `printf` writes only to `/run/dispatcharr/env`; the value is never echoed
 - **Impact:** Password never logged even with debug logging enabled
 
 **3. Container Network Bug (CRITICAL)**
 - **Problem:** Container's `localhost` is isolated namespace - can't reach host PostgreSQL
-- **Fix:** Switch to Unix socket (`/run/postgresql`) mounted into container
-- **Impact:** Fixes connectivity + improves security and performance
+- **Fix:** Use Podman's `host.containers.internal` gateway alias
+- **Impact:** Web and Celery reach the firewall-restricted host services
 
 **4. Missing Error Handling (CRITICAL)**
 - **Problem:** No error handling in preStart - failures continue silently
@@ -375,7 +390,7 @@ This implementation underwent critical security review by Gemini Pro, which iden
 
 **7. Weak Dependency (Reliability)**
 - **Problem:** `wants` allows service start even if provisioning fails
-- **Fix:** Changed to `requires` for stronger dependency
+- **Fix:** Web requires provisioning and Redis; Celery requires web and Redis
 - **Impact:** Clearer failure mode if database provisioning fails
 
 ### Security Architecture
@@ -390,35 +405,26 @@ SOPS Secret (0440, root:postgres)
                     ▼
             $CREDENTIALS_DIRECTORY/db_password
                     │
-                    ├─► stdin pipe ───► URL encoder (no process leak)
-                    │                          │
-                    │                          ▼
-                    │                   ENCODED_PASSWORD
-                    │                          │
-                    │                          ▼
-                    │                   printf (no journal leak)
-                    │                          │
-                    │                          ▼
-                    │                   /run/dispatcharr/env (0600)
-                    │                   DATABASE_URL=postgresql://user:pass@/db?host=/run/postgresql
-                    │                          │
-                    │                          ▼
-                    │                   Container environmentFiles
-                    │                          │
-                    └──────────────────────────┴─► /run/postgresql (Unix socket)
-                                                         │
-                                                         ▼
-                                                   PostgreSQL Server
+                └─► printf ───► /run/dispatcharr/env (0600)
+                     POSTGRES_PASSWORD=<secret>
+                          │
+                     ┌────────────────┴────────────────┐
+                     ▼                                 ▼
+                Modular web container             Celery container
+                     │                                 │
+                     └──────── Podman gateway ─────────┘
+                      │              │
+                      ▼              ▼
+                     PostgreSQL 17   Redis DB 1
 ```
 
 ### Security Guarantees
 
 ✅ **Password Never in Process List**
-- Using stdin piping prevents password from appearing in `ps` output or `/proc/<pid>/cmdline`
+- Podman reads the root-only environment file instead of a command argument
 
 ✅ **Password Never in Logs**
-- Using `printf` instead of here-doc prevents shell expansion that would log password
-- Even with `set -x` debug mode, password remains secure
+- The pre-start script never prints the generated file or secret value
 
 ✅ **Password Never as Command Argument**
 - No subprocess receives password as argv, preventing exposure to system monitoring
@@ -426,8 +432,12 @@ SOPS Secret (0440, root:postgres)
 ✅ **Credential Isolation**
 - Systemd `LoadCredential` provides proper credential isolation from file access
 
-✅ **Network-Free Connection**
-- Unix socket bypasses network stack entirely, using filesystem permissions
+✅ **Restricted Network Connection**
+- PostgreSQL and Redis firewall access is limited to Podman networks
+
+✅ **Non-Root Background Workers**
+- The Celery launcher transfers only required file ownership, then permanently
+  drops to UID/GID 569 with `setpriv`
 
 ✅ **Fail-Fast Error Handling**
 - `set -euo pipefail` ensures any failure stops execution immediately

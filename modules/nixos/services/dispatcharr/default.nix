@@ -19,129 +19,38 @@ let
   hasCentralizedNotifications = notificationsCfg.enable or false;
   dispatcharrPort = 9191;
   mainServiceUnit = "${config.virtualisation.oci-containers.backend}-dispatcharr.service";
+  celeryServiceName = "${config.virtualisation.oci-containers.backend}-dispatcharr-celery";
   datasetPath = "${storageCfg.datasets.parentDataset}/dispatcharr";
 
-  # Custom entrypoint wrapper that skips embedded PostgreSQL when using external database
-  # This wraps the original Dispatcharr entrypoint to conditionally disable the embedded
-  # PostgreSQL service when POSTGRES_HOST is set to a non-localhost value
-  # NOTE: Use writeTextFile instead of writeShellScript because the container needs /bin/bash shebang, not Nix store bash
-  customEntrypoint = pkgs.writeTextFile {
-    name = "dispatcharr-entrypoint-wrapper";
+  # Upstream's modular Celery entrypoint runs as container root and writes the
+  # Beat schedule in /app. Make only that directory writable, then drop to the
+  # stable Dispatcharr UID/GID before executing the untouched upstream script.
+  celeryEntrypoint = pkgs.writeTextFile {
+    name = "dispatcharr-celery-entrypoint";
     executable = true;
     text = ''#!/usr/bin/env bash
 set -euo pipefail
 
-echo "🔧 Dispatcharr Entrypoint Wrapper"
-echo "   POSTGRES_HOST: ''${POSTGRES_HOST:-not set}"
-
-# Check if we're using an external PostgreSQL database
-# Detect external DB if POSTGRES_HOST is set to a host address (not localhost)
-if [ "''${POSTGRES_HOST}" != "localhost" ] && [ -n "''${POSTGRES_HOST}" ]; then
-  echo "✅ External PostgreSQL detected (''${POSTGRES_HOST})"
-  echo "   Disabling embedded PostgreSQL initialization..."
-
-  # Create a modified entrypoint that skips PostgreSQL
-  cp /app/docker/entrypoint.sh /tmp/entrypoint-modified.sh
-  chmod +x /tmp/entrypoint-modified.sh
-
-  # Comment out the PostgreSQL initialization in the init script sourcing (appears twice)
-  sed -i 's|^\. /app/docker/init/02-postgres\.sh$|# DISABLED: . /app/docker/init/02-postgres.sh|g' /tmp/entrypoint-modified.sh
-
-  # Comment out the entire PostgreSQL startup block (lines 110-119)
-  # This includes: "Starting Postgres...", pg_ctl start, until loop, postgres_pid, pids+=
-  sed -i '/^echo "Starting Postgres\.\.\."$/,/^pids+=("\$postgres_pid")$/ s|^|# DISABLED: |' /tmp/entrypoint-modified.sh
-
-  # Comment out ensure_utf8_encoding call
-  sed -i 's|^ensure_utf8_encoding$|# DISABLED: ensure_utf8_encoding|g' /tmp/entrypoint-modified.sh
-
-  # Fix the su command that starts uwsgi - remove the login flag (-) that conflicts with -p
-  # and use full path to uwsgi since PATH doesn't include the virtualenv
-  # Original: su -p - $POSTGRES_USER -c "cd /app && uwsgi $uwsgi_args &"
-  # Fixed: su -p $POSTGRES_USER -c "cd /app && /dispatcharrpy/bin/uwsgi $uwsgi_args &"
-  # The -p flag preserves environment (including PATH), while - creates a login shell that resets it
-  # These flags are mutually exclusive and cause "su: ignoring --preserve-environment" errors
-  # uwsgi is in /dispatcharrpy/bin/ which is not in the default PATH
-  sed -i 's|su -p - \$POSTGRES_USER -c|su -p \$POSTGRES_USER -c|g' /tmp/entrypoint-modified.sh
-  sed -i 's|uwsgi \$uwsgi_args|/dispatcharrpy/bin/uwsgi \$uwsgi_args|g' /tmp/entrypoint-modified.sh
-
-  # Fix uwsgi.ini to use full paths for daphne and celery (which are also in /dispatcharrpy/bin/)
-  # These are started as attach-daemon directives in the uwsgi config and need absolute paths
-  # because they run under the dispatcharr user which doesn't have /dispatcharrpy/bin in PATH
-  echo "   Fixing uwsgi.ini to use full paths for daphne and celery..."
-  sed -i 's|attach-daemon = celery |attach-daemon = /dispatcharrpy/bin/celery |g' /app/docker/uwsgi.ini
-  sed -i 's|attach-daemon = nice -n 5 celery |attach-daemon = nice -n 5 /dispatcharrpy/bin/celery |g' /app/docker/uwsgi.ini
-  sed -i 's|attach-daemon = daphne |attach-daemon = /dispatcharrpy/bin/daphne |g' /app/docker/uwsgi.ini
-
-  # Patch ALL scripts to skip /data/db operations when using external PostgreSQL
-  echo "   Patching scripts to skip /data/db operations..."
-  # Patch the init script
-  sed -i 's|chown[[:space:]]\+[^[:space:]]\+[[:space:]]\+/data/db|# DISABLED: &|g' /app/docker/init/03-init-dispatcharr.sh
-  sed -i 's|mkdir[[:space:]]\+-p[[:space:]]\+/data/db|# DISABLED: &|g' /app/docker/init/03-init-dispatcharr.sh
-
-  # Also patch the entrypoint itself for any remaining /data/db references
-  sed -i 's|chown[[:space:]]\+[^[:space:]]\+[[:space:]]\+/data/db|# DISABLED: &|g' /tmp/entrypoint-modified.sh
-  sed -i 's|mkdir[[:space:]]\+-p[[:space:]]\+/data/db|# DISABLED: &|g' /tmp/entrypoint-modified.sh
-
-  # Fix the chown command in 03-init-dispatcharr.sh to exclude .zfs snapshot directories
-  # ZFS snapshots are read-only and cause chown -R to fail
-  # We need to patch the init script itself, not the entrypoint wrapper
-  # Replace: chown -R $PUID:$PGID /data
-  # With: find /data -path "*/.zfs" -prune -o -exec chown $PUID:$PGID {} +
-  echo "   Patching chown command to exclude .zfs directories..."
-  sed -i 's|chown -R \$PUID:\$PGID /data|find /data -path "*/.zfs" -prune -o -exec chown \$PUID:\$PGID {} +|g' /app/docker/init/03-init-dispatcharr.sh
-  # Also patch the chown for /app directory
-  sed -i 's|chown -R \$PUID:\$PGID /app|find /app -path "*/.zfs" -prune -o -exec chown \$PUID:\$PGID {} +|g' /app/docker/init/03-init-dispatcharr.sh
-
-  # Fix nginx.conf to specify both user and group (01-user-setup.sh creates group "dispatch" but user "$POSTGRES_USER")
-  # After 01-user-setup.sh runs, it sets: user dispatcharr;
-  # But the group is named "dispatch", not "dispatcharr", causing nginx to fail with getgrnam error
-  # Insert fix right after line 107 (after ". /app/docker/init/03-init-dispatcharr.sh")
-  echo "   Fixing nginx.conf group specification..."
-  sed -i '107 a\
-# Fix nginx.conf to use correct group name\
-sed -i "s|^user ''\${POSTGRES_USER};|user ''\${POSTGRES_USER} dispatch;|" /etc/nginx/nginx.conf 2>/dev/null || true' /tmp/entrypoint-modified.sh
-
-  echo "   Modified entrypoint created successfully"
-
-  # Validate the modified entrypoint syntax before executing
-  if ! bash -n /tmp/entrypoint-modified.sh; then
-    echo "❌ Syntax error in modified entrypoint script!"
-    echo "   First 50 lines of modified script:"
-    head -50 /tmp/entrypoint-modified.sh | cat -n
-    exit 1
+for _ in $(seq 1 120); do
+  if [[ -s /data/jwt ]]; then
+    chown "$PUID:$PGID" /data/jwt
+    chmod 0600 /data/jwt
+    break
   fi
+  sleep 1
+done
 
-  # Debug: Show which files contain /data/db references
-  echo "   Debug: Searching for /data/db references..."
-  grep -r "chown.*\/data\/db" /app 2>/dev/null | head -20 || true
-  echo "   Debug: Also checking for subprocess.run or os.system calls..."
-  grep -r "subprocess\|os\.system" /app 2>/dev/null | grep -B2 -A2 "\/data\/db" | head -20 || true
-
-  # More aggressive patching - find and patch ALL files (not just .sh)
-  echo "   Patching all files to remove /data/db operations..."
-  # Patch the specific init script first
-  sed -i 's|chown -R postgres:postgres /data/db|# DISABLED: &|g' /app/docker/init/03-init-dispatcharr.sh
-
-  # Then patch ALL files in /app that might contain these commands
-  find /app -type f -exec grep -l "/data/db" {} \; 2>/dev/null | while read -r file; do
-    echo "     Patching: $file"
-    sed -i 's|chown[[:space:]]\+[^[:space:]]\+[[:space:]]\+/data/db|# DISABLED: &|g' "$file" 2>/dev/null || true
-    sed -i 's|mkdir[[:space:]]\+-p[[:space:]]\+/data/db|# DISABLED: &|g' "$file" 2>/dev/null || true
-  done
-
-  # Create dummy /data/db directory to prevent chown errors
-  echo "   Creating dummy /data/db directory..."
-  mkdir -p /data/db
-  chown postgres:postgres /data/db 2>/dev/null || true
-
-  # Execute the modified entrypoint
-  echo "🚀 Starting Dispatcharr with external PostgreSQL..."
-  exec /tmp/entrypoint-modified.sh "$@"
-else
-  echo "ℹ️  Using embedded PostgreSQL (localhost)"
-  # Execute the original entrypoint
-  exec /app/docker/entrypoint.sh "$@"
+if [[ ! -s /data/jwt ]]; then
+  echo "Timed out waiting for the Dispatcharr Django secret" >&2
+  exit 1
 fi
+
+chown "$PUID:$PGID" /app
+exec /usr/bin/setpriv \
+  --reuid="$PUID" \
+  --regid="$PGID" \
+  --clear-groups \
+  /app/docker/entrypoint.celery.sh
 '';
   };
 
@@ -202,6 +111,16 @@ in
         cpus = "2.0";
       };
       description = "Resource limits for the container";
+    };
+
+    celeryResources = lib.mkOption {
+      type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
+      default = {
+        memory = "1g";
+        memoryReservation = "256M";
+        cpus = "2.0";
+      };
+      description = "Resource limits for the Dispatcharr Celery container";
     };
 
     # Optional VA-API driver selection for container. When null, libva auto-detects.
@@ -381,6 +300,26 @@ in
       };
     };
 
+    redis = {
+      host = lib.mkOption {
+        type = lib.types.str;
+        default = "host.containers.internal";
+        description = "Redis host address";
+      };
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 6379;
+        description = "Redis port";
+      };
+
+      database = lib.mkOption {
+        type = lib.types.int;
+        default = 1;
+        description = "Dedicated Redis database index (0 through 15)";
+      };
+    };
+
   };
 
   config = lib.mkMerge [
@@ -419,6 +358,10 @@ in
           {
             assertion = cfg.database.passwordFile != null;
             message = "Dispatcharr database.passwordFile must reference a SOPS secret for POSTGRES_PASSWORD.";
+          }
+          {
+            assertion = cfg.redis.database >= 0 && cfg.redis.database <= 15;
+            message = "Dispatcharr redis.database must be between 0 and 15.";
           }
         ];
 
@@ -501,7 +444,7 @@ in
       # Dispatcharr container configuration
       # NOTE: Dispatcharr uses individual PostgreSQL environment variables (POSTGRES_HOST, POSTGRES_DB, etc.)
       # The password must be injected at runtime via environmentFiles to avoid leaking it in process list
-      # CRITICAL: Uses custom entrypoint wrapper to disable embedded PostgreSQL when using external database
+      # Upstream modular mode natively supports external PostgreSQL, Redis, and Celery.
       virtualisation.oci-containers.containers.dispatcharr = podmanLib.mkContainer "dispatcharr" {
         image = cfg.image;
         environmentFiles = [
@@ -512,6 +455,7 @@ in
           PUID = cfg.user;
           PGID = cfg.group;
           TZ = cfg.timezone;
+          DISPATCHARR_ENV = "modular";
           # Enable VA-API inside the container when /dev/dri is mapped
           VAAPI_DEVICE = "/dev/dri/renderD128"; # Preferred render node for acceleration
           # PostgreSQL connection configuration
@@ -523,10 +467,9 @@ in
           POSTGRES_DB = cfg.database.name;
           POSTGRES_USER = cfg.database.user;
           # POSTGRES_PASSWORD is provided via environmentFiles (generated in preStart)
-          # Redis configuration (embedded Redis via s6-overlay)
-          REDIS_HOST = "localhost";
-          CELERY_BROKER_URL = "redis://localhost:6379/0";
-          CELERY_RESULT_BACKEND_URL = "redis://localhost:6379/0";
+          REDIS_HOST = cfg.redis.host;
+          REDIS_PORT = toString cfg.redis.port;
+          REDIS_DB = toString cfg.redis.database;
           # Logging
           DISPATCHARR_LOG_LEVEL = "info";
         } // (lib.optionalAttrs (cfg.vaapiDriver != null) {
@@ -543,9 +486,6 @@ in
         volumes = [
           # Use ':Z' for SELinux systems to ensure the container can write to the volume
           "${cfg.dataDir}:/data:rw,Z"
-          # Mount custom entrypoint wrapper to disable embedded PostgreSQL
-          # Use :Z for SELinux compatibility to allow container to execute the script
-          "${customEntrypoint}:/entrypoint-wrapper.sh:ro,Z"
         ];
         ports = [
           "${toString dispatcharrPort}:9191"
@@ -556,11 +496,6 @@ in
           # This allows restic-backup user (member of dispatcharr group) to read data
           "--umask=0027" # Creates directories with 750 and files with 640
           "--pull=newer" # Automatically pull newer images
-          # Override the container's entrypoint to use our custom wrapper
-          # CRITICAL: Must use two separate list items for proper option ordering
-          # The wrapper script is bind-mounted as executable at /entrypoint-wrapper.sh
-          "--entrypoint"
-          "/entrypoint-wrapper.sh"
           # NOTE: Don't use --user flag here! The dispatcharr container's entrypoint
           # script needs to run as root initially to set up /etc/profile.d and other
           # system files, then it drops privileges to PUID/PGID. Using --user prevents
@@ -585,6 +520,50 @@ in
         ];
       };
 
+      virtualisation.oci-containers.containers.dispatcharr-celery = podmanLib.mkContainer "dispatcharr-celery" {
+        image = cfg.image;
+        dependsOn = [ "dispatcharr" ];
+        environmentFiles = [ "/run/dispatcharr/env" ];
+        environment = {
+          PUID = cfg.user;
+          PGID = cfg.group;
+          TZ = cfg.timezone;
+          DISPATCHARR_ENV = "modular";
+          DISPATCHARR_PORT = toString dispatcharrPort;
+          DISPATCHARR_WEB_HOST = "dispatcharr";
+          POSTGRES_HOST = cfg.database.host;
+          POSTGRES_PORT = toString cfg.database.port;
+          POSTGRES_DB = cfg.database.name;
+          POSTGRES_USER = cfg.database.user;
+          REDIS_HOST = cfg.redis.host;
+          REDIS_PORT = toString cfg.redis.port;
+          REDIS_DB = toString cfg.redis.database;
+          DISPATCHARR_LOG_LEVEL = "info";
+          DJANGO_SETTINGS_MODULE = "dispatcharr.settings";
+          PYTHONUNBUFFERED = "1";
+          CELERY_NICE_LEVEL = "5";
+        };
+        volumes = [
+          "${cfg.dataDir}:/data:rw,Z"
+          "${celeryEntrypoint}:/celery-entrypoint.sh:ro,Z"
+        ];
+        resources = cfg.celeryResources;
+        extraOptions = [
+          "--umask=0027"
+          "--pull=newer"
+          "--entrypoint"
+          "/celery-entrypoint.sh"
+        ]
+        ++ lib.optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
+          ''--health-cmd=sh -c 'export DJANGO_SECRET_KEY="$(tr -d "\r\n" < /data/jwt)"; output=$(/dispatcharrpy/bin/celery -A dispatcharr inspect ping --timeout 5 2>/dev/null); echo "$output" | grep -q "default@" && echo "$output" | grep -q "dvr@"' ''
+          "--health-interval=${cfg.healthcheck.interval}"
+          "--health-timeout=${cfg.healthcheck.timeout}"
+          "--health-retries=${toString cfg.healthcheck.retries}"
+          "--health-start-period=${cfg.healthcheck.startPeriod}"
+          "--health-on-failure=${cfg.healthcheck.onFailure}"
+        ];
+      };
+
       # Add systemd dependencies and notifications
       systemd.services."${config.virtualisation.oci-containers.backend}-dispatcharr" = lib.mkMerge [
         # Add failure notifications via systemd
@@ -599,8 +578,8 @@ in
         # Add dependency on PostgreSQL and database provisioning
         {
           # Use 'requires' for robustness. If provisioning fails, this service won't start.
-          requires = [ "postgresql-provision-databases.service" ];
-          after = [ "postgresql.service" "postgresql-provision-databases.service" ];
+          requires = [ "postgresql-provision-databases.service" "redis-default.service" ];
+          after = [ "postgresql.service" "postgresql-provision-databases.service" "redis-default.service" ];
 
           # Hardware access is managed at the host level (profiles/hardware/intel-gpu.nix services list)
 
@@ -633,6 +612,17 @@ in
 
             echo "Successfully created POSTGRES_PASSWORD environment file"
           '';
+        }
+      ];
+
+      systemd.services."${celeryServiceName}" = lib.mkMerge [
+        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+          unitConfig.OnFailure = [ "notify@dispatcharr-failure:%n.service" ];
+        })
+        {
+          requires = [ "redis-default.service" ];
+          after = [ "redis-default.service" ];
+          partOf = [ mainServiceUnit ];
         }
       ];
 
