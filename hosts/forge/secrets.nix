@@ -947,6 +947,20 @@ in
             owner = "root";
             group = "root";
           };
+
+          # Least-privilege projection of the three HOMELAB_MCP_SIGNAL_*
+          # values into Hermes's native SIGNAL_* names. The canonical group
+          # send target is `group.` plus Base64 of signal-cli's raw Base64
+          # groupInfo.groupId, so the Hermes projection strips the prefix and
+          # decodes the suffix exactly once. SIGNAL_ALLOWED_USERS currently
+          # contains Ryan only; append the partner number here when supplied.
+          # Do not pass the full homelab-mcp env to Hermes.
+          "hermes-agent/signal-env" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "hermes-agent.service" ];
+          };
         }
         // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
           # Operation W.W.W. secrets. All seven are required at service start.

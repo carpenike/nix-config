@@ -2,10 +2,10 @@
 #
 # signal-api - Signal messenger transport (bbernhard/signal-cli-rest-api)
 #
-# A thin REST wrapper around signal-cli. It exists so other homelab services
-# can send Signal messages as a dedicated bot account without embedding
-# signal-cli themselves. On forge the only intended consumer is homelab-mcp
-# (its future `signal_send` tool).
+# A thin REST wrapper around signal-cli. It exists so approved homelab services
+# can use a dedicated bot account without embedding signal-cli themselves. On
+# forge, Hermes owns the sole receive stream; other approved callers are
+# send-only.
 #
 # Reference: https://github.com/bbernhard/signal-cli-rest-api
 # API docs:  https://bbernhard.github.io/signal-cli-rest-api/
@@ -278,7 +278,7 @@ mylib.mkContainerService {
           iptables -w -N ${chain} 2>/dev/null || true
           iptables -w -F ${chain}
           ${allowRules}
-          iptables -w -A ${chain} -j REJECT --reject-with tcp-reset
+          iptables -w -A ${chain} -p tcp -j REJECT --reject-with tcp-reset
           iptables -w -C OUTPUT ${jumpMatch} 2>/dev/null || iptables -w -I OUTPUT 1 ${jumpMatch}
         '';
 

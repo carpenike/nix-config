@@ -3,17 +3,14 @@
 # Signal delivery transport for the household-advisor system.
 #
 # signal-cli-rest-api runs a dedicated Signal bot account ("Household
-# Advisor"). Its only intended consumer is homelab-mcp on this host, which
-# will grow a `signal_send` tool that posts the weekly financial pulse to the
-# family Signal group.
+# Advisor"). Hermes owns interactive send/receive; homelab-mcp remains a
+# send-only future caller for the separate weekly financial pulse work.
 #
-#   hermes-agent (weekly pulse job)  ->  homelab-mcp `signal_send`
-#                                          |  HTTP, 127.0.0.1:8484
-#                                          v
-#                                    signal-api container
-#                                          |  Signal protocol (outbound)
-#                                          v
-#                                    family Signal group
+#   hermes-agent  <->  signal-api container  <->  family Signal group
+#                  REST send / WebSocket receive
+#
+#   homelab-mcp   -->  signal-api container
+#                  future send only
 #
 # The account registration is a ONE-TIME MANUAL PROCEDURE performed by a
 # human - see modules/nixos/services/signal-api/RUNBOOK.md. Until that runs,
@@ -54,13 +51,18 @@ in
         inherit podmanNetwork;
 
         # Who may talk to the unauthenticated API on this host:
-        #   homelab-mcp - the approved caller (`signal_send`)
+        #   hermes      - interactive Signal send/receive gateway
+        #   homelab-mcp - approved future send-only caller (`signal_send`)
         #   gatus       - the liveness check below
         #   root        - operators following the registration runbook
+        #
+        # RECEIVE CONSUMER INVARIANT: hermes-agent is the only service that
+        # may attach to /v1/receive. Never add a second receiver; concurrent
+        # consumers contend for messages and can cause loss or duplication.
         localAccess = {
           enable = true;
           subnet = podmanSubnet;
-          allowedUsers = [ "root" "homelab-mcp" "gatus" ];
+          allowedUsers = [ "root" "hermes" "homelab-mcp" "gatus" ];
         };
 
         # Crown-jewel state: the account registration keys ARE the bot's

@@ -35,19 +35,19 @@ When reviewing workarounds:
 
 ---
 
-### Hermes Agent - Cold-Store Evaluation Fix
+### Hermes Agent - Signal Gateway and Cold-Store Fixes
 
 | Field | Value |
 | --- | --- |
 | **Added** | 2026-07-27 |
 | **Location** | `flake.nix` (`inputs.hermes-agent`) and `flake.lock` |
-| **Affects** | Forge evaluation, all CI flake checks, and automated flake-input update PRs |
-| **Reason** | Hermes's filtered-source refactor passed `lib.fileset.toSource` results to evaluation-time consumers (`uv2nix`, `importNpmLock`, and `builtins.readFile`). A full parallel `nix flake check --no-build` on a cold store could try to read those generated paths before they were valid, failing with `error: path '<hash>-source' is not valid`. Warm stores masked the missing dependency context. |
-| **Workaround** | Pin `hermes-agent` to immutable fork commit [`8ab28b54`](https://github.com/carpenike/hermes-agent/commit/8ab28b54c67c02a5a8c95f9c75b5c8cc4080eb0f), which keeps metadata evaluation on the original flake source while applying filtered sources only at derivation boundaries. |
-| **Validation** | The original revision failed the complete nix-config flake check in a brand-new isolated Nix store. The pinned commit passed that exact cold-store command, Hermes's cross-platform package evaluation check, and a native Hermes Web build. |
-| **Check** | After upstream PR #72689 merges, restore `url = "github:NousResearch/hermes-agent"`, update only the Hermes lock node, and rerun the cold-store flake check before removing this entry. |
-| **Upstream** | [NousResearch/hermes-agent#72689](https://github.com/NousResearch/hermes-agent/pull/72689) |
-| **Impact** | Without the fix, every fresh GitHub runner fails before building and a cold Forge store cannot evaluate the system closure. |
+| **Affects** | Forge Signal gateway, Forge evaluation, all CI flake checks, and automated flake-input update PRs |
+| **Reason** | The released Signal adapter targets direct signal-cli SSE/JSON-RPC endpoints that do not exist in signal-cli-rest-api 0.100; independently, Hermes's filtered-source refactor passed generated `lib.fileset.toSource` paths to evaluation-time consumers, which breaks cold-store evaluation. |
+| **Workaround** | Pin `hermes-agent` to immutable fork commit [`5f2de152`](https://github.com/carpenike/hermes-agent/commit/5f2de152e174268e707ad78db4f803dc7944c16b), combining the REST/WebSocket adapter from upstream PR #53696, v0.100 raw-to-REST group-recipient encoding, and the cold-store fix from PR #72689. |
+| **Validation** | The fork's focused Signal REST route suite passes on `x86_64-linux` (`22 passed`). Validate nix-config with `task nix:build-nixos host=forge`, then verify the Signal WebSocket and reply path on forge. |
+| **Check** | After upstream PRs #53696 and #72689 merge, restore `url = "github:NousResearch/hermes-agent"`, update only the Hermes lock node, and rerun the cold-store and Signal gateway checks before removing this entry. |
+| **Upstream** | [NousResearch/hermes-agent#53696](https://github.com/NousResearch/hermes-agent/pull/53696), [NousResearch/hermes-agent#72689](https://github.com/NousResearch/hermes-agent/pull/72689) |
+| **Impact** | Without the pin, Hermes cannot connect to forge's Signal transport; fresh CI runners and cold Forge stores can also fail before building. |
 
 ---
 

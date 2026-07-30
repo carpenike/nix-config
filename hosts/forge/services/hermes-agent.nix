@@ -14,6 +14,14 @@ let
   serviceIds = mylib.serviceUids.hermes;
   serviceEnabled = config.services.hermes-agent.enable or false;
   hermesPackage = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  householdAdvisorPrompt = ''
+    You are Household Advisor. Be concise, factual, and family-appropriate.
+    You do not currently have access to household financial data. If a request
+    needs the pending homelab-mcp finances tools, say that you do not have data
+    access yet; never infer, estimate, or invent values.
+    Never provide investment advice. For financial questions beyond simple
+    facts, say: "bring it to the monthly review."
+  '';
   hermesCli = pkgs.writeShellScriptBin "hermes" ''
     export HOME="${stateDir}"
     export HERMES_HOME="${stateDir}/.hermes"
@@ -41,7 +49,10 @@ in
         # A small wrapper below exposes the managed CLI without merging the
         # upstream package's unstable propagated tools into the system profile.
         addToSystemPackages = false;
-        environmentFiles = [ config.sops.templates."hermes-agent-env".path ];
+        environmentFiles = [
+          config.sops.templates."hermes-agent-env".path
+          config.sops.secrets."hermes-agent/signal-env".path
+        ];
         environment = {
           API_SERVER_ENABLED = "false";
           # Telegram numeric IDs are stable and non-secret. Keep the env
@@ -112,6 +123,14 @@ in
             # A user's private Telegram chat ID equals their numeric user ID.
             allowed_chats = [ "8903896206" ];
             group_policy = "disabled";
+          };
+          gateway.platforms.signal = {
+            enabled = true;
+            # SIGNAL_ALLOWED_USERS is mirrored into the SOPS env. An explicit
+            # allowlist makes unauthorized DMs silent instead of issuing
+            # pairing codes; group intake is separately restricted by
+            # SIGNAL_GROUP_ALLOWED_USERS.
+            channel_overrides."+12406206585".system_prompt = householdAdvisorPrompt;
           };
           terminal = {
             backend = "local";
@@ -188,6 +207,53 @@ in
       # ProtectSystem=strict, PrivateTmp, and a dedicated user. Tighten the
       # remaining host boundary and cap runaway agent resource consumption.
       systemd.services.hermes-agent = {
+        # Keep Hermes running across signal-api restarts so its WebSocket loop
+        # can reconnect with the adapter's jittered 2s -> 60s backoff.
+        after = [ "podman-signal-api.service" ];
+        wants = [ "podman-signal-api.service" ];
+
+        # Hermes expands env references only in YAML values, not mapping keys.
+        # Render the SOPS-held group ID into the exact Signal chat key before
+        # startup, then wait for the REST API so the initial connect is not
+        # lost while the json-rpc daemon is still warming up.
+        preStart = ''
+          signalGroupId="$(${pkgs.gawk}/bin/awk -F= '
+            $1 == "SIGNAL_GROUP_ALLOWED_USERS" {
+              sub(/^[^=]*=/, "")
+              value = $0
+            }
+            END {
+              if (value == "") exit 1
+              print value
+            }
+          ' "${stateDir}/.hermes/.env")"
+
+          case "$signalGroupId" in
+            group.*)
+              echo "hermes-agent: Signal inbound group ID must not include the REST send prefix" >&2
+              exit 1
+              ;;
+            ?*) ;;
+            *)
+              echo "hermes-agent: Signal inbound group ID is missing" >&2
+              exit 1
+              ;;
+          esac
+
+          SIGNAL_GROUP_CHAT_ID="group:$signalGroupId" \
+          HOUSEHOLD_ADVISOR_PROMPT="$(${pkgs.coreutils}/bin/cat ${pkgs.writeText "household-advisor-prompt" householdAdvisorPrompt})" \
+            ${pkgs.yq-go}/bin/yq --inplace \
+              '.gateway.platforms.signal.channel_overrides |= with_entries(select(.key | test("^group:") | not)) |
+               .gateway.platforms.signal.channel_overrides[strenv(SIGNAL_GROUP_CHAT_ID)].system_prompt = strenv(HOUSEHOLD_ADVISOR_PROMPT)' \
+              "${stateDir}/.hermes/config.yaml"
+
+          ${pkgs.curl}/bin/curl --fail --silent --show-error \
+            --retry 30 --retry-all-errors --retry-delay 2 \
+            --connect-timeout 2 --max-time 5 \
+            "http://127.0.0.1:${toString config.modules.services.signal-api.port}/v1/health" \
+            --output /dev/null
+        '';
+
         # Upstream merges config.yaml during activation, outside the unit, so
         # settings changes otherwise leave the running gateway on stale config.
         restartTriggers = [
