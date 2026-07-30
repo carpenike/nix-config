@@ -57,11 +57,11 @@ let
     MemoryHigh = "1G";
     MemoryMax = "2G";
     Nice = 5;
-    RuntimeMaxSec = "8h";
+    TimeoutStartSec = "8h";
   };
 
   expireResourceConfig = backupResourceConfig // {
-    RuntimeMaxSec = "12h";
+    TimeoutStartSec = "12h";
   };
 
   backupLockScript = ''
@@ -70,6 +70,238 @@ let
     echo "[$(date -Iseconds)] Waiting for exclusive pgBackRest backup lock..."
     ${pkgs.util-linux}/bin/flock 9
   '';
+
+  restoreDrillRoot = "/var/lib/postgresql/.restore-drill";
+
+  mkRestoreDrillService = repo:
+    let
+      repoString = toString repo;
+      serviceName = "pgbackrest-restore-drill-repo${repoString}";
+      restoreRoot = "${restoreDrillRoot}/repo${repoString}";
+      metricsFile = "/var/lib/node_exporter/textfile_collector/${serviceName}.prom";
+      socketDir = "/run/${serviceName}";
+    in
+    {
+      description = "Disposable pgBackRest restore drill from repo${repoString}";
+      after = [ "pgbackrest-config-generator.service" "network-online.target" ];
+      wants = [ "network-online.target" ];
+      requires = [ "pgbackrest-config-generator.service" ];
+      path = [ pkgs.pgbackrest postgresqlPackage pkgs.coreutils pkgs.gawk pkgs.gnugrep pkgs.jq pkgs.util-linux ];
+      unitConfig.RequiresMountsFor = [ restoreDrillRoot ] ++ lib.optionals (repo == 1) [ "/mnt/nas-postgresql" ];
+      serviceConfig = hardenedServiceConfig // {
+        Type = "oneshot";
+        User = "postgres";
+        Group = "postgres";
+        RuntimeDirectory = serviceName;
+        RuntimeDirectoryMode = "0700";
+        ProtectSystem = "strict";
+        ReadWritePaths = [
+          restoreDrillRoot
+          "/run/postgresql/pgbackrest-backup.lock"
+          "/var/lib/node_exporter/textfile_collector"
+          "/var/lib/pgbackrest/spool"
+          "/var/log/pgbackrest"
+        ];
+        CPUWeight = 25;
+        IOWeight = 25;
+        MemoryHigh = "2G";
+        MemoryMax = "4G";
+        Nice = 10;
+        TimeoutStartSec = "8h";
+        TimeoutStopSec = "5m";
+        IPAddressDeny = [ "169.254.169.254" ];
+      };
+      script = ''
+        set -euo pipefail
+
+        repo="${repoString}"
+        restore_root="${restoreRoot}"
+        pgdata="$restore_root/pgdata"
+        socket_dir="${socketDir}"
+        postgres_log="$socket_dir/postgresql.log"
+        metrics_file="${metricsFile}"
+        port=55432
+        start_epoch=$(date +%s)
+        backup_label="unknown"
+        backup_stop_epoch=0
+        server_version_num=0
+        database_count=0
+
+        safe_remove_restore_root() {
+          if [[ "$restore_root" != "${restoreRoot}" ]]; then
+            echo "Refusing to remove unexpected restore path: $restore_root" >&2
+            return 1
+          fi
+          rm -rf -- "$restore_root"
+        }
+
+        write_metrics() {
+          local status="$1"
+          local end_epoch="$2"
+          local duration="$3"
+          local last_success=0
+          local metrics_temp="$metrics_file.tmp.$$"
+
+          if [[ -r "$metrics_file" ]]; then
+            last_success=$(awk '/^pgbackrest_restore_drill_last_success_timestamp_seconds/ {print $2}' "$metrics_file" | tail -n 1)
+          fi
+          [[ "$last_success" =~ ^[0-9]+$ ]] || last_success=0
+          if (( status == 1 )); then
+            last_success="$end_epoch"
+          fi
+
+          {
+            echo "# HELP pgbackrest_restore_drill_status Result of the latest restore drill (1=success, 0=failure)."
+            echo "# TYPE pgbackrest_restore_drill_status gauge"
+            echo "pgbackrest_restore_drill_status{repo=\"$repo\"} $status"
+            echo "# HELP pgbackrest_restore_drill_duration_seconds Duration of the latest restore drill."
+            echo "# TYPE pgbackrest_restore_drill_duration_seconds gauge"
+            echo "pgbackrest_restore_drill_duration_seconds{repo=\"$repo\"} $duration"
+            echo "# HELP pgbackrest_restore_drill_last_attempt_timestamp_seconds Timestamp of the latest restore drill attempt."
+            echo "# TYPE pgbackrest_restore_drill_last_attempt_timestamp_seconds gauge"
+            echo "pgbackrest_restore_drill_last_attempt_timestamp_seconds{repo=\"$repo\"} $end_epoch"
+            echo "# HELP pgbackrest_restore_drill_last_success_timestamp_seconds Timestamp of the latest successful restore drill."
+            echo "# TYPE pgbackrest_restore_drill_last_success_timestamp_seconds gauge"
+            echo "pgbackrest_restore_drill_last_success_timestamp_seconds{repo=\"$repo\"} $last_success"
+            echo "# HELP pgbackrest_restore_drill_backup_timestamp_seconds Completion timestamp of the backup validated by the latest drill."
+            echo "# TYPE pgbackrest_restore_drill_backup_timestamp_seconds gauge"
+            echo "pgbackrest_restore_drill_backup_timestamp_seconds{repo=\"$repo\"} $backup_stop_epoch"
+            echo "# HELP pgbackrest_restore_drill_server_version_num PostgreSQL server version validated by the latest drill."
+            echo "# TYPE pgbackrest_restore_drill_server_version_num gauge"
+            echo "pgbackrest_restore_drill_server_version_num{repo=\"$repo\"} $server_version_num"
+            echo "# HELP pgbackrest_restore_drill_database_count Connectable databases validated by the latest drill."
+            echo "# TYPE pgbackrest_restore_drill_database_count gauge"
+            echo "pgbackrest_restore_drill_database_count{repo=\"$repo\"} $database_count"
+          } > "$metrics_temp"
+
+          chmod 0644 "$metrics_temp" || return 1
+          mv -f "$metrics_temp" "$metrics_file" || return 1
+        }
+
+        cleanup() {
+          local exit_code=$?
+          local cleanup_failed=0
+          local end_epoch
+          local duration
+          local status=0
+
+          trap - EXIT INT TERM
+          set +e
+
+          if [[ -d "$pgdata" ]] && pg_ctl -D "$pgdata" status >/dev/null 2>&1; then
+            echo "[$(date -Iseconds)] Stopping disposable PostgreSQL instance..."
+            if ! pg_ctl -D "$pgdata" -m fast -t 120 stop; then
+              pg_ctl -D "$pgdata" -m immediate -t 60 stop || cleanup_failed=1
+            fi
+          fi
+
+          safe_remove_restore_root || cleanup_failed=1
+
+          if (( exit_code == 0 && cleanup_failed != 0 )); then
+            exit_code=1
+          fi
+
+          end_epoch=$(date +%s)
+          duration=$((end_epoch - start_epoch))
+          if (( exit_code == 0 )); then
+            status=1
+          fi
+          write_metrics "$status" "$end_epoch" "$duration" || exit_code=1
+
+          if (( exit_code == 0 )); then
+            echo "[$(date -Iseconds)] Repo$repo restore drill passed in ''${duration}s"
+          else
+            echo "[$(date -Iseconds)] Repo$repo restore drill failed after ''${duration}s" >&2
+          fi
+          exit "$exit_code"
+        }
+
+        trap cleanup EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
+
+        ${backupLockScript}
+
+        if [[ -d "$pgdata" ]] && pg_ctl -D "$pgdata" status >/dev/null 2>&1; then
+          echo "A previous drill PostgreSQL instance is still running from $pgdata" >&2
+          exit 1
+        fi
+
+        safe_remove_restore_root
+        install -d -m 0700 "$restore_root" "$pgdata"
+
+        backup_json=$(pgbackrest --stanza=main --repo="$repo" --output=json info)
+        backup_label=$(jq -er '.[0].backup[-1].label' <<< "$backup_json")
+        backup_size=$(jq -er '.[0].backup[-1].info.size' <<< "$backup_json")
+        backup_stop_epoch=$(jq -er '.[0].backup[-1].timestamp.stop' <<< "$backup_json")
+        available_bytes=$(df -B1 --output=avail "$restore_root" | tail -n 1 | tr -d ' ')
+        required_bytes=$((backup_size + backup_size / 4 + 1073741824))
+
+        if (( available_bytes < required_bytes )); then
+          echo "Insufficient scratch capacity: need $required_bytes bytes, have $available_bytes" >&2
+          exit 1
+        fi
+
+        echo "[$(date -Iseconds)] Restoring $backup_label from repo$repo into $pgdata..."
+        pgbackrest \
+          --stanza=main \
+          --repo="$repo" \
+          --pg1-path="$pgdata" \
+          --archive-mode=off \
+          --process-max=2 \
+          --log-level-console=info \
+          restore
+
+        grep -F -- "--repo=$repo" "$pgdata/postgresql.auto.conf" >/dev/null
+        grep -Eq "^[[:space:]]*archive_mode[[:space:]]*=[[:space:]]*'?off'?" "$pgdata/postgresql.auto.conf"
+
+        postgres_options="-c listen_addresses= -c port=$port -c unix_socket_directories='$socket_dir' -c hba_file='$pgdata/pg_hba.conf' -c ident_file='$pgdata/pg_ident.conf' -c archive_mode=off -c ssl=off -c logging_collector=off -c log_destination=stderr -c shared_buffers=256MB -c default_transaction_read_only=on"
+
+        echo "[$(date -Iseconds)] Starting isolated PostgreSQL recovery..."
+        if ! pg_ctl -D "$pgdata" -l "$postgres_log" -t 1800 -o "$postgres_options" start; then
+          tail -n 100 "$postgres_log" >&2 || true
+          exit 1
+        fi
+
+        recovery_deadline=$((SECONDS + 1800))
+        while true; do
+          in_recovery=$(psql -X -h "$socket_dir" -p "$port" -U postgres -d template1 -Atqc 'SELECT pg_is_in_recovery()' 2>/dev/null || true)
+          if [[ "$in_recovery" == "f" ]]; then
+            break
+          fi
+          if (( SECONDS >= recovery_deadline )); then
+            echo "PostgreSQL did not complete archive recovery within 1800 seconds" >&2
+            tail -n 100 "$postgres_log" >&2 || true
+            exit 1
+          fi
+          sleep 5
+        done
+
+        server_version_num=$(psql -X -h "$socket_dir" -p "$port" -U postgres -d template1 -Atqc 'SHOW server_version_num')
+        if (( server_version_num < 170000 || server_version_num >= 180000 )); then
+          echo "Unexpected restored PostgreSQL version: $server_version_num" >&2
+          exit 1
+        fi
+
+        mapfile -t databases < <(
+          psql -X -h "$socket_dir" -p "$port" -U postgres -d template1 -Atqc \
+            'SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY datname'
+        )
+        database_count="''${#databases[@]}"
+        if (( database_count == 0 )); then
+          echo "No connectable non-template databases found in restored cluster" >&2
+          exit 1
+        fi
+
+        for database in "''${databases[@]}"; do
+          echo "[$(date -Iseconds)] Validating database: $database"
+          psql -X -v ON_ERROR_STOP=1 -h "$socket_dir" -p "$port" -U postgres -d "$database" \
+            -Atqc 'SELECT count(*) FROM pg_catalog.pg_class' >/dev/null
+        done
+
+        echo "[$(date -Iseconds)] Validated PostgreSQL $server_version_num, $database_count databases, backup $backup_label"
+      '';
+    };
 in
 {
   # pgBackRest - PostgreSQL Backup & Recovery
@@ -219,6 +451,10 @@ in
     "f /var/lib/node_exporter/textfile_collector/pgbackrest.prom 0644 postgres node-exporter - -"
     # Create metrics file for the post-preseed service
     "f /var/lib/node_exporter/textfile_collector/postgresql_postpreseed.prom 0644 postgres node-exporter - -"
+    "d ${restoreDrillRoot} 0700 postgres postgres - -"
+    "f /run/postgresql/pgbackrest-backup.lock 0600 postgres postgres - -"
+    "f /var/lib/node_exporter/textfile_collector/pgbackrest-restore-drill-repo1.prom 0644 postgres node-exporter - -"
+    "f /var/lib/node_exporter/textfile_collector/pgbackrest-restore-drill-repo2.prom 0644 postgres node-exporter - -"
     # Note: /var/lib/postgresql directory created by zfs-service-datasets.service with proper ownership
   ];
 
@@ -806,6 +1042,9 @@ in
         pgbackrest --stanza=main check --log-level-console=info
       '';
     };
+
+    pgbackrest-restore-drill-repo1 = mkRestoreDrillService 1;
+    pgbackrest-restore-drill-repo2 = mkRestoreDrillService 2;
 
     # Differential backup
     # Differential backups removed - simplified to daily full + hourly incremental (NFS)

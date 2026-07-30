@@ -1374,33 +1374,54 @@ tasks:
       - sh: which ssh
         msg: "ssh not found"
 
-  pgbackrest-restore-test:
-    desc: Test pgBackRest restore capability (non-destructive)
+  pgbackrest-restore-drill:
+    aliases: [pgbackrest-restore-test]
+    desc: Restore and validate PostgreSQL from a pgBackRest repository
     silent: false
     vars:
       host: '{{.host | default "forge"}}'
       NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      repo: '{{.repo | default "1"}}'
     summary: |
-      Tests pgBackRest restore capability by verifying backup integrity.
-      This is a non-destructive check that validates backups can be restored.
+      Performs a non-destructive physical restore into scratch storage, starts
+      an isolated PostgreSQL instance, validates every connectable database,
+      stops the instance, and removes the restored data.
 
-      Note: This does NOT perform an actual restore - it only verifies
-      that the backup data is valid and restorable.
+      Production PostgreSQL remains online. The drill disables TCP and WAL
+      archiving, uses a private Unix socket, and serializes with backup and
+      expiration jobs. Allow capacity for one restored database cluster.
 
       Args:
         host: Target host (default: forge)
+        repo: pgBackRest repository to validate (1=NFS, 2=R2; default: 1)
 
       Examples:
-        task backup:pgbackrest-restore-test
+        task backup:pgbackrest-restore-drill
+        task backup:pgbackrest-restore-drill repo=2
         task backup:pgbackrest-restore-test host=forge
     cmds:
       - |
-        echo "=== pgBackRest Restore Test on {{.host}}.{{.NIXOS_DOMAIN}} ==="
-        echo ""
-        echo "Verifying backup integrity..."
-        ssh {{.host}}.{{.NIXOS_DOMAIN}} "sudo -u postgres pgbackrest --stanza=main verify"
-        echo ""
-        echo "Backup verification complete."
+        service="pgbackrest-restore-drill-repo{{.repo}}.service"
+        target="{{.host}}.{{.NIXOS_DOMAIN}}"
+        status_command="sudo -n systemctl show '$service'"
+
+        echo "=== pgBackRest Repo {{.repo}} Restore Drill on $target ==="
+        if ! ssh "$target" "sudo -n systemctl start '$service'"; then
+          ssh "$target" "sudo -n journalctl -u '$service' -n 120 --no-pager"
+          exit 1
+        fi
+
+        result=$(ssh "$target" "$status_command -p Result --value")
+        if [ "$result" != "success" ]; then
+          echo "Restore drill service result: $result" >&2
+          ssh "$target" "sudo -n journalctl -u '$service' -n 120 --no-pager"
+          exit 1
+        fi
+
+        ssh "$target" "$status_command -p Result -p ExecMainStatus --no-pager"
+        ssh "$target" "sudo -n journalctl -u '$service' -n 40 --no-pager"
     preconditions:
+      - sh: test "{{.repo}}" = "1" || test "{{.repo}}" = "2"
+        msg: "repo must be 1 (NFS) or 2 (R2)"
       - sh: which ssh
         msg: "ssh not found"
