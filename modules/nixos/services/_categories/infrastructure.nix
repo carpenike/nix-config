@@ -17,5 +17,6 @@
     ../postgresql # PostgreSQL database
     ../postgresql/databases.nix # Database provisioning
     ../postgresql/storage-integration.nix # ZFS dataset creation
+    ../signal-api # Signal messenger REST transport (signal-cli-rest-api)
   ];
 }
