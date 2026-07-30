@@ -252,10 +252,18 @@ in
           }];
         }
       );
+      prometheusRuleCheck = pkgs.runCommand "prometheus-alert-rules-check"
+        {
+          nativeBuildInputs = [ pkgs.prometheus.cli ];
+        } ''
+        promtool check rules ${prometheusRuleFile}
+        touch "$out"
+      '';
     in
     {
       # Expose the generated Prometheus rule file path
       modules.alerting.prometheus.ruleFilePath = prometheusRuleFile;
+      system.checks = [ prometheusRuleCheck ];
       # Assertions for rule correctness to keep things type-safe
       assertions =
         let ruleNames = builtins.attrNames (cfg.rules or { });

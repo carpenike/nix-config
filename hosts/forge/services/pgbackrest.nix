@@ -4,6 +4,8 @@ let
   serviceEnabled =
     (config.modules.services.postgresql.enable or false)
     || (config.services.postgresql.enable or false);
+  postgresqlDataDir = config.services.postgresql.dataDir;
+  postgresqlPackage = config.services.postgresql.finalPackage;
   hardenedServiceConfig = {
     ProtectSystem = "full";
     ProtectHome = true;
@@ -108,9 +110,9 @@ in
       repo2-s3-uri-style=path
       repo2-retention-full=7
     repo2-retention-archive=7
-      # Credentials will be substituted by pgbackrest-config-generator service
-      repo2-s3-key=__R2_ACCESS_KEY_ID__
-      repo2-s3-key-secret=__R2_SECRET_ACCESS_KEY__
+      # Credentials are allowlisted through envsubst at runtime.
+      repo2-s3-key=$AWS_ACCESS_KEY_ID
+      repo2-s3-key-secret=$AWS_SECRET_ACCESS_KEY
 
       # Global archive settings (apply to all repositories with archiving enabled)
       # Archive async with local spool to decouple DB availability from repos
@@ -118,7 +120,8 @@ in
       # Background process flushes to repos when they are available
       archive-async=y
       spool-path=/var/lib/pgbackrest/spool
-      archive-push-queue-max=1073741824
+      # About 40 hours at forge's observed average WAL generation rate.
+      archive-push-queue-max=17179869184
 
       # Other global settings
       process-max=2
@@ -133,7 +136,7 @@ in
       io-timeout=300
 
       [main]
-      pg1-path=/var/lib/postgresql/16
+      pg1-path=${postgresqlDataDir}
       pg1-port=5432
       pg1-user=postgres
   '';
@@ -144,6 +147,7 @@ in
     description = "Generate pgBackRest configuration with R2 credentials";
     wantedBy = [ "multi-user.target" ];
     before = [ "postgresql.service" "postgresql-preseed.service" ];
+    restartTriggers = [ config.environment.etc."pgbackrest.conf.template".source ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -151,14 +155,29 @@ in
       ExecStart = pkgs.writeShellScript "generate-pgbackrest-conf" ''
         set -euo pipefail
 
-        # Read template and substitute credentials
-        sed -e "s|__R2_ACCESS_KEY_ID__|$AWS_ACCESS_KEY_ID|g" \
-            -e "s|__R2_SECRET_ACCESS_KEY__|$AWS_SECRET_ACCESS_KEY|g" \
-            /etc/pgbackrest.conf.template > /etc/pgbackrest.conf
+        if [[ -z "$AWS_ACCESS_KEY_ID" || -z "$AWS_SECRET_ACCESS_KEY" ]]; then
+          echo "R2 credentials are missing" >&2
+          exit 1
+        fi
+
+        temp_config="$(${pkgs.coreutils}/bin/mktemp /etc/.pgbackrest.conf.XXXXXX)"
+        trap '${pkgs.coreutils}/bin/rm -f "$temp_config"' EXIT
+
+        ${pkgs.gettext}/bin/envsubst '$AWS_ACCESS_KEY_ID $AWS_SECRET_ACCESS_KEY' \
+          < /etc/pgbackrest.conf.template \
+          > "$temp_config"
 
         # Set secure permissions (postgres user needs to read this)
-        chmod 640 /etc/pgbackrest.conf
-        chown postgres:postgres /etc/pgbackrest.conf
+        ${pkgs.coreutils}/bin/chmod 640 "$temp_config"
+        ${pkgs.coreutils}/bin/chown postgres:postgres "$temp_config"
+        ${pkgs.coreutils}/bin/mv -f "$temp_config" /etc/pgbackrest.conf
+        trap - EXIT
+
+        if ${pkgs.gnugrep}/bin/grep -q '\$AWS_' /etc/pgbackrest.conf; then
+          echo "Generated pgBackRest configuration contains unsubstituted credential placeholders" >&2
+          exit 1
+        fi
+        ${pkgs.util-linux}/bin/runuser -u postgres -- ${pkgs.coreutils}/bin/test -r /etc/pgbackrest.conf
 
         echo "Generated /etc/pgbackrest.conf with R2 credentials"
       '';
@@ -199,7 +218,7 @@ in
       after = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       wants = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       requires = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
-      path = [ pkgs.pgbackrest pkgs.postgresql_16 ];
+      path = [ pkgs.pgbackrest postgresqlPackage ];
       serviceConfig = hardenedServiceConfig // {
         Type = "oneshot";
         User = "postgres";
@@ -221,11 +240,9 @@ in
 
         echo "[$(date -Iseconds)] Creating pgBackRest stanza 'main' for both repos (NFS + R2)..."
 
-        # Check if we're in disaster recovery scenario (preseed marker exists)
-        DISASTER_RECOVERY=false
+        # Surface preseed context in logs when validating restored clusters.
         if [ -f "/var/lib/postgresql/.preseed-completed" ]; then
           echo "[$(date -Iseconds)] Preseed marker detected - this is a disaster recovery scenario"
-          DISASTER_RECOVERY=true
         fi
 
         # Try to create/upgrade stanza to handle both fresh install and disaster recovery
@@ -254,24 +271,10 @@ in
             fi
             echo "[$(date -Iseconds)] Stanza upgrade successful - database now matches backup metadata"
           else
-            # Stanza doesn't exist and dual-repo creation failed
-            # Prioritize getting repo1 online for WAL archiving even if repo2 is broken
-            echo "[$(date -Iseconds)] WARNING: Dual-repository stanza creation failed. Attempting repo1-only to secure WAL archiving..."
-
-            # Try stanza-create with just repo1 (no --repo flag needed, it will use what's in config)
-            if pgbackrest --stanza=main stanza-create 2>&1; then
-              echo "[$(date -Iseconds)] SUCCESS: Repo1 stanza is active. WAL archiving will function."
-              echo "[$(date -Iseconds)] WARNING: Repo2 (R2) stanza creation failed. System operational but with reduced redundancy."
-              echo "[$(date -Iseconds)] Action required: Fix repo2 connectivity/credentials and retry stanza-create manually."
-              # Exit successfully - WAL archiving is working (degraded but operational)
-              # Operators should monitor logs for this warning and fix repo2 connectivity
-              exit 0
-            else
-              echo "[$(date -Iseconds)] CRITICAL: Failed to create or upgrade stanza even for repo1."
-              echo "[$(date -Iseconds)] WAL archiving is BROKEN. Manual intervention required immediately."
-              echo "[$(date -Iseconds)] Check: NFS mount (/mnt/nas-postgresql), PostgreSQL running, stanza configuration."
-              exit 1
-            fi
+            echo "[$(date -Iseconds)] CRITICAL: Failed to create the stanza for all required repositories."
+            echo "[$(date -Iseconds)] WAL archiving is not fully protected. Manual intervention is required."
+            echo "[$(date -Iseconds)] Check NFS and R2 connectivity, credentials, and repository metadata."
+            exit 1
           fi
         else
           echo "[$(date -Iseconds)] Successfully created stanzas for both repositories"
@@ -297,7 +300,7 @@ in
       bindsTo = [ "postgresql.service" ]; # Stop if PostgreSQL goes down mid-run
       # Triggered by OnSuccess from postgresql-preseed instead of boot-time activation
       # This eliminates condition evaluation race and "skipped at boot" noise
-      path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.jq pkgs.systemd ];
+      path = [ pkgs.pgbackrest postgresqlPackage pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.jq pkgs.systemd ];
 
       # Only run if preseed completed but post-preseed backup hasn't been done yet
       unitConfig = {
@@ -309,7 +312,9 @@ in
         RequiresMountsFor = [ "/mnt/nas-postgresql" ];
         # Recovery from transient failures
         StartLimitIntervalSec = "600";
-        StartLimitBurst = "5";
+        # Initial attempt plus five retries; the sixth execution records the
+        # terminal GAVE-UP state instead of being blocked by systemd first.
+        StartLimitBurst = "6";
         # Trigger metrics collection on success to immediately update Prometheus
         OnSuccess = "pgbackrest-metrics.service";
       };
@@ -410,7 +415,7 @@ in
 
                 while true; do
                   # Check if this is a standby that will never promote
-                  if [ -f "/var/lib/postgresql/16/standby.signal" ]; then
+                  if [ -f "${postgresqlDataDir}/standby.signal" ]; then
                     log_json "ERROR" "promotion_failed" "standby.signal present - node will not promote" "{\"reason\":\"standby_configuration\"}"
                     exit 2
                   fi
@@ -468,10 +473,14 @@ in
 
                 # Use single jq query to extract both repo counts efficiently
                 COUNTS=$(echo "$INFO_JSON" | jq -r --arg sid "$cur_sysid" '
-                  .[] | .backup | map(select(.type == "full" and .database["system-id"] == ($sid|tonumber) and (.error // null) == null)) |
+                  .[0] |
+                  (.db |
+                    map(select(.["system-id"] == ($sid | tonumber))) |
+                    map({key: (.["repo-key"] | tostring), value: .id}) |
+                    from_entries) as $current_db |
                   {
-                    repo1: map(select(.repo == 1)) | length,
-                    repo2: map(select(.repo == 2)) | length
+                    repo1: [.backup[] | select(.type == "full" and .database["repo-key"] == 1 and .database.id == $current_db["1"] and ((.error // false) == false))] | length,
+                    repo2: [.backup[] | select(.type == "full" and .database["repo-key"] == 2 and .database.id == $current_db["2"] and ((.error // false) == false))] | length
                   } | "\(.repo1) \(.repo2)"
                 ' 2>/dev/null || echo "0 0")
 
@@ -568,7 +577,7 @@ in
       description = "pgBackRest full backup";
       after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
       wants = [ "postgresql.service" ];
-      path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.systemd ];
+      path = [ pkgs.pgbackrest postgresqlPackage pkgs.systemd ];
 
       unitConfig = {
         RequiresMountsFor = [ "/mnt/nas-postgresql" ];
@@ -614,7 +623,7 @@ in
       description = "pgBackRest incremental backup";
       after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
       wants = [ "postgresql.service" ];
-      path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.systemd ];
+      path = [ pkgs.pgbackrest postgresqlPackage pkgs.systemd ];
 
       unitConfig = {
         RequiresMountsFor = [ "/mnt/nas-postgresql" ];
@@ -656,10 +665,9 @@ in
       description = "pgBackRest daily incremental backup to R2";
       after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
       wants = [ "postgresql.service" ];
-      path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.systemd ];
+      path = [ pkgs.pgbackrest postgresqlPackage pkgs.systemd ];
 
       unitConfig = {
-        RequiresMountsFor = [ "/mnt/nas-postgresql" ];
         OnSuccess = "pgbackrest-metrics.service";
         # Bound the auto-retries so a sustained outage surfaces as an alert
         # instead of looping forever (see retryPolicy comment above).
@@ -690,7 +698,7 @@ in
       description = "pgBackRest repository health check";
       after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
       wants = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
-      path = [ pkgs.pgbackrest pkgs.postgresql_16 pkgs.systemd ];
+      path = [ pkgs.pgbackrest postgresqlPackage pkgs.systemd ];
       unitConfig = {
         RequiresMountsFor = [ "/mnt/nas-postgresql" ];
         OnSuccess = "pgbackrest-metrics.service";
@@ -773,7 +781,7 @@ in
 
   systemd.services.pgbackrest-metrics = {
     description = "Collect pgBackRest backup metrics for Prometheus";
-    path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest pkgs.findutils pkgs.gawk ];
+    path = [ pkgs.jq pkgs.coreutils pkgs.pgbackrest postgresqlPackage pkgs.findutils pkgs.gawk ];
     serviceConfig = hardenedServiceConfig // {
       Type = "oneshot";
       User = "postgres";
@@ -794,11 +802,21 @@ in
 
             METRICS_FILE="/var/lib/node_exporter/textfile_collector/pgbackrest.prom"
             METRICS_TEMP="''${METRICS_FILE}.tmp"
+            ARCHIVE_STATUS_DIR="${postgresqlDataDir}/pg_wal/archive_status"
+
+            if [ -d "$ARCHIVE_STATUS_DIR" ]; then
+              SPOOL_FILES=$(find "$ARCHIVE_STATUS_DIR" -maxdepth 1 -type f -name '*.ready' | wc -l | awk '{print $1}')
+              WAL_SEGMENT_SIZE=$(pg_controldata "${postgresqlDataDir}" | awk -F: '/Bytes per WAL segment/ {gsub(/[[:space:]]/, "", $2); print $2}')
+              SPOOL_BYTES=$((SPOOL_FILES * WAL_SEGMENT_SIZE))
+            else
+              SPOOL_BYTES=0
+              SPOOL_FILES=0
+            fi
 
             # Run pgbackrest info, capturing JSON. Timeout prevents hangs on network issues.
             # All configuration (including repo2 S3 credentials) is read from /etc/pgbackrest.conf
             # which is generated by pgbackrest-config-generator.service
-            INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json info 2>&1)
+            INFO_JSON=$(timeout 300s pgbackrest --stanza=main --output=json info 2>&1 || true)
 
             # Exit gracefully if command fails or returns empty/invalid JSON
             if ! echo "$INFO_JSON" | jq -e '.[0].name == "main"' > /dev/null; then
@@ -812,6 +830,12 @@ in
             # HELP pgbackrest_scrape_timestamp_seconds Timestamp of the last pgBackRest metrics attempt.
             # TYPE pgbackrest_scrape_timestamp_seconds gauge
             pgbackrest_scrape_timestamp_seconds{stanza="main"} $(date +%s)
+          # HELP pgbackrest_spool_queue_bytes Size of the archive async spool queue pending upload.
+          # TYPE pgbackrest_spool_queue_bytes gauge
+          pgbackrest_spool_queue_bytes{stanza="main"} $SPOOL_BYTES
+          # HELP pgbackrest_spool_queue_files Number of WAL files waiting in the archive async spool queue.
+          # TYPE pgbackrest_spool_queue_files gauge
+          pgbackrest_spool_queue_files{stanza="main"} $SPOOL_FILES
       EOF
               mv "$METRICS_TEMP" "$METRICS_FILE"
               exit 0 # Exit successfully so systemd timer doesn't mark as failed
@@ -839,6 +863,8 @@ in
       # TYPE pgbackrest_backup_last_size_bytes gauge
       # HELP pgbackrest_backup_last_delta_bytes Amount of data backed up for the last successful backup.
       # TYPE pgbackrest_backup_last_delta_bytes gauge
+      # HELP pgbackrest_current_backup_count Successful backups for the current database system ID.
+      # TYPE pgbackrest_current_backup_count gauge
       # HELP pgbackrest_wal_max_lsn The last WAL segment archived, converted to decimal for graphing.
       # TYPE pgbackrest_wal_max_lsn gauge
       # HELP pgbackrest_spool_queue_bytes Size of the archive async spool queue pending upload.
@@ -868,25 +894,38 @@ in
                 echo "pgbackrest_wal_max_lsn{stanza=\"main\"} $MAX_WAL_DEC" >> "$METRICS_TEMP"
             fi
 
-            SPOOL_DIR="/var/lib/pgbackrest/spool/archive/push"
-            if [ -d "$SPOOL_DIR" ]; then
-              SPOOL_BYTES=$(du -sb "$SPOOL_DIR" | cut -f1)
-              SPOOL_FILES=$(find "$SPOOL_DIR" -type f | wc -l | awk '{print $1}')
-            else
-              SPOOL_BYTES=0
-              SPOOL_FILES=0
-            fi
             echo "pgbackrest_spool_queue_bytes{stanza=\"main\"} $SPOOL_BYTES" >> "$METRICS_TEMP"
             echo "pgbackrest_spool_queue_files{stanza=\"main\"} $SPOOL_FILES" >> "$METRICS_TEMP"
 
             # Per-repo and per-backup-type metrics using a single, efficient jq command
             echo "$STANZA_JSON" | jq -r '
+              (.db |
+                group_by(.["repo-key"]) |
+                map(max_by(.id)) |
+                map({key: (.["repo-key"] | tostring), value: .id}) |
+                from_entries) as $current_db |
               # First emit repo status metrics for all repos
               (.repo[] |
                 "pgbackrest_repo_status{stanza=\"main\",repo_key=\"\(.key)\"} \(.status.code)"
               ),
+              # Emit zero as well as non-zero counts so missing current-system
+              # baselines cannot disappear as absent Prometheus series.
+              (range(1; 3) as $repo |
+                ["full", "incr"][] as $type |
+                ([.backup[] | select(
+                  .database["repo-key"] == $repo and
+                  .database.id == $current_db[($repo | tostring)] and
+                  .type == $type and
+                  ((.error // false) == false)
+                )] | length) as $count |
+                "pgbackrest_current_backup_count{stanza=\"main\",repo_key=\"\($repo)\",type=\"\($type)\"} \($count)"
+              ),
               # Then process backups - group by repo and type to find latest of each
-              ([.backup[] | select((.type | test("full|incr")) and (.error // null) == null)] |
+              ([.backup[] | select(
+                .database.id == $current_db[(.database["repo-key"] | tostring)] and
+                (.type | test("full|incr")) and
+                ((.error // false) == false)
+              )] |
                 group_by(.database["repo-key"], .type)[] |
                 sort_by(.timestamp.start) | .[-1] |
                 (
@@ -899,11 +938,19 @@ in
               )
             ' >> "$METRICS_TEMP"
 
-            # Count failed backups
-            # HELP pgbackrest_backup_failed_total Total number of failed backups found in the last info scrape.
-            # TYPE pgbackrest_backup_failed_total counter
-            FAILED_COUNT=$(echo "$STANZA_JSON" | jq '[.backup[] | select(.error == true)] | length')
-            echo "pgbackrest_backup_failed_total{stanza=\"main\"} $FAILED_COUNT" >> "$METRICS_TEMP"
+            # Count failed backup manifests currently retained in repositories.
+            # This is a gauge because expiration can reduce the value.
+            # HELP pgbackrest_backup_failed_manifests Failed backup manifests found in the last info scrape.
+            # TYPE pgbackrest_backup_failed_manifests gauge
+            FAILED_COUNT=$(echo "$STANZA_JSON" | jq '
+              (.db |
+                group_by(.["repo-key"]) |
+                map(max_by(.id)) |
+                map({key: (.["repo-key"] | tostring), value: .id}) |
+                from_entries) as $current_db |
+              [.backup[] | select(.database.id == $current_db[(.database["repo-key"] | tostring)] and .error == true)] | length
+            ')
+            echo "pgbackrest_backup_failed_manifests{stanza=\"main\"} $FAILED_COUNT" >> "$METRICS_TEMP"
 
             # Set permissions so node_exporter can read the file
             chmod 644 "$METRICS_TEMP"
@@ -997,13 +1044,13 @@ in
     "pgbackrest-backup-failed" = {
       type = "promql";
       alertname = "PgBackRestBackupFailed";
-      expr = "increase(pgbackrest_backup_failed_total[1h]) > 0";
+      expr = ''node_systemd_unit_state{name=~"pgbackrest-(full-backup|incr-backup|incr-r2-backup)[.]service",state="failed"} == 1'';
       for = "0m";
       severity = "critical";
       labels = { service = "pgbackrest"; category = "backup"; };
       annotations = {
-        summary = "pgBackRest backup job failed on {{ $labels.instance }}";
-        description = "A pgBackRest backup job has failed within the last hour. Check pgBackRest logs for details.";
+        summary = "pgBackRest backup unit {{ $labels.name }} failed on {{ $labels.instance }}";
+        description = "A pgBackRest backup unit exhausted its retry policy. Check the unit journal and repository connectivity.";
       };
     };
 
@@ -1035,20 +1082,30 @@ in
       };
     };
 
-    # Full backup stale - only alert if ALL repos are stale (>27 hours)
-    # Single repo failure is expected occasionally with NFS and self-heals
+    # Full backup stale per required repository (>27 hours)
     "pgbackrest-full-backup-stale" = {
       type = "promql";
       alertname = "PgBackRestFullBackupStale";
-      # Alert only when the MINIMUM age across all repos exceeds threshold
-      # This means ALL repos have stale backups, not just one
-      expr = "min(time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"}) > 97200";
+      expr = "time() - pgbackrest_backup_last_good_completion_seconds{type=\"full\"} > 97200";
       for = "1h";
       severity = "high";
       labels = { service = "pgbackrest"; category = "backup"; };
       annotations = {
-        summary = "pgBackRest full backups stale on ALL repos (>27h) on {{ $labels.instance }}";
-        description = "All backup repositories have stale full backups. Check both NFS (repo1) and R2 (repo2) connectivity.";
+        summary = "pgBackRest full backup stale on repo {{ $labels.repo_key }} (>27h) on {{ $labels.instance }}";
+        description = "A required backup repository has no recent full backup. Check repo1 (NFS) or repo2 (R2) connectivity and the corresponding backup unit.";
+      };
+    };
+
+    "pgbackrest-current-full-backup-missing" = {
+      type = "promql";
+      alertname = "PgBackRestCurrentFullBackupMissing";
+      expr = ''pgbackrest_current_backup_count{type="full"} < 1'';
+      for = "30m";
+      severity = "critical";
+      labels = { service = "pgbackrest"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "No full backup for the current PostgreSQL system on repo {{ $labels.repo_key }}";
+        description = "The repository only contains backups for an older database system ID, or has no full baseline. Create and verify a current full backup before relying on PITR.";
       };
     };
 
@@ -1085,13 +1142,13 @@ in
     "pgbackrest-spool-usage-high" = {
       type = "promql";
       alertname = "PgBackRestSpoolUsageHigh";
-      expr = ''(node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} - node_filesystem_avail_bytes{mountpoint="/var/lib/pgbackrest"}) / node_filesystem_size_bytes{mountpoint="/var/lib/pgbackrest"} > 0.8'';
+      expr = "pgbackrest_spool_queue_bytes > 8589934592";
       for = "10m";
       severity = "high";
       labels = { service = "pgbackrest"; category = "backup"; };
       annotations = {
         summary = "pgBackRest spool usage high on {{ $labels.instance }}";
-        description = "Local spool >80% used ({{ $value | humanizePercentage }}). WAL archiving backlog likely. Check NFS repo1 health.";
+        description = "Archive queue exceeds 8 GiB of its 16 GiB safety limit ({{ $value | humanize1024 }}B). Check both repositories before pgBackRest drops queued WAL and breaks PITR continuity.";
       };
     };
 

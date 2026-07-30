@@ -5,7 +5,7 @@
 # Initial use case: dispatcharr (IPTV stream management)
 #
 # Architecture:
-# - Single PostgreSQL 16 instance
+# - Single PostgreSQL 17 instance
 # - Databases provisioned declaratively via modules.services.postgresql.databases
 # - Automatic role creation with SOPS-managed passwords
 # - ZFS dataset with PostgreSQL-optimal settings (8K recordsize)
@@ -21,6 +21,26 @@
 # to avoid circular dependencies in module evaluation
 #
 let
+  postgresql16Package = pkgs.postgresql_16.withPackages (ps: [ ps.timescaledb ]);
+  postgresql17Package = pkgs.postgresql_17.withPackages (ps: [ ps.timescaledb ]);
+  postgresqlMajorUpgrade = pkgs.writeShellApplication {
+    name = "postgresql-major-upgrade";
+    runtimeInputs = with pkgs; [ coreutils gawk procps systemd ];
+    text = ''
+      export PG_OLD_BIN=${postgresql16Package}/bin
+      export PG_NEW_BIN=${postgresql17Package}/bin
+      export PG_OLD_DATA=/var/lib/postgresql/16
+      export PG_NEW_DATA=/var/lib/postgresql/17
+      export PG_WORK_DIR=/var/lib/postgresql/upgrade-16-to-17
+      export PG_OLD_VERSION=16
+      export PG_NEW_VERSION=17
+      export PG_INITDB_LOCALE=en_US.UTF-8
+      export PG_MAINTENANCE_MARKER=/run/postgresql-major-upgrade-target
+
+      ${builtins.readFile ../../../scripts/postgresql-major-upgrade.sh}
+    '';
+  };
+
   # Allow operators to override which Podman CIDRs can reach PostgreSQL without
   # editing the pg_hba.conf snippet directly. If modules.services.postgresql.podmanCidrs
   # is unset, fall back to the traditional 10.88.0.0/16 bridge network.
@@ -34,7 +54,7 @@ in
       # Enable PostgreSQL service
       modules.services.postgresql = {
         enable = true;
-        version = "16";
+        version = "17";
         port = 5432;
 
         # Listen on localhost and Podman bridge for container access
@@ -45,9 +65,10 @@ in
         # Open firewall for container access (podman bridge interfaces)
         openFirewall = true;
 
-        # Memory settings (tune based on available RAM)
-        sharedBuffers = "256MB"; # 25% of RAM for dedicated DB
-        effectiveCacheSize = "1GB"; # ~50% of available RAM
+        # Conservative memory settings for a shared host. PostgreSQL's measured
+        # NVMe read latency is low, while forge runs many memory-heavy services.
+        sharedBuffers = "256MB";
+        effectiveCacheSize = "1GB";
         maintenanceWorkMem = "128MB";
         workMem = "16MB";
 
@@ -55,6 +76,7 @@ in
         extraSettings = {
           # WAL settings for pgBackRest PITR
           wal_level = "replica"; # Required for pgBackRest
+          wal_compression = "on";
           max_wal_size = "2GB";
           min_wal_size = "512MB";
           archive_mode = "on";
@@ -70,6 +92,7 @@ in
           archive_timeout = "300"; # Force WAL switch every 5 minutes (bounds RPO)
 
           # Checkpoint settings
+          checkpoint_timeout = "15min";
           checkpoint_completion_target = "0.9";
 
           # Query planner (optimized for SSD/NVMe)
@@ -87,8 +110,10 @@ in
           log_timezone = "UTC";
           # Surface long-running maintenance and checkpoint behavior for easier diagnostics
           log_checkpoints = "on";
+          log_lock_waits = "on";
           log_autovacuum_min_duration = "1s";
           log_temp_files = "10MB";
+          idle_in_transaction_session_timeout = "10min";
           track_io_timing = "on";
           autovacuum_max_workers = "5";
           autovacuum_naptime = "30s";
@@ -114,16 +139,15 @@ in
       # The custom module's listenAddresses may not be taking effect, so we force it here
       services.postgresql.settings = {
         listen_addresses = pkgs.lib.mkForce "127.0.0.1,10.88.0.1";
-        # TimescaleDB requires shared_preload_libraries
-        shared_preload_libraries = "timescaledb";
+        shared_preload_libraries = "timescaledb,pg_stat_statements";
       };
 
-      # Add TimescaleDB extension package to PostgreSQL
-      # Required for tracearr (media account sharing detection) database
-      # mkForce overrides the base package set in the module
-      services.postgresql.package = lib.mkForce (pkgs.postgresql_16.withPackages (ps: [
+      # Resolve extension binaries from the selected PostgreSQL major version.
+      services.postgresql.extensions = ps: [
         ps.timescaledb
-      ]));
+      ];
+
+      environment.systemPackages = [ postgresqlMajorUpgrade ];
 
       # Override authentication to allow container connections from Podman bridge
       # GPT-5 recommendation: Use password-based auth (scram-sha-256) for network connections
@@ -208,31 +232,13 @@ in
           fallbackRepository = 2; # Fallback to R2/S3 if NFS fails
           backupSet = "latest";
         };
-        # R2 credentials for fallback repository
-        environmentFile = config.sops.secrets."restic/r2-prod-env".path;
       };
 
-      # Override preseed service to include repo2 configuration for disaster recovery
-      # repo2 is not in /etc/pgbackrest.conf (removed to fix WAL archiving issue)
-      # but is needed for preseed fallback when nas-1 is unavailable (site-wide failure)
-      # NOTE: This mirrors repo2EnvVars from default.nix - keep in sync!
-      # TODO: Consider extracting to shared module if more services need this
       systemd.services.postgresql-preseed = {
         # Ensure config file is generated before preseed attempts restore
         after = [ "pgbackrest-config-generator.service" ];
         requires = [ "pgbackrest-config-generator.service" ];
-
-        serviceConfig = {
-          # pgBackRest repo2 configuration via environment variables
-          Environment = [
-            "PGBACKREST_REPO2_TYPE=s3"
-            "PGBACKREST_REPO2_PATH=/forge-pgbackrest"
-            "PGBACKREST_REPO2_S3_BUCKET=${config.my.r2.bucket}"
-            "PGBACKREST_REPO2_S3_ENDPOINT=${config.my.r2.endpoint}"
-            "PGBACKREST_REPO2_S3_REGION=auto"
-            "PGBACKREST_REPO2_S3_URI_STYLE=path"
-          ];
-        };
+        unitConfig.OnSuccess = "pgbackrest-post-preseed.service";
       };
 
     }

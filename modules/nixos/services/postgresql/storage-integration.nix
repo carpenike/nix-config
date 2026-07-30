@@ -19,7 +19,7 @@ in
     modules.storage.datasets.services = {
       # Data dataset with PostgreSQL-optimal settings
       "postgresql" = {
-        mountpoint = cfg.dataDir;
+        mountpoint = cfg.dataRoot;
         recordsize = "8K"; # PostgreSQL page size
         compression = "lz4";
         properties = {

@@ -288,7 +288,7 @@ in
         enable = lib.mkEnableOption "PostgreSQL service";
 
         version = lib.mkOption {
-          type = lib.types.enum [ "14" "15" "16" ];
+          type = lib.types.enum [ "14" "15" "16" "17" ];
           default = "16";
           description = "PostgreSQL major version";
         };
@@ -347,10 +347,21 @@ in
           description = "Memory for maintenance operations";
         };
 
+        dataRoot = lib.mkOption {
+          type = lib.types.str;
+          default = "/var/lib/postgresql";
+          description = ''
+            Stable root for PostgreSQL cluster storage. The ZFS dataset mounts
+            here while each major version uses its own subdirectory, allowing
+            side-by-side major-version upgrades without changing the dataset
+            mountpoint.
+          '';
+        };
+
         # Computed paths (read-only, derived from version)
         dataDir = lib.mkOption {
           type = lib.types.str;
-          default = "/var/lib/postgresql/${config.modules.services.postgresql.version}";
+          default = "${config.modules.services.postgresql.dataRoot}/${config.modules.services.postgresql.version}";
           readOnly = true;
           description = "PostgreSQL data directory";
         };
@@ -1050,6 +1061,23 @@ in
     let
       cfg = config.modules.services.postgresql;
       pgPackage = if cfg.enable then pkgs.${"postgresql_${lib.replaceStrings ["."] [""] cfg.version}"} else null;
+      storageIntegrationEnabled = cfg.integration.storage.enable or true;
+      majorUpgradeGate = pkgs.writeShellScript "postgresql-major-upgrade-gate" ''
+        set -eu
+
+        gate=/run/postgresql-major-upgrade-target
+        if [ ! -e "$gate" ]; then
+          exit 0
+        fi
+
+        target="$(cat "$gate")"
+        if [ "$target" = ${lib.escapeShellArg cfg.dataDir} ]; then
+          exit 0
+        fi
+
+        echo "PostgreSQL start blocked: major-upgrade target is $target, this generation uses ${cfg.dataDir}" >&2
+        exit 1
+      '';
 
       dashboardsToAttrs = folder: dashboards:
         lib.listToAttrs (lib.imap1
@@ -1116,6 +1144,17 @@ in
     lib.mkMerge [
       # PostgreSQL service implementation
       (lib.mkIf cfg.enable {
+        assertions = [
+          {
+            assertion = lib.hasPrefix "/" cfg.dataRoot && cfg.dataRoot != "/";
+            message = "modules.services.postgresql.dataRoot must be an absolute path other than /.";
+          }
+          {
+            assertion = builtins.dirOf cfg.dataDir == cfg.dataRoot;
+            message = "modules.services.postgresql.dataDir must be a direct child of dataRoot.";
+          }
+        ];
+
         # Operational safety warnings
         warnings =
           (lib.optional
@@ -1188,6 +1227,116 @@ in
           "d ${cfg.walArchiveDir} 0750 postgres postgres -"
         ];
 
+        # Keep the ZFS mount stable while PostgreSQL major versions live in
+        # side-by-side subdirectories. Data relocation and pg_upgrade remain
+        # explicit offline operations; this unit only validates the result.
+        systemd.services.postgresql-data-layout = {
+          description = "Validate PostgreSQL versioned data layout";
+          before = [
+            "postgresql-preseed-prepare.service"
+            "postgresql-preseed.service"
+            "postgresql.service"
+          ];
+          after = lib.optionals storageIntegrationEnabled [ "zfs-service-datasets.service" ];
+          requires = lib.optionals storageIntegrationEnabled [ "zfs-service-datasets.service" ];
+          path = with pkgs; [ coreutils findutils ];
+
+          unitConfig = {
+            RequiresMountsFor = [ cfg.dataRoot ];
+            AssertPathIsMountPoint = cfg.dataRoot;
+          };
+
+          serviceConfig = {
+            Type = "oneshot";
+            User = "root";
+            RemainAfterExit = true;
+            NoNewPrivileges = true;
+            PrivateTmp = true;
+            PrivateDevices = true;
+            ProtectSystem = "strict";
+            ProtectHome = true;
+            ProtectKernelTunables = true;
+            ProtectKernelModules = true;
+            ProtectControlGroups = true;
+            ReadWritePaths = [ cfg.dataRoot ];
+            RestrictAddressFamilies = [ "AF_UNIX" ];
+            TimeoutStartSec = "30m";
+          };
+
+          script = ''
+            set -euo pipefail
+
+            data_root=${lib.escapeShellArg cfg.dataRoot}
+            pgdata=${lib.escapeShellArg cfg.dataDir}
+            expected_version=${lib.escapeShellArg cfg.version}
+            fail() {
+              echo "PostgreSQL data layout error: $*" >&2
+              exit 1
+            }
+
+            validate_cluster() {
+              local cluster_dir="$1"
+              local actual_version
+
+              [[ -f "$cluster_dir/PG_VERSION" ]] || fail "missing PG_VERSION in $cluster_dir"
+              actual_version="$(cat "$cluster_dir/PG_VERSION")"
+              [[ "$actual_version" == "$expected_version" ]] ||
+                fail "$cluster_dir contains PostgreSQL $actual_version, expected $expected_version"
+            }
+
+            if [[ -f "$pgdata/PG_VERSION" ]]; then
+              [[ ! -f "$data_root/PG_VERSION" ]] ||
+                fail "both legacy and versioned clusters exist"
+              validate_cluster "$pgdata"
+
+              older_cluster_found=false
+              for version_file in "$data_root"/*/PG_VERSION; do
+                [[ -e "$version_file" ]] || continue
+                sibling_dir="$(dirname "$version_file")"
+                [[ "$sibling_dir" == "$pgdata" ]] && continue
+                sibling_version="$(cat "$version_file")"
+                if [[ "$sibling_version" =~ ^[0-9]+$ ]] && (( sibling_version < expected_version )); then
+                  older_cluster_found=true
+                  break
+                fi
+              done
+
+              if [[ "$older_cluster_found" == true ]]; then
+                completion_marker="$data_root/.major-upgrade-to-$expected_version-completed"
+                [[ -f "$completion_marker" ]] ||
+                  fail "an older cluster exists but $completion_marker is missing; complete pg_upgrade before activation"
+              fi
+
+              exit 0
+            fi
+
+            if [[ -f "$data_root/PG_VERSION" ]]; then
+              legacy_version="$(cat "$data_root/PG_VERSION")"
+              fail "legacy PostgreSQL $legacy_version cluster found at the storage root; perform the one-time offline layout migration into $pgdata"
+            fi
+
+            if [[ -d "$pgdata" ]] && [[ -n "$(ls -A "$pgdata")" ]]; then
+              fail "$pgdata is non-empty but does not contain PG_VERSION"
+            fi
+
+            for version_file in "$data_root"/*/PG_VERSION; do
+              [[ -e "$version_file" ]] || continue
+              fail "existing cluster found at $(dirname "$version_file"); run the major-version upgrade before enabling PostgreSQL $expected_version"
+            done
+
+            while IFS= read -r -d $'\0' entry; do
+              name="$(basename "$entry")"
+              case "$name" in
+                "$target_name"|.zfs|.preseed-*|.postpreseed-*) continue ;;
+              esac
+              fail "unexpected entry in $data_root: $name"
+            done < <(find "$data_root" -mindepth 1 -maxdepth 1 -print0)
+
+            install -d -m 0700 -o postgres -g postgres "$pgdata"
+            echo "Prepared empty PostgreSQL $expected_version cluster directory for preseed"
+          '';
+        };
+
         # Extend systemd service configuration
         systemd.services.postgresql = {
           # Ensure PostgreSQL doesn't start until required directories are mounted
@@ -1196,10 +1345,12 @@ in
           };
 
           # Ensure ZFS mounts are complete before starting
-          after = [ "zfs-mount.service" ];
+          after = [ "zfs-mount.service" "postgresql-data-layout.service" ];
+          requires = [ "postgresql-data-layout.service" ];
 
           # Runtime checks for WAL archive directory
           serviceConfig = {
+            ExecCondition = [ majorUpgradeGate ];
             ExecStartPre = lib.optionals (cfg.backup.walArchive.enable or false) [
               "${pkgs.coreutils}/bin/test -d '${cfg.walArchiveDir}'"
               "${pkgs.coreutils}/bin/test -w '${cfg.walArchiveDir}'"

@@ -41,6 +41,44 @@ Declarative NixOS module for managing PostgreSQL databases, roles, permissions, 
 - **databases.nix**: Implementation logic (SQL generation and systemd service)
 - **Separation**: Allows evaluation on hosts without PostgreSQL enabled
 
+### Storage and Major Upgrades
+
+The PostgreSQL ZFS dataset mounts at the stable `dataRoot` (`/var/lib/postgresql`
+by default). Each PostgreSQL major version uses a child directory such as
+`/var/lib/postgresql/16` or `/var/lib/postgresql/17` as `PGDATA`.
+
+This layout supports side-by-side `pg_upgrade` runs without changing the ZFS
+mountpoint. Major upgrades remain explicit offline operations:
+
+1. Verify pgBackRest and take a fresh full backup plus a ZFS snapshot.
+2. Enable the target gate before stopping PostgreSQL and all backup jobs.
+3. Initialize the new version directory and run `pg_upgrade --check`.
+4. Run `pg_upgrade`, validate the new cluster, then change `version`.
+5. Activate the target generation, disable the gate, upgrade extensions, and
+  create a new full backup before removing the old cluster.
+
+The `postgresql-data-layout` unit fails closed when it finds a legacy flat
+cluster, an unexpected major version, or an older sibling cluster without a
+completed target cluster. It never relocates or upgrades database files.
+
+For hosts that package `postgresql-major-upgrade`, use this ordering:
+
+```bash
+sudo postgresql-major-upgrade gate-enable
+sudo systemctl stop postgresql.service
+sudo -u postgres postgresql-major-upgrade prepare
+sudo -u postgres postgresql-major-upgrade check
+sudo -u postgres postgresql-major-upgrade upgrade
+
+# Build and activate the configuration that selects the target major version.
+sudo postgresql-major-upgrade gate-disable
+```
+
+The gate records the target `PGDATA` path under `/run`. Every PostgreSQL
+generation checks it before startup, so a queued dependency cannot restart the
+source cluster while `pg_upgrade` copies data. The target generation is allowed
+to start because its `PGDATA` matches the recorded path.
+
 ## Usage
 
 ### Quick Start: Permission Presets (Recommended)

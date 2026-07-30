@@ -8,6 +8,10 @@ let
 
   # Helper to determine if PGDATA is empty
   pgDataPath = pgCfg.dataDir;
+  pgDataRoot = attrByPath
+    [ "modules" "services" "postgresql" "dataRoot" ]
+    (builtins.dirOf pgDataPath)
+    config;
 
   # Marker file location - OUTSIDE PGDATA to avoid dataset layering issues
   # Stored in parent directory (/var/lib/postgresql/) to survive PGDATA deletion
@@ -111,6 +115,8 @@ let
     restored_from=existing_pgdata
     EOF
             log_json "INFO" "marker_created" "Completion marker created at ${markerFile}"
+        rm -f "$PROGRESS_MARKER"
+        log_json "INFO" "preseed_progress_cleanup" "Removed in-progress marker"
             exit 0
           else
             log_json "ERROR" "preseed_failed" "PGDATA directory is not empty but appears incomplete or corrupted." '{"reason":"incomplete_pgdata"}'
@@ -208,6 +214,13 @@ let
         end_time=$(date +%s)
         duration=$((end_time - start_time))
         log_json "INFO" "restore_complete" "pgBackRest restore completed successfully from repository ''${restore_repo}." "{\"duration_seconds\":''${duration},\"repository\":\"''${restore_repo}\"}"
+
+        # A successful new restore invalidates any prior post-restore backup
+        # outcome. OnSuccess will create fresh baselines for this system ID.
+        rm -f \
+          /var/lib/postgresql/.postpreseed-backup-done \
+          /var/lib/postgresql/.postpreseed-backup-GAVE-UP \
+          /var/lib/postgresql/.postpreseed-retry-count
 
         # Run post-restore hook if configured
         ${optionalString (cfg.postRestoreScript != null) ''
@@ -399,14 +412,15 @@ in
       "f /var/lib/node_exporter/textfile_collector/postgresql_preseed.prom 0644 postgres node-exporter - -"
     ];
 
-    # Prepare service to ensure PGDATA ownership/permissions after ZFS mount
+    # Prepare service to ensure PGDATA ownership/permissions after storage mount
     systemd.services.postgresql-preseed-prepare = {
-      description = "Prepare PGDATA mountpoint (ownership, permissions)";
-      after = [ "zfs-service-datasets.service" "zfs-mount.service" ];
+      description = "Prepare PostgreSQL data directory (ownership, permissions)";
+      after = [ "zfs-service-datasets.service" "zfs-mount.service" "postgresql-data-layout.service" ];
+      requires = [ "postgresql-data-layout.service" ];
       path = with pkgs; [ util-linux coreutils ];
       unitConfig = {
-        RequiresMountsFor = [ "${pgDataPath}" ];
-        AssertPathIsMountPoint = "${pgDataPath}";
+        RequiresMountsFor = [ pgDataRoot ];
+        AssertPathIsMountPoint = pgDataRoot;
       };
       serviceConfig = {
         Type = "oneshot";
@@ -416,16 +430,16 @@ in
       script = ''
         set -euo pipefail
 
-        # Ensure mountpoint exists and is the real dataset
-        if ! mountpoint -q "${pgDataPath}"; then
-          echo "PGDATA ${pgDataPath} is not a mountpoint" >&2
+        # Ensure the stable storage root is the real dataset
+        if ! mountpoint -q "${pgDataRoot}"; then
+          echo "PostgreSQL data root ${pgDataRoot} is not a mountpoint" >&2
           exit 1
         fi
 
         # Fix marker directory ownership for marker file access
         MARKER_DIR="$(dirname "${markerFile}")"
         [[ "$MARKER_DIR" = "/var/lib/postgresql" ]] || { echo "Refusing to chown unexpected marker directory: $MARKER_DIR" >&2; exit 1; }
-        install -d -m 0755 -o postgres -g postgres "$MARKER_DIR"
+        install -d -m 0700 -o postgres -g postgres "$MARKER_DIR"
 
         # Enforce strict perms on PGDATA itself
         install -d -m 0700 -o postgres -g postgres "${pgDataPath}"
@@ -446,17 +460,18 @@ in
       # Always evaluate whether preseed is needed - script handles idempotency
       unitConfig = {
         # Proper NFS mount dependency - eliminates brittle unit name encoding
-        # Also wait for the PGDATA path itself to be mounted
+        # Also wait for the stable PostgreSQL storage root to be mounted
         RequiresMountsFor =
-          [ "${pgDataPath}" ]
+          [ pgDataRoot ]
           ++ lib.optional (cfg.source.repository == 1) "/mnt/nas-postgresql";
-        AssertPathIsMountPoint = "${pgDataPath}";
+        AssertPathIsMountPoint = pgDataRoot;
       };
 
       serviceConfig = {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
+        RemainAfterExit = true;
         ExecStart = "${restoreCommand}";
       }
       // optionalAttrs (cfg.environmentFile != null) {
