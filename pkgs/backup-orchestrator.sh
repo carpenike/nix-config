@@ -72,6 +72,10 @@ declare -A skipped_services
 # Service discovery arrays (will be populated during execution)
 declare -a syncoid_services
 declare -a restic_services
+declare -a pgbackrest_services=(
+    "pgbackrest-full-backup.service"
+    "pgbackrest-full-r2-backup.service"
+)
 
 # Helper function to safely get associative array size (works with empty arrays under set -u)
 # Returns 0 for empty/unset arrays, actual count otherwise
@@ -116,11 +120,13 @@ cleanup() {
         done
     fi
 
-    # Stop pgbackrest if running
-    if systemctl is-active --quiet "pgbackrest-full-backup.service" 2>/dev/null; then
-        log_info "Stopping pgbackrest-full-backup.service..."
-        systemctl stop "pgbackrest-full-backup.service" 2>/dev/null || true
-    fi
+    # Stop pgBackRest full backups if running
+    for service in "${pgbackrest_services[@]}"; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            log_info "Stopping $service..."
+            systemctl stop "$service" 2>/dev/null || true
+        fi
+    done
 
     # Stop restic services if array is populated
     if [ ${#restic_services[@]} -gt 0 ]; then
@@ -410,22 +416,24 @@ if [ "$QUIET" = false ]; then
     log_info "================================================"
 fi
 
-# Only trigger full backup (avoid stanza lock conflict with incremental)
-pgbackrest_service="pgbackrest-full-backup.service"
-
 if [ "$DRY_RUN" = true ]; then
-    log_info "[DRY RUN] Would start: $pgbackrest_service"
+    for service in "${pgbackrest_services[@]}"; do
+        log_info "[DRY RUN] Would start: $service"
+    done
 else
-    # Check if already running
-    if ! check_service_idle "$pgbackrest_service"; then
-        log_warn "$pgbackrest_service already running - skipping"
-        skipped_services["$pgbackrest_service"]="already-running"
-    else
+    for pgbackrest_service in "${pgbackrest_services[@]}"; do
+        if ! check_service_idle "$pgbackrest_service"; then
+            log_warn "$pgbackrest_service already running - skipping"
+            skipped_services["$pgbackrest_service"]="already-running"
+            continue
+        fi
+
         log_info "Starting $pgbackrest_service..."
         systemctl start "$pgbackrest_service"
 
-        # Wait for pgBackRest to complete (sequential)
-        timeout=3600  # 1 hour
+        # Let systemd enforce the 8-hour hard limit, then allow it time to settle.
+        timeout=29100
+
         elapsed=0
         while systemctl is-active --quiet "$pgbackrest_service"; do
             sleep 5
@@ -437,13 +445,11 @@ else
                 break
             fi
 
-            # Progress indicator every minute
             if [ $((elapsed % 60)) -eq 0 ] && [ "$VERBOSE" = true ]; then
-                log_debug "pgBackRest backup in progress... (${elapsed}s elapsed)"
+                log_debug "$pgbackrest_service in progress... (${elapsed}s elapsed)"
             fi
         done
 
-        # Check result
         if ! array_has_key timeout_services "$pgbackrest_service"; then
             result=$(systemctl show -p Result --value "$pgbackrest_service")
             if [ "$result" != "success" ]; then
@@ -451,10 +457,10 @@ else
                 failed_services["$pgbackrest_service"]="$result"
             else
                 success_services["$pgbackrest_service"]=1
-                log_info "pgBackRest full backup completed successfully"
+                log_info "$pgbackrest_service completed successfully"
             fi
         fi
-    fi
+    done
 fi
 
 # Stage 3b: Application backups (Restic) - LIMITED PARALLEL

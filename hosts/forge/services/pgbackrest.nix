@@ -51,6 +51,19 @@ let
     StartLimitIntervalSec = "2h";
   };
 
+  backupResourceConfig = {
+    CPUWeight = 50;
+    IOWeight = 50;
+    MemoryHigh = "1G";
+    MemoryMax = "2G";
+    Nice = 5;
+    RuntimeMaxSec = "8h";
+  };
+
+  expireResourceConfig = backupResourceConfig // {
+    RuntimeMaxSec = "12h";
+  };
+
   backupLockScript = ''
     BACKUP_LOCK="/run/postgresql/pgbackrest-backup.lock"
     exec 9>"$BACKUP_LOCK"
@@ -219,7 +232,7 @@ in
       wants = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       requires = [ "postgresql-readiness-wait.service" "postgresql-preseed.service" ];
       path = [ pkgs.pgbackrest postgresqlPackage ];
-      serviceConfig = hardenedServiceConfig // {
+      serviceConfig = hardenedServiceConfig // backupResourceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
@@ -496,7 +509,7 @@ in
                   repo1_ok=true
                 else
                   log_json "INFO" "backup_repo1_start" "No full backup found for repo1; starting backup to NFS..."
-                  if pgbackrest --stanza=main --type=full --repo=1 backup; then
+                  if pgbackrest --stanza=main --type=full --repo=1 --no-expire-auto backup; then
                     log_json "INFO" "backup_repo1_complete" "Repo1 backup completed"
                     repo1_ok=true
                   else
@@ -511,7 +524,7 @@ in
                 else
                   log_json "INFO" "backup_repo2_start" "No full backup found for repo2; starting backup to R2..."
                   # Repo2 configuration (including credentials) lives in /etc/pgbackrest.conf
-                  if pgbackrest --stanza=main --type=full --repo=2 backup; then
+                  if pgbackrest --stanza=main --type=full --repo=2 --no-expire-auto backup; then
                     log_json "INFO" "backup_repo2_complete" "Repo2 backup completed"
                     repo2_ok=true
                   else
@@ -572,9 +585,9 @@ in
       '';
     };
 
-    # Full backup
+    # Full backup to repo1 (NFS)
     pgbackrest-full-backup = {
-      description = "pgBackRest full backup";
+      description = "pgBackRest full backup to repo1 (NFS)";
       after = [ "postgresql.service" "pgbackrest-stanza-create.service" ];
       wants = [ "postgresql.service" ];
       path = [ pkgs.pgbackrest postgresqlPackage pkgs.systemd ];
@@ -588,7 +601,7 @@ in
         StartLimitBurst = retryPolicy.StartLimitBurst;
         StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
       };
-      serviceConfig = hardenedServiceConfig // {
+      serviceConfig = hardenedServiceConfig // backupResourceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
@@ -607,14 +620,39 @@ in
         EXCLUDE_OPTS="--exclude=.config --exclude=.local"
 
         echo "[$(date -Iseconds)] Starting full backup to repo1 (NFS)..."
-        pgbackrest --stanza=main --type=full --repo=1 $EXCLUDE_OPTS backup
+        pgbackrest --stanza=main --type=full --repo=1 --no-expire-auto $EXCLUDE_OPTS backup
         echo "[$(date -Iseconds)] Repo1 backup completed"
+      '';
+    };
+
+    # Full backup to repo2 (R2), independent of the NFS mount
+    pgbackrest-full-r2-backup = {
+      description = "pgBackRest full backup to repo2 (R2)";
+      after = [ "postgresql.service" "pgbackrest-stanza-create.service" "network-online.target" ];
+      wants = [ "postgresql.service" "network-online.target" ];
+      path = [ pkgs.pgbackrest postgresqlPackage pkgs.systemd ];
+
+      unitConfig = {
+        OnSuccess = "pgbackrest-metrics.service";
+        StartLimitBurst = retryPolicy.StartLimitBurst;
+        StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
+      };
+      serviceConfig = hardenedServiceConfig // backupResourceConfig // {
+        Type = "oneshot";
+        User = "postgres";
+        Group = "postgres";
+        IPAddressDeny = [ "169.254.169.254" ];
+        Restart = retryPolicy.Restart;
+        RestartSec = retryPolicy.RestartSec;
+      };
+      script = ''
+        set -euo pipefail
+        ${backupLockScript}
+        EXCLUDE_OPTS="--exclude=.config --exclude=.local"
 
         echo "[$(date -Iseconds)] Starting full backup to repo2 (R2)..."
-        # Repo2 configuration read from /etc/pgbackrest.conf
-        # Now includes WAL archiving for complete offsite PITR capability
-        pgbackrest --stanza=main --type=full --repo=2 $EXCLUDE_OPTS backup
-        echo "[$(date -Iseconds)] Full backup to both repos completed"
+        pgbackrest --stanza=main --type=full --repo=2 --no-expire-auto $EXCLUDE_OPTS backup
+        echo "[$(date -Iseconds)] Repo2 backup completed"
       '';
     };
 
@@ -634,7 +672,7 @@ in
         StartLimitBurst = retryPolicy.StartLimitBurst;
         StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
       };
-      serviceConfig = hardenedServiceConfig // {
+      serviceConfig = hardenedServiceConfig // backupResourceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
@@ -651,7 +689,7 @@ in
         EXCLUDE_OPTS="--exclude=.config --exclude=.local"
 
         echo "[$(date -Iseconds)] Starting incremental backup to repo1 (NFS)..."
-        pgbackrest --stanza=main --type=incr --repo=1 $EXCLUDE_OPTS backup
+        pgbackrest --stanza=main --type=incr --repo=1 --no-expire-auto $EXCLUDE_OPTS backup
         echo "[$(date -Iseconds)] Repo1 incremental backup completed"
 
         # Note: R2 incrementals run on a separate daily schedule to control storage growth
@@ -674,7 +712,7 @@ in
         StartLimitBurst = retryPolicy.StartLimitBurst;
         StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
       };
-      serviceConfig = hardenedServiceConfig // {
+      serviceConfig = hardenedServiceConfig // backupResourceConfig // {
         Type = "oneshot";
         User = "postgres";
         Group = "postgres";
@@ -689,8 +727,61 @@ in
         EXCLUDE_OPTS="--exclude=.config --exclude=.local"
 
         echo "[$(date -Iseconds)] Starting daily incremental backup to repo2 (R2)..."
-        pgbackrest --stanza=main --type=incr --repo=2 $EXCLUDE_OPTS backup
+        pgbackrest --stanza=main --type=incr --repo=2 --no-expire-auto $EXCLUDE_OPTS backup
         echo "[$(date -Iseconds)] R2 incremental backup completed"
+      '';
+    };
+
+    pgbackrest-expire-repo1 = {
+      description = "Expire pgBackRest backups in repo1 (NFS)";
+      after = [ "pgbackrest-config-generator.service" "network-online.target" ];
+      wants = [ "network-online.target" ];
+      requires = [ "pgbackrest-config-generator.service" ];
+      path = [ pkgs.pgbackrest pkgs.systemd ];
+      unitConfig = {
+        RequiresMountsFor = [ "/mnt/nas-postgresql" ];
+        OnSuccess = "pgbackrest-metrics.service";
+        StartLimitBurst = retryPolicy.StartLimitBurst;
+        StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
+      };
+      serviceConfig = hardenedServiceConfig // expireResourceConfig // {
+        Type = "oneshot";
+        User = "postgres";
+        Group = "postgres";
+        IPAddressDeny = [ "169.254.169.254" ];
+        Restart = retryPolicy.Restart;
+        RestartSec = retryPolicy.RestartSec;
+      };
+      script = ''
+        set -euo pipefail
+        ${backupLockScript}
+        pgbackrest --stanza=main --repo=1 expire
+      '';
+    };
+
+    pgbackrest-expire-repo2 = {
+      description = "Expire pgBackRest backups in repo2 (R2)";
+      after = [ "pgbackrest-config-generator.service" "network-online.target" ];
+      wants = [ "network-online.target" ];
+      requires = [ "pgbackrest-config-generator.service" ];
+      path = [ pkgs.pgbackrest pkgs.systemd ];
+      unitConfig = {
+        OnSuccess = "pgbackrest-metrics.service";
+        StartLimitBurst = retryPolicy.StartLimitBurst;
+        StartLimitIntervalSec = retryPolicy.StartLimitIntervalSec;
+      };
+      serviceConfig = hardenedServiceConfig // expireResourceConfig // {
+        Type = "oneshot";
+        User = "postgres";
+        Group = "postgres";
+        IPAddressDeny = [ "169.254.169.254" ];
+        Restart = retryPolicy.Restart;
+        RestartSec = retryPolicy.RestartSec;
+      };
+      script = ''
+        set -euo pipefail
+        ${backupLockScript}
+        pgbackrest --stanza=main --repo=2 expire
       '';
     };
 
@@ -725,10 +816,20 @@ in
   # pgBackRest backup timers
   systemd.timers = {
     pgbackrest-full-backup = {
-      description = "pgBackRest full backup timer";
+      description = "pgBackRest repo1 full backup timer";
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnCalendar = "02:00"; # Daily at 2 AM
+        Persistent = true;
+        RandomizedDelaySec = "15m";
+      };
+    };
+
+    pgbackrest-full-r2-backup = {
+      description = "pgBackRest repo2 full backup timer";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "03:00";
         Persistent = true;
         RandomizedDelaySec = "15m";
       };
@@ -748,7 +849,7 @@ in
       description = "Weekly pgBackRest repository check";
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnCalendar = "Sun 03:30";
+        OnCalendar = "Sun 07:00";
         Persistent = true;
         RandomizedDelaySec = "10m";
       };
@@ -759,6 +860,26 @@ in
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnCalendar = "14:00"; # Daily at 2 PM (offset from full backup at 2 AM)
+        Persistent = true;
+        RandomizedDelaySec = "15m";
+      };
+    };
+
+    pgbackrest-expire-repo1 = {
+      description = "pgBackRest repo1 expiration timer";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "05:00";
+        Persistent = true;
+        RandomizedDelaySec = "15m";
+      };
+    };
+
+    pgbackrest-expire-repo2 = {
+      description = "pgBackRest repo2 expiration timer";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "06:00";
         Persistent = true;
         RandomizedDelaySec = "15m";
       };
@@ -1044,13 +1165,26 @@ in
     "pgbackrest-backup-failed" = {
       type = "promql";
       alertname = "PgBackRestBackupFailed";
-      expr = ''node_systemd_unit_state{name=~"pgbackrest-(full-backup|incr-backup|incr-r2-backup)[.]service",state="failed"} == 1'';
+      expr = ''node_systemd_unit_state{name=~"pgbackrest-(full-backup|full-r2-backup|incr-backup|incr-r2-backup)[.]service",state="failed"} == 1'';
       for = "0m";
       severity = "critical";
       labels = { service = "pgbackrest"; category = "backup"; };
       annotations = {
         summary = "pgBackRest backup unit {{ $labels.name }} failed on {{ $labels.instance }}";
         description = "A pgBackRest backup unit exhausted its retry policy. Check the unit journal and repository connectivity.";
+      };
+    };
+
+    "pgbackrest-expiration-failed" = {
+      type = "promql";
+      alertname = "PgBackRestExpirationFailed";
+      expr = ''node_systemd_unit_state{name=~"pgbackrest-expire-repo(1|2)[.]service",state="failed"} == 1'';
+      for = "0m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "backup"; };
+      annotations = {
+        summary = "pgBackRest expiration unit {{ $labels.name }} failed on {{ $labels.instance }}";
+        description = "Old backups may not be cleaned up. Check the unit journal and repository connectivity.";
       };
     };
 

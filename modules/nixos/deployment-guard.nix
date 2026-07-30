@@ -217,7 +217,7 @@ let
           "$systemctl_command" stop "''${timers[@]}"
         fi
 
-        backup_unit_pattern='^(restic-backups?-|pgbackrest-.*backup|syncoid-|sanoid\.service)'
+        backup_unit_pattern='^(restic-backups?-|pgbackrest-(.*backup|expire-)|syncoid-|sanoid\.service)'
         failed_jobs=$(
           "$systemctl_command" list-units --type=service --state=failed --no-pager --no-legend --plain \
             | awk '{ print $1 }' \

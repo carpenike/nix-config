@@ -61,7 +61,7 @@ let
         && lib.elem "pgbackrest-full-backup" serviceNames
         && lib.elem "pgbackrest-incr-backup" serviceNames;
       pgBackRestOffsite = usesPgBackRest
-        && lib.elem "pgbackrest-full-backup" serviceNames
+        && lib.elem "pgbackrest-full-r2-backup" serviceNames
         && lib.elem "pgbackrest-incr-r2-backup" serviceNames;
       preseedUnit =
         if external != null && external.preseedUnit != null

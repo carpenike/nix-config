@@ -213,7 +213,7 @@ if (( ${#timers[@]} > 0 )); then
   sudo systemctl stop "${timers[@]}"
 fi
 
-backup_unit_pattern='^(restic-backups?-|pgbackrest-.*backup|syncoid-|sanoid\.service)'
+backup_unit_pattern='^(restic-backups?-|pgbackrest-(.*backup|expire-)|syncoid-|sanoid\.service)'
 
 failed_jobs=$(
   systemctl list-units --type=service --state=failed --no-pager --no-legend --plain \
