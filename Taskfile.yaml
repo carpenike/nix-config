@@ -21,6 +21,9 @@ includes:
   monitoring:
     taskfile: ".taskfiles/monitoring"
     dir: "{{.ROOT_DIR}}"
+  database:
+    taskfile: ".taskfiles/database"
+    dir: "{{.ROOT_DIR}}"
 
 tasks:
   default:

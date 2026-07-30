@@ -1,0 +1,92 @@
+---
+version: "3"
+
+tasks:
+  tracearr-retention-plan:
+    desc: Generate a read-only Tracearr TimescaleDB retention plan
+    silent: true
+    vars:
+      host: '{{.host | default "forge"}}'
+      NIXOS_DOMAIN: '{{.NIXOS_DOMAIN | default "holthome.net"}}'
+      batch_size: '{{.batch_size | default "8"}}'
+      output: '{{.output | default ""}}'
+    summary: |
+      Reads Tracearr's live TimescaleDB retention policy and authoritative
+      expired-chunk set, then writes a pinned JSON plan in batches of at most
+      eight chunks. The planner uses a single read-only SQL statement and does
+      not change data, policies, jobs, or PostgreSQL settings.
+      The command prints a summary; the saved JSON contains every batch and
+      exact chunk identity.
+
+      Args:
+        host: Target host (default: forge)
+        batch_size: Proposed chunks per transaction, 1 through 8 (default: 8)
+        output: Local JSON path
+          (default: tmp/tracearr-retention-plan-<time>.json)
+
+      Examples:
+        task database:tracearr-retention-plan
+        task database:tracearr-retention-plan batch_size=4
+        task database:tracearr-retention-plan output=tmp/tracearr-plan.json
+    cmds:
+      - |
+        target="{{.host}}.{{.NIXOS_DOMAIN}}"
+        batch_size="{{.batch_size}}"
+        output_path="{{.output}}"
+        remote_command="sudo -n -u postgres tracearr-retention-plan"
+
+        case "$batch_size" in
+          [1-8]) ;;
+          *)
+            echo "batch_size must be an integer from 1 through 8" >&2
+            exit 2
+            ;;
+        esac
+
+        if [ -z "$output_path" ]; then
+          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+          output_path="tmp/tracearr-retention-plan-$timestamp.json"
+        fi
+
+        mkdir -p "$(dirname "$output_path")"
+        temporary_path="$output_path.tmp.$$"
+        trap 'rm -f "$temporary_path"' EXIT
+
+        ssh -o BatchMode=yes "$target" \
+          "$remote_command --batch-size $batch_size" \
+          > "$temporary_path"
+
+        jq -e '
+          .schema_version == 1 and
+          .status == "ready" and
+          .read_only == true
+        ' \
+          "$temporary_path" >/dev/null
+        mv -f "$temporary_path" "$output_path"
+        trap - EXIT
+
+        jq '{
+          generated_at,
+          hypertable,
+          retention_interval,
+          retention_cutoff,
+          expired_chunk_count,
+          expired_total_bytes,
+          compressed_chunk_count,
+          batch_size,
+          batch_count,
+          selection_fingerprint,
+          retention_job: {
+            job_id: .retention_job.job_id,
+            last_run_status: .retention_job.last_run_status,
+            total_failures: .retention_job.total_failures,
+            latest_error: .retention_job.latest_error
+          },
+          continuous_aggregates
+        }' "$output_path"
+        echo "Plan saved to $output_path"
+    preconditions:
+      - sh: command -v ssh >/dev/null
+        msg: "ssh not found"
+      - sh: command -v jq >/dev/null
+        msg: "jq not found"

@@ -18,7 +18,7 @@
 #
 # Authentication: Uses native Plex/Jellyfin SSO (no additional auth layer needed)
 
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -94,6 +94,8 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      environment.systemPackages = [ pkgs.tracearr-retention-plan ];
+
       modules.storage.datasets.services.tracearr.protection = {
         class = "ephemeral";
         objectives = {

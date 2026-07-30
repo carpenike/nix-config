@@ -24,5 +24,6 @@
   # talhelper = inputs.talhelper.packages.${pkgs.system}.default;
   thelounge-theme-dracula = pkgs.callPackage ./thelounge-theme-dracula.nix { };
   thelounge-theme-mininapse = pkgs.callPackage ./thelounge-theme-mininapse.nix { };
+  tracearr-retention-plan = pkgs.callPackage ./tracearr-retention-plan.nix { };
   usage = pkgs.callPackage ./usage.nix { };
 }
