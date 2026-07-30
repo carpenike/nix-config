@@ -859,7 +859,7 @@ in
             group = "root";
           };
 
-          # LLM API key for LiteLLM gateway
+          # Anthropic API key used directly by Paperless-AI
           "paperless-ai/llm_api_key" = {
             mode = "0400";
             owner = "root";

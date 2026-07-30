@@ -25,7 +25,7 @@ mkdocs build
 ## Quick Start
 
 | Goal | Document |
-|------|----------|
+| ------ | ---------- |
 | **Understand the repo** | [Repository Architecture](./repository-architecture.md) |
 | **Create a new service** | [Modular Design Patterns](./modular-design-patterns.md#creating-new-service-modules) |
 | **Set up backups** | [Backup System Onboarding](./backup-system-onboarding.md#quick-start) |
@@ -170,6 +170,7 @@ mkdocs build
 
 ## Service Operations
 
+- **[Paperless Operations](./services/paperless-operations.md)** - Document intake, AI review, backups, monitoring, and native-AI migration
 - **[TeslaMate Operations](./teslamate-operations.md)** - TeslaMate stack management
 - **[UPS Monitoring](./ups-monitoring.md)** - Network UPS Tools configuration
 - **[Resilio Sync](./resilio-sync.md)** - Folder synchronization

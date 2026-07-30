@@ -31,7 +31,7 @@ mylib.mkContainerService {
     # Core service configuration. The container internally always runs on
     # port 3000; cfg.port is the external mapping.
     port = 3000;
-    image = "clusterzx/paperless-ai:3.0.9";
+    image = "clusterzx/paperless-ai:3.0.9@sha256:2b65888163fd59716f1c8285b31c5bd0b30c9c3c192c42b516688e3887d4ba60";
     operationalProfile = "productivity";
     displayName = "Paperless-AI";
     function = "document_tagging";
@@ -225,6 +225,36 @@ mylib.mkContainerService {
     # Tag Configuration
     # =========================================================================
     tags = {
+      restrictToExisting = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Restrict AI output to tags that already exist in Paperless.
+          Unknown model-generated tags are discarded instead of created.
+        '';
+      };
+
+      managed = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = "Tags to create idempotently before Paperless-AI starts.";
+      };
+
+      pruneUnmanaged = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Delete Paperless tags not present in tags.managed before startup.
+          Documents are preserved; only their unmanaged tag associations are removed.
+        '';
+      };
+
+      reconcileOnCalendar = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = "Optional systemd calendar schedule for reconciling managed tags.";
+      };
+
       trigger = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [ ];
@@ -290,6 +320,40 @@ mylib.mkContainerService {
         default = false;
         description = "Enable AI to extract custom field values from documents.";
       };
+    };
+
+    customFields = lib.mkOption {
+      type = lib.types.listOf (lib.types.submodule {
+        options = {
+          value = lib.mkOption {
+            type = lib.types.str;
+            description = "Paperless custom field name.";
+          };
+          data_type = lib.mkOption {
+            type = lib.types.enum [
+              "string"
+              "url"
+              "date"
+              "boolean"
+              "integer"
+              "float"
+              "monetary"
+              "documentlink"
+              "select"
+              "longtext"
+            ];
+            default = "string";
+            description = "Paperless custom field data type.";
+          };
+          currency = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Default currency for monetary custom fields.";
+          };
+        };
+      });
+      default = [ ];
+      description = "Custom fields Paperless-AI may extract and update.";
     };
 
     # =========================================================================
@@ -400,6 +464,21 @@ mylib.mkContainerService {
         assertion = cfg.llm.provider != "custom" || cfg.llm.baseUrl != null;
         message = "Paperless-AI with 'custom' LLM provider requires llm.baseUrl to be set.";
       }
+      {
+        assertion = !cfg.tags.pruneUnmanaged || cfg.tags.managed != [ ];
+        message = "Paperless-AI tags.pruneUnmanaged requires a non-empty managed tag set.";
+      }
+      {
+        assertion = lib.length cfg.tags.managed == lib.length (lib.unique cfg.tags.managed);
+        message = "Paperless-AI tags.managed must not contain duplicates.";
+      }
+      {
+        assertion =
+          !cfg.tags.pruneUnmanaged
+          || !cfg.scan.addAiProcessedTag
+          || lib.elem cfg.scan.aiProcessedTagName cfg.tags.managed;
+        message = "Paperless-AI's processed tag must be included in tags.managed when pruning unmanaged tags.";
+      }
     ];
 
     # The service runs as the existing paperless user (created by
@@ -430,9 +509,9 @@ mylib.mkContainerService {
     # paperless-ai reads configuration from /app/data/.env file, not from
     # environment variables. We mount this file directly into the container.
     sops.templates."paperless-ai-env" = {
-      owner = "root";
-      group = "root";
-      mode = "0444"; # Readable by container user
+      owner = cfg.user;
+      group = cfg.group;
+      mode = "0400";
       content = ''
         # Initial Setup - always 'no' since .env is read-only (managed by NixOS/SOPS)
         # All configuration must be done via NixOS module options
@@ -446,8 +525,8 @@ mylib.mkContainerService {
         PAPERLESS_URL=${cfg.paperless.apiUrl}
 
         # LLM Configuration
-        AI_PROVIDER=${cfg.llm.provider}
-        ${lib.optionalString (cfg.llm.baseUrl != null) "CUSTOM_BASE_URL=${cfg.llm.baseUrl}"}
+        AI_PROVIDER=${if cfg.llm.provider == "anthropic" then "custom" else cfg.llm.provider}
+        ${lib.optionalString (cfg.llm.provider == "anthropic" || cfg.llm.baseUrl != null) "CUSTOM_BASE_URL=${if cfg.llm.provider == "anthropic" then "https://api.anthropic.com/v1/" else cfg.llm.baseUrl}"}
         CUSTOM_MODEL=${cfg.llm.model}
         ${lib.optionalString (cfg.llm.apiKeyFile != null) "CUSTOM_API_KEY=${config.sops.placeholder."paperless-ai/llm_api_key"}"}
         # Some backends also check these env vars
@@ -462,6 +541,7 @@ mylib.mkContainerService {
         PROCESS_PREDEFINED_DOCUMENTS=${if cfg.scan.processPredefinedDocuments then "yes" else "no"}
 
         # Tag Configuration
+        RESTRICT_TO_EXISTING_TAGS=${if cfg.tags.restrictToExisting then "yes" else "no"}
         TAGS=${lib.concatStringsSep "," cfg.tags.trigger}
         USE_PROMPT_TAGS=${if cfg.tags.usePromptTags then "yes" else "no"}
         PROMPT_TAGS=${lib.concatStringsSep "," cfg.tags.promptTags}
@@ -472,6 +552,7 @@ mylib.mkContainerService {
         ACTIVATE_DOCUMENT_TYPE=${if cfg.aiFunctions.documentType then "yes" else "no"}
         ACTIVATE_TITLE=${if cfg.aiFunctions.title then "yes" else "no"}
         ACTIVATE_CUSTOM_FIELDS=${if cfg.aiFunctions.customFields then "yes" else "no"}
+        CUSTOM_FIELDS=${builtins.toJSON { custom_fields = cfg.customFields; }}
 
         # System Prompt (newlines escaped for .env format)
         SYSTEM_PROMPT=${lib.replaceStrings ["\n"] ["\\n"] cfg.systemPrompt}
@@ -496,6 +577,7 @@ mylib.mkContainerService {
         HOME = "/app/data";
         PM2_HOME = "/app/.pm2"; # Mounted from dataDir/.pm2
         NLTK_DATA = "/app/nltk_data"; # Mounted from dataDir/nltk_data
+        ANONYMIZED_TELEMETRY = "False";
       };
       # Only bind to localhost - external access goes through the reverse proxy.
       ports = lib.mkForce [
@@ -503,10 +585,99 @@ mylib.mkContainerService {
       ];
     };
 
+    systemd.services.paperless-ai-taxonomy = lib.mkIf (cfg.tags.managed != [ ]) {
+      description = "Reconcile managed Paperless tags";
+      before = [ "${config.virtualisation.oci-containers.backend}-paperless-ai.service" ];
+      after = [ "network-online.target" "paperless-web.service" ];
+      requires = [ "paperless-web.service" ];
+      wants = [ "network-online.target" ];
+
+      serviceConfig = {
+        Type = "oneshot";
+        LoadCredential = "paperless_token:${cfg.paperless.tokenFile}";
+        NoNewPrivileges = true;
+        PrivateDevices = true;
+        PrivateTmp = true;
+        ProtectHome = true;
+        ProtectSystem = "strict";
+      };
+
+      script = ''
+        set -euo pipefail
+
+        api_url="${cfg.paperless.apiUrl}/tags/"
+        token="$(${pkgs.coreutils}/bin/cat "$CREDENTIALS_DIRECTORY/paperless_token")"
+        tags_file="$(${pkgs.coreutils}/bin/mktemp)"
+        trap '${pkgs.coreutils}/bin/rm -f "$tags_file"' EXIT
+
+        fetch_tags() {
+          ${pkgs.curl}/bin/curl \
+            --fail --silent --show-error \
+            --retry 30 --retry-all-errors --retry-delay 2 \
+            --header "Authorization: Token $token" \
+            "$api_url?page_size=1000" > "$tags_file"
+        }
+
+        managed_tags='${builtins.toJSON cfg.tags.managed}'
+        fetch_tags
+
+        while IFS= read -r tag_name; do
+          if ${pkgs.jq}/bin/jq --exit-status --arg name "$tag_name" \
+            '.results[] | select(.name == $name)' "$tags_file" >/dev/null; then
+            continue
+          fi
+
+          payload="$(${pkgs.jq}/bin/jq --null-input --compact-output --arg name "$tag_name" '{name: $name}')"
+          ${pkgs.curl}/bin/curl \
+            --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Token $token" \
+            --header "Content-Type: application/json" \
+            --data "$payload" \
+            "$api_url" >/dev/null
+          echo "Created managed Paperless tag: $tag_name"
+        done < <(${pkgs.jq}/bin/jq --raw-output '.[]' <<< "$managed_tags")
+
+        ${lib.optionalString cfg.tags.pruneUnmanaged ''
+          fetch_tags
+          while IFS= read -r tag; do
+            tag_id="$(${pkgs.jq}/bin/jq --raw-output '.id' <<< "$tag")"
+            tag_name="$(${pkgs.jq}/bin/jq --raw-output '.name' <<< "$tag")"
+
+            if ${pkgs.jq}/bin/jq --exit-status --arg name "$tag_name" \
+              'index($name) != null' <<< "$managed_tags" >/dev/null; then
+              continue
+            fi
+
+            ${pkgs.curl}/bin/curl \
+              --fail --silent --show-error \
+              --request DELETE \
+              --header "Authorization: Token $token" \
+              "$api_url$tag_id/" >/dev/null
+            echo "Removed unmanaged Paperless tag: $tag_name"
+          done < <(${pkgs.jq}/bin/jq --compact-output '.results[] | {id, name}' "$tags_file")
+        ''}
+      '';
+    };
+
+    systemd.timers.paperless-ai-taxonomy = lib.mkIf
+      (cfg.tags.managed != [ ] && cfg.tags.reconcileOnCalendar != null)
+      {
+        description = "Periodically reconcile managed Paperless tags";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = cfg.tags.reconcileOnCalendar;
+          Persistent = true;
+          RandomizedDelaySec = "1h";
+        };
+      };
+
     # Wait for SOPS to create the .env file
     systemd.services."${config.virtualisation.oci-containers.backend}-paperless-ai" = {
       wants = [ "sops-nix.service" ];
-      after = [ "sops-nix.service" ];
+      requires = lib.optional (cfg.tags.managed != [ ]) "paperless-ai-taxonomy.service";
+      after = [ "sops-nix.service" ]
+        ++ lib.optional (cfg.tags.managed != [ ]) "paperless-ai-taxonomy.service";
     };
 
     # Preserve the pre-factory notification wording

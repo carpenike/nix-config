@@ -98,6 +98,41 @@ in
       description = "Directory for document exports.";
     };
 
+    consumer = {
+      recursive = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Recursively consume documents from subdirectories.";
+      };
+
+      subdirsAsTags = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Create tags from consumption-directory names.";
+      };
+    };
+
+    exporter = {
+      enable = lib.mkEnableOption "scheduled portable Paperless exports";
+
+      onCalendar = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = "Sun *-*-* 00:30:00";
+        description = "Systemd calendar schedule for portable document exports.";
+      };
+
+      settings = lib.mkOption {
+        type = lib.types.attrsOf lib.types.anything;
+        default = {
+          "no-progress-bar" = true;
+          "no-color" = true;
+          "compare-checksums" = true;
+          "delete" = true;
+        };
+        description = "Arguments passed to the Paperless document exporter.";
+      };
+    };
+
     # ==========================================================================
     # Service Configuration
     # ==========================================================================
@@ -546,6 +581,12 @@ in
         default = "minutely";
         description = "Healthcheck interval (systemd OnCalendar token).";
       };
+
+      tokenFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = "Paperless API token used for authenticated deep health checks.";
+      };
     };
   };
 
@@ -565,6 +606,13 @@ in
         dataDir = cfg.dataDir;
         mediaDir = cfg.mediaDir;
         consumptionDir = cfg.consumptionDir;
+
+        exporter = {
+          enable = cfg.exporter.enable;
+          directory = cfg.exportDir;
+          onCalendar = cfg.exporter.onCalendar;
+          settings = cfg.exporter.settings;
+        };
 
         passwordFile = cfg.adminPasswordFile;
 
@@ -605,11 +653,8 @@ in
             "http://localhost:${toString cfg.gotenberg.port}";
 
           # Consumer settings
-          PAPERLESS_CONSUMER_RECURSIVE = "true";
-          PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS = "true";
-
-          # Export directory
-          PAPERLESS_EXPORT_DIR = cfg.exportDir;
+          PAPERLESS_CONSUMER_RECURSIVE = if cfg.consumer.recursive then "true" else "false";
+          PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS = if cfg.consumer.subdirsAsTags then "true" else "false";
 
           # Timezone
           PAPERLESS_TIME_ZONE = config.time.timeZone or "UTC";
@@ -686,17 +731,17 @@ in
 
           {
             ${lib.optionalString (cfg.database.passwordFile != null) ''
-              printf "PAPERLESS_DBPASS=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/db_password")"
+              printf "PAPERLESS_DBPASS=%q\n" "$(cat "$CREDENTIALS_DIRECTORY/db_password")"
             ''}
             ${lib.optionalString (cfg.oidc.enable && cfg.oidc.clientSecretFile != null) ''
               # Build OIDC provider JSON with real secret
               oidc_secret="$(cat "$CREDENTIALS_DIRECTORY/oidc_client_secret")"
               oidc_json='${oidcProviderJson}'
               oidc_json="''${oidc_json/__OIDC_CLIENT_SECRET__/$oidc_secret}"
-              printf "PAPERLESS_SOCIALACCOUNT_PROVIDERS=%s\n" "$oidc_json"
+              printf "PAPERLESS_SOCIALACCOUNT_PROVIDERS=%q\n" "$oidc_json"
             ''}
             ${lib.optionalString (cfg.oidc.enable && cfg.oidc.adminUser != null && cfg.oidc.adminPasswordFile != null) ''
-              printf "PAPERLESS_ADMIN_PASSWORD=%s\n" "$(cat "$CREDENTIALS_DIRECTORY/admin_password")"
+              printf "PAPERLESS_ADMIN_PASSWORD=%q\n" "$(cat "$CREDENTIALS_DIRECTORY/admin_password")"
             ''}
           } > "$tmp"
 
@@ -713,22 +758,29 @@ in
           ++ lib.optionals cfg.database.localInstance
           [ "postgresql.service" ];
         requires = [ "paperless-env.service" ]
+          ++ lib.optionals (cfg.nfsMountDependency != null)
+          [ "${cfg.nfsMountDependency}.mount" ]
           ++ lib.optionals cfg.database.localInstance
           [ "postgresql.service" ];
-        wants = lib.optionals (cfg.nfsMountDependency != null)
-          [ "${cfg.nfsMountDependency}.mount" ];
       };
 
       # Also configure other paperless services
       systemd.services.paperless-consumer = {
-        wants = lib.optionals (cfg.nfsMountDependency != null)
+        requires = lib.optionals (cfg.nfsMountDependency != null)
           [ "${cfg.nfsMountDependency}.mount" ];
         after = lib.optionals (cfg.nfsMountDependency != null)
           [ "${cfg.nfsMountDependency}.mount" ];
       };
 
       systemd.services.paperless-web = {
-        wants = lib.optionals (cfg.nfsMountDependency != null)
+        requires = lib.optionals (cfg.nfsMountDependency != null)
+          [ "${cfg.nfsMountDependency}.mount" ];
+        after = lib.optionals (cfg.nfsMountDependency != null)
+          [ "${cfg.nfsMountDependency}.mount" ];
+      };
+
+      systemd.services.paperless-exporter = lib.mkIf cfg.exporter.enable {
+        requires = lib.optionals (cfg.nfsMountDependency != null)
           [ "${cfg.nfsMountDependency}.mount" ];
         after = lib.optionals (cfg.nfsMountDependency != null)
           [ "${cfg.nfsMountDependency}.mount" ];
@@ -803,32 +855,100 @@ in
           Type = "oneshot";
           User = "node-exporter";
           Group = "node-exporter";
+          LoadCredential = lib.optional (cfg.monitoring.tokenFile != null)
+            "api_token:${cfg.monitoring.tokenFile}";
+          NoNewPrivileges = true;
+          PrivateDevices = true;
+          PrivateTmp = true;
+          ProtectHome = true;
+          ProtectSystem = "strict";
+          ReadWritePaths = [ cfg.monitoring.prometheus.metricsDir ];
           ExecStart = pkgs.writeShellScript "paperless-healthcheck" ''
-            set -euo pipefail
+            set -uo pipefail
 
             METRICS_DIR="${cfg.monitoring.prometheus.metricsDir}"
             METRICS_FILE="$METRICS_DIR/paperless.prom"
             TMP_FILE="$METRICS_DIR/.paperless.prom.tmp"
             ENDPOINT="${cfg.monitoring.endpoint}"
+            auth_args=()
 
-            # Check if service is reachable
-            if ${pkgs.curl}/bin/curl -sf --max-time 10 "$ENDPOINT" >/dev/null 2>&1; then
+            ${lib.optionalString (cfg.monitoring.tokenFile != null) ''
+              token="$(${pkgs.coreutils}/bin/cat "$CREDENTIALS_DIRECTORY/api_token")"
+              auth_args=(--header "Authorization: Token $token")
+            ''}
+
+            up=0
+            deep_health_up=0
+            database_up=0
+            redis_up=0
+            celery_up=0
+            index_up=0
+            classifier_up=0
+            sanity_check_up=0
+            storage_available=0
+            unapplied_migrations=0
+            failed_tasks=0
+
+            metric_bool() {
+              if ${pkgs.jq}/bin/jq --exit-status "$1" <<< "$status_json" >/dev/null 2>&1; then
+                echo 1
+              else
+                echo 0
+              fi
+            }
+
+            if status_json="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 10 \
+              "''${auth_args[@]}" "$ENDPOINT/api/status/" 2>/dev/null)"; then
               up=1
-            else
-              up=0
+              deep_health_up=1
+              database_up="$(metric_bool '.database.status == "OK"')"
+              redis_up="$(metric_bool '.tasks.redis_status == "OK"')"
+              celery_up="$(metric_bool '.tasks.celery_status == "OK"')"
+              index_up="$(metric_bool '.tasks.index_status == "OK"')"
+              classifier_up="$(metric_bool '.tasks.classifier_status == "OK"')"
+              sanity_check_up="$(metric_bool '.tasks.sanity_check_status == "OK"')"
+              storage_available="$(${pkgs.jq}/bin/jq --raw-output '.storage.available // 0' <<< "$status_json")"
+              unapplied_migrations="$(${pkgs.jq}/bin/jq --raw-output '.database.migration_status.unapplied_migrations | length' <<< "$status_json")"
+
+              if tasks_json="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 10 \
+                "''${auth_args[@]}" "$ENDPOINT/api/tasks/?status=FAILURE&acknowledged=false" 2>/dev/null)"; then
+                failed_tasks="$(${pkgs.jq}/bin/jq --raw-output \
+                  'if type == "array" then length else (.count // 0) end' <<< "$tasks_json")"
+              fi
+            elif ${pkgs.curl}/bin/curl --fail --silent --max-time 10 "$ENDPOINT" >/dev/null 2>&1; then
+              up=1
             fi
 
-            # Write metrics
             cat > "$TMP_FILE" <<EOF
             # HELP paperless_up Paperless service availability (1 = up, 0 = down)
             # TYPE paperless_up gauge
             paperless_up $up
+            # HELP paperless_deep_health_up Authenticated Paperless status availability
+            # TYPE paperless_deep_health_up gauge
+            paperless_deep_health_up $deep_health_up
+            # HELP paperless_component_up Paperless dependency health by component
+            # TYPE paperless_component_up gauge
+            paperless_component_up{component="database"} $database_up
+            paperless_component_up{component="redis"} $redis_up
+            paperless_component_up{component="celery"} $celery_up
+            paperless_component_up{component="index"} $index_up
+            paperless_component_up{component="classifier"} $classifier_up
+            paperless_component_up{component="sanity_check"} $sanity_check_up
+            # HELP paperless_storage_available_bytes Bytes available on Paperless media storage
+            # TYPE paperless_storage_available_bytes gauge
+            paperless_storage_available_bytes $storage_available
+            # HELP paperless_unapplied_migrations Number of unapplied database migrations
+            # TYPE paperless_unapplied_migrations gauge
+            paperless_unapplied_migrations $unapplied_migrations
+            # HELP paperless_unacknowledged_failed_tasks Unacknowledged failed Paperless tasks
+            # TYPE paperless_unacknowledged_failed_tasks gauge
+            paperless_unacknowledged_failed_tasks $failed_tasks
             # HELP paperless_healthcheck_timestamp_seconds Unix timestamp of last health check
             # TYPE paperless_healthcheck_timestamp_seconds gauge
-            paperless_healthcheck_timestamp_seconds $(date +%s)
+            paperless_healthcheck_timestamp_seconds $(${pkgs.coreutils}/bin/date +%s)
             EOF
 
-            mv "$TMP_FILE" "$METRICS_FILE"
+            ${pkgs.coreutils}/bin/mv "$TMP_FILE" "$METRICS_FILE"
           '';
         };
       };
@@ -840,25 +960,6 @@ in
           OnCalendar = cfg.monitoring.interval;
           Persistent = true;
         };
-      };
-
-      # ========================================================================
-      # Backup Integration
-      # ========================================================================
-
-      # Note: Only ZFS service state is backed up, NOT /mnt/data documents
-      modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-        enable = true;
-        repository = cfg.backup.repository;
-        paths = [ cfg.dataDir ];
-        tags = cfg.backup.tags or [ "paperless" "document-management" "forge" ];
-        excludePatterns = cfg.backup.excludePatterns or [
-          "**/celery/**"
-          "**/*.pyc"
-          "**/__pycache__/**"
-        ];
-        useSnapshots = cfg.backup.useSnapshots or true;
-        zfsDataset = cfg.backup.zfsDataset or cfg.zfs.dataset;
       };
 
       # ========================================================================
