@@ -10,6 +10,7 @@ Pocket ID pairs with the `caddy-security` plugin to provide passwordless SSO for
 - ✅ **Centralized authorization** – services declare which `policy` applies and the portal enforces it before traffic reaches the backend.
 - ✅ **Claim-based roles** – map Pocket ID group claims into Caddy Security roles without editing shared config files.
 - ✅ **Safe return redirects** – the Caddy module automatically trusts each protected virtual host by exact hostname so login returns users to the original app path without enabling open redirects.
+- ✅ **Host-isolated sessions** – each protected hostname receives its own Caddy Security token and redirect state, preventing one app’s callback from redirecting another app.
 - ✅ **API bypass** – allow automation/IP-bound consumers to skip auth through explicit `allowedNetworks` and bypass resources.
 - ✅ **Cross-host support** – any host can reference the same Pocket ID portal through the shared reverse proxy submodule.
 
@@ -102,6 +103,7 @@ Behind the scenes the Caddy module emits:
 | --- | --- | --- |
 | Portal loop / repeated redirects | `hostName` mismatch or portal disabled | Confirm the service’s `hostName` matches the DNS record and that `modules.services.caddy.security.enable = true`. |
 | Successful login lands on `/caddy-security/portal` | The original `redirect_url` is not trusted by the authentication portal | The shared module generates exact trust rules automatically. Confirm the affected host has `caddySecurity.enable = true` and inspect the live portal block for its `trust login redirect uri` entry. |
+| Login to one app redirects to another app | Caddy Security session cookies are shared across subdomains | Keep portal cookies host-only and use the `AUTHP_HOST_*` cookie names so stale domain-wide tokens are ignored. |
 | User denied despite being in admins group | Missing `claimRoles` entry | Add `{ claim = "groups"; value = "admins"; role = "admins"; }` to the service block or extend the global policy. |
 | API bypass ignored | IP not in `allowedNetworks` or path mismatch | Ensure `allowedNetworks` covers the client IP and that the path/regex includes leading slashes. |
 | Pocket ID login fails with SMTP error | Missing or incorrect SMTP secret | Verify `config.sops.secrets."pocketid/smtp_password"` exists and restart the service. |

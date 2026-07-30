@@ -32,7 +32,19 @@ let
     }
   '';
 
-  portalExtraConfig = portalTransforms;
+  # Caddy Security tokens are issued by the hostname that handles the callback.
+  # Keep them host-only so one app cannot reuse another app's issuer-bound token.
+  # Rotated names make browsers ignore legacy .holthome.net AUTHP_* cookies.
+  portalExtraConfig = ''
+    set session_id cookie name AUTHP_HOST_SESSION_ID
+    set redirect_url cookie name AUTHP_HOST_REDIRECT_URL
+    set sandbox_id cookie name AUTHP_HOST_SANDBOX_ID
+    set id_token cookie name AUTHP_HOST_ID_TOKEN
+    set access_token cookie name AUTHP_HOST_ACCESS_TOKEN
+    set refresh_token cookie name AUTHP_HOST_REFRESH_TOKEN
+
+    ${portalTransforms}
+  '';
   serviceEnabled = config.modules.services.pocketid.enable or false;
 in
 {
@@ -172,7 +184,6 @@ in
           identityStores = [ "localdb" ];
           cookie = {
             insecure = false;
-            domain = ".${domain}";
           };
           extraConfig = portalExtraConfig;
         };
