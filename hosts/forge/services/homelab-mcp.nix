@@ -48,7 +48,7 @@
 #        HOMELAB_MCP_OAUTH_SIGNING_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 #   4. Cloudflare Tunnel + DNS ingress are declarative below — no
 #      manual CF dashboard step required.
-{ config, inputs, lib, pkgs, ... }:
+{ config, inputs, lib, options, pkgs, ... }:
 
 let
   serviceName = "homelab-mcp";
@@ -58,6 +58,10 @@ let
   # node_exporter port 9100). We surface it here so the Caddy backend
   # below has a single source of truth.
   listenPort = 9200;
+  actualSidecarPort = 9210;
+  actualSidecarUnit = "homelab-mcp-actual-sidecar";
+  actualSidecarSupported = options.services.homelab-mcp ? actualSidecar;
+  actualSidecarEnabled = config.services.homelab-mcp.actualSidecar.enable or false;
 in
 {
   imports = [
@@ -106,6 +110,10 @@ in
           # authenticate with the long-lived token (HOMELAB_MCP_HA_TOKEN)
           # sourced from the env file below.
           HOMELAB_MCP_HA_BASE_URL = "https://ha.holthome.net";
+          # These become active when the pending finances/Paperless tool branch
+          # is merged and this flake's homelab-mcp input is updated.
+          HOMELAB_MCP_FINANCES_SIDECAR_BASE_URL = "http://127.0.0.1:${toString actualSidecarPort}";
+          HOMELAB_MCP_PAPERLESS_BASE_URL = "https://paperless.${config.networking.domain}";
 
           # Hardening (recommended once the ha_* tools can actuate a
           # physical control plane). Neither value is a secret.
@@ -136,6 +144,9 @@ in
         #     tools; an admin user is only required if you want the HA
         #     automation/service-call tools. Sent as an Authorization: Bearer
         #     header to ha.holthome.net.
+        # Required for the pending finances/Paperless tools:
+        #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared sidecar token>
+        #   HOMELAB_MCP_PAPERLESS_TOKEN=<dedicated Paperless service-user token>
         # Optionally:
         #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA PEM, escaped \n>
         #     If absent, the service auto-generates and persists a
@@ -171,6 +182,16 @@ in
       };
     }
 
+    # This option lands with the pending finances/Paperless tool branch. Keep
+    # the current pin evaluable, then enable the sidecar automatically on repin.
+    (lib.optionalAttrs actualSidecarSupported {
+      services.homelab-mcp.actualSidecar = {
+        enable = true;
+        serverUrl = "https://budget.${config.networking.domain}";
+        environmentFile = config.sops.secrets."homelab-mcp/actual-env".path;
+      };
+    })
+
     # Service-down alert (native systemd service, not a container).
     (lib.mkIf (config.services.homelab-mcp.enable or false) (
       let
@@ -181,5 +202,30 @@ in
           forgeDefaults.mkSystemdServiceDownAlert "homelab-mcp" "HomelabMCP" "Claude tools bridge";
       }
     ))
+
+    # The current pinned MCP module does not include the Actual sidecar option.
+    # Once supported, its enable flag also owns monitoring activation so a
+    # renamed or missing unit cannot silently disable this probe.
+    (lib.mkIf actualSidecarEnabled {
+      modules.services.gatus.contributions.${actualSidecarUnit} = {
+        name = "Homelab MCP Actual Sidecar";
+        group = "applications";
+        url = "http://127.0.0.1:${toString actualSidecarPort}/health";
+        interval = "60s";
+        conditions = [
+          "[STATUS] == 200"
+          "[BODY].ok == true"
+          "[BODY].budget_loaded == true"
+          "[BODY].version_ok == true"
+          "[RESPONSE_TIME] < 5000"
+        ];
+        alerts = [{
+          type = "pushover";
+          sendOnResolved = true;
+          failureThreshold = 3;
+          successThreshold = 1;
+        }];
+      };
+    })
   ];
 }
