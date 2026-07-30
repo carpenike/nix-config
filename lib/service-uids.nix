@@ -355,6 +355,13 @@
     extraGroups = [ ];
   };
 
+  signal-api = {
+    uid = 947;
+    gid = 947;
+    description = "signal-cli-rest-api Signal bot transport (not yet deployed)";
+    extraGroups = [ ];
+  };
+
   copyparty = {
     uid = 943;
     gid = 65537;
@@ -669,7 +676,7 @@
   # When adding a new service, use the next available UID in the 996+ range
   # and document the actual deployed values after first deployment.
   #
-  # Next available: 947
+  # Next available: 948
   # ============================================================================
 
   # ============================================================================

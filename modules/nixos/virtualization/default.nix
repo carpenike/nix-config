@@ -38,6 +38,22 @@ in
               default = false;
               description = "Enable IPv6 for this network";
             };
+            isolate = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = ''
+                Enable netavark network isolation (`--opt isolate=true`).
+
+                Containers on an isolated network cannot exchange traffic with
+                containers on any other Podman network. Host <-> container
+                traffic (including published ports) and outbound NAT are
+                unaffected.
+
+                NOTE: only applied when the network is first created - the
+                creation command is a no-op for an existing network. Remove the
+                network (`podman network rm <name>`) to change this.
+              '';
+            };
           };
         });
         default = { };
@@ -88,6 +104,7 @@ in
                 ++ lib.optional (networkConfig.gateway != null) "--gateway=${networkConfig.gateway}"
                 ++ lib.optional networkConfig.internal "--internal"
                 ++ lib.optional networkConfig.ipv6 "--ipv6"
+                ++ lib.optional networkConfig.isolate "--opt isolate=true"
               );
             in
             ''

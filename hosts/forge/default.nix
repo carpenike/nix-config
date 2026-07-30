@@ -108,6 +108,7 @@ in
     ./services/grafana-oncall.nix # Grafana OnCall incident response platform
     ./services/scrypted.nix # Scrypted NVR/automation hub
     ./services/searxng.nix # SearXNG meta search engine
+    ./services/signal-api.nix # Signal bot transport for the household advisor pulse
     ./services/home-assistant.nix # Home Assistant automation platform
     ./services/music-assistant.nix # Music Assistant media library + player server
     ./services/homepage.nix # Homepage dashboard (LAN only)
