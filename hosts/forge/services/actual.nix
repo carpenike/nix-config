@@ -8,7 +8,7 @@
 # Uses native OIDC via PocketID for authentication.
 # Internal only - no Cloudflare Tunnel (finance data is sensitive).
 
-{ config, lib, ... }:
+{ config, inputs, lib, pkgs, ... }:
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -26,6 +26,13 @@ in
     {
       modules.services.actual = {
         enable = true;
+        # WORKAROUND (2026-07-30): Pin 26.7 because 26.7 API clients upgraded
+        # the budget schema, which the stable 26.6 web client cannot open.
+        # Affects: Actual Budget web UI and API client compatibility
+        # Upstream: https://github.com/actualbudget/actual/pull/8026
+        # Check: Return to pkgs.actual-server when nixos-25.11 provides Actual
+        # >= 26.7.0. See docs/workarounds.md.
+        package = inputs.actual-nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.actual-server;
         port = port;
 
         # OpenID remains primary for people; password supports headless API clients.

@@ -21,6 +21,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable"; # also see 'unstable-packages' overlay at 'overlays/default.nix"
 
+    # Actual Budget 26.7 compatibility pin. Keep independent from the moving
+    # unstable input until nixos-25.11 provides Actual >= 26.7.0.
+    actual-nixpkgs.url = "github:NixOS/nixpkgs/e2587caef70cea85dd97d7daab492899902dbf5d";
+
     # nixos-hardware - does not have a nixpkgs input, pure module flake
     hardware = {
       url = "github:nixos/nixos-hardware";

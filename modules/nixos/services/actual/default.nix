@@ -92,6 +92,13 @@ in
       description = "GID for Actual service group (from lib/service-uids.nix)";
     };
 
+    package = lib.mkOption {
+      type = lib.types.package;
+      default = pkgs.actual-server;
+      defaultText = lib.literalExpression "pkgs.actual-server";
+      description = "Actual Server package to use";
+    };
+
     allowedLoginMethods = lib.mkOption {
       type = lib.types.listOf (lib.types.enum [ "password" "header" "openid" ]);
       default = [ "password" "header" "openid" ];
@@ -223,6 +230,7 @@ in
       # Use native NixOS Actual service
       services.actual = {
         enable = true;
+        package = cfg.package;
         openFirewall = false; # We handle firewall ourselves
 
         settings = {

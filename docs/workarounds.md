@@ -19,6 +19,22 @@ When reviewing workarounds:
 
 ## Pinned Flake Inputs
 
+### Actual Budget - 26.7 Schema Compatibility Pin
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-07-30 |
+| **Location** | `flake.nix` (`inputs.actual-nixpkgs`) and `hosts/forge/services/actual.nix` |
+| **Affects** | Actual Budget web UI, sync server, and API client compatibility on Forge |
+| **Reason** | API clients running 26.7 upgraded the budget database schema. The stable nixos-25.11 package remains on 26.6.0, whose web client cannot open that newer schema. A floating `pkgs.unstable.actual-server` would silently advance again when weekly lock maintenance picks up 26.8. |
+| **Workaround** | Source only `actual-server` from immutable nixpkgs revision `e2587caef70cea85dd97d7daab492899902dbf5d`, which packages Actual 26.7.0. The normal stable and unstable nixpkgs inputs continue updating independently. |
+| **Validation** | Evaluate `services.actual.package.version`, build Forge, then verify the live server version, dual authentication inventory, SQLite integrity, and budget loading through the web UI. |
+| **Check** | Return to `pkgs.actual-server` and remove `actual-nixpkgs` when the pinned nixos-25.11 channel provides Actual >= 26.7.0. Do not move this pin to 26.8 without first confirming all API clients and the web server will upgrade together. |
+| **Upstream** | [Actual #8026](https://github.com/actualbudget/actual/pull/8026) improves the schema-skew error, but compatible server/client versions are still required. |
+| **Impact** | Without the pin, the web UI is unable to open a budget after a newer API client migrates its schema; with a floating unstable package, future weekly updates can recreate the same skew in the opposite direction. |
+
+---
+
 ### Hermes Agent - Cold-Store Evaluation Fix
 
 | Field | Value |

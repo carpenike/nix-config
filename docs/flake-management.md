@@ -8,6 +8,7 @@ This document describes how flake inputs are managed, updated, and pinned in thi
 |-------|---------------|---------|------------------|
 | `nixpkgs` | nixos-25.11 | Stable packages for hosts | - |
 | `nixpkgs-unstable` | nixos-unstable | Bleeding-edge packages via overlay | No |
+| `actual-nixpkgs` | `e2587cae` | Immutable Actual Budget 26.7.0 package pin | No |
 | `home-manager` | release-25.11 | User environment management | Yes |
 | `nix-darwin` | nix-darwin-25.11 | macOS system configuration | Yes |
 | `hardware` | latest | NixOS hardware profiles | No (pure module) |
