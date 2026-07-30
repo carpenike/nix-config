@@ -577,6 +577,7 @@
                 onCallMigration = forge.systemd.services.podman-grafana-oncall-migration;
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
+                signalApi = manifest.datasets."tank/services/signal-api";
                 failClosedUnits = {
                   actual = "actual";
                   apprise = "podman-apprise";
@@ -661,9 +662,9 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 45;
+              assert manifest.summary.classified == 46;
               assert manifest.summary.byClass == {
-                critical = 9;
+                critical = 10;
                 ephemeral = 20;
                 standard = 14;
                 system = 2;
@@ -716,6 +717,18 @@
               assert postgresql.missingRequiredTiers == [ "independent-restore" ];
               assert prometheus.classification == "ephemeral";
               assert prometheus.missingRequiredTiers == [ ];
+              # signal-api holds the Signal bot's registration keys, which are
+              # not reproducible from any other source, so it carries a second
+              # Restic job to r2-offsite and is the only critical service with
+              # every tier satisfied - hence its absence from
+              # criticalServicePaths below, which asserts a missing offsite
+              # tier. allowEmptyBootstrap is true so a fresh deployment can
+              # come up account-less for the registration runbook; the
+              # /v1/accounts Gatus check covers what that concedes.
+              assert signalApi.classification == "critical";
+              assert signalApi.missingRequiredTiers == [ ];
+              assert signalApi.policy.allowEmptyBootstrap;
+              assert !(builtins.hasAttr "signal-api" failClosedUnits);
               assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "ephemeral"
@@ -765,16 +778,16 @@
                   "zfs-snapshot-never-created"
                 ];
               in
-              assert builtins.length expectedTimers == 111;
+              assert builtins.length expectedTimers == 117;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
               assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
-              assert builtins.length (builtins.attrNames snapshotDatasets) == 54;
+              assert builtins.length (builtins.attrNames snapshotDatasets) == 55;
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 50;
+              assert builtins.length (builtins.attrNames enabledResticJobs) == 52;
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;
