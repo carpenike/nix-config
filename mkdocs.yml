@@ -153,6 +153,7 @@ nav:
       - PostgreSQL Auto-Restore: postgresql-auto-restore-homelab.md
       - PostgreSQL Offsite Backup: postgresql-offsite-backup-setup.md
       - pgBackRest Migration: postgresql-pgbackrest-migration.md
+      - pgBackRest Encryption Migration: pgbackrest-encryption-migration.md
       - pgBackRest Unified Config: pgbackrest-unified-config.md
       - pgBackRest Multi-Repo: pgbackrest-multi-repo-workaround.md
       - PostgreSQL Preseed Fix: postgresql-preseed-marker-fix.md
