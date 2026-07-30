@@ -28,9 +28,16 @@ in
         enable = true;
         port = port;
 
+        # OpenID remains primary for people; password supports headless API clients.
+        allowedLoginMethods = [
+          "password"
+          "openid"
+        ];
+
         # Native OIDC authentication via PocketID
         oidc = {
           enable = true;
+          enforce = false;
           discoveryUrl = "https://id.holthome.net/.well-known/openid-configuration";
           clientId = "actual-budget";
           clientSecretFile = config.sops.secrets."actual/oidc-client-secret".path;

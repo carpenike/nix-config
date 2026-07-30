@@ -92,6 +92,12 @@ in
       description = "GID for Actual service group (from lib/service-uids.nix)";
     };
 
+    allowedLoginMethods = lib.mkOption {
+      type = lib.types.listOf (lib.types.enum [ "password" "header" "openid" ]);
+      default = [ "password" "header" "openid" ];
+      description = "Authentication methods accepted by Actual";
+    };
+
     # =========================================================================
     # OpenID Connect Configuration
     # =========================================================================
@@ -100,6 +106,12 @@ in
       type = lib.types.submodule {
         options = {
           enable = lib.mkEnableOption "OpenID Connect authentication";
+
+          enforce = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "Whether to require OpenID and reject other allowed login methods";
+          };
 
           discoveryUrl = lib.mkOption {
             type = lib.types.str;
@@ -216,10 +228,12 @@ in
         settings = {
           hostname = "127.0.0.1"; # Only listen on localhost (behind reverse proxy)
           port = cfg.port;
+          allowedLoginMethods = cfg.allowedLoginMethods;
         } // lib.optionalAttrs cfg.oidc.enable {
           # OIDC configuration via native settings format
           # The NixOS module supports _secret for secure file-based secrets
           loginMethod = "openid";
+          enforceOpenId = cfg.oidc.enforce;
           openId = {
             discoveryURL = cfg.oidc.discoveryUrl;
             client_id = cfg.oidc.clientId;
