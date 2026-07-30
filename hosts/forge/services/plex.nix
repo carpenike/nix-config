@@ -105,6 +105,13 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # Plex cannot hairpin from the media-services bridge to Forge's LAN IP.
+      # Keep the public DVR hostname for TLS, but route it to Caddy's bridge
+      # listener so Plex can reach Dispatcharr's HDHomeRun endpoints.
+      virtualisation.oci-containers.containers.plex.extraOptions = [
+        "--add-host=iptv.${config.networking.domain}:10.89.0.1"
+      ];
+
       modules.storage.datasets.services.plex.protection = {
         class = "critical";
         objectives = {
