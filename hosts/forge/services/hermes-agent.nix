@@ -254,6 +254,7 @@ in
 
         settings = {
           _config_version = 33;
+          cron.wrap_response = false;
           # The typed mcpServers option owns transport/tool policy; this
           # freeform map adds fork-supported confidential OAuth fields that
           # are not yet exposed by the upstream NixOS submodule.
