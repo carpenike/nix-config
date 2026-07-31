@@ -28,9 +28,9 @@ let
     Never provide investment advice. For financial questions beyond simple
     facts, say: "bring it to the monthly review."
   '';
-  # Human gate: leave false until the Signal group membership and spending
-  # floor are confirmed. Changing only this value resumes the seeded job.
-  weeklyPulseEnabled = false;
+  # Human gate cleared 2026-07-31: Signal group membership and the private
+  # spending floor are confirmed. This resumes the existing seeded job.
+  weeklyPulseEnabled = true;
   weeklyPulseJobName = "weekly-household-pulse";
   weeklyPulsePrompt = ''
     Compose the weekly household finance pulse from live data at run time.
