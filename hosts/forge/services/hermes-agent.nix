@@ -96,9 +96,10 @@ let
     if [[ "$count" -eq 0 ]]; then
       # New jobs start local-only and are paused before the real schedule and
       # Signal target are installed. There is no first-deploy delivery window.
-      ${hermesCli}/bin/hermes cron create "1d" "$prompt" \
+      ${hermesCli}/bin/hermes cron create "0 16 * * 5" "$prompt" \
         --name "$job_name" \
-        --deliver local >/dev/null
+        --deliver local \
+        --repeat 0 >/dev/null
     elif [[ "$count" -ne 1 ]]; then
       echo "hermes weekly pulse: expected one '$job_name' job, found $count" >&2
       exit 1
@@ -119,6 +120,7 @@ let
       --prompt "$prompt" \
       --name "$job_name" \
       --deliver "signal:group:$signal_group_id" \
+      --repeat 0 \
       --clear-skills >/dev/null
 
     if ${lib.boolToString weeklyPulseEnabled}; then
@@ -134,6 +136,7 @@ let
     if [[ "$(job_count "$jobs")" -ne 1 ]] \
       || ! ${pkgs.gnugrep}/bin/grep -Fq "$expected_status" <<<"$block" \
       || ! ${pkgs.gnugrep}/bin/grep -Fq "Schedule:  0 16 * * 5" <<<"$block" \
+      || ! ${pkgs.gnugrep}/bin/grep -Fq "Repeat:    ∞" <<<"$block" \
       || ! ${pkgs.gnugrep}/bin/grep -Fq "Deliver:   signal:group:$signal_group_id" <<<"$block"; then
       echo "hermes weekly pulse: persisted job failed final postconditions" >&2
       exit 1
