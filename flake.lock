@@ -259,17 +259,17 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1785451769,
-        "narHash": "sha256-RJdxV3QUV3Y1TAbbw4hWwJQU3Jcv+/l1+wwo0Y3BNBM=",
+        "lastModified": 1785527271,
+        "narHash": "sha256-nLDXn+2i0irBsDEc3alUt1c8J9YyL+lNtmL+Yj7iEns=",
         "owner": "carpenike",
         "repo": "hermes-agent",
-        "rev": "5f2de152e174268e707ad78db4f803dc7944c16b",
+        "rev": "7d9119b66d831235260caa24cf0abf27887b8c32",
         "type": "github"
       },
       "original": {
         "owner": "carpenike",
         "repo": "hermes-agent",
-        "rev": "5f2de152e174268e707ad78db4f803dc7944c16b",
+        "rev": "7d9119b66d831235260caa24cf0abf27887b8c32",
         "type": "github"
       }
     },
@@ -322,11 +322,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785510810,
-        "narHash": "sha256-rZW2DBBmX0bNT0eHuLYJvnZR0114fLkKHrxSwNJpKhU=",
+        "lastModified": 1785528321,
+        "narHash": "sha256-WFxxVJD4HB+Mgg83cECnbqavTTeKOpbs1RjhOyzjgQI=",
         "owner": "carpenike",
         "repo": "mcp",
-        "rev": "30d79398ae84e17aff10dd9c1b9648af9f9608bb",
+        "rev": "dcd03f72c79c922e713294bed1e41444cceb78d7",
         "type": "github"
       },
       "original": {

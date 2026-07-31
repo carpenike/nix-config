@@ -128,6 +128,16 @@ in
           # force interactive re-login — it only shortens the window a
           # leaked access token stays valid.
           HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS = 4 * 60 * 60;
+          # Server-side dispatch boundary for Hermes. Its local include list
+          # mirrors this for UX, but this middleware allowlist is authoritative.
+          HOMELAB_MCP_RESTRICTED_SCOPES = builtins.toJSON {
+            hermes = [
+              "finances_sync_status"
+              "finances_monthly_summary"
+              "finances_recurring"
+              "finances_debt_status"
+            ];
+          };
         };
 
         # Sops-managed env file containing at minimum:
@@ -147,6 +157,7 @@ in
         # Required for the pending finances/Paperless tools:
         #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared sidecar token>
         #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
+        #   HOMELAB_MCP_FINANCES_AMAZON_BASELINE=<private monthly Amazon baseline>
         #   HOMELAB_MCP_PAPERLESS_TOKEN=<dedicated Paperless service-user token>
         # Optionally:
         #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA PEM, escaped \n>

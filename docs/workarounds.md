@@ -35,19 +35,19 @@ When reviewing workarounds:
 
 ---
 
-### Hermes Agent - Signal Gateway and Cold-Store Fixes
+### Hermes Agent - Signal, Cold-Store, and OAuth Fixes
 
 | Field | Value |
 | --- | --- |
 | **Added** | 2026-07-27 |
 | **Location** | `flake.nix` (`inputs.hermes-agent`) and `flake.lock` |
-| **Affects** | Forge Signal gateway, Forge evaluation, all CI flake checks, and automated flake-input update PRs |
-| **Reason** | The released Signal adapter targets direct signal-cli SSE/JSON-RPC endpoints that do not exist in signal-cli-rest-api 0.100; independently, Hermes's filtered-source refactor passed generated `lib.fileset.toSource` paths to evaluation-time consumers, which breaks cold-store evaluation. |
-| **Workaround** | Pin `hermes-agent` to immutable fork commit [`5f2de152`](https://github.com/carpenike/hermes-agent/commit/5f2de152e174268e707ad78db4f803dc7944c16b), combining the REST/WebSocket adapter from upstream PR #53696, v0.100 raw-to-REST group-recipient encoding, and the cold-store fix from PR #72689. |
-| **Validation** | The fork's focused Signal REST route suite passes on `x86_64-linux` (`22 passed`). Validate nix-config with `task nix:build-nixos host=forge`, then verify the Signal WebSocket and reply path on forge. |
-| **Check** | After upstream PRs #53696 and #72689 merge, restore `url = "github:NousResearch/hermes-agent"`, update only the Hermes lock node, and rerun the cold-store and Signal gateway checks before removing this entry. |
-| **Upstream** | [NousResearch/hermes-agent#53696](https://github.com/NousResearch/hermes-agent/pull/53696), [NousResearch/hermes-agent#72689](https://github.com/NousResearch/hermes-agent/pull/72689) |
-| **Impact** | Without the pin, Hermes cannot connect to forge's Signal transport; fresh CI runners and cold Forge stores can also fail before building. |
+| **Affects** | Forge Signal gateway, Forge evaluation, CI flake checks, automated input updates, and fixed-port MCP OAuth reauthorization |
+| **Reason** | The released Signal adapter targets direct signal-cli SSE/JSON-RPC endpoints that do not exist in signal-cli-rest-api 0.100; Hermes's filtered-source refactor breaks cold-store evaluation; and the OAuth paste fallback closes a socket while its blocking `handle_request()` thread still owns the fixed callback port, causing the SDK's next callback to fail with `Address already in use`. |
+| **Workaround** | Pin `hermes-agent` to immutable fork commit [`7d9119b66`](https://github.com/carpenike/hermes-agent/commit/7d9119b66d831235260caa24cf0abf27887b8c32), combining the REST/WebSocket adapter from upstream PR #53696, v0.100 raw-to-REST group-recipient encoding, the cold-store fix from PR #72689, and managed OAuth listener shutdown. |
+| **Validation** | The focused Signal REST route suite passes on `x86_64-linux` (`22 passed`), and the full OAuth test file passes (`112 passed`), including immediate fixed-port rebinding after a pasted callback. Validate nix-config with `task nix:build-nixos host=forge`, then verify Signal reply and scoped MCP login on forge. |
+| **Check** | After upstream PRs #53696 and #72689 merge and OAuth callback listeners use managed shutdown, restore `url = "github:NousResearch/hermes-agent"`, update only the Hermes lock node, and rerun the cold-store, Signal, and fixed-port OAuth checks before removing this entry. |
+| **Upstream** | [NousResearch/hermes-agent#53696](https://github.com/NousResearch/hermes-agent/pull/53696), [NousResearch/hermes-agent#72689](https://github.com/NousResearch/hermes-agent/pull/72689), [fork OAuth fix](https://github.com/carpenike/hermes-agent/commit/7d9119b66d831235260caa24cf0abf27887b8c32) |
+| **Impact** | Without the pin, Hermes cannot connect to forge's Signal transport; fresh CI runners/cold Forge stores can fail before building; and pasted OAuth callbacks cannot complete reliably with a fixed redirect port. |
 
 ---
 

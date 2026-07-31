@@ -351,6 +351,7 @@ in
           # Optional:
           #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared Actual sidecar token>
           #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
+          #   HOMELAB_MCP_FINANCES_AMAZON_BASELINE=<private monthly Amazon baseline>
           #   HOMELAB_MCP_PAPERLESS_TOKEN=<dedicated Paperless service-user token>
           #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA private PEM, escaped \n>
           #   HOMELAB_MCP_OAUTH_SESSION_SECRET=<urlsafe-base64 32+ bytes>
@@ -950,6 +951,14 @@ in
             group = "root";
           };
 
+          # Confidential Homelab MCP client secret for the read-only `hermes`
+          # OAuth scope. Projected into the root-only Hermes env template.
+          "hermes-agent/homelab-mcp-oauth-client-secret" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
           # Least-privilege projection of the three HOMELAB_MCP_SIGNAL_*
           # values into Hermes's native SIGNAL_* names. The canonical group
           # send target is `group.` plus Base64 of signal-cli's raw Base64
@@ -961,7 +970,10 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
-            restartUnits = [ "hermes-agent.service" ];
+            restartUnits = [
+              "hermes-agent.service"
+              "hermes-agent-weekly-pulse-seed.service"
+            ];
           };
         }
         // optionalAttrs whiskeyWhiskeyWhiskeyEnabled {
@@ -1365,6 +1377,7 @@ in
             content = ''
               OPENROUTER_API_KEY=${config.sops.placeholder."hermes-agent/openrouter-api-key"}
               TELEGRAM_BOT_TOKEN=${config.sops.placeholder."hermes-agent/telegram-bot-token"}
+              HOMELAB_MCP_OAUTH_CLIENT_SECRET=${config.sops.placeholder."hermes-agent/homelab-mcp-oauth-client-secret"}
             '';
             mode = "0400";
             owner = "root";
