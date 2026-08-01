@@ -352,6 +352,7 @@ in
           #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared Actual sidecar token>
           #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
           #   HOMELAB_MCP_FINANCES_AMAZON_BASELINE=<private monthly Amazon baseline>
+          #   HOMELAB_MCP_FINANCES_BUFFER_FLOOR=<private checking buffer floor>
           #   HOMELAB_MCP_PAPERLESS_TOKEN=<dedicated Paperless service-user token>
           #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA private PEM, escaped \n>
           #   HOMELAB_MCP_OAUTH_SESSION_SECRET=<urlsafe-base64 32+ bytes>
@@ -973,6 +974,7 @@ in
             restartUnits = [
               "hermes-agent.service"
               "hermes-agent-weekly-pulse-seed.service"
+              "hermes-agent-daily-finance-sentinel-seed.service"
             ];
           };
         }

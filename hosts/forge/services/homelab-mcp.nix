@@ -136,6 +136,8 @@ in
               "finances_monthly_summary"
               "finances_recurring"
               "finances_debt_status"
+              "finances_breaches"
+              "finances_buffer"
             ];
           };
         };
@@ -158,6 +160,7 @@ in
         #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared sidecar token>
         #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
         #   HOMELAB_MCP_FINANCES_AMAZON_BASELINE=<private monthly Amazon baseline>
+        #   HOMELAB_MCP_FINANCES_BUFFER_FLOOR=<private checking buffer floor>
         #   HOMELAB_MCP_PAPERLESS_TOKEN=<dedicated Paperless service-user token>
         # Optionally:
         #   HOMELAB_MCP_OAUTH_SIGNING_KEY=<RSA PEM, escaped \n>

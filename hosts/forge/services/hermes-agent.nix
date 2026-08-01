@@ -17,10 +17,11 @@ let
   householdAdvisorPrompt = ''
     You are Household Advisor. Be concise, factual, and family-appropriate.
     You have read-only access to household financial summaries through exactly
-    four Homelab MCP tools: finances_sync_status, finances_monthly_summary,
-    finances_recurring, and finances_debt_status. Use them for factual finance
-    questions. Never state a number unless it appears in current tool output;
-    never infer, estimate, or invent values.
+    six Homelab MCP tools: finances_sync_status, finances_monthly_summary,
+    finances_recurring, finances_debt_status, finances_breaches, and
+    finances_buffer. Use them for factual finance questions and monitoring.
+    Never state a number unless it appears in current tool output; never infer,
+    estimate, or invent values.
     For debt, use each debt's accelerate/ride framing and prefer per-debt values
     over total_debt or accelerate_total, which may be transiently high while
     recent card payoffs settle. For recurring history before May 2026, treat a
@@ -56,6 +57,44 @@ let
     Celebrate on-track spending and paydowns. If detail will not fit, flag it for
     the monthly review rather than adding a sixth line.
   '';
+  dailySentinelJobName = "daily-finance-sentinel";
+  dailySentinelSchedule = "0 8 * * *";
+  dailySentinelPrompt = ''
+    Act as a silent household-finance sentinel. Call exactly these three tools,
+    once each, using live data at run time:
+    - finances_sync_status with trigger_sync=false
+    - finances_breaches with lookback_days=3
+    - finances_buffer with no arguments
+
+    Send an alert only when at least one of these predicates is true:
+    1. `breach_candidates` is non-empty.
+    2. A non-manual sync account has status `dead`. For basis `feed`, require
+      feed_age_hours > 72. For basis `activity_fallback`, trust `dead` as the
+      cadence-aware fallback and identify that weaker basis. Ignore `stale`,
+      `quiet_but_healthy`, and manual accounts.
+    3. Buffer floor is configured and buffer status is `below_floor`. A status
+      of `no_floor`, `near_floor`, or `above_floor` is not an alert.
+    4. Revolving creep is armed only when the tool's `as_of` date is more than
+      25 calendar days after the 2026-07-30 card-payoff baseline (never on or
+      before 2026-08-24). Then alert for each `components.card_accounts` row
+      where `counted` is true and the owed balance exceeds $500 (`balance` is
+      less than -500).
+
+    After all three calls, privately reduce the results to four booleans named
+    BREACH, DEAD_FEED, BELOW_FLOOR, and REVOLVING_CREEP using only the rules
+    above. Do not print this checklist or mention any false category.
+
+    Final-response gate:
+    - If all four booleans are false, your entire final response MUST be exactly
+      `[SILENT]`. Do not explain the healthy state, list non-events, summarize
+      the calls, or mention why the response is silent. Hermes suppresses that
+      marker and writes the silent-run log line.
+    - Otherwise, return only one terse factual line for each true boolean. Do
+      not include lines for false booleans, routine status, advice, blame, or
+      invented values.
+
+    Never use signal_send; native cron delivery sends the final response.
+  '';
   hermesCli = pkgs.writeShellScriptBin "hermes" ''
     export HOME="${stateDir}"
     export HERMES_HOME="${stateDir}/.hermes"
@@ -63,6 +102,7 @@ let
     exec ${hermesPackage}/bin/hermes "$@"
   '';
   weeklyPulsePromptFile = pkgs.writeText "hermes-weekly-pulse-prompt" weeklyPulsePrompt;
+  dailySentinelPromptFile = pkgs.writeText "hermes-daily-finance-sentinel-prompt" dailySentinelPrompt;
   weeklyPulseSeedScript = pkgs.writeShellScript "hermes-weekly-pulse-seed" ''
     set -euo pipefail
 
@@ -139,6 +179,75 @@ let
       || ! ${pkgs.gnugrep}/bin/grep -Fq "Repeat:    ∞" <<<"$block" \
       || ! ${pkgs.gnugrep}/bin/grep -Fq "Deliver:   signal:group:$signal_group_id" <<<"$block"; then
       echo "hermes weekly pulse: persisted job failed final postconditions" >&2
+      exit 1
+    fi
+  '';
+  dailySentinelSeedScript = pkgs.writeShellScript "hermes-daily-finance-sentinel-seed" ''
+    set -euo pipefail
+
+    job_name=${lib.escapeShellArg dailySentinelJobName}
+    schedule=${lib.escapeShellArg dailySentinelSchedule}
+    prompt="$(${pkgs.coreutils}/bin/cat ${dailySentinelPromptFile})"
+    signal_group_id="$SIGNAL_GROUP_ALLOWED_USERS"
+    if [[ -z "$signal_group_id" ]]; then
+      echo "hermes finance sentinel: SIGNAL_GROUP_ALLOWED_USERS is empty" >&2
+      exit 1
+    fi
+    case "$signal_group_id" in
+      group.*)
+        echo "hermes finance sentinel: expected raw Signal group ID, not REST send target" >&2
+        exit 1
+        ;;
+    esac
+
+    list_jobs() {
+      ${hermesCli}/bin/hermes cron list --all
+    }
+    job_count() {
+      ${pkgs.gnugrep}/bin/grep -Fc "Name:      $job_name" <<<"$1" || true
+    }
+    job_block() {
+      ${pkgs.gawk}/bin/awk -v needle="Name:      $job_name" \
+        'BEGIN { RS = "" } index($0, needle) { print; exit }' <<<"$1"
+    }
+
+    jobs="$(list_jobs)"
+    count="$(job_count "$jobs")"
+    if [[ "$count" -eq 0 ]]; then
+      ${hermesCli}/bin/hermes cron create "$schedule" "$prompt" \
+        --name "$job_name" \
+        --deliver local \
+        --repeat 0 >/dev/null
+    elif [[ "$count" -ne 1 ]]; then
+      echo "hermes finance sentinel: expected one '$job_name' job, found $count" >&2
+      exit 1
+    fi
+
+    ${hermesCli}/bin/hermes cron pause "$job_name" >/dev/null
+    jobs="$(list_jobs)"
+    block="$(job_block "$jobs")"
+    if [[ "$(job_count "$jobs")" -ne 1 ]] || ! ${pkgs.gnugrep}/bin/grep -Fq "[paused]" <<<"$block"; then
+      echo "hermes finance sentinel: failed to establish paused pre-edit state" >&2
+      exit 1
+    fi
+
+    ${hermesCli}/bin/hermes cron edit "$job_name" \
+      --schedule "$schedule" \
+      --prompt "$prompt" \
+      --name "$job_name" \
+      --deliver "signal:group:$signal_group_id" \
+      --repeat 0 \
+      --clear-skills >/dev/null
+    ${hermesCli}/bin/hermes cron resume "$job_name" >/dev/null
+
+    jobs="$(list_jobs)"
+    block="$(job_block "$jobs")"
+    if [[ "$(job_count "$jobs")" -ne 1 ]] \
+      || ! ${pkgs.gnugrep}/bin/grep -Fq "[active]" <<<"$block" \
+      || ! ${pkgs.gnugrep}/bin/grep -Fq "Schedule:  $schedule" <<<"$block" \
+      || ! ${pkgs.gnugrep}/bin/grep -Fq "Repeat:    ∞" <<<"$block" \
+      || ! ${pkgs.gnugrep}/bin/grep -Fq "Deliver:   signal:group:$signal_group_id" <<<"$block"; then
+      echo "hermes finance sentinel: persisted job failed final postconditions" >&2
       exit 1
     fi
   '';
@@ -248,6 +357,8 @@ in
             "finances_monthly_summary"
             "finances_recurring"
             "finances_debt_status"
+            "finances_breaches"
+            "finances_buffer"
           ];
           sampling.enabled = false;
         };
@@ -445,6 +556,20 @@ in
           RemainAfterExit = true;
           EnvironmentFile = [ config.sops.secrets."hermes-agent/signal-env".path ];
           ExecStart = weeklyPulseSeedScript;
+        };
+      };
+
+      systemd.services.hermes-agent-daily-finance-sentinel-seed = {
+        description = "Seed the Hermes daily finance sentinel";
+        after = [ "hermes-agent.service" ];
+        requires = [ "hermes-agent.service" ];
+        wantedBy = [ "multi-user.target" ];
+        restartTriggers = [ dailySentinelPromptFile ];
+        serviceConfig = pulseServiceHardening // {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          EnvironmentFile = [ config.sops.secrets."hermes-agent/signal-env".path ];
+          ExecStart = dailySentinelSeedScript;
         };
       };
 
