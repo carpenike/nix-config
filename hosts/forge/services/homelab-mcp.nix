@@ -138,6 +138,7 @@ in
               "finances_debt_status"
               "finances_breaches"
               "finances_buffer"
+              "finances_room"
             ];
           };
         };
