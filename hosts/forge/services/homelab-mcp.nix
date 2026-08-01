@@ -130,6 +130,9 @@ in
           HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS = 4 * 60 * 60;
           # Server-side dispatch boundary for Hermes. Its local include list
           # mirrors this for UX, but this middleware allowlist is authoritative.
+          # Hermes v0.19 requests every advertised OAuth scope, so both local
+          # aliases share this bounded read-only scope; platform_toolsets and
+          # each alias's tools.include enforce their disjoint per-gateway views.
           HOMELAB_MCP_RESTRICTED_SCOPES = builtins.toJSON {
             hermes = [
               "finances_sync_status"
@@ -139,6 +142,7 @@ in
               "finances_breaches"
               "finances_buffer"
               "finances_room"
+              "homelab_list_status"
             ];
           };
         };

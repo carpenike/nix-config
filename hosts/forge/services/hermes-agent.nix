@@ -62,6 +62,14 @@ let
     Never provide investment advice. For financial questions beyond simple
     facts, say: "bring it to the monthly review."
   '';
+  nonFinanceGatewayPrompt = ''
+    Keep your existing non-finance duties. Household finance lives in the
+    family Signal group and must never be retrieved or discussed here. For any
+    finance question, do not call tools or try to obtain financial data through
+    terminal commands, files, memory, web access, or another indirect path.
+    Reply politely: "Finance lives in our Signal group." Do not include any
+    household financial details or numbers.
+  '';
   # Human gate cleared 2026-07-31: Signal group membership and the private
   # spending floor are confirmed. This resumes the existing seeded job.
   weeklyPulseEnabled = true;
@@ -380,6 +388,9 @@ in
           TELEGRAM_ALLOWED_USERS = "8903896206";
         };
 
+        # Hermes v0.19 scopes MCP servers per platform by server alias, not by
+        # individual tool. Keep finance and general-purpose tools on separate
+        # aliases even though they share an endpoint and bounded OAuth scope.
         mcpServers.holthome = {
           url = "https://mcp.${config.networking.domain}/mcp";
           auth = "oauth";
@@ -397,6 +408,17 @@ in
           sampling.enabled = false;
         };
 
+        # Proof capability for non-finance Homelab access from Telegram. Add
+        # future Telegram tools explicitly; never add a finances_* tool here.
+        mcpServers."holthome-telegram" = {
+          url = "https://mcp.${config.networking.domain}/mcp";
+          auth = "oauth";
+          connect_timeout = 60;
+          timeout = 120;
+          tools.include = [ "homelab_list_status" ];
+          sampling.enabled = false;
+        };
+
         settings = {
           _config_version = 33;
           cron.wrap_response = false;
@@ -410,9 +432,22 @@ in
             redirect_port = 8765;
             redirect_uri = "http://127.0.0.1:8765/callback";
           };
+          mcp_servers."holthome-telegram".oauth = {
+            client_id = "d2vzX8u-_LxxkAJFlKw4TglIWAnvV8zc";
+            client_secret = "\${HOMELAB_MCP_OAUTH_CLIENT_SECRET}";
+            scope = "hermes";
+            redirect_port = 8765;
+            redirect_uri = "http://127.0.0.1:8765/callback";
+          };
           model.default = "anthropic/claude-sonnet-4";
           timezone = config.time.timeZone;
-          platform_toolsets.cron = [ "safe" "holthome" ];
+          platform_toolsets = {
+            cron = [ "safe" "holthome" ];
+            signal = [ "hermes-signal" "holthome" ];
+            # Listing one MCP alias makes this an allowlist; the finance alias
+            # is absent from Telegram's tool catalog and tool_call bridge.
+            telegram = [ "hermes-telegram" "holthome-telegram" ];
+          };
           gateway.platforms.telegram = {
             enabled = true;
             dm_policy = "allowlist";
@@ -420,6 +455,7 @@ in
             # A user's private Telegram chat ID equals their numeric user ID.
             allowed_chats = [ "8903896206" ];
             group_policy = "disabled";
+            channel_overrides."8903896206".system_prompt = nonFinanceGatewayPrompt;
           };
           gateway.platforms.signal = {
             enabled = true;
