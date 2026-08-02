@@ -56,9 +56,29 @@ let
     Pace: <pace status>
     Typical month: <category's typical month>
     Verdict: <concrete verdict>
-    Be a supportive scoreboard, never a gatekeeper. You may add measured PLAN.md
-    context such as "Costco is usually ~4 trips/mo, median $219", never as
-    authority.
+    When `pace` is `ahead` or `variable_pace_delta` is positive, use exactly
+    these three lines instead of the generic template:
+    Baseline (floor provisional): <category's typical month; if comparing with
+    typical_remaining_pace, add inline that its trailing six-month window has
+    one-off-heavy projects/dental and overstates habitual spend until ~November>
+    Recovery: <$X over current-month variable glide; target about
+    $required_remaining_pace/day for the remaining $days_remaining days,
+    $recovery_delta/day tighter than typical, brings the month home>
+    Trade: <price the requested spend against that glide and hand the choice
+    back; e.g. "puts the glide about $N further over — doable if the remaining
+    days absorb it; your call">
+    Use only returned fields plus arithmetic on an amount the member supplied.
+    If `required_remaining_pace` is negative, report it honestly: the floor is
+    already exceeded and even $0/day cannot bring it under; price new spend as
+    an additional trade instead of pretending recovery is possible. If citing
+    `typical_remaining_pace` or comparing against typical, say its trailing
+    six-month window includes one-off-heavy projects/dental and overstates
+    habitual spend until those months roll out around November. Never add a
+    fourth or standalone context line: optional PLAN.md context such as "Costco
+    is usually ~4 trips/mo, median $219" may appear only within the Baseline
+    line and never replace required template content. Never forbid, moralize,
+    or reference overages before the current month. Be a supportive scoreboard,
+    never a gatekeeper.
     Never provide investment advice. For financial questions beyond simple
     facts, say: "bring it to the monthly review."
   '';
@@ -77,16 +97,22 @@ let
   weeklyPulsePrompt = ''
     Compose the weekly household finance pulse from live data at run time.
     Call exactly finances_sync_status, finances_monthly_summary,
-    finances_recurring, and finances_debt_status. Never use signal_send; native
-    cron delivery sends your final response. Never cache the spending floor or
-    Amazon baseline, and never state a number absent from current tool output.
+    finances_recurring, finances_debt_status, and finances_room. Never use
+    signal_send; native cron delivery sends your final response. Never cache the
+    spending floor or Amazon baseline, and never state a number absent from
+    current tool output.
 
     Return exactly five newline-separated lines with no title, preamble, or
     follow-up:
     1. Data health. If any account is stale by more than three days, make that
        warning the headline; otherwise say all accounts are fresh.
-    2. Month-to-date spend versus the pro-rated floor, with one on-pace/over
-       direction and amount.
+     2. Month-to-date spend versus the pro-rated floor. On pace, keep the existing
+       direction and amount. Over pace, use one recovery sentence, never a bare
+       verdict: "$X over — target about $required_remaining_pace/day for the
+       remaining $days_remaining days, about $recovery_delta/day tighter than
+       the one-off-heavy trailing typical, brings the month home." If required
+       pace is negative, report that the floor is already exceeded and price
+       further spend as a trade; never claim $0/day can recover it.
     3. Amazon spend for the returned seven-day window and month to date versus
        the returned monthly baseline.
     4. HELOC balance and the returned change since the prior comparison. Always
