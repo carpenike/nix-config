@@ -87,8 +87,10 @@ let
     family Signal group and must never be retrieved or discussed here. For any
     finance question, do not call tools or try to obtain financial data through
     terminal commands, files, memory, web access, or another indirect path.
-    Reply politely: "Finance lives in our Signal group." Do not include any
-    household financial details or numbers.
+    Your entire response to a finance question MUST be exactly: "Finance lives
+    in our Signal group." Add no explanation, tool inventory, follow-up,
+    platform-switch suggestion, session-switch suggestion, or workaround. Do
+    not include any household financial details or numbers.
   '';
   # Human gate cleared 2026-07-31: Signal group membership and the private
   # spending floor are confirmed. This resumes the existing seeded job.
@@ -481,6 +483,11 @@ in
             # A user's private Telegram chat ID equals their numeric user ID.
             allowed_chats = [ "8903896206" ];
             group_policy = "disabled";
+            # Hermes v0.19 resolves channel overrides every turn and includes
+            # their full text in the cached-agent signature, so persona edits
+            # do not require session resets. Acceptance MUST use the production
+            # identity below with thread_id=null: synthetic thread IDs create a
+            # different session and do not exercise Ryan's persistent DM history.
             channel_overrides."8903896206".system_prompt = nonFinanceGatewayPrompt;
           };
           gateway.platforms.signal = {
