@@ -432,6 +432,9 @@ in
             "finances_breaches"
             "finances_buffer"
             "finances_room"
+            "finances_context_add"
+            "finances_context_list"
+            "finances_clarify_candidates"
           ];
           sampling.enabled = false;
         };

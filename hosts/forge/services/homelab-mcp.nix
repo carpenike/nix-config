@@ -52,6 +52,8 @@
 
 let
   serviceName = "homelab-mcp";
+  dataDir = "/var/lib/${serviceName}";
+  dataset = "tank/services/${serviceName}";
   serviceDomain = "mcp.${config.networking.domain}";
   listenAddr = "127.0.0.1";
   # Upstream default is 9200 (avoids the well-known prometheus
@@ -110,9 +112,9 @@ in
           # authenticate with the long-lived token (HOMELAB_MCP_HA_TOKEN)
           # sourced from the env file below.
           HOMELAB_MCP_HA_BASE_URL = "https://ha.holthome.net";
-          # These become active when the pending finances/Paperless tool branch
-          # is merged and this flake's homelab-mcp input is updated.
+          # Finances and Paperless integration endpoints.
           HOMELAB_MCP_FINANCES_SIDECAR_BASE_URL = "http://127.0.0.1:${toString actualSidecarPort}";
+          HOMELAB_MCP_FINANCES_REPO_URL = "https://github.com/carpenike/finances.git";
           HOMELAB_MCP_PAPERLESS_BASE_URL = "https://paperless.${config.networking.domain}";
 
           # Hardening (recommended once the ha_* tools can actuate a
@@ -123,6 +125,9 @@ in
           # claim). Empty upstream default = any PocketID user. Parsed as
           # JSON by pydantic, so this must be a JSON array literal.
           HOMELAB_MCP_OAUTH_USER_ALLOWLIST = ''["ryan@ryanholt.net", "stefanie@stefanieholt.com"]'';
+          HOMELAB_MCP_RESTRICTED_SCOPE_RESOURCES = builtins.toJSON {
+            advisor = [ "finances://" ];
+          };
           # Shrink issued bearer-token lifetime from the 24h default to 4h.
           # Refresh tokens (30d, rotated on every use) mean this does not
           # force interactive re-login — it only shortens the window a
@@ -134,6 +139,38 @@ in
           # aliases share this bounded read-only scope; platform_toolsets and
           # each alias's tools.include enforce their disjoint per-gateway views.
           HOMELAB_MCP_RESTRICTED_SCOPES = builtins.toJSON {
+            advisor = [
+              "finances_sync_status"
+              "finances_monthly_summary"
+              "finances_recurring"
+              "finances_trend"
+              "finances_debt_status"
+              "finances_transactions"
+              "finances_categorize"
+              "finances_rules_list"
+              "finances_rule_create"
+              "finances_rule_delete"
+              "finances_payees"
+              "finances_payee_merge"
+              "finances_buffer"
+              "finances_breaches"
+              "finances_room"
+              "finances_reconcile"
+              "finances_subscriptions"
+              "finances_net_worth"
+              "finances_payoff_projection"
+              "finances_docs_get"
+              "finances_context_add"
+              "finances_context_list"
+              "finances_context_consume"
+              "finances_clarify_candidates"
+              "finances_decision_append"
+              "finances_planned_append"
+              "paperless_search"
+              "paperless_get"
+              "paperless_link"
+              "signal_send"
+            ];
             hermes = [
               "finances_sync_status"
               "finances_monthly_summary"
@@ -142,6 +179,9 @@ in
               "finances_breaches"
               "finances_buffer"
               "finances_room"
+              "finances_context_add"
+              "finances_context_list"
+              "finances_clarify_candidates"
               "homelab_list_status"
             ];
           };
@@ -161,8 +201,12 @@ in
         #     tools; an admin user is only required if you want the HA
         #     automation/service-call tools. Sent as an Authorization: Bearer
         #     header to ha.holthome.net.
-        # Required for the pending finances/Paperless tools:
+        # Required for the finances/Paperless tools:
         #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared sidecar token>
+        #   HOMELAB_MCP_FINANCES_REPO_TOKEN=<GitHub token; contents:write>
+        #     Stored only inside the SOPS-encrypted `homelab-mcp/env` dotenv.
+        #     contents:read serves governance docs; contents:write is required
+        #     for finances_decision_append and finances_planned_append.
         #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
         #   HOMELAB_MCP_FINANCES_AMAZON_BASELINE=<private monthly Amazon baseline>
         #   HOMELAB_MCP_FINANCES_BUFFER_FLOOR=<private checking buffer floor>
@@ -202,8 +246,7 @@ in
       };
     }
 
-    # This option lands with the pending finances/Paperless tool branch. Keep
-    # the current pin evaluable, then enable the sidecar automatically on repin.
+    # Keep rollback pins that predate the Actual sidecar option evaluable.
     (lib.optionalAttrs actualSidecarSupported {
       services.homelab-mcp.actualSidecar = {
         enable = true;
@@ -218,15 +261,67 @@ in
         forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
       in
       {
+        systemd.services.homelab-mcp = {
+          after = [ "zfs-service-datasets.service" ];
+          requires = [ "zfs-service-datasets.service" ];
+          unitConfig.RequiresMountsFor = [ dataDir ];
+        };
+
+        modules.storage.datasets.services.${serviceName} = {
+          mountpoint = dataDir;
+          recordsize = "16K";
+          compression = "zstd";
+          properties = {
+            atime = "off";
+            "com.sun:auto-snapshot" = "true";
+          };
+          owner = serviceName;
+          group = serviceName;
+          mode = "0700";
+        };
+
+        modules.backup.sanoid.datasets.${dataset} =
+          forgeDefaults.mkSanoidDataset serviceName;
+
+        modules.services.backup.restic.jobs.${serviceName} = {
+          enable = true;
+          repository = forgeDefaults.backup.repository;
+          paths = [ dataDir ];
+          tags = [ serviceName "sqlite" "finances" "forge" ];
+          frequency = "daily";
+          useSnapshots = true;
+          zfsDataset = dataset;
+        };
+
+        # Signal replies are the only source for this context, so retain an
+        # offsite copy in addition to the standard NAS backup.
+        modules.services.backup.restic.jobs."${serviceName}-offsite" = {
+          enable = true;
+          repository = "r2-offsite";
+          paths = [ dataDir ];
+          tags = [ serviceName "sqlite" "finances" "offsite" "forge" ];
+          frequency = "daily";
+          useSnapshots = true;
+          zfsDataset = dataset;
+        };
+
         modules.alerting.rules."homelab-mcp-service-down" =
           forgeDefaults.mkSystemdServiceDownAlert "homelab-mcp" "HomelabMCP" "Claude tools bridge";
       }
     ))
 
-    # The current pinned MCP module does not include the Actual sidecar option.
-    # Once supported, its enable flag also owns monitoring activation so a
-    # renamed or missing unit cannot silently disable this probe.
+    # The sidecar enable flag also owns monitoring activation so a rollback to
+    # a revision without the unit cannot leave a stale probe behind.
     (lib.mkIf actualSidecarEnabled {
+      systemd.services.${actualSidecarUnit} = {
+        startLimitBurst = 3;
+        startLimitIntervalSec = 900;
+        serviceConfig = {
+          StartLimitBurst = lib.mkForce [ ];
+          StartLimitIntervalSec = lib.mkForce [ ];
+        };
+      };
+
       modules.services.gatus.contributions.${actualSidecarUnit} = {
         name = "Homelab MCP Actual Sidecar";
         group = "applications";

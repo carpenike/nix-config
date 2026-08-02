@@ -350,6 +350,7 @@ in
           #   HOMELAB_MCP_POCKETID_CLIENT_SECRET=<from PocketID admin UI>
           # Optional:
           #   HOMELAB_MCP_FINANCES_SIDECAR_TOKEN=<shared Actual sidecar token>
+          #   HOMELAB_MCP_FINANCES_REPO_TOKEN=<GitHub token; contents:write>
           #   HOMELAB_MCP_FINANCES_FLOOR=<private monthly spending floor>
           #   HOMELAB_MCP_FINANCES_AMAZON_BASELINE=<private monthly Amazon baseline>
           #   HOMELAB_MCP_FINANCES_BUFFER_FLOOR=<private checking buffer floor>
@@ -364,7 +365,7 @@ in
           };
 
           # Actual sidecar credentials. This dotenv is consumed only by the
-          # sidecar unit introduced by the pending homelab-mcp tool branch.
+          # homelab-mcp Actual sidecar unit.
           # Required keys: ACTUAL_PASSWORD, ACTUAL_BUDGET_SYNC_ID,
           # ACTUAL_ENCRYPTION_PASSWORD, and SIDECAR_TOKEN. SIDECAR_TOKEN must
           # equal HOMELAB_MCP_FINANCES_SIDECAR_TOKEN in homelab-mcp/env.
