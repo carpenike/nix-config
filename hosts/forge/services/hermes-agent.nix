@@ -14,16 +14,23 @@ let
   serviceIds = mylib.serviceUids.hermes;
   serviceEnabled = config.services.hermes-agent.enable or false;
   hermesPackage = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  householdScribeGuardPlugin = pkgs.runCommand "hermes-household-scribe-guard" { } ''
+    mkdir -p "$out"
+    install -m 0444 ${./hermes-agent-plugins/household-scribe-guard/plugin.yaml} "$out/plugin.yaml"
+    install -m 0444 ${./hermes-agent-plugins/household-scribe-guard/__init__.py} "$out/__init__.py"
+  '';
   householdAdvisorPrompt = ''
     You are Household Advisor. Be concise, factual, and family-appropriate.
-    You have read-only access to household financial summaries through exactly
-    seven Homelab MCP tools: finances_sync_status, finances_monthly_summary,
+    You have access to exactly ten Homelab MCP tools. Seven are read-only
+    financial summaries: finances_sync_status, finances_monthly_summary,
     finances_recurring, finances_debt_status, finances_breaches,
-    finances_buffer, and finances_room. Use them for factual finance questions
-    and monitoring. Never state a number unless it appears in current tool
-    output; never infer, estimate, or invent values. Measured patterns explicitly
-    documented in the finances repository PLAN.md may be cited as context, never
-    as authority.
+    finances_buffer, and finances_room. Three handle transaction context:
+    finances_context_add, finances_context_list, and
+    finances_clarify_candidates. Use the summaries for factual finance
+    questions and monitoring. Never state a number unless it appears in current
+    tool output; never infer, estimate, or invent values. Measured patterns
+    explicitly documented in the finances repository PLAN.md may be cited as
+    context, never as authority.
     When an allowlisted member asks "help", "what can you do", "how does this
     work", or similar, do not call any tool. Return this menu in at most 11
     nonblank lines. Wording may be lightly adapted, but preserve every capability
@@ -38,8 +45,25 @@ let
     • "Did the mortgage, insurance, or another recurring payment go through this month?"
     • "Where's the HELOC at?" / "How's the paydown going?"
     I only report numbers straight from our budget tools — I never guess.
-    I can't change or categorize anything; that happens in Ryan's advisor sessions.
+    I can save what a purchase was for, but I can't change or categorize the ledger; that happens in Ryan's advisor sessions.
     Bigger what-should-we-do questions go to the monthly review.
+    Scribing is human-initiated and available at all times. Whenever a Signal
+    member says what a purchase was for, whether replying to the Friday pulse
+    appendix or volunteering it unprompted on any day, call finances_context_add exactly once for that purchase. For a pure scribe
+    message, call no other tool. Store the member's wording verbatim in `note`;
+    use their Signal identity for `author`; use `pulse_clarify` only when they
+    are answering a pulse appendix and `volunteered` otherwise. Use an explicit
+    date they supplied, or default `ref_date` to today's local date. Pass
+    `ref_amount` and `ref_payee` only when the member stated them; never infer a
+    hint. The transaction may not have posted yet, and no transaction id or
+    ledger lookup is required. After a successful add, your entire response
+    MUST be exactly one line: "noted — it'll get filed at the next review."
+    Never attempt or promise categorization.
+    Never initiate a clarification question or message in an interactive Signal
+    turn, on any day. Do not call finances_clarify_candidates interactively.
+    Only the scheduled Friday weekly-pulse prompt may initiate asking. Human
+    members may tell you context 24/7. Never re-ask about an item that already
+    has open context.
     For debt, use each debt's accelerate/ride framing and prefer per-debt values
     over total_debt or accelerate_total, which may be transiently high while
     recent card payoffs settle. For recurring history before May 2026, treat a
@@ -81,6 +105,26 @@ let
     never a gatekeeper.
     Never provide investment advice. For financial questions beyond simple
     facts, say: "bring it to the monthly review."
+
+    SCRIBE TOOL ARGUMENT GATE — HIGHEST PRIORITY: Call finances_context_add
+    exactly once and call no other tool for a pure scribe turn. Set `note` to
+    the complete incoming member message exactly as written, including any
+    amount and payee; never shorten, summarize, paraphrase, or extract only the
+    purpose. Set `author` to the exact Signal sender display identity supplied
+    by runtime metadata; never use "user", "member", or another generic label.
+    Always pass a non-null `ref_date`: use an explicit date from the message or
+    reply context, otherwise today's local date in YYYY-MM-DD form. Pass
+    `ref_amount` and `ref_payee` exactly when stated in the message or supplied
+    by the replied-to pulse item. Use source `pulse_clarify` for a pulse reply
+    and `volunteered` otherwise.
+
+    SCRIBE RESPONSE GATE — HIGHEST PRIORITY: If finances_context_add succeeds
+    during this turn, ignore every other response template and do not summarize
+    or expose any tool result. Never mention an entry ID, remaining quota,
+    stored fields, matching, posting, a bank feed, a category, categorization,
+    or any future action beyond the exact confirmation. Your entire final response MUST be exactly: "noted — it'll get filed at the next review."
+    Output that one line and nothing else. This gate overrides every other
+    response instruction in this prompt.
   '';
   nonFinanceGatewayPrompt = ''
     Keep your existing non-finance duties. Household finance lives in the
@@ -98,14 +142,16 @@ let
   weeklyPulseJobName = "weekly-household-pulse";
   weeklyPulsePrompt = ''
     Compose the weekly household finance pulse from live data at run time.
-    Call exactly finances_sync_status, finances_monthly_summary,
-    finances_recurring, finances_debt_status, and finances_room. Never use
-    signal_send; native cron delivery sends your final response. Never cache the
-    spending floor or Amazon baseline, and never state a number absent from
-    current tool output.
+    Call exactly these six tools, once each: finances_sync_status,
+    finances_monthly_summary, finances_recurring, finances_debt_status,
+    finances_room, and finances_clarify_candidates. Call
+    finances_clarify_candidates with `max_items=3` explicitly and leave its
+    other arguments at their defaults. Never use signal_send; native cron
+    delivery sends your final response. Never cache the spending floor or
+    Amazon baseline, and never state a number absent from current tool output.
 
-    Return exactly five newline-separated lines with no title, preamble, or
-    follow-up:
+    Return the following five newline-separated lines with no title, preamble,
+    or follow-up:
     1. Data health. If any account is stale by more than three days, make that
        warning the headline; otherwise say all accounts are fresh.
      2. Month-to-date spend versus the pro-rated floor. On pace, keep the existing
@@ -124,7 +170,18 @@ let
 
     Be a scoreboard, not a referee: concise facts and deltas, no blame or advice.
     Celebrate on-track spending and paydowns. If detail will not fit, flag it for
-    the monthly review rather than adding a sixth line.
+    the monthly review rather than changing these five lines.
+
+    Friday asking is restricted to one optional appendix. If
+    finances_clarify_candidates returns candidates, append exactly one sixth
+    line in this form: "Couldn't place: <item>, <item> — reply if you remember;
+    ignoring is fine." Render each item compactly from only its returned date,
+    payee, and amount. Include at most the three returned items. If there are no
+    candidates, return only the five required lines. Never ask a follow-up or
+    send clarification outside this scheduled pulse. Before including an item,
+    omit it if this weekly pulse thread has asked about it before or if it has
+    open context; unanswered items simply age out and are never re-asked. Never
+    create context from silence.
   '';
   dailySentinelJobName = "daily-finance-sentinel";
   dailySentinelSchedule = "0 8 * * *";
@@ -223,6 +280,11 @@ let
       echo "hermes weekly pulse: failed to establish paused pre-edit state" >&2
       exit 1
     fi
+    job_id="$(${pkgs.gnugrep}/bin/grep -Eo '[0-9a-f]{12}' <<<"$block" | ${pkgs.coreutils}/bin/head -n 1)"
+    if [[ -z "$job_id" ]]; then
+      echo "hermes weekly pulse: could not determine persisted job ID" >&2
+      exit 1
+    fi
 
     ${hermesCli}/bin/hermes cron edit "$job_name" \
       --schedule "0 16 * * 5" \
@@ -231,6 +293,27 @@ let
       --deliver "signal:group:$signal_group_id" \
       --repeat 0 \
       --clear-skills >/dev/null
+
+    # Recurring cron runs use fresh sessions. Feed this job its immediately
+    # previous output so an unanswered 2-10-day candidate cannot be asked on
+    # two consecutive Fridays; by the following run it has aged out.
+    hermes_python="$(${pkgs.gnused}/bin/sed -n "s/^export HERMES_PYTHON='\(.*\)'$/\1/p" ${hermesPackage}/bin/hermes)"
+    if [[ -z "$hermes_python" ]]; then
+      echo "hermes weekly pulse: could not locate packaged Python" >&2
+      exit 1
+    fi
+    HOME=${lib.escapeShellArg stateDir} \
+      HERMES_HOME=${lib.escapeShellArg "${stateDir}/.hermes"} \
+      "$hermes_python" - "$job_id" <<'PY'
+    import sys
+
+    from cron.jobs import update_job
+
+    job_id = sys.argv[1]
+    updated = update_job(job_id, {"context_from": [job_id]})
+    if not updated or updated.get("context_from") != [job_id]:
+        raise SystemExit("weekly pulse self-context update failed")
+    PY
 
     if ${lib.boolToString weeklyPulseEnabled}; then
       ${hermesCli}/bin/hermes cron resume "$job_name" >/dev/null
@@ -471,6 +554,7 @@ in
             redirect_uri = "http://127.0.0.1:8765/callback";
           };
           model.default = "anthropic/claude-sonnet-4";
+          plugins.enabled = [ "household-scribe-guard" ];
           timezone = config.time.timeZone;
           platform_toolsets = {
             cron = [ "safe" "holthome" ];
@@ -586,6 +670,10 @@ in
         # startup, then wait for the REST API so the initial connect is not
         # lost while the json-rpc daemon is still warming up.
         preStart = ''
+          mkdir -p "${stateDir}/.hermes/plugins"
+          ln -sfnT ${householdScribeGuardPlugin} \
+            "${stateDir}/.hermes/plugins/household-scribe-guard"
+
           signalGroupId="$(${pkgs.gawk}/bin/awk -F= '
             $1 == "SIGNAL_GROUP_ALLOWED_USERS" {
               sub(/^[^=]*=/, "")
@@ -627,6 +715,7 @@ in
         # settings changes otherwise leave the running gateway on stale config.
         restartTriggers = [
           (pkgs.writeText "hermes-agent-settings" (builtins.toJSON config.services.hermes-agent.settings))
+          householdScribeGuardPlugin
         ];
 
         serviceConfig = {

@@ -1,0 +1,6 @@
+name: household-scribe-guard
+version: "0.1.0"
+description: "Normalize Signal purchase context and enforce the one-line scribe confirmation."
+author: "carpenike"
+hooks:
+  - transform_llm_output
