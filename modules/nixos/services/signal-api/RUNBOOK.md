@@ -273,6 +273,19 @@ second message arrives.
 ssh forge 'curl -sS --max-time 5 http://127.0.0.1:8484/v1/health; echo "exit=$?"'
 ```
 
+That reset is the intentional host UID guard, not evidence that Podman's
+published port is broken. Test the Homelab MCP consumer path as its service
+user instead:
+
+```bash
+ssh forge 'sudo -u homelab-mcp curl -fsS http://127.0.0.1:8484/v1/about | jq "{mode, version}"'
+```
+
+Expect `mode` to be `json-rpc`. This follows the same
+`HOMELAB_MCP_SIGNAL_BASE_URL` path as `signal_send`; testing as your login user
+will always get an immediate TCP reset unless that user was deliberately added
+to `localAccess.allowedUsers`.
+
 ```bash
 # From your workstation: expect a timeout / refusal, never a 204
 curl -sS --max-time 5 http://forge.holthome.net:8484/v1/health; echo "exit=$?"
@@ -280,12 +293,13 @@ curl -sS --max-time 5 http://forge.holthome.net:8484/v1/health; echo "exit=$?"
 
 ### 9d. Monitoring is green
 
-Check <https://status.holthome.net> under *Infrastructure*. Both endpoints
+Check <https://status.holthome.net> under *Infrastructure*. All three endpoints
 should now be green:
 
 | Endpoint | Polls | Proves |
 | --- | --- | --- |
 | **Signal API** | `/v1/health`, 60s | the HTTP server is serving (a bare 204 — nothing more) |
+| **Signal API Consumer Path** | `/v1/about`, 60s | the exact loopback URL used by Homelab MCP traverses published-port DNAT and returns the expected `json-rpc` API |
 | **Signal Account** | `/v1/accounts`, 300s | the signal-cli daemon answers *and* the bot account exists |
 
 The account check may take up to 5 minutes to flip green after step 4.

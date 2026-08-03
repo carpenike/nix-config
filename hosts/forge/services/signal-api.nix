@@ -36,6 +36,7 @@ let
   podmanNetwork = "signal-api";
   podmanSubnet = "10.90.0.0/24";
   podmanGateway = "10.90.0.1";
+  consumerBaseUrl = "http://127.0.0.1:${toString config.modules.services.signal-api.port}";
 in
 {
   config = lib.mkMerge [
@@ -179,10 +180,33 @@ in
       modules.services.gatus.contributions.${serviceName} = {
         name = "Signal API";
         group = "Infrastructure";
-        url = "http://127.0.0.1:${toString config.modules.services.signal-api.port}/v1/health";
+        url = "${consumerBaseUrl}/v1/health";
         interval = "60s";
         conditions = [
           "[STATUS] == 204"
+          "[RESPONSE_TIME] < 2000"
+        ];
+        alerts = [{
+          type = "pushover";
+          sendOnResolved = true;
+          failureThreshold = 3;
+          successThreshold = 1;
+        }];
+      };
+
+      # Consumer-contract check. This is the exact loopback base URL used by
+      # homelab-mcp's signal_send tool, through Podman's published-port DNAT
+      # and the host UID guard. Do not replace it with the container IP: that
+      # address is a recreate-time implementation detail and bypassing the
+      # published-port contract would hide the failure mode this check owns.
+      modules.services.gatus.contributions."${serviceName}-consumer" = {
+        name = "Signal API Consumer Path";
+        group = "Infrastructure";
+        url = "${consumerBaseUrl}/v1/about";
+        interval = "60s";
+        conditions = [
+          "[STATUS] == 200"
+          "[BODY].mode == json-rpc"
           "[RESPONSE_TIME] < 2000"
         ];
         alerts = [{
@@ -207,7 +231,7 @@ in
       modules.services.gatus.contributions."${serviceName}-account" = {
         name = "Signal Account";
         group = "Infrastructure";
-        url = "http://127.0.0.1:${toString config.modules.services.signal-api.port}/v1/accounts";
+        url = "${consumerBaseUrl}/v1/accounts";
         interval = "300s";
         conditions = [
           "[STATUS] == 200"
