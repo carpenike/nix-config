@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import threading
@@ -9,6 +11,10 @@ from typing import Any, Callable
 
 CONFIRMATION = "noted — it'll get filed at the next review."
 _CONTEXT_ADD_SUFFIX = "__finances_context_add"
+# SHA-256 of SOPS key hermes-agent/advisor-test-group-id; rotate together.
+_ADVISOR_TEST_GROUP_SHA256 = (
+    "786b781f203e597ad976c6a18ba93cb19985ee7ba21857600b4f273b1f13e699"
+)
 _REPLY_PREFIXES = (
     '[Replying to your previous message: "',
     '[Replying to: "',
@@ -23,12 +29,21 @@ class ScribeContext:
     note: str
     author: str
     pulse_reply: bool
+    chat_id: str = ""
 
 
 def _is_context_add(tool_name: str) -> bool:
     return tool_name == "finances_context_add" or tool_name.endswith(
         _CONTEXT_ADD_SUFFIX
     )
+
+
+def _scribe_writes_blocked(context: ScribeContext) -> bool:
+    if not context.chat_id.startswith("group:"):
+        return False
+    group_id = context.chat_id.removeprefix("group:")
+    fingerprint = hashlib.sha256(group_id.encode()).hexdigest()
+    return hmac.compare_digest(fingerprint, _ADVISOR_TEST_GROUP_SHA256)
 
 
 def _split_reply_context(content: str) -> tuple[str, str | None]:
@@ -84,6 +99,7 @@ def _read_scribe_context(session_id: str) -> ScribeContext | None:
         note=note,
         author=author,
         pulse_reply=bool(reply_text and "Couldn't place:" in reply_text),
+        chat_id=str(origin.get("chat_id") or "").strip(),
     )
 
 
@@ -132,6 +148,11 @@ def _guard_tool_execution(
     context = _read_scribe_context(session_id)
     if context is None:
         return next_call(args)
+
+    # Advisor Test shares the production persona and tools for realistic Q&A,
+    # but test utterances must never enter the family context store.
+    if _scribe_writes_blocked(context):
+        return json.dumps({"error": "context recording is disabled in Advisor Test"})
 
     with _successful_lock:
         if _successful_messages.get(session_id) == context.message_id:

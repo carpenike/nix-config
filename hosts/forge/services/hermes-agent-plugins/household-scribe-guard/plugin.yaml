@@ -1,6 +1,6 @@
 name: household-scribe-guard
 version: "0.1.0"
-description: "Normalize Signal purchase context and enforce the one-line scribe confirmation."
+description: "Normalize family Signal purchase context, block Advisor Test writes, and enforce the one-line confirmation."
 author: "carpenike"
 hooks:
   - transform_llm_output

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
+import types
 import unittest
 from datetime import date
 from pathlib import Path
@@ -51,6 +53,37 @@ class HouseholdScribeGuardTests(unittest.TestCase):
         self.assertEqual(rewritten["ref_amount"], 80.0)
         self.assertEqual(rewritten["ref_payee"], "Home Depot")
         self.assertEqual(rewritten["source"], "volunteered")
+
+    def test_reads_signal_chat_id_from_session_origin(self) -> None:
+        class FakeSessionDB:
+            def __init__(self, *, read_only: bool) -> None:
+                self.read_only = read_only
+
+            def get_session(self, _session_id: str) -> dict[str, str]:
+                return {
+                    "source": "signal",
+                    "origin_json": json.dumps(
+                        {
+                            "user_name": "Ryan Holt",
+                            "chat_id": "group:test-group-id",
+                        }
+                    ),
+                }
+
+            def get_messages(self, _session_id: str) -> list[dict[str, object]]:
+                return [{"id": 11, "role": "user", "content": "Costco test"}]
+
+            def close(self) -> None:
+                pass
+
+        fake_state = types.ModuleType("hermes_state")
+        fake_state.SessionDB = FakeSessionDB  # type: ignore[attr-defined]
+        with patch.dict(sys.modules, {"hermes_state": fake_state}):
+            context = plugin._read_scribe_context("session-origin")
+
+        assert context
+        self.assertEqual(context.chat_id, "group:test-group-id")
+        self.assertEqual(context.author, "Ryan Holt")
 
     def test_reply_context_sets_pulse_source(self) -> None:
         content = (
@@ -111,6 +144,36 @@ class HouseholdScribeGuardTests(unittest.TestCase):
         self.assertEqual(calls, 1)
         self.assertEqual(transformed, plugin.CONFIRMATION)
         self.assertIsNone(unchanged)
+
+    def test_advisor_test_group_never_executes_context_add(self) -> None:
+        context = plugin.ScribeContext(
+            10,
+            "Costco was for the test run",
+            "Ryan Holt",
+            False,
+            chat_id="group:test-group-id",
+        )
+        calls = 0
+
+        def execute(_args: dict[str, object]) -> str:
+            nonlocal calls
+            calls += 1
+            return json.dumps({"added": True})
+
+        fingerprint = hashlib.sha256(b"test-group-id").hexdigest()
+        with (
+            patch.object(plugin, "_ADVISOR_TEST_GROUP_SHA256", fingerprint),
+            patch.object(plugin, "_read_scribe_context", return_value=context),
+        ):
+            result = plugin._guard_tool_execution(
+                tool_name=TOOL,
+                args={},
+                next_call=execute,
+                session_id="session-test-group",
+            )
+
+        self.assertEqual(calls, 0)
+        self.assertIn("disabled in Advisor Test", result)
 
 
 if __name__ == "__main__":

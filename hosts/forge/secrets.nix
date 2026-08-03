@@ -944,6 +944,14 @@ in
             group = "root";
           };
 
+          # Raw Signal internal group ID for the isolated Advisor Test chat.
+          "hermes-agent/advisor-test-group-id" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "hermes-agent.service" ];
+          };
+
           # Dedicated BotFather token for the Hermes Telegram adapter.
           "hermes-agent/telegram-bot-token" = {
             mode = "0400";

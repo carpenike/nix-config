@@ -68,43 +68,58 @@ let
     over total_debt or accelerate_total, which may be transiently high while
     recent card payoffs settle. For recurring history before May 2026, treat a
     CHANGED USAA P&C row as the expected jewelry-only period, not an anomaly.
+    FINANCE Q&A FORMAT GATE — HIGHEST PRIORITY except for the help menu and
+    the successful pure-scribe response gate below. For every other interactive
+    finance question, fill exactly this TEMPLATE. Angle-bracketed labels are
+    slots, not output. Never add a line, title, bullet, preamble, or follow-up:
+
+    <STATUS_EMOJI> **<VERDICT>**
+
+    <FACT_LABEL>: <FACT_VALUE>
+    <OPTIONAL_FACT_LABEL>: <OPTIONAL_FACT_VALUE>
+
+    _<CAVEAT>_
+
+    The verdict MUST be line one, start with exactly one of ✅ (fine), ⚠️
+    (attention), or 🛑 (stop-and-talk), contain at most 12 words, and include
+    the concrete rounded-dollar number that answers the question. Emit one or
+    two fact lines total, each with exactly one `label: value` fact. Round
+    dollar amounts to whole dollars; cents belong in reconciliation, not
+    advice. Keep exactly one blank line between verdict, facts, and caveat
+    sections. The caveat is at most one trailing italic line; omit that line
+    and its preceding blank line when there is no caveat. Never put a caveat in
+    the verdict, use a monospace fake-table, or add a parenthetical longer than
+    about five words. Hermes converts the bold and italic Markdown above into
+    native Signal styled ranges.
     For "can I spend $X?" or "how much room?" questions, call finances_room.
     Pass the category when implied; map Costco or groceries to the
-    "Groceries & Household" category. Return exactly three newline-separated
-    lines with no title, bullets, blank lines, or extra text, and never merge
-    template lines. While the spending floor is provisional, use:
-    Baseline (floor provisional): <category's typical month>
-    Pace: <pace status>
-    Verdict: <concrete verdict>
-    Otherwise use:
-    Pace: <pace status>
-    Typical month: <category's typical month>
-    Verdict: <concrete verdict>
-    When `pace` is `ahead` or `variable_pace_delta` is positive, use exactly
-    these three lines instead of the generic template:
-    Baseline (floor provisional): <category's typical month; if comparing with
-    typical_remaining_pace, add inline that its trailing six-month window has
-    one-off-heavy projects/dental and overstates habitual spend until ~November>
-    Recovery: <$X over current-month variable glide; target about
-    $required_remaining_pace/day for the remaining $days_remaining days,
-    $recovery_delta/day tighter than typical, brings the month home>
-    Trade: <price the requested spend against that glide and hand the choice
-    back; e.g. "puts the glide about $N further over — doable if the remaining
-    days absorb it; your call">
+    "Groceries & Household" category. The verdict must answer with a concrete
+    amount, not merely say the purchase fits. For every finances_room answer,
+    the caveat line is REQUIRED; never omit it or add another line. If any fact
+    uses `typical_remaining_pace`, `typical`, or the category trailing average,
+    fill the caveat slot with exactly:
+    _Typical includes one-off-heavy projects/dental through ~November._
+    Otherwise fill it with exactly:
+    _Floor is provisional._
+    When `pace` is `ahead` or
+    `variable_pace_delta` is positive, use `Recovery: ...` and `Trade: ...` as
+    the two fact lines. State the current-month overage, required remaining
+    daily pace, days remaining, and the requested spend's added trade using
+    only the returned fields. Put the trailing six-month one-off-heavy
+    projects/dental warning in the caveat when comparing against
+    `typical_remaining_pace`; it overstates habitual spend until about
+    November. Otherwise use `Pace: ...` and `Typical month: ...` as the fact
+    lines, and put the provisional-floor warning in the caveat when applicable.
     Use only returned fields plus arithmetic on an amount the member supplied.
     If `required_remaining_pace` is negative, report it honestly: the floor is
     already exceeded and even $0/day cannot bring it under; price new spend as
-    an additional trade instead of pretending recovery is possible. If citing
-    `typical_remaining_pace` or comparing against typical, say its trailing
-    six-month window includes one-off-heavy projects/dental and overstates
-    habitual spend until those months roll out around November. Never add a
-    fourth or standalone context line: optional PLAN.md context such as "Costco
-    is usually ~4 trips/mo, median $219" may appear only within the Baseline
-    line and never replace required template content. Never forbid, moralize,
-    or reference overages before the current month. Be a supportive scoreboard,
-    never a gatekeeper.
+    an additional trade instead of pretending recovery is possible. Optional
+    PLAN.md context such as "Costco is usually ~4 trips/mo, median $219" may
+    appear only inside one of the two fact lines and never replace required
+    template content. Never forbid, moralize, or reference overages before the
+    current month. Be a supportive scoreboard, never a gatekeeper.
     Never provide investment advice. For financial questions beyond simple
-    facts, say: "bring it to the monthly review."
+    facts, put "bring it to the monthly review" in the caveat slot.
 
     SCRIBE TOOL ARGUMENT GATE — HIGHEST PRIORITY: Call finances_context_add
     exactly once and call no other tool for a pure scribe turn. Set `note` to
@@ -150,11 +165,27 @@ let
     delivery sends your final response. Never cache the spending floor or
     Amazon baseline, and never state a number absent from current tool output.
 
-    Return the following five newline-separated lines with no title, preamble,
-    or follow-up:
+    Return exactly one header plus the following five fact lines in this
+    TEMPLATE. Preserve the literal labels, order, styling markers, and exactly
+    one blank line at every shown section break. Never add a preamble or
+    follow-up. Round every dollar amount to whole dollars; never emit cents.
+    The blank lines are mandatory output characters, not visual guidance:
+
+    📊 **Household pulse — <local date>**
+
+    <STATUS_EMOJI> Data: <health fact>
+    Spend MTD: <pace fact>
+
+    Amazon: <seven-day and month-to-date fact>
+    HELOC: <balance and delta fact>
+
+    Recurring: <payment and unusual-activity fact>
+
+    Fill those five fact lines as follows:
     1. Data health. If any account is stale by more than three days, make that
-       warning the headline; otherwise say all accounts are fresh.
-     2. Month-to-date spend versus the pro-rated floor. On pace, keep the existing
+       warning start with ⚠️; otherwise start with ✅ and say all accounts are
+       fresh.
+    2. Month-to-date spend versus the pro-rated floor. On pace, keep the existing
        direction and amount. Over pace, use one recovery sentence, never a bare
        verdict: "$X over — target about $required_remaining_pace/day for the
        remaining $days_remaining days, about $recovery_delta/day tighter than
@@ -177,7 +208,8 @@ let
     line in this form: "Couldn't place: <item>, <item> — reply if you remember;
     ignoring is fine." Render each item compactly from only its returned date,
     payee, and amount. Include at most the three returned items. If there are no
-    candidates, return only the five required lines. Never ask a follow-up or
+    candidates, return only the header and five required fact lines. Put the
+    appendix after one blank line as its own group. Never ask a follow-up or
     send clarification outside this scheduled pulse. Before including an item,
     omit it if this weekly pulse thread has asked about it before or if it has
     open context; unanswered items simply age out and are never re-asked. Never
@@ -251,9 +283,11 @@ let
       echo "hermes weekly pulse: SIGNAL_GROUP_ALLOWED_USERS is empty" >&2
       exit 1
     fi
+    # This seed unit reads the unmodified family-only SOPS env, never the
+    # gateway .env that preStart expands with Advisor Test.
     case "$signal_group_id" in
-      group.*)
-        echo "hermes weekly pulse: expected raw Signal group ID, not REST send target" >&2
+      group.*|*,*)
+        echo "hermes weekly pulse: expected exactly one raw Family Advisor group ID" >&2
         exit 1
         ;;
     esac
@@ -357,9 +391,11 @@ let
       echo "hermes finance sentinel: SIGNAL_GROUP_ALLOWED_USERS is empty" >&2
       exit 1
     fi
+    # This seed unit reads the unmodified family-only SOPS env, never the
+    # gateway .env that preStart expands with Advisor Test.
     case "$signal_group_id" in
-      group.*)
-        echo "hermes finance sentinel: expected raw Signal group ID, not REST send target" >&2
+      group.*|*,*)
+        echo "hermes finance sentinel: expected exactly one raw Family Advisor group ID" >&2
         exit 1
         ;;
     esac
@@ -638,7 +674,11 @@ in
             # SIGNAL_ALLOWED_USERS is mirrored into the SOPS env. An explicit
             # allowlist makes unauthorized DMs silent instead of issuing
             # pairing codes; group intake is separately restricted by
-            # SIGNAL_GROUP_ALLOWED_USERS.
+            # SIGNAL_GROUP_ALLOWED_USERS. preStart expands that gateway-only
+            # allowlist with Advisor Test and installs this same persona for
+            # both group chat IDs. Scheduled units continue reading the
+            # untouched family-only SOPS env. The scribe plugin hard-denies
+            # finances_context_add for Advisor Test before MCP execution.
             channel_overrides."+12406206585".system_prompt = householdAdvisorPrompt;
           };
           terminal = {
@@ -722,16 +762,19 @@ in
         wants = [ "podman-signal-api.service" ];
 
         # Hermes expands env references only in YAML values, not mapping keys.
-        # Render the SOPS-held group ID into the exact Signal chat key before
-        # startup, then wait for the REST API so the initial connect is not
-        # lost while the json-rpc daemon is still warming up.
+        # Render the SOPS-held family and test group IDs into exact Signal chat
+        # keys before startup. Only the gateway's merged .env receives both
+        # allowed IDs; cron seed units retain the family-only source secret.
+        # Then wait for the REST API so the initial connect is not lost while
+        # the json-rpc daemon is still warming up.
         preStart = ''
           mkdir -p "${stateDir}/.hermes/plugins"
           ln -sfnT ${householdScribeGuardPlugin} \
             "${stateDir}/.hermes/plugins/household-scribe-guard"
 
-          signalGroupId="$(${pkgs.gawk}/bin/awk -F= '
-            $1 == "SIGNAL_GROUP_ALLOWED_USERS" {
+          readEnvValue() {
+            ${pkgs.gawk}/bin/awk -F= -v key="$1" '
+            $1 == key {
               sub(/^[^=]*=/, "")
               value = $0
             }
@@ -739,25 +782,64 @@ in
               if (value == "") exit 1
               print value
             }
-          ' "${stateDir}/.hermes/.env")"
+            ' "$2"
+          }
 
-          case "$signalGroupId" in
-            group.*)
-              echo "hermes-agent: Signal inbound group ID must not include the REST send prefix" >&2
+          familyGroupId="$(readEnvValue SIGNAL_GROUP_ALLOWED_USERS "$CREDENTIALS_DIRECTORY/signal-env")"
+          advisorTestGroupId="$(${pkgs.coreutils}/bin/cat "$CREDENTIALS_DIRECTORY/advisor-test-group-id")"
+
+          case "$familyGroupId" in
+            group.*|*,*)
+              echo "hermes-agent: Family Advisor must be exactly one raw Signal group ID" >&2
               exit 1
               ;;
             ?*) ;;
             *)
-              echo "hermes-agent: Signal inbound group ID is missing" >&2
+              echo "hermes-agent: Family Advisor group ID is missing" >&2
               exit 1
               ;;
           esac
+          case "$advisorTestGroupId" in
+            group.*|*,*)
+              echo "hermes-agent: Advisor Test must be exactly one raw Signal group ID" >&2
+              exit 1
+              ;;
+            ?*) ;;
+            *)
+              echo "hermes-agent: Advisor Test group ID is missing" >&2
+              exit 1
+              ;;
+          esac
+          if [[ "$familyGroupId" == "$advisorTestGroupId" ]]; then
+            echo "hermes-agent: Family Advisor and Advisor Test group IDs must differ" >&2
+            exit 1
+          fi
 
-          SIGNAL_GROUP_CHAT_ID="group:$signalGroupId" \
+          envFile="${stateDir}/.hermes/.env"
+          allowlistTmp="$envFile.signal-groups.$$"
+          trap '${pkgs.coreutils}/bin/rm -f "$allowlistTmp"' EXIT
+          ${pkgs.gawk}/bin/awk -F= -v groups="$familyGroupId,$advisorTestGroupId" '
+            $1 == "SIGNAL_GROUP_ALLOWED_USERS" {
+              if (!written) print "SIGNAL_GROUP_ALLOWED_USERS=" groups
+              written = 1
+              next
+            }
+            { print }
+            END {
+              if (!written) print "SIGNAL_GROUP_ALLOWED_USERS=" groups
+            }
+          ' "$envFile" > "$allowlistTmp"
+          ${pkgs.coreutils}/bin/install -o hermes -g hermes -m 0640 "$allowlistTmp" "$envFile"
+          ${pkgs.coreutils}/bin/rm -f "$allowlistTmp"
+          trap - EXIT
+
+          SIGNAL_FAMILY_GROUP_CHAT_ID="group:$familyGroupId" \
+          SIGNAL_ADVISOR_TEST_CHAT_ID="group:$advisorTestGroupId" \
           HOUSEHOLD_ADVISOR_PROMPT="$(${pkgs.coreutils}/bin/cat ${pkgs.writeText "household-advisor-prompt" householdAdvisorPrompt})" \
             ${pkgs.yq-go}/bin/yq --inplace \
               '.gateway.platforms.signal.channel_overrides |= with_entries(select(.key | test("^group:") | not)) |
-               .gateway.platforms.signal.channel_overrides[strenv(SIGNAL_GROUP_CHAT_ID)].system_prompt = strenv(HOUSEHOLD_ADVISOR_PROMPT)' \
+               .gateway.platforms.signal.channel_overrides[strenv(SIGNAL_FAMILY_GROUP_CHAT_ID)].system_prompt = strenv(HOUSEHOLD_ADVISOR_PROMPT) |
+               .gateway.platforms.signal.channel_overrides[strenv(SIGNAL_ADVISOR_TEST_CHAT_ID)].system_prompt = strenv(HOUSEHOLD_ADVISOR_PROMPT)' \
               "${stateDir}/.hermes/config.yaml"
 
           ${pkgs.curl}/bin/curl --fail --silent --show-error \
@@ -793,6 +875,10 @@ in
           MemoryMax = "4G";
           CPUQuota = "200%";
           TasksMax = 512;
+          LoadCredential = [
+            "signal-env:${config.sops.secrets."hermes-agent/signal-env".path}"
+            "advisor-test-group-id:${config.sops.secrets."hermes-agent/advisor-test-group-id".path}"
+          ];
         };
       };
 
