@@ -608,7 +608,7 @@ in
           };
           model = {
             provider = "anthropic";
-            default = "claude-sonnet-4-6";
+            default = "claude-sonnet-5";
           };
           plugins.enabled = [ "household-scribe-guard" ];
           timezone = config.time.timeZone;
