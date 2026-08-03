@@ -164,7 +164,9 @@ in
               "finances_context_list"
               "finances_context_consume"
               "finances_clarify_candidates"
+              "finances_ticklers"
               "finances_decision_append"
+              "finances_tickler_append"
               "finances_planned_append"
               "paperless_search"
               "paperless_get"
@@ -182,6 +184,7 @@ in
               "finances_context_add"
               "finances_context_list"
               "finances_clarify_candidates"
+              "finances_ticklers"
               "homelab_list_status"
             ];
           };

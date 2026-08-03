@@ -21,16 +21,16 @@ let
   '';
   householdAdvisorPrompt = ''
     You are Household Advisor. Be concise, factual, and family-appropriate.
-    You have access to exactly ten Homelab MCP tools. Seven are read-only
+    You have access to exactly eleven Homelab MCP tools. Eight are read-only
     financial summaries: finances_sync_status, finances_monthly_summary,
     finances_recurring, finances_debt_status, finances_breaches,
-    finances_buffer, and finances_room. Three handle transaction context:
-    finances_context_add, finances_context_list, and
-    finances_clarify_candidates. Use the summaries for factual finance
-    questions and monitoring. Never state a number unless it appears in current
-    tool output; never infer, estimate, or invent values. Measured patterns
-    explicitly documented in the finances repository PLAN.md may be cited as
-    context, never as authority.
+    finances_buffer, finances_room, and finances_ticklers. Three handle
+    transaction context: finances_context_add, finances_context_list, and
+    finances_clarify_candidates. Use the summaries for factual finance questions
+    and monitoring. Never state a number unless it appears in current tool
+    output; never infer, estimate, or invent values. Measured patterns explicitly
+    documented in the finances repository PLAN.md may be cited as context, never
+    as authority.
     When an allowlisted member asks "help", "what can you do", "how does this
     work", or similar, do not call any tool. Return this menu in at most 11
     nonblank lines. Wording may be lightly adapted, but preserve every capability
@@ -186,11 +186,12 @@ let
   dailySentinelJobName = "daily-finance-sentinel";
   dailySentinelSchedule = "0 8 * * *";
   dailySentinelPrompt = ''
-    Act as a silent household-finance sentinel. Call exactly these three tools,
+    Act as a silent household-finance sentinel. Call exactly these four tools,
     once each, using live data at run time:
     - finances_sync_status with trigger_sync=false
     - finances_breaches with lookback_days=3
     - finances_buffer with no arguments
+    - finances_ticklers with no arguments (default due_only=true)
 
     Send an alert only when at least one of these predicates is true:
     1. `breach_candidates` is non-empty.
@@ -205,19 +206,30 @@ let
       before 2026-08-24). Then alert for each `components.card_accounts` row
       where `counted` is true and the owed balance exceeds $500 (`balance` is
       less than -500).
+    5. `finances_ticklers.ticklers` is non-empty OR
+       `finances_ticklers.malformed` is non-empty. Due rows and malformed rows
+       are both speak conditions; neither may be treated as routine noise.
 
-    After all three calls, privately reduce the results to four booleans named
-    BREACH, DEAD_FEED, BELOW_FLOOR, and REVOLVING_CREEP using only the rules
-    above. Do not print this checklist or mention any false category.
+    After all four calls, privately reduce the results to five booleans named
+    BREACH, DEAD_FEED, BELOW_FLOOR, REVOLVING_CREEP, and TICKLER using only the
+    rules above. TICKLER is false only when both `ticklers` and `malformed` are
+    empty. Do not print this checklist or mention any false category.
 
     Final-response gate:
-    - If all four booleans are false, your entire final response MUST be exactly
+    - If all five booleans are false, your entire final response MUST be exactly
       `[SILENT]`. Do not explain the healthy state, list non-events, summarize
       the calls, or mention why the response is silent. Hermes suppresses that
       marker and writes the silent-run log line.
     - Otherwise, return only one terse factual line for each true boolean. Do
       not include lines for false booleans, routine status, advice, blame, or
       invented values.
+    - For TICKLER due rows, output each row's `message` verbatim as its own line,
+      then output exactly one line: "These reminders repeat daily until their
+      rows are edited in TICKLERS.md." Do not paraphrase, prefix, or combine a
+      due message.
+    - For each malformed row, output: "a reminder in TICKLERS.md is unreadable:
+      <reason>" using that row's parser `reason` verbatim. Malformed rows always
+      speak even when no due row exists.
 
     Never use signal_send; native cron delivery sends the final response.
   '';
@@ -443,6 +455,46 @@ let
     echo "hermes weekly pulse dry run: timed out; local job remains $job_id" >&2
     exit 1
   '';
+  dailySentinelDryRunScript = pkgs.writeShellScript "hermes-daily-finance-sentinel-dry-run" ''
+    set -euo pipefail
+
+    export HOME="${stateDir}"
+    export HERMES_HOME="${stateDir}/.hermes"
+    job_name="${dailySentinelJobName}-dry-run"
+    prompt="$(${pkgs.coreutils}/bin/cat ${dailySentinelPromptFile})"
+    ${hermesCli}/bin/hermes cron remove "$job_name" >/dev/null 2>&1 || true
+
+    create_output="$(${hermesCli}/bin/hermes cron create "1d" "$prompt" \
+      --name "$job_name" \
+      --deliver local)"
+    job_id="$(${pkgs.gnugrep}/bin/grep -Eo '[0-9a-f]{12}' <<<"$create_output" | ${pkgs.coreutils}/bin/head -n 1)"
+    if [[ -z "$job_id" ]]; then
+      printf '%s\n' "$create_output" >&2
+      echo "hermes finance sentinel dry run: could not determine job ID" >&2
+      exit 1
+    fi
+
+    ${hermesCli}/bin/hermes cron run "$job_id"
+    output_dir="$HERMES_HOME/cron/output/$job_id"
+    for ((attempt = 0; attempt < 300; attempt++)); do
+      for output in "$output_dir"/*.md; do
+        if [[ -f "$output" ]]; then
+          if ${pkgs.gnugrep}/bin/grep -Fq "## Error" "$output"; then
+            ${pkgs.coreutils}/bin/cat "$output" >&2
+            ${hermesCli}/bin/hermes cron remove "$job_id" >/dev/null
+            exit 1
+          fi
+          ${pkgs.coreutils}/bin/cat "$output"
+          ${hermesCli}/bin/hermes cron remove "$job_id" >/dev/null
+          exit 0
+        fi
+      done
+      ${pkgs.coreutils}/bin/sleep 2
+    done
+
+    echo "hermes finance sentinel dry run: timed out; local job remains $job_id" >&2
+    exit 1
+  '';
   pulseServiceHardening = {
     User = "hermes";
     Group = "hermes";
@@ -518,6 +570,7 @@ in
             "finances_context_add"
             "finances_context_list"
             "finances_clarify_candidates"
+            "finances_ticklers"
           ];
           sampling.enabled = false;
         };
@@ -780,6 +833,22 @@ in
           PrivateNetwork = false;
           RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
           ExecStart = weeklyPulseDryRunScript;
+          TimeoutStartSec = "11min";
+        };
+      };
+
+      # Manual acceptance path for the daily sentinel. Like the weekly dry run,
+      # this creates a disposable local-only job and never runs the production
+      # Signal-delivery job ID.
+      systemd.services.hermes-agent-daily-finance-sentinel-dry-run = {
+        description = "Compose a local-only Hermes daily finance sentinel";
+        after = [ "hermes-agent.service" ];
+        requires = [ "hermes-agent.service" ];
+        serviceConfig = pulseServiceHardening // {
+          Type = "oneshot";
+          PrivateNetwork = false;
+          RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+          ExecStart = dailySentinelDryRunScript;
           TimeoutStartSec = "11min";
         };
       };
