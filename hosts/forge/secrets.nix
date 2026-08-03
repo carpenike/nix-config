@@ -937,10 +937,8 @@ in
           };
         }
         // optionalAttrs hermesAgentEnabled {
-          # Reuse the existing OpenRouter credential through a service-scoped
-          # alias so Hermes does not depend on Whiskey being enabled.
-          "hermes-agent/openrouter-api-key" = {
-            key = "whiskey-whiskey-whiskey/openrouter_api_key";
+          # Dedicated Anthropic API key for native Claude inference.
+          "hermes-agent/anthropic-api-key" = {
             mode = "0400";
             owner = "root";
             group = "root";
@@ -1378,7 +1376,7 @@ in
         // optionalAttrs hermesAgentEnabled {
           "hermes-agent-env" = {
             content = ''
-              OPENROUTER_API_KEY=${config.sops.placeholder."hermes-agent/openrouter-api-key"}
+              ANTHROPIC_API_KEY=${config.sops.placeholder."hermes-agent/anthropic-api-key"}
               TELEGRAM_BOT_TOKEN=${config.sops.placeholder."hermes-agent/telegram-bot-token"}
               HOMELAB_MCP_OAUTH_CLIENT_SECRET=${config.sops.placeholder."hermes-agent/homelab-mcp-oauth-client-secret"}
             '';

@@ -606,7 +606,10 @@ in
             redirect_port = 8765;
             redirect_uri = "http://127.0.0.1:8765/callback";
           };
-          model.default = "anthropic/claude-sonnet-4";
+          model = {
+            provider = "anthropic";
+            default = "claude-sonnet-4-6";
+          };
           plugins.enabled = [ "household-scribe-guard" ];
           timezone = config.time.timeZone;
           platform_toolsets = {
