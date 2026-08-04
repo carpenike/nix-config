@@ -80,10 +80,11 @@
 #          "postgresql://lading:PASSWORD@127.0.0.1:5432/lading"
 #        systemctl start lading-sync-ryan.timer
 #
-#      Stopping the timer first is belt-and-braces: a fresh Persistent=true
-#      timer should write its stamp file rather than fire immediately, but
-#      that behaviour has changed across systemd versions and the seeding
-#      window is not worth betting on it.
+#      Stopping the timer first is REQUIRED, not caution. Observed on the
+#      2026-08-04 deploy: a fresh Persistent=true timer fired its service
+#      immediately at activation (17:21:00, seconds after the switch), so the
+#      seeding window is otherwise zero. The documented "writes a stamp file
+#      instead of firing" behaviour did not apply here.
 #
 #   5. Verify the service can log in on its OWN:
 #        systemctl start lading-sync-ryan.service
@@ -96,6 +97,18 @@
 #      /healthz reads "starting" (503) until this first run succeeds, even
 #      when seeded: ingest_runs is deliberately not transferred, so the host
 #      reports its OWN sync freshness rather than inheriting a laptop's.
+#
+#      IF THAT RUN HITS A JAVASCRIPT CHALLENGE (it did on 2026-08-04), the
+#      unblock is to copy a working cookie jar from a host that has one:
+#
+#        install -o lading -g lading -m 0600 amazon.cookies.json \
+#          /var/lib/lading/<account>/amazon.cookies.json
+#
+#      That jar IS a live authenticated session — treat it as the password.
+#      It works by skipping the login flow, which is the part being
+#      challenged. Do NOT respond by packaging Playwright or a captcha
+#      solver; see "Field notes" in the upstream repo's AGENTS.md for what
+#      is and is not known about that challenge.
 
 { config, inputs, lib, pkgs, ... }:
 
