@@ -207,7 +207,24 @@ in
         # always-on process that controls the house is physically incapable of
         # rewriting purchase history, which is a stronger guarantee than "the
         # read path contains no INSERT".
-        additionalRoles."homelab-mcp" = {
+        #
+        # NOT the plain `homelab-mcp` role, which schoolhouse.nix already
+        # declares. A Postgres role is CLUSTER-wide and has ONE password, so
+        # two databases each provisioning `homelab-mcp` against a different
+        # sops secret makes the password flap with provisioning order —
+        # whichever ran last wins and the other DSN starts failing
+        # authentication. That is exactly what happened on the first deploy
+        # here: schoolhouse won, and every amazon_* call returned
+        # `lading_unreachable` while nothing complained at startup, because
+        # registration only checks that a DSN string is set.
+        #
+        # A distinct role per store removes that ordering dependency. It does
+        # NOT buy isolation between the stores, and it was verified rather
+        # than assumed: `readonly` is itself a cluster-wide group carrying
+        # SELECT grants in every provisioned database, so this role can read
+        # schoolhouse too. That is not an escalation — homelab-mcp already
+        # holds both DSNs — but do not describe it as a boundary.
+        additionalRoles."homelab-mcp-lading" = {
           passwordFile = config.sops.secrets."lading/reader_password".path;
           grantRoles = [ "readonly" ];
         };

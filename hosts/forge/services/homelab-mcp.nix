@@ -171,8 +171,23 @@ in
               "paperless_search"
               "paperless_get"
               "paperless_link"
+              # amazon_* — what was actually in the box behind an Amazon
+              # charge. The advisor needs these to categorize sensibly; it
+              # calls finances_transactions, then hands the charges to
+              # amazon_match_charges in one batch. Read-only against lading's
+              # store; the Amazon credential is not reachable from here.
+              "amazon_match_charges"
+              "amazon_get_order"
+              "amazon_search_items"
+              "amazon_list_orders"
+              "amazon_get_sync_status"
               "signal_send"
             ];
+            # DELIBERATELY NO amazon_* HERE, and do not add them while
+            # "filling out the list". Purchase history leaks gifts before they
+            # are given, medical supplies, and anything anyone bought; the
+            # unattended agent that composes the weekly Signal pulse has no
+            # business reading it. Same reasoning that keeps school_* out.
             hermes = [
               "finances_sync_status"
               "finances_monthly_summary"
@@ -239,6 +254,7 @@ in
       systemd.services.homelab-mcp.serviceConfig.EnvironmentFile = lib.mkForce [
         config.sops.secrets."homelab-mcp/env".path
         config.sops.templates."homelab-mcp-schoolhouse-env".path
+        config.sops.templates."homelab-mcp-lading-env".path
       ];
 
 

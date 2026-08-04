@@ -1678,6 +1678,32 @@ in
             group = "root";
             restartUnits = [ "homelab-mcp.service" ];
           };
+
+          # Read-only DSN handed to homelab-mcp for the amazon_* tools. Same
+          # reasoning as the schoolhouse one above: a TEMPLATE, so this
+          # password cannot drift from the role provisioned in
+          # services/lading.nix — both interpolate lading/reader_password.
+          #
+          # The role is `homelab-mcp-lading`, NOT the shared `homelab-mcp`
+          # that schoolhouse uses: a Postgres role is cluster-wide with one
+          # password, so two stores provisioning the same role against
+          # different secrets makes it flap with provisioning order. See
+          # services/lading.nix. Separate roles fix the password, not
+          # visibility — `readonly` grants SELECT across databases.
+          #
+          # It holds `readonly` membership, so the always-on process that
+          # controls the house is physically incapable of rewriting purchase
+          # history. It also never sees the Amazon credential itself, which
+          # lives only in lading's own sync unit.
+          "homelab-mcp-lading-env" = {
+            content = ''
+              HOMELAB_MCP_AMAZON_DATABASE_URL=postgresql://homelab-mcp-lading:${config.sops.placeholder."lading/reader_password"}@127.0.0.1:5432/lading
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "homelab-mcp.service" ];
+          };
         }
         // optionalAttrs marginaliaEnabled {
           # EnvironmentFile assembled at activation from individually-rotatable
