@@ -128,6 +128,22 @@ in
           HOMELAB_MCP_RESTRICTED_SCOPE_RESOURCES = builtins.toJSON {
             advisor = [ "finances://" ];
           };
+          # Actual account name -> that card's last four digits, for the
+          # amazon_* matcher. The key must be the account name EXACTLY as the
+          # ledger spells it; the lookup is exact-match after lowercasing.
+          #
+          # Load-bearing, not decoration: `exact` confidence is only reachable
+          # when the matcher can verify the card, and it verifies it through
+          # this map. Leave it empty and every match tops out at `probable` —
+          # which is what the first real run against the ledger hit, and
+          # reasonably mistook for a property of the algorithm.
+          #
+          # Not a secret. Four digits of a card number authorise nothing and
+          # already appear in the lading store; keeping it here rather than in
+          # sops means the mapping is reviewable in the config that uses it.
+          HOMELAB_MCP_AMAZON_ACCOUNT_LAST4 = builtins.toJSON {
+            "Chase Amazon" = "4772";
+          };
           # Shrink issued bearer-token lifetime from the 24h default to 4h.
           # Refresh tokens (30d, rotated on every use) mean this does not
           # force interactive re-login — it only shortens the window a
