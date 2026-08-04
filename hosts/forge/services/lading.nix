@@ -61,17 +61,41 @@
 #      readonly role. Everything under an account name belongs to exactly
 #      that Amazon login, so a second account adds a sibling block rather
 #      than a differently-named set of keys.
-#   3. Run `task nix:apply-nixos host=forge`. The sync unit runs migrations
-#      via ExecStartPre.
-#   4. Verify the service can log in on its OWN:
+#   3. Run `task nix:apply-nixos host=forge`.
+#
+#      What starts at activation: `lading.service` only. It runs
+#      lading-migrate via ExecStartPre, so the schema exists immediately.
+#      `lading-sync-ryan.service` is oneshot with no wantedBy — it does NOT
+#      run on apply. Its TIMER starts, and fires at 04:20 plus up to an hour
+#      of jitter.
+#
+#   4. IF SEEDING FROM AN EXISTING STORE, do it before that timer fires.
+#      scripts/export-for-forge.sh refuses to load into a non-empty store,
+#      because the dump carries its source's primary-key ids and merging
+#      them would either collide or silently drop rows. So:
+#
+#        systemctl stop lading-sync-ryan.timer
+#        # copy lading-export.sql across, then from the upstream checkout:
+#        ./scripts/export-for-forge.sh load \
+#          "postgresql://lading:PASSWORD@127.0.0.1:5432/lading"
+#        systemctl start lading-sync-ryan.timer
+#
+#      Stopping the timer first is belt-and-braces: a fresh Persistent=true
+#      timer should write its stamp file rather than fire immediately, but
+#      that behaviour has changed across systemd versions and the seeding
+#      window is not worth betting on it.
+#
+#   5. Verify the service can log in on its OWN:
 #        systemctl start lading-sync-ryan.service
 #        journalctl -u lading-sync-ryan -n 50
 #      An "amazon session authenticated" line means the login path works. An
 #      AmazonOrdersAuthError usually means the TOTP seed — Amazon displays it
 #      in space-separated groups and it must be valid base32 (upstream
 #      normalises spaces, quotes and hyphens, and validates at startup).
-#   5. Load existing history rather than re-scraping: see the transfer script
-#      in the upstream repo (scripts/export-for-forge.sh).
+#
+#      /healthz reads "starting" (503) until this first run succeeds, even
+#      when seeded: ingest_runs is deliberately not transferred, so the host
+#      reports its OWN sync freshness rather than inheriting a laptop's.
 
 { config, inputs, lib, pkgs, ... }:
 
