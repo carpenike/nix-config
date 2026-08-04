@@ -45,7 +45,9 @@ let
 
   serviceName = "schoolhouse";
   listenAddr = "127.0.0.1";
-  listenPort = 9210;
+  # NOT 9210: homelab-mcp's Actual sidecar owns that on loopback here, and
+  # 9200 is homelab-mcp itself. The first deploy failed with EADDRINUSE.
+  listenPort = 9220;
 
   serviceEnabled = config.services.schoolhouse.enable or false;
 in
