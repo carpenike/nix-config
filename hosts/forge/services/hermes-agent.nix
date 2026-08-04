@@ -14,6 +14,8 @@ let
   serviceIds = mylib.serviceUids.hermes;
   serviceEnabled = config.services.hermes-agent.enable or false;
   hermesPackage = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  inferenceProvider = "anthropic";
+  inferenceModel = "claude-sonnet-5";
   householdScribeGuardPlugin = pkgs.runCommand "hermes-household-scribe-guard" { } ''
     mkdir -p "$out"
     install -m 0444 ${./hermes-agent-plugins/household-scribe-guard/plugin.yaml} "$out/plugin.yaml"
@@ -337,6 +339,8 @@ let
       --prompt "$prompt" \
       --name "$job_name" \
       --deliver "signal:group:$signal_group_id" \
+      --provider ${lib.escapeShellArg inferenceProvider} \
+      --model ${lib.escapeShellArg inferenceModel} \
       --repeat 0 \
       --clear-skills >/dev/null
 
@@ -350,15 +354,22 @@ let
     fi
     HOME=${lib.escapeShellArg stateDir} \
       HERMES_HOME=${lib.escapeShellArg "${stateDir}/.hermes"} \
-      "$hermes_python" - "$job_id" <<'PY'
+      "$hermes_python" - "$job_id" ${lib.escapeShellArg inferenceProvider} ${lib.escapeShellArg inferenceModel} <<'PY'
     import sys
 
-    from cron.jobs import update_job
+    from cron.jobs import get_job, update_job
 
     job_id = sys.argv[1]
     updated = update_job(job_id, {"context_from": [job_id]})
     if not updated or updated.get("context_from") != [job_id]:
         raise SystemExit("weekly pulse self-context update failed")
+    persisted = get_job(job_id)
+    if (
+        not persisted
+        or persisted.get("provider") != sys.argv[2]
+        or persisted.get("model") != sys.argv[3]
+    ):
+        raise SystemExit("weekly pulse inference pin update failed")
     PY
 
     if ${lib.boolToString weeklyPulseEnabled}; then
@@ -430,14 +441,42 @@ let
       echo "hermes finance sentinel: failed to establish paused pre-edit state" >&2
       exit 1
     fi
+    job_id="$(${pkgs.gnugrep}/bin/grep -Eo '[0-9a-f]{12}' <<<"$block" | ${pkgs.coreutils}/bin/head -n 1)"
+    if [[ -z "$job_id" ]]; then
+      echo "hermes finance sentinel: could not determine persisted job ID" >&2
+      exit 1
+    fi
 
     ${hermesCli}/bin/hermes cron edit "$job_name" \
       --schedule "$schedule" \
       --prompt "$prompt" \
       --name "$job_name" \
       --deliver "signal:group:$signal_group_id" \
+      --provider ${lib.escapeShellArg inferenceProvider} \
+      --model ${lib.escapeShellArg inferenceModel} \
       --repeat 0 \
       --clear-skills >/dev/null
+
+    hermes_python="$(${pkgs.gnused}/bin/sed -n "s/^export HERMES_PYTHON='\(.*\)'$/\1/p" ${hermesPackage}/bin/hermes)"
+    if [[ -z "$hermes_python" ]]; then
+      echo "hermes finance sentinel: could not locate packaged Python" >&2
+      exit 1
+    fi
+    HOME=${lib.escapeShellArg stateDir} \
+      HERMES_HOME=${lib.escapeShellArg "${stateDir}/.hermes"} \
+      "$hermes_python" - "$job_id" ${lib.escapeShellArg inferenceProvider} ${lib.escapeShellArg inferenceModel} <<'PY'
+    import sys
+
+    from cron.jobs import get_job
+
+    persisted = get_job(sys.argv[1])
+    if (
+        not persisted
+        or persisted.get("provider") != sys.argv[2]
+        or persisted.get("model") != sys.argv[3]
+    ):
+        raise SystemExit("daily sentinel inference pin update failed")
+    PY
     ${hermesCli}/bin/hermes cron resume "$job_name" >/dev/null
 
     jobs="$(list_jobs)"
@@ -643,8 +682,8 @@ in
             redirect_uri = "http://127.0.0.1:8765/callback";
           };
           model = {
-            provider = "anthropic";
-            default = "claude-sonnet-5";
+            provider = inferenceProvider;
+            default = inferenceModel;
           };
           plugins.enabled = [ "household-scribe-guard" ];
           timezone = config.time.timeZone;
