@@ -45,6 +45,7 @@ let
   unpackerrEnabled = config.modules.services.unpackerr.enable or false;
   whiskeyWhiskeyWhiskeyEnabled = config.services.whiskey-whiskey-whiskey.enable or false;
   ambitEnabled = config.services.ambit.enable or false;
+  schoolhouseEnabled = config.services.schoolhouse.enable or false;
   # Opt-in: Partiful calendar sync for whiskey-whiskey-whiskey. See
   # hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
   # When true, the partiful_calendar_url SOPS key is required to exist.
@@ -1150,6 +1151,65 @@ in
             group = "root";
           };
         }
+        // optionalAttrs schoolhouseEnabled {
+          # Schoolhouse — Schoology parent-account ingest.
+          #
+          # Everything here is either a credential or an identifier for a
+          # minor, which is why none of it lives in services/schoolhouse.nix:
+          # the Nix store is world-readable and this flake is public.
+
+          # Owner password for the `schoolhouse` Postgres role. group=postgres
+          # so postgresql-provision-databases can read it at activation.
+          "schoolhouse/db_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          # Parent Schoology login (app.schoology.com — the NATIVE parent
+          # account created with a 12-digit Parent Access Code, not an FCPS
+          # SSO account).
+          "schoolhouse/schoology_username" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+          "schoolhouse/schoology_password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # JSON object mapping Schoology child uid -> display name, e.g.
+          #   {"12345678":"First","23456789":"Second"}
+          # The uids come from /iapi/parent/info; the service overwrites the
+          # names from Schoology on the first run, so these are only a
+          # bootstrap. Secret because they identify minors.
+          "schoolhouse/children" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Password for the `homelab-mcp` login role on the schoolhouse
+          # database (readonly membership: SELECT only). Consumed by the
+          # school_* tools in homelab-mcp via the template below.
+          # group=postgres so postgresql-provision-databases can read it.
+          "schoolhouse/reader_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          # JSON object mapping child uid -> per-child iCal share URL, or {}.
+          # These are CAPABILITY URLs: anyone holding one reads that child's
+          # calendar without authenticating. Treat exactly like a password.
+          "schoolhouse/ical_feeds" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs marginaliaEnabled {
           # Marginalia auth secrets (HOF-006). Both are required at service
           # start in production. See hosts/forge/services/marginalia.nix for
@@ -1447,6 +1507,53 @@ in
             owner = "root";
             group = "root";
             restartUnits = [ "ambit.service" ];
+          };
+        }
+        // optionalAttrs schoolhouseEnabled {
+          # TWO env files on purpose. The ingest unit holds the Schoology
+          # password, the child ids and the iCal capability URLs; the MCP unit
+          # gets the database DSN and nothing else. The MCP server never
+          # authenticates to Schoology, so it has no business being able to.
+          #
+          # systemd reads both as root before dropping to the `schoolhouse`
+          # system user, so they are root-only.
+          "schoolhouse-ingest-env" = {
+            content = ''
+              SCHOOLHOUSE_DATABASE_URL=postgresql://schoolhouse:${config.sops.placeholder."schoolhouse/db_password"}@127.0.0.1:5432/schoolhouse
+              SCHOOLHOUSE_SCHOOLOGY_USERNAME=${config.sops.placeholder."schoolhouse/schoology_username"}
+              SCHOOLHOUSE_SCHOOLOGY_PASSWORD=${config.sops.placeholder."schoolhouse/schoology_password"}
+              SCHOOLHOUSE_CHILDREN=${config.sops.placeholder."schoolhouse/children"}
+              SCHOOLHOUSE_ICAL_FEEDS=${config.sops.placeholder."schoolhouse/ical_feeds"}
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "schoolhouse-ingest.service" ];
+          };
+
+          "schoolhouse-health-env" = {
+            content = ''
+              SCHOOLHOUSE_DATABASE_URL=postgresql://schoolhouse:${config.sops.placeholder."schoolhouse/db_password"}@127.0.0.1:5432/schoolhouse
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "schoolhouse.service" ];
+          };
+
+          # Read-only DSN handed to homelab-mcp for the school_* tools.
+          # A TEMPLATE rather than a line in the hand-maintained
+          # homelab-mcp/env dotenv, so the password here can never drift from
+          # the role password provisioned in services/schoolhouse.nix — both
+          # interpolate the same secret.
+          "homelab-mcp-schoolhouse-env" = {
+            content = ''
+              HOMELAB_MCP_SCHOOLHOUSE_DATABASE_URL=postgresql://homelab-mcp:${config.sops.placeholder."schoolhouse/reader_password"}@127.0.0.1:5432/schoolhouse
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "homelab-mcp.service" ];
           };
         }
         // optionalAttrs marginaliaEnabled {

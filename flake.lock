@@ -322,11 +322,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785776345,
-        "narHash": "sha256-fVAlo7+iTkFenwIX0iod16QIsymf+6IYqm1CEgu9V5Y=",
+        "lastModified": 1785814208,
+        "narHash": "sha256-lHqRPeJbHc/J4fDrlgdSGEoEqIsWfPvtkPCZzJgF+S0=",
         "owner": "carpenike",
         "repo": "mcp",
-        "rev": "1a97c2bc83ebc2effabf3f1bad1f3cbca03efd15",
+        "rev": "510417adbb3c3c503cee8d1494797ef5a5e7e640",
         "type": "github"
       },
       "original": {
@@ -638,6 +638,7 @@
         "nixvim": "nixvim",
         "replog": "replog",
         "rust-overlay": "rust-overlay",
+        "schoolhouse": "schoolhouse",
         "sops-nix": "sops-nix",
         "systems": "systems_2",
         "whiskey-whiskey-whiskey": "whiskey-whiskey-whiskey"
@@ -660,6 +661,26 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "schoolhouse": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785814020,
+        "narHash": "sha256-oHDKZAaYwQwLYBD8K/AXo3dIzPfQ/EL6wNN8wnXt2/E=",
+        "owner": "carpenike",
+        "repo": "schoolhouse",
+        "rev": "17a9244264806f873a27b4f75f607bafd18aefae",
+        "type": "github"
+      },
+      "original": {
+        "owner": "carpenike",
+        "repo": "schoolhouse",
         "type": "github"
       }
     },

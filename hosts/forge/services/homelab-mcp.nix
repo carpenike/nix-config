@@ -225,6 +225,23 @@ in
         environmentFile = config.sops.secrets."homelab-mcp/env".path;
       };
 
+      # The school_* tools read the schoolhouse database (owned by the
+      # schoolhouse service) as a role with `readonly` membership. The DSN
+      # arrives as a SECOND EnvironmentFile rather than another line in the
+      # hand-maintained homelab-mcp/env dotenv, so the password can never
+      # drift from the role provisioned in services/schoolhouse.nix — both
+      # interpolate the same sops secret.
+      #
+      # NOTE: school_* is deliberately absent from the `hermes` entry in
+      # HOMELAB_MCP_RESTRICTED_SCOPES below. The ambient household agent must
+      # not be able to read three children's grades; interactive access is
+      # already bounded by the OAuth user allowlist.
+      systemd.services.homelab-mcp.serviceConfig.EnvironmentFile = lib.mkForce [
+        config.sops.secrets."homelab-mcp/env".path
+        config.sops.templates."homelab-mcp-schoolhouse-env".path
+      ];
+
+
       # Caddy vhost — pure pass-through. Auth is enforced by the MCP
       # server itself (its own OAuth provider issues bearer tokens; the
       # JWT middleware validates them against the local public key).

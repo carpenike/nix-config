@@ -189,6 +189,17 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # schoolhouse — Schoology parent-account ingest + read-only MCP server
+    # for the household's children. Two units over one Postgres schema:
+    # a twice-daily scraper and a thin MCP reader that never fetches.
+    # Loopback-only and intentionally unpublished — it serves three minors'
+    # education records and has no authorization layer of its own.
+    # https://github.com/carpenike/schoolhouse
+    schoolhouse = {
+      url = "github:carpenike/schoolhouse";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # coachiq — RV-C / multi-protocol CANbus monitoring (FastAPI + React).
     # Hybrid Nix module (post-HOF-020): import nixosModules.default and
     # configure services.coachiq.*; package at packages.<system>.coachiq.
