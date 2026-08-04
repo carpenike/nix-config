@@ -3,9 +3,10 @@
 #
 # Two units from one package, sharing a Postgres schema and nothing else:
 #
-#   lading-sync.service   oneshot, once daily with an hour of jitter. Holds
-#                         the Amazon credentials and does the fragile work
-#                         (login, scrape, parse).
+#   lading-sync-<account>.service
+#                         oneshot, once daily with an hour of jitter. Holds
+#                         that account's Amazon credentials and does the
+#                         fragile work (login, scrape, parse). One per account.
 #   lading.service        health endpoint. Serves exactly one route,
 #                         /healthz, so Gatus can alert on a sync that
 #                         quietly stopped.
@@ -50,8 +51,8 @@
 #   3. Run `task nix:apply-nixos host=forge`. The sync unit runs migrations
 #      via ExecStartPre.
 #   4. Verify the service can log in on its OWN:
-#        systemctl start lading-sync.service
-#        journalctl -u lading-sync -n 50
+#        systemctl start lading-sync-ryan.service
+#        journalctl -u lading-sync-ryan -n 50
 #      An "amazon session authenticated" line means the login path works. An
 #      AmazonOrdersAuthError usually means the TOTP seed — Amazon displays it
 #      in space-separated groups and it must be valid base32 (upstream
@@ -72,6 +73,30 @@ let
   listenPort = 9230;
 
   serviceEnabled = config.services.lading.enable or false;
+
+  # One entry per Amazon account. Declared here rather than inline so the
+  # ordering dependencies below are derived from the SAME list — a
+  # hand-maintained second copy is how `lading-sync` ended up ordered after
+  # postgres while the unit that actually runs, `lading-sync-ryan`, was not.
+  syncAccounts = {
+    ryan.environmentFile = config.sops.templates."lading-sync-ryan-env".path;
+
+    # steffi = {
+    #   environmentFile = config.sops.templates."lading-sync-steffi-env".path;
+    #   # A different hour: two logins to two Amazon accounts from one IP
+    #   # inside the same minute is a more interesting pattern than two
+    #   # spread across the night.
+    #   onCalendar = [ "*-*-* 05:40:00" ];
+    # };
+  };
+
+  # The role and database must exist before the first migration connects, so
+  # both kinds of unit wait on forge's declarative provisioning rather than on
+  # postgresql.service alone.
+  waitForProvisioning = {
+    after = [ "postgresql-provision-databases.service" ];
+    requires = [ "postgresql-provision-databases.service" ];
+  };
 in
 {
   imports = [
@@ -91,13 +116,10 @@ in
         # not secret — it is a slug like "ryan", carrying no credential — but
         # the username, password and TOTP seed all live in the sops env file.
         settings = {
-          # Whose Amazon account this unit syncs. Stamped on every row it
-          # writes, and read by the health unit so a freshly deployed account
-          # reports "starting" rather than being absent from /healthz.
-          # Adding Steffi's account means a second unit with account =
-          # "steffi" and its own EnvironmentFile — not a second credential
-          # in this one.
-          account = "ryan";
+          # NOTE: LADING_ACCOUNT and LADING_STATE_DIR are set PER UNIT by the
+          # upstream module from `sync.accounts` below — do not put them here,
+          # or every account would share one label and one cookie jar.
+          #
           # Storage is UTC; this is the rendering zone for MCP answers.
           timezone = "America/New_York";
           # /healthz flips to 503 past this, which is what Gatus alerts on.
@@ -115,7 +137,14 @@ in
         };
 
         environmentFile = config.sops.templates."lading-health-env".path;
-        sync.environmentFile = config.sops.templates."lading-sync-env".path;
+
+        # One unit per Amazon account (see `syncAccounts` above). Adding
+        # Steffi's is: a new key set in secrets.nix, a new sops template, and
+        # a new entry there — never a second credential in an existing file.
+        # The module derives the unit name, the LADING_ACCOUNT label, the
+        # StateDirectory (its own cookie jar, which is a live session and must
+        # not be shared) and the timer.
+        sync.accounts = syncAccounts;
       };
 
       modules.services.postgresql.databases.${serviceName} = {
@@ -134,18 +163,12 @@ in
         };
       };
 
-      # Both units must wait for forge's declarative provisioning, not just
-      # for postgresql itself — the role and database have to exist before the
-      # first migration connects.
-      systemd.services.lading-sync = {
-        after = [ "postgresql-provision-databases.service" ];
-        requires = [ "postgresql-provision-databases.service" ];
-      };
-
-      systemd.services.lading = {
-        after = [ "postgresql-provision-databases.service" ];
-        requires = [ "postgresql-provision-databases.service" ];
-      };
+      # Applied to the health unit and to every generated per-account sync
+      # unit. Derived from `syncAccounts`, so adding an account cannot leave
+      # its unit racing the database.
+      systemd.services = { lading = waitForProvisioning; }
+        // lib.mapAttrs' (name: _: lib.nameValuePair "lading-sync-${name}" waitForProvisioning)
+        syncAccounts;
     }
 
     (lib.mkIf serviceEnabled {

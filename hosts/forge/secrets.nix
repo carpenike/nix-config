@@ -1220,8 +1220,13 @@ in
           # scoped token. It is deliberately NOT in homelab-mcp's environment
           # file — see hosts/forge/services/lading.nix for the reasoning.
 
-          # Owner password for the `lading` Postgres role. group=postgres so
-          # postgresql-provision-databases can read it at activation.
+          # Owner password for the `lading` Postgres role. Any strong random
+          # value; keep it URL-SAFE because it is interpolated into
+          # LADING_DATABASE_URL below — `openssl rand -hex 32` is safe,
+          # `-base64 32` is NOT (it emits +, / and =, which change the meaning
+          # of a URL userinfo field and yield a confusing connect failure).
+          # group=postgres so postgresql-provision-databases can read it at
+          # activation.
           "lading/db_password" = {
             mode = "0440";
             owner = "root";
@@ -1230,7 +1235,8 @@ in
 
           # Password for the `homelab-mcp` login role on the lading database
           # (readonly membership: SELECT only). Consumed by the amazon_* tools
-          # in homelab-mcp. group=postgres so provisioning can read it.
+          # in homelab-mcp. Also URL-safe — `openssl rand -hex 32`.
+          # group=postgres so provisioning can read it.
           "lading/reader_password" = {
             mode = "0440";
             owner = "root";
@@ -1596,16 +1602,30 @@ in
             restartUnits = [ "schoolhouse.service" ];
           };
 
-          # lading — the sync unit holds the Amazon credential; the health
-          # unit holds only a DSN. Splitting them is the point: the always-on
-          # process has no business holding a password that can place orders.
+          # lading — each sync unit holds ONE account's Amazon credential;
+          # the health unit holds only a DSN. Splitting them is the point: the
+          # always-on process has no business holding a password that can
+          # place orders, and neither does a second account.
+          #
+          # TO ADD A SECOND ACCOUNT (e.g. Steffi), three things:
+          #   1. Four new sops keys above:
+          #        lading/steffi_amazon_username
+          #        lading/steffi_amazon_password
+          #        lading/steffi_amazon_otp_secret_key
+          #      (db_password and reader_password are shared — one database.)
+          #   2. A "lading-sync-steffi-env" template below, copying the ryan
+          #      one and swapping the placeholders. Do NOT add a second set of
+          #      credentials to an existing template: one file per account is
+          #      what keeps a leak worth exactly one account.
+          #   3. Uncomment the `steffi` entry in services/lading.nix.
+          #      LADING_ACCOUNT comes from the attribute name there.
           #
           # The account LABEL is not secret and lives in `settings` in
           # services/lading.nix (the health unit needs it too, to report a
           # configured account before its first sync). A SECOND Amazon account
           # means a second key set, a second template and a second unit —
           # never two credentials in one file.
-          "lading-sync-env" = {
+          "lading-sync-ryan-env" = {
             content = ''
               LADING_DATABASE_URL=postgresql://lading:${config.sops.placeholder."lading/db_password"}@127.0.0.1:5432/lading
               LADING_AMAZON_USERNAME=${config.sops.placeholder."lading/amazon_username"}
@@ -1615,7 +1635,7 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
-            restartUnits = [ "lading-sync.service" ];
+            restartUnits = [ "lading-sync-ryan.service" ];
           };
 
           "lading-health-env" = {
