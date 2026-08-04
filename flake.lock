@@ -361,11 +361,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785883483,
-        "narHash": "sha256-0ytq5Be7vE/HF3kU0f2/4YdbM7BoUrj2rImF1FcOu7I=",
+        "lastModified": 1785884532,
+        "narHash": "sha256-YpzifMksJvR91S54yeMr7bVljNuvK32jHVU8UOeRPQI=",
         "owner": "carpenike",
         "repo": "lading",
-        "rev": "66dccfd6190a99eb39e3bd1f03accbb969a89b61",
+        "rev": "308d2d577734bd42ec462b3f4e42ab1f50fb266b",
         "type": "github"
       },
       "original": {
