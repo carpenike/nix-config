@@ -46,6 +46,7 @@ let
   whiskeyWhiskeyWhiskeyEnabled = config.services.whiskey-whiskey-whiskey.enable or false;
   ambitEnabled = config.services.ambit.enable or false;
   schoolhouseEnabled = config.services.schoolhouse.enable or false;
+  ladingEnabled = config.services.lading.enable or false;
   # Opt-in: Partiful calendar sync for whiskey-whiskey-whiskey. See
   # hosts/forge/services/whiskeywhiskeywhiskey.nix for setup steps.
   # When true, the partiful_calendar_url SOPS key is required to exist.
@@ -1210,6 +1211,60 @@ in
             group = "root";
           };
         }
+        // optionalAttrs ladingEnabled {
+          # lading — Amazon order + transaction ingest.
+          #
+          # The Amazon credential below is the sharpest secret on this host:
+          # username + password + TOTP seed CAN PLACE ORDERS AND CHANGE
+          # SHIPPING ADDRESSES. There is no read-only Amazon account and no
+          # scoped token. It is deliberately NOT in homelab-mcp's environment
+          # file — see hosts/forge/services/lading.nix for the reasoning.
+
+          # Owner password for the `lading` Postgres role. group=postgres so
+          # postgresql-provision-databases can read it at activation.
+          "lading/db_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          # Password for the `homelab-mcp` login role on the lading database
+          # (readonly membership: SELECT only). Consumed by the amazon_* tools
+          # in homelab-mcp. group=postgres so provisioning can read it.
+          "lading/reader_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
+          # Amazon account email.
+          "lading/amazon_username" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Amazon account password.
+          "lading/amazon_password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
+          # Base32 TOTP seed from Login & Security -> Two-Step Verification
+          # -> Authenticator App -> "Can't scan the barcode?". Amazon displays
+          # it in space-separated groups; upstream normalises spaces, quotes
+          # and hyphens and validates it as base32 at startup, so paste it
+          # however Amazon shows it.
+          #
+          # WITHOUT this an OTP challenge cannot be solved unattended and the
+          # timer run fails rather than prompting.
+          "lading/amazon_otp_secret_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs marginaliaEnabled {
           # Marginalia auth secrets (HOF-006). Both are required at service
           # start in production. See hosts/forge/services/marginalia.nix for
@@ -1539,6 +1594,38 @@ in
             owner = "root";
             group = "root";
             restartUnits = [ "schoolhouse.service" ];
+          };
+
+          # lading — the sync unit holds the Amazon credential; the health
+          # unit holds only a DSN. Splitting them is the point: the always-on
+          # process has no business holding a password that can place orders.
+          #
+          # The account LABEL is not secret and lives in `settings` in
+          # services/lading.nix (the health unit needs it too, to report a
+          # configured account before its first sync). A SECOND Amazon account
+          # means a second key set, a second template and a second unit —
+          # never two credentials in one file.
+          "lading-sync-env" = {
+            content = ''
+              LADING_DATABASE_URL=postgresql://lading:${config.sops.placeholder."lading/db_password"}@127.0.0.1:5432/lading
+              LADING_AMAZON_USERNAME=${config.sops.placeholder."lading/amazon_username"}
+              LADING_AMAZON_PASSWORD=${config.sops.placeholder."lading/amazon_password"}
+              LADING_AMAZON_OTP_SECRET_KEY=${config.sops.placeholder."lading/amazon_otp_secret_key"}
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "lading-sync.service" ];
+          };
+
+          "lading-health-env" = {
+            content = ''
+              LADING_DATABASE_URL=postgresql://lading:${config.sops.placeholder."lading/db_password"}@127.0.0.1:5432/lading
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "lading.service" ];
           };
 
           # Read-only DSN handed to homelab-mcp for the school_* tools.

@@ -200,6 +200,23 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # lading — Amazon order + transaction ingest for the household ledger.
+    # A daily scraper and a thin /healthz probe over one Postgres schema; the
+    # amazon_* MCP tools live in homelab-mcp and read this store through a
+    # readonly role. Split out of homelab-mcp deliberately: the credential it
+    # holds can place orders and change shipping addresses, and a model that
+    # retries a failing tool is how an Amazon account gets challenge-locked.
+    #
+    # PRIVATE repo. forge fetches it via the GitHub PAT in the
+    # `nix/access-tokens` SOPS secret (already wired for Whiskey and
+    # Marginalia). Add `carpenike/lading` to that fine-grained token's
+    # repository access or the build will 404 on this input.
+    # https://github.com/carpenike/lading
+    lading = {
+      url = "github:carpenike/lading";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # coachiq — RV-C / multi-protocol CANbus monitoring (FastAPI + React).
     # Hybrid Nix module (post-HOF-020): import nixosModules.default and
     # configure services.coachiq.*; package at packages.<system>.coachiq.

@@ -89,6 +89,7 @@ in
     ./services/cooklang-federation.nix # Cooklang federation search service
     ./services/homelab-mcp.nix # Homelab MCP server (Claude tools bridge)
     ./services/schoolhouse.nix # Schoology ingest + read-only MCP (loopback only)
+    ./services/lading.nix # Amazon order ingest for the ledger (loopback only)
     ./services/enclosed.nix # Enclosed encrypted note sharing
     ./services/mealie.nix # Mealie recipe manager
     ./services/grocy.nix # Grocy household & groceries management

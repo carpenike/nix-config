@@ -354,6 +354,26 @@
         "type": "github"
       }
     },
+    "lading": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785876922,
+        "narHash": "sha256-MvxDN7/XCeO4dzxQxK+EJlBkYhob3iGNfV++R/3o/qc=",
+        "owner": "carpenike",
+        "repo": "lading",
+        "rev": "8e69add288b529b5cf893740613d3a627d372b1c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "carpenike",
+        "repo": "lading",
+        "type": "github"
+      }
+    },
     "marginalia": {
       "inputs": {
         "nixpkgs": [
@@ -629,6 +649,7 @@
         "home-manager": "home-manager",
         "homelab-mcp": "homelab-mcp",
         "impermanence": "impermanence",
+        "lading": "lading",
         "marginalia": "marginalia",
         "nix-darwin": "nix-darwin",
         "nix-vscode-extensions": "nix-vscode-extensions",
