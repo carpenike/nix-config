@@ -1243,15 +1243,30 @@ in
             group = "postgres";
           };
 
+          # ── per-account Amazon credentials ────────────────────────
+          # Namespaced by account, so a second account is symmetric with the
+          # first rather than a differently-shaped special case:
+          #
+          #   lading/db_password        shared — ONE database
+          #   lading/reader_password    shared — ONE readonly role
+          #   lading/<account>/amazon_*  per account
+          #
+          # The two above are genuinely shared (every account writes to the
+          # same store and homelab-mcp reads all of it through one role);
+          # everything below belongs to exactly one Amazon login. Rendering
+          # them as nested YAML also means `sops hosts/forge/secrets.sops.yaml`
+          # shows one block per account, which is what you want when adding
+          # the second one.
+
           # Amazon account email.
-          "lading/amazon_username" = {
+          "lading/ryan/amazon_username" = {
             mode = "0400";
             owner = "root";
             group = "root";
           };
 
           # Amazon account password.
-          "lading/amazon_password" = {
+          "lading/ryan/amazon_password" = {
             mode = "0400";
             owner = "root";
             group = "root";
@@ -1265,7 +1280,7 @@ in
           #
           # WITHOUT this an OTP challenge cannot be solved unattended and the
           # timer run fails rather than prompting.
-          "lading/amazon_otp_secret_key" = {
+          "lading/ryan/amazon_otp_secret_key" = {
             mode = "0400";
             owner = "root";
             group = "root";
@@ -1608,11 +1623,12 @@ in
           # place orders, and neither does a second account.
           #
           # TO ADD A SECOND ACCOUNT (e.g. Steffi), three things:
-          #   1. Four new sops keys above:
-          #        lading/steffi_amazon_username
-          #        lading/steffi_amazon_password
-          #        lading/steffi_amazon_otp_secret_key
-          #      (db_password and reader_password are shared — one database.)
+          #   1. Three new sops keys above, mirroring the ryan block exactly:
+          #        lading/steffi/amazon_username
+          #        lading/steffi/amazon_password
+          #        lading/steffi/amazon_otp_secret_key
+          #      (db_password and reader_password stay shared — one database,
+          #      one readonly role.)
           #   2. A "lading-sync-steffi-env" template below, copying the ryan
           #      one and swapping the placeholders. Do NOT add a second set of
           #      credentials to an existing template: one file per account is
@@ -1628,9 +1644,9 @@ in
           "lading-sync-ryan-env" = {
             content = ''
               LADING_DATABASE_URL=postgresql://lading:${config.sops.placeholder."lading/db_password"}@127.0.0.1:5432/lading
-              LADING_AMAZON_USERNAME=${config.sops.placeholder."lading/amazon_username"}
-              LADING_AMAZON_PASSWORD=${config.sops.placeholder."lading/amazon_password"}
-              LADING_AMAZON_OTP_SECRET_KEY=${config.sops.placeholder."lading/amazon_otp_secret_key"}
+              LADING_AMAZON_USERNAME=${config.sops.placeholder."lading/ryan/amazon_username"}
+              LADING_AMAZON_PASSWORD=${config.sops.placeholder."lading/ryan/amazon_password"}
+              LADING_AMAZON_OTP_SECRET_KEY=${config.sops.placeholder."lading/ryan/amazon_otp_secret_key"}
             '';
             mode = "0400";
             owner = "root";

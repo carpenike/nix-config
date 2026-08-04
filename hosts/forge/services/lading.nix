@@ -47,7 +47,20 @@
 #   1. Add `carpenike/lading` to the fine-grained GitHub PAT behind the
 #      `nix/access-tokens` SOPS secret, or the flake input 404s at build time.
 #   2. Add the `lading` values documented in hosts/forge/secrets.nix to
-#      hosts/forge/secrets.sops.yaml.
+#      hosts/forge/secrets.sops.yaml:
+#
+#        lading:
+#          db_password:     <openssl rand -hex 32>   # URL-safe: goes in a DSN
+#          reader_password: <openssl rand -hex 32>   # ditto
+#          ryan:
+#            amazon_username:       <email>
+#            amazon_password:       <password>
+#            amazon_otp_secret_key: <base32 seed, spaces and all>
+#
+#      db_password and reader_password are shared — one database, one
+#      readonly role. Everything under an account name belongs to exactly
+#      that Amazon login, so a second account adds a sibling block rather
+#      than a differently-named set of keys.
 #   3. Run `task nix:apply-nixos host=forge`. The sync unit runs migrations
 #      via ExecStartPre.
 #   4. Verify the service can log in on its OWN:
