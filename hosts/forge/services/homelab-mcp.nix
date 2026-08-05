@@ -317,6 +317,9 @@ in
           after = [ "zfs-service-datasets.service" ];
           requires = [ "zfs-service-datasets.service" ];
           unitConfig.RequiresMountsFor = [ dataDir ];
+          # Streamable HTTP clients hold long-lived event streams open. Bound
+          # deploy shutdowns instead of waiting systemd's 90-second default.
+          serviceConfig.TimeoutStopSec = "10s";
         };
 
         modules.storage.datasets.services.${serviceName} = {
