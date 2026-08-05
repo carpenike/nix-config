@@ -140,13 +140,13 @@ let
   syncAccounts = {
     ryan.environmentFile = config.sops.templates."lading-sync-ryan-env".path;
 
-    # steffi = {
-    #   environmentFile = config.sops.templates."lading-sync-steffi-env".path;
-    #   # A different hour: two logins to two Amazon accounts from one IP
-    #   # inside the same minute is a more interesting pattern than two
-    #   # spread across the night.
-    #   onCalendar = [ "*-*-* 05:40:00" ];
-    # };
+    steffi = {
+      environmentFile = config.sops.templates."lading-sync-steffi-env".path;
+      # A different hour: two logins to two Amazon accounts from one IP
+      # inside the same minute is a more interesting pattern than two
+      # spread across the night.
+      onCalendar = [ "*-*-* 05:40:00" ];
+    };
   };
 
   # The role and database must exist before the first migration connects, so

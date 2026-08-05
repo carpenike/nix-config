@@ -1285,6 +1285,25 @@ in
             owner = "root";
             group = "root";
           };
+
+          # Steffi's Amazon account. Same three keys, same shapes — the
+          # symmetry is the point: a second account is a sibling block, not a
+          # differently-named special case.
+          "lading/steffi/amazon_username" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+          "lading/steffi/amazon_password" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+          "lading/steffi/amazon_otp_secret_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs marginaliaEnabled {
           # Marginalia auth secrets (HOF-006). Both are required at service
@@ -1652,6 +1671,19 @@ in
             owner = "root";
             group = "root";
             restartUnits = [ "lading-sync-ryan.service" ];
+          };
+
+          "lading-sync-steffi-env" = {
+            content = ''
+              LADING_DATABASE_URL=postgresql://lading:${config.sops.placeholder."lading/db_password"}@127.0.0.1:5432/lading
+              LADING_AMAZON_USERNAME=${config.sops.placeholder."lading/steffi/amazon_username"}
+              LADING_AMAZON_PASSWORD=${config.sops.placeholder."lading/steffi/amazon_password"}
+              LADING_AMAZON_OTP_SECRET_KEY=${config.sops.placeholder."lading/steffi/amazon_otp_secret_key"}
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "lading-sync-steffi.service" ];
           };
 
           "lading-health-env" = {
