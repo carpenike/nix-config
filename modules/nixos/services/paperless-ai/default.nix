@@ -175,6 +175,15 @@ mylib.mkContainerService {
     # Scanning Configuration
     # =========================================================================
     scan = {
+      automaticProcessing = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether Paperless-AI performs its initial and scheduled global scans.
+          Disable this when documents are dispatched individually via webhook.
+        '';
+      };
+
       interval = lib.mkOption {
         type = lib.types.str;
         default = "*/30 * * * *";
@@ -283,6 +292,20 @@ mylib.mkContainerService {
           Only used when usePromptTags = true.
         '';
         example = [ "invoice" "receipt" "contract" ];
+      };
+    };
+
+    documentTypes = {
+      restrictToExisting = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Restrict AI output to document types that already exist in Paperless.";
+      };
+
+      managed = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = "Document types to create idempotently before Paperless-AI starts.";
       };
     };
 
@@ -473,6 +496,14 @@ mylib.mkContainerService {
         message = "Paperless-AI tags.managed must not contain duplicates.";
       }
       {
+        assertion = lib.length cfg.documentTypes.managed == lib.length (lib.unique cfg.documentTypes.managed);
+        message = "Paperless-AI documentTypes.managed must not contain duplicates.";
+      }
+      {
+        assertion = !cfg.documentTypes.restrictToExisting || cfg.documentTypes.managed != [ ];
+        message = "Paperless-AI documentTypes.restrictToExisting requires a non-empty managed type set.";
+      }
+      {
         assertion =
           !cfg.tags.pruneUnmanaged
           || !cfg.scan.addAiProcessedTag
@@ -512,6 +543,7 @@ mylib.mkContainerService {
       owner = cfg.user;
       group = cfg.group;
       mode = "0400";
+      restartUnits = [ "${config.virtualisation.oci-containers.backend}-paperless-ai.service" ];
       content = ''
         # Initial Setup - always 'no' since .env is read-only (managed by NixOS/SOPS)
         # All configuration must be done via NixOS module options
@@ -534,6 +566,7 @@ mylib.mkContainerService {
         OPENAI_MODEL=
 
         # Scanning Configuration
+        DISABLE_AUTOMATIC_PROCESSING=${if cfg.scan.automaticProcessing then "no" else "yes"}
         SCAN_INTERVAL=${cfg.scan.interval}
         ADD_AI_PROCESSED_TAG=${if cfg.scan.addAiProcessedTag then "yes" else "no"}
         AI_PROCESSED_TAG_NAME=${cfg.scan.aiProcessedTagName}
@@ -545,6 +578,9 @@ mylib.mkContainerService {
         TAGS=${lib.concatStringsSep "," cfg.tags.trigger}
         USE_PROMPT_TAGS=${if cfg.tags.usePromptTags then "yes" else "no"}
         PROMPT_TAGS=${lib.concatStringsSep "," cfg.tags.promptTags}
+
+        # Document Type Configuration
+        RESTRICT_TO_EXISTING_DOCUMENT_TYPES=${if cfg.documentTypes.restrictToExisting then "yes" else "no"}
 
         # AI Function Limits
         ACTIVATE_TAGGING=${if cfg.aiFunctions.tagging then "yes" else "no"}
@@ -585,83 +621,115 @@ mylib.mkContainerService {
       ];
     };
 
-    systemd.services.paperless-ai-taxonomy = lib.mkIf (cfg.tags.managed != [ ]) {
-      description = "Reconcile managed Paperless tags";
-      before = [ "${config.virtualisation.oci-containers.backend}-paperless-ai.service" ];
-      after = [ "network-online.target" "paperless-web.service" ];
-      requires = [ "paperless-web.service" ];
-      wants = [ "network-online.target" ];
+    systemd.services.paperless-ai-taxonomy = lib.mkIf
+      (cfg.tags.managed != [ ] || cfg.documentTypes.managed != [ ])
+      {
+        description = "Reconcile managed Paperless taxonomy";
+        before = [ "${config.virtualisation.oci-containers.backend}-paperless-ai.service" ];
+        after = [ "network-online.target" "paperless-web.service" ];
+        requires = [ "paperless-web.service" ];
+        wants = [ "network-online.target" ];
 
-      serviceConfig = {
-        Type = "oneshot";
-        LoadCredential = "paperless_token:${cfg.paperless.tokenFile}";
-        NoNewPrivileges = true;
-        PrivateDevices = true;
-        PrivateTmp = true;
-        ProtectHome = true;
-        ProtectSystem = "strict";
-      };
+        serviceConfig = {
+          Type = "oneshot";
+          LoadCredential = "paperless_token:${cfg.paperless.tokenFile}";
+          NoNewPrivileges = true;
+          PrivateDevices = true;
+          PrivateTmp = true;
+          ProtectHome = true;
+          ProtectSystem = "strict";
+        };
 
-      script = ''
-        set -euo pipefail
+        script = ''
+          set -euo pipefail
 
-        api_url="${cfg.paperless.apiUrl}/tags/"
-        token="$(${pkgs.coreutils}/bin/cat "$CREDENTIALS_DIRECTORY/paperless_token")"
-        tags_file="$(${pkgs.coreutils}/bin/mktemp)"
-        trap '${pkgs.coreutils}/bin/rm -f "$tags_file"' EXIT
+          tags_api_url="${cfg.paperless.apiUrl}/tags/"
+          document_types_api_url="${cfg.paperless.apiUrl}/document_types/"
+          token="$(${pkgs.coreutils}/bin/cat "$CREDENTIALS_DIRECTORY/paperless_token")"
+          tags_file="$(${pkgs.coreutils}/bin/mktemp)"
+          document_types_file="$(${pkgs.coreutils}/bin/mktemp)"
+          trap '${pkgs.coreutils}/bin/rm -f "$tags_file" "$document_types_file"' EXIT
 
-        fetch_tags() {
-          ${pkgs.curl}/bin/curl \
-            --fail --silent --show-error \
-            --retry 30 --retry-all-errors --retry-delay 2 \
-            --header "Authorization: Token $token" \
-            "$api_url?page_size=1000" > "$tags_file"
-        }
+          fetch_tags() {
+            ${pkgs.curl}/bin/curl \
+              --fail --silent --show-error \
+              --retry 30 --retry-all-errors --retry-delay 2 \
+              --header "Authorization: Token $token" \
+              "$tags_api_url?page_size=1000" > "$tags_file"
+          }
 
-        managed_tags='${builtins.toJSON cfg.tags.managed}'
-        fetch_tags
+          fetch_document_types() {
+            ${pkgs.curl}/bin/curl \
+              --fail --silent --show-error \
+              --retry 30 --retry-all-errors --retry-delay 2 \
+              --header "Authorization: Token $token" \
+              "$document_types_api_url?page_size=1000" > "$document_types_file"
+          }
 
-        while IFS= read -r tag_name; do
-          if ${pkgs.jq}/bin/jq --exit-status --arg name "$tag_name" \
-            '.results[] | select(.name == $name)' "$tags_file" >/dev/null; then
-            continue
-          fi
-
-          payload="$(${pkgs.jq}/bin/jq --null-input --compact-output --arg name "$tag_name" '{name: $name}')"
-          ${pkgs.curl}/bin/curl \
-            --fail --silent --show-error \
-            --request POST \
-            --header "Authorization: Token $token" \
-            --header "Content-Type: application/json" \
-            --data "$payload" \
-            "$api_url" >/dev/null
-          echo "Created managed Paperless tag: $tag_name"
-        done < <(${pkgs.jq}/bin/jq --raw-output '.[]' <<< "$managed_tags")
-
-        ${lib.optionalString cfg.tags.pruneUnmanaged ''
+          managed_tags='${builtins.toJSON cfg.tags.managed}'
           fetch_tags
-          while IFS= read -r tag; do
-            tag_id="$(${pkgs.jq}/bin/jq --raw-output '.id' <<< "$tag")"
-            tag_name="$(${pkgs.jq}/bin/jq --raw-output '.name' <<< "$tag")"
 
+          while IFS= read -r tag_name; do
             if ${pkgs.jq}/bin/jq --exit-status --arg name "$tag_name" \
-              'index($name) != null' <<< "$managed_tags" >/dev/null; then
+              '.results[] | select(.name == $name)' "$tags_file" >/dev/null; then
               continue
             fi
 
+            payload="$(${pkgs.jq}/bin/jq --null-input --compact-output --arg name "$tag_name" '{name: $name}')"
             ${pkgs.curl}/bin/curl \
               --fail --silent --show-error \
-              --request DELETE \
+              --request POST \
               --header "Authorization: Token $token" \
-              "$api_url$tag_id/" >/dev/null
-            echo "Removed unmanaged Paperless tag: $tag_name"
-          done < <(${pkgs.jq}/bin/jq --compact-output '.results[] | {id, name}' "$tags_file")
-        ''}
-      '';
-    };
+              --header "Content-Type: application/json" \
+              --data "$payload" \
+              "$tags_api_url" >/dev/null
+            echo "Created managed Paperless tag: $tag_name"
+          done < <(${pkgs.jq}/bin/jq --raw-output '.[]' <<< "$managed_tags")
+
+          managed_document_types='${builtins.toJSON cfg.documentTypes.managed}'
+          fetch_document_types
+
+          while IFS= read -r document_type_name; do
+            if ${pkgs.jq}/bin/jq --exit-status --arg name "$document_type_name" \
+              '.results[] | select(.name == $name)' "$document_types_file" >/dev/null; then
+              continue
+            fi
+
+            payload="$(${pkgs.jq}/bin/jq --null-input --compact-output --arg name "$document_type_name" '{name: $name}')"
+            ${pkgs.curl}/bin/curl \
+              --fail --silent --show-error \
+              --request POST \
+              --header "Authorization: Token $token" \
+              --header "Content-Type: application/json" \
+              --data "$payload" \
+              "$document_types_api_url" >/dev/null
+            echo "Created managed Paperless document type: $document_type_name"
+          done < <(${pkgs.jq}/bin/jq --raw-output '.[]' <<< "$managed_document_types")
+
+          ${lib.optionalString cfg.tags.pruneUnmanaged ''
+            fetch_tags
+            while IFS= read -r tag; do
+              tag_id="$(${pkgs.jq}/bin/jq --raw-output '.id' <<< "$tag")"
+              tag_name="$(${pkgs.jq}/bin/jq --raw-output '.name' <<< "$tag")"
+
+              if ${pkgs.jq}/bin/jq --exit-status --arg name "$tag_name" \
+                'index($name) != null' <<< "$managed_tags" >/dev/null; then
+                continue
+              fi
+
+              ${pkgs.curl}/bin/curl \
+                --fail --silent --show-error \
+                --request DELETE \
+                --header "Authorization: Token $token" \
+                "$tags_api_url$tag_id/" >/dev/null
+              echo "Removed unmanaged Paperless tag: $tag_name"
+            done < <(${pkgs.jq}/bin/jq --compact-output '.results[] | {id, name}' "$tags_file")
+          ''}
+        '';
+      };
 
     systemd.timers.paperless-ai-taxonomy = lib.mkIf
-      (cfg.tags.managed != [ ] && cfg.tags.reconcileOnCalendar != null)
+      ((cfg.tags.managed != [ ] || cfg.documentTypes.managed != [ ]) && cfg.tags.reconcileOnCalendar != null)
       {
         description = "Periodically reconcile managed Paperless tags";
         wantedBy = [ "timers.target" ];
@@ -675,9 +743,13 @@ mylib.mkContainerService {
     # Wait for SOPS to create the .env file
     systemd.services."${config.virtualisation.oci-containers.backend}-paperless-ai" = {
       wants = [ "sops-nix.service" ];
-      requires = lib.optional (cfg.tags.managed != [ ]) "paperless-ai-taxonomy.service";
+      requires = lib.optional
+        (cfg.tags.managed != [ ] || cfg.documentTypes.managed != [ ])
+        "paperless-ai-taxonomy.service";
       after = [ "sops-nix.service" ]
-        ++ lib.optional (cfg.tags.managed != [ ]) "paperless-ai-taxonomy.service";
+        ++ lib.optional
+        (cfg.tags.managed != [ ] || cfg.documentTypes.managed != [ ])
+        "paperless-ai-taxonomy.service";
     };
 
     # Preserve the pre-factory notification wording

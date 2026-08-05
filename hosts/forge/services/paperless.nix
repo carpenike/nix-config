@@ -22,6 +22,7 @@ let
   taskWorkers = 2;
   threadsPerWorker = 2;
   consumerPollingSeconds = 10;
+  consumerPollingDelaySeconds = 30;
   serviceEnabled = config.modules.services.paperless.enable or false;
   documentBackup = repository: {
     enable = true;
@@ -48,6 +49,8 @@ in
         PAPERLESS_THREADS_PER_WORKER = toString threadsPerWorker;
         # NFS does not reliably propagate inotify events to the consumer.
         PAPERLESS_CONSUMER_POLLING = toString consumerPollingSeconds;
+        # Give network scanners time to replace zero-byte placeholders with PDF data.
+        PAPERLESS_CONSUMER_POLLING_DELAY = toString consumerPollingDelaySeconds;
         # Keep raw archive paths understandable outside the application.
         PAPERLESS_FILENAME_FORMAT = "{{ created_year }}/{{ correspondent }}/{{ document_type }}/{{ title }}";
         PAPERLESS_FILENAME_FORMAT_REMOVE_NONE = "true";

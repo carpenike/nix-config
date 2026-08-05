@@ -17,12 +17,25 @@ let
   dataDir = "/var/lib/paperless-ai";
   listenPort = 3001;
   serviceEnabled = config.modules.services.paperless-ai.enable or false;
+  managedDocumentTypes = [
+    "Performance Work Statement"
+    "Request for Information"
+    "Invoice"
+    "Account Statement"
+    "Official Notice"
+    "Performance Work Statement / Contract Statement of Work"
+    "Request for Information (RFI)"
+    "Credit Card Statement"
+    "Tax Bill"
+    "Explanation of Benefits"
+  ];
   customFields = [
     { value = "finance:tax-year"; data_type = "integer"; }
     { value = "finance:account-last4"; data_type = "string"; }
     { value = "finance:statement-period"; data_type = "string"; }
     { value = "finance:amount-due"; data_type = "monetary"; currency = "USD"; }
     { value = "workflow:suggested-tags"; data_type = "longtext"; }
+    { value = "workflow:suggested-document-type"; data_type = "string"; }
   ];
   savedViews = [
     { name = "Finance / Statements"; tag = "finance:statement"; dashboard = false; }
@@ -84,9 +97,10 @@ let
         "asn",
       ]
       if definition["tag"] == "workflow:needs-review":
-        display_fields.append(
+        display_fields.extend([
           f"custom_field_{fields['workflow:suggested-tags'].id}",
-        )
+          f"custom_field_{fields['workflow:suggested-document-type'].id}",
+        ])
       view, _ = SavedView.objects.update_or_create(
         owner=owner,
         name=definition["name"],
@@ -179,6 +193,7 @@ in
         # Scanning Configuration
         # =====================================================================
         scan = {
+          automaticProcessing = false;
           interval = "*/30 * * * *"; # Every 30 minutes
           addAiProcessedTag = true;
           aiProcessedTagName = "workflow:ai-processed";
@@ -207,6 +222,11 @@ in
           reconcileOnCalendar = "daily";
         };
 
+        documentTypes = {
+          restrictToExisting = true;
+          managed = managedDocumentTypes;
+        };
+
         aiFunctions.customFields = true;
         inherit customFields;
 
@@ -218,9 +238,9 @@ in
           - finance:statement: Periodic bank, credit-card, brokerage, retirement, or other account statements.
           - finance:tax: Tax returns, W-2/1099 forms, tax bills, assessments, and tax authority notices.
           - finance:paystub: Payroll statements, payslips, and earnings statements.
-          - finance:insurance: Policies, declarations, premium notices, claims, and explanations of benefits.
+          - finance:insurance: Policies, declarations, premium notices, claims, explanations of benefits, and insurer claim-payment vouchers or reimbursement checks.
           - finance:invoice: Requests for payment that have not yet been paid.
-          - finance:receipt: Proof of a completed payment or purchase.
+          - finance:receipt: Merchant or vendor proof of a completed purchase or bill payment; excludes insurance claim payments, reimbursements, and EOB payment vouchers.
           - finance:loan: Loan agreements, mortgage documents, payment schedules, and lending notices.
           - finance:investment: Trade confirmations, portfolio reports, and investment or retirement-plan documents that are not periodic statements.
           - workflow:needs-review: The document does not confidently fit a finance category above.
@@ -233,12 +253,19 @@ in
           - finance:statement-period: Statement month or date range in ISO-style form.
           - finance:amount-due: Numeric amount currently due, without a currency symbol.
           - workflow:suggested-tags: When the existing taxonomy is insufficient, propose up to three lowercase namespaced tag identifiers with a brief reason for each.
+          - workflow:suggested-document-type: When no allowed document type fits, propose one concise title-cased document type name.
+
+          Allowed document types:
+          ${lib.concatMapStringsSep "\n" (name: "- ${name}") managedDocumentTypes}
 
           Rules:
           - Return exact tag identifiers from the list above; never translate, alter, or invent tag names.
           - Tags present in the existing-tag list without a definition above are user-approved; infer their meaning from the identifier and use them when they clearly match.
           - Never propose an identifier in workflow:suggested-tags if that tag already exists in the existing-tag list.
           - Select one primary existing tag and a second only when the document clearly serves both purposes.
+          - Classify the packet by its primary purpose, not an attachment. Any EOB, claim explanation, or insurer payment voucher remains finance:insurance when it includes a check, reimbursement, or amount paid.
+          - Use the exact document type Explanation of Benefits for every EOB, claim explanation, insurer payment voucher, or EOB/check packet.
+          - Set document_type to an exact allowed document type. If none fits, set document_type to null, populate workflow:suggested-document-type, and include workflow:needs-review.
           - If no existing tag fits, return only workflow:needs-review and populate workflow:suggested-tags.
           - If classification confidence is low, return only workflow:needs-review; suggestions are optional.
           - Never place a proposed tag in the tags array until it exists in Paperless.
@@ -309,6 +336,7 @@ in
           "paperless-web.service"
         ];
         wants = [ "caddy.service" "paperless-web.service" ];
+        serviceConfig.LogFilterPatterns = [ "~.*apiKey:.*" ];
       };
 
       systemd.services.paperless-finance-bootstrap = {
@@ -342,13 +370,15 @@ in
       };
 
       systemd.services.paperless-ai-reprocess = {
-        description = "Reprocess Paperless documents marked for AI review";
+        description = "Dispatch one pending Paperless document to Paperless-AI";
         after = [
           "paperless-finance-bootstrap.service"
           "podman-paperless-ai.service"
         ];
         wants = [ "podman-paperless-ai.service" ];
         requires = [ "paperless-finance-bootstrap.service" ];
+        startLimitIntervalSec = 900;
+        startLimitBurst = 3;
 
         serviceConfig = {
           Type = "oneshot";
@@ -364,6 +394,8 @@ in
           ProtectHome = true;
           ProtectSystem = "strict";
           TimeoutStartSec = "30m";
+          Restart = "on-failure";
+          RestartSec = "2m";
         };
 
         script = ''
@@ -391,124 +423,307 @@ in
           tag_lookup="$(${pkgs.jq}/bin/jq --compact-output \
             'reduce .results[] as $tag ({}; .[($tag.name | ascii_downcase)] = $tag.id)' \
             <<< "$tags_json")"
+          workflow_tag_ids="$(${pkgs.jq}/bin/jq --compact-output \
+            '[.results[] | select(.name | startswith("workflow:")) | .id]' \
+            <<< "$tags_json")"
 
-          suggested_field_id="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
+          document_types_json="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+            "''${auth[@]}" "$paperless_api/document_types/?page_size=1000")"
+          document_type_lookup="$(${pkgs.jq}/bin/jq --compact-output \
+            'reduce .results[] as $type ({}; .[($type.name | ascii_downcase)] = {id: $type.id, name: $type.name})' \
+            <<< "$document_types_json")"
+          managed_document_types='${builtins.toJSON managedDocumentTypes}'
+          managed_document_type_ids="$(${pkgs.jq}/bin/jq --compact-output \
+            --argjson managed "$managed_document_types" \
+            '[$managed[] as $name | .[$name | ascii_downcase].id // empty]' \
+            <<< "$document_type_lookup")"
+
+          suggested_tags_field_id="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
             "''${auth[@]}" --get --data-urlencode 'name__iexact=workflow:suggested-tags' \
             "$paperless_api/custom_fields/" | ${pkgs.jq}/bin/jq --raw-output '.results[0].id // empty')"
+          suggested_type_field_id="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
+            "''${auth[@]}" --get --data-urlencode 'name__iexact=workflow:suggested-document-type' \
+            "$paperless_api/custom_fields/" | ${pkgs.jq}/bin/jq --raw-output '.results[0].id // empty')"
+
+          stale_reviews="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+            "''${auth[@]}" --get \
+            --data-urlencode "tags__id__all=$review_id" \
+            --data-urlencode 'page_size=1000' \
+            --data-urlencode 'fields=id,tags,document_type,custom_fields' \
+            "$paperless_api/documents/")"
+          cleanup_count=0
+          while IFS= read -r document; do
+            if ! ${pkgs.jq}/bin/jq --exit-status \
+              --argjson processed "$processed_id" \
+              --argjson workflow "$workflow_tag_ids" \
+              --argjson managed_types "$managed_document_type_ids" \
+              --argjson suggested_tags "''${suggested_tags_field_id:-null}" \
+              --argjson suggested_type "''${suggested_type_field_id:-null}" \
+              '(.tags | index($processed)) != null
+              and ([.tags[] as $tag | select($workflow | index($tag) | not) | $tag] | length > 0)
+              and (.document_type as $type | ($managed_types | index($type)) != null)
+              and ([.custom_fields[]? | select(
+                (($suggested_tags != null and .field == $suggested_tags)
+                  or ($suggested_type != null and .field == $suggested_type))
+                and ((.value // "") | length > 0)
+              )] | length == 0)' \
+              <<< "$document" >/dev/null; then
+              continue
+            fi
+
+            document_id="$(${pkgs.jq}/bin/jq --raw-output '.id' <<< "$document")"
+            payload="$(${pkgs.jq}/bin/jq --compact-output \
+              --argjson review "$review_id" \
+              '{tags: [.tags[] | select(. != $review)]}' <<< "$document")"
+            ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+              --request PATCH \
+              "''${auth[@]}" \
+              --header 'Content-Type: application/json' \
+              --data "$payload" \
+              "$paperless_api/documents/$document_id/" >/dev/null
+            ((cleanup_count += 1))
+          done < <(${pkgs.jq}/bin/jq --compact-output '.results[]' <<< "$stale_reviews")
+          echo "Cleared stale review tags from $cleanup_count classified document(s)"
 
           documents="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
             "''${auth[@]}" --get \
             --data-urlencode "tags__id__all=$reprocess_id" \
-            --data-urlencode 'page_size=1000' \
-            --data-urlencode 'fields=id,tags,custom_fields' \
+            --data-urlencode 'page_size=1' \
+            --data-urlencode 'fields=id,tags,document_type,custom_fields' \
             "$paperless_api/documents/")"
-          ids="$(${pkgs.jq}/bin/jq --compact-output '[.results[].id]' <<< "$documents")"
-          count="$(${pkgs.jq}/bin/jq 'length' <<< "$ids")"
+          document="$(${pkgs.jq}/bin/jq --compact-output '.results[0] // empty' <<< "$documents")"
 
-          if [[ "$count" -eq 0 ]]; then
-            echo "No documents queued for Paperless-AI reprocessing"
+          if [[ -z "$document" ]]; then
+            documents="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+              "''${auth[@]}" --get \
+              --data-urlencode "tags__id__all=$review_id" \
+              --data-urlencode 'page_size=1000' \
+              --data-urlencode 'fields=id,tags,document_type,custom_fields' \
+              "$paperless_api/documents/")"
+            document="$(${pkgs.jq}/bin/jq --compact-output \
+              --argjson processed "$processed_id" \
+              --argjson reprocess "$reprocess_id" \
+              '[.results[] | select(
+                (.tags | index($processed) | not)
+                and (.tags | index($reprocess) | not)
+              )][0] // empty' <<< "$documents")"
+          fi
+
+          if [[ -z "$document" ]]; then
+            echo "No documents pending Paperless-AI processing"
             exit 0
+          fi
+
+          document_id="$(${pkgs.jq}/bin/jq --raw-output '.id' <<< "$document")"
+          original_document_type_id="$(${pkgs.jq}/bin/jq --compact-output '.document_type // null' <<< "$document")"
+          original_custom_fields="$(${pkgs.jq}/bin/jq --compact-output '.custom_fields // []' <<< "$document")"
+          accepted_tags="$(${pkgs.jq}/bin/jq --compact-output \
+            --argjson reprocess "$reprocess_id" \
+            --argjson processed "$processed_id" \
+            --argjson review "$review_id" \
+            --argjson suggested "''${suggested_tags_field_id:-null}" \
+            --argjson lookup "$tag_lookup" \
+            '(
+              .custom_fields[]?
+              | select($suggested != null and .field == $suggested)
+              | .value
+            ) // "" as $suggestions
+            | ([
+                $suggestions
+                | scan("(?i)(?:^|[;\\n])\\s*([a-z0-9][a-z0-9_-]*:[a-z0-9][a-z0-9._-]*)\\s*(?:-|$)")
+                | .[0]
+                | ascii_downcase
+                | select(startswith("workflow:") | not)
+                | $lookup[.] // empty
+              ]) as $promoted
+            | ([
+                .tags[]
+                | select(. != $reprocess and . != $processed and . != $review)
+              ] + $promoted | unique)' <<< "$document")"
+
+          suggested_document_type="$(${pkgs.jq}/bin/jq --raw-output \
+            --argjson suggested "''${suggested_type_field_id:-null}" \
+            '([.custom_fields[]?
+              | select($suggested != null and .field == $suggested)
+              | .value
+              | select(. != null and . != "")][0]) // ""' <<< "$document")"
+          accepted_document_type_id=""
+          if ${pkgs.jq}/bin/jq --exit-status --arg name "$suggested_document_type" \
+            '(map(ascii_downcase) | index($name | ascii_downcase)) != null' \
+            <<< "$managed_document_types" >/dev/null; then
+            accepted_document_type_id="$(${pkgs.jq}/bin/jq --raw-output \
+              --arg name "$suggested_document_type" \
+              '.[$name | ascii_downcase].id // empty' <<< "$document_type_lookup")"
           fi
 
           ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
             --request POST \
             --header "x-api-key: $api_key" \
             --header 'Content-Type: application/json' \
-            --data "$(${pkgs.jq}/bin/jq --null-input --compact-output --argjson ids "$ids" '{ids: $ids}')" \
+            --data "$(${pkgs.jq}/bin/jq --null-input --compact-output --argjson id "$document_id" '{ids: [$id]}')" \
             "$paperless_ai/api/reset-documents" >/dev/null
 
-          declare -A accepted_tags_by_document
-          while IFS= read -r document; do
-            document_id="$(${pkgs.jq}/bin/jq --raw-output '.id' <<< "$document")"
-            accepted_tags="$(${pkgs.jq}/bin/jq --compact-output \
-              --argjson reprocess "$reprocess_id" \
-              --argjson processed "$processed_id" \
-              --argjson review "$review_id" \
-              --argjson suggested "''${suggested_field_id:-null}" \
-              --argjson lookup "$tag_lookup" \
-              '(
-                .custom_fields[]?
-                | select($suggested != null and .field == $suggested)
-                | .value
-              ) // "" as $suggestions
-              | ([
-                  $suggestions
-                  | scan("(?i)(?:^|[;\\n])\\s*([a-z0-9][a-z0-9_-]*:[a-z0-9][a-z0-9._-]*)\\s*(?:-|$)")
-                  | .[0]
-                  | ascii_downcase
-                  | select(startswith("workflow:") | not)
-                  | $lookup[.] // empty
-                ]) as $promoted
-              | ([
-                  .tags[]
-                  | select(. != $reprocess and . != $processed and . != $review)
-                ] + $promoted | unique)' <<< "$document")"
-            accepted_tags_by_document["$document_id"]="$accepted_tags"
-            payload="$(${pkgs.jq}/bin/jq --compact-output \
-              --argjson reprocess "$reprocess_id" \
-              --argjson processed "$processed_id" \
-              --argjson review "$review_id" \
-              --argjson suggested "''${suggested_field_id:-null}" \
-              --argjson accepted "$accepted_tags" \
-              '{
-                tags: ($accepted + [$review] | unique),
-                custom_fields: [
-                  .custom_fields[]? | select($suggested == null or .field != $suggested)
-                ]
-              }' <<< "$document")"
-
-            ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
-              --request PATCH \
-              "''${auth[@]}" \
-              --header 'Content-Type: application/json' \
-              --data "$payload" \
-              "$paperless_api/documents/$document_id/" >/dev/null
-          done < <(${pkgs.jq}/bin/jq --compact-output '.results[]' <<< "$documents")
+          payload="$(${pkgs.jq}/bin/jq --compact-output \
+            --argjson suggested_tags "''${suggested_tags_field_id:-null}" \
+            --argjson suggested_type "''${suggested_type_field_id:-null}" \
+            --argjson review "$review_id" \
+            --argjson accepted "$accepted_tags" \
+            --argjson accepted_type "''${accepted_document_type_id:-null}" \
+            '{
+              tags: ($accepted + [$review] | unique),
+              document_type: $accepted_type,
+              custom_fields: [
+                .custom_fields[]? | select(
+                  ($suggested_tags == null or .field != $suggested_tags)
+                  and ($suggested_type == null or .field != $suggested_type)
+                )
+              ]
+            }' \
+            <<< "$document")"
+          ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+            --request PATCH \
+            "''${auth[@]}" \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$paperless_api/documents/$document_id/" >/dev/null
 
           ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 1800 \
             --request POST \
             --header "x-api-key: $api_key" \
-            "$paperless_ai/api/scan/now" >/dev/null
+            --header 'Content-Type: application/json' \
+            --data "$(${pkgs.jq}/bin/jq --null-input --compact-output \
+              --arg url "${config.modules.services.paperless-ai.paperless.apiUrl}/documents/$document_id/" \
+              '{url: $url}')" \
+            "$paperless_ai/api/webhook/document" >/dev/null
 
-          while IFS= read -r document_id; do
-            accepted_tags="''${accepted_tags_by_document[$document_id]}"
-            document="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
-              "''${auth[@]}" "$paperless_api/documents/$document_id/")"
+          document="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+            "''${auth[@]}" "$paperless_api/documents/$document_id/")"
+          if ${pkgs.jq}/bin/jq --exit-status --argjson processed "$processed_id" \
+            '(.tags | index($processed)) != null' <<< "$document" >/dev/null; then
+            current_document_type_id="$(${pkgs.jq}/bin/jq --raw-output '.document_type // empty' <<< "$document")"
+            current_document_type_name=""
+            current_document_type_json=""
+            if [[ -n "$current_document_type_id" ]]; then
+              current_document_type_json="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+                "''${auth[@]}" "$paperless_api/document_types/$current_document_type_id/")"
+              current_document_type_name="$(${pkgs.jq}/bin/jq --raw-output '.name' \
+                <<< "$current_document_type_json")"
+            fi
+
+            document_type_allowed=false
+            final_document_type_id="null"
+            unmanaged_document_type_id=""
+            type_suggestion="$(${pkgs.jq}/bin/jq --raw-output \
+              --argjson suggested "''${suggested_type_field_id:-null}" \
+              '([.custom_fields[]?
+                | select($suggested != null and .field == $suggested)
+                | .value
+                | select(. != null and . != "")][0]) // ""' <<< "$document")"
+
+            if [[ -n "$accepted_document_type_id" ]]; then
+              document_type_allowed=true
+              final_document_type_id="$accepted_document_type_id"
+              type_suggestion=""
+            elif [[ -n "$type_suggestion" ]]; then
+              if [[ -n "$current_document_type_name" ]] \
+                && ! ${pkgs.jq}/bin/jq --exit-status --arg name "$current_document_type_name" \
+                  '(map(ascii_downcase) | index($name | ascii_downcase)) != null' \
+                  <<< "$managed_document_types" >/dev/null; then
+                unmanaged_document_type_id="$current_document_type_id"
+              fi
+            elif [[ -n "$current_document_type_name" ]] \
+              && ${pkgs.jq}/bin/jq --exit-status --arg name "$current_document_type_name" \
+                '(map(ascii_downcase) | index($name | ascii_downcase)) != null' \
+                <<< "$managed_document_types" >/dev/null; then
+              document_type_allowed=true
+              final_document_type_id="$current_document_type_id"
+              type_suggestion=""
+            else
+              if [[ -n "$current_document_type_name" ]]; then
+                type_suggestion="$current_document_type_name"
+                unmanaged_document_type_id="$current_document_type_id"
+              fi
+            fi
+
             payload="$(${pkgs.jq}/bin/jq --compact-output \
               --argjson reprocess "$reprocess_id" \
               --argjson processed "$processed_id" \
               --argjson review "$review_id" \
               --argjson accepted "$accepted_tags" \
+              --argjson type_allowed "$document_type_allowed" \
+              --argjson document_type "$final_document_type_id" \
+              --argjson suggested_type "''${suggested_type_field_id:-null}" \
+              --arg type_suggestion "$type_suggestion" \
               '([.tags[] | select(. != $reprocess)] + $accepted | unique) as $merged
               | ($merged | map(select(. != $processed and . != $review)) | length) as $classified
               | {
                   tags: (
-                    if $classified > 0
+                    if $classified > 0 and $type_allowed
                     then $merged | map(select(. != $review))
-                    else $merged
+                    else ($merged + [$review] | unique)
                     end
+                  ),
+                  document_type: $document_type,
+                  custom_fields: (
+                    [.custom_fields[]? | select(
+                      $suggested_type == null or .field != $suggested_type
+                    )]
+                    + (if $suggested_type != null and $type_suggestion != ""
+                      then [{field: $suggested_type, value: $type_suggestion}]
+                      else []
+                      end)
                   )
                 }' <<< "$document")"
+            result="processed"
+          else
+            payload="$(${pkgs.jq}/bin/jq --compact-output \
+              --argjson reprocess "$reprocess_id" \
+              --argjson review "$review_id" \
+              --argjson original_type "$original_document_type_id" \
+              --argjson original_custom_fields "$original_custom_fields" \
+              '{
+                tags: (.tags + [$review, $reprocess] | unique),
+                document_type: $original_type,
+                custom_fields: $original_custom_fields
+              }' <<< "$document")"
+            result="failed"
+          fi
 
-            ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
-              --request PATCH \
-              "''${auth[@]}" \
-              --header 'Content-Type: application/json' \
-              --data "$payload" \
-              "$paperless_api/documents/$document_id/" >/dev/null
-          done < <(${pkgs.jq}/bin/jq --raw-output '.[]' <<< "$ids")
+          ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+            --request PATCH \
+            "''${auth[@]}" \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$paperless_api/documents/$document_id/" >/dev/null
 
-          echo "Queued and scanned $count document(s) with Paperless-AI"
+          if [[ -n "''${unmanaged_document_type_id:-}" ]]; then
+            document_type="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+              "''${auth[@]}" "$paperless_api/document_types/$unmanaged_document_type_id/")"
+            if [[ "$(${pkgs.jq}/bin/jq --raw-output '.document_count' <<< "$document_type")" -eq 0 ]]; then
+              ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+                --request DELETE \
+                "''${auth[@]}" \
+                "$paperless_api/document_types/$unmanaged_document_type_id/" >/dev/null
+              echo "Removed unreferenced suggested document type: $type_suggestion"
+            fi
+          fi
+
+          if [[ "$result" == "failed" ]]; then
+            echo "Paperless-AI failed document $document_id; queued for retry" >&2
+            exit 1
+          fi
+
+          echo "Processed Paperless document $document_id with Paperless-AI"
         '';
       };
 
       systemd.timers.paperless-ai-reprocess = {
-        description = "Process Paperless-AI reprocessing requests";
+        description = "Dispatch pending Paperless documents to Paperless-AI";
         wantedBy = [ "timers.target" ];
         timerConfig = {
-          OnBootSec = "5m";
-          OnUnitActiveSec = "5m";
-          RandomizedDelaySec = "1m";
+          OnActiveSec = "1m";
+          OnUnitInactiveSec = "1m";
+          RandomizedDelaySec = "15s";
           Persistent = true;
         };
       };
@@ -573,7 +788,7 @@ in
         description = "Hourly Paperless-AI provider health check";
         wantedBy = [ "timers.target" ];
         timerConfig = {
-          OnBootSec = "5m";
+          OnActiveSec = "5m";
           OnUnitActiveSec = "1h";
           RandomizedDelaySec = "5m";
           Persistent = true;
