@@ -43,6 +43,15 @@
 # writing to this same database — never a second credential in one env file.
 # That keeps a compromised env file worth exactly one account.
 #
+# FLAKE LOCK: Renovate watches homelab-mcp and auto-merges its bumps within
+# minutes; nothing watches carpenike/lading. So after pushing lading you MUST
+# bump its input here by hand — on 2026-08-04 that was missed, and the deployed
+# closure ran ahead of the committed lock, meaning the next apply from a clean
+# checkout would have silently rolled a fix back with no diff to explain it.
+# When in doubt, check the deployed closure rather than the lock:
+#   grep -c <symbol> /nix/store/*-lading-*/lib/python*/site-packages/lading/...
+# Adding lading to Renovate's watch list would remove the whole class of bug.
+#
 # One-time setup:
 #   1. Add `carpenike/lading` to the fine-grained GitHub PAT behind the
 #      `nix/access-tokens` SOPS secret, or the flake input 404s at build time.
