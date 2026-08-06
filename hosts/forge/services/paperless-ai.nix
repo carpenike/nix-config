@@ -27,6 +27,7 @@ let
     "Request for Information (RFI)"
     "Credit Card Statement"
     "Tax Bill"
+    "Tax Form"
     "Explanation of Benefits"
   ];
   customFields = [
@@ -251,7 +252,7 @@ in
           - finance:tax-year: Four-digit tax year when explicitly present.
           - finance:account-last4: Last four account digits when explicitly present; never store a full account number.
           - finance:statement-period: Statement month or date range in ISO-style form.
-          - finance:amount-due: Numeric amount currently due, without a currency symbol.
+          - finance:amount-due: Numeric amount currently requested for payment, without a currency symbol. Never use income, interest paid, principal balance, tax withheld, reimbursement, or another historical amount.
           - workflow:suggested-tags: When the existing taxonomy is insufficient, propose up to three lowercase namespaced tag identifiers with a brief reason for each.
           - workflow:suggested-document-type: When no allowed document type fits, propose one concise title-cased document type name.
 
@@ -265,6 +266,7 @@ in
           - Select one primary existing tag and a second only when the document clearly serves both purposes.
           - Classify the packet by its primary purpose, not an attachment. Any EOB, claim explanation, or insurer payment voucher remains finance:insurance when it includes a check, reimbursement, or amount paid.
           - Use the exact document type Explanation of Benefits for every EOB, claim explanation, insurer payment voucher, or EOB/check packet.
+          - Use the exact document type Tax Form for W-2, W-3, 1098, 1099, 3921, 3922, and similar tax-reporting forms.
           - Set document_type to an exact allowed document type. If none fits, set document_type to null, populate workflow:suggested-document-type, and include workflow:needs-review.
           - If no existing tag fits, return only workflow:needs-review and populate workflow:suggested-tags.
           - If classification confidence is low, return only workflow:needs-review; suggestions are optional.
@@ -377,8 +379,6 @@ in
         ];
         wants = [ "podman-paperless-ai.service" ];
         requires = [ "paperless-finance-bootstrap.service" ];
-        startLimitIntervalSec = 900;
-        startLimitBurst = 3;
 
         serviceConfig = {
           Type = "oneshot";
@@ -437,6 +437,8 @@ in
             --argjson managed "$managed_document_types" \
             '[$managed[] as $name | .[$name | ascii_downcase].id // empty]' \
             <<< "$document_type_lookup")"
+          eob_document_type_id="$(${pkgs.jq}/bin/jq --raw-output \
+            '.["explanation of benefits"].id // empty' <<< "$document_type_lookup")"
 
           suggested_tags_field_id="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
             "''${auth[@]}" --get --data-urlencode 'name__iexact=workflow:suggested-tags' \
@@ -444,6 +446,10 @@ in
           suggested_type_field_id="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
             "''${auth[@]}" --get --data-urlencode 'name__iexact=workflow:suggested-document-type' \
             "$paperless_api/custom_fields/" | ${pkgs.jq}/bin/jq --raw-output '.results[0].id // empty')"
+          amount_due_field_id="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
+            "''${auth[@]}" --get --data-urlencode 'name__iexact=finance:amount-due' \
+            "$paperless_api/custom_fields/" | ${pkgs.jq}/bin/jq --raw-output '.results[0].id // empty')"
+          [[ -n "$eob_document_type_id" && -n "$amount_due_field_id" ]]
 
           stale_reviews="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
             "''${auth[@]}" --get \
@@ -555,6 +561,10 @@ in
               --arg name "$suggested_document_type" \
               '.[$name | ascii_downcase].id // empty' <<< "$document_type_lookup")"
           fi
+          if [[ -z "$accepted_document_type_id" \
+            && "$original_document_type_id" == "$eob_document_type_id" ]]; then
+            accepted_document_type_id="$eob_document_type_id"
+          fi
 
           ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
             --request POST \
@@ -569,6 +579,8 @@ in
             --argjson review "$review_id" \
             --argjson accepted "$accepted_tags" \
             --argjson accepted_type "''${accepted_document_type_id:-null}" \
+            --argjson eob_type "$eob_document_type_id" \
+            --argjson amount_due "$amount_due_field_id" \
             '{
               tags: ($accepted + [$review] | unique),
               document_type: $accepted_type,
@@ -576,6 +588,7 @@ in
                 .custom_fields[]? | select(
                   ($suggested_tags == null or .field != $suggested_tags)
                   and ($suggested_type == null or .field != $suggested_type)
+                  and ($accepted_type != $eob_type or .field != $amount_due)
                 )
               ]
             }' \
@@ -653,6 +666,8 @@ in
               --argjson type_allowed "$document_type_allowed" \
               --argjson document_type "$final_document_type_id" \
               --argjson suggested_type "''${suggested_type_field_id:-null}" \
+              --argjson eob_type "$eob_document_type_id" \
+              --argjson amount_due "$amount_due_field_id" \
               --arg type_suggestion "$type_suggestion" \
               '([.tags[] | select(. != $reprocess)] + $accepted | unique) as $merged
               | ($merged | map(select(. != $processed and . != $review)) | length) as $classified
@@ -667,6 +682,8 @@ in
                   custom_fields: (
                     [.custom_fields[]? | select(
                       $suggested_type == null or .field != $suggested_type
+                    ) | select(
+                      $document_type != $eob_type or .field != $amount_due
                     )]
                     + (if $suggested_type != null and $type_suggestion != ""
                       then [{field: $suggested_type, value: $type_suggestion}]

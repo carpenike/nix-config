@@ -350,6 +350,7 @@ in
       # Alertmanager configuration using native *_file pattern for secrets
       services.prometheus.alertmanager = {
         enable = true;
+        extraFlags = [ "--cluster.listen-address=" ];
         configuration = {
           route = {
             # Default receiver: OnCall if enabled, otherwise Pushover medium
