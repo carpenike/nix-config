@@ -14,9 +14,11 @@
 # Forge owns PostgreSQL provisioning, secrets, monitoring and backups; the
 # upstream flake owns the package and the hardened units.
 #
-# The MCP tools live in homelab-mcp (tools/amazon.py, not yet written), NOT
-# here. It reads this database through the `homelab-mcp` role declared below,
-# which holds `readonly` membership — SELECT and nothing else.
+# The MCP tools live in homelab-mcp (tools/amazon.py), NOT here. It reads this
+# database through the `homelab-mcp` role declared below, which holds
+# `readonly` membership — SELECT and nothing else. The `costco_*` tools are
+# not written yet; when they are, they need no new grant, because the reader
+# inherits SELECT on new tables via ALTER DEFAULT PRIVILEGES on the owner role.
 #
 # EXPOSURE — read this before enabling. The sync unit holds an Amazon
 # username, password and TOTP seed. That credential CAN PLACE ORDERS AND
@@ -34,8 +36,12 @@
 #
 # Purchase history is also more sensitive than it looks: it leaks gifts before
 # they are given, medical supplies, and anything anyone bought. Keep `amazon_*`
-# OUT of the `hermes` entry in HOMELAB_MCP_RESTRICTED_SCOPES when those tools
-# land, for the same reason `school_*` is kept out.
+# AND `costco_*` OUT of the `hermes` entry in HOMELAB_MCP_RESTRICTED_SCOPES,
+# for the same reason `school_*` is kept out. Warehouse receipts are if
+# anything worse: an itemised grocery run is a week of the household's life.
+#
+# That entry is an ALLOWLIST and fails closed, so a new tool category is
+# excluded by default and this is a note about not adding it — not a step.
 #
 # MULTI-ACCOUNT. Every row carries an `account` label. A second Amazon account
 # (e.g. Steffi's) is a SECOND lading-sync unit with its own sops
@@ -65,6 +71,14 @@
 #            amazon_username:       <email>
 #            amazon_password:       <password>
 #            amazon_otp_secret_key: <base32 seed, spaces and all>
+#            costco_tokens:         <the JSON blob captured from a browser>
+#
+#      costco_tokens is a different KIND of secret from the three above it: a
+#      SEED, not a standing credential. Azure B2C rotates the refresh token on
+#      every use, so the live value lives in the unit's StateDirectory and this
+#      one is installed only when no live token exists. Re-seed roughly twice a
+#      year (the token is good for 90 days); see the upstream AGENTS.md for the
+#      DevTools snippet that captures it.
 #
 #      db_password and reader_password are shared — one database, one
 #      readonly role. Everything under an account name belongs to exactly
@@ -138,7 +152,27 @@ let
   # hand-maintained second copy is how `lading-sync` ended up ordered after
   # postgres while the unit that actually runs, `lading-sync-ryan`, was not.
   syncAccounts = {
-    ryan.environmentFile = config.sops.templates."lading-sync-ryan-env".path;
+    ryan = {
+      environmentFile = config.sops.templates."lading-sync-ryan-env".path;
+
+      # Costco warehouse receipts, on this same unit and this same timer.
+      #
+      # A SECOND SOURCE WITH A SECOND CREDENTIAL, and the two are decoupled in
+      # both directions upstream: the Costco fetch performs no amazon.com
+      # login, so an Amazon account being challenged does not stop warehouse
+      # receipts arriving, and vice versa. It shares the unit only because it
+      # shares the account label and the state directory.
+      #
+      # Only ryan's membership exists, so this is deliberately NOT mirrored
+      # onto steffi below — unlike the Amazon keys, where the symmetry is the
+      # point. The upstream module derives LADING_COSTCO_ACCOUNTS for the
+      # health unit from whichever accounts set this, so /healthz cannot end
+      # up disagreeing with which units actually sync Costco.
+      costco = {
+        enable = true;
+        tokenSeedFile = config.sops.secrets."lading/ryan/costco_tokens".path;
+      };
+    };
 
     steffi = {
       environmentFile = config.sops.templates."lading-sync-steffi-env".path;
@@ -193,6 +227,11 @@ in
           # once per order, ever. This bounds what an UNATTENDED run can fire
           # after a backfill; it is a precaution, not a measured rate limit.
           max_detail_fetches_per_run = 40;
+          # Costco's rolling window. Wider than Amazon's 45 because the fetch
+          # is ONE cheap GraphQL call with no per-record follow-up, so the
+          # overlap costs almost nothing and heals a longer outage. Costco
+          # only exposes about two years of history, which bounds any backfill.
+          costco_window_days = 90;
         };
 
         environmentFile = config.sops.templates."lading-health-env".path;
