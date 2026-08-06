@@ -1286,6 +1286,37 @@ in
             group = "root";
           };
 
+          # Costco warehouse receipts for this account — a SECOND, unrelated
+          # credential, and much milder than the Amazon one above: it reads
+          # order history and cannot place an order or change an address.
+          #
+          # The value is the JSON blob captured from a signed-in browser:
+          #
+          #   {"oid": "...", "client_id": "...", "refresh_token": "..."}
+          #
+          # See "Costco: the read path is proven" in the upstream repo's
+          # AGENTS.md for the one-line DevTools console snippet that produces
+          # it. Capturing it is deliberately a manual, human act — an agent
+          # reading a refresh token out of a browser is indistinguishable from
+          # stealing one, and it trips credential-exfiltration guards.
+          #
+          # **THIS IS A SEED AND ONLY A SEED.** Azure B2C rotates the refresh
+          # token on every redemption, so the live value changes on every run
+          # and is written back to the unit's StateDirectory. The upstream
+          # module installs this file ONLY when no live token exists yet;
+          # copying it on every start would restore a spent token and the next
+          # refresh would fail `invalid_grant` days later, looking like an
+          # expiry rather than a self-inflicted overwrite.
+          #
+          # The captured token is good for 90 days, so re-seeding is a roughly
+          # twice-yearly manual act — the same cadence as the Amazon cookie
+          # jar, and for the same reason.
+          "lading/ryan/costco_tokens" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
           # Steffi's Amazon account. Same three keys, same shapes — the
           # symmetry is the point: a second account is a sibling block, not a
           # differently-named special case.
