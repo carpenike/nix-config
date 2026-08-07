@@ -17,6 +17,27 @@ let
   dataDir = "/var/lib/paperless-ai";
   listenPort = 3001;
   serviceEnabled = config.modules.services.paperless-ai.enable or false;
+  canonicalCorrespondents = [
+    "Adventist HealthCare"
+    "Comptroller of Maryland"
+    "Department of Veterans Affairs"
+    "Frederick County"
+    "Newrez"
+  ];
+  correspondentAliases = {
+    "adventist healthcare" = "Adventist HealthCare";
+    "comptroller of maryland" = "Comptroller of Maryland";
+    "department of veterans affairs" = "Department of Veterans Affairs";
+    "department of veterans affairs (va)" = "Department of Veterans Affairs";
+    "frederick county" = "Frederick County";
+    "frederick county health department / department of permits & inspections" = "Frederick County";
+    "frederick county health department, department of permits & inspections" = "Frederick County";
+    "maryland comptroller of maryland" = "Comptroller of Maryland";
+    "newrez" = "Newrez";
+    "newrez llc" = "Newrez";
+    "newrez llc dba shellpoint mortgage servicing" = "Newrez";
+    "state of maryland comptroller" = "Comptroller of Maryland";
+  };
   managedDocumentTypes = [
     "Performance Work Statement"
     "Request for Information"
@@ -57,6 +78,7 @@ let
 
     from django.contrib.auth import get_user_model
     from documents.models import CustomField
+    from documents.models import Correspondent
     from documents.models import SavedView
     from documents.models import SavedViewFilterRule
     from documents.models import Tag
@@ -65,7 +87,12 @@ let
     from documents.models import WorkflowTrigger
 
     custom_fields = json.loads(${builtins.toJSON (builtins.toJSON customFields)})
+    canonical_correspondents = json.loads(${builtins.toJSON (builtins.toJSON canonicalCorrespondents)})
     saved_views = json.loads(${builtins.toJSON (builtins.toJSON savedViews)})
+
+    for correspondent_name in canonical_correspondents:
+      if not Correspondent.objects.filter(name__iexact=correspondent_name).exists():
+        Correspondent.objects.create(name=correspondent_name)
 
     fields = {}
     for definition in custom_fields:
@@ -256,12 +283,15 @@ in
           - finance:tax-year: Four-digit tax year when explicitly present.
           - finance:account-last4: Last four account digits when explicitly present; never store a full account number.
           - finance:statement-period: Statement month or date range in ISO-style form.
-          - finance:amount-due: Numeric amount currently requested for payment, without a currency symbol. Never use income, interest paid, principal balance, tax withheld, reimbursement, or another historical amount.
+          - finance:amount-due: Positive monetary amount currently and explicitly requested for payment. Use plain ASCII digits without a currency symbol or thousands separators and at most two decimal places (for example, 5774 or 5774.00). Never use income, interest paid, principal balance, tax withheld, reimbursement, an estimated tax payment voucher, or another historical amount.
           - workflow:suggested-tags: When the existing taxonomy is insufficient, propose up to three lowercase namespaced tag identifiers with a brief reason for each.
           - workflow:suggested-document-type: When no allowed document type fits, propose one concise title-cased document type name.
 
           Allowed document types:
           ${lib.concatMapStringsSep "\n" (name: "- ${name}") managedDocumentTypes}
+
+          Canonical correspondent aliases:
+          ${lib.concatMapAttrsStringSep "\n" (alias: canonical: "- ${alias} -> ${canonical}") correspondentAliases}
 
           Rules:
           - Return exact tag identifiers from the list above; never translate, alter, or invent tag names.
@@ -277,6 +307,7 @@ in
           - If no existing tag fits, return only workflow:needs-review and populate workflow:suggested-tags.
           - If classification confidence is low, return only workflow:needs-review; suggestions are optional.
           - Never place a proposed tag in the tags array until it exists in Paperless.
+          - Return the exact canonical correspondent for any alias listed above.
           - Controlled tag identifiers remain in English regardless of the document language.
           - Create a concise title, identify the shortest useful correspondent name, extract the document date, and determine a precise document type and language.
         '';
@@ -344,7 +375,10 @@ in
           "paperless-web.service"
         ];
         wants = [ "caddy.service" "paperless-web.service" ];
-        serviceConfig.LogFilterPatterns = [ "~.*apiKey:.*" ];
+        serviceConfig.LogFilterPatterns = [
+          "~.*apiKey:.*"
+          "~.*Authorization: Token.*"
+        ];
       };
 
       systemd.services.paperless-finance-bootstrap = {
@@ -434,6 +468,13 @@ in
           workflow_tag_ids="$(${pkgs.jq}/bin/jq --compact-output \
             '[.results[] | select(.name | startswith("workflow:")) | .id]' \
             <<< "$tags_json")"
+
+          correspondents_json="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+            "''${auth[@]}" "$paperless_api/correspondents/?page_size=1000")"
+          correspondent_lookup="$(${pkgs.jq}/bin/jq --compact-output \
+            'reduce .results[] as $correspondent ({}; .[($correspondent.name | ascii_downcase)] = {id: $correspondent.id, name: $correspondent.name})' \
+            <<< "$correspondents_json")"
+          correspondent_aliases='${builtins.toJSON correspondentAliases}'
 
           document_types_json="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
             "''${auth[@]}" "$paperless_api/document_types/?page_size=1000")"
@@ -537,7 +578,10 @@ in
           original_custom_fields="$(${pkgs.jq}/bin/jq --compact-output \
             --argjson amount_due "$amount_due_field_id" \
             '[.custom_fields[]? | select(
-              .field != $amount_due or (((.value | tonumber?) // 0) > 0)
+              .field != $amount_due or (
+                (.value | tostring | test("^[0-9]+(?:\\.[0-9]{1,2})?$"))
+                and (((.value | tonumber?) // 0) > 0)
+              )
             )]' <<< "$document")"
           accepted_tags="$(${pkgs.jq}/bin/jq --compact-output \
             --argjson reprocess "$reprocess_id" \
@@ -607,7 +651,10 @@ in
                   ($suggested_tags == null or .field != $suggested_tags)
                   and ($suggested_type == null or .field != $suggested_type)
                   and ($accepted_type != $eob_type or .field != $amount_due)
-                  and (.field != $amount_due or (((.value | tonumber?) // 0) > 0))
+                  and (.field != $amount_due or (
+                    (.value | tostring | test("^[0-9]+(?:\\.[0-9]{1,2})?$"))
+                    and (((.value | tonumber?) // 0) > 0)
+                  ))
                   and (($accepted | index($property_permit)) == null
                     or ($finance_fields | index($field)) == null)
                 )
@@ -642,6 +689,29 @@ in
                 "''${auth[@]}" "$paperless_api/document_types/$current_document_type_id/")"
               current_document_type_name="$(${pkgs.jq}/bin/jq --raw-output '.name' \
                 <<< "$current_document_type_json")"
+            fi
+
+            current_correspondent_id="$(${pkgs.jq}/bin/jq --raw-output '.correspondent // empty' <<< "$document")"
+            final_correspondent_id="''${current_correspondent_id:-null}"
+            alias_correspondent_id=""
+            if [[ -n "$current_correspondent_id" ]]; then
+              current_correspondent="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+                "''${auth[@]}" "$paperless_api/correspondents/$current_correspondent_id/")"
+              current_correspondent_name="$(${pkgs.jq}/bin/jq --raw-output '.name' \
+                <<< "$current_correspondent")"
+              canonical_correspondent_name="$(${pkgs.jq}/bin/jq --raw-output \
+                --arg name "$current_correspondent_name" \
+                '.[$name | ascii_downcase] // ""' <<< "$correspondent_aliases")"
+              if [[ -n "$canonical_correspondent_name" ]]; then
+                canonical_correspondent_id="$(${pkgs.jq}/bin/jq --raw-output \
+                  --arg name "$canonical_correspondent_name" \
+                  '.[$name | ascii_downcase].id // empty' <<< "$correspondent_lookup")"
+                [[ -n "$canonical_correspondent_id" ]]
+                final_correspondent_id="$canonical_correspondent_id"
+                if [[ "$current_correspondent_id" != "$canonical_correspondent_id" ]]; then
+                  alias_correspondent_id="$current_correspondent_id"
+                fi
+              fi
             fi
 
             document_type_allowed=false
@@ -691,6 +761,7 @@ in
               --argjson finance_fields "$finance_custom_field_ids" \
               --argjson eob_type "$eob_document_type_id" \
               --argjson amount_due "$amount_due_field_id" \
+              --argjson correspondent "$final_correspondent_id" \
               --arg type_suggestion "$type_suggestion" \
               '([.tags[] | select(. != $reprocess)] + $accepted | unique) as $merged
               | ($merged | map(select(. != $processed and . != $review)) | length) as $classified
@@ -702,13 +773,17 @@ in
                     end
                   ),
                   document_type: $document_type,
+                  correspondent: $correspondent,
                   custom_fields: (
                     [.custom_fields[]? | .field as $field | select(
                       $suggested_type == null or .field != $suggested_type
                     ) | select(
                       $document_type != $eob_type or .field != $amount_due
                     ) | select(
-                      .field != $amount_due or (((.value | tonumber?) // 0) > 0)
+                      .field != $amount_due or (
+                        (.value | tostring | test("^[0-9]+(?:\\.[0-9]{1,2})?$"))
+                        and (((.value | tonumber?) // 0) > 0)
+                      )
                     ) | select(
                       ($merged | index($property_permit)) == null
                       or ($finance_fields | index($field)) == null
@@ -750,6 +825,18 @@ in
                 "''${auth[@]}" \
                 "$paperless_api/document_types/$unmanaged_document_type_id/" >/dev/null
               echo "Removed unreferenced suggested document type: $type_suggestion"
+            fi
+          fi
+
+          if [[ -n "''${alias_correspondent_id:-}" ]]; then
+            correspondent="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+              "''${auth[@]}" "$paperless_api/correspondents/$alias_correspondent_id/")"
+            if [[ "$(${pkgs.jq}/bin/jq --raw-output '.document_count' <<< "$correspondent")" -eq 0 ]]; then
+              ${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
+                --request DELETE \
+                "''${auth[@]}" \
+                "$paperless_api/correspondents/$alias_correspondent_id/" >/dev/null
+              echo "Removed unreferenced correspondent alias: $current_correspondent_name"
             fi
           fi
 
