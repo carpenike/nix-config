@@ -322,11 +322,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786131418,
-        "narHash": "sha256-jIpjTLYId42Slpiqf1ViYDaZ//p/5faMffWv5Mw3fP0=",
+        "lastModified": 1786132919,
+        "narHash": "sha256-ZbKfSXEQUlj5xdXl4QyiNw9di2/ZO5qvGEnzZB880N4=",
         "owner": "carpenike",
         "repo": "mcp",
-        "rev": "a80d0388e913e0bd53cf0a787b9c172a762a1bd5",
+        "rev": "0b6058a58763f68398678129b4a509eaec81dff6",
         "type": "github"
       },
       "original": {
@@ -361,11 +361,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786131415,
-        "narHash": "sha256-SWJ4oTpR3ZdReroVYx512AS3tmNrotZYEN40whidgJ0=",
+        "lastModified": 1786132327,
+        "narHash": "sha256-SxNqbgSn7gIWqMizPA4x9E6w6Q9r0gwJvWt2/0ImTRI=",
         "owner": "carpenike",
         "repo": "lading",
-        "rev": "6948f97560058cb40b8ef31b95a088a3b9416c3b",
+        "rev": "5213e0beb04d3673c250550e11bb506c7b80055f",
         "type": "github"
       },
       "original": {
