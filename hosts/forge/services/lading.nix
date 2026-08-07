@@ -180,6 +180,24 @@ let
       # inside the same minute is a more interesting pattern than two
       # spread across the night.
       onCalendar = [ "*-*-* 05:40:00" ];
+
+      # A SECOND COSTCO MEMBERSHIP, and the reason this is not optional.
+      #
+      # Measured 2026-08-07 against the real ledger: with only ryan's
+      # membership synced, 17 of 42 Costco charges (40.5%) had a receipt —
+      # and every one of those 17 matched exactly, so the matcher was never
+      # wrong, it was blind. A 15-month query on ryan's account returns ONE
+      # distinct membershipNumber, and matched and unmatched trips alternate
+      # week by week for fifteen months. Two people, two cards.
+      #
+      # Costco's warehouse receipts attach to the membership number scanned at
+      # the register, not to the household, so the other card's trips live in
+      # its own online account and ryan's will never show them. This is the
+      # same shape as the second Amazon account, and the same fix.
+      costco = {
+        enable = true;
+        tokenSeedFile = config.sops.secrets."lading/steffi/costco_tokens".path;
+      };
     };
   };
 
