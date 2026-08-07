@@ -28,6 +28,7 @@ let
     "Credit Card Statement"
     "Tax Bill"
     "Tax Form"
+    "Permit"
     "Explanation of Benefits"
   ];
   customFields = [
@@ -214,6 +215,7 @@ in
             "finance:receipt"
             "finance:loan"
             "finance:investment"
+            "property:permit"
             "workflow:needs-review"
             "workflow:ai-processed"
             "workflow:reprocess"
@@ -244,6 +246,7 @@ in
           - finance:receipt: Merchant or vendor proof of a completed purchase or bill payment; excludes insurance claim payments, reimbursements, and EOB payment vouchers.
           - finance:loan: Loan agreements, mortgage documents, payment schedules, and lending notices.
           - finance:investment: Trade confirmations, portfolio reports, and investment or retirement-plan documents that are not periodic statements.
+          - property:permit: Government-issued building, septic, environmental health, occupancy, or similar property permits, approvals, and completion certificates.
           - workflow:needs-review: The document does not confidently fit a finance category above.
           - workflow:ai-processed: Reserved for Paperless-AI; never select it yourself.
           - workflow:reprocess: Reserved for requesting another AI pass; never select it yourself.
@@ -267,6 +270,7 @@ in
           - Classify the packet by its primary purpose, not an attachment. Any EOB, claim explanation, or insurer payment voucher remains finance:insurance when it includes a check, reimbursement, or amount paid.
           - Use the exact document type Explanation of Benefits for every EOB, claim explanation, insurer payment voucher, or EOB/check packet.
           - Use the exact document type Tax Form for W-2, W-3, 1098, 1099, 3921, 3922, and similar tax-reporting forms.
+          - Use the exact document type Permit for property permits, permit applications, approvals, inspections, and completion certificates.
           - Set document_type to an exact allowed document type. If none fits, set document_type to null, populate workflow:suggested-document-type, and include workflow:needs-review.
           - If no existing tag fits, return only workflow:needs-review and populate workflow:suggested-tags.
           - If classification confidence is low, return only workflow:needs-review; suggestions are optional.
@@ -423,6 +427,8 @@ in
           tag_lookup="$(${pkgs.jq}/bin/jq --compact-output \
             'reduce .results[] as $tag ({}; .[($tag.name | ascii_downcase)] = $tag.id)' \
             <<< "$tags_json")"
+          property_permit_tag_id="$(${pkgs.jq}/bin/jq --raw-output \
+            '.["property:permit"] // empty' <<< "$tag_lookup")"
           workflow_tag_ids="$(${pkgs.jq}/bin/jq --compact-output \
             '[.results[] | select(.name | startswith("workflow:")) | .id]' \
             <<< "$tags_json")"
@@ -449,7 +455,11 @@ in
           amount_due_field_id="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
             "''${auth[@]}" --get --data-urlencode 'name__iexact=finance:amount-due' \
             "$paperless_api/custom_fields/" | ${pkgs.jq}/bin/jq --raw-output '.results[0].id // empty')"
-          [[ -n "$eob_document_type_id" && -n "$amount_due_field_id" ]]
+          finance_custom_field_ids="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 15 \
+            "''${auth[@]}" "$paperless_api/custom_fields/?page_size=1000" \
+            | ${pkgs.jq}/bin/jq --compact-output \
+              '[.results[] | select(.name | startswith("finance:")) | .id]')"
+          [[ -n "$property_permit_tag_id" && -n "$eob_document_type_id" && -n "$amount_due_field_id" ]]
 
           stale_reviews="$(${pkgs.curl}/bin/curl --fail --silent --show-error --max-time 30 \
             "''${auth[@]}" --get \
@@ -579,16 +589,20 @@ in
             --argjson review "$review_id" \
             --argjson accepted "$accepted_tags" \
             --argjson accepted_type "''${accepted_document_type_id:-null}" \
+            --argjson property_permit "$property_permit_tag_id" \
+            --argjson finance_fields "$finance_custom_field_ids" \
             --argjson eob_type "$eob_document_type_id" \
             --argjson amount_due "$amount_due_field_id" \
             '{
               tags: ($accepted + [$review] | unique),
               document_type: $accepted_type,
               custom_fields: [
-                .custom_fields[]? | select(
+                .custom_fields[]? | .field as $field | select(
                   ($suggested_tags == null or .field != $suggested_tags)
                   and ($suggested_type == null or .field != $suggested_type)
                   and ($accepted_type != $eob_type or .field != $amount_due)
+                  and (($accepted | index($property_permit)) == null
+                    or ($finance_fields | index($field)) == null)
                 )
               ]
             }' \
@@ -666,6 +680,8 @@ in
               --argjson type_allowed "$document_type_allowed" \
               --argjson document_type "$final_document_type_id" \
               --argjson suggested_type "''${suggested_type_field_id:-null}" \
+              --argjson property_permit "$property_permit_tag_id" \
+              --argjson finance_fields "$finance_custom_field_ids" \
               --argjson eob_type "$eob_document_type_id" \
               --argjson amount_due "$amount_due_field_id" \
               --arg type_suggestion "$type_suggestion" \
@@ -680,10 +696,13 @@ in
                   ),
                   document_type: $document_type,
                   custom_fields: (
-                    [.custom_fields[]? | select(
+                    [.custom_fields[]? | .field as $field | select(
                       $suggested_type == null or .field != $suggested_type
                     ) | select(
                       $document_type != $eob_type or .field != $amount_due
+                    ) | select(
+                      ($merged | index($property_permit)) == null
+                      or ($finance_fields | index($field)) == null
                     )]
                     + (if $suggested_type != null and $type_suggestion != ""
                       then [{field: $suggested_type, value: $type_suggestion}]
