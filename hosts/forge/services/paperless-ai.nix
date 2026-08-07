@@ -21,6 +21,7 @@ let
     "Performance Work Statement"
     "Request for Information"
     "Invoice"
+    "Receipt"
     "Account Statement"
     "Official Notice"
     "Performance Work Statement / Contract Statement of Work"
@@ -269,6 +270,7 @@ in
           - Select one primary existing tag and a second only when the document clearly serves both purposes.
           - Classify the packet by its primary purpose, not an attachment. Any EOB, claim explanation, or insurer payment voucher remains finance:insurance when it includes a check, reimbursement, or amount paid.
           - Use the exact document type Explanation of Benefits for every EOB, claim explanation, insurer payment voucher, or EOB/check packet.
+          - Use the exact document type Receipt for merchant or vendor receipts, paid-in-full orders, and proof of completed payment.
           - Use the exact document type Tax Form for W-2, W-3, 1098, 1099, 3921, 3922, and similar tax-reporting forms.
           - Use the exact document type Permit for property permits, permit applications, approvals, inspections, and completion certificates.
           - Set document_type to an exact allowed document type. If none fits, set document_type to null, populate workflow:suggested-document-type, and include workflow:needs-review.
@@ -532,7 +534,11 @@ in
 
           document_id="$(${pkgs.jq}/bin/jq --raw-output '.id' <<< "$document")"
           original_document_type_id="$(${pkgs.jq}/bin/jq --compact-output '.document_type // null' <<< "$document")"
-          original_custom_fields="$(${pkgs.jq}/bin/jq --compact-output '.custom_fields // []' <<< "$document")"
+          original_custom_fields="$(${pkgs.jq}/bin/jq --compact-output \
+            --argjson amount_due "$amount_due_field_id" \
+            '[.custom_fields[]? | select(
+              .field != $amount_due or (((.value | tonumber?) // 0) > 0)
+            )]' <<< "$document")"
           accepted_tags="$(${pkgs.jq}/bin/jq --compact-output \
             --argjson reprocess "$reprocess_id" \
             --argjson processed "$processed_id" \
@@ -601,6 +607,7 @@ in
                   ($suggested_tags == null or .field != $suggested_tags)
                   and ($suggested_type == null or .field != $suggested_type)
                   and ($accepted_type != $eob_type or .field != $amount_due)
+                  and (.field != $amount_due or (((.value | tonumber?) // 0) > 0))
                   and (($accepted | index($property_permit)) == null
                     or ($finance_fields | index($field)) == null)
                 )
@@ -700,6 +707,8 @@ in
                       $suggested_type == null or .field != $suggested_type
                     ) | select(
                       $document_type != $eob_type or .field != $amount_due
+                    ) | select(
+                      .field != $amount_due or (((.value | tonumber?) // 0) > 0)
                     ) | select(
                       ($merged | index($property_permit)) == null
                       or ($finance_fields | index($field)) == null
