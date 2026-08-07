@@ -179,7 +179,7 @@ let
     Spend MTD: <pace fact>
 
     Amazon: <seven-day and month-to-date fact>
-    HELOC: <balance and delta fact>
+    HELOC: $<absolute current balance> · <principal result>
 
     Recurring: <payment and unusual-activity fact>
 
@@ -196,14 +196,29 @@ let
        further spend as a trade; never claim $0/day can recover it.
     3. Amazon spend for the returned seven-day window and month to date versus
        the returned monthly baseline.
-    4. HELOC balance and the returned change since the prior comparison. Always
-       show the delta and briefly celebrate a paydown.
+    4. The HELOC line has exactly one of these three forms. Derive its principal
+       delta; raw payment activity is not principal movement. Let
+       `interest_only_payment` be `actual_amount` from the matched HELOC row in
+       `finances_recurring` only when its `posted_date` falls inside the same
+       seven-day window ending on `finances_debt_status.as_of`; otherwise use
+       zero. Because the HELOC balance is negative, compute
+       `principal_delta = change_7d - interest_only_payment`. Never report
+       `change_7d`, `scheduled_payment`, or `actual_amount` as principal.
+       Subtract before rounding, then use exactly one form:
+       - If `abs(principal_delta) < 1`, output exactly:
+         "HELOC: $<absolute current balance> · interest-only — balance unchanged"
+       - If `principal_delta >= 1`, output exactly:
+         "HELOC: $<absolute current balance> · principal down $<principal_delta> 🎉"
+       - If `principal_delta <= -1`, output exactly:
+         "HELOC: $<absolute current balance> · principal up $<absolute principal_delta>"
+       Round both amounts to whole dollars. Never call a payment paydown or
+       progress. Celebration is permitted only in the principal-down form.
     5. Missing/changed recurring payments and new payees over the returned
        threshold; if none, say "all recurring paid; nothing unusual."
 
     Be a scoreboard, not a referee: concise facts and deltas, no blame or advice.
-    Celebrate on-track spending and paydowns. If detail will not fit, flag it for
-    the monthly review rather than changing these five lines.
+    Celebrate on-track spending and principal reductions. If detail will not
+    fit, flag it for the monthly review rather than changing these five lines.
 
     Friday asking is restricted to one optional appendix. If
     finances_clarify_candidates returns candidates, append exactly one sixth
