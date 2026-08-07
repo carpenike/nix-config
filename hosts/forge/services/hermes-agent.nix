@@ -225,10 +225,12 @@ let
     - finances_sync_status with trigger_sync=false
     - finances_breaches with lookback_days=3
     - finances_buffer with no arguments
-    - finances_ticklers with no arguments (default due_only=true)
+    - finances_ticklers with due_only=false
 
     Send an alert only when at least one of these predicates is true:
-    1. `breach_candidates` is non-empty.
+    1. `breach_candidates` is non-empty OR an open `bridge-*` tickler has
+       `is_due=true`. Classify these through the HELOC Bridge Policy below
+       before choosing informational versus alarm treatment.
     2. A non-manual sync account has status `dead`. For basis `feed`, require
       feed_age_hours > 72. For basis `activity_fallback`, trust `dead` as the
       cadence-aware fallback and identify that weaker basis. Ignore `stale`,
@@ -240,14 +242,48 @@ let
       before 2026-08-24). Then alert for each `components.card_accounts` row
       where `counted` is true and the owed balance exceeds $500 (`balance` is
       less than -500).
-    5. `finances_ticklers.ticklers` is non-empty OR
-       `finances_ticklers.malformed` is non-empty. Due rows and malformed rows
-       are both speak conditions; neither may be treated as routine noise.
+    5. A non-bridge row in `finances_ticklers.ticklers` has `is_due=true` OR
+       `finances_ticklers.malformed` is non-empty. Due non-bridge rows and
+       malformed rows are both speak conditions; future or closed rows are
+       routine schedule data. Due `bridge-*` rows belong to BREACH, not TICKLER.
+
+    HELOC Bridge Policy for BREACH classification:
+    - A usable declaration is exactly one row whose id starts `bridge-`, whose
+      status is `open`, and whose message explicitly names the draw amount and
+      date, pre-draw HELOC balance, scheduled third-party inbound source, its
+      net amount and date, and why the buffer could not cover the commitment.
+      Never infer a missing field. The draw must be at most $30,000 and at most
+      90% of the named inbound's net amount. The row's `due` is the first
+      expired day and must be no later than the source date plus 10 business
+      days or 45 calendar days after the draw, whichever comes first. More than
+      one open bridge is itself a breach; never use either row as an exception.
+    - Match a breach candidate only when exactly one usable, not-due bridge has
+      an amount within 10% of the candidate and the candidate date is on or
+      after the declared draw date but before the row's `due`. One bridge may
+      excuse only its declared draw. For that match, BREACH remains true as the
+      hard SPEAK gate, but it is informational rather than an alarm. Output
+      exactly: "✅ Bridge open: $X against <source>, day N of M". Use the
+      candidate amount rounded to whole dollars and the declared source. Day 1
+      is the draw date; N is the inclusive calendar day through
+      `finances_ticklers.as_of`, and M is the number of calendar days from the
+      draw date up to but not including `due`.
+    - An open `bridge-*` row with `is_due=true` has converted automatically.
+      Output exactly: "🛑 Bridge breach: $X against <source>; window expired,
+      bridge converted." Use its declared amount and source. If either field
+      is missing, output exactly: "🛑 Bridge breach: <bridge-id>; window
+      expired, bridge converted." Do not also report that draw as an unmatched
+      candidate.
+    - A candidate with no usable exact bridge match is unchanged: report it as
+      the existing terse breach-candidate alarm, beginning with 🛑. Do not let a
+      future, closed, due, ambiguous, malformed, or policy-invalid bridge row
+      excuse it.
 
     After all four calls, privately reduce the results to five booleans named
     BREACH, DEAD_FEED, BELOW_FLOOR, REVOLVING_CREEP, and TICKLER using only the
-    rules above. TICKLER is false only when both `ticklers` and `malformed` are
-    empty. Do not print this checklist or mention any false category.
+    rules above. BREACH remains one boolean even when its required line is an
+    informational open-bridge status. TICKLER is false only when there are no
+    due non-bridge rows and `malformed` is empty. Do not print this checklist
+    or mention any false category.
 
     Final-response gate:
     - If all five booleans are false, your entire final response MUST be exactly
@@ -257,10 +293,10 @@ let
     - Otherwise, return only one terse factual line for each true boolean. Do
       not include lines for false booleans, routine status, advice, blame, or
       invented values.
-    - For TICKLER due rows, output each row's `message` verbatim as its own line,
-      then output exactly one line: "These reminders repeat daily until their
-      rows are edited in TICKLERS.md." Do not paraphrase, prefix, or combine a
-      due message.
+    - For TICKLER due non-bridge rows, output each row's `message` verbatim as
+      its own line, then output exactly one line: "These reminders repeat daily
+      until their rows are edited in TICKLERS.md." Do not paraphrase, prefix,
+      or combine a due message.
     - For each malformed row, output: "a reminder in TICKLERS.md is unreadable:
       <reason>" using that row's parser `reason` verbatim. Malformed rows always
       speak even when no due row exists.
