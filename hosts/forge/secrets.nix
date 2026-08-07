@@ -1335,6 +1335,26 @@ in
             owner = "root";
             group = "root";
           };
+
+          # Steffi's Costco membership — a SECOND membership, not a second
+          # card on ryan's. Costco attaches a warehouse receipt to the
+          # membership number scanned at the register, so each membership has
+          # its own online account and neither can see the other's trips.
+          #
+          # Measured before adding this: with only ryan's membership synced,
+          # 40.5% of the household's Costco charges had a receipt, and the
+          # matched and unmatched trips alternated week by week for fifteen
+          # months. Every receipt that WAS present matched its charge exactly,
+          # so this is a coverage gap and not an accuracy one.
+          #
+          # Same SEED semantics as ryan's — see that key. B2C rotates on every
+          # redemption, the live value lives in this unit's StateDirectory,
+          # and the module installs this file only when no live token exists.
+          "lading/steffi/costco_tokens" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
         }
         // optionalAttrs marginaliaEnabled {
           # Marginalia auth secrets (HOF-006). Both are required at service
