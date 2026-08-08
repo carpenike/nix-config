@@ -1337,6 +1337,36 @@ in
             group = "root";
           };
 
+          # Sam's Club in-club receipts for ryan. A SEED, exactly like
+          # costco_tokens above, and the same install-once guard applies —
+          # Azure B2C rotates the refresh token on every redemption, so the
+          # live value lives in the unit's StateDirectory.
+          #
+          # Two things differ from the Costco seed, both worth knowing before
+          # anyone plans to re-capture this:
+          #
+          #   * It CANNOT be captured from a browser. The samsclub.com web API
+          #     does not return totals, line prices or even a machine-readable
+          #     date for this cohort; only the MOBILE app's API does. Capturing
+          #     the token means putting a phone behind mitmproxy with a CA
+          #     installed — half an hour, not thirty seconds.
+          #   * It effectively never expires. Each redemption returns a fresh
+          #     365-day token, so a unit that keeps running never needs
+          #     re-seeding. Only a lapse longer than a year, a password change
+          #     or a revoked session brings the phone back out.
+          #
+          # Which makes restoring a spent seed over a good live token much more
+          # expensive here than for Costco. The module's `[ -e "$live" ]` test
+          # is what prevents it.
+          #
+          # The value is the JSON the capture produces: client_id,
+          # refresh_token, and the device identifiers the app sends with it.
+          "lading/ryan/samsclub_tokens" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+
           # Steffi's Amazon account. Same three keys, same shapes — the
           # symmetry is the point: a second account is a sibling block, not a
           # differently-named special case.
