@@ -376,6 +376,26 @@ in
             owner = "homelab-mcp";
             group = "homelab-mcp";
           };
+
+          # Owner password for the `homelab-mcp-export` Postgres role — the
+          # nightly finances export's DESTINATION, and the only WRITING
+          # database credential homelab-mcp holds anywhere. Every other store
+          # it touches (schoolhouse, lading) it reads through a role with
+          # `readonly` membership.
+          #
+          # Keep it URL-SAFE: it is interpolated into a DSN userinfo field in
+          # the `homelab-mcp-export-env` template, so `openssl rand -hex 32`
+          # is safe and `-base64 32` is NOT (+, / and = change what a URL
+          # means, and produce a confusing authentication failure rather than
+          # an obvious parse error).
+          #
+          # group=postgres so postgresql-provision-databases can read it at
+          # activation to set the role's password.
+          "homelab-mcp/export_db_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
         }
         // optionalAttrs cooklangFederationEnabled {
           "github/cooklang-token" = {
@@ -1786,6 +1806,37 @@ in
             owner = "root";
             group = "root";
             restartUnits = [ "homelab-mcp.service" ];
+          };
+        }
+        // optionalAttrs homelabMcpEnabled {
+          # WRITE DSN for the nightly finances export — the one credential in
+          # this file that can change a database rather than read one.
+          #
+          # A TEMPLATE for the same reason the two DSNs above are: it
+          # interpolates the very secret services/homelab-mcp.nix hands to
+          # `ownerPasswordFile`, so the password the job connects with cannot
+          # drift from the password the role was provisioned with. A
+          # hand-maintained line in homelab-mcp/env could, silently, and the
+          # symptom would be a dashboard that simply stopped updating.
+          #
+          # Its own role and its own database. `homelab-mcp-export` owns
+          # `homelab_finance` and holds no membership in `readonly`, so the
+          # blast radius of this credential is exactly the derived projection
+          # — not the ledger, which lives in Actual, and not lading's purchase
+          # history. Nothing in `household_finance` is a source of truth; the
+          # schema is safe to drop and the next run rebuilds it in seconds.
+          #
+          # restartUnits is deliberately absent. The consumer is a oneshot on
+          # a timer, not a daemon: it reads the file fresh on its next firing,
+          # and restarting a completed oneshot at activation would run an
+          # unscheduled export at deploy time.
+          "homelab-mcp-export-env" = {
+            content = ''
+              HOMELAB_MCP_EXPORT_PG_DSN=postgresql://homelab-mcp-export:${config.sops.placeholder."homelab-mcp/export_db_password"}@127.0.0.1:5432/homelab_finance
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
           };
         }
         // optionalAttrs marginaliaEnabled {

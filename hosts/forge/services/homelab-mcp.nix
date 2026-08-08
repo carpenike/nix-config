@@ -64,6 +64,11 @@ let
   actualSidecarUnit = "homelab-mcp-actual-sidecar";
   actualSidecarSupported = options.services.homelab-mcp ? actualSidecar;
   actualSidecarEnabled = config.services.homelab-mcp.actualSidecar.enable or false;
+  # Same rollback guard as the sidecar above: the option arrives with
+  # homelab-mcp 0.21.0, and a pin predating it must still evaluate.
+  financesExportSupported = options.services.homelab-mcp ? financesExport;
+  financeDb = "homelab_finance";
+  financeRole = "homelab-mcp-export";
 in
 {
   imports = [
@@ -306,6 +311,73 @@ in
         environmentFile = config.sops.secrets."homelab-mcp/actual-env".path;
       };
     })
+
+    # ── nightly finances export ───────────────────────────────────────
+    # A JOB, not an MCP tool. It reads the Actual sidecar and lading and
+    # projects derived metrics into its own Postgres schema for Grafana. The
+    # 05:30 slot is load-bearing: after lading's overnight Amazon sync, so
+    # per-person spend sees last night's orders, and before the morning sweep,
+    # so the sweep and the dashboard read the same numbers.
+    #
+    # Same rollback guard as the sidecar above.
+    (lib.optionalAttrs financesExportSupported {
+      services.homelab-mcp.financesExport = {
+        enable = true;
+        # Local time on purpose. A UTC expression drifts an hour across DST
+        # and would land the export on the wrong side of the morning sweep
+        # for half the year.
+        onCalendar = "*-*-* 05:30:00 America/New_York";
+        # Its OWN env file, not the service's. The job needs one thing the
+        # server must never hold — a database credential that can write — and
+        # the server needs a PocketID client secret and a GitHub token the job
+        # has no use for. Splitting them keeps each file worth exactly what it
+        # opens.
+        #
+        # NOTE the module also needs the sidecar token and the lading DSN,
+        # which live in the two files below; the unit reads all three.
+        environmentFile = config.sops.templates."homelab-mcp-export-env".path;
+      };
+
+      # Order behind the database provisioner. A oneshot that starts before
+      # its database exists fails loudly, which is fine once — but it would
+      # fail every deploy-day morning, and that is how an alert gets trained
+      # away. The sidecar ordering is already in the upstream unit; adding it
+      # here again would only duplicate the dependency.
+      systemd.services.homelab-mcp-finances-export = {
+        after = [ "postgresql-provision-databases.service" ];
+        requires = [ "postgresql-provision-databases.service" ];
+        serviceConfig.EnvironmentFile = lib.mkForce [
+          config.sops.templates."homelab-mcp-export-env".path
+          # The sidecar token: the job reads the register over loopback and
+          # the sidecar refuses an unauthenticated caller.
+          config.sops.secrets."homelab-mcp/env".path
+          # The lading reader DSN, for per-person Amazon attribution. Without
+          # it the job still runs and files Amazon spend as unattributed,
+          # recording the degradation rather than silently dropping it.
+          config.sops.templates."homelab-mcp-lading-env".path
+        ];
+      };
+    })
+
+    # The export's DESTINATION. Declared unconditionally — it is a database,
+    # not a feature flag, and provisioning it before the flake pin carrying
+    # the job lands is harmless (an empty database costs nothing, and the
+    # first run creates its own schema inside it).
+    #
+    # `owner-only`: nothing else on this host has any business reading the
+    # household's balance sheet. Notably NOT `owner-readwrite+readonly-select`
+    # — the cluster-wide `readonly` group is exactly that, cluster-wide, and
+    # granting it here would hand every existing reader role (including the
+    # one the always-on MCP server uses for Amazon history) a view of the
+    # household's net worth. When a Grafana datasource is wired, give it its
+    # own role and its own grant on `household_finance`.
+    {
+      modules.services.postgresql.databases.${financeDb} = {
+        owner = financeRole;
+        ownerPasswordFile = config.sops.secrets."homelab-mcp/export_db_password".path;
+        permissionsPolicy = "owner-only";
+      };
+    }
 
     # Service-down alert (native systemd service, not a container).
     (lib.mkIf (config.services.homelab-mcp.enable or false) (
