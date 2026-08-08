@@ -6,14 +6,14 @@
 # Design Decision: Container-based implementation
 # - No native NixOS module available in nixpkgs
 # - Upstream only provides container images
-# - Rust application with complex dependencies (Tantivy, Native_DB)
+# - Rust application with complex dependencies (Tantivy, bichon-blob)
 #
 # Port: 15630 (HTTP)
-# Data: /var/lib/bichon (SQLite metadata + Tantivy index + EML storage)
+# Data: /var/lib/bichon (memdb metadata + Tantivy indexes + bichon-blob storage)
 #
-# Authentication: SSO via caddySecurity (no native multi-user support)
-# The built-in access token auth is single-user only (root), so we skip it
-# and use PocketID SSO at the reverse proxy layer instead.
+# Authentication: Bichon OSS always enforces its native multi-user RBAC login.
+# Reverse-proxy authentication can provide an outer access gate, but native
+# OIDC SSO is a Pro/Enterprise feature.
 #
 # Factory-based implementation (see lib/service-factory.nix).
 { lib
@@ -155,8 +155,6 @@ mylib.mkContainerService {
         BICHON_BIND_ADDR = "0.0.0.0";
         BICHON_PUBLIC_URL = cfg.publicUrl;
         BICHON_LOG_LEVEL = cfg.logLevel;
-        # Disable access token auth - we use caddySecurity SSO instead
-        BICHON_ENABLE_ACCESS_TOKEN = "false";
         # Disable ANSI logs for cleaner journal output
         BICHON_ANSI_LOGS = "false";
       };

@@ -113,6 +113,7 @@
 
         serviceConfig = {
           Type = "oneshot";
+          RemainAfterExit = true;
           User = "root"; # Root is required for zfs rollback and chown
           TimeoutStartSec = timeoutSec;
         };

@@ -2,7 +2,7 @@
 #
 # Rust-based email archiving system with Tantivy search engine.
 # Archives emails via IMAP fetch or LMTP forwarding.
-# Uses Native_DB for metadata and stores EML files on disk.
+# Uses memdb for metadata, Tantivy for indexes, and bichon-blob for message data.
 #
 # Features:
 # - Full-text search via Tantivy
@@ -11,8 +11,9 @@
 # - No external database required (embedded)
 #
 # Security Model:
-# - Internal-only access via caddySecurity.home (PocketID SSO)
-# - No native multi-user support (access token is root-only)
+# - PocketID protects the outer HTTP boundary via caddySecurity.home
+# - Bichon OSS still requires its native RBAC/WebUI login (OIDC SSO is a paid feature)
+# - The native admin recovery password is stored in SOPS
 # - Encryption password is IMMUTABLE after first use
 #
 # Access: Internal only at bichon.holthome.net (no Cloudflare Tunnel)
@@ -45,7 +46,7 @@ in
             host = "127.0.0.1";
             port = 15630;
           };
-          # SSO authentication via PocketID - internal access only
+          # PocketID outer access gate - Bichon still enforces its native login
           caddySecurity = forgeDefaults.caddySecurity.home // {
             # Bypass PocketID auth for Bichon's OAuth2 callback
             # Microsoft redirects here after OAuth authorization
@@ -78,6 +79,14 @@ in
         sopsFile = ../secrets.sops.yaml;
         owner = "bichon";
         group = "bichon";
+        mode = "0400";
+      };
+
+      # Root-only recovery credential for Bichon's native admin account.
+      sops.secrets."bichon/admin-password" = {
+        sopsFile = ../secrets.sops.yaml;
+        owner = "root";
+        group = "root";
         mode = "0400";
       };
     }

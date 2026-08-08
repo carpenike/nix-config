@@ -56,6 +56,22 @@ with lib;
           '';
         };
 
+        preseed-critical-failure = {
+          enable = mkDefault true;
+          priority = mkDefault "high";
+          backend = mkDefault "pushover";
+          title = mkDefault ''<b><font color="red">✗ Preseed Unit Failed: ''${serviceName}</font></b>'';
+          body = mkDefault ''
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
+
+            The preseed unit entered a failed state. Critical services may remain blocked until the failure is resolved.
+
+            <b>Details:</b>
+            ''${message}
+          '';
+        };
+
         preseed-skipped = {
           enable = mkDefault true;
           priority = mkDefault "low";
