@@ -202,6 +202,28 @@ in
               "amazon_search_items"
               "amazon_list_orders"
               "amazon_get_sync_status"
+              # costco_* / samsclub_* — same rationale as amazon_*: the
+              # advisor matches ledger charges to receipts. costco_* was an
+              # oversight omission when the category shipped (caught during
+              # the samsclub build, 2026-08-09); an advisor-scoped token
+              # could not call it while unrestricted user tokens could.
+              "costco_match_charges"
+              "costco_get_receipt"
+              "costco_list_receipts"
+              "costco_search_items"
+              "costco_get_sync_status"
+              "costco_price_history"
+              "samsclub_match_charges"
+              "samsclub_get_receipt"
+              "samsclub_list_receipts"
+              "samsclub_search_items"
+              "samsclub_get_sync_status"
+              # fidelity_* — positions/summary for net-worth work; advisor
+              # yes, hermes NEVER (finances repo DECISIONS 2026-08-08:
+              # net-worth detail gets at least the enforcement purchase
+              # history gets).
+              "fidelity_positions"
+              "fidelity_summary"
               "signal_send"
             ];
             # DELIBERATELY NO amazon_* HERE, and do not add them while
