@@ -38,7 +38,7 @@ mylib.mkContainerService {
     # Core service configuration
     port = 15630;
     # Renovate: datasource=docker depName=rustmailer/bichon
-    image = "rustmailer/bichon:2.0.0@sha256:3efde2596833633398c2bba47a8c9520ff40cb05f3632d962a8386df6b327438";
+    image = "rustmailer/bichon:2.0.1@sha256:d73d5549cd8661733b09f9ffa164eb2e6f90a6849f0480974e9ee2d9375104dc";
     operationalProfile = "productivity";
     displayName = "Bichon";
     function = "email_archiving";
