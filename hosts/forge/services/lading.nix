@@ -72,6 +72,7 @@
 #            amazon_password:       <password>
 #            amazon_otp_secret_key: <base32 seed, spaces and all>
 #            costco_tokens:         <the JSON blob captured from a browser>
+#            samsclub_tokens:       <the JSON blob captured from a PHONE>
 #
 #      costco_tokens is a different KIND of secret from the three above it: a
 #      SEED, not a standing credential. Azure B2C rotates the refresh token on
@@ -171,6 +172,25 @@ let
       costco = {
         enable = true;
         tokenSeedFile = config.sops.secrets."lading/ryan/costco_tokens".path;
+      };
+
+      # Sam's Club in-club receipts. A THIRD SOURCE with a third credential,
+      # decoupled from both others in the same way Costco is.
+      #
+      # Only ryan's membership is seeded, so this is deliberately NOT mirrored
+      # onto steffi below — the same asymmetry the Costco block started with,
+      # and for the same reason: a second membership needs its own token, and
+      # capturing one here is not a browser snippet. The samsclub.com WEB API
+      # returns no totals, no line prices and no machine-readable date for this
+      # cohort; only the mobile app's API does. So seeding an account means
+      # putting THAT PERSON'S PHONE behind a proxy with a CA installed.
+      #
+      # Worth doing once for steffi eventually — Costco's numbers say so
+      # loudly: one membership matched 40.5% of charges, two matched 90.5% —
+      # but it needs her, not just her credentials.
+      samsclub = {
+        enable = true;
+        tokenSeedFile = config.sops.secrets."lading/ryan/samsclub_tokens".path;
       };
     };
 
