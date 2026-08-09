@@ -69,6 +69,9 @@ let
   financesExportSupported = options.services.homelab-mcp ? financesExport;
   financeDb = "homelab_finance";
   financeRole = "homelab-mcp-export";
+  financeGrafanaRole = "grafana-household-finance";
+  financeSchema = "household_finance";
+  financeDashboards = import ./household-finance-dashboards.nix { inherit pkgs; };
 in
 {
   imports = [
@@ -398,6 +401,67 @@ in
         owner = financeRole;
         ownerPasswordFile = config.sops.secrets."homelab-mcp/export_db_password".path;
         permissionsPolicy = "owner-only";
+
+        additionalRoles.${financeGrafanaRole} = {
+          passwordFile = config.sops.secrets."homelab-mcp/grafana_db_password".path;
+          grantRoles = [ ];
+        };
+
+        # The exporter normally creates this schema on its first run. Creating
+        # it here as the exporter role makes fresh-host grants deterministic:
+        # database provisioning runs before the exporter by design.
+        customSql.preConfig = [
+          ''
+            CREATE SCHEMA IF NOT EXISTS ${financeSchema} AUTHORIZATION "${financeRole}";
+            ALTER SCHEMA ${financeSchema} OWNER TO "${financeRole}";
+          ''
+        ];
+
+        databasePermissions.${financeGrafanaRole} = [ "CONNECT" ];
+        schemaPermissions.${financeSchema}.${financeGrafanaRole} = [ "USAGE" ];
+        tablePermissions."${financeSchema}.*".${financeGrafanaRole} = [ "SELECT" ];
+
+        # The exporter may add or replace projection tables in later releases.
+        # Keep Grafana readable without granting it membership in any shared
+        # cluster role or access to any schema beyond household_finance.
+        defaultPrivileges.householdFinanceGrafana = {
+          owner = financeRole;
+          schema = financeSchema;
+          tables.${financeGrafanaRole} = [ "SELECT" ];
+        };
+
+        # Visual treatment references Sure (https://github.com/we-promise/sure,
+        # AGPL-3.0): restrained balance-sheet hierarchy and its green/amber/red/
+        # blue finance palette. No Sure source code is copied into the suite.
+        grafanaDatasources = [{
+          name = "Household Finance";
+          uid = "household-finance";
+          integrationName = "household-finance";
+          datasourceKey = "household-finance";
+          credentialName = "household-finance-db-password";
+          folder = "Household Finance";
+          host = "127.0.0.1";
+          port = 5432;
+          database = financeDb;
+          user = financeGrafanaRole;
+          passwordFile = config.sops.secrets."homelab-mcp/grafana_db_password".path;
+          sslMode = "disable";
+          jsonData = {
+            # Grafana 12's Postgres frontend reads the default database from
+            # jsonData even though the backend still uses the top-level field.
+            database = financeDb;
+            postgresVersion = 1700;
+            maxOpenConns = 5;
+            maxIdleConns = 2;
+            connMaxLifetime = 14400;
+          };
+          dashboards = [{
+            name = "Household Finance";
+            folder = "Household Finance";
+            path = financeDashboards;
+            attrName = "household-finance";
+          }];
+        }];
       };
     }
 

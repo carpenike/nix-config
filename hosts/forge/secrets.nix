@@ -396,6 +396,15 @@ in
             owner = "root";
             group = "postgres";
           };
+
+          # Dedicated password for Grafana's household_finance-only reader.
+          # PostgreSQL consumes it while provisioning; Grafana receives it
+          # through a private systemd credential when the datasource is wired.
+          "homelab-mcp/grafana_db_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
         }
         // optionalAttrs cooklangFederationEnabled {
           "github/cooklang-token" = {

@@ -12,6 +12,8 @@ let
     && (config.modules.services.backup.restic.enable or false);
   # Import forge defaults for standardized helpers
   forgeDefaults = import ../../lib/defaults.nix { inherit config lib; };
+  businessChartsPlugin = pkgs.grafanaPlugins.volkovlabs-echarts-panel;
+  grafanaPluginsDir = "${config.modules.services.grafana.dataDir}/plugins";
 
   # OnCall configuration
   oncallEnabled = config.modules.services.grafana-oncall.enable or false;
@@ -158,6 +160,16 @@ in
       # Prometheus service-down alert
       modules.alerting.rules."grafana-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert "grafana" "Grafana" "metrics visualization";
+
+      # Household Finance uses the pinned Business Charts package for its
+      # Sankey panel. Link only this plugin into Grafana's normal writable
+      # directory: services.grafana.declarativePlugins makes the entire path
+      # read-only, which prevents the existing OnCall installer from adding
+      # its dynamically managed plugin alongside it.
+      systemd.tmpfiles.rules = [
+        "d ${grafanaPluginsDir} 0750 grafana grafana -"
+        "L+ ${grafanaPluginsDir}/volkovlabs-echarts-panel - - - - ${businessChartsPlugin}"
+      ];
 
       # Keep the OnCall bridge separate from the media-services bridge, whose
       # 10.89.0.1 gateway is the shared container-to-host service address.
