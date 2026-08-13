@@ -697,6 +697,14 @@ in
             "finances_context_list"
             "finances_clarify_candidates"
             "finances_ticklers"
+            # The daily sentinel, as one call. It performs the four reads
+            # itself and returns `silent` plus the exact lines to send; the
+            # cron prompt shrinks to rendering them. The four reads stay in
+            # this list because the weekly pulse still calls them directly.
+            # Mirrors HOMELAB_MCP_RESTRICTED_SCOPES.hermes in
+            # services/homelab-mcp.nix, which is the authoritative boundary —
+            # both must name it or the tool is invisible here or 403 there.
+            "finances_sentinel"
           ];
           sampling.enabled = false;
         };
