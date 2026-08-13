@@ -178,6 +178,16 @@ in
         limitNOFILE = 524288;
       };
 
+      # The same upgrade, on request instead of on the clock. homelab-mcp
+      # exposes it as the nixos_apply_config MCP tool, so a merged PR can be
+      # applied from a Claude session or a phone rather than waiting for
+      # 04:00 or a laptop. The requester only gets to create a file in one
+      # watched directory; see modules/nixos/on-demand-upgrade.nix.
+      onDemandUpgrade = {
+        enable = true;
+        requestUser = "homelab-mcp";
+      };
+
       # Keep backup timers quiesced during deployments and verify restoration.
       deploymentGuard.enable = true;
 

@@ -5,6 +5,7 @@
 }: {
   imports = [
     ./auto-upgrade.nix
+    ./on-demand-upgrade.nix # "apply the nightly upgrade now", triggered by a service
     ./deployment-guard.nix
     ./doas.nix
     ./impermanence.nix
