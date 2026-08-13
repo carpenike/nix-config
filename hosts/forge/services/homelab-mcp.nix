@@ -189,6 +189,11 @@ in
               "finances_context_consume"
               "finances_clarify_candidates"
               "finances_ticklers"
+              # The daily 08:00 alarm, decided in code rather than in the cron
+              # prompt. In BOTH scopes: hermes calls it and renders its lines,
+              # and an advisor session needs the same verdict — and the
+              # `evidence` behind it — to explain or challenge a morning.
+              "finances_sentinel"
               "finances_decision_append"
               "finances_tickler_append"
               "finances_planned_append"
@@ -246,6 +251,13 @@ in
               "finances_context_list"
               "finances_clarify_candidates"
               "finances_ticklers"
+              # The sentinel composes the four reads above and decides; the
+              # cron prompt only renders what comes back. The four sources
+              # stay listed because the weekly pulse reads them directly.
+              # This middleware allowlist is authoritative — the tool is
+              # 403 at tools/call without it, however the alias is
+              # configured client-side.
+              "finances_sentinel"
               "homelab_list_status"
             ];
           };
