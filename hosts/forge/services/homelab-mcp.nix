@@ -67,6 +67,8 @@ let
   # Same rollback guard as the sidecar above: the option arrives with
   # homelab-mcp 0.21.0, and a pin predating it must still evaluate.
   financesExportSupported = options.services.homelab-mcp ? financesExport;
+  # Same guard again, for the option that carries the nixos_* deploy tools.
+  onDemandDeploySupported = options.services.homelab-mcp ? onDemandDeploy;
   financeDb = "homelab_finance";
   financeRole = "homelab-mcp-export";
   financeGrafanaRole = "grafana-household-finance";
@@ -233,6 +235,15 @@ in
               "fidelity_positions"
               "fidelity_summary"
               "signal_send"
+              # nixos_* — "apply the merged config now" from a Claude
+              # session instead of a laptop. Advisor only: the ambient
+              # agent that reads the family Signal group has no business
+              # redeploying the host it runs on, and it is absent from the
+              # `hermes` entry below for that reason. Adding it there would
+              # also need the tool on a Telegram-side alias in
+              # services/hermes-agent.nix — two deliberate steps, not one.
+              "nixos_apply_config"
+              "nixos_deploy_status"
             ];
             # DELIBERATELY NO amazon_* HERE, and do not add them while
             # "filling out the list". Purchase history leaks gifts before they
@@ -346,6 +357,28 @@ in
         enable = true;
         serverUrl = "https://budget.${config.networking.domain}";
         environmentFile = config.sops.secrets."homelab-mcp/actual-env".path;
+      };
+    })
+
+    # ── on-demand deploys (nixos_apply_config) ────────────────────────
+    # Grants the service write access to ONE directory and nothing else. The
+    # privileged half — the path unit that watches that directory and runs
+    # the rebuild — is modules.onDemandUpgrade, enabled in ../default.nix;
+    # the paths come from there so the two halves cannot drift apart. What
+    # gets deployed is fixed by modules.autoUpgrade.flakeUrl, not by
+    # anything the service or its caller can say.
+    #
+    # Same rollback guard as the sidecar above: the option arrives with the
+    # homelab-mcp release that adds the nixos_* tools, and a pin predating
+    # it must still evaluate.
+    (lib.optionalAttrs onDemandDeploySupported {
+      services.homelab-mcp.onDemandDeploy = {
+        enable = true;
+        requestDir = config.modules.onDemandUpgrade.requestDir;
+        statusPath = config.modules.onDemandUpgrade.statusPath;
+        # Display only — shown to the caller so it can say what it is about
+        # to apply. Mirrors modules.autoUpgrade.flakeUrl.
+        flake = "${config.modules.autoUpgrade.flakeUrl}#${config.networking.hostName}";
       };
     })
 
