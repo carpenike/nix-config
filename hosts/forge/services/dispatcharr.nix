@@ -44,8 +44,11 @@ in
     {
       modules.services.dispatcharr = {
         enable = true;
-        # DRY: derive VA-API driver from host hardware profile
+        # DRY: derive VA-API driver and render node from the host hardware profile.
+        # renderNode matters here: forge has two GPUs and /dev/dri/renderD128 is the
+        # discrete NVIDIA (nouveau), not the Intel iGPU.
         vaapiDriver = config.modules.common.intelDri.driver;
+        vaapiDevice = config.modules.common.intelDri.renderNode;
         # Pass the entire /dev/dri directory to the container. This is more robust
         # than hardcoding specific device nodes, which can change between reboots.
         # The application inside the container will automatically find the correct
@@ -115,9 +118,17 @@ in
     })
   ];
 }
-# If the dispatcharr container/service runs locally as a podman/docker unit,
-# allow it to access the Intel render node for VA-API without adding broad
-# privileges. This grants only the render node device; prefer DeviceAllow
-# instead of making the service user a member of the host "video" group.
-# Hardware access (DeviceAllow) is centralized via profiles/hardware/intel-gpu.nix
-# using common.intelDri.services = [ "podman-dispatcharr.service" ] on this host.
+# GPU access notes:
+# Dispatcharr runs as a podman container, so its render-node access comes from
+# accelerationDevices above (podman --device=/dev/dri:/dev/dri:rwm), not from a
+# systemd DeviceAllow. A unit-level DeviceAllow on podman-dispatcharr.service would
+# have no effect on the container -- podman places the container payload in its own
+# cgroup under machine.slice, outside the unit's cgroup -- which is why
+# common.intelDri.services is empty for this host.
+#
+# Note that forge exposes two render nodes: /dev/dri/renderD128 is the discrete
+# NVIDIA card (nouveau) and /dev/dri/renderD129 is the Intel UHD 630 (i915). VAAPI_DEVICE
+# is derived from common.intelDri.renderNode above so it follows the host, but transcode
+# profiles are stored in Dispatcharr's own database -- any profile configured in the UI
+# must target renderD129 itself. See hosts/forge/services/scrypted.nix for why the
+# container-visible node name has to match the real host node name.

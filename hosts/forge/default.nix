@@ -202,7 +202,17 @@ in
       common.intelDri = {
         enable = true;
         driver = "iHD"; # Use iHD (intel-media-driver) for modern Intel GPUs; set to "i965" for legacy hardware
-        services = [ "podman-dispatcharr.service" ];
+        # This box has two GPUs: renderD128 is the discrete NVIDIA (nouveau) and
+        # renderD129 is the Intel UHD 630 (i915). Stable alias: /dev/dri/intel-render.
+        renderNode = "/dev/dri/renderD129";
+        # `services` is deliberately empty. It was previously set to
+        # [ "podman-dispatcharr.service" ], which never took effect: the ".service"
+        # suffix produced an inert podman-dispatcharr.service.service unit. Restoring it
+        # correctly would be worse than useless -- podman containers run in their own
+        # cgroup under machine.slice, so a unit-level DeviceAllow cannot reach them, and
+        # turning DeviceAllow on flips the unit to a device whitelist for no gain.
+        # Container GPU access is granted by accelerationDevices (--device=/dev/dri).
+        services = [ ];
       };
 
       # (moved) VA-API driver exposure configured via top-level 'hardware.opengl'

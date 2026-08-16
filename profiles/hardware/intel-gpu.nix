@@ -13,7 +13,7 @@ let
     else if config ? common && config.common ? intelDri then
       config.common.intelDri
     else
-      { enable = false; driver = "iHD"; services = [ ]; };
+      { enable = false; driver = "iHD"; renderNode = "/dev/dri/renderD128"; services = [ ]; };
 
 in
 {
@@ -27,12 +27,36 @@ in
       description = "Which VA-API userspace driver to install (intel-media-driver = iHD, legacy = i965).";
     };
 
+    # Which render node to hand out via DeviceAllow. NOT always renderD128: on
+    # multi-GPU hosts the numbering depends on probe order, so the Intel node may
+    # be renderD129 or higher (check /dev/dri/by-path or /sys/class/drm/*/device/uevent).
+    renderNode = lib.mkOption {
+      type = lib.types.str;
+      default = "/dev/dri/renderD128";
+      example = "/dev/dri/renderD129";
+      description = "Path to the Intel render node granted by the `services` DeviceAllow entries.";
+    };
+
     # Optional list of systemd unit names to automatically grant DeviceAllow to.
-    # Example: [ "podman-dispatcharr.service" ]
+    # Either spelling works: "foo" and "foo.service" both target foo.service.
+    #
+    # NOTE: this is only useful for *native* systemd services. Podman/Docker
+    # containers run in their own cgroup under machine.slice, not under the
+    # unit's cgroup, so a unit-level DeviceAllow does not reach the container --
+    # pass the device into the container instead (--device=/dev/dri:/dev/dri:rwm).
+    # Example: [ "jellyfin" ]
     services = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = "List of systemd unit names to which the module will add a DeviceAllow for /dev/dri/renderD128 (opt-in).";
+      example = [ "jellyfin" ];
+      description = ''
+        List of systemd unit names to which the module will add a DeviceAllow for
+        `renderNode` (opt-in). A trailing ".service" is stripped, so both "foo" and
+        "foo.service" refer to foo.service.
+
+        Only affects native systemd services; container runtimes need the device
+        passed in at the container level instead.
+      '';
     };
   };
 
@@ -56,20 +80,31 @@ in
 
       How to grant a service access (recommended):
        - For native systemd services, add a DeviceAllow line and prefer the render node only:
-         systemd.services.<name>.serviceConfig.DeviceAllow = [ "/dev/dri/renderD128 rwm" ];
+         systemd.services.<name>.serviceConfig.DeviceAllow = [ "${cfg.renderNode} rwm" ];
         # Prefer DeviceAllow. Adding `Group = "video"` is usually unnecessary when
         # DeviceAllow is used because DeviceAllow grants the service cgroup direct
         # access to the device node. Only add `Group = "video"` if the service
         # (or a container's internal user mapping) explicitly requires group membership.
+        # Note that DeviceAllow is a whitelist: once any entry is present, every other
+        # device node is denied to that unit.
 
        - For containers (podman/docker), bind the render node into the container and avoid --privileged:
            podman run --device /dev/dri:/dev/dri:rw ...
+        # DeviceAllow on the *unit* does nothing for these: the container payload lives in
+        # its own cgroup under machine.slice, outside the unit's cgroup, so the unit's
+        # device filter never applies to it.
 
-      Validation commands:
+      Identifying the Intel render node (numbering is probe-order dependent, so
+      renderD128 may well belong to a discrete GPU):
+       - ls -l /dev/dri/by-path
+       - grep -H DRIVER /sys/class/drm/render*/device/uevent
+
+      Validation commands (pass the device explicitly; vainfo's default is renderD128,
+      which is not necessarily the Intel node):
        - ls -l /dev/dri
-       - vainfo
+       - vainfo --display drm --device ${cfg.renderNode}
        - sudo intel_gpu_top
-       - ffmpeg -hwaccel vaapi -i input.mp4 -f null -
+       - ffmpeg -hwaccel vaapi -vaapi_device ${cfg.renderNode} -i input.mp4 -f null -
         Notes: `vainfo` is provided by `libva-utils`. `intel_gpu_top` is provided by `intel-gpu-tools`.
     '';
 
@@ -85,7 +120,7 @@ in
     systemd.services = builtins.listToAttrs (builtins.map
       (s: {
         name = lib.removeSuffix ".service" s;
-        value = { serviceConfig = { DeviceAllow = [ "/dev/dri/renderD128 rwm" ]; }; };
+        value = { serviceConfig = { DeviceAllow = [ "${cfg.renderNode} rwm" ]; }; };
       })
       cfg.services);
   };
