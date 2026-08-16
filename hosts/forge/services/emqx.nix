@@ -47,9 +47,9 @@ in
     (lib.mkIf serviceEnabled {
       modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset "emqx";
 
-      # Service availability alert (emqx is a native systemd service, not container)
+      # Service availability alert (emqx runs as a podman container)
       modules.alerting.rules."emqx-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert "emqx" "EMQX" "MQTT broker";
+        forgeDefaults.mkSystemdServiceDownAlert "podman-emqx" "EMQX" "MQTT broker";
     })
   ];
 }

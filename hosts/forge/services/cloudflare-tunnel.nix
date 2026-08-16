@@ -70,8 +70,9 @@ in
     # Co-located Service Monitoring
     (lib.mkIf serviceEnabled {
       modules.alerting.rules."cloudflare-tunnel-service-down" =
-        # cloudflared is a native systemd service, not a container
-        forgeDefaults.mkSystemdServiceDownAlert "cloudflared" "CloudflareTunnel" "external access gateway";
+        # cloudflared is a native systemd service, not a container. The unit is
+        # named after the tunnel, so it is cloudflared-forge - not cloudflared.
+        forgeDefaults.mkSystemdServiceDownAlert "cloudflared-forge" "CloudflareTunnel" "external access gateway";
     })
   ];
 }

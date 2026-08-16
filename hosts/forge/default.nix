@@ -29,6 +29,7 @@ in
     ./core/packages.nix
     ./core/hardware.nix
     ./core/monitoring.nix # Core system health monitoring (CPU, memory, disk, systemd)
+    ./core/crash-loop-detection.nix # Start limits so flapping units reach `failed` and alert
     ./core/system-services.nix # System service configurations (rsyslog, journald)
 
     # Infrastructure (Cross-cutting operational concerns)

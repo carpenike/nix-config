@@ -308,6 +308,54 @@ in
   };
 
   # =============================================================================
+  # Crash-Loop Detection (fully reusable)
+  # =============================================================================
+
+  # mkCrashLoopLimit sizes StartLimitIntervalSec so a flapping unit actually
+  # reaches `failed` instead of restarting forever.
+  #
+  # systemd only marks a unit `failed` once StartLimitBurst starts have occurred
+  # inside StartLimitIntervalSec, and N starts are spread over
+  #
+  #     (N - 1) * (how long a broken start survives + RestartSec)
+  #
+  # The systemd default of 10s / 5 starts is therefore reachable only when a
+  # start dies in under 2.4s, and is unreachable at *any* failure speed once
+  # RestartSec >= 2.5s. A unit that never reaches `failed` keeps cycling through
+  # activating/active, so node_systemd_unit_state{state="active"} == 0 is true
+  # for isolated scrape samples only - it never holds for the 2m that
+  # mkSystemdServiceDownAlert requires, SystemdUnitFailed never sees `failed`,
+  # and the OnFailure=notify@ hook never runs.
+  #
+  # Observed on forge 2026-08-16: home-assistant restarted 367 times over 43
+  # minutes; the longest contiguous run of state != active was 60s against the
+  # 120s `for`. Its alert reached "pending" repeatedly and never fired.
+  #
+  # Arguments (all in seconds):
+  #   restartSec - the unit's RestartSec (0 = systemd's 100ms default)
+  #   failureSec - how long a broken start may survive before dying
+  #   burst      - starts allowed inside the window
+  #
+  # Window = 1.25 * (burst - 1) * (failureSec + restartSec), floored at 60s:
+  # the burst stays reachable for any failure up to failureSec, with 25%
+  # headroom. Raise failureSec for services that die slowly (heavy init,
+  # database migrations) - a window that is too small is precisely the bug.
+  #
+  # Returns systemd.services.<name> attributes, so it merges with the rest of a
+  # unit's definition:
+  #   systemd.services.marginalia = forgeDefaults.mkCrashLoopLimit { restartSec = 5; };
+  mkCrashLoopLimit =
+    { restartSec ? 0
+    , failureSec ? 60
+    , burst ? 5
+    }:
+    {
+      startLimitIntervalSec =
+        lib.max 60 ((5 * (burst - 1) * (failureSec + restartSec) + 3) / 4);
+      startLimitBurst = burst;
+    };
+
+  # =============================================================================
   # Common Tags (fully reusable)
   # =============================================================================
 

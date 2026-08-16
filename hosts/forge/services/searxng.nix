@@ -76,9 +76,11 @@ in
         };
       };
 
-      # Service-down alert (native systemd service)
+      # Service-down alert. With runInUwsgi the app has no searx.service of its
+      # own - it is served by uwsgi.service (see mainServiceUnit in
+      # modules/nixos/services/searxng/default.nix).
       modules.alerting.rules."searxng-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert "searx" "SearXNG" "meta search engine";
+        forgeDefaults.mkSystemdServiceDownAlert "uwsgi" "SearXNG" "meta search engine";
 
       # Homepage dashboard contribution
       modules.services.homepage.contributions.searxng = {

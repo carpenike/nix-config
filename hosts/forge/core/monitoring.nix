@@ -190,6 +190,44 @@
       };
     };
 
+    # SystemD unit crash-looping
+    #
+    # The other half of SystemdUnitFailed. A unit that restarts every few
+    # seconds never *stays* non-active, so node_systemd_unit_state samples it as
+    # active on most scrapes and neither SystemdUnitFailed nor any per-service
+    # ServiceDown alert can hold its `for` window. Home Assistant crash-looped
+    # for 43 minutes on 2026-08-16 without a single alert firing for exactly
+    # this reason.
+    #
+    # Restart churn is the signal that survives, so watch it directly. This
+    # needs no start limit and no unit-level change, which is what makes it the
+    # safety net for units deliberately left to retry forever (cloudflared,
+    # postgresql) - see core/crash-loop-detection.nix for the ones that are
+    # instead pushed into `failed`.
+    #
+    # Requires --collector.systemd.enable-restarts-metrics (modules/nixos/monitoring.nix).
+    #
+    # Threshold: units with a start limit park in `failed` after 4 restarts and
+    # are reported by SystemdUnitFailed, so >5 deliberately picks up only the
+    # units that keep going. A nixos-rebuild switch restarts a unit once, well
+    # under the threshold. Podman healthcheck transients (64-hex names) are
+    # excluded as they are for SystemdTimerStale.
+    "systemd-unit-crash-looping" = {
+      type = "promql";
+      alertname = "SystemdUnitCrashLooping";
+      expr = ''
+        increase(node_systemd_service_restart_total{name!~".*[0-9a-f]{64}.*"}[10m]) > 5
+      '';
+      for = "2m";
+      severity = "high";
+      labels = { service = "system"; category = "systemd"; };
+      annotations = {
+        summary = "SystemD unit {{ $labels.name }} is crash-looping on {{ $labels.instance }}";
+        description = "{{ $labels.name }} restarted {{ $value | printf \"%.0f\" }} times in the last 10 minutes. It is failing repeatedly but restarting fast enough to look active. Check: journalctl -u {{ $labels.name }} -n 100";
+        command = "systemctl status {{ $labels.name }}";
+      };
+    };
+
     # Critical memory pressure - host is nearly out of memory
     # Fires at 95% (vs HighMemoryUsage at 90%) for immediate attention
     "memory-pressure-critical" = {

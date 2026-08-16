@@ -59,6 +59,14 @@
       "udp_queues"
       "xfs"
     ];
+
+    # node_systemd_service_restart_total, which the systemd collector leaves off
+    # by default. A crash-looping unit restarts too fast to ever sample as
+    # non-active, so restart churn is the only signal that separates "looping"
+    # from "healthy". Consumed by the SystemdUnitCrashLooping alert, defined on
+    # forge in hosts/forge/core/monitoring.nix and evaluated for every scraped
+    # instance including this one.
+    extraFlags = [ "--collector.systemd.enable-restarts-metrics" ];
   };
 
   # =============================================================================

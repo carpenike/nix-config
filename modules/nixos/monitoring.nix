@@ -75,9 +75,18 @@ in
       listenAddress = cfg.nodeExporter.listenAddress;
       enabledCollectors = mkDefault cfg.nodeExporter.enabledCollectors;
 
-      extraFlags = mkIf cfg.nodeExporter.textfileCollector.enable [
-        "--collector.textfile.directory=${cfg.nodeExporter.textfileCollector.directory}"
-      ];
+      extraFlags =
+        optionals cfg.nodeExporter.textfileCollector.enable [
+          "--collector.textfile.directory=${cfg.nodeExporter.textfileCollector.directory}"
+        ]
+        # node_systemd_service_restart_total is off by default upstream. Without
+        # it a crash-loop is unobservable: the unit cycles fast enough that
+        # node_systemd_unit_state samples it as active, so restart churn is the
+        # only signal that distinguishes "looping" from "healthy". Consumed by
+        # the SystemdUnitCrashLooping alert.
+        ++ optionals (elem "systemd" config.services.prometheus.exporters.node.enabledCollectors) [
+          "--collector.systemd.enable-restarts-metrics"
+        ];
     };
 
     # Open firewall if requested
