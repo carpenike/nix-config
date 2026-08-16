@@ -608,6 +608,23 @@ in
               UMask = lib.mkForce "0002";
               PermissionsStartOnly = lib.mkForce false;
 
+              # Being stopped is not a replication failure.
+              #
+              # A nixos-rebuild switch (or any systemctl stop) SIGTERMs whichever
+              # syncoid jobs happen to be mid-run. systemd already treats SIGTERM
+              # as a clean exit for most services, but explicitly not for
+              # Type=oneshot, so these units entered the failed state and fired
+              # OnFailure - sending a high-priority "ZFS Replication Failed" page
+              # for a job the admin interrupted. Three such false alarms occurred
+              # in the 14 days before notification delivery was repaired; they
+              # were invisible only because nothing was being delivered.
+              #
+              # This does NOT mask a hung replication: a job killed by
+              # TimeoutStartSec below is recorded with Result=timeout rather than
+              # Result=signal, so it still fails and still pages. Verified on
+              # forge against all three cases before this was applied.
+              SuccessExitStatus = "SIGTERM";
+
               # CRITICAL: Shorter timeout to fail faster (was 2h, now 45m)
               TimeoutStartSec = "45m";
               TimeoutStopSec = "5m";
