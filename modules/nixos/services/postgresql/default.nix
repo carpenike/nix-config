@@ -1434,6 +1434,7 @@ in
           postgresql-backup-success = {
             enable = true;
             priority = "normal";
+            placeholders = [ "backuppath" ];
             title = "✅ PostgreSQL Backup Complete";
             body = ''
               <b>Backup Path:</b> ''${backuppath}
@@ -1464,6 +1465,7 @@ in
           postgresql-replication-lag = {
             enable = true;
             priority = "normal";
+            placeholders = [ "lag" ];
             title = "⚠ PostgreSQL Replication Lag";
             body = ''
               <b>Lag:</b> ''${lag} seconds

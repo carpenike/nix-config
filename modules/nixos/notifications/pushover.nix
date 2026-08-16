@@ -7,85 +7,90 @@ let
   cfg = config.modules.notifications;
   pushoverCfg = cfg.pushover;
 
-  # Priority mapping: string name to Pushover API integer
-  priorityMap = {
-    lowest = -2;
-    low = -1;
-    normal = 0;
-    high = 1;
-    urgent = 2;
-  };
+  # Pushover's own hard limits. Exceeding either is a 4xx, which used to mean
+  # three failed retries and a dropped notification - so the long ones (a body
+  # carrying ten lines of journal output, say) were exactly the ones most
+  # likely never to arrive. Truncate instead.
+  titleLimit = 250;
+  messageLimit = 1024;
 
-  getPriority = priority:
-    if builtins.isInt priority then priority
-    else priorityMap.${priority} or 0;
+  # Delivery script. Reads TITLE, MESSAGE and PRIORITY from the environment
+  # rather than baking them in at build time.
+  #
+  # The previous version took the priority as a Nix argument and its only
+  # caller passed the *string* "$PRIORITY", so the build-time lookup missed,
+  # defaulted to 0, and then emitted `PRIORITY="0"` - clobbering the value read
+  # from the payload. Every notification went out at normal priority, including
+  # the ones registered as emergency.
+  deliverScript = ''
+    set -uo pipefail
 
-  # Script to send Pushover notification
-  mkPushoverScript =
-    { title
-    , message
-    , priority ? "normal"
-    , url ? null
-    , urlTitle ? null
-    , device ? null
-    , html ? true
-    ,
-    }: ''
-      set -euo pipefail
+    # Read tokens from systemd credentials
+    PUSHOVER_TOKEN=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_TOKEN) || return 1
+    PUSHOVER_USER=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_USER_KEY) || return 1
 
-      # Read tokens from systemd credentials
-      PUSHOVER_TOKEN=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_TOKEN)
-      PUSHOVER_USER=$(${pkgs.systemd}/bin/systemd-creds cat PUSHOVER_USER_KEY)
+    # Map the template priority vocabulary onto Pushover's integers, at
+    # runtime, because the priority is only known from the payload.
+    case "''${PRIORITY:-normal}" in
+      emergency|urgent) PUSHOVER_PRIORITY=2 ;;
+      high)             PUSHOVER_PRIORITY=1 ;;
+      normal|default)   PUSHOVER_PRIORITY=0 ;;
+      low)              PUSHOVER_PRIORITY=-1 ;;
+      silent|lowest)    PUSHOVER_PRIORITY=-2 ;;
+      -2|-1|0|1|2)      PUSHOVER_PRIORITY="$PRIORITY" ;;
+      *)                PUSHOVER_PRIORITY=${toString pushoverCfg.defaultPriority} ;;
+    esac
 
-      # Build notification payload
-      PRIORITY="${toString (getPriority priority)}"
-      ${lib.optionalString (device != null) ''DEVICE="${device}"''}
-      ${lib.optionalString (device == null && pushoverCfg.defaultDevice != null) ''DEVICE="${pushoverCfg.defaultDevice}"''}
+    PUSHOVER_TITLE=$(printf '%s' "''${TITLE:-Notification}" | head -c ${toString titleLimit})
+    PUSHOVER_MESSAGE=$(printf '%s' "''${MESSAGE:-}" | head -c ${toString messageLimit})
+    [ -n "$PUSHOVER_MESSAGE" ] || PUSHOVER_MESSAGE="(no message body)"
 
-      # Send notification with retries
-      MAX_RETRIES=${toString pushoverCfg.retryAttempts}
-      TIMEOUT=${toString pushoverCfg.timeout}
-      RETRY_COUNT=0
-      SUCCESS=false
+    # Pushover rejects priority 2 unless retry/expire accompany it.
+    EXTRA_ARGS=()
+    if [ "$PUSHOVER_PRIORITY" = "2" ]; then
+      EXTRA_ARGS+=(--data-urlencode "retry=60" --data-urlencode "expire=3600")
+    fi
 
-      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o /tmp/pushover-response.json \
-          --max-time "$TIMEOUT" \
-          --data-urlencode "token=$PUSHOVER_TOKEN" \
-          --data-urlencode "user=$PUSHOVER_USER" \
-          --data-urlencode "title=${title}" \
-          --data-urlencode "message=${message}" \
-          --data-urlencode "priority=$PRIORITY" \
-          ${lib.optionalString html ''--data-urlencode "html=1"''} \
-          ${lib.optionalString (url != null) ''--data-urlencode "url=${url}"''} \
-          ${lib.optionalString (urlTitle != null) ''--data-urlencode "url_title=${urlTitle}"''} \
-          ${lib.optionalString (device != null || pushoverCfg.defaultDevice != null) ''--data-urlencode "device=''${DEVICE:-}"''} \
-          "https://api.pushover.net/1/messages.json" || echo "000")
+    RESPONSE_FILE=$(mktemp)
+    MAX_RETRIES=${toString pushoverCfg.retryAttempts}
+    TIMEOUT=${toString pushoverCfg.timeout}
+    RETRY_COUNT=0
+    SUCCESS=false
 
-        if [ "$HTTP_CODE" = "200" ]; then
-          echo "Pushover notification sent successfully (HTTP $HTTP_CODE)"
-          SUCCESS=true
-          break
-        else
-          RETRY_COUNT=$((RETRY_COUNT + 1))
-          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-            echo "Pushover notification failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
-            sleep 2
-          else
-            echo "Pushover notification failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
-            if [ -f /tmp/pushover-response.json ]; then
-              echo "Response: $(cat /tmp/pushover-response.json)" >&2
-            fi
-          fi
-        fi
-      done
+    while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
+      HTTP_CODE=$(${pkgs.curl}/bin/curl -s -w "%{http_code}" -o "$RESPONSE_FILE" \
+        --max-time "$TIMEOUT" \
+        --data-urlencode "token=$PUSHOVER_TOKEN" \
+        --data-urlencode "user=$PUSHOVER_USER" \
+        --data-urlencode "title=$PUSHOVER_TITLE" \
+        --data-urlencode "message=$PUSHOVER_MESSAGE" \
+        --data-urlencode "priority=$PUSHOVER_PRIORITY" \
+        ${lib.optionalString pushoverCfg.enableHtml ''--data-urlencode "html=1"''} \
+        ${lib.optionalString (pushoverCfg.defaultDevice != null)
+          ''--data-urlencode "device=${pushoverCfg.defaultDevice}"''} \
+        "''${EXTRA_ARGS[@]}" \
+        "https://api.pushover.net/1/messages.json" || echo "000")
 
-      rm -f /tmp/pushover-response.json
-
-      if [ "$SUCCESS" = "false" ]; then
-        exit 1
+      if [ "$HTTP_CODE" = "200" ]; then
+        echo "Pushover notification sent successfully (HTTP $HTTP_CODE)"
+        SUCCESS=true
+        break
       fi
-    '';
+
+      RETRY_COUNT=$((RETRY_COUNT + 1))
+      if [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; then
+        echo "Pushover notification failed (HTTP $HTTP_CODE), retrying ($RETRY_COUNT/$MAX_RETRIES)..." >&2
+        sleep 2
+      else
+        echo "Pushover notification failed after $MAX_RETRIES attempts (HTTP $HTTP_CODE)" >&2
+        [ -f "$RESPONSE_FILE" ] && echo "Response: $(cat "$RESPONSE_FILE")" >&2
+      fi
+    done
+
+    rm -f "$RESPONSE_FILE"
+    [ "$SUCCESS" = "true" ] || return 1
+    return 0
+  '';
 in
 {
   config = lib.mkIf (cfg.enable && pushoverCfg.enable) {
@@ -102,85 +107,23 @@ in
       # Note: We don't check pathExists here because sops secrets won't exist until runtime
     ];
 
-    # Systemd path unit template that triggers the service when a payload file appears
-    # This eliminates race conditions and the need for root escalation in the dispatcher
-    # Note: Template units should NOT have wantedBy - specific instances define their own
-    # activation (e.g., notify-pushover@system-boot:boot in system-notifications.nix)
-    systemd.paths."notify-pushover@" = {
-      pathConfig = {
-        PathExists = "/run/notify/%i.json";
-      };
-      # No wantedBy here - this is a template; instances are activated by their callers
+    # Register Pushover as a delivery backend. The drain routes to whatever
+    # is registered here, so the payload's `backend` field is all it needs -
+    # no per-backend knowledge in the drain, and adding a backend does not
+    # mean touching it.
+    modules.notifications.backends.pushover = {
+      credentials = [
+        "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
+        "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
+      ];
+      deliver = deliverScript;
     };
 
-    # Generic notification service template using Pushover
-    systemd.services."notify-pushover@" = {
-      description = "Send Pushover notification for %i";
-
-      serviceConfig = {
-        Type = "oneshot";
-        DynamicUser = true;
-        PrivateNetwork = false;
-        PrivateTmp = true;
-        # Join the notify-ipc group to read payload files from /run/notify
-        SupplementaryGroups = [ "notify-ipc" ];
-        # Override ProtectSystem=strict to allow writing/deleting in /run/notify
-        ReadWritePaths = [ "/run/notify" ];
-        LoadCredential = [
-          "PUSHOVER_TOKEN:${pushoverCfg.tokenFile}"
-          "PUSHOVER_USER_KEY:${pushoverCfg.userKeyFile}"
-        ];
-      };
-
-      # Pass %i as command-line argument for proper expansion
-      scriptArgs = "%i";
-
-      # Service reads parameters from JSON payload file via shared directory
-      script = ''
-        set -euo pipefail
-
-        INSTANCE="$1"
-
-        # Construct payload file path (may be in subdirectory)
-        PAYLOAD_FILE="/run/notify/$INSTANCE.json"
-
-        # On exit, remove the payload file and any empty parent directories
-        trap 'rm -f "$PAYLOAD_FILE" && rmdir -p "$(dirname "$PAYLOAD_FILE")" 2>/dev/null || true' EXIT
-
-        # Verify payload file exists - fail fast if dispatcher didn't create it
-        if [ ! -f "$PAYLOAD_FILE" ]; then
-          echo "[pushover] ERROR: Payload file not found at $PAYLOAD_FILE. Dispatcher may have failed." >&2
-          exit 1
-        fi
-
-        # Check if this backend should handle this notification
-        # Extract template name from instance (format: template-name:instance-info)
-        TEMPLATE_NAME=$(echo "$INSTANCE" | cut -d: -f1)
-        BACKEND=$(${pkgs.jq}/bin/jq -r --arg name "$TEMPLATE_NAME" '.[$name].backend // "${cfg.defaultBackend}"' /etc/notification-templates.json)
-
-        if [[ "$BACKEND" != "pushover" && "$BACKEND" != "all" ]]; then
-          echo "[pushover] Skipping notification for template '$TEMPLATE_NAME' (configured for backend '$BACKEND')"
-          exit 0
-        fi
-
-        # Read and parse JSON payload from shared directory
-        JSON=$(cat "$PAYLOAD_FILE")
-        TITLE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.title')
-        MESSAGE=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.message')
-        PRIORITY=$(echo "$JSON" | ${pkgs.jq}/bin/jq -r '.priority // "normal"')
-
-        URL="''${NOTIFY_URL:-}"
-        URL_TITLE="''${NOTIFY_URL_TITLE:-}"
-
-        ${mkPushoverScript {
-          title = "$TITLE";
-          message = "$MESSAGE";
-          priority = "$PRIORITY";
-          url = "$URL";
-          urlTitle = "$URL_TITLE";
-        }}
-      '';
-    };
+    # The per-instance path unit template that used to live here is gone, along
+    # with the notify-pushover@ service it triggered. Its contract - "instances
+    # are activated by their callers" - could not be satisfied: callers name
+    # instances at failure time (template:%n), so there was nothing to declare
+    # at build time. notify-drain.path watches the directory instead.
 
     # Legacy services removed - migrated to distributed architecture:
     # - notify-backup-success@ -> backup.nix
@@ -212,12 +155,21 @@ in
         # Receive instance string as $1
         INSTANCE_NAME="$1"
 
-        ${mkPushoverScript {
-          title = "⚠️ Service Failed";
-          message = "<b>Service $INSTANCE_NAME failed</b><small>\n<b>Host:</b> ${cfg.hostname}\n<b>Time:</b> $(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')\n\n<b>Status:</b>\n$(${pkgs.systemd}/bin/systemctl status $INSTANCE_NAME --no-pager -l || true)</small>";
-          priority = "high";
-          html = true;
-        }}
+        deliver_pushover() {
+        ${deliverScript}
+        }
+
+        TITLE="⚠️ Service Failed"
+        MESSAGE="<b>Service $INSTANCE_NAME failed</b><small>
+        <b>Host:</b> ${cfg.hostname}
+        <b>Time:</b> $(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')
+
+        <b>Status:</b>
+        $(${pkgs.systemd}/bin/systemctl status "$INSTANCE_NAME" --no-pager -l || true)</small>"
+        PRIORITY="high"
+        export TITLE MESSAGE PRIORITY
+
+        deliver_pushover
       '';
     };
   };

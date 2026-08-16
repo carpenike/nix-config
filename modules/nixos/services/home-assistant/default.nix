@@ -399,10 +399,23 @@ in
           enable = mkDefault true;
           priority = mkDefault "high";
           title = mkDefault ''<b><font color="red">✗ Service Failed: Home Assistant</font></b>'';
+          # ''${hostname} and ''${serviceName} are runtime placeholders resolved
+          # by the dispatcher. This previously read ''${config.networking.hostName}
+          # and ''${serviceUnit}: in a Nix indented string ''${ is the escape
+          # sequence, so those emitted literal text instead of interpolating.
+          # The dotted name survived to the page verbatim and ''${serviceUnit}
+          # resolved to nothing, producing "journalctl -u " with no unit.
           body = mkDefault ''
-            <b>Host:</b> ''${config.networking.hostName}
-            <b>Service:</b> <code>''${serviceUnit}</code>
-            <b>Action:</b> ssh ''${config.networking.hostName} 'journalctl -u ''${serviceUnit} -n 200' && sudo systemctl restart ''${serviceUnit}
+            <b>Host:</b> ''${hostname}
+            <b>Service:</b> <code>''${serviceName}</code>
+
+            Home Assistant has entered a failed state.
+
+            <b>Quick Actions:</b>
+            1. Check logs:
+               <code>ssh ''${hostname} 'journalctl -u ''${serviceName} -n 200'</code>
+            2. Restart service:
+               <code>ssh ''${hostname} 'systemctl restart ''${serviceName}'</code>
           '';
         };
       };

@@ -27,6 +27,7 @@ in
         enable = mkDefault cfg.boot.enable;
         priority = mkDefault "low"; # Low priority to reduce noise
         backend = mkDefault "pushover";
+        placeholders = [ "boottime" "bootstatus" "kernel" "generation" ];
         title = mkDefault ''🚀 System Boot'';
         body = mkDefault ''
           <b>Host:</b> ''${hostname}
@@ -45,6 +46,9 @@ in
         enable = mkDefault cfg.shutdown.enable;
         priority = mkDefault "low";
         backend = mkDefault "pushover";
+        # Registered for documentation only: the shutdown path cannot start a
+        # service, so notify-shutdown.service below renders this content itself.
+        placeholders = [ "shutdowntime" "uptime" ];
         title = mkDefault ''⏸️ System Shutdown'';
         body = mkDefault ''
           <b>Host:</b> ''${hostname}
@@ -57,18 +61,12 @@ in
       };
     };
 
-    # Enable path unit for boot notifications
-    # Watches for payload file and triggers the backend service
-    # Must explicitly define PathExists since we're creating an instance, not using the template
-    systemd.paths."notify-pushover@system-boot:boot" = mkIf cfg.boot.enable {
-      wantedBy = [ "multi-user.target" ];
-      pathConfig = {
-        PathExists = "/run/notify/system-boot:boot.json";
-      };
-    };
-
-    # Note: No path unit for shutdown - it sends notifications directly in ExecStop
-    # to avoid systemd's restrictions on starting new services during shutdown
+    # No path unit here any more: notify-drain.path watches /run/notify as a
+    # directory, so every payload is picked up rather than only the handful
+    # that happened to have an instance declared.
+    #
+    # Note: shutdown still sends its notification directly in ExecStop, to
+    # avoid systemd's restrictions on starting new services during shutdown.
 
     # Boot notification service
     systemd.services.notify-boot = mkIf cfg.boot.enable {
@@ -87,39 +85,43 @@ in
         # Check for graceful shutdown marker
         MARKER_FILE="/persist/var/lib/shutdown-marker/clean"
         if [ -f "$MARKER_FILE" ]; then
-          NOTIFY_BOOT_STATUS="✅ Clean boot (graceful shutdown)"
+          BOOT_STATUS="✅ Clean boot (graceful shutdown)"
           # Clean up the marker so next boot is considered unclean by default
           rm "$MARKER_FILE"
         else
           # Check if ZFS had to recover (additional confirmation of dirty boot)
           if ${pkgs.systemd}/bin/journalctl -b 0 --no-pager | ${pkgs.gnugrep}/bin/grep -qi "zfs.*import"; then
-            NOTIFY_BOOT_STATUS="⚠️ Unclean boot (crash/power loss - ZFS recovery)"
+            BOOT_STATUS="⚠️ Unclean boot (crash/power loss - ZFS recovery)"
           else
-            NOTIFY_BOOT_STATUS="⚠️ Unclean boot (crash/power loss)"
+            BOOT_STATUS="⚠️ Unclean boot (crash/power loss)"
           fi
         fi
 
         # Gather system information
-        NOTIFY_HOSTNAME="${config.networking.hostName}"
-        NOTIFY_BOOTTIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
-        NOTIFY_KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
-        NOTIFY_GENERATION="$(${pkgs.coreutils}/bin/basename $(${pkgs.coreutils}/bin/readlink /run/current-system) | ${pkgs.gnused}/bin/sed 's/.*-//')"
+        BOOT_TIME="$(${pkgs.coreutils}/bin/date '+%b %-d, %-I:%M %p %Z')"
+        KERNEL="$(${pkgs.coreutils}/bin/uname -r)"
+        GENERATION="$(${pkgs.coreutils}/bin/basename $(${pkgs.coreutils}/bin/readlink /run/current-system) | ${pkgs.gnused}/bin/sed 's/.*-//')"
 
         # Wait a bit for network to be fully ready
         sleep 5
 
-        # Write environment variables to a file for the dispatcher
-        # Directory is created by tmpfiles (boot) and activationScripts (nixos-rebuild)
-        ENV_FILE="/run/notify/env/system-boot:boot.env"
-        {
-          echo "NOTIFY_HOSTNAME=$NOTIFY_HOSTNAME"
-          echo "NOTIFY_BOOTTIME=$NOTIFY_BOOTTIME"
-          echo "NOTIFY_KERNEL=$NOTIFY_KERNEL"
-          echo "NOTIFY_GENERATION=$NOTIFY_GENERATION"
-          echo "NOTIFY_BOOT_STATUS=$NOTIFY_BOOT_STATUS"
-        } > "$ENV_FILE"
-        chgrp notify-ipc "$ENV_FILE"
-        chmod 640 "$ENV_FILE"
+        # Hand the dispatcher this boot's placeholder values as JSON.
+        #
+        # This used to be an EnvironmentFile, which cannot carry the multi-line
+        # values other callers need and silently mangles anything with quoting
+        # in it. JSON has one unambiguous representation, and the keys are the
+        # placeholder names verbatim rather than being run through a lossy
+        # NOTIFY_BOOT_TIME -> boottime transform.
+        CTX_FILE="/run/notify/ctx/system-boot:boot.json"
+        ${pkgs.jq}/bin/jq -n \
+          --arg boottime "$BOOT_TIME" \
+          --arg bootstatus "$BOOT_STATUS" \
+          --arg kernel "$KERNEL" \
+          --arg generation "$GENERATION" \
+          '{boottime: $boottime, bootstatus: $bootstatus, kernel: $kernel, generation: $generation}' \
+          > "$CTX_FILE"
+        chgrp notify-ipc "$CTX_FILE"
+        chmod 660 "$CTX_FILE"
 
         # Trigger notification through generic dispatcher
         ${pkgs.systemd}/bin/systemctl start "notify@system-boot:boot.service"

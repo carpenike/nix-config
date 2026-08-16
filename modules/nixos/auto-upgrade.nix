@@ -156,12 +156,22 @@ let
 
         # Build JSON safely with jq so arbitrary diff content (arrows, quotes,
         # newlines) can't corrupt the payload.
+        #
+        # Written to a temp name and renamed into place: notify-drain.path
+        # watches *.json, so an in-place write could be picked up half-finished.
+        # The backend is carried in the payload because this unit bypasses the
+        # dispatcher and there is no template registered for it to fall back on.
         ${pkgs.jq}/bin/jq -n \
           --arg priority "$PRIORITY" \
           --arg title "$TITLE" \
           --arg message "$MESSAGE" \
-          '{priority: $priority, title: $title, message: $message}' \
-          > "$PAYLOAD_DIR/nixos-upgrade-success.json"
+          --arg backend "${config.modules.notifications.defaultBackend}" \
+          --arg template "nixos-upgrade-success" \
+          '{priority: $priority, title: $title, message: $message,
+            backend: $backend, template: $template}' \
+          > "$PAYLOAD_DIR/nixos-upgrade-success.json.tmp"
+        ${pkgs.coreutils}/bin/chgrp notify-ipc "$PAYLOAD_DIR/nixos-upgrade-success.json.tmp" || true
+        mv "$PAYLOAD_DIR/nixos-upgrade-success.json.tmp" "$PAYLOAD_DIR/nixos-upgrade-success.json"
 
         rm -f /run/nixos-upgrade-start-time /run/nixos-upgrade-old-system
   '';
@@ -326,21 +336,10 @@ in
       };
     };
 
-    # Path unit to trigger success notification
-    systemd.paths."notify-pushover@nixos-upgrade-success" = lib.mkIf notificationsEnabled {
-      wantedBy = [ "multi-user.target" ];
-      pathConfig = {
-        PathExists = "/run/notify/nixos-upgrade-success.json";
-      };
-    };
-
-    # Path unit to trigger failure notification
-    systemd.paths."notify-pushover@nixos-upgrade-failure" = lib.mkIf notificationsEnabled {
-      wantedBy = [ "multi-user.target" ];
-      pathConfig = {
-        PathExists = "/run/notify/nixos-upgrade-failure.json";
-      };
-    };
+    # No path units here any more: notify-drain.path watches /run/notify as a
+    # directory, so a payload is picked up regardless of its name. These two
+    # were among only three such declarations that ever existed, which is why
+    # upgrade notifications kept working while almost everything else did not.
 
     # Extend nixos-upgrade service with metrics, notifications, and OOM protection
     systemd.services.nixos-upgrade = {
