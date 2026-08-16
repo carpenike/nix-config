@@ -30,6 +30,7 @@ in
     ./core/hardware.nix
     ./core/monitoring.nix # Core system health monitoring (CPU, memory, disk, systemd)
     ./core/system-services.nix # System service configurations (rsyslog, journald)
+    ./core/systemd-restart-policy.nix # Reachable start limits so crash-loops surface as `failed`
 
     # Infrastructure (Cross-cutting operational concerns)
     ./infrastructure/backup.nix

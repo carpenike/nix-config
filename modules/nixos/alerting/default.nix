@@ -2,7 +2,7 @@
 { lib, config, options, pkgs, ... }:
 
 let
-  inherit (lib) mkOption types mkIf filterAttrs mapAttrsToList;
+  inherit (lib) mkOption types mkIf filterAttrs mapAttrsToList mapAttrs' nameValuePair;
 
   cfg = config.modules.alerting;
   hasGrafanaIntegration = options.modules.services ? grafana;
@@ -140,6 +140,47 @@ let
         default = "0s";
         description = "Required time for a PromQL alert to be active before firing.";
       };
+
+      restartChurn = mkOption {
+        type = types.submodule {
+          options = {
+            unit = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              description = ''
+                Systemd unit this rule watches (e.g. "grafana.service"). When
+                set, a companion crash-loop alert is generated automatically
+                alongside this rule -- see mkSystemdServiceDownAlert.
+              '';
+            };
+            displayName = mkOption {
+              type = types.nullOr types.str;
+              default = null;
+              description = "Display name used to build the companion alertname.";
+            };
+            description = mkOption {
+              type = types.str;
+              default = "";
+              description = "Service description reused in the companion alert's annotations.";
+            };
+            threshold = mkOption {
+              type = types.int;
+              default = 5;
+              description = "Restarts within the window required to call it a crash loop.";
+            };
+            window = mkOption {
+              type = types.str;
+              default = "15m";
+              description = "Lookback window for counting restarts.";
+            };
+          };
+        };
+        default = { };
+        description = ''
+          Opt-in generation of a paired restart-churn alert. Left unset, a rule
+          behaves exactly as before.
+        '';
+      };
     };
   };
 
@@ -226,7 +267,62 @@ in
     let
       # Move promqlRules and prometheusRuleFile computation inside config block
       # to avoid infinite recursion when referencing cfg.rules
-      promqlRules = filterAttrs (_: rule: rule.type == "promql") cfg.rules;
+      declaredPromqlRules = filterAttrs (_: rule: rule.type == "promql") cfg.rules;
+
+      # Crash-loop companions.
+      #
+      # A ServiceDown rule matches node_systemd_unit_state{state="active"} == 0
+      # held for 2m. That is blind to a restart loop for two independent
+      # reasons, and both bit on 2026-08-16:
+      #
+      #   1. Scrape aliasing. The gauge is sampled every 30s, so a unit that
+      #      dies and returns inside one interval mostly reads as `active`.
+      #      Home Assistant restarted 367 times in 43 minutes and 112 of 121
+      #      samples still read active -- the longest contiguous run of zeroes
+      #      was 60s against a 120s requirement, so the rule went pending and
+      #      reset for the entire outage without ever firing.
+      #
+      #   2. Units that can never reach `failed`. Anything with
+      #      StartLimitIntervalSec=0 (cloudflared-forge, hermes-agent,
+      #      beszel-agent -- see hosts/forge/core/systemd-restart-policy.nix)
+      #      restarts forever by design. For those, no state-based rule can
+      #      ever fire and churn is the ONLY available signal.
+      #
+      # node_systemd_service_restart_total is a monotonic counter incremented
+      # by systemd on every Restart= trigger, so increase() over a window
+      # counts restarts regardless of when scrapes land. It requires
+      # --collector.systemd.enable-restarts-metrics on node-exporter, which
+      # modules/nixos/monitoring.nix sets whenever the systemd collector is on.
+      churnRules = mapAttrs'
+        (name: rule:
+          let
+            churn = rule.restartChurn;
+            display = if churn.displayName != null then churn.displayName else name;
+          in
+          nameValuePair "${name}-restart-churn" {
+            type = "promql";
+            alertname = "${display}RestartChurn";
+            expr = "increase(node_systemd_service_restart_total{name=\"${churn.unit}\"}[${churn.window}]) > ${toString churn.threshold}";
+            # The window already encodes the persistence requirement; a second
+            # `for` delay would only postpone a condition that is by
+            # construction already several minutes old.
+            for = "0s";
+            severity = rule.severity;
+            labels = rule.labels // { category = "availability"; };
+            annotations = {
+              summary = "${display} is crash-looping on {{ $labels.instance }}";
+              description =
+                "${display} ${churn.description} restarted more than ${toString churn.threshold} times in ${churn.window}."
+                + " The service may still report as active between restarts, so check the restart count rather than its current state.";
+              command = "systemctl status ${churn.unit}; journalctl -u ${churn.unit} -n 100";
+            };
+          })
+        (filterAttrs (_: rule: rule.type == "promql" && rule.restartChurn.unit != null) cfg.rules);
+
+      promqlRules = declaredPromqlRules // churnRules;
+
+      churnUnits = lib.unique (mapAttrsToList (_: rule: rule.restartChurn.unit)
+        (filterAttrs (_: rule: rule.type == "promql" && rule.restartChurn.unit != null) cfg.rules));
 
       prometheusRuleFile = pkgs.writeText "prometheus-alert-rules.yml" (
         lib.generators.toYAML { } {
@@ -277,6 +373,27 @@ in
           {
             assertion = builtins.hasAttr cfg.receivers.pushover.userSecret config.sops.secrets;
             message = "modules.alerting: Pushover user secret '${cfg.receivers.pushover.userSecret}' not found in sops.secrets. Either define the secret or disable alerting.";
+          }
+          # A rule naming a unit that does not exist is worse than no rule: it
+          # matches no series, so it can never fire, while making the service
+          # look monitored. Five such rules were live before this check --
+          # beszel, cloudflared, emqx and searx all pointed at units that were
+          # never defined, and recyclarr had a container alert for a oneshot
+          # that runs under a timer.
+          {
+            assertion =
+              let
+                bad = lib.filter (u: !(config.systemd.services ? ${lib.removeSuffix ".service" u})) churnUnits;
+              in
+              bad == [ ];
+            message =
+              let
+                bad = lib.filter (u: !(config.systemd.services ? ${lib.removeSuffix ".service" u})) churnUnits;
+              in
+              "modules.alerting: rule(s) reference systemd units that are not defined on this host: "
+              + lib.concatStringsSep ", " bad
+              + ". Such rules can never fire. Correct the service name passed to"
+              + " mkSystemdServiceDownAlert/mkServiceDownAlert, or drop the rule.";
           }
         ]
         ++

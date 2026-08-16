@@ -64,6 +64,12 @@ in
   # Ensures consistent ownership across ZFS datasets, containers, and NFS shares
   serviceUids = import ./service-uids.nix { };
 
+  # systemd start-limit helpers
+  # mkStartLimit computes a StartLimitIntervalSec/Burst pair in which the limit
+  # is actually reachable for a given RestartSec; neverGiveUp disables it for
+  # units that must never stop retrying. See lib/systemd-restart.nix.
+  systemd-restart = import ./systemd-restart.nix { inherit lib; };
+
   # =============================================================================
   # Service Factory Functions (Helm-like patterns)
   # =============================================================================

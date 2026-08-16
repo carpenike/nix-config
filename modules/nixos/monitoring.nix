@@ -75,9 +75,24 @@ in
       listenAddress = cfg.nodeExporter.listenAddress;
       enabledCollectors = mkDefault cfg.nodeExporter.enabledCollectors;
 
-      extraFlags = mkIf cfg.nodeExporter.textfileCollector.enable [
-        "--collector.textfile.directory=${cfg.nodeExporter.textfileCollector.directory}"
-      ];
+      extraFlags =
+        optionals cfg.nodeExporter.textfileCollector.enable [
+          "--collector.textfile.directory=${cfg.nodeExporter.textfileCollector.directory}"
+        ]
+        # Exposes node_systemd_service_restart_total, a per-unit counter of
+        # systemd Restart= triggers. node_exporter gates it behind this flag
+        # (off by default), so without it the counter is simply absent.
+        #
+        # It is the only crash-loop signal that survives scrape aliasing.
+        # node_systemd_unit_state is sampled every 30s, so a unit that fails
+        # and comes back inside one scrape interval reads as `active` almost
+        # every time -- during the 43-minute Home Assistant loop on
+        # 2026-08-16, 112 of 121 samples read active and the ServiceDown rule
+        # could never hold its 2m condition. A monotonic counter increments on
+        # every restart regardless of when the scrape lands.
+        ++ optionals (elem "systemd" cfg.nodeExporter.enabledCollectors) [
+          "--collector.systemd.enable-restarts-metrics"
+        ];
     };
 
     # Open firewall if requested

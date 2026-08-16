@@ -60,6 +60,7 @@
 
 let
   serviceOptions = import ./service-options.nix { inherit lib; };
+  systemdRestart = import ./systemd-restart.nix { inherit lib; };
 
   # Service categories with default configurations
   operationalProfileDefaults = {
@@ -678,6 +679,25 @@ in
             (lib.mkIf (notificationsCfg.enable or false && cfg.notifications != null && cfg.notifications.enable) {
               unitConfig.OnFailure = [ "notify@${name}-failure:%n.service" ];
             })
+            # Make the start limit reachable.
+            #
+            # Container units inherit systemd's 10s/5 default, which only trips
+            # if the service fails in under 2.4s at RestartSec=100ms -- and is
+            # mathematically unreachable at the RestartSec values several of
+            # these units use. A slow-failing container therefore restarts
+            # forever while `systemctl is-active` reports `active`, and its
+            # ServiceDown alert never fires. See lib/systemd-restart.nix.
+            #
+            # restartSec=30 is the largest RestartSec in use across the
+            # generated container units, so this window stays reachable for all
+            # of them (and is correspondingly more generous for the faster
+            # ones). mkStartLimit is applied with mkDefault so an individual
+            # service can still opt out via neverGiveUp.
+            {
+              unitConfig = lib.mapAttrs (_: lib.mkDefault) (
+                systemdRestart.mkStartLimit { restartSec = 30; }
+              );
+            }
             # Preseed dependency
             (lib.mkIf (cfg.preseed.enable or false) {
               requires = lib.optional (!allowEmptyBootstrap) "preseed-${name}.service";

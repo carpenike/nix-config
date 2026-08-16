@@ -49,7 +49,11 @@ in
 
       # Service availability alert (emqx is a native systemd service, not container)
       modules.alerting.rules."emqx-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert "emqx" "EMQX" "MQTT broker";
+        # EMQX runs as a container, so the unit is podman-emqx.service and the
+        # bare "emqx" matched no series. Uses the systemd helper rather than
+        # the container one because the churn/down pair should follow the unit
+        # that actually exists.
+        forgeDefaults.mkSystemdServiceDownAlert "podman-emqx" "EMQX" "MQTT broker";
     })
   ];
 }
