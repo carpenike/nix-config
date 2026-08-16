@@ -71,7 +71,11 @@ in
     (lib.mkIf serviceEnabled {
       modules.alerting.rules."cloudflare-tunnel-service-down" =
         # cloudflared is a native systemd service, not a container
-        forgeDefaults.mkSystemdServiceDownAlert "cloudflared" "CloudflareTunnel" "external access gateway";
+        # Unit is cloudflared-forge.service; "cloudflared" matched no series.
+        # This one mattered most: the tunnel is also StartLimitIntervalSec=0
+        # (hosts/forge/core/systemd-restart-policy.nix), so it can never reach
+        # `failed` either -- between the two it had no working alert at all.
+        forgeDefaults.mkSystemdServiceDownAlert "cloudflared-forge" "CloudflareTunnel" "external access gateway";
     })
   ];
 }

@@ -78,7 +78,9 @@ in
 
       # Service-down alert (native systemd service)
       modules.alerting.rules."searxng-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert "searx" "SearXNG" "meta search engine";
+        # SearXNG is served by uwsgi (uwsgi.service Requires searx-init.service);
+        # there is no searx.service, so this rule matched no series.
+        forgeDefaults.mkSystemdServiceDownAlert "uwsgi" "SearXNG" "meta search engine";
 
       # Homepage dashboard contribution
       modules.services.homepage.contributions.searxng = {

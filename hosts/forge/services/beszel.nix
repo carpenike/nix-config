@@ -114,7 +114,9 @@ in
 
       # Service-down alert for hub
       modules.alerting.rules."beszel-hub-down" =
-        forgeDefaults.mkSystemdServiceDownAlert "beszel" "BeszelHub" "server monitoring hub";
+        # Unit is beszel-hub.service; "beszel" matched no series, so this rule
+        # could never fire.
+        forgeDefaults.mkSystemdServiceDownAlert "beszel-hub" "BeszelHub" "server monitoring hub";
 
       # Homepage dashboard contribution
       modules.services.homepage.contributions.beszel = {

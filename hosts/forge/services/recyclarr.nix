@@ -160,9 +160,23 @@ in
       # ZFS snapshot and replication configuration
       modules.backup.sanoid.datasets."tank/services/recyclarr" = forgeDefaults.mkSanoidDataset "recyclarr";
 
-      # Service availability alert
-      modules.alerting.rules."recyclarr-service-down" =
-        forgeDefaults.mkServiceDownAlert "recyclarr" "Recyclarr" "TRaSH guide automation";
+      # No service-down alert here on purpose.
+      #
+      # Recyclarr is not a long-running container -- it runs as the oneshot
+      # recyclarr-sync.service driven by recyclarr-sync.timer, and there is no
+      # podman-recyclarr.service. The previous mkServiceDownAlert call queried
+      # container_service_active{name="recyclarr"}, a series the textfile
+      # collector never emits (it only enumerates live podman-* units), so the
+      # rule could not fire under any circumstance while making the service
+      # look monitored.
+      #
+      # Its real failure modes are already covered generically:
+      #   systemd-unit-failed  node_systemd_unit_state{state="failed"} == 1
+      #                        catches recyclarr-sync.service failing
+      #   systemd-timer-stale  catches the timer not having fired in 2 days
+      #
+      # If this ever needs a dedicated alert, key it on recyclarr-sync and use
+      # a timer/staleness shape, not service-down.
     })
   ];
 }
