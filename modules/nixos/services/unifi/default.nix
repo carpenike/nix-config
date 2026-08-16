@@ -9,7 +9,13 @@ let
   cfg = config.modules.services.unifi;
   storageCfg = config.modules.storage;
   datasetPath = "${storageCfg.datasets.parentDataset}/unifi";
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-unifi.service";
+  # NixOS systemd module attribute keys must NOT include the `.service`
+  # suffix — NixOS appends it when rendering the unit. Using the suffixed
+  # name as a key creates a phantom attribute that NixOS silently ignores.
+  # mainServiceUnit (with suffix) is for places that need the unit *name*
+  # for cross-references (OnFailure, Wants, After, etc).
+  mainServiceName = "${config.virtualisation.oci-containers.backend}-unifi";
+  mainServiceUnit = "${mainServiceName}.service";
   hasCentralizedNotifications = config.modules.notifications.enable or false;
   unifiTcpPorts = [ 8080 8443 ];
   unifiUdpPorts = [ 3478 ];
@@ -257,7 +263,7 @@ in
         ];
       };
 
-      systemd.services.${mainServiceUnit} = lib.mkMerge [
+      systemd.services.${mainServiceName} = lib.mkMerge [
         (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           unitConfig.OnFailure = [ "notify@unifi-failure:%n.service" ];
         })

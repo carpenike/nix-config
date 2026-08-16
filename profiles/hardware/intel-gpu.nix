@@ -76,7 +76,17 @@ in
     # If the user supplied services to auto-allow, construct systemd.services entries
     # that add a DeviceAllow for the render node. This is intentionally opt-in.
     # We build an attrset mapping unit name -> { serviceConfig = { DeviceAllow = [...] } }
-    systemd.services = (if cfg.services == [ ] then { }
-    else builtins.listToAttrs (builtins.map (s: { name = s; value = { serviceConfig = { DeviceAllow = [ "/dev/dri/renderD128 rwm" ]; }; }; }) cfg.services));
+    #
+    # NixOS appends ".service" to each `systemd.services.<name>` key, so a key
+    # that already carries the suffix renders as `<name>.service.service` — a
+    # phantom unit that is never loaded, silently discarding the DeviceAllow.
+    # Callers historically wrote the suffix (the option's example above shows
+    # it), so strip a trailing ".service" and accept both spellings.
+    systemd.services = builtins.listToAttrs (builtins.map
+      (s: {
+        name = lib.removeSuffix ".service" s;
+        value = { serviceConfig = { DeviceAllow = [ "/dev/dri/renderD128 rwm" ]; }; };
+      })
+      cfg.services);
   };
 }

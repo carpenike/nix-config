@@ -33,7 +33,12 @@ let
   hasCentralizedNotifications = notificationsCfg.enable or false;
   nfsMountName = cfg.nfsMountDependency;
   nfsMountConfig = storageHelpers.mkNfsMountConfig { inherit config; nfsMountDependency = nfsMountName; };
-  mainServiceUnit = "${config.virtualisation.oci-containers.backend}-unpackerr.service";
+  # NixOS systemd module attribute keys must NOT include the `.service`
+  # suffix — NixOS appends it when rendering the unit. Using the suffixed
+  # name as a key creates a phantom attribute that NixOS silently ignores.
+  # Anything needing the unit *name* for a cross-reference (OnFailure, Wants,
+  # After, ...) must append ".service" to this at the point of use.
+  mainServiceName = "${config.virtualisation.oci-containers.backend}-unpackerr";
 
   # Build environment variables for container
   # Unpackerr uses UN_ prefix for environment variables
@@ -380,7 +385,7 @@ in
     };
 
     # Systemd service overrides
-    systemd.services.${mainServiceUnit} = {
+    systemd.services.${mainServiceName} = {
       # Wait for NFS mount
       after = lib.optionals (nfsMountConfig != null) [
         (if nfsMountConfig.autoMount or false

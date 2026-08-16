@@ -36,7 +36,13 @@ let
   cfg = config.modules.services.litellm;
   serviceName = "litellm";
   backend = config.virtualisation.oci-containers.backend;
-  mainServiceUnit = "${backend}-${serviceName}.service";
+  # NixOS systemd module attribute keys must NOT include the `.service`
+  # suffix — NixOS appends it when rendering the unit. Using the suffixed
+  # name as a key creates a phantom attribute that NixOS silently ignores.
+  # mainServiceUnit (with suffix) is for places that need the unit *name*
+  # for cross-references (OnFailure, Wants, After, etc).
+  mainServiceName = "${backend}-${serviceName}";
+  mainServiceUnit = "${mainServiceName}.service";
 
   # LiteLLM container listens on port 4000 internally (hardcoded in image CMD)
   internalContainerPort = 4000;
@@ -797,7 +803,7 @@ in
       # Systemd Service Configuration
       # ========================================================================
 
-      systemd.services."${mainServiceUnit}" = lib.mkMerge [
+      systemd.services."${mainServiceName}" = lib.mkMerge [
         {
           after = [ "network-online.target" "${serviceName}-env.service" ]
             ++ optional cfg.database.localInstance "postgresql.service"
