@@ -111,6 +111,7 @@ in
         type = "promql";
         alertname = "Go2RTCServiceDown";
         expr = ''node_systemd_unit_state{name="go2rtc.service",state="active"} == 0'';
+        systemd.unit = "go2rtc.service";
         for = "2m";
         severity = "medium";
         labels = {

@@ -276,6 +276,7 @@ in
           type = "promql";
           alertname = "PostgreSQLServiceDown";
           expr = ''node_systemd_unit_state{name="postgresql.service",state="active"} == 0'';
+          systemd.unit = "postgresql.service";
           for = "2m";
           severity = "critical";
           labels = { service = "postgresql"; category = "service"; };

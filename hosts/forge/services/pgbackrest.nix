@@ -1362,6 +1362,7 @@ in
           pgbackrest_scrape_timestamp_seconds
         )
       '';
+      systemd.unit = "pgbackrest-metrics.timer";
       for = "10m";
       severity = "high";
       labels = { service = "pgbackrest"; category = "monitoring"; };
@@ -1527,8 +1528,10 @@ in
 
     # pgBackRest Config Generator Failure Monitoring
     pgbackrest-config-generator-failed = {
+      type = "promql";
       alertname = "PgBackRestConfigGeneratorFailed";
       expr = ''node_systemd_unit_state{name="pgbackrest-config-generator.service",state="failed"} == 1'';
+      systemd.unit = "pgbackrest-config-generator.service";
       for = "5m";
       severity = "high";
       labels = { service = "pgbackrest"; category = "config"; };
