@@ -119,14 +119,19 @@ let
       "podman-plex"
       "podman-scrypted"
       "podman-tracearr"
-      "podman-unpackerr"
       "podman-valhalla"
     ];
     "10" = [
       "podman-it-tools"
       "podman-teslamate"
     ];
-    "30" = [ "podman-tdarr" ];
+    "30" = [
+      "podman-tdarr"
+      # unpackerr's RestartSec=30s only started reaching the real unit once the
+      # `.service`-suffixed attribute name was fixed; before that it was
+      # applied to a phantom unit and the container ran on the 100ms default.
+      "podman-unpackerr"
+    ];
   };
 
   # Units that must keep retrying indefinitely. Every one of these already had
@@ -136,16 +141,13 @@ let
   #
   # cloudflared-forge:        tunnel; fails until the network/edge is reachable
   # hermes-agent:             network-dependent agent
+  # hermes-agent-log-relay:   `tail -F` follower of hermes-agent; pointless to
+  #                           give up while the agent it mirrors keeps retrying
   # beszel-agent:             monitoring agent; must reconnect after any outage
-  #
-  # NOT listed: hermes-agent-log-relay. It is running on forge but is defined
-  # on the claude/hermes-mcp-outage-surfacing branch (commit 3974ef43), not on
-  # main, so it does not exist in this tree. It is a `tail -F` relay that
-  # follows hermes-agent and wants the same treatment -- add it here when that
-  # branch merges. The assertion below is what caught it.
   keepRetrying = [
     "cloudflared-forge"
     "hermes-agent"
+    "hermes-agent-log-relay"
     "beszel-agent"
   ];
 
