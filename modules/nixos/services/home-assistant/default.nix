@@ -1,6 +1,6 @@
 { config, lib, mylib, pkgs, ... }:
 let
-  inherit (lib) mkEnableOption mkOption mkIf mkMerge mkDefault mkForce types;
+  inherit (lib) mkEnableOption mkOption mkIf mkMerge mkDefault mkForce mkBefore types;
 
   # Service UID/GID from centralized registry
   serviceIds = mylib.serviceUids.home-assistant;
@@ -25,6 +25,35 @@ let
     inherit config;
     datasetName = serviceName;
   };
+
+  # dataDir doubles as an operator-managed git working tree, so files Home
+  # Assistant writes itself can be re-created under a human's ownership by a
+  # checkout and silently strip hass's write access. Repair only the paths HA
+  # actually writes; everything else (.git, packages/, dashboards/, scripts/)
+  # is read-only for hass by design and is deliberately left alone.
+  absWritableFiles = map (p: "${cfg.dataDir}/${p}") cfg.runtimeWritableFiles;
+  absWritableDirs = map (p: "${cfg.dataDir}/${p}") cfg.runtimeWritableDirs;
+
+  # Runs as root via the "+" ExecStartPre prefix. This deliberately duplicates
+  # the tmpfiles rules below: tmpfiles only fires on activation, but a git
+  # checkout between two rebuilds is exactly how the ownership drifts, so the
+  # repair has to run on every start for the service to be unbreakable.
+  ownershipRepair = pkgs.writeShellScript "${serviceName}-ownership-repair" ''
+    set -euo pipefail
+
+    for path in ${lib.escapeShellArgs absWritableFiles}; do
+      [ -e "$path" ] || continue
+      ${pkgs.coreutils}/bin/chown hass:hass "$path"
+      # A checkout can also land a read-only mode; owner-write is what matters.
+      ${pkgs.coreutils}/bin/chmod u+w "$path"
+    done
+
+    for path in ${lib.escapeShellArgs absWritableDirs}; do
+      [ -d "$path" ] || continue
+      # Modes are left alone so 0600 credentials under .storage stay restrictive.
+      ${pkgs.coreutils}/bin/chown -R hass:hass "$path"
+    done
+  '';
 in
 {
   options.modules.services.home-assistant = {
@@ -89,6 +118,38 @@ in
       type = types.bool;
       default = false;
       description = "Whether Home Assistant's configuration.yaml should remain writable by the UI (services.home-assistant.configWritable).";
+    };
+
+    runtimeWritableFiles = mkOption {
+      type = types.listOf types.str;
+      default = [ ".HA_VERSION" "automations.yaml" "scenes.yaml" "scripts.yaml" ];
+      description = ''
+        Files under dataDir that Home Assistant writes at runtime, relative to
+        dataDir. Ownership is forced to hass:hass both on activation and before
+        every service start.
+
+        These are the files that can be edited from two directions: Home
+        Assistant writes them (.HA_VERSION on every startup after a version
+        change, the rest from its UI editors), while dataDir is also a git
+        working tree an operator checks out as themselves. A checkout re-creates
+        tracked files under the invoking user, which strips hass's write access
+        and makes the service fail to start -- a fault that stays invisible until
+        the next restart, since nothing rewrites these while HA is running.
+
+        Only list paths Home Assistant genuinely writes. Config that hass merely
+        reads (packages/, dashboards/, secrets.yaml) should stay operator-owned.
+      '';
+    };
+
+    runtimeWritableDirs = mkOption {
+      type = types.listOf types.str;
+      default = [ ".storage" ];
+      description = ''
+        Directories under dataDir owned wholly by Home Assistant, relative to
+        dataDir. Ownership is forced recursively to hass:hass; file modes are
+        preserved so restrictive permissions (such as the 0600 credentials in
+        .storage) survive the repair.
+      '';
     };
 
     reverseProxy = mkOption {
@@ -348,11 +409,45 @@ in
         mode = "0770";
       };
 
+      # Repair ownership on activation as well as at start, so a rebuild heals
+      # drift even if the service is not restarted. "z"/"Z" only adjust paths
+      # that already exist; Home Assistant creates them itself otherwise.
+      # Modes are "-" throughout: only owner/group are corrected. Pinning a mode
+      # here would strip the group-write that lets an operator hand-edit
+      # scripts.yaml/scenes.yaml. Recovering from a read-only mode is left to
+      # the start-time repair, which is what actually has to guarantee startup.
+      systemd.tmpfiles.rules =
+        map (path: "z ${path} - hass hass -") absWritableFiles
+        ++ map (path: "Z ${path} - hass hass -") absWritableDirs;
+
       # Systemd unit coordination
       systemd.services.${serviceName} = {
+        # NOTE: `attrs // (mkIf cond { ... })` must not be used here. It splices
+        # `_type = "if"` into the attrset, so the module system reads the whole
+        # definition as an mkIf and keeps only the mkIf body -- silently
+        # dropping every sibling attribute. That is why RequiresMountsFor below
+        # never reached the generated unit. optionalAttrs composes plainly.
         unitConfig = {
           RequiresMountsFor = [ cfg.dataDir ];
-        } // (mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+
+          # Home Assistant takes ~3s to fail, so systemd's default 10s window
+          # can never accumulate 5 failures: a permanently broken instance
+          # restarts forever while `systemctl is-active` still reports "active",
+          # hiding the outage. Widen the window past the failure interval so a
+          # persistent fault lands the unit in "failed" and stays there.
+          #
+          # This is also what makes the service's own ServiceDown alert usable:
+          # that rule is `for = "2m"` on node_systemd_unit_state{state="active"}
+          # == 0, and a flapping unit never holds the condition long enough to
+          # fire (measured during the 2026-08-16 outage: 60s of contiguous zero
+          # against a 120s requirement, so it went pending and reset for 43
+          # minutes). Only a unit that reaches `failed` holds it.
+          #
+          # mkDefault so a host-level restart policy can own the number without
+          # colliding with this module-level baseline.
+          StartLimitIntervalSec = mkDefault 300;
+          StartLimitBurst = mkDefault 5;
+        } // (lib.optionalAttrs (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           OnFailure = [ "notify@home-assistant-failure:%n.service" ];
         });
         requires = mkIf (cfg.preseed.enable && !allowEmptyBootstrap) [ "preseed-${serviceName}.service" ];
@@ -361,12 +456,22 @@ in
         environment = mkIf (cfg.extraLibs != [ ]) {
           LD_LIBRARY_PATH = lib.makeLibraryPath cfg.extraLibs;
         };
+        # `ReadWritePaths = mkForce [ cfg.dataDir ]` used to sit here. It was
+        # inert for the same mkIf reason, and reviving it would have been a
+        # regression: upstream already grants dataDir, and forcing the list
+        # would have dropped the media share (/mnt/data/media) that Home
+        # Assistant writes generated content to. Removed rather than restored.
         serviceConfig =
           ({
-            ReadWritePaths = mkForce [ cfg.dataDir ];
             WorkingDirectory = mkForce cfg.dataDir;
+
+            # mkBefore so this runs ahead of the upstream module's pre-start
+            # script, and "+" so it runs as root -- hass cannot chown away files
+            # it does not own, which is the whole failure mode being repaired.
+            ExecStartPre = mkBefore [ "+${ownershipRepair}" ];
           }
-          // (mkIf (cfg.environmentFiles != [ ]) {
+          # See the unitConfig note above: optionalAttrs, never `// mkIf`.
+          // (lib.optionalAttrs (cfg.environmentFiles != [ ]) {
             EnvironmentFile = cfg.environmentFiles;
           }));
       };
