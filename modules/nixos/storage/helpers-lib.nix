@@ -75,11 +75,21 @@
 
       # Method enable checks are computed inline in script; remove unused bindings
 
-      # Helper to trigger a notification
+      # Helper to trigger a notification.
+      #
+      # The message is handed over in a context file rather than exported.
+      # `systemctl start` asks PID 1 to launch the unit, so it inherits nothing
+      # from this shell: the old `export NOTIFY_MESSAGE=...` never reached the
+      # dispatcher, and every preseed notification rendered with an empty
+      # <b>Details:</b> section.
       notify = template: message: ''
         ${lib.optionalString hasCentralizedNotifications ''
-          echo "${message}"
-          export NOTIFY_MESSAGE="${lib.escapeShellArg message}"
+          echo ${lib.escapeShellArg message}
+          ${pkgs.jq}/bin/jq -n --arg message ${lib.escapeShellArg message} \
+            '{message: $message}' \
+            > "/run/notify/ctx/${template}:${serviceName}.json"
+          ${pkgs.coreutils}/bin/chgrp notify-ipc "/run/notify/ctx/${template}:${serviceName}.json" || true
+          ${pkgs.coreutils}/bin/chmod 660 "/run/notify/ctx/${template}:${serviceName}.json" || true
           # The dispatcher service uses the instance info as the serviceName
           ${pkgs.systemd}/bin/systemctl start "notify@${template}:${serviceName}.service"
         ''}

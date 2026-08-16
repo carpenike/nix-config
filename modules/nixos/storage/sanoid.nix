@@ -322,23 +322,46 @@ in
         replicationEntries;
     users.groups.${cfg.replicationGroup} = { };
 
+    # Replication failures fire from OnFailure on a per-dataset syncoid unit,
+    # which leaves no opportunity to write a context file first. The target
+    # host is known here at build time, so register it per unit instead.
+    modules.notifications.context = lib.mkIf (config.modules.notifications.enable or false) (
+      lib.mapAttrs'
+        (dataset: conf: lib.nameValuePair
+          "syncoid-${lib.strings.replaceStrings [ "/" ] [ "-" ] dataset}.service"
+          { targetHost = conf.replication.targetHost; })
+        datasetsWithReplication
+    );
+
     # -- Notification Templates --
     modules.notifications.templates = lib.mkIf (config.modules.notifications.enable or false) {
+      # Placeholders are substituted by exact ''${name} match, not by a shell.
+      # These bodies previously used shell default syntax (''${dataset:-"unknown"}),
+      # command substitution ($(date -Iseconds)) and camelCase names that the
+      # dispatcher could never produce (''${errorMessage}, ''${targetHost}), all
+      # of which were delivered to the phone verbatim.
       zfs-replication-failure = {
         enable = true;
         priority = "high";
+        # targetHost is supplied per-unit via modules.notifications.context
+        # below: this fires from OnFailure, which gets no chance to run code
+        # first, so the value has to be registered at build time.
+        placeholders = [ "targetHost" ];
         title = ''✗ ZFS Replication Failed'';
         body = ''
-          <b>Dataset:</b> ''${dataset:-"unknown"}
-          <b>Target:</b> ''${targetHost:-"unknown"}
-          <b>Error:</b> ''${errorMessage:-"No error details available"}
-          <b>Timestamp:</b> $(date -Iseconds)
+          <b>Host:</b> ''${hostname}
+          <b>Dataset:</b> ''${dataset}
+          <b>Target:</b> ''${targetHost}
+          <b>Unit:</b> <code>''${serviceName}</code>
+          <b>Timestamp:</b> ''${timestamp}
+
+          <b>Error:</b>
+          ''${errormessage}
 
           <b>Troubleshooting:</b>
           • Check SSH connectivity: ssh ''${targetHost}
-          • Review logs: journalctl -u syncoid-*.service
+          • Review logs: journalctl -u ''${serviceName} -n 100
           • Verify SSH key: ls -la /var/lib/zfs-replication/.ssh/
-          • Test ZFS send: zfs send -nv ''${dataset}@latest
         '';
       };
       zfs-snapshot-failure = {
@@ -346,21 +369,25 @@ in
         priority = "high";
         title = ''✗ ZFS Snapshot Failed'';
         body = ''
-          <b>Dataset:</b> ''${dataset:-"unknown"}
-          <b>Host:</b> ''${hostname:-"unknown"}
-          <b>Error:</b> ''${errorMessage:-"No error details available"}
-          <b>Timestamp:</b> $(date -Iseconds)
+          <b>Host:</b> ''${hostname}
+          <b>Dataset:</b> ''${dataset}
+          <b>Unit:</b> <code>''${serviceName}</code>
+          <b>Timestamp:</b> ''${timestamp}
+
+          <b>Error:</b>
+          ''${errormessage}
 
           <b>Troubleshooting:</b>
           • Check ZFS pool health: zpool status
-          • Review logs: journalctl -u sanoid.service
-          • Verify permissions: zfs allow ''${dataset}
+          • Review logs: journalctl -u ''${serviceName} -n 100
           • Check disk space: df -h /
         '';
       };
       pool-degraded = {
         enable = true;
         priority = "emergency";
+        # Supplied at dispatch time by zfs-health-check via a context file.
+        placeholders = [ "pool" "state" "status" ];
         title = ''🚨 URGENT: ZFS Pool Degraded'';
         body = ''
           <b>Pool:</b> ''${pool}
@@ -581,6 +608,23 @@ in
               UMask = lib.mkForce "0002";
               PermissionsStartOnly = lib.mkForce false;
 
+              # Being stopped is not a replication failure.
+              #
+              # A nixos-rebuild switch (or any systemctl stop) SIGTERMs whichever
+              # syncoid jobs happen to be mid-run. systemd already treats SIGTERM
+              # as a clean exit for most services, but explicitly not for
+              # Type=oneshot, so these units entered the failed state and fired
+              # OnFailure - sending a high-priority "ZFS Replication Failed" page
+              # for a job the admin interrupted. Three such false alarms occurred
+              # in the 14 days before notification delivery was repaired; they
+              # were invisible only because nothing was being delivered.
+              #
+              # This does NOT mask a hung replication: a job killed by
+              # TimeoutStartSec below is recorded with Result=timeout rather than
+              # Result=signal, so it still fails and still pages. Verified on
+              # forge against all three cases before this was applied.
+              SuccessExitStatus = "SIGTERM";
+
               # CRITICAL: Shorter timeout to fail faster (was 2h, now 45m)
               TimeoutStartSec = "45m";
               TimeoutStopSec = "5m";
@@ -688,10 +732,24 @@ in
 
                     if [[ "$state" != "ONLINE" ]]; then
                       status=$(${pkgs.zfs}/bin/zpool status "$pool" 2>&1 || echo "Failed to get pool status")
-                      export NOTIFY_POOL="$pool"
-                      export NOTIFY_HOSTNAME="${config.networking.hostName}"
-                      export NOTIFY_STATE="$state"
-                      export NOTIFY_STATUS="$status"
+
+                      # Hand the values to the dispatcher through a context
+                      # file. Exporting them did nothing: `systemctl start`
+                      # launches the unit from PID 1, not from this shell, so
+                      # the environment never reached it and every pool-degraded
+                      # page rendered with empty pool, state and status.
+                      # JSON also survives the multi-line `zpool status` output,
+                      # which an EnvironmentFile would have mangled.
+                      CTX_FILE="/run/notify/ctx/pool-degraded:$pool.json"
+                      ${pkgs.jq}/bin/jq -n \
+                        --arg pool "$pool" \
+                        --arg state "$state" \
+                        --arg status "$status" \
+                        '{pool: $pool, state: $state, status: $status}' \
+                        > "$CTX_FILE"
+                      ${pkgs.coreutils}/bin/chgrp notify-ipc "$CTX_FILE" || true
+                      ${pkgs.coreutils}/bin/chmod 660 "$CTX_FILE" || true
+
                       ${pkgs.systemd}/bin/systemctl start "notify@pool-degraded:$pool.service"
                       echo "[$(date -Iseconds)] WARNING: Pool $pool is $state - notification sent"
 

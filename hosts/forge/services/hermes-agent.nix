@@ -238,86 +238,39 @@ let
   dailySentinelJobName = "daily-finance-sentinel";
   dailySentinelSchedule = "0 8 * * *";
   dailySentinelPrompt = ''
-    Act as a silent household-finance sentinel. Call exactly these four tools,
-    once each, using live data at run time:
-    - finances_sync_status with trigger_sync=false
-    - finances_breaches with lookback_days=3
-    - finances_buffer with no arguments
-    - finances_ticklers with due_only=false
+    Act as a silent household-finance sentinel.
 
-    Send an alert only when at least one of these predicates is true:
-    1. `breach_candidates` is non-empty OR an open `bridge-*` tickler has
-       `is_due=true`. Classify these through the HELOC Bridge Policy below
-       before choosing informational versus alarm treatment.
-    2. A non-manual sync account has status `dead`. For basis `feed`, require
-      feed_age_hours > 72. For basis `activity_fallback`, trust `dead` as the
-      cadence-aware fallback and identify that weaker basis. Ignore `stale`,
-      `quiet_but_healthy`, and manual accounts.
-    3. Buffer floor is configured and buffer status is `below_floor`. A status
-      of `no_floor`, `near_floor`, or `above_floor` is not an alert.
-    4. Revolving creep is armed only when the tool's `as_of` date is more than
-      25 calendar days after the 2026-07-30 card-payoff baseline (never on or
-      before 2026-08-24). Then alert for each `components.card_accounts` row
-      where `counted` is true and the owed balance exceeds $500 (`balance` is
-      less than -500).
-    5. A non-bridge row in `finances_ticklers.ticklers` has `is_due=true` OR
-       `finances_ticklers.malformed` is non-empty. Due non-bridge rows and
-       malformed rows are both speak conditions; future or closed rows are
-       routine schedule data. Due `bridge-*` rows belong to BREACH, not TICKLER.
+    Call `finances_sentinel` exactly once, with no arguments. Call no other
+    tool. The thresholds, the HELOC Bridge Policy, and the exact wording of
+    every line are decided inside that tool; never re-derive, second-guess,
+    reformat, or supplement them.
 
-    HELOC Bridge Policy for BREACH classification:
-    - A usable declaration is exactly one row whose id starts `bridge-`, whose
-      status is `open`, and whose message explicitly names the draw amount and
-      date, pre-draw HELOC balance, scheduled third-party inbound source, its
-      net amount and date, and why the buffer could not cover the commitment.
-      Never infer a missing field. The draw must be at most $30,000 and at most
-      90% of the named inbound's net amount. The row's `due` is the first
-      expired day and must be no later than the source date plus 10 business
-      days or 45 calendar days after the draw, whichever comes first. More than
-      one open bridge is itself a breach; never use either row as an exception.
-    - Match a breach candidate only when exactly one usable, not-due bridge has
-      an amount within 10% of the candidate and the candidate date is on or
-      after the declared draw date but before the row's `due`. One bridge may
-      excuse only its declared draw. For that match, BREACH remains true as the
-      hard SPEAK gate, but it is informational rather than an alarm. Output
-      exactly: "✅ Bridge open: $X against <source>, day N of M". Use the
-      candidate amount rounded to whole dollars and the declared source. Day 1
-      is the draw date; N is the inclusive calendar day through
-      `finances_ticklers.as_of`, and M is the number of calendar days from the
-      draw date up to but not including `due`.
-    - An open `bridge-*` row with `is_due=true` has converted automatically.
-      Output exactly: "🛑 Bridge breach: $X against <source>; window expired,
-      bridge converted." Use its declared amount and source. If either field
-      is missing, output exactly: "🛑 Bridge breach: <bridge-id>; window
-      expired, bridge converted." Do not also report that draw as an unmatched
-      candidate.
-    - A candidate with no usable exact bridge match is unchanged: report it as
-      the existing terse breach-candidate alarm, beginning with 🛑. Do not let a
-      future, closed, due, ambiguous, malformed, or policy-invalid bridge row
-      excuse it.
+    Choose your response by working these branches in order:
 
-    After all four calls, privately reduce the results to five booleans named
-    BREACH, DEAD_FEED, BELOW_FLOOR, REVOLVING_CREEP, and TICKLER using only the
-    rules above. BREACH remains one boolean even when its required line is an
-    informational open-bridge status. TICKLER is false only when there are no
-    due non-bridge rows and `malformed` is empty. Do not print this checklist
-    or mention any false category.
+    1. If the call did not return a sentinel verdict — the tool is absent from
+       your catalog, refuses, errors, times out, or hands back an error payload
+       — your entire final response MUST be exactly:
+       🛑 Sentinel could not run: <reason>
+       Replace <reason> with a short factual phrase naming what failed, for
+       example "tool not available", "tool returned an error", or "call timed
+       out". Never invent a cause you did not observe. A sentinel that did not
+       run is an alarm, never an all-clear.
 
-    Final-response gate:
-    - If all five booleans are false, your entire final response MUST be exactly
-      `[SILENT]`. Do not explain the healthy state, list non-events, summarize
-      the calls, or mention why the response is silent. Hermes suppresses that
-      marker and writes the silent-run log line.
-    - Otherwise, return only one terse factual line for each true boolean. Do
-      not include lines for false booleans, routine status, advice, blame, or
-      invented values.
-    - For TICKLER due non-bridge rows, output each row's `message` verbatim as
-      its own line, then output exactly one line: "These reminders repeat daily
-      until their rows are edited in TICKLERS.md." Do not paraphrase, prefix,
-      or combine a due message.
-    - For each malformed row, output: "a reminder in TICKLERS.md is unreadable:
-      <reason>" using that row's parser `reason` verbatim. Malformed rows always
-      speak even when no due row exists.
+    2. Otherwise, if the returned `silent` is true, your entire final response
+       MUST be exactly:
+       [SILENT]
+       Do not explain the healthy state, list non-events, summarize the call,
+       or say why the response is silent. Hermes suppresses that marker and
+       writes the silent-run log line.
+
+    3. Otherwise, output the returned `lines` verbatim, one per line, in the
+       order given, and nothing else. Do not add, drop, reorder, renumber,
+       paraphrase, prefix, merge, or re-punctuate a line, and add no preamble,
+       commentary, advice, or values of your own.
+
+    Branch 2 is reachable ONLY from a successful call whose result you actually
+    read `silent` from. If you cannot point at that field in a returned result,
+    you are in branch 1 — emit the 🛑 line, never `[SILENT]`.
 
     Never use signal_send; native cron delivery sends the final response.
   '';
@@ -624,6 +577,115 @@ let
     echo "hermes finance sentinel dry run: timed out; local job remains $job_id" >&2
     exit 1
   '';
+  # Dead-man's switch for the daily sentinel.
+  #
+  # Silence is this job's success signal, which makes "it stopped running"
+  # indistinguishable from "your finances are fine" to a human. On 2026-08-12
+  # hermes lost its MCP connection for three days; the sentinel fired on time
+  # every morning, the finance tools were absent from its toolset, and the
+  # agent correctly refused to fabricate — but the household heard nothing and
+  # no alarm was raised. Cron recorded all three runs as `completed` with
+  # last_status `ok`, because the JOB succeeded; only its PURPOSE failed.
+  #
+  # So this checks liveness AND substance, and runs from its own unit with its
+  # own alarm path: a watcher living inside hermes cannot report that hermes
+  # has stopped.
+  sentinelHeartbeatScript = pkgs.writeScript "hermes-sentinel-heartbeat" ''
+    #!${pkgs.python3}/bin/python3
+    """Assert the daily finance sentinel both ran and could see the data."""
+    import datetime
+    import glob
+    import json
+    import os
+    import sys
+
+    HERMES_HOME = "${stateDir}/.hermes"
+    JOB_NAME = "${dailySentinelJobName}"
+    MAX_AGE_H = 26.0
+
+    def fail(msg):
+        print("hermes sentinel heartbeat: " + msg, file=sys.stderr)
+        raise SystemExit(1)
+
+    jobs_path = os.path.join(HERMES_HOME, "cron", "jobs.json")
+    try:
+        with open(jobs_path) as fh:
+            raw = json.load(fh)
+    except Exception as exc:
+        fail("cannot read %s: %s" % (jobs_path, exc))
+
+    jobs = raw if isinstance(raw, list) else raw.get("jobs", raw)
+    if isinstance(jobs, dict):
+        jobs = list(jobs.values())
+
+    job = next(
+        (j for j in jobs if isinstance(j, dict) and j.get("name") == JOB_NAME),
+        None,
+    )
+    if job is None:
+        fail("no cron job named %s - the sentinel is not scheduled at all" % JOB_NAME)
+    if not job.get("enabled", False):
+        fail("%s is disabled" % JOB_NAME)
+    if job.get("paused_at"):
+        fail("%s is paused: %s" % (JOB_NAME, job.get("paused_reason")))
+
+    last_run = job.get("last_run_at")
+    if not last_run:
+        fail("%s has never run" % JOB_NAME)
+    try:
+        ran_at = datetime.datetime.fromisoformat(last_run)
+    except ValueError as exc:
+        fail("%s has an unparseable last_run_at %r: %s" % (JOB_NAME, last_run, exc))
+    age_h = (datetime.datetime.now(ran_at.tzinfo) - ran_at).total_seconds() / 3600.0
+    if age_h > MAX_AGE_H:
+        fail(
+            "%s last ran %.1fh ago, limit %.0fh. It is scheduled daily, so the "
+            "household has had no finance sentinel since %s."
+            % (JOB_NAME, age_h, MAX_AGE_H, last_run)
+        )
+
+    if job.get("last_status") not in (None, "ok"):
+        fail(
+            "%s last_status=%r error=%r"
+            % (JOB_NAME, job.get("last_status"), job.get("last_error"))
+        )
+    if job.get("last_delivery_error"):
+        fail("%s ran but delivery failed: %s" % (JOB_NAME, job["last_delivery_error"]))
+
+    # A run can be `ok` and still blind. These are the shapes a blind run takes:
+    # the current prompt's explicit failure branch, and the free-text refusals
+    # the previous prompt produced on 2026-08-12..14.
+    out_dir = os.path.join(HERMES_HOME, "cron", "output", job.get("id", ""))
+    runs = sorted(glob.glob(os.path.join(out_dir, "*.md")))
+    if not runs:
+        fail("%s has no run output under %s" % (JOB_NAME, out_dir))
+    newest = runs[-1]
+    with open(newest, errors="replace") as fh:
+        body = fh.read()
+    verdict = body.split("## Response", 1)[-1].strip()
+    if not verdict:
+        fail("%s produced an empty verdict in %s" % (JOB_NAME, os.path.basename(newest)))
+
+    BLIND = (
+        "sentinel could not run",
+        "cannot complete this task",
+        "not available in my current toolset",
+        "not present in my available toolset",
+    )
+    for marker in BLIND:
+        if marker in verdict.lower():
+            fail(
+                "%s ran at %s but could not evaluate the finances (%r in %s). "
+                "Check whether the MCP servers are parked: "
+                "journalctl -t hermes-errors -g parking"
+                % (JOB_NAME, last_run, marker, os.path.basename(newest))
+            )
+
+    print(
+        "ok: %s ran %.1fh ago, verdict readable (%s)"
+        % (JOB_NAME, age_h, os.path.basename(newest))
+    )
+  '';
   pulseServiceHardening = {
     User = "hermes";
     Group = "hermes";
@@ -817,6 +879,16 @@ in
       # runtime file permissions while recursively fixing only owner/group.
       systemd.tmpfiles.rules = [
         "Z ${stateDir} - hermes hermes -"
+
+        # Remove the decoy log directory. Hermes created ${stateDir}/logs once
+        # on 2026-08-02 with an empty agent.log and errors.log, then never
+        # touched it again — it survived three service restarts still at 0
+        # bytes while the real logs filled up under .hermes/logs. It is not a
+        # spare or a fallback, it is a trap: investigating the August 2026 MCP
+        # outage, an empty agent.log here read as "hermes logs nothing" and
+        # sent the diagnosis down the wrong path, while the evidence sat in
+        # .hermes/logs/errors.log the whole time. One logs directory only.
+        "R ${stateDir}/logs - - - -"
       ];
     }
 
@@ -847,6 +919,28 @@ in
         zfsDataset = dataset;
       };
 
+      # This alert is REAL but does not cover either way Hermes actually fails.
+      # Keep it — it catches a clean stop — but do not read it as coverage.
+      #
+      # It loads in Prometheus as `Hermes AgentServiceDown`, for=120s, on
+      # `node_systemd_unit_state{name="hermes-agent.service",state="active"} == 0`.
+      #
+      #   Wedged (the 2026-08-12 outage): the process stayed alive and `active`
+      #   for three days while doing nothing. The expression was never true. It
+      #   did not fire, and could not have.
+      #
+      #   Crash-looping: RestartSec=10s, so the unit is inactive ~10s per cycle
+      #   and never the 120s continuous that `for` requires. Measured on
+      #   home-assistant during its 2026-08-16 crash loop: the metric hit 0 for
+      #   at most 60s at a stretch, the alert reached `pending` ten times and
+      #   `firing` never. Hermes restarts slower, so it fares worse.
+      #
+      # Actual detection for this service is
+      # hermes-agent-sentinel-heartbeat.service, which checks the sentinel's
+      # own output rather than systemd's opinion of the unit. 77 *ServiceDown
+      # rules across this config share the crash-loop blindness; fixing it
+      # (widen the start-limit window per-service, or alert on restart churn)
+      # is tracked separately and would repair them all at once.
       modules.alerting.rules."${serviceName}-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert
           serviceName
@@ -980,6 +1074,120 @@ in
             "signal-env:${config.sops.secrets."hermes-agent/signal-env".path}"
             "advisor-test-group-id:${config.sops.secrets."hermes-agent/advisor-test-group-id".path}"
           ];
+        };
+      };
+
+      # Hermes logs ONLY to files — hermes_logging.py wires every logger to a
+      # RotatingFileHandler under ${stateDir}/.hermes/logs and writes nothing to
+      # stdout, so `journalctl -u hermes-agent` returns zero records however
+      # long the service has run. The 2026-08-12 MCP outage announced itself
+      # there ~890 times over three days ("failed initial connection ...
+      # parking until a reconnect is requested: TimeoutError") while the
+      # household got no sentinel and nothing raised an alarm. The data existed;
+      # only surfacing was missing.
+      #
+      # Mirror the high-signal error stream into the journal so journal-based
+      # tooling and alerting can see it at all. errors.log only: agent.log is
+      # ~10x the volume and mostly routine, and journald is a shared budget.
+      systemd.services.hermes-agent-log-relay = {
+        description = "Mirror Hermes file logs into the journal";
+        after = [ "hermes-agent.service" ];
+        wants = [ "hermes-agent.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = pulseServiceHardening // {
+          # -F (follow by name, retry) survives both the RotatingFileHandler's
+          # rename-and-recreate and a not-yet-created file on first boot.
+          # -n 0 starts at the tail: the backlog is already on disk, and
+          # replaying it on every restart would duplicate it into the journal.
+          ExecStart = "${pkgs.coreutils}/bin/tail -F -n 0 ${stateDir}/.hermes/logs/errors.log";
+          SyslogIdentifier = "hermes-errors";
+          StandardOutput = "journal";
+          StandardError = "journal";
+          Restart = "always";
+          RestartSec = 5;
+          # Read-only: this unit must never be able to perturb what it watches.
+          # `//` already replaces the hardening set's ReadWritePaths outright;
+          # with ProtectSystem=strict and nothing writable, stateDir is
+          # readable and untouchable.
+          ReadWritePaths = [ ];
+          MemoryMax = "64M";
+          TasksMax = 8;
+        };
+      };
+
+      # Alarm path for the heartbeat below. Deliberately NOT Signal: Signal is
+      # how the sentinel itself speaks, and an alarm that shares a channel with
+      # the thing it watches can be silenced by the same fault. notify@ goes to
+      # Pushover and touches neither hermes nor the MCP server.
+      modules.notifications.templates.hermes-sentinel-stale =
+        lib.mkIf (config.modules.notifications.enable or false) {
+          priority = lib.mkDefault "high";
+          title = "🛑 Household finance sentinel is not reporting";
+          body = ''
+            The daily finance sentinel has not produced a usable verdict.
+
+            Silence normally means "nothing to report", so this alarm exists
+            because a stopped sentinel and a healthy morning look identical
+            from the outside.
+
+            Check: systemctl status hermes-agent-sentinel-heartbeat.service
+            Parked MCP servers: journalctl -t hermes-errors -g parking
+          '';
+        };
+
+      systemd.services.hermes-agent-sentinel-heartbeat = {
+        description = "Assert the daily finance sentinel ran and could see data";
+        # No dependency on hermes-agent: this must still run, and still be able
+        # to complain, when hermes is wedged, stopped, or gone.
+        #
+        # ALARM STATUS (2026-08-16): fixed and proven, but the fix is not in
+        # this repo yet. Read both halves before trusting or distrusting it.
+        #
+        # It WAS inert. notify@ delivered only to backends whose per-instance
+        # .path unit a caller had declared — 4 declarations against 34 template
+        # registrations — so a test-fire wrote a payload to /run/notify that
+        # nothing ever read, while the dispatcher exited 0. Payloads had been
+        # accumulating unread since 2026-07-13.
+        #
+        # It was deliberately NOT patched here with a private path instance:
+        # that would have been a 5th copy of the pattern that caused the
+        # outage, arming this one alarm while ~30 other services stayed dark.
+        #
+        # The real fix lives in modules/nixos/notifications and is verified:
+        # the dispatcher resolves this dynamic instance and renders this
+        # template correctly, and a genuine unit failure carried an OnFailure
+        # notification through to Pushover returning HTTP 200. It is DEPLOYED
+        # ON FORGE but NOT YET MERGED to main. So on the running host this
+        # alarm pages; from this repo alone it does not, and deploying main
+        # over forge would silently un-arm it again.
+        #
+        # When that fix merges, delete this paragraph — and note the template
+        # carries no placeholders, so the page says only that the sentinel is
+        # not reporting, never whether it failed to run or ran blind. Those
+        # want different responses; the reason is in
+        # `journalctl -u hermes-agent-sentinel-heartbeat` until the template
+        # declares a "reason" placeholder fed from the check below.
+        onFailure = [ "notify@hermes-sentinel-stale:%n.service" ];
+        serviceConfig = pulseServiceHardening // {
+          Type = "oneshot";
+          ExecStart = sentinelHeartbeatScript;
+          # Reads hermes's cron state; must never be able to alter it.
+          ReadWritePaths = [ ];
+          MemoryMax = "128M";
+          TasksMax = 16;
+        };
+      };
+
+      systemd.timers.hermes-agent-sentinel-heartbeat = {
+        description = "Check the daily finance sentinel is still reporting";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          # The sentinel runs daily at 08:00 and the check tolerates 26h, so a
+          # 6-hourly sweep bounds "nobody noticed" at about six hours instead
+          # of the three days it actually took in August 2026.
+          OnCalendar = "*-*-* 00,06,12,18:20:00";
+          RandomizedDelaySec = "5m";
+          Persistent = true;
         };
       };
 

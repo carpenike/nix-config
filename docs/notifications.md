@@ -8,13 +8,72 @@ The centralized notification system provides a unified interface for sending not
 
 ```
 modules/nixos/notifications/
-├── default.nix          # Main module with unified interface
+├── default.nix          # Options, template registry, and the notify@ dispatcher
+├── drain.nix            # Queue watcher, delivery, and the backlog alarm
 ├── pushover.nix         # Pushover backend implementation
 ├── ntfy.nix             # ntfy backend implementation
 └── healthchecks.nix     # Healthchecks.io backend implementation
 
 lib/notification-helpers.nix  # Reusable helper functions
 ```
+
+### How a notification actually travels
+
+```
+caller                    notify@<template>:<instance>       notify-drain
+------                    ----------------------------       ------------
+OnFailure= ............>  look up template in                 (woken by
+  or systemctl start      /etc/notification-templates.json    notify-drain.path)
+                          resolve placeholders                     |
+                          write /run/notify/<...>.json ......>  read payload
+                                                                route on .backend
+                                                                deliver, then unlink
+```
+
+Three properties are load-bearing:
+
+1. **The queue is watched as a directory, not per notification.**
+   `notify-drain.path` globs `/run/notify/*.json`. It must never be replaced by
+   per-instance `.path` units: instance names are chosen by the caller at
+   failure time (`notify@<template>:%n`), so they cannot be enumerated at build
+   time. That mistake is what left notifications undelivered for a month while
+   every dispatch still exited 0.
+
+2. **The payload carries its own backend.** The drain routes on the `backend`
+   field. Without it, the only record of the destination was the name of the
+   service that would have been started.
+
+3. **Undelivered payloads alarm.** `notify-backlog-check` pages, and fails its
+   unit, if anything sits in `/run/notify` for more than a few minutes. A
+   notification system that stops working is otherwise invisible: the symptom is
+   the absence of a message.
+
+### Placeholders
+
+Template `title` and `body` may reference `${name}` placeholders, substituted by
+exact name at dispatch time. Note that inside a Nix indented string you write
+`''${name}` — `''${` is the escape sequence that emits a literal `${`.
+
+Built-ins, always available: `hostname`, `serviceName`, `template`, `instance`,
+`timestamp`, plus `errormessage`, `dataset`, `jobname` and `repository` when the
+instance names a failed unit the dispatcher can derive them from.
+
+Anything else must be declared in the template's `placeholders` list, and
+supplied in one of two ways:
+
+- **`modules.notifications.context.<unit>`** — build-time values, for callers
+  that cannot run code first. `OnFailure` handlers are the main case: they fire
+  the notifier directly, with no opportunity to write anything.
+- **A runtime context file** — `/run/notify/ctx/<template>:<instance>.json`,
+  written before `systemctl start notify@<template>:<instance>.service`.
+
+Do **not** try to pass context by exporting environment variables before
+`systemctl start`. That asks PID 1 to launch the unit, so it inherits nothing
+from the calling shell; the values are silently dropped.
+
+Using a placeholder that is neither a built-in nor declared fails evaluation.
+Anything declared but unresolved at runtime renders as `(unset: name)` rather
+than as a blank, so a mistake is visible on the page instead of silent.
 
 ## Features
 
@@ -184,6 +243,19 @@ modules.notifications.healthchecks = {
 
 ## Pre-defined Templates
 
+> **Stale section.** The `backup-success`, `backup-failure`, `service-failure`,
+> `boot-notification` and `disk-alert` templates described below do not exist.
+> Templates are registered by the modules that own them, so the accurate list
+> for a host is whatever it actually built:
+>
+> ```bash
+> jq -r 'keys[]' /etc/notification-templates.json
+> ```
+>
+> The corresponding `notify-ntfy-*` and `healthcheck-*` services have been
+> removed — they referenced these non-existent templates, so enabling the ntfy
+> or Healthchecks backend would have failed evaluation outright.
+
 ### Backup Success
 
 Automatically notifies when backup completes successfully.
@@ -261,24 +333,42 @@ modules.notifications.templates.disk-alert = {
 
 ### Custom Notifications
 
-Send custom notifications from scripts:
+Notifications go through the dispatcher, which renders a registered template.
+Register the template in Nix:
+
+```nix
+modules.notifications.templates.my-alert = {
+  priority = "high";
+  placeholders = [ "detail" ];       # anything beyond the built-ins
+  title = ''Something happened on ''${hostname}'';
+  body = ''
+    <b>Host:</b> ''${hostname}
+    <b>When:</b> ''${timestamp}
+
+    ''${detail}
+  '';
+};
+```
+
+Then fire it, supplying the declared placeholders via a context file:
 
 ```bash
-# Using Pushover backend
-systemctl start notify-pushover@custom.service \
-  --setenv=NOTIFY_TITLE="Custom Alert" \
-  --setenv=NOTIFY_MESSAGE="Something happened!" \
-  --setenv=NOTIFY_PRIORITY="high" \
-  --setenv=NOTIFY_URL="https://example.com" \
-  --setenv=NOTIFY_URL_TITLE="View Details"
-
-# Using ntfy backend
-systemctl start notify-ntfy@custom.service \
-  --setenv=NOTIFY_TITLE="Custom Alert" \
-  --setenv=NOTIFY_MESSAGE="Something happened!" \
-  --setenv=NOTIFY_PRIORITY="high" \
-  --setenv=NOTIFY_TAGS="warning,custom"
+jq -n --arg detail "the thing went wrong" '{detail: $detail}' \
+  > /run/notify/ctx/my-alert:some-instance.json
+systemctl start notify@my-alert:some-instance.service
 ```
+
+For an `OnFailure` hook, no context file is possible — declare the values under
+`modules.notifications.context` keyed by unit name instead:
+
+```nix
+systemd.services.my-service.unitConfig.OnFailure = [ "notify@my-alert:%n.service" ];
+modules.notifications.context."my-service.service".detail = "check the widget";
+```
+
+Note there is no `--setenv` form. `systemctl start --setenv` sets the
+environment of the *started unit*, but the dispatcher renders from the template
+and its context sources, so those variables are ignored.
 
 ### Multiple Backends
 
@@ -400,20 +490,54 @@ modules.backup.monitoring.enable = true;
 
 ## Troubleshooting
 
-### Check Notification Services
+### Is delivery working at all?
+
+Start here. A dispatch exiting 0 does **not** mean anything was delivered — the
+dispatcher's job ends when the payload is queued.
 
 ```bash
-# List all notification services
-systemctl list-units 'notify-*'
+# Anything sitting here is undelivered. It should normally be empty.
+doas ls -la /run/notify/ /run/notify/failed/
 
-# Test Pushover notification
-systemctl start notify-pushover@test.service \
-  --setenv=NOTIFY_TITLE="Test" \
-  --setenv=NOTIFY_MESSAGE="Test message"
+# The watcher must be loaded and waiting
+systemctl status notify-drain.path notify-drain.service
 
-# View logs
-journalctl -u notify-pushover@test.service
+# The watchdog that catches a stalled queue
+systemctl status notify-backlog-check.timer
+journalctl -u notify-backlog-check.service -n 50
 ```
+
+If payloads are accumulating in `/run/notify`, delivery is broken regardless of
+what the dispatcher units report.
+
+### Test-fire a notification end to end
+
+Use a *dynamic* instance — one whose name is chosen at dispatch time, which is
+the case that was historically broken. Verifying only a hardcoded instance
+proves nothing.
+
+```bash
+doas systemctl start 'notify@sonarr-failure:podman-sonarr.service.service'
+journalctl -u 'notify@sonarr-failure:podman-sonarr.service.service' -n 30
+journalctl -u notify-drain.service -n 30
+```
+
+The payload should appear in `/run/notify` and disappear within a second or two
+as the drain delivers it. If it lingers, the drain is not being triggered.
+
+### Placeholder rendered wrong
+
+Inspect a queued payload before it drains, or one in `/run/notify/archive`:
+
+```bash
+doas jq -r '.message' '/run/notify/<template>:<instance>.json'
+```
+
+- A literal `${something.dotted}` in the output means a template used
+  `''${...}` around a Nix expression — `''${` escapes, it does not interpolate.
+- `(unset: name)` means the placeholder is declared but nothing supplied it:
+  check for a context file under `/run/notify/ctx/`, or a
+  `modules.notifications.context` entry for that unit.
 
 ### Verify Secret Files
 
