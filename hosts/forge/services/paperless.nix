@@ -303,6 +303,7 @@ in
           type = "promql";
           alertname = "PaperlessExporterFailed";
           expr = ''node_systemd_unit_state{name="paperless-exporter.service",state="failed"} == 1'';
+          systemd.unit = "paperless-exporter.service";
           for = "5m";
           severity = "high";
           labels = { service = "paperless"; category = "backup"; };

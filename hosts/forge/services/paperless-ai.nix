@@ -978,6 +978,7 @@ in
           type = "promql";
           alertname = "PaperlessAiReprocessFailed";
           expr = ''node_systemd_unit_state{name="paperless-ai-reprocess.service",state="failed"} == 1'';
+          systemd.unit = "paperless-ai-reprocess.service";
           for = "5m";
           severity = "high";
           labels = { service = "paperless-ai"; category = "processing"; };

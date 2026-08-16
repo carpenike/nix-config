@@ -329,6 +329,7 @@ in
 
     # ZFS Snapshot Age Monitoring (24hr threshold)
     zfs-snapshot-too-old = {
+      type = "promql";
       alertname = "zfs-snapshot-too-old";
       expr = ''
         time() - zfs_snapshot_latest_timestamp > 86400
@@ -345,6 +346,7 @@ in
 
     # ZFS Snapshot Age Critical (48hr threshold)
     zfs-snapshot-critical = {
+      type = "promql";
       alertname = "zfs-snapshot-critical";
       expr = ''
         time() - zfs_snapshot_latest_timestamp > 172800
@@ -389,6 +391,7 @@ in
           node_textfile_mtime_seconds{file=~".*/zfs_snapshots\\.prom"}
         )
       '';
+      systemd.unit = "zfs-snapshot-metrics.timer";
       for = "5m";
       severity = "high";
       labels = { category = "monitoring"; service = "zfs"; };

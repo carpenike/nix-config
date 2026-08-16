@@ -118,7 +118,9 @@
       };
     };
 
-  # Generic threshold alert with custom expression
+  # Generic threshold alert with custom expression.
+  # Pass `unit` when the expression pins a single literal systemd unit, so
+  # modules.alerting can assert that unit exists on the host.
   mkThresholdAlert =
     { name
     , alertname
@@ -129,10 +131,12 @@
     , category ? "custom"
     , summary
     , description
+    , unit ? null
     ,
     }: {
       type = "promql";
       inherit alertname expr for severity;
+      systemd.unit = unit;
       labels = {
         inherit service category;
       };

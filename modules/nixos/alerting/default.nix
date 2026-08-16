@@ -116,7 +116,20 @@ let
             unit = mkOption {
               type = types.nullOr types.str;
               default = null;
-              description = "Target systemd unit (e.g., \"sonarr.service\") for OnFailure wiring.";
+              description = ''
+                Target systemd unit this rule is about (e.g., "sonarr.service"),
+                used for OnFailure wiring and asserted to exist on this host
+                unless `external` is set.
+              '';
+            };
+            external = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''
+                Set when `unit` lives on another host (e.g., alerts scoped with
+                instance=~"nas-.*"), which exempts it from the local unit
+                existence assertion.
+              '';
             };
             onFailure.enable = mkOption {
               type = types.bool;
@@ -321,9 +334,6 @@ in
 
       promqlRules = declaredPromqlRules // churnRules;
 
-      churnUnits = lib.unique (mapAttrsToList (_: rule: rule.restartChurn.unit)
-        (filterAttrs (_: rule: rule.type == "promql" && rule.restartChurn.unit != null) cfg.rules));
-
       prometheusRuleFile = pkgs.writeText "prometheus-alert-rules.yml" (
         lib.generators.toYAML { } {
           groups = [{
@@ -374,27 +384,6 @@ in
             assertion = builtins.hasAttr cfg.receivers.pushover.userSecret config.sops.secrets;
             message = "modules.alerting: Pushover user secret '${cfg.receivers.pushover.userSecret}' not found in sops.secrets. Either define the secret or disable alerting.";
           }
-          # A rule naming a unit that does not exist is worse than no rule: it
-          # matches no series, so it can never fire, while making the service
-          # look monitored. Five such rules were live before this check --
-          # beszel, cloudflared, emqx and searx all pointed at units that were
-          # never defined, and recyclarr had a container alert for a oneshot
-          # that runs under a timer.
-          {
-            assertion =
-              let
-                bad = lib.filter (u: !(config.systemd.services ? ${lib.removeSuffix ".service" u})) churnUnits;
-              in
-              bad == [ ];
-            message =
-              let
-                bad = lib.filter (u: !(config.systemd.services ? ${lib.removeSuffix ".service" u})) churnUnits;
-              in
-              "modules.alerting: rule(s) reference systemd units that are not defined on this host: "
-              + lib.concatStringsSep ", " bad
-              + ". Such rules can never fire. Correct the service name passed to"
-              + " mkSystemdServiceDownAlert/mkServiceDownAlert, or drop the rule.";
-          }
         ]
         ++
         # PromQL rules must have expr set
@@ -403,6 +392,23 @@ in
             {
               assertion = (cfg.rules.${r}.type != "promql") || (cfg.rules.${r}.expr != null);
               message = "modules.alerting.rules.${r}: PromQL rule must set 'expr'.";
+            }
+          )
+          ruleNames)
+        ++
+        # ...and the converse: an expr on a non-promql rule is silently dropped,
+        # because prometheusRuleFile is built from `filterAttrs (type == "promql")`.
+        # `type` defaults to "event", so omitting it next to an expr yields a rule
+        # that looks configured but never reaches Prometheus at all.
+        (map
+          (r:
+            {
+              assertion = (cfg.rules.${r}.expr == null) || (cfg.rules.${r}.type == "promql");
+              message = ''
+                modules.alerting.rules.${r}: sets 'expr' but has type = "${cfg.rules.${r}.type}",
+                so it is filtered out of the Prometheus rule file and can never fire.
+                Set type = "promql", or drop 'expr' if this really is an event rule.
+              '';
             }
           )
           ruleNames)
@@ -416,6 +422,65 @@ in
             }
           )
           ruleNames)
+        ++
+        # A rule naming a unit that does not exist is worse than no rule: it
+        # matches no series, so it can never fire, while making the service look
+        # monitored. Five such rules were live before #824 added this check --
+        # beszel, cloudflared, emqx and searx pointed at units that were never
+        # defined, and recyclarr had a container alert for a timer-driven oneshot.
+        #
+        # Two independent places name a unit, and both are checked here rather
+        # than in separate assertions: restartChurn.unit, which the down-alert
+        # helpers populate and which also generates the paired churn rule, and
+        # systemd.unit, a plain declaration carried by hand-written rules that go
+        # through neither helper. Checking only the former left the hand-written
+        # rules -- including every .timer -- unguarded.
+        (
+          let
+            # Unit suffix -> the config attrset that declares units of that type.
+            # Suffixes absent here (.mount, .swap, .device) are skipped rather than
+            # failed: they are keyed by path or generated by systemd, not declared
+            # under an attrset we can look a name up in. .mount matters especially,
+            # because config.systemd.mounts is a LIST and `?` on a list silently
+            # returns false -- checking it would fail every mount rule.
+            unitScopes = {
+              "service" = config.systemd.services;
+              "timer" = config.systemd.timers;
+              "socket" = config.systemd.sockets;
+              "path" = config.systemd.paths;
+              "target" = config.systemd.targets;
+            };
+            suffixOf = unit: lib.last (lib.splitString "." unit);
+            # Template instances (foo@bar.service) are declared as "foo@".
+            declaredNames = unit:
+              let base = lib.removeSuffix ".${suffixOf unit}" unit;
+              in [ base ] ++ lib.optional (lib.hasInfix "@" base)
+                "${builtins.head (lib.splitString "@" base)}@";
+            # (ruleName, unit, sourceAttr) for every checkable unit reference.
+            claims = lib.concatMap
+              (r:
+                let rule = cfg.rules.${r}; in
+                lib.optional (rule.systemd.unit != null && !rule.systemd.external)
+                  { inherit r; unit = rule.systemd.unit; source = "systemd.unit"; }
+                ++ lib.optional (rule.type == "promql" && rule.restartChurn.unit != null)
+                  { inherit r; unit = rule.restartChurn.unit; source = "restartChurn.unit"; })
+              ruleNames;
+          in
+          map
+            (c: {
+              assertion =
+                !(unitScopes ? ${suffixOf c.unit})
+                || lib.any (n: unitScopes.${suffixOf c.unit} ? ${n}) (declaredNames c.unit);
+              message = ''
+                modules.alerting.rules.${c.r}: ${c.source} '${c.unit}' is not defined on this host.
+                The rule would never fire. Point it at the real unit name (check
+                `systemctl list-units`), or set
+                modules.alerting.rules.${c.r}.systemd.external = true if the unit lives
+                on another host.
+              '';
+            })
+            claims
+        )
         ++
         # Check for duplicate alertnames across all rules
         (
@@ -598,6 +663,19 @@ in
               ];
               # Only inhibit if same dataset and target
               equal = [ "dataset" "target_host" ];
+            }
+            # Same pattern for snapshot age: the 24h (high) and 48h (critical)
+            # thresholds share one metric, so every dataset past 48h trips both.
+            # These alertnames are lowercase and do not match ZFSReplication.*.
+            {
+              source_matchers = [
+                "alertname=\"zfs-snapshot-critical\""
+              ];
+              target_matchers = [
+                "alertname=\"zfs-snapshot-too-old\""
+              ];
+              # Only inhibit the pair describing the same dataset on the same host
+              equal = [ "dataset" "instance" ];
             }
             # Suppress replication noise when the target host is down
             # Requires an InstanceDown alert for the target host

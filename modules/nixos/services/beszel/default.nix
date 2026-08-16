@@ -282,9 +282,13 @@ in
         environmentFile = hubCfg.environmentFile;
       };
 
-      # Override systemd service for ZFS integration and stable user
-      # Use mkMerge to preserve ExecStart from native module
-      systemd.services.beszel = {
+      # Override systemd service for ZFS integration and stable user.
+      # The upstream unit is named beszel-hub (not beszel) — see
+      # nixos/modules/services/monitoring/beszel-hub.nix. It already applies the
+      # full hardening set (ProtectSystem=strict, ProtectHome=read-only,
+      # PrivateTmp, NoNewPrivileges, ReadWritePaths=dataDir), so only the
+      # DynamicUser/ZFS deltas belong here.
+      systemd.services.beszel-hub = {
         after = [ "local-fs.target" "zfs-mount.service" ];
         wants = [ "zfs-mount.service" ];
 
@@ -295,12 +299,9 @@ in
             User = lib.mkForce hubCfg.user;
             Group = lib.mkForce hubCfg.group;
 
-            # Security hardening
-            ReadWritePaths = [ hubCfg.dataDir ];
-            ProtectSystem = "strict";
-            ProtectHome = true;
-            PrivateTmp = true;
-            NoNewPrivileges = true;
+            # Keep StateDirectory in agreement with the ZFS dataset's declared
+            # mode; systemd's default (0755) would otherwise loosen it.
+            StateDirectoryMode = "0750";
           }
         ];
       };

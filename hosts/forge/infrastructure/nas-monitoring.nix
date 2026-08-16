@@ -198,6 +198,8 @@
       type = "promql";
       alertname = "NASNFSDown";
       expr = ''node_systemd_unit_state{instance=~"nas-.*",name="nfs-server.service",state="active"} == 0'';
+      # Unit lives on the nas-* hosts, not on the host evaluating this rule.
+      systemd = { unit = "nfs-server.service"; external = true; };
       for = "2m";
       severity = "critical";
       labels = { service = "nfs"; category = "availability"; };
@@ -216,6 +218,8 @@
       type = "promql";
       alertname = "NASSanoidFailed";
       expr = ''node_systemd_unit_state{instance=~"nas-.*",name="sanoid.service",state="failed"} == 1'';
+      # Unit lives on the nas-* hosts, not on the host evaluating this rule.
+      systemd = { unit = "sanoid.service"; external = true; };
       for = "5m";
       severity = "high";
       labels = { service = "sanoid"; category = "backup"; };
@@ -230,6 +234,8 @@
       type = "promql";
       alertname = "NASSyncoidFailed";
       expr = ''node_systemd_unit_state{instance=~"nas-.*",name="syncoid.service",state="failed"} == 1'';
+      # Unit lives on the nas-* hosts, not on the host evaluating this rule.
+      systemd = { unit = "syncoid.service"; external = true; };
       for = "5m";
       severity = "high";
       labels = { service = "syncoid"; category = "backup"; };

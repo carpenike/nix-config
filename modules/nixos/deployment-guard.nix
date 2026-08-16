@@ -669,6 +669,7 @@ in
             nixos_deploy_backup_guard_last_check_timestamp_seconds
           )
         '';
+        systemd.unit = "nixos-deploy-backup-guard-metrics.timer";
         for = "5m";
         severity = "high";
         labels = { service = "nixos-deploy"; category = "monitoring"; };
