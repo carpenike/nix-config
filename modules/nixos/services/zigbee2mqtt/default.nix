@@ -671,17 +671,29 @@ in
             after = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
             requires = lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) "preseed-${serviceName}.service";
             wants = [ "network-online.target" ] ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) "preseed-${serviceName}.service";
+            # NOTE: use optionalAttrs, NOT mkIf, when merging with `//`.
+            # mkIf returns `{ _type = "if"; condition; content; }`, so `//` splices
+            # `_type = "if"` into the attrset and the module system then treats the
+            # WHOLE definition as an mkIf node, keeping only `content` and silently
+            # discarding every sibling attribute. Chained twice as this was, the
+            # LAST mkIf won outright: only LoadCredential survived, and
+            # EnvironmentFile plus every forced value below was dropped.
+            # optionalAttrs is safe because the conditions depend only on `config`,
+            # not on the option being defined.
+            #
+            # StateDirectoryMode/UMask are deliberately left at upstream's 0700/0077
+            # rather than forced to 0750/0027: the zigbee2mqtt group has no other
+            # members and restic runs as root, so nothing needs group read on
+            # cfg.dataDir.
             serviceConfig = {
               StateDirectory = mkForce serviceName;
-              StateDirectoryMode = mkForce "0750";
-              UMask = mkForce "0027";
               RestartSec = mkForce "5s";
               SupplementaryGroups = mkForce (lib.unique cfg.extraGroups);
             }
-            // mkIf needsRuntimeEnv {
+            // optionalAttrs needsRuntimeEnv {
               EnvironmentFile = [ runtimeEnvPath ];
             }
-            // mkIf (loadCredentialEntries != [ ]) {
+            // optionalAttrs (loadCredentialEntries != [ ]) {
               LoadCredential = loadCredentialEntries;
             };
           }
