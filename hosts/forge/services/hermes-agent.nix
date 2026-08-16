@@ -238,86 +238,39 @@ let
   dailySentinelJobName = "daily-finance-sentinel";
   dailySentinelSchedule = "0 8 * * *";
   dailySentinelPrompt = ''
-    Act as a silent household-finance sentinel. Call exactly these four tools,
-    once each, using live data at run time:
-    - finances_sync_status with trigger_sync=false
-    - finances_breaches with lookback_days=3
-    - finances_buffer with no arguments
-    - finances_ticklers with due_only=false
+    Act as a silent household-finance sentinel.
 
-    Send an alert only when at least one of these predicates is true:
-    1. `breach_candidates` is non-empty OR an open `bridge-*` tickler has
-       `is_due=true`. Classify these through the HELOC Bridge Policy below
-       before choosing informational versus alarm treatment.
-    2. A non-manual sync account has status `dead`. For basis `feed`, require
-      feed_age_hours > 72. For basis `activity_fallback`, trust `dead` as the
-      cadence-aware fallback and identify that weaker basis. Ignore `stale`,
-      `quiet_but_healthy`, and manual accounts.
-    3. Buffer floor is configured and buffer status is `below_floor`. A status
-      of `no_floor`, `near_floor`, or `above_floor` is not an alert.
-    4. Revolving creep is armed only when the tool's `as_of` date is more than
-      25 calendar days after the 2026-07-30 card-payoff baseline (never on or
-      before 2026-08-24). Then alert for each `components.card_accounts` row
-      where `counted` is true and the owed balance exceeds $500 (`balance` is
-      less than -500).
-    5. A non-bridge row in `finances_ticklers.ticklers` has `is_due=true` OR
-       `finances_ticklers.malformed` is non-empty. Due non-bridge rows and
-       malformed rows are both speak conditions; future or closed rows are
-       routine schedule data. Due `bridge-*` rows belong to BREACH, not TICKLER.
+    Call `finances_sentinel` exactly once, with no arguments. Call no other
+    tool. The thresholds, the HELOC Bridge Policy, and the exact wording of
+    every line are decided inside that tool; never re-derive, second-guess,
+    reformat, or supplement them.
 
-    HELOC Bridge Policy for BREACH classification:
-    - A usable declaration is exactly one row whose id starts `bridge-`, whose
-      status is `open`, and whose message explicitly names the draw amount and
-      date, pre-draw HELOC balance, scheduled third-party inbound source, its
-      net amount and date, and why the buffer could not cover the commitment.
-      Never infer a missing field. The draw must be at most $30,000 and at most
-      90% of the named inbound's net amount. The row's `due` is the first
-      expired day and must be no later than the source date plus 10 business
-      days or 45 calendar days after the draw, whichever comes first. More than
-      one open bridge is itself a breach; never use either row as an exception.
-    - Match a breach candidate only when exactly one usable, not-due bridge has
-      an amount within 10% of the candidate and the candidate date is on or
-      after the declared draw date but before the row's `due`. One bridge may
-      excuse only its declared draw. For that match, BREACH remains true as the
-      hard SPEAK gate, but it is informational rather than an alarm. Output
-      exactly: "✅ Bridge open: $X against <source>, day N of M". Use the
-      candidate amount rounded to whole dollars and the declared source. Day 1
-      is the draw date; N is the inclusive calendar day through
-      `finances_ticklers.as_of`, and M is the number of calendar days from the
-      draw date up to but not including `due`.
-    - An open `bridge-*` row with `is_due=true` has converted automatically.
-      Output exactly: "🛑 Bridge breach: $X against <source>; window expired,
-      bridge converted." Use its declared amount and source. If either field
-      is missing, output exactly: "🛑 Bridge breach: <bridge-id>; window
-      expired, bridge converted." Do not also report that draw as an unmatched
-      candidate.
-    - A candidate with no usable exact bridge match is unchanged: report it as
-      the existing terse breach-candidate alarm, beginning with 🛑. Do not let a
-      future, closed, due, ambiguous, malformed, or policy-invalid bridge row
-      excuse it.
+    Choose your response by working these branches in order:
 
-    After all four calls, privately reduce the results to five booleans named
-    BREACH, DEAD_FEED, BELOW_FLOOR, REVOLVING_CREEP, and TICKLER using only the
-    rules above. BREACH remains one boolean even when its required line is an
-    informational open-bridge status. TICKLER is false only when there are no
-    due non-bridge rows and `malformed` is empty. Do not print this checklist
-    or mention any false category.
+    1. If the call did not return a sentinel verdict — the tool is absent from
+       your catalog, refuses, errors, times out, or hands back an error payload
+       — your entire final response MUST be exactly:
+       🛑 Sentinel could not run: <reason>
+       Replace <reason> with a short factual phrase naming what failed, for
+       example "tool not available", "tool returned an error", or "call timed
+       out". Never invent a cause you did not observe. A sentinel that did not
+       run is an alarm, never an all-clear.
 
-    Final-response gate:
-    - If all five booleans are false, your entire final response MUST be exactly
-      `[SILENT]`. Do not explain the healthy state, list non-events, summarize
-      the calls, or mention why the response is silent. Hermes suppresses that
-      marker and writes the silent-run log line.
-    - Otherwise, return only one terse factual line for each true boolean. Do
-      not include lines for false booleans, routine status, advice, blame, or
-      invented values.
-    - For TICKLER due non-bridge rows, output each row's `message` verbatim as
-      its own line, then output exactly one line: "These reminders repeat daily
-      until their rows are edited in TICKLERS.md." Do not paraphrase, prefix,
-      or combine a due message.
-    - For each malformed row, output: "a reminder in TICKLERS.md is unreadable:
-      <reason>" using that row's parser `reason` verbatim. Malformed rows always
-      speak even when no due row exists.
+    2. Otherwise, if the returned `silent` is true, your entire final response
+       MUST be exactly:
+       [SILENT]
+       Do not explain the healthy state, list non-events, summarize the call,
+       or say why the response is silent. Hermes suppresses that marker and
+       writes the silent-run log line.
+
+    3. Otherwise, output the returned `lines` verbatim, one per line, in the
+       order given, and nothing else. Do not add, drop, reorder, renumber,
+       paraphrase, prefix, merge, or re-punctuate a line, and add no preamble,
+       commentary, advice, or values of your own.
+
+    Branch 2 is reachable ONLY from a successful call whose result you actually
+    read `silent` from. If you cannot point at that field in a returned result,
+    you are in branch 1 — emit the 🛑 line, never `[SILENT]`.
 
     Never use signal_send; native cron delivery sends the final response.
   '';
