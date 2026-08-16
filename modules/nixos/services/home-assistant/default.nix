@@ -350,9 +350,17 @@ in
 
       # Systemd unit coordination
       systemd.services.${serviceName} = {
+        # NOTE: use lib.optionalAttrs, NOT mkIf, when merging with `//`.
+        # mkIf returns `{ _type = "if"; condition; content; }`, so `//` splices
+        # `_type = "if"` into the attrset and the module system then treats the
+        # WHOLE definition as an mkIf node, keeping only `content` and silently
+        # discarding every sibling attribute (here: RequiresMountsFor).
+        # optionalAttrs is safe because the condition depends only on `config`,
+        # not on the option being defined.
         unitConfig = {
+          # Ensure ZFS mount is available before service starts
           RequiresMountsFor = [ cfg.dataDir ];
-        } // (mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        } // (lib.optionalAttrs (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           OnFailure = [ "notify@home-assistant-failure:%n.service" ];
         });
         requires = mkIf (cfg.preseed.enable && !allowEmptyBootstrap) [ "preseed-${serviceName}.service" ];
@@ -361,14 +369,15 @@ in
         environment = mkIf (cfg.extraLibs != [ ]) {
           LD_LIBRARY_PATH = lib.makeLibraryPath cfg.extraLibs;
         };
-        serviceConfig =
-          ({
-            ReadWritePaths = mkForce [ cfg.dataDir ];
-            WorkingDirectory = mkForce cfg.dataDir;
-          }
-          // (mkIf (cfg.environmentFiles != [ ]) {
-            EnvironmentFile = cfg.environmentFiles;
-          }));
+        # ReadWritePaths and WorkingDirectory are deliberately left to the
+        # upstream module: it sets WorkingDirectory = configDir (== dataDir)
+        # and ReadWritePaths = [ configDir ] ++ allowlist_external_dirs, so
+        # hosts widen the writable set by declaring allowlist_external_dirs
+        # rather than by overriding here. Forcing a single-element list would
+        # revoke access to those declared paths (on forge, the NAS media share).
+        serviceConfig = mkIf (cfg.environmentFiles != [ ]) {
+          EnvironmentFile = cfg.environmentFiles;
+        };
       };
 
       # Ensure native Home Assistant account follows repo-wide conventions
