@@ -28,9 +28,16 @@ let
   # such as ''${dataset:-"unknown"} and stray Nix expressions such as
   # ''${config.networking.hostName} are caught rather than silently passed
   # through to the rendered message.
+  #
+  # The special characters are written as bracket expressions rather than
+  # backslash escapes: builtins.split uses POSIX extended regular expressions,
+  # where "\{" and "\}" are undefined. glibc rejects them outright, so a
+  # backslash-escaped version evaluates fine on darwin and dies with "invalid
+  # regular expression" on Linux - including when nixos-rebuild is run on the
+  # target host itself.
   extractPlaceholders = str:
     lib.concatMap (p: if builtins.isList p then p else [ ])
-      (builtins.split "\\$\\{([^}]*)\\}" str);
+      (builtins.split "[$][{]([^}]*)[}]" str);
 
   # Placeholder names are substituted by exact match, so they must be plain
   # identifiers. Anything else can never resolve.
