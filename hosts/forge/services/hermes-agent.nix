@@ -577,6 +577,115 @@ let
     echo "hermes finance sentinel dry run: timed out; local job remains $job_id" >&2
     exit 1
   '';
+  # Dead-man's switch for the daily sentinel.
+  #
+  # Silence is this job's success signal, which makes "it stopped running"
+  # indistinguishable from "your finances are fine" to a human. On 2026-08-12
+  # hermes lost its MCP connection for three days; the sentinel fired on time
+  # every morning, the finance tools were absent from its toolset, and the
+  # agent correctly refused to fabricate — but the household heard nothing and
+  # no alarm was raised. Cron recorded all three runs as `completed` with
+  # last_status `ok`, because the JOB succeeded; only its PURPOSE failed.
+  #
+  # So this checks liveness AND substance, and runs from its own unit with its
+  # own alarm path: a watcher living inside hermes cannot report that hermes
+  # has stopped.
+  sentinelHeartbeatScript = pkgs.writeScript "hermes-sentinel-heartbeat" ''
+    #!${pkgs.python3}/bin/python3
+    """Assert the daily finance sentinel both ran and could see the data."""
+    import datetime
+    import glob
+    import json
+    import os
+    import sys
+
+    HERMES_HOME = "${stateDir}/.hermes"
+    JOB_NAME = "${dailySentinelJobName}"
+    MAX_AGE_H = 26.0
+
+    def fail(msg):
+        print("hermes sentinel heartbeat: " + msg, file=sys.stderr)
+        raise SystemExit(1)
+
+    jobs_path = os.path.join(HERMES_HOME, "cron", "jobs.json")
+    try:
+        with open(jobs_path) as fh:
+            raw = json.load(fh)
+    except Exception as exc:
+        fail("cannot read %s: %s" % (jobs_path, exc))
+
+    jobs = raw if isinstance(raw, list) else raw.get("jobs", raw)
+    if isinstance(jobs, dict):
+        jobs = list(jobs.values())
+
+    job = next(
+        (j for j in jobs if isinstance(j, dict) and j.get("name") == JOB_NAME),
+        None,
+    )
+    if job is None:
+        fail("no cron job named %s - the sentinel is not scheduled at all" % JOB_NAME)
+    if not job.get("enabled", False):
+        fail("%s is disabled" % JOB_NAME)
+    if job.get("paused_at"):
+        fail("%s is paused: %s" % (JOB_NAME, job.get("paused_reason")))
+
+    last_run = job.get("last_run_at")
+    if not last_run:
+        fail("%s has never run" % JOB_NAME)
+    try:
+        ran_at = datetime.datetime.fromisoformat(last_run)
+    except ValueError as exc:
+        fail("%s has an unparseable last_run_at %r: %s" % (JOB_NAME, last_run, exc))
+    age_h = (datetime.datetime.now(ran_at.tzinfo) - ran_at).total_seconds() / 3600.0
+    if age_h > MAX_AGE_H:
+        fail(
+            "%s last ran %.1fh ago, limit %.0fh. It is scheduled daily, so the "
+            "household has had no finance sentinel since %s."
+            % (JOB_NAME, age_h, MAX_AGE_H, last_run)
+        )
+
+    if job.get("last_status") not in (None, "ok"):
+        fail(
+            "%s last_status=%r error=%r"
+            % (JOB_NAME, job.get("last_status"), job.get("last_error"))
+        )
+    if job.get("last_delivery_error"):
+        fail("%s ran but delivery failed: %s" % (JOB_NAME, job["last_delivery_error"]))
+
+    # A run can be `ok` and still blind. These are the shapes a blind run takes:
+    # the current prompt's explicit failure branch, and the free-text refusals
+    # the previous prompt produced on 2026-08-12..14.
+    out_dir = os.path.join(HERMES_HOME, "cron", "output", job.get("id", ""))
+    runs = sorted(glob.glob(os.path.join(out_dir, "*.md")))
+    if not runs:
+        fail("%s has no run output under %s" % (JOB_NAME, out_dir))
+    newest = runs[-1]
+    with open(newest, errors="replace") as fh:
+        body = fh.read()
+    verdict = body.split("## Response", 1)[-1].strip()
+    if not verdict:
+        fail("%s produced an empty verdict in %s" % (JOB_NAME, os.path.basename(newest)))
+
+    BLIND = (
+        "sentinel could not run",
+        "cannot complete this task",
+        "not available in my current toolset",
+        "not present in my available toolset",
+    )
+    for marker in BLIND:
+        if marker in verdict.lower():
+            fail(
+                "%s ran at %s but could not evaluate the finances (%r in %s). "
+                "Check whether the MCP servers are parked: "
+                "journalctl -t hermes-errors -g parking"
+                % (JOB_NAME, last_run, marker, os.path.basename(newest))
+            )
+
+    print(
+        "ok: %s ran %.1fh ago, verdict readable (%s)"
+        % (JOB_NAME, age_h, os.path.basename(newest))
+    )
+  '';
   pulseServiceHardening = {
     User = "hermes";
     Group = "hermes";
@@ -981,6 +1090,54 @@ in
           ReadWritePaths = [ ];
           MemoryMax = "64M";
           TasksMax = 8;
+        };
+      };
+
+      # Alarm path for the heartbeat below. Deliberately NOT Signal: Signal is
+      # how the sentinel itself speaks, and an alarm that shares a channel with
+      # the thing it watches can be silenced by the same fault. notify@ goes to
+      # Pushover and touches neither hermes nor the MCP server.
+      modules.notifications.templates.hermes-sentinel-stale =
+        lib.mkIf (config.modules.notifications.enable or false) {
+          priority = lib.mkDefault "high";
+          title = "🛑 Household finance sentinel is not reporting";
+          body = ''
+            The daily finance sentinel has not produced a usable verdict.
+
+            Silence normally means "nothing to report", so this alarm exists
+            because a stopped sentinel and a healthy morning look identical
+            from the outside.
+
+            Check: systemctl status hermes-agent-sentinel-heartbeat.service
+            Parked MCP servers: journalctl -t hermes-errors -g parking
+          '';
+        };
+
+      systemd.services.hermes-agent-sentinel-heartbeat = {
+        description = "Assert the daily finance sentinel ran and could see data";
+        # No dependency on hermes-agent: this must still run, and still be able
+        # to complain, when hermes is wedged, stopped, or gone.
+        onFailure = [ "notify@hermes-sentinel-stale:%n.service" ];
+        serviceConfig = pulseServiceHardening // {
+          Type = "oneshot";
+          ExecStart = sentinelHeartbeatScript;
+          # Reads hermes's cron state; must never be able to alter it.
+          ReadWritePaths = [ ];
+          MemoryMax = "128M";
+          TasksMax = 16;
+        };
+      };
+
+      systemd.timers.hermes-agent-sentinel-heartbeat = {
+        description = "Check the daily finance sentinel is still reporting";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          # The sentinel runs daily at 08:00 and the check tolerates 26h, so a
+          # 6-hourly sweep bounds "nobody noticed" at about six hours instead
+          # of the three days it actually took in August 2026.
+          OnCalendar = "*-*-* 00,06,12,18:20:00";
+          RandomizedDelaySec = "5m";
+          Persistent = true;
         };
       };
 
