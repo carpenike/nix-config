@@ -770,6 +770,16 @@ in
       # runtime file permissions while recursively fixing only owner/group.
       systemd.tmpfiles.rules = [
         "Z ${stateDir} - hermes hermes -"
+
+        # Remove the decoy log directory. Hermes created ${stateDir}/logs once
+        # on 2026-08-02 with an empty agent.log and errors.log, then never
+        # touched it again — it survived three service restarts still at 0
+        # bytes while the real logs filled up under .hermes/logs. It is not a
+        # spare or a fallback, it is a trap: investigating the August 2026 MCP
+        # outage, an empty agent.log here read as "hermes logs nothing" and
+        # sent the diagnosis down the wrong path, while the evidence sat in
+        # .hermes/logs/errors.log the whole time. One logs directory only.
+        "R ${stateDir}/logs - - - -"
       ];
     }
 
