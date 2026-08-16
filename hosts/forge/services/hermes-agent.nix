@@ -1140,19 +1140,33 @@ in
         # No dependency on hermes-agent: this must still run, and still be able
         # to complain, when hermes is wedged, stopped, or gone.
         #
-        # WARNING (2026-08-16): this alarm is currently INERT. The detection
-        # below is verified in both directions, but notify@ only delivers to
-        # backends whose per-instance .path unit was declared by the caller,
-        # and forge has 4 such declarations against 34 template registrations.
-        # A test-fire confirmed the payload is written to /run/notify and then
-        # read by nobody; the dispatcher still exits 0. So this unit detects a
-        # dead sentinel and cannot yet tell anyone.
+        # ALARM STATUS (2026-08-16): fixed and proven, but the fix is not in
+        # this repo yet. Read both halves before trusting or distrusting it.
         #
-        # Deliberately NOT patched here with a private path instance: that
-        # would be the 5th copy of the pattern that caused the outage, and it
-        # would arm this one alarm while ~30 other services stayed dark. The
-        # fix belongs in modules/nixos/notifications. Re-test end-to-end when
-        # it lands — a page on a real device, not a green unit.
+        # It WAS inert. notify@ delivered only to backends whose per-instance
+        # .path unit a caller had declared — 4 declarations against 34 template
+        # registrations — so a test-fire wrote a payload to /run/notify that
+        # nothing ever read, while the dispatcher exited 0. Payloads had been
+        # accumulating unread since 2026-07-13.
+        #
+        # It was deliberately NOT patched here with a private path instance:
+        # that would have been a 5th copy of the pattern that caused the
+        # outage, arming this one alarm while ~30 other services stayed dark.
+        #
+        # The real fix lives in modules/nixos/notifications and is verified:
+        # the dispatcher resolves this dynamic instance and renders this
+        # template correctly, and a genuine unit failure carried an OnFailure
+        # notification through to Pushover returning HTTP 200. It is DEPLOYED
+        # ON FORGE but NOT YET MERGED to main. So on the running host this
+        # alarm pages; from this repo alone it does not, and deploying main
+        # over forge would silently un-arm it again.
+        #
+        # When that fix merges, delete this paragraph — and note the template
+        # carries no placeholders, so the page says only that the sentinel is
+        # not reporting, never whether it failed to run or ran blind. Those
+        # want different responses; the reason is in
+        # `journalctl -u hermes-agent-sentinel-heartbeat` until the template
+        # declares a "reason" placeholder fed from the check below.
         onFailure = [ "notify@hermes-sentinel-stale:%n.service" ];
         serviceConfig = pulseServiceHardening // {
           Type = "oneshot";
