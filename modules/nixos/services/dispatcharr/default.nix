@@ -130,6 +130,26 @@ in
       description = "VA-API driver name to set inside the container (iHD for modern Intel, i965 for legacy).";
     };
 
+    # Optional VA-API render node. Host-derived rather than hardcoded: render node
+    # numbering follows probe order, so renderD128 is NOT reliably the Intel iGPU on
+    # multi-GPU hosts. Wire this from the host's hardware profile, e.g.
+    #   vaapiDevice = config.modules.common.intelDri.renderNode;
+    vaapiDevice = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "/dev/dri/renderD129";
+      description = ''
+        Render node exposed to the container as VAAPI_DEVICE. When null the variable is
+        omitted and libva/the transcode profile picks a node on its own.
+
+        The path is evaluated *inside* the container, so it must be a node that
+        `accelerationDevices` actually passes in, and it must keep its real host node
+        name: iHD resolves the GPU through /sys/class/drm/<node>, which the container
+        shares with the host, so renaming the node on the way in points the driver at
+        the wrong card.
+      '';
+    };
+
     accelerationDevices = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "/dev/dri" ];
@@ -350,6 +370,14 @@ in
           assertion = cfg.reverseProxy.hostName != null;
           message = "Dispatcharr reverseProxy.enable requires reverseProxy.hostName to be set.";
         })
+        ++ (lib.optional (cfg.vaapiDevice != null) {
+          # VAAPI_DEVICE names a path inside the container, so the node has to be
+          # passed in -- either directly or via an enclosing directory like /dev/dri.
+          assertion = lib.any
+            (dev: dev == cfg.vaapiDevice || lib.hasPrefix "${dev}/" cfg.vaapiDevice)
+            cfg.accelerationDevices;
+          message = "Dispatcharr vaapiDevice (${cfg.vaapiDevice}) is not covered by accelerationDevices (${lib.concatStringsSep ", " cfg.accelerationDevices}); the container cannot see that render node.";
+        })
         ++ [
           {
             assertion = config.modules.services.postgresql.enable or false;
@@ -456,8 +484,6 @@ in
           PGID = cfg.group;
           TZ = cfg.timezone;
           DISPATCHARR_ENV = "modular";
-          # Enable VA-API inside the container when /dev/dri is mapped
-          VAAPI_DEVICE = "/dev/dri/renderD128"; # Preferred render node for acceleration
           # PostgreSQL connection configuration
           # Use TCP host connection to avoid Unix socket peer authentication issues
           # The container user "dispatcharr" (UID 569) doesn't exist on the host, causing peer auth to fail
@@ -474,6 +500,9 @@ in
           DISPATCHARR_LOG_LEVEL = "info";
         } // (lib.optionalAttrs (cfg.vaapiDriver != null) {
           LIBVA_DRIVER_NAME = cfg.vaapiDriver;
+        }) // (lib.optionalAttrs (cfg.vaapiDevice != null) {
+          # Render node for VA-API, resolved on the host so it names the real Intel node
+          VAAPI_DEVICE = cfg.vaapiDevice;
         }) // (lib.optionalAttrs (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
           # Reverse proxy configuration for Django
           # Tells Django to trust X-Forwarded-Host from the proxy
@@ -581,7 +610,10 @@ in
           requires = [ "postgresql-provision-databases.service" "redis-default.service" ];
           after = [ "postgresql.service" "postgresql-provision-databases.service" "redis-default.service" ];
 
-          # Hardware access is managed at the host level (profiles/hardware/intel-gpu.nix services list)
+          # GPU access is granted by passing accelerationDevices into the container
+          # (podman --device), not by a systemd DeviceAllow on this unit: podman runs the
+          # container payload in its own cgroup under machine.slice, so a unit-level
+          # device filter would never reach it.
 
           # Securely load the database password using systemd's native credential handling.
           # The password will be available at $CREDENTIALS_DIRECTORY/db_password
