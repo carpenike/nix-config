@@ -597,14 +597,56 @@ let
     import glob
     import json
     import os
+    import shutil
     import sys
 
     HERMES_HOME = "${stateDir}/.hermes"
     JOB_NAME = "${dailySentinelJobName}"
     MAX_AGE_H = 26.0
 
+    # Where the notification dispatcher looks for runtime placeholder values:
+    # /run/notify/ctx/<template>:<instance>.json, consumed and deleted when
+    # notify@ fires. The instance is this unit's own name, matching the
+    # OnFailure= handler declared on the service.
+    CTX_PATH = (
+        "/run/notify/ctx/"
+        "hermes-sentinel-stale:hermes-agent-sentinel-heartbeat.service.json"
+    )
+
     def fail(msg):
         print("hermes sentinel heartbeat: " + msg, file=sys.stderr)
+        # Hand the page the specific failure. Without this the alarm can only
+        # say the sentinel is not reporting, which does not distinguish "has
+        # not run since yesterday" from "ran on time and could not see the
+        # finances" — those want different responses. Overwrite rather than
+        # append, so a stale reason from an earlier failure can never be
+        # delivered against a later one.
+        #
+        # Best-effort by design: a page carrying "(unset: reason)" is far
+        # better than no page because the alarm crashed writing its own
+        # context, so a failure here must not pre-empt the exit below.
+        try:
+            os.makedirs(os.path.dirname(CTX_PATH), exist_ok=True)
+            tmp = CTX_PATH + ".tmp"
+            with open(tmp, "w") as fh:
+                json.dump({"reason": msg}, fh)
+            # The drop-box directory is 0770 root:notify-ipc but carries no
+            # setgid bit, so a file created here inherits THIS process's
+            # primary group (hermes) and the dispatcher — a DynamicUser whose
+            # only shared group is notify-ipc — cannot read it. Worse, it
+            # reports the resulting jq failure as "not valid JSON" and deletes
+            # the file anyway, so the page renders "(unset: reason)" and the
+            # evidence is gone. Verified by doing exactly that before adding
+            # this line. SupplementaryGroups=notify-ipc on the unit is what
+            # makes this chown permitted.
+            shutil.chown(tmp, group="notify-ipc")
+            os.replace(tmp, CTX_PATH)
+        except OSError as exc:
+            print(
+                "hermes sentinel heartbeat: could not write %s: %s"
+                % (CTX_PATH, exc),
+                file=sys.stderr,
+            )
         raise SystemExit(1)
 
     jobs_path = os.path.join(HERMES_HOME, "cron", "jobs.json")
@@ -1122,9 +1164,24 @@ in
       modules.notifications.templates.hermes-sentinel-stale =
         lib.mkIf (config.modules.notifications.enable or false) {
           priority = lib.mkDefault "high";
+          # `reason` is supplied at runtime: the heartbeat writes
+          # /run/notify/ctx/<template>:<unit>.json immediately before it exits
+          # non-zero, so the page names the specific failure. It has that
+          # chance because it runs code before failing — an OnFailure handler
+          # would have to declare its context statically instead.
+          placeholders = [ "reason" ];
           title = "🛑 Household finance sentinel is not reporting";
+          # ''${reason} is escaped so Nix emits a LITERAL ${reason} for the
+          # dispatcher to substitute. This is the same escape the
+          # home-assistant template used to emit a literal
+          # ${config.networking.hostName} into real pages — the escape was
+          # never the bug there, naming something that is not a placeholder
+          # was. An undeclared name now fails the build; an unsupplied one
+          # renders "(unset: reason)" rather than vanishing.
           body = ''
             The daily finance sentinel has not produced a usable verdict.
+
+            ''${reason}
 
             Silence normally means "nothing to report", so this alarm exists
             because a stopped sentinel and a healthy morning look identical
@@ -1140,39 +1197,33 @@ in
         # No dependency on hermes-agent: this must still run, and still be able
         # to complain, when hermes is wedged, stopped, or gone.
         #
-        # ALARM STATUS (2026-08-16): fixed and proven, but the fix is not in
-        # this repo yet. Read both halves before trusting or distrusting it.
-        #
-        # It WAS inert. notify@ delivered only to backends whose per-instance
-        # .path unit a caller had declared — 4 declarations against 34 template
-        # registrations — so a test-fire wrote a payload to /run/notify that
-        # nothing ever read, while the dispatcher exited 0. Payloads had been
-        # accumulating unread since 2026-07-13.
-        #
-        # It was deliberately NOT patched here with a private path instance:
-        # that would have been a 5th copy of the pattern that caused the
-        # outage, arming this one alarm while ~30 other services stayed dark.
-        #
-        # The real fix lives in modules/nixos/notifications and is verified:
-        # the dispatcher resolves this dynamic instance and renders this
-        # template correctly, and a genuine unit failure carried an OnFailure
-        # notification through to Pushover returning HTTP 200. It is DEPLOYED
-        # ON FORGE but NOT YET MERGED to main. So on the running host this
-        # alarm pages; from this repo alone it does not, and deploying main
-        # over forge would silently un-arm it again.
-        #
-        # When that fix merges, delete this paragraph — and note the template
-        # carries no placeholders, so the page says only that the sentinel is
-        # not reporting, never whether it failed to run or ran blind. Those
-        # want different responses; the reason is in
-        # `journalctl -u hermes-agent-sentinel-heartbeat` until the template
-        # declares a "reason" placeholder fed from the check below.
+        # This alarm pages. It was inert for part of 2026-08-16: notify@
+        # delivered only to backends whose per-instance .path unit a caller had
+        # declared, so a test-fire wrote a payload to /run/notify that nothing
+        # read while the dispatcher exited 0, and payloads had been piling up
+        # unread since 2026-07-13. It was deliberately not worked around here
+        # with a private path instance — that would have armed this one alarm
+        # and left ~30 other services dark. The real fix landed in
+        # modules/nixos/notifications and is verified end to end: a genuine
+        # unit failure carried an OnFailure notification through to Pushover
+        # returning HTTP 200.
         onFailure = [ "notify@hermes-sentinel-stale:%n.service" ];
         serviceConfig = pulseServiceHardening // {
           Type = "oneshot";
           ExecStart = sentinelHeartbeatScript;
-          # Reads hermes's cron state; must never be able to alter it.
-          ReadWritePaths = [ ];
+          # Reads hermes's cron state and must never be able to alter it, so
+          # the ONLY writable path is the notification context drop-box. Under
+          # ProtectSystem=strict everything else, including all of hermes's
+          # state, stays read-only.
+          ReadWritePaths = [ "/run/notify/ctx" ];
+          # The drop-box is 0770 root:notify-ipc, so writing a reason for the
+          # page requires the group.
+          SupplementaryGroups = [ "notify-ipc" ];
+          # The hardening set's 0077 would create the context file 0600
+          # hermes:hermes, which the DynamicUser dispatcher cannot read or
+          # delete — the page would silently render "(unset: reason)". 0007
+          # matches what the notification units use.
+          UMask = "0007";
           MemoryMax = "128M";
           TasksMax = 16;
         };
