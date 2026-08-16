@@ -936,6 +936,44 @@ in
         };
       };
 
+      # Hermes logs ONLY to files — hermes_logging.py wires every logger to a
+      # RotatingFileHandler under ${stateDir}/.hermes/logs and writes nothing to
+      # stdout, so `journalctl -u hermes-agent` returns zero records however
+      # long the service has run. The 2026-08-12 MCP outage announced itself
+      # there ~890 times over three days ("failed initial connection ...
+      # parking until a reconnect is requested: TimeoutError") while the
+      # household got no sentinel and nothing raised an alarm. The data existed;
+      # only surfacing was missing.
+      #
+      # Mirror the high-signal error stream into the journal so journal-based
+      # tooling and alerting can see it at all. errors.log only: agent.log is
+      # ~10x the volume and mostly routine, and journald is a shared budget.
+      systemd.services.hermes-agent-log-relay = {
+        description = "Mirror Hermes file logs into the journal";
+        after = [ "hermes-agent.service" ];
+        wants = [ "hermes-agent.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = pulseServiceHardening // {
+          # -F (follow by name, retry) survives both the RotatingFileHandler's
+          # rename-and-recreate and a not-yet-created file on first boot.
+          # -n 0 starts at the tail: the backlog is already on disk, and
+          # replaying it on every restart would duplicate it into the journal.
+          ExecStart = "${pkgs.coreutils}/bin/tail -F -n 0 ${stateDir}/.hermes/logs/errors.log";
+          SyslogIdentifier = "hermes-errors";
+          StandardOutput = "journal";
+          StandardError = "journal";
+          Restart = "always";
+          RestartSec = 5;
+          # Read-only: this unit must never be able to perturb what it watches.
+          # `//` already replaces the hardening set's ReadWritePaths outright;
+          # with ProtectSystem=strict and nothing writable, stateDir is
+          # readable and untouchable.
+          ReadWritePaths = [ ];
+          MemoryMax = "64M";
+          TasksMax = 8;
+        };
+      };
+
       systemd.services.hermes-agent-weekly-pulse-seed = {
         description = "Seed the gated Hermes weekly household pulse";
         after = [ "hermes-agent.service" ];

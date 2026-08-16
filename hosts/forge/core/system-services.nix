@@ -81,11 +81,24 @@
 
   # Enable persistent journald storage for log retention across reboots
   # Critical for disaster recovery operation visibility and debugging
+  #
+  # CAREFUL: `services.journald.extraConfig` is plain text concatenation, and
+  # podman's container-base module also writes SystemMaxUse/RuntimeMaxUse into
+  # the same journald.conf. systemd takes the LAST occurrence of a key, so
+  # whichever block lands second silently wins — this one did, capping forge at
+  # 500M and overriding the 2G that container-base deliberately asks for.
+  #
+  # At ~147k lines/day (roughly 500M) that cap held about ONE DAY of history on
+  # a host with 335G free, which is how the 2026-08-12 Hermes MCP outage became
+  # undiagnosable from the journal three days later: 2 surviving lines for
+  # 08-13, 13 for 08-14. 8G buys ~2 weeks, which is the window an incident is
+  # actually investigated in. Raise it if that still proves too short; there is
+  # ample room.
   services.journald = {
     storage = "persistent";
     extraConfig = ''
-      SystemMaxUse=500M
-      RuntimeMaxUse=100M
+      SystemMaxUse=8G
+      RuntimeMaxUse=1G
       MaxFileSec=1month
     '';
   };
