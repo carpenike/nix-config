@@ -417,8 +417,11 @@ in
       serviceConfig = {
         Type = "oneshot";
         DynamicUser = true;
-        # Join the notify-ipc group to access the shared IPC directory
-        SupplementaryGroups = [ "notify-ipc" ];
+        # notify-ipc: access to the shared IPC directory.
+        # systemd-journal: read the failed unit's log to fill ${errormessage}.
+        # Without it, a DynamicUser sees only its own logs, so every failure
+        # notification reported "No log available" no matter what the unit said.
+        SupplementaryGroups = [ "notify-ipc" "systemd-journal" ];
         # Create files with 0660 permissions (rw-rw----) for group-only access
         UMask = "0007";
         # DynamicUser enables ProtectSystem=strict by default, making most paths read-only
@@ -473,9 +476,22 @@ in
           FAILED_UNIT="$INSTANCE_INFO"
           echo "[notify] Detected failed unit: $FAILED_UNIT"
 
-          # Extract last 10 lines of journal for error context
-          # Using awk to properly escape newlines for JSON/HTML
-          export NOTIFY_ERRORMESSAGE=$(journalctl --no-pager -n 10 -u "$FAILED_UNIT" 2>/dev/null | awk '{printf "%s\\n", $0}' || echo "No log available")
+          # Last few journal lines, as error context.
+          #
+          # -o cat drops the timestamp/host/unit prefix that would otherwise
+          # consume most of a phone notification; the template carries
+          # ''${timestamp} and ''${serviceName} separately. Capped, because
+          # backends reject over-long messages outright.
+          #
+          # Real newlines, not the literal \n escapes the previous version
+          # emitted: substitution now happens in jq, which handles multi-line
+          # values, so the escaping envsubst needed is actively harmful.
+          export NOTIFY_ERRORMESSAGE=$(
+            journalctl --no-pager -n 10 -o cat -u "$FAILED_UNIT" 2>/dev/null \
+              | tail -c 600 \
+              || echo "No log available"
+          )
+          [ -n "$NOTIFY_ERRORMESSAGE" ] || export NOTIFY_ERRORMESSAGE="No log available"
 
           # Extract job/dataset names from unit name patterns
           # Pattern: restic-backups-JOBNAME.service -> JOBNAME
