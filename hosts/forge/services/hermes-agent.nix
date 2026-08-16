@@ -919,6 +919,28 @@ in
         zfsDataset = dataset;
       };
 
+      # This alert is REAL but does not cover either way Hermes actually fails.
+      # Keep it — it catches a clean stop — but do not read it as coverage.
+      #
+      # It loads in Prometheus as `Hermes AgentServiceDown`, for=120s, on
+      # `node_systemd_unit_state{name="hermes-agent.service",state="active"} == 0`.
+      #
+      #   Wedged (the 2026-08-12 outage): the process stayed alive and `active`
+      #   for three days while doing nothing. The expression was never true. It
+      #   did not fire, and could not have.
+      #
+      #   Crash-looping: RestartSec=10s, so the unit is inactive ~10s per cycle
+      #   and never the 120s continuous that `for` requires. Measured on
+      #   home-assistant during its 2026-08-16 crash loop: the metric hit 0 for
+      #   at most 60s at a stretch, the alert reached `pending` ten times and
+      #   `firing` never. Hermes restarts slower, so it fares worse.
+      #
+      # Actual detection for this service is
+      # hermes-agent-sentinel-heartbeat.service, which checks the sentinel's
+      # own output rather than systemd's opinion of the unit. 77 *ServiceDown
+      # rules across this config share the crash-loop blindness; fixing it
+      # (widen the start-limit window per-service, or alert on restart churn)
+      # is tracked separately and would repair them all at once.
       modules.alerting.rules."${serviceName}-service-down" =
         forgeDefaults.mkSystemdServiceDownAlert
           serviceName
