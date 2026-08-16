@@ -28,6 +28,7 @@ with lib;
           enable = mkDefault true;
           priority = mkDefault "low";
           backend = mkDefault "pushover";
+          placeholders = [ "message" ];
           title = mkDefault ''<b><font color="green">✓ Preseed Success: ''${serviceName}</font></b>'';
           body = mkDefault ''
             <b>Host:</b> ''${hostname}
@@ -44,6 +45,7 @@ with lib;
           enable = mkDefault true;
           priority = mkDefault "high";
           backend = mkDefault "pushover";
+          placeholders = [ "message" ];
           title = mkDefault ''<b><font color="red">✗ Preseed Failed: ''${serviceName}</font></b>'';
           body = mkDefault ''
             <b>Host:</b> ''${hostname}
@@ -60,6 +62,7 @@ with lib;
           enable = mkDefault true;
           priority = mkDefault "high";
           backend = mkDefault "pushover";
+          placeholders = [ "message" ];
           title = mkDefault ''<b><font color="red">✗ Preseed Unit Failed: ''${serviceName}</font></b>'';
           body = mkDefault ''
             <b>Host:</b> ''${hostname}
@@ -76,6 +79,7 @@ with lib;
           enable = mkDefault true;
           priority = mkDefault "low";
           backend = mkDefault "pushover";
+          placeholders = [ "message" ];
           title = mkDefault ''<b><font color="blue">ℹ Preseed Skipped: ''${serviceName}</font></b>'';
           body = mkDefault ''
             <b>Host:</b> ''${hostname}
