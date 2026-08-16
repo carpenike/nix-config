@@ -54,7 +54,7 @@ in
         enable = true;
 
         # Use latest stable version with digest pinning (managed by Renovate)
-        image = "ghcr.io/autobrr/qui:v1.25.0@sha256:4dd5db9d0f777282410b633e93e86853b9631f3df296893dc55b9a1e6dcbbd80";
+        image = "ghcr.io/autobrr/qui:v1.26.0@sha256:42949835052f8218ca1800d9cb410704002ee93b1bf2a5c417f4d18881adea60";
 
         # Basic configuration
         port = 7476;
