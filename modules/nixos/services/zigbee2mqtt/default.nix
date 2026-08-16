@@ -671,6 +671,13 @@ in
             after = [ "network-online.target" ] ++ lib.optional cfg.preseed.enable "preseed-${serviceName}.service";
             requires = lib.optional (cfg.preseed.enable && !allowEmptyBootstrap) "preseed-${serviceName}.service";
             wants = [ "network-online.target" ] ++ lib.optional (cfg.preseed.enable && allowEmptyBootstrap) "preseed-${serviceName}.service";
+            # NOTE: use lib.optionalAttrs, NOT mkIf, when merging with `//`.
+            # mkIf returns `{ _type = "if"; condition; content; }`, so `//` splices
+            # `_type = "if"` into the attrset and the module system then treats the
+            # WHOLE definition as an mkIf node, keeping only `content` and silently
+            # discarding every sibling attribute (here: StateDirectory and friends).
+            # optionalAttrs is safe because the conditions depend only on `cfg`,
+            # not on the option being defined.
             serviceConfig = {
               StateDirectory = mkForce serviceName;
               StateDirectoryMode = mkForce "0750";
@@ -678,10 +685,10 @@ in
               RestartSec = mkForce "5s";
               SupplementaryGroups = mkForce (lib.unique cfg.extraGroups);
             }
-            // mkIf needsRuntimeEnv {
+            // lib.optionalAttrs needsRuntimeEnv {
               EnvironmentFile = [ runtimeEnvPath ];
             }
-            // mkIf (loadCredentialEntries != [ ]) {
+            // lib.optionalAttrs (loadCredentialEntries != [ ]) {
               LoadCredential = loadCredentialEntries;
             };
           }
