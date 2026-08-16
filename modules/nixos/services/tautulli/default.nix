@@ -208,10 +208,17 @@ in
 
       # Systemd service dependencies and notifications
       systemd.services."${serviceName}" = {
+        # NOTE: use lib.optionalAttrs, NOT mkIf, when merging with `//`.
+        # mkIf returns `{ _type = "if"; condition; content; }`, so `//` splices
+        # `_type = "if"` into the attrset and the module system then treats the
+        # WHOLE definition as an mkIf node, keeping only `content` and silently
+        # discarding every sibling attribute (here: RequiresMountsFor).
+        # optionalAttrs is safe because the condition depends only on `config`,
+        # not on the option being defined.
         unitConfig = {
           # Ensure ZFS mount is available before service starts
           RequiresMountsFor = [ cfg.dataDir ];
-        } // (mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
+        } // (lib.optionalAttrs (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
           OnFailure = [ "notify@tautulli-failure:%n.service" ];
         });
         wants = mkIf cfg.preseed.enable [ "preseed-tautulli.service" ];
