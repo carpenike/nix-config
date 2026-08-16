@@ -1117,6 +1117,20 @@ in
         description = "Assert the daily finance sentinel ran and could see data";
         # No dependency on hermes-agent: this must still run, and still be able
         # to complain, when hermes is wedged, stopped, or gone.
+        #
+        # WARNING (2026-08-16): this alarm is currently INERT. The detection
+        # below is verified in both directions, but notify@ only delivers to
+        # backends whose per-instance .path unit was declared by the caller,
+        # and forge has 4 such declarations against 34 template registrations.
+        # A test-fire confirmed the payload is written to /run/notify and then
+        # read by nobody; the dispatcher still exits 0. So this unit detects a
+        # dead sentinel and cannot yet tell anyone.
+        #
+        # Deliberately NOT patched here with a private path instance: that
+        # would be the 5th copy of the pattern that caused the outage, and it
+        # would arm this one alarm while ~30 other services stayed dark. The
+        # fix belongs in modules/nixos/notifications. Re-test end-to-end when
+        # it lands — a page on a real device, not a green unit.
         onFailure = [ "notify@hermes-sentinel-stale:%n.service" ];
         serviceConfig = pulseServiceHardening // {
           Type = "oneshot";
