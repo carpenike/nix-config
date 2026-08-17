@@ -784,8 +784,9 @@ in
           TELEGRAM_ALLOWED_USERS = "8903896206";
         };
 
-        # Hermes v0.19 scopes MCP servers per platform by server alias, not by
-        # individual tool. Keep finance and general-purpose tools on separate
+        # Hermes scopes MCP servers per platform by server alias, not by
+        # individual tool (verified on v0.19 and v0.20.2). Keep finance and
+        # general-purpose tools on separate
         # aliases even though they share an endpoint and bounded OAuth scope.
         mcpServers.holthome = {
           url = "https://mcp.${config.networking.domain}/mcp";
@@ -867,8 +868,10 @@ in
             # A user's private Telegram chat ID equals their numeric user ID.
             allowed_chats = [ "8903896206" ];
             group_policy = "disabled";
-            # Hermes v0.19 resolves channel overrides every turn and includes
-            # their full text in the cached-agent signature, so persona edits
+            # Hermes resolves channel overrides every turn and includes their
+            # full text in the cached-agent signature (verified on v0.19 and
+            # v0.20.2: _get_channel_override feeds the ephemeral prompt into
+            # _agent_config_signature), so persona edits
             # do not require session resets. Acceptance MUST use the production
             # identity below with thread_id=null: synthetic thread IDs create a
             # different session and do not exercise Ryan's persistent DM history.
