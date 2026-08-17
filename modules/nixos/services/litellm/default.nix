@@ -971,24 +971,6 @@ in
       };
 
       # ========================================================================
-      # Backup Integration
-      # ========================================================================
-
-      modules.backup.restic.jobs = mkIf (cfg.backup != null && cfg.backup.enable) {
-        ${serviceName} = {
-          enable = true;
-          repository = cfg.backup.repository;
-          frequency = cfg.backup.frequency;
-          retention = cfg.backup.retention;
-          paths = if cfg.backup.paths != [ ] then cfg.backup.paths else [ cfg.dataDir ];
-          excludePatterns = cfg.backup.excludePatterns;
-          useSnapshots = cfg.backup.useSnapshots or true;
-          zfsDataset = cfg.backup.zfsDataset or datasetPath;
-          tags = cfg.backup.tags;
-        };
-      };
-
-      # ========================================================================
       # Reverse Proxy (Caddy) Integration
       # ========================================================================
 

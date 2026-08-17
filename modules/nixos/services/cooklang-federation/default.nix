@@ -684,17 +684,6 @@ in
       }
     ))
 
-    (mkIf (cfg.enable && cfg.backup != null && cfg.backup.enable) {
-      modules.backup.restic.jobs.cooklangFederation = {
-        enable = true;
-        repository = cfg.backup.repository;
-        paths = [ cfg.dataDir ];
-        tags = cfg.backup.tags or [ "cooklang" "federation" ];
-        excludePatterns = cfg.backup.excludePatterns or [ "**/cache/**" "**/*.log" ];
-        useSnapshots = cfg.backup.useSnapshots or true;
-      };
-    })
-
     (mkIf (cfg.enable && cfg.preseed.enable) (
       storageHelpers.mkPreseedService {
         serviceName = serviceName;

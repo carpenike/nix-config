@@ -514,20 +514,6 @@ in
         mode = "0750"; # rwxr-x--- allows backup user (group member) to read
       };
 
-      # Backup auto-registration (shared between both modes)
-      modules.backup.restic.jobs.plex = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-        enable = true;
-        repository = cfg.backup.repository;
-        paths = [ cfg.dataDir ];
-        excludePatterns = cfg.backup.excludePatterns;
-        tags = cfg.backup.tags;
-        resources = {
-          memory = "512M";
-          memoryReservation = "256M";
-          cpus = "1.0";
-        };
-      };
-
       # Firewall configuration (shared between both modes)
       networking.firewall = lib.mkMerge [
         # Always allow localhost access (for Caddy reverse proxy)

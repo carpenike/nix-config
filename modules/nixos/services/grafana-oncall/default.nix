@@ -664,24 +664,6 @@ in
         extraConfig = cfg.reverseProxy.extraConfig or null;
       };
 
-      # NOTE: Homepage and Gatus contributions should be set in host config,
-      # not auto-generated here. See hosts/forge/README.md for contribution pattern.
-
-      # Backup job registration
-      modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
-        enable = true;
-        repository = cfg.backup.repository;
-        frequency = cfg.backup.frequency or "daily";
-        retention = cfg.backup.retention or { };
-        paths = [ cfg.dataDir ];
-        excludePatterns = (cfg.backup.excludePatterns or [ ]) ++ [
-          "redis/dump.rdb" # Redis can be recreated
-          "*.log"
-        ];
-        useSnapshots = cfg.backup.useSnapshots or true;
-        zfsDataset = cfg.backup.zfsDataset or datasetPath;
-        tags = cfg.backup.tags or [ serviceName ];
-      };
     })
 
     # Preseed service for disaster recovery (separate mkMerge block)

@@ -510,19 +510,6 @@ in
       extraConfig = cfg.reverseProxy.extraConfig or "";
     };
 
-    # Prometheus scrape config (Gatus has native /metrics)
-    # Auto-discovery via observability module will pick this up from cfg.metrics
-
-    # Backup integration
-    modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-      enable = true;
-      paths = [ cfg.dataDir ];
-      repository = cfg.backup.repository;
-      tags = cfg.backup.tags or [ "monitoring" serviceName "sqlite" ];
-      useSnapshots = cfg.backup.useSnapshots or true;
-      zfsDataset = cfg.backup.zfsDataset or null;
-    };
-
     # Firewall - only allow localhost access (internal service)
     networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ];
   };
