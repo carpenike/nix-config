@@ -131,14 +131,16 @@
 
     # Hermes Agent — persistent AI agent and messaging gateway
     # https://github.com/NousResearch/hermes-agent
-    # WORKAROUND (2026-07-30): Pin Signal REST/WebSocket support, the cold-store
-    # evaluation fix, and fixed-port OAuth callback cleanup.
+    # WORKAROUND (2026-07-30, rebased 2026-08-16 onto v0.20.2): Pin Signal
+    # REST/WebSocket support, the cold-store evaluation fix, and fixed-port
+    # OAuth callback cleanup. Fork branch nix-config/v2026.8.16 =
+    # upstream v2026.8.16 + PR #53696 + ported #72689 + OAuth listener fix.
     # Upstream: https://github.com/NousResearch/hermes-agent/pull/53696
     #           https://github.com/NousResearch/hermes-agent/pull/72689
-    # Fork fix: https://github.com/carpenike/hermes-agent/commit/7d9119b66d831235260caa24cf0abf27887b8c32
+    # Fork fix: https://github.com/carpenike/hermes-agent/commit/9dfd2fc325f60d24d349ad47a5cf571899cede3c
     # Check: Return upstream after both PRs and callback cleanup land.
     hermes-agent = {
-      url = "github:carpenike/hermes-agent/7d9119b66d831235260caa24cf0abf27887b8c32";
+      url = "github:carpenike/hermes-agent/9dfd2fc325f60d24d349ad47a5cf571899cede3c";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
 
