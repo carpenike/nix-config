@@ -3,8 +3,28 @@ name: Build Nix systems
 on:
   workflow_dispatch:  # Manual trigger only
   pull_request:
-    branches:
-      - main
+    # Deliberately NOT filtered on `branches: [main]`.
+    #
+    # With that filter, a stacked PR based on another feature branch never
+    # triggered this workflow at all. Retargeting it onto main afterwards
+    # emits only `pull_request.edited` -- the head SHA is unchanged, so there
+    # is no `synchronize` -- and `edited` is not in the default trigger types
+    # ([opened, synchronize, reopened]). The PR then sat at
+    # mergeStateStatus=CLEAN with just Nix Lint / Pre-commit Checks green
+    # while flake-check and every nix-build matrix job had *never* run. That
+    # is a merge-on-green trap: CLEAN that reads as fully validated but
+    # carries zero build and zero eval validation. It nearly landed the
+    # deletion of a 2,386-line module unbuilt (see #831 / #832).
+    #
+    # Building every PR regardless of base closes it at the source: a stacked
+    # PR is validated from the moment it opens, so retargeting is a non-event
+    # and no `edited` handling is needed. Adding `edited` instead would have
+    # been worse -- it also fires on every title/body edit, and guarding those
+    # into skipped jobs makes GitHub report them as success, which would flip
+    # a red PR green on a typo fix.
+    #
+    # Cost: PRs targeting a non-main base now run the matrix. That is the
+    # intended trade -- a stacked PR should be validated, not exempt.
     paths:
       # Only trigger on actual Nix changes, NOT workflow changes
       - "**.nix"
