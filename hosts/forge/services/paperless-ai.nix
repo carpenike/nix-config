@@ -17,6 +17,19 @@ let
   dataDir = "/var/lib/paperless-ai";
   listenPort = 3001;
   serviceEnabled = config.modules.services.paperless-ai.enable or false;
+  # Non-superuser service accounts that must be able to READ the archive.
+  # Paperless grants document access to an owner, to an explicit object
+  # permission, or to anything with no owner at all -- and nothing else. The
+  # web UI stamps the uploading user as owner while the consume directory
+  # leaves it null, so an account listed here sees a document only by accident
+  # until the grants below exist. See docs/services/paperless-operations.md.
+  readerGroup = "document-readers";
+  readerAccounts = [
+    # homelab-mcp's paperless_search / paperless_get tools. The account and its
+    # API token are created by hand (the token lives in homelab-mcp/env in
+    # sops), so this list is the only declarative record that it exists.
+    "homelab-mcp"
+  ];
   canonicalCorrespondents = [
     "Adventist HealthCare"
     "Comptroller of Maryland"
@@ -77,8 +90,13 @@ let
     import json
 
     from django.contrib.auth import get_user_model
+    from django.contrib.auth.models import Group
+    from django.contrib.auth.models import Permission
+    from django.contrib.contenttypes.models import ContentType
+    from guardian.models import GroupObjectPermission
     from documents.models import CustomField
     from documents.models import Correspondent
+    from documents.models import Document
     from documents.models import SavedView
     from documents.models import SavedViewFilterRule
     from documents.models import Tag
@@ -89,6 +107,7 @@ let
     custom_fields = json.loads(${builtins.toJSON (builtins.toJSON customFields)})
     canonical_correspondents = json.loads(${builtins.toJSON (builtins.toJSON canonicalCorrespondents)})
     saved_views = json.loads(${builtins.toJSON (builtins.toJSON savedViews)})
+    reader_accounts = json.loads(${builtins.toJSON (builtins.toJSON readerAccounts)})
 
     for correspondent_name in canonical_correspondents:
       if not Correspondent.objects.filter(name__iexact=correspondent_name).exists():
@@ -115,6 +134,61 @@ let
     )
     if owner is None:
       raise RuntimeError("Paperless admin user ryan@ryanholt.net does not exist")
+
+    # Read access for service accounts, granted to a GROUP rather than to each
+    # account. Membership then carries the whole backfill: a reader added later
+    # sees every existing document the moment it joins, with no second pass
+    # over the archive. Granting per user would need one backfill per account.
+    reader_group, _ = Group.objects.get_or_create(name=${builtins.toJSON readerGroup})
+
+    for username in reader_accounts:
+      reader = User.objects.filter(username=username).first()
+      if reader is None:
+        # Deliberately not fatal. These accounts are created by hand, and this
+        # unit runs `before` podman-paperless-ai -- raising here would take the
+        # whole AI pipeline down over a missing reader. The group and its
+        # grants are still created, so the next deploy after the account exists
+        # picks it up and it inherits the backfill immediately.
+        print("WARNING: paperless reader account " + username + " does not exist; skipping group membership")
+        continue
+      reader.groups.add(reader_group)
+
+    # Backfill. The workflow below stamps view permissions on documents added
+    # after it, which does nothing for what is already in the archive -- 28 of
+    # 44 documents on 2026-08-17, every one of them a web-UI upload. Filter to
+    # the missing rows rather than assigning blind: this unit runs on every
+    # deploy, and guardian's bulk assign does not deduplicate.
+    #
+    # Document.objects and NOT Document.global_objects: the default manager
+    # excludes the trash, and granting read on a deleted document would only
+    # resurrect it in the bridge's search results.
+    document_type = ContentType.objects.get_for_model(Document)
+    view_document = Permission.objects.get(
+      content_type=document_type,
+      codename="view_document",
+    )
+    already_granted = set(
+      GroupObjectPermission.objects.filter(
+        group=reader_group,
+        permission=view_document,
+        content_type=document_type,
+      ).values_list("object_pk", flat=True)
+    )
+    GroupObjectPermission.objects.bulk_create(
+      [
+        GroupObjectPermission(
+          group=reader_group,
+          permission=view_document,
+          content_type=document_type,
+          object_pk=str(document_pk),
+        )
+        for document_pk in Document.objects.values_list("pk", flat=True)
+        if str(document_pk) not in already_granted
+      ],
+      # Belt and braces against a document consumed between the read above and
+      # the write here; the table has a unique constraint on the triple.
+      ignore_conflicts=True,
+    )
 
     for definition in saved_views:
       tag = Tag.objects.get(name=definition["tag"])
@@ -171,6 +245,11 @@ let
       type=WorkflowAction.WorkflowActionType.ASSIGNMENT,
     )
     action.assign_tags.set([Tag.objects.get(name="workflow:needs-review")])
+    # The forward half of the read grant above. DOCUMENT_ADDED fires for
+    # web-UI uploads as well as consume-directory intake, so this covers the
+    # path that produced the invisible documents -- an owned document is
+    # readable by the group from the moment it lands.
+    action.assign_view_groups.set([reader_group])
     workflow.triggers.set([trigger])
     workflow.actions.set([action])
   '';
