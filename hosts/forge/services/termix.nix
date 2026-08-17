@@ -43,13 +43,12 @@ in
           # No caddySecurity since Termix has native OIDC
         };
 
-        # Enable backups (increased memory: default 512M triggers OOM during index loading)
-        backup = forgeDefaults.mkBackupWithSnapshots "termix" // {
-          resources = {
-            memory = "1G";
-            memoryReservation = "512M";
-          };
-        };
+        # Enable backups. No `resources` override -- the host default (2G/1G)
+        # applies. The 1G/512M pinned here was an increase over the old 512M
+        # module default, but a downgrade below the 2G host floor set in
+        # 2026-05, and termix was OOM-killed loading the repo index on
+        # 2026-08-16. See the matching note in sonarr.nix.
+        backup = forgeDefaults.mkBackupWithSnapshots "termix";
 
         # Enable failure notifications
         notifications.enable = true;

@@ -15,6 +15,10 @@ let
   # Use centralized job list from default.nix (includes both discovered and manual jobs)
   allJobs = cfg._internal.allJobs;
 
+  # Shared with monitoring.nix so alert runbook commands cannot drift from the
+  # unit names generated here -- see the option in default.nix.
+  unitName = cfg._internal.unitName;
+
   # Create systemd service for each backup job
   mkBackupService = jobName: jobConfig:
     let
@@ -55,7 +59,7 @@ let
 
     in
     {
-      "restic-backup-${jobName}" = {
+      "${unitName jobName}" = {
         description = "Restic backup for ${jobName}";
         wants = [ "backup.target" ];
         requires = [ "network-online.target" "restic-init-${jobConfig.repository}.service" ];
@@ -558,7 +562,7 @@ in
       # Backup timers
       (lib.mkMerge (lib.mapAttrsToList
         (jobName: jobConfig: {
-          "restic-backup-${jobName}" = {
+          "${unitName jobName}" = {
             description = "Timer for ${jobName} backup";
             wantedBy = [ "timers.target" ];
             timerConfig = {

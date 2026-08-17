@@ -108,6 +108,11 @@ in
       allJobs = cfg._internal.allJobs;
       enabledJobs = lib.filterAttrs (_name: job: job.enable) allJobs;
 
+      # Unit name for the job an alert fired on. Alertmanager resolves the
+      # placeholder at notification time; passing it through the same function
+      # restic.nix generates units with keeps the runbook commands honest.
+      alertUnit = cfg._internal.unitName "{{ $labels.backup_job }}";
+
       # Generate expected metric filenames
       expectedMetricFiles = lib.mapAttrsToList
         (jobName: _jobDef: "restic_backup_${jobName}.prom")
@@ -264,7 +269,7 @@ in
           annotations = {
             summary = "Restic backup job {{ $labels.backup_job }} failed on {{ $labels.hostname }}";
             description = "Backup to {{ $labels.repository }} failed. Immediate investigation required.";
-            command = "systemctl status restic-backups-{{ $labels.backup_job }}.service && journalctl -u restic-backups-{{ $labels.backup_job }}.service --since '24h'";
+            command = "systemctl status ${alertUnit}.service && journalctl -u ${alertUnit}.service --since '24h'";
           };
         };
 
@@ -279,7 +284,7 @@ in
           annotations = {
             summary = "Restic backup job {{ $labels.backup_job }} hasn't run in ${toString monitoringCfg.alerting.thresholds.backupStaleHours}+ hours on {{ $labels.hostname }}";
             description = "Last successful backup: {{ $value | humanizeDuration }} ago. Check timer status and scheduling.";
-            command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer && systemctl list-timers restic-backups-{{ $labels.backup_job }}.timer";
+            command = "systemctl status ${alertUnit}.timer && systemctl list-timers ${alertUnit}.timer";
           };
         };
 
@@ -297,7 +302,7 @@ in
           annotations = {
             summary = "Restic backup job {{ $labels.backup_job }} has no success metric on {{ $labels.hostname }}";
             description = "The job is declaratively enabled but has not reported a successful backup. Check its timer, service, and metric file.";
-            command = "systemctl status restic-backups-{{ $labels.backup_job }}.timer restic-backups-{{ $labels.backup_job }}.service";
+            command = "systemctl status ${alertUnit}.timer ${alertUnit}.service";
           };
         };
 
