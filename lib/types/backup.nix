@@ -29,31 +29,28 @@ in
         description = "Backup frequency";
       };
 
-      retention = mkOption {
-        type = types.submodule {
-          options = {
-            daily = mkOption {
-              type = types.int;
-              default = 7;
-              description = "Number of daily backups to retain";
-            };
-
-            weekly = mkOption {
-              type = types.int;
-              default = 4;
-              description = "Number of weekly backups to retain";
-            };
-
-            monthly = mkOption {
-              type = types.int;
-              default = 6;
-              description = "Number of monthly backups to retain";
-            };
-          };
-        };
-        default = { };
-        description = "Backup retention policy";
-      };
+      # NOTE: there is deliberately no per-service `retention` option here.
+      #
+      # One existed and was never wired to anything: the auto-discovery in
+      # modules/nixos/services/backup/default.nix does not map it, and the
+      # `_internal.allJobs` submodule has no such field, so restic's
+      # forget/prune (modules/nixos/services/backup/restic.nix) has only ever
+      # applied `modules.services.backup.globalSettings.retention`. Forty-six
+      # services on forge carried a declared 7/4/6 that did nothing.
+      #
+      # It was removed rather than implemented on purpose. The declared values
+      # were the shared default everywhere -- no host ever customised them --
+      # and the effective global policy is strictly more generous (14 daily /
+      # 8 weekly / 6 monthly / 2 yearly). Honouring the per-service values
+      # would therefore have *shortened* retention on every one of those
+      # services and made the next `restic forget` prune snapshots that exist
+      # today. A dead option is worth deleting; it is not worth a silent
+      # destructive change.
+      #
+      # Set retention on `modules.services.backup.globalSettings.retention`.
+      # If per-service retention is ever genuinely wanted, it has to be
+      # threaded through discovery, the allJobs submodule, and the forget
+      # command together -- and rolled out knowing it deletes snapshots.
 
       preBackupScript = mkOption {
         type = types.nullOr types.lines;
