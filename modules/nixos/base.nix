@@ -18,8 +18,6 @@
     ./virtualization # Podman network and container infrastructure
     ./services/attic.nix
     ./postgresql-preseed.nix # PostgreSQL automatic pre-seeding for new servers
-    ./backup.nix
-    ./services/backup-services.nix
     ./monitoring.nix
     ./alerting # New Alertmanager-based alerting system
     ./notifications

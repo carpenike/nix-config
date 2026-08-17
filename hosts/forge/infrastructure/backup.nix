@@ -40,8 +40,7 @@
 # 4. Deploy configuration and verify first backup succeeds
 
 let
-  # Use the new unified backup system (modules.services.backup)
-  # Note: The old modules.backup.* is deprecated
+  # Use the unified backup system (modules.services.backup)
   resticEnabled =
     (config.modules.services.backup.enable or false)
     && (config.modules.services.backup.restic.enable or false);
@@ -49,8 +48,8 @@ in
 {
   config = lib.mkMerge [
     {
-      # Note: restic-backup user/group created by backup module
-      # (modules/nixos/backup.nix - no need to duplicate here)
+      # Note: restic-backup user/group created by the unified backup module
+      # (modules/nixos/services/backup - no need to duplicate here)
 
       # PostgreSQL backups via pgBackRest (separate mount for isolation)
       # Hardened for pgBackRest WAL archiving reliability
@@ -75,16 +74,6 @@ in
           "x-systemd.mount-timeout=30s"
         ];
       };
-
-      # MIGRATED: Legacy backup-integration system disabled in favor of unified backup system
-      # modules.services.backup-integration = {
-      #   enable = true;
-      #   autoDiscovery.enable = true;
-      #   defaultRepository = "nas-primary";
-      # };
-
-      # ACTIVE: Unified backup system integration
-      # Migrated from legacy backup-integration system
 
       modules.services.backup = {
         enable = true;
