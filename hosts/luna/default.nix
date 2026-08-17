@@ -254,43 +254,6 @@ in
         ];
       };
 
-      # Backup system disabled for now - needs full configuration
-      # backup = {
-      #   enable = false;
-      # };
-
-      # Service-specific backup configurations (disabled with main backup module)
-      services.backup-services = {
-        enable = false;
-
-        unifi = {
-          enable = config.modules.services.unifi.enable or false;
-          mongoCredentialsFile = "/run/secrets/rendered/unifi-mongo-credentials";
-        };
-
-        onepassword-connect = {
-          enable = config.modules.services.onepassword-connect.enable or false;
-          credentialsFile = config.sops.secrets.onepassword-credentials.path;
-        };
-
-        # Attic moved to nas-1 (2025-12-19)
-        # attic = {
-        #   enable = config.modules.services.attic.enable or false;
-        #   useZfsSend = false;
-        #   nasDestination = "backup@nas.holthome.net";
-        # };
-
-        system = {
-          enable = true;
-          paths = [
-            "/etc/nixos"
-            "/home/ryan/.config"
-            "/var/log"
-            "/persist"
-          ];
-        };
-      };
-
       users = {
         groups = {
           admins = {
