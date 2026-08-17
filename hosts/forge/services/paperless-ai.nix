@@ -434,8 +434,27 @@ in
           ProtectHome = true;
           ProtectSystem = "strict";
           TimeoutStartSec = "30m";
-          Restart = "on-failure";
-          RestartSec = "2m";
+          # Deliberately no Restart=. The timer below fires every ~1m and IS
+          # the retry mechanism; a failed run is retried sooner by the timer
+          # than the RestartSec=2m this replaces.
+          #
+          # Restart= on a timer-driven oneshot is actively harmful. systemd's
+          # start rate limiter counts every start attempt, successful ones
+          # included, so the timer alone filled StartLimitBurst=5 inside the
+          # 721s window that hosts/forge/core/systemd-restart-policy.nix sized
+          # from RestartSec: five clean runs span ~350s, the sixth start was
+          # refused, and the unit sat in `failed` with result 'start-limit-hit'
+          # until the window cleared -- 29 times in the 6h after 2026-08-16's
+          # deploy, each raising PaperlessAiReprocessFailed and
+          # SystemdUnitFailed for a service that never actually failed.
+          #
+          # No (interval, burst) pair could have separated the two cases here:
+          # healthy starts arrived every ~70s while failing restarts would have
+          # arrived every 120s, so the failure signal was SLOWER than the
+          # healthy one and any window tight enough to catch a loop tripped on
+          # success first. Without Restart=, a genuinely failed run simply
+          # stays `failed`, which is what paperless-ai-reprocess-failed and the
+          # generic systemd-unit-failed rules already watch for.
         };
 
         script = ''
