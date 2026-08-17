@@ -101,6 +101,29 @@ task nix:apply-nixos host=forge NIXOS_DOMAIN=holthome.net
 nix flake check
 ```
 
+> **On an Apple Silicon Mac, this does not check what you think it does.**
+>
+> `nix flake check` only evaluates outputs for the *current* system. On
+> `aarch64-darwin` it skips every `x86_64-linux` check and says so in one line
+> that is easy to miss:
+>
+> ```
+> warning: The check omitted these incompatible systems: aarch64-linux, x86_64-linux
+> ```
+>
+> The Linux checks are the ones that matter here. `deployment-backup-guard`
+> holds the tripwire assertions on forge's timer, restic-job and snapshot-dataset
+> counts, so a change that adds or removes a backup job passes a clean local
+> `nix flake check` and is only caught in CI. Evaluate them explicitly:
+>
+> ```bash
+> nix eval --raw .#checks.x86_64-linux.deployment-backup-guard.drvPath
+> ```
+>
+> Evaluating the `.drvPath` is enough to fire the assertions — it does not build
+> anything, so it works fine on aarch64 where the derivation itself cannot be
+> realised. Substitute any other name from `nix eval .#checks.x86_64-linux --apply builtins.attrNames`.
+
 ### Available Tasks
 
 ```bash

@@ -62,6 +62,20 @@ let
   # Combine discovered jobs with manual jobs - this is the single source of truth
   allJobs = discoverServiceBackups // (cfg.restic.jobs or { });
 
+  # Enabled services that hand-declare backup.paths while also using ZFS
+  # snapshots. restic.nix discards those paths in favour of the dataset clone,
+  # so the declaration is a no-op -- see the assertion below.
+  declaredPathsUnderSnapshots = lib.attrNames (lib.filterAttrs
+    (_name: service:
+      (service.enable or false) &&
+      (service.backup or null) != null &&
+      (service.backup.enable or false) &&
+      (service.backup.paths or [ ]) != [ ] &&
+      (service.backup.useSnapshots or false) &&
+      (service.backup.zfsDataset or null) != null
+    )
+    (config.modules.services or { }));
+
   # Submodules are imported below
 in
 {
@@ -478,6 +492,33 @@ in
       {
         assertion = lib.length (lib.filter (repo: repo.primary) (lib.attrValues cfg.repositories)) <= 1;
         message = "Only one repository can be marked as primary";
+      }
+      {
+        # `paths` is silently discarded on a snapshot-based job. restic.nix
+        # replaces it wholesale with the clone mountpoint
+        # (/var/lib/backup-snapshots/<job>) whenever `useSnapshots` is set and
+        # a `zfsDataset` is present -- see `snapshotPaths` there. Whatever the
+        # dataset holds is what gets backed up, regardless of `paths`.
+        #
+        # That is fine for the path auto-derived from `dataDir` during
+        # discovery, which is just a placeholder. It is not fine for a path an
+        # author wrote by hand: that is a statement of intent which will be
+        # ignored without a word. This is how cooklang came to look like data
+        # loss -- its declared recipeDir disagreed with the derived dataDir,
+        # and establishing that the disagreement did not matter meant reading
+        # the generator.
+        #
+        # Trips on nothing today; it exists to stop the next one.
+        assertion = declaredPathsUnderSnapshots == [ ];
+        message = ''
+          These services set backup.paths while also using ZFS snapshots, so the
+          declared paths would be silently ignored: ${lib.concatStringsSep ", " declaredPathsUnderSnapshots}.
+
+          A snapshot-based job always backs up the whole of backup.zfsDataset via
+          its clone mountpoint. Either clear backup.paths and let the dataset
+          define the scope, or set backup.useSnapshots = false to make the
+          declared paths authoritative.
+        '';
       }
     ];
   };
