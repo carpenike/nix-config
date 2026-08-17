@@ -78,6 +78,31 @@ in
 
     # Internal option to share consolidated jobs between submodules
     _internal = {
+      # Single source of truth for a backup job's systemd unit name.
+      #
+      # restic.nix generates the units and monitoring.nix names them in alert
+      # `command` annotations. Those were independent string literals and
+      # drifted: the annotations said `restic-backups-` (plural) against units
+      # that are `restic-backup-` (singular), so every restic alert on forge
+      # shipped a runbook command that matched nothing. Nothing catches this --
+      # #827's unit-existence assertion checks `expr`, not annotations, and
+      # could not have validated these anyway because the job name is a Go
+      # template resolved by Alertmanager, not a literal.
+      #
+      # The plural form was not an obvious typo either: `restic-backups.slice`
+      # is a real unit here (restic.nix), and every job runs inside it.
+      #
+      # Passing the template placeholder through this function is what keeps
+      # the two in step -- see its call in monitoring.nix.
+      unitName = lib.mkOption {
+        internal = true;
+        readOnly = true;
+        type = lib.types.functionTo lib.types.str;
+        default = jobName: "restic-backup-${jobName}";
+        defaultText = lib.literalExpression ''jobName: "restic-backup-''${jobName}"'';
+        description = "Systemd unit name (no suffix) for a restic backup job.";
+      };
+
       allJobs = lib.mkOption {
         internal = true;
         type = lib.types.attrsOf (lib.types.submodule {

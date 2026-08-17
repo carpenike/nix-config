@@ -37,15 +37,19 @@ in
         };
 
         # Enable backups via the custom backup module integration.
-        # Increased memory from default 512M to 1G - Sonarr's 1.3GB dataset
-        # caused OOM kills during restic indexing (2026-02-03)
+        #
+        # No `resources` override: the host default in
+        # hosts/forge/infrastructure/backup.nix (2G/1G) applies. This block used
+        # to pin 1G/512M, which was an INCREASE from the module default of 512M
+        # when it was added for OOM kills during restic indexing (2026-02-03),
+        # but became a DOWNGRADE once the host floor was raised to 2G in
+        # 2026-05. Per-service resources win over the host default -- see the
+        # fallback at modules/nixos/services/backup/default.nix:51 -- so sonarr
+        # stayed at 1G while the other 57 restic jobs moved to 2G, and it was
+        # OOM-killed again on 2026-08-16 loading the repo index.
         backup = forgeDefaults.backup // {
           useSnapshots = true;
           zfsDataset = "tank/services/sonarr";
-          resources = {
-            memory = "1G";
-            memoryReservation = "512M";
-          };
         };
 
         # Enable failure notifications via the custom notifications module.
