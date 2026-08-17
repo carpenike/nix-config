@@ -66,6 +66,54 @@ Its table includes the suggested-tags custom field.
 Accepted tags persist because taxonomy reconciliation seeds required tags but
 does not prune user-created tags.
 
+## Service Account Read Access
+
+Paperless grants access to a document in exactly three cases: the caller owns
+it, the caller holds an explicit object permission on it, or the document has
+no owner at all. There is no global read role, and the admin **Default
+Permissions** screen does not apply to documents — only to objects such as tags
+and mail rules.
+
+The two intake paths differ, which is the trap:
+
+| Intake path | Owner | Visible to a plain service account |
+| --- | --- | --- |
+| Consume directory (`/mnt/data/paperless/consume`) | none | yes, by fallthrough |
+| Web UI upload | the uploading user | **no** |
+
+A non-superuser account therefore reads scanner intake fine and goes blind on
+everything uploaded through the browser. This is how `homelab-mcp` came to see
+16 of 44 documents on 2026-08-17: nothing was broken, the archive had simply
+shifted toward UI uploads.
+
+`paperless-finance-bootstrap` closes both halves:
+
+- it maintains the `document-readers` group and the `readerAccounts` list in
+  [`hosts/forge/services/paperless-ai.nix`](https://github.com/carpenike/nix-config/blob/main/hosts/forge/services/paperless-ai.nix);
+- the `DOCUMENT_ADDED` workflow action assigns that group view permission on
+  every new document, covering UI uploads;
+- a backfill grants the group view permission on documents already in the
+  archive, skipping the trash.
+
+Grants go to the group, never to an account directly. Adding a reader is one
+line in `readerAccounts`; it inherits the entire backfill on joining, with no
+second pass over the archive.
+
+To add a reader:
+
+1. Create the Paperless user and issue its API token in the web UI.
+2. Store the token in that consumer's sops secret.
+3. Add the username to `readerAccounts` and deploy.
+
+The account is created by hand because its token cannot be, so `readerAccounts`
+is the only declarative record that it exists. A username listed there that has
+no matching Paperless user logs a warning and is skipped rather than failing the
+unit — the bootstrap runs `before` Paperless-AI, and a missing reader must not
+take the AI pipeline down with it.
+
+Verify from the bridge's side with `paperless_search`; its result count should
+match `Document.objects.count()`.
+
 ## Managed Taxonomy
 
 Baseline tags:
