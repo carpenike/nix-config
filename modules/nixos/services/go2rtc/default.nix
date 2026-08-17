@@ -307,17 +307,6 @@ in
         extraConfig = cfg.reverseProxy.extraConfig;
       };
 
-      # Backup integration (if configured)
-      modules.backup.restic.jobs.go2rtc = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-        enable = true;
-        repository = cfg.backup.repository;
-        paths = [ cfg.dataDir ];
-        frequency = cfg.backup.frequency;
-        retention = cfg.backup.retention;
-        tags = cfg.backup.tags or [ "go2rtc" "streaming" "config" ];
-        useSnapshots = cfg.backup.useSnapshots;
-        zfsDataset = cfg.backup.zfsDataset;
-      };
     }
 
     # Preseed service for disaster recovery

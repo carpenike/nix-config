@@ -664,20 +664,6 @@ in
             "Scrypted runs privileged with hardware passthrough; NVR recordings are written as uid 0";
         };
 
-        modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          enable = true;
-          repository = cfg.backup.repository;
-          paths = if (cfg.backup.paths != [ ]) then cfg.backup.paths else [ cfg.dataDir ];
-          excludePatterns = (cfg.backup.excludePatterns or [ ]) ++ lib.optionals cfg.nvr.enable [ "${cfg.nvr.path}/**" ];
-          frequency = cfg.backup.frequency;
-          retention = cfg.backup.retention;
-          tags = if (cfg.backup.tags != [ ]) then cfg.backup.tags else [ "scrypted" "nvr" "config" ];
-          useSnapshots = cfg.backup.useSnapshots;
-          zfsDataset = cfg.backup.zfsDataset;
-          preBackupScript = cfg.backup.preBackupScript;
-          postBackupScript = cfg.backup.postBackupScript;
-        };
-
         # EMQX MQTT integration - auto-register user and ACLs
         modules.services.emqx.integrations.${serviceName} = lib.mkIf
           (cfg.mqtt.enable && cfg.mqtt.registerEmqxIntegration && cfg.mqtt.passwordFile != null)

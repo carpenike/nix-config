@@ -255,19 +255,6 @@ in
           };
         };
 
-        # Backup integration using standardized restic pattern
-        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          profilarr = {
-            enable = true;
-            paths = [ cfg.dataDir ];
-            repository = cfg.backup.repository;
-            frequency = cfg.backup.frequency;
-            tags = cfg.backup.tags;
-            excludePatterns = cfg.backup.excludePatterns;
-            useSnapshots = cfg.backup.useSnapshots;
-            zfsDataset = cfg.backup.zfsDataset;
-          };
-        };
       })
 
       # Preseed service

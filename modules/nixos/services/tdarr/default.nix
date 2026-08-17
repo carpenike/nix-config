@@ -435,19 +435,6 @@ in
           extraConfig = cfg.reverseProxy.extraConfig;
         };
 
-        # Backup integration using standardized restic pattern (ONLY config/database, NOT cache)
-        modules.backup.restic.jobs = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          tdarr = {
-            enable = true;
-            paths = [ cfg.dataDir ]; # Only backup config/database, not cache
-            repository = cfg.backup.repository;
-            frequency = cfg.backup.frequency;
-            tags = cfg.backup.tags;
-            excludePatterns = cfg.backup.excludePatterns;
-            useSnapshots = cfg.backup.useSnapshots;
-            zfsDataset = cfg.backup.zfsDataset;
-          };
-        };
       })
 
       # Preseed service

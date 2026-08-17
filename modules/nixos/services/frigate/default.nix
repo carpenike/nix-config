@@ -410,19 +410,6 @@ in
           };
         };
 
-        modules.backup.restic.jobs.frigate = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-          enable = true;
-          repository = cfg.backup.repository;
-          paths = [ cfg.dataDir ];
-          excludePatterns = (cfg.backup.excludePatterns or [ ]) ++ [
-            "${recordingsPath}/**"
-            "${cfg.cacheDir}/**"
-          ];
-          frequency = cfg.backup.frequency or "daily";
-          tags = cfg.backup.tags or [ "frigate" "nvr" ];
-          useSnapshots = cfg.backup.useSnapshots or true;
-          zfsDataset = cfg.backup.zfsDataset or (if parentDataset == null then null else "${parentDataset}/frigate");
-        };
       })
 
       # Preseed service for disaster recovery

@@ -630,17 +630,6 @@ in
           mode = "0750";
         };
 
-        modules.backup.restic.jobs.${serviceName} = mkIf (cfg.backup != null && cfg.backup.enable) {
-          enable = true;
-          repository = cfg.backup.repository;
-          frequency = cfg.backup.frequency;
-          tags = cfg.backup.tags;
-          paths = [ cfg.dataDir ];
-          excludePatterns = cfg.backup.excludePatterns;
-          useSnapshots = cfg.backup.useSnapshots;
-          zfsDataset = cfg.backup.zfsDataset;
-        };
-
         networking.firewall.interfaces.lo.allowedTCPPorts =
           [ cfg.frontend.port ];
 

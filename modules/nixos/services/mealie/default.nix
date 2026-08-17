@@ -623,19 +623,6 @@ mylib.mkContainerService {
           (cfg.reverseProxy.backend or { }));
       };
 
-      # Backup integration using the standardized restic job pattern
-      modules.backup.restic.jobs.mealie = mkIf (cfg.backup != null && cfg.backup.enable) {
-        enable = true;
-        repository = cfg.backup.repository;
-        frequency = cfg.backup.frequency;
-        retention = cfg.backup.retention;
-        paths = if cfg.backup.paths != [ ] then cfg.backup.paths else [ cfg.dataDir ];
-        excludePatterns = cfg.backup.excludePatterns;
-        tags = cfg.backup.tags;
-        useSnapshots = cfg.backup.useSnapshots or true;
-        zfsDataset = cfg.backup.zfsDataset or cfg.datasetPath;
-      };
-
       # Preserve the pre-factory notification wording
       modules.notifications.templates."mealie-failure" =
         mkIf (config.modules.notifications.enable or false && cfg.notifications != null && cfg.notifications.enable) {

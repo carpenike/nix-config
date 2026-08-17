@@ -345,16 +345,6 @@ in
         extraConfig = cfg.reverseProxy.extraConfig or "";
       };
 
-      # Backup integration
-      modules.backup.restic.jobs.${serviceName} = lib.mkIf (cfg.backup != null && cfg.backup.enable) {
-        enable = true;
-        paths = [ cfg.dataDir ];
-        repository = cfg.backup.repository;
-        tags = cfg.backup.tags or [ "communication" serviceName "irc" ];
-        useSnapshots = cfg.backup.useSnapshots or true;
-        zfsDataset = cfg.backup.zfsDataset or null;
-      };
-
       # Firewall - only allow localhost access (internal service behind reverse proxy)
       networking.firewall.interfaces.lo.allowedTCPPorts = [ cfg.port ];
     })
