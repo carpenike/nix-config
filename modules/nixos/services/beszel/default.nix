@@ -333,7 +333,20 @@ in
       };
 
       # Backup integration
-      modules.backup.restic.jobs.${hubServiceName} = lib.mkIf (hubCfg.backup != null && hubCfg.backup.enable) {
+      # Declared into modules.services.backup (the live namespace), NOT the
+      # deprecated modules.backup.*, whose config block is gated on
+      # modules.backup.enable -- false on every host, so this job was declared
+      # into a module that generates nothing and beszel had no restic backup at
+      # all while reading as configured.
+      #
+      # It cannot be picked up by auto-discovery either. That walks
+      # modules.services.<name> requiring both `enable` and `backup` at the top
+      # level (modules/nixos/services/backup/default.nix), and beszel has
+      # neither: its options live under `hub` and `agent`, so the backup config
+      # sits at modules.services.beszel.hub.backup, one level too deep. Hence a
+      # manual job rather than moving the option -- restructuring beszel's
+      # options to suit discovery would be a much larger change.
+      modules.services.backup.restic.jobs.${hubServiceName} = lib.mkIf (hubCfg.backup != null && hubCfg.backup.enable) {
         enable = true;
         paths = [ hubCfg.dataDir ];
         repository = hubCfg.backup.repository;

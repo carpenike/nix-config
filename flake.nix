@@ -813,7 +813,13 @@
                   "zfs-snapshot-never-created"
                 ];
               in
-              assert builtins.length expectedTimers == 124;
+              # 124 -> 125 and 57 -> 58 below: beszel-hub's backup gained a
+                # restic job (restic-backup-beszel.timer). Its declaration used to
+                # go to the deprecated modules.backup.* namespace, which generates
+                # nothing, so the service had no backup at all. These counts are
+                # tripwires on the deployment guard's timer set -- a backup job
+                # appearing or vanishing should force exactly this review.
+              assert builtins.length expectedTimers == 125;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
@@ -822,7 +828,7 @@
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
               assert builtins.length (builtins.attrNames snapshotDatasets) == 57;
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 57;
+              assert builtins.length (builtins.attrNames enabledResticJobs) == 58;
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;
