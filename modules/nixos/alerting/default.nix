@@ -268,6 +268,22 @@ in
       description = "Alert rules keyed by rule ID (e.g., \"sonarr-failure\").";
     };
 
+    churnMetricJob = mkOption {
+      type = types.str;
+      default = "node";
+      description = ''
+        Prometheus job label of the node-exporter whose units the generated
+        RestartChurn rules describe, used to scope SystemdRestartMetricsMissing.
+
+        Churn rules match node_systemd_service_restart_total by unit name with
+        no instance selector, so they are implicitly about the host declaring
+        them. Without this scope the guard also fires for every OTHER scraped
+        node lacking the collector flag -- forge scrapes nas-1, which has the
+        systemd collector on and this flag off, and would alert forever about
+        churn rules that were never written for it.
+      '';
+    };
+
     prometheus.ruleFilePath = mkOption {
       type = types.path;
       readOnly = true;
@@ -332,7 +348,55 @@ in
           })
         (filterAttrs (_: rule: rule.type == "promql" && rule.restartChurn.unit != null) cfg.rules);
 
-      promqlRules = declaredPromqlRules // churnRules;
+      # Self-check for the churn family above.
+      #
+      # Every churnRule queries node_systemd_service_restart_total, which only
+      # exists when node-exporter runs with
+      # --collector.systemd.enable-restarts-metrics. A rule whose metric has no
+      # series is not an error to Prometheus -- it evaluates green forever, so
+      # the whole family fails silently in exactly the way it exists to
+      # prevent.
+      #
+      # That is not hypothetical. On 2026-08-16 forge's unit file carried the
+      # flag but the running process did not (it survived the deploy on its old
+      # command line), and all 74 generated churn rules were inert with nothing
+      # anywhere reporting it.
+      #
+      # `unless` gives a per-instance answer rather than absent()'s global one:
+      # absent() stays empty as long as ANY scraped host exports the counter,
+      # which would hide a single node losing it. node_systemd_unit_state is
+      # the systemd collector's core metric, so an instance publishing it while
+      # publishing no restart counter is precisely a node with the collector on
+      # and this flag off. The 15m `for` rides out restarts and scrape gaps.
+      #
+      # Scoped to churnMetricJob so this reports on the host the churn rules
+      # actually describe -- see that option for why an unscoped version fires
+      # forever on nas-1.
+      churnCollectorRule = lib.optionalAttrs (churnRules != { }) {
+        "systemd-restart-metrics-missing" = {
+          type = "promql";
+          alertname = "SystemdRestartMetricsMissing";
+          expr =
+            "count by (instance) (node_systemd_unit_state{job=\"${cfg.churnMetricJob}\"})"
+            + " unless count by (instance) (node_systemd_service_restart_total{job=\"${cfg.churnMetricJob}\"})";
+          for = "15m";
+          severity = "medium";
+          labels = { category = "monitoring"; };
+          annotations = {
+            summary = "Crash-loop detection is blind on {{ $labels.instance }}";
+            description =
+              "node_systemd_service_restart_total is absent, so all ${toString (builtins.length (builtins.attrNames churnRules))}"
+              + " RestartChurn alerts on this instance evaluate green no matter how badly a unit is"
+              + " crash-looping. node-exporter needs --collector.systemd.enable-restarts-metrics;"
+              + " if the unit file already has it, the running process predates it.";
+            command =
+              "tr '\\0' ' ' < /proc/$(pgrep -x node_exporter | head -1)/cmdline;"
+              + " systemctl restart prometheus-node-exporter";
+          };
+        };
+      };
+
+      promqlRules = declaredPromqlRules // churnRules // churnCollectorRule;
 
       prometheusRuleFile = pkgs.writeText "prometheus-alert-rules.yml" (
         lib.generators.toYAML { } {
