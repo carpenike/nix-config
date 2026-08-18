@@ -17,6 +17,29 @@ When reviewing workarounds:
 
 ---
 
+## Channel Lifecycle Debt
+
+Not a workaround and not a pin — a dependency that stopped moving on its own
+and now owes a migration. Tracked here because it has the same review cadence
+as everything else in this file.
+
+### nixpkgs - nixos-25.11 is EOL, migration to 26.05 owed
+
+| Field | Value |
+| --- | --- |
+| **Recorded** | 2026-08-17 |
+| **Location** | `flake.nix` (`inputs.nixpkgs`) and `flake.lock` |
+| **Affects** | Every host. This is the channel the whole fleet builds from. |
+| **Status** | **NOT A PIN.** Nobody pinned anything. `inputs.nixpkgs` tracks the `nixos-25.11` *branch*, and that branch went EOL upstream and stopped receiving commits. The lock simply froze at the last one. |
+| **Evidence** | The root nixpkgs node is locked at rev `b6018f87da`, `lastModified` 2026-06-30. Walking 400 commits of `flake.lock` shows it advancing on a clean weekly cadence from 25.05 all the way through 2026-07-01 (…Jun 26 → Jun 28 → Jun 29 → Jun 30) and then stopping dead, while lock commits from the weekly job continue to land through 2026-08-18 touching other inputs. The freeze date lines up with 26.05 + one month, which is the NixOS support window. |
+| **Consequence** | The fleet is not receiving security patches on the stable channel, and `update-flake-lock.yml` cannot tell anyone: it runs weekly, finds nothing new for nixpkgs, and reports success. This is a silent-by-construction gap, not a noisy one. |
+| **Do not** | "Document the pin with exit criteria." There is no pin to document, and adding a `follows` or a rev pin would convert a fixable branch problem into a real one. Do not bump `nixpkgs` to `nixos-unstable` either — `nixpkgs-unstable` already exists as a separate input for the packages that need it (see the `unstable-packages` overlay). |
+| **Owed** | Migrate `inputs.nixpkgs` to `github:NixOS/nixpkgs/nixos-26.05`. This touches every host and every overlay and needs its own planned effort with its own verification — build all hosts, re-check every entry in this file (several exist only because of 25.11-era package versions), and re-verify the service modules against the new NixOS release notes. It is deliberately NOT bundled into unrelated work. |
+| **Exit criteria** | `inputs.nixpkgs` tracks a supported channel, `flake.lock`'s nixpkgs node resumes advancing on the weekly job, and this entry is deleted. |
+| **Watch for** | A stale-channel detector would have caught this months earlier than a human review did. Consider a check that fails when the locked nixpkgs `lastModified` is older than ~45 days — the weekly job succeeding is currently indistinguishable from the channel being alive. |
+
+---
+
 ## Pinned Flake Inputs
 
 ### Actual Budget - 26.7 Schema Compatibility Pin

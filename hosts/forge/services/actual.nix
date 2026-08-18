@@ -16,6 +16,8 @@ let
 
   # Service configuration values - single source of truth
   serviceName = "actual";
+  dataDir = "/var/lib/actual";
+  dataset = "tank/services/${serviceName}";
   port = 5006; # Actual Budget default port
   hostName = "budget.${config.networking.domain}";
   externalUrl = "https://${hostName}";
@@ -79,7 +81,7 @@ in
       # Must set owner/group/mode explicitly - StateDirectory can't change
       # permissions on pre-existing ZFS mountpoints
       modules.storage.datasets.services.${serviceName} = {
-        mountpoint = "/var/lib/actual";
+        mountpoint = dataDir;
         recordsize = "16K"; # SQLite database workload
         compression = "lz4";
         owner = config.modules.services.actual.user;
@@ -106,8 +108,33 @@ in
       };
 
       # ZFS snapshot and replication configuration
-      modules.backup.sanoid.datasets."tank/services/${serviceName}" =
+      modules.backup.sanoid.datasets.${dataset} =
         forgeDefaults.mkSanoidDataset serviceName;
+
+      # Offsite copy to R2, on top of the NAS backup that
+      # `mkBackupWithSnapshots` above already configures. This is what
+      # satisfies the "offsite-backup" tier declared below.
+      #
+      # The ledger is the household's only record of its own finances and is
+      # not reconstructible from anywhere else: the bank feeds carry a rolling
+      # window, not history, and every categorisation, payee merge, rule and
+      # reconciliation is hand-made. Onsite tiers all share one failure domain
+      # (forge and nas-1 sit in the same house), so a fire or a theft takes
+      # the snapshots, the replica and the NAS backup together.
+      #
+      # Small enough for this to be cheap — the budget is a single SQLite
+      # database of a few tens of MB — and it uses the same snapshot-clone
+      # read path as the NAS job, so it captures a consistent image rather
+      # than a live database mid-write.
+      modules.services.backup.restic.jobs."${serviceName}-offsite" = {
+        enable = true;
+        repository = "r2-offsite";
+        paths = [ dataDir ];
+        tags = [ serviceName "sqlite" "finances" "offsite" "forge" ];
+        frequency = "daily";
+        useSnapshots = true;
+        zfsDataset = dataset;
+      };
 
       # Service-down alert using forgeDefaults helper (native systemd service)
       modules.alerting.rules."${serviceName}-service-down" =
