@@ -28,12 +28,16 @@
       ];
       brews = [
         "cidr" # Not available in nixpkgs yet
+        "jadx"
       ];
       casks = [
+        "android-platform-tools"
         "anylist"
         "copilot-cli"
         # "discord" -- self-updating
+        "gpg-suite-pinentry"
         "halloy"
+        "mitmproxy"
         "obsidian"
         "signal"
         # "orbstack" -- self-updating, license management better standalone
@@ -41,9 +45,18 @@
         # "spotify" -- self-updating
         # "tableplus" -- self-updating, license tied to install
         # "transmit" -- self-updating, Panic manages updates well
-        "gpg-suite-pinentry"
       ];
-      masApps = { };
+      masApps = {
+        "1Password for Safari" = 1569813296;
+        "GarageBand" = 682658836;
+        "iMovie" = 408981434;
+        "Keynote" = 409183694;
+        "Numbers" = 409203825;
+        "Pages" = 409201541;
+        "PerformanceTest" = 1560051043;
+        "Slack" = 803453959;
+        "Windows App" = 1295203466;
+      };
     };
   };
 }

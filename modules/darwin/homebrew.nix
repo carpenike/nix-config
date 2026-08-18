@@ -5,7 +5,7 @@ _:
     onActivation = {
       autoUpdate = false; # Don't update during rebuild
       cleanup = "zap"; # Uninstall all programs not declared
-      upgrade = true;
+      upgrade = false; # Keep rebuilds independent of App Store updates
     };
     global = {
       brewfile = true; # Run brew bundle from anywhere
