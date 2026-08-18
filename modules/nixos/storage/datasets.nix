@@ -13,6 +13,22 @@ let
   # Shell escaping helper for safe interpolation
   escape = lib.escapeShellArg;
 
+  # Keep the restart trigger limited to values that affect the generated script.
+  # Protection policy metadata is consumed by the protection manifest instead.
+  datasetScriptInputs = {
+    inherit (cfg) parentDataset parentMount;
+    services = lib.mapAttrs
+      (_name: dataset: {
+        inherit (dataset) recordsize compression properties mountpoint owner group mode;
+      })
+      cfg.services;
+    utility = lib.mapAttrs
+      (_name: dataset: {
+        inherit (dataset) recordsize compression properties mountpoint owner group mode;
+      })
+      cfg.utility;
+  };
+
   # Type validation for ZFS properties
   zfsRecordsizeType = lib.types.addCheck lib.types.str
     (
@@ -254,6 +270,14 @@ in
       # zfs-service-datasets -> local-fs.target -> sysinit.target -> zfs-service-datasets
       # Services needing ZFS datasets already explicitly depend on zfs-service-datasets.service
 
+      # Essential (issue #852): this is a RemainAfterExit oneshot, so switch does
+      # not re-run it on a bare script change and a newly declared dataset is
+      # silently skipped. Hashing the script inputs forces a stop/start whenever
+      # they change. Do not remove without replacing the re-execution mechanism.
+      restartTriggers = [
+        (builtins.hashString "sha256" (builtins.toJSON datasetScriptInputs))
+      ];
+
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -410,6 +434,27 @@ in
             echo ""
           ''
         ) cfg.services)}
+
+        # Fail loudly if any declared dataset is missing after this run (issue
+        # #852). If the create path above is ever skipped, this turns a green
+        # activation into a hard failure instead of silent divergence between
+        # "declared in Nix" and "exists on the pool".
+        declared_datasets=(
+          ${lib.concatStringsSep "\n          " (map escape (
+            (map (name: "${cfg.parentDataset}/${name}") (builtins.attrNames cfg.services))
+            ++ (builtins.attrNames cfg.utility)
+          ))}
+        )
+        missing=()
+        for ds in ''${declared_datasets[@]+"''${declared_datasets[@]}"}; do
+          if ! ${pkgs.zfs}/bin/zfs list -H "$ds" >/dev/null 2>&1; then
+            missing+=("$ds")
+          fi
+        done
+        if [ ''${#missing[@]} -gt 0 ]; then
+          echo "✗ CRITICAL: declared datasets missing after setup: ''${missing[*]}" >&2
+          exit 1
+        fi
 
         echo "=== ZFS Service Datasets Setup Complete ==="
       '';

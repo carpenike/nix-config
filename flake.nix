@@ -599,6 +599,92 @@
                 touch $out
               '';
 
+            zfs-dataset-restart-trigger =
+              let
+                forge = inputs.self.nixosConfigurations.forge;
+                triggersFor = cfg: cfg.config.systemd.services.zfs-service-datasets.restartTriggers;
+                withOverride = mod: forge.extendModules { modules = [ mod ]; };
+
+                baseTriggers = triggersFor forge;
+                # A newly declared dataset must move the trigger (the issue #852 case).
+                addedTriggers = triggersFor (withOverride {
+                  modules.storage.datasets.services.restart-trigger-regression.mountpoint = "none";
+                });
+                # Changing a property the script consumes on an existing dataset
+                # must also move the trigger.
+                propertyTriggers = triggersFor (withOverride {
+                  modules.storage.datasets.services.postgresql.properties."com.holthome:restart-trigger-regression" = "1";
+                });
+                # Changing metadata the script does NOT consume (protection policy
+                # and rootOwnedReason are manifest/warning-only) must NOT move it,
+                # or we would re-run the oneshot on every unrelated policy edit.
+                metadataTriggers = triggersFor (withOverride {
+                  modules.storage.datasets.services.postgresql.rootOwnedReason = "restart-trigger regression probe";
+                });
+              in
+              assert builtins.length baseTriggers == 1;
+              assert baseTriggers != addedTriggers;
+              assert baseTriggers != propertyTriggers;
+              assert baseTriggers == metadataTriggers;
+              pkgs.runCommand "zfs-dataset-restart-trigger-check" { } ''
+                touch $out
+              '';
+
+            # Fleet guard for the issue #852 failure mode: a RemainAfterExit
+            # oneshot whose script varies with config but carries no
+            # restartTriggers is silently not re-run on switch. This asserts no
+            # NEW such unit appears. The baseline below is the set that predates
+            # the guard; each is once-per-boot or internally idempotent (re-runs
+            # gated on state), so a stale script cannot silently corrupt persisted
+            # data the way a skipped ZFS dataset does. A new hazardous unit must
+            # instead carry restartTriggers (see modules/nixos/storage/datasets.nix).
+            reexec-oneshot-guard =
+              let
+                lib = inputs.nixpkgs.lib;
+                forge = inputs.self.nixosConfigurations.forge.config;
+                svcs = forge.systemd.services;
+                truthy = v: (builtins.isBool v && v) || v == "yes" || v == "true";
+                isHazard = n:
+                  let u = svcs.${n}; in
+                  (u.script or "") != ""
+                    && truthy (u.serviceConfig.RemainAfterExit or false)
+                    && (u.restartTriggers or [ ]) == [ ];
+                hazardous = builtins.filter isHazard (builtins.attrNames svcs);
+
+                allowedPrefixes = [
+                  "preseed-" # first-boot data seeders, gated on empty data dir
+                  "network-" # boot-time network setup
+                  "podman-network-" # idempotent podman network creation
+                  "postgresql-" # DB bootstrap, idempotent
+                  "pgbackrest-" # backup stanza/repo init, idempotent
+                  "restic-init-" # restic repo init, idempotent
+                  "netvisor-" # env/oidc config regenerated from sops each boot
+                ];
+                allowedExact = [
+                  "grafana-oncall-plugin-setup"
+                  "notify-boot"
+                  "paperless-env"
+                  "peanut-config"
+                  "podman-grafana-oncall-migration"
+                  "policy-routing-main"
+                  "searx-init"
+                  "ups-inject-secrets"
+                  "wireless-netdev"
+                  "zfs-import-tank"
+                  "zfs-sync-rpool"
+                  "zfs-sync-tank"
+                ];
+                isAllowed = n:
+                  builtins.elem n allowedExact
+                    || lib.any (p: lib.hasPrefix p n) allowedPrefixes;
+                unguarded = builtins.filter (n: !(isAllowed n)) hazardous;
+              in
+              assert lib.assertMsg (unguarded == [ ])
+                "RemainAfterExit oneshot(s) with a script but no restartTriggers (issue #852): ${lib.concatStringsSep ", " unguarded}. Add restartTriggers, or if genuinely once-per-boot/idempotent add it to the baseline in flake.nix.";
+              pkgs.runCommand "reexec-oneshot-guard-check" { } ''
+                touch $out
+              '';
+
             protection-manifest =
               let
                 forge = inputs.self.nixosConfigurations.forge.config;
