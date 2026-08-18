@@ -336,6 +336,17 @@ let
       type = "link";
       url = "/d/household-finance-debt";
     }
+    {
+      asDropdown = false;
+      icon = "external link";
+      includeVars = false;
+      keepTime = true;
+      targetBlank = false;
+      title = "Data Health";
+      tooltip = "Whether the other three can be trusted";
+      type = "link";
+      url = "/d/household-finance-health";
+    }
   ];
 
   dashboard =
@@ -343,6 +354,7 @@ let
     , uid
     , panels
     , annotations ? [ ]
+    , timeFrom ? "now-2y"
     , timeTo ? "now"
     }:
     {
@@ -361,7 +373,7 @@ let
       tags = [ "household-finance" "nightly-projection" "glass-not-plumbing" ];
       templating.list = [ ];
       time = {
-        from = "now-2y";
+        from = timeFrom;
         to = timeTo;
       };
       timepicker = {
@@ -1213,18 +1225,412 @@ let
     ];
   };
 
+  # ── the fourth dashboard: can the other three be trusted? ──────────
+  #
+  # The suite shows the money. It does not show the machinery, and the week
+  # that prompted this board is the argument: a register drifting from the
+  # bank while every transaction read as cleared, a bank feed five days dead,
+  # an uncategorised wire sitting outside every spend chart. None of those is
+  # visible on a net-worth line.
+  #
+  # THREE OF ITS FOUR TABLES START EMPTY, and every panel built on one says so
+  # in its own description rather than leaving a reader to wonder why a line
+  # begins mid-August. `reconcile_daily`, `sync_health_daily` and
+  # `hygiene_daily` record what was OBSERVED on a given night — what the bank
+  # reported, when a feed last fetched, what was still uncategorised — and the
+  # register keeps no history of any of them. They cannot be backfilled, so
+  # they accumulate one night at a time from the first run after deploy.
+  #
+  # Two panels here use colour, which the rest of the suite deliberately
+  # avoids. That is not a threshold creeping in: both are state timelines
+  # where the colour IS the value — a categorical state rendered as a band,
+  # the way a status column is rendered as a word. There is still no alert,
+  # no conditional cell colour, and nothing on this board decides anything.
+
+  # A state timeline reads a NUMBER, not a string: Grafana's long-to-wide
+  # conversion treats a text column as a label rather than a value, so a
+  # status returned as text draws nothing at all. Every status is therefore
+  # encoded to an integer in SQL and mapped back to its own word and colour
+  # here — which also means an unrecognised status gets its own visible band
+  # instead of being quietly folded in with the healthy ones.
+  stateMapping = pairs: [{
+    type = "value";
+    options = builtins.listToAttrs (map
+      (entry: {
+        name = toString entry.value;
+        value = {
+          text = entry.text;
+          color = entry.color;
+          index = entry.value;
+        };
+      })
+      pairs);
+  }];
+
+  stateTimelineDefaults = mappings: {
+    color.mode = "thresholds";
+    custom = {
+      fillOpacity = 85;
+      insertNulls = false;
+      lineWidth = 0;
+      spanNulls = false;
+    };
+    inherit mappings;
+    # One step, so nothing is coloured by magnitude. The mappings above own
+    # every colour on these panels; a threshold ladder here would silently
+    # outrank them and turn a status code into a severity score.
+    thresholds = {
+      mode = "absolute";
+      steps = [{ color = colors.gray; value = null; }];
+    };
+    unit = "none";
+  };
+
+  stateTimelineOptions = {
+    alignValue = "left";
+    legend = {
+      displayMode = "list";
+      placement = "bottom";
+      showLegend = true;
+    };
+    mergeValues = true;
+    rowHeight = 0.85;
+    showValue = "never";
+    tooltip = {
+      hideZeros = false;
+      mode = "single";
+      sort = "none";
+    };
+  };
+
+  dataHealth = dashboard {
+    title = "Household Finance · Data Health";
+    uid = "household-finance-health";
+    # Deliberately NOT the suite's two-year default. Three of the four tables
+    # behind this board begin accumulating on deploy day, so a two-year window
+    # would open on a sliver of data at the far right edge and read as broken.
+    # Ninety days is generous for those and shows a quarter of the recurring
+    # grid, whose own panel says to widen the range for the full year.
+    timeFrom = "now-90d";
+    panels = [
+      (asOfPanel 1)
+      {
+        id = 2;
+        type = "timeseries";
+        title = "Register vs bank drift";
+        description = "Should hug zero; a persistent offset is a register error, not noise. One line per non-market account that has ever drifted in this range. Market-valued accounts are excluded because their drift is valuation, not error — the bank reports live value while the register moves only when a transaction posts. Accounts with no bank balance to compare against contribute no point rather than a zero. Recorded nightly and NOT backfillable: the bank does not keep yesterday's reported balance, so this line begins on the first export after deploy.";
+        datasource = datasource;
+        gridPos = gridPos 9 24 0 2;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            sql = ''
+              WITH ever_drifted AS (
+                SELECT account
+                FROM household_finance.reconcile_daily
+                WHERE $__timeFilter(date::timestamp)
+                  AND classification <> 'market_movement'
+                GROUP BY account
+                HAVING sum(abs(coalesce(drift, 0))) > 0
+              )
+              SELECT
+                date::timestamp AT TIME ZONE 'America/New_York' AS time,
+                drift::double precision AS value,
+                account AS metric
+              FROM household_finance.reconcile_daily
+              WHERE $__timeFilter(date::timestamp)
+                AND classification <> 'market_movement'
+                AND drift IS NOT NULL
+                AND account IN (SELECT account FROM ever_drifted)
+              ORDER BY date, account
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = timeSeriesDefaults { fillOpacity = 0; };
+          overrides = [ ];
+        };
+        options = timeSeriesOptions;
+      }
+      {
+        id = 3;
+        type = "state-timeline";
+        title = "Bank feed status";
+        description = "What Actual recorded on each account's last bank pull, one band per account. Green is a pull that succeeded; amber is transient and needs nobody (rate limit, timeout); red needs a person at SimpleFin Bridge. Grey means the account is not bank-linked. A status Actual invents that this panel does not know gets its own band rather than being folded in with the healthy ones. Informational, exactly as it is in finances_sync_status: the freshness verdict is feed AGE, not this. Recorded nightly and not backfillable.";
+        datasource = datasource;
+        gridPos = gridPos 8 12 0 11;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            sql = ''
+              SELECT
+                date::timestamp AT TIME ZONE 'America/New_York' AS time,
+                (CASE
+                  WHEN bank_sync_status IS NULL THEN 7
+                  WHEN bank_sync_status = 'ok' THEN 0
+                  WHEN bank_sync_status = 'rate-limit-exceeded' THEN 1
+                  WHEN bank_sync_status = 'timed-out' THEN 2
+                  WHEN bank_sync_status = 'attention-required' THEN 3
+                  WHEN bank_sync_status = 'reauth-required' THEN 4
+                  WHEN bank_sync_status = 'account-missing' THEN 5
+                  WHEN bank_sync_status = 'failed' THEN 6
+                  ELSE 8
+                END)::double precision AS value,
+                account AS metric
+              FROM household_finance.sync_health_daily
+              WHERE $__timeFilter(date::timestamp)
+              ORDER BY date, account
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = stateTimelineDefaults (stateMapping [
+            { value = 0; text = "ok"; color = colors.green; }
+            { value = 1; text = "rate-limited"; color = colors.amber; }
+            { value = 2; text = "timed out"; color = colors.amber; }
+            { value = 3; text = "attention required"; color = colors.red; }
+            { value = 4; text = "reauth required"; color = colors.red; }
+            { value = 5; text = "account missing"; color = colors.red; }
+            { value = 6; text = "failed"; color = colors.red; }
+            { value = 7; text = "not bank-linked"; color = colors.gray; }
+            { value = 8; text = "unrecognised status"; color = colors.blue; }
+          ]);
+          overrides = [ ];
+        };
+        options = stateTimelineOptions;
+      }
+      {
+        id = 4;
+        type = "table";
+        title = "Feed age against each account's own lines";
+        description = "Latest recorded feed age per account, beside the stale and dead thresholds THAT account was judged by. The lines are per-cadence and deliberately shown per row: a daily feed is stale at 26h and dead at 72h, a monthly statement export at 280h and 840h. One global line across these accounts would call a correctly-behaving mortgage feed dead every morning. Manual accounts have no feed and carry no thresholds; an account with no last_sync falls back to transaction age, which its basis column names.";
+        datasource = datasource;
+        gridPos = gridPos 8 12 12 11;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            format = "table";
+            sql = ''
+              SELECT
+                account AS "Account",
+                cadence AS "Cadence",
+                feed_age_hours AS "Feed age",
+                feed_stale_threshold_hours AS "Stale at",
+                feed_dead_threshold_hours AS "Dead at",
+                status AS "Status",
+                basis AS "Basis"
+              FROM household_finance.sync_health_daily
+              WHERE date = (
+                SELECT max(date)
+                FROM household_finance.sync_health_daily
+                WHERE $__timeFilter(date::timestamp)
+              )
+              ORDER BY feed_age_hours DESC NULLS LAST, account
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = tableFieldDefaults;
+          overrides = [
+            (fieldOverride "Feed age" [{ id = "unit"; value = "h"; }])
+            (fieldOverride "Stale at" [{ id = "unit"; value = "h"; }])
+            (fieldOverride "Dead at" [{ id = "unit"; value = "h"; }])
+          ];
+        };
+        options = tableOptions;
+      }
+      {
+        id = 5;
+        type = "timeseries";
+        title = "Uncategorized backlog — transactions";
+        description = "How many register transactions carry no category, register-wide rather than for one month: a charge from March is still someone's work. Off-budget accounts, transfer legs and opening balances are excluded — each is uncategorised by design, and counting them would leave this permanently four figures deep, which is the same as having no queue. That makes this number smaller than finances_transactions(uncategorized_only=true) reports; the gap is scope, not disagreement. Recorded nightly and not backfillable: the register does not record WHEN a transaction was categorised, so history here can only be observed, never reconstructed.";
+        datasource = datasource;
+        gridPos = gridPos 8 12 0 19;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            sql = ''
+              SELECT
+                date::timestamp AT TIME ZONE 'America/New_York' AS time,
+                uncategorized_count::double precision AS "Uncategorized transactions"
+              FROM household_finance.hygiene_daily
+              WHERE $__timeFilter(date::timestamp)
+              ORDER BY date
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = timeSeriesDefaults {
+            fillOpacity = 20;
+            unit = "none";
+          };
+          overrides = [
+            (fieldOverride "Uncategorized transactions" [{
+              id = "color";
+              value = { fixedColor = colors.blue; mode = "fixed"; };
+            }])
+          ];
+        };
+        options = timeSeriesOptions;
+      }
+      {
+        id = 6;
+        type = "timeseries";
+        title = "Uncategorized backlog — dollars";
+        description = "The same queue by magnitude. Deliberately a SEPARATE panel from the count and never a second axis: they share no unit, and a dual axis invites reading a crossing as meaning something. Absolute dollars, summed without regard to direction — an unclassified wire in and an unclassified payment out are two open questions, and netting them would report a tidy zero over both.";
+        datasource = datasource;
+        gridPos = gridPos 8 12 12 19;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            sql = ''
+              SELECT
+                date::timestamp AT TIME ZONE 'America/New_York' AS time,
+                uncategorized_amount::double precision AS "Uncategorized dollars"
+              FROM household_finance.hygiene_daily
+              WHERE $__timeFilter(date::timestamp)
+              ORDER BY date
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = timeSeriesDefaults { fillOpacity = 20; };
+          overrides = [
+            (fieldOverride "Uncategorized dollars" [{
+              id = "color";
+              value = { fixedColor = colors.amber; mode = "fixed"; };
+            }])
+          ];
+        };
+        options = timeSeriesOptions;
+      }
+      {
+        id = 7;
+        type = "state-timeline";
+        title = "Recurring obligations by month";
+        description = "One band per configured obligation. MATCHED posted inside its tolerance band; CHANGED posted outside it; MISSING should have posted and did not — the only one worth raising. NOT_DUE and PENDING_STATEMENT are both absences that prove nothing yet. A cell can read CHANGED because the PLAN changed rather than the payment: Starlink shows −98% against a $70 expectation because the household moved it to standby between trips (DECISIONS 2026-08-17), which is working as intended. Every month is judged against the obligation list as it stands TODAY — a recurring item declares an end month but never a start — so older months are a statement about the current plan, not a reconstruction of what the checklist said then. The table holds a rolling twelve months; widen the range to see all of it.";
+        datasource = datasource;
+        gridPos = gridPos 9 24 0 27;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            sql = ''
+              SELECT
+                month::timestamp AT TIME ZONE 'America/New_York' AS time,
+                (CASE status
+                  WHEN 'MATCHED' THEN 0
+                  WHEN 'NOT_DUE' THEN 1
+                  WHEN 'PENDING_STATEMENT' THEN 2
+                  WHEN 'ENDED' THEN 3
+                  WHEN 'CHANGED' THEN 4
+                  WHEN 'MISSING' THEN 5
+                  ELSE 6
+                END)::double precision AS value,
+                obligation AS metric
+              FROM household_finance.recurring_monthly
+              WHERE $__timeFilter(month::timestamp)
+              ORDER BY month, obligation
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = stateTimelineDefaults (stateMapping [
+            { value = 0; text = "matched"; color = colors.green; }
+            { value = 1; text = "not due"; color = colors.gray; }
+            { value = 2; text = "pending statement"; color = colors.blue; }
+            { value = 3; text = "ended"; color = colors.gray; }
+            { value = 4; text = "changed"; color = colors.amber; }
+            { value = 5; text = "missing"; color = colors.red; }
+            { value = 6; text = "unrecognised status"; color = colors.blue; }
+          ]);
+          overrides = [ ];
+        };
+        options = stateTimelineOptions;
+      }
+      {
+        id = 8;
+        type = "table";
+        title = "Export runs";
+        description = "Whether the nightly job that fills every other panel in this suite actually ran. A finance dashboard that quietly stops updating looks exactly like a household that stopped spending, which is why this is glass rather than an alert. `Degraded` counts sources the run could not read in full — it still wrote its other tables, and named what it lost. Note this covers the EXPORT only; the sentinel keeps no run history the exporter can reach, so nothing here speaks for it.";
+        datasource = datasource;
+        gridPos = gridPos 7 12 0 36;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            format = "table";
+            sql = ''
+              SELECT
+                to_char(started_at AT TIME ZONE 'America/New_York', 'YYYY-MM-DD HH24:MI') AS "Started",
+                CASE WHEN ok THEN 'ok' ELSE 'FAILED' END AS "Outcome",
+                round(extract(epoch FROM (finished_at - started_at))::numeric, 1) AS "Seconds",
+                coalesce(array_length(degraded, 1), 0) AS "Degraded",
+                error AS "Error"
+              FROM household_finance.export_runs
+              WHERE $__timeFilter(started_at)
+              ORDER BY started_at DESC
+              LIMIT 30
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = tableFieldDefaults;
+          overrides = [
+            (fieldOverride "Seconds" [{ id = "unit"; value = "s"; }])
+          ];
+        };
+        options = tableOptions;
+      }
+      {
+        id = 9;
+        type = "timeseries";
+        title = "Export duration";
+        description = "How long each nightly run took, wall clock. The run recomputes the whole register every night rather than appending a day, so this grows with the register and a sudden step is worth a look — a source that started timing out, or a window that stopped being bounded. Descriptive only.";
+        datasource = datasource;
+        gridPos = gridPos 7 12 12 36;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            sql = ''
+              SELECT
+                started_at AS time,
+                extract(epoch FROM (finished_at - started_at))::double precision AS "Duration"
+              FROM household_finance.export_runs
+              WHERE $__timeFilter(started_at)
+              ORDER BY started_at
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = timeSeriesDefaults {
+            fillOpacity = 12;
+            unit = "s";
+          };
+          overrides = [
+            (fieldOverride "Duration" [{
+              id = "color";
+              value = { fixedColor = colors.blue; mode = "fixed"; };
+            }])
+          ];
+        };
+        options = timeSeriesOptions;
+      }
+    ];
+  };
+
   overviewJson = pkgs.writeText "household-finance-overview.json" (builtins.toJSON overview);
   cashflowJson = pkgs.writeText "household-finance-cashflow.json" (builtins.toJSON cashflow);
   debtJson = pkgs.writeText "household-finance-debt.json" (builtins.toJSON debt);
+  dataHealthJson = pkgs.writeText "household-finance-health.json" (builtins.toJSON dataHealth);
 in
 pkgs.runCommand "household-finance-grafana-dashboards"
 {
   passthru.dashboardDefinitions = {
-    inherit overview cashflow debt;
+    inherit overview cashflow debt dataHealth;
   };
 } ''
   mkdir -p "$out"
   cp ${overviewJson} "$out/overview.json"
   cp ${cashflowJson} "$out/cashflow-categories.json"
   cp ${debtJson} "$out/debt-projects.json"
+  cp ${dataHealthJson} "$out/data-health.json"
 ''
