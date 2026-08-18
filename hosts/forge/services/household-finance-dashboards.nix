@@ -44,6 +44,8 @@ let
     , drawStyle ? "line"
     , stackingMode ? "none"
     , unit ? "currencyUSD"
+    , lineInterpolation ? "smooth"
+    , showPoints ? "never"
     }:
     {
       color.mode = "palette-classic";
@@ -61,11 +63,11 @@ let
           tooltip = false;
           viz = false;
         };
-        lineInterpolation = "smooth";
+        lineInterpolation = lineInterpolation;
         lineWidth = 2;
         pointSize = 5;
         scaleDistribution.type = "linear";
-        showPoints = "never";
+        showPoints = showPoints;
         spanNulls = false;
         stacking = {
           group = "A";
@@ -94,6 +96,135 @@ let
       sort = "desc";
     };
   };
+
+  # Shared table shape. Every table in the suite is plain: no cell coloring,
+  # no thresholds. Deliberate — a colored delta pre-decides what matters, and
+  # deciding is the sentinel's job, not the glass's.
+  tableFieldDefaults = {
+    custom = {
+      align = "auto";
+      cellOptions.type = "auto";
+      inspect = false;
+    };
+    mappings = [ ];
+  };
+
+  tableOptions = {
+    cellHeight = "sm";
+    footer = {
+      countRows = false;
+      fields = "";
+      reducer = [ "sum" ];
+      show = false;
+    };
+    showHeader = true;
+  };
+
+  # A scalar from household_finance.config_values drawn as a flat reference
+  # line across the visible range. Two endpoints is all a horizontal line
+  # needs, and anchoring them to $__timeFrom/$__timeTo makes the line span
+  # exactly what the user is looking at.
+  #
+  # The absence contract matters more than the presence one: config_values is
+  # written by a different exporter pass than the projection tables, so a name
+  # can legitimately be missing. A missing row yields zero rows, the series
+  # never materializes, and the panel simply draws no line. It must never
+  # error, so there is no aggregate, no division, and no join against the
+  # projection tables here — nothing that could turn "absent" into "broken".
+  configLine =
+    { name
+    , series
+    , refId
+    }:
+    query {
+      inherit refId;
+      sql = ''
+        SELECT $__timeFrom()::timestamptz AS time, value::double precision AS "${series}"
+        FROM household_finance.config_values
+        WHERE name = '${name}'
+        UNION ALL
+        SELECT $__timeTo()::timestamptz, value::double precision
+        FROM household_finance.config_values
+        WHERE name = '${name}'
+        ORDER BY time
+      '';
+    };
+
+  # Styles a configLine series as a dashed reference rule. Forces drawStyle
+  # and stacking explicitly so the line survives being dropped onto a panel
+  # whose defaults are stacked bars.
+  referenceLineOverride = series: color: fieldOverride series [
+    { id = "color"; value = { fixedColor = color; mode = "fixed"; }; }
+    { id = "custom.drawStyle"; value = "line"; }
+    { id = "custom.lineStyle"; value = { dash = [ 10 10 ]; fill = "dash"; }; }
+    { id = "custom.lineWidth"; value = 1; }
+    { id = "custom.fillOpacity"; value = 0; }
+    { id = "custom.stacking"; value = { group = "A"; mode = "none"; }; }
+    { id = "custom.hideFrom"; value = { legend = false; tooltip = false; viz = false; }; }
+  ];
+
+  # Month-over-month movers. Compares the two most recent COMPLETE calendar
+  # months inside the selected range; the in-progress month is excluded
+  # because a partial month always reads as a collapse.
+  #
+  # If the range does not contain two complete months the comparison CTE
+  # yields no rows and the table is empty. That is on purpose: falling back to
+  # "prior = 0" would render every category as brand new, which is a lie.
+  moversQuery =
+    { table
+    , keyColumn
+    , keyLabel
+    , limit ? null
+    }:
+    query {
+      format = "table";
+      sql = ''
+        WITH complete_months AS (
+          SELECT DISTINCT month
+          FROM household_finance.${table}
+          WHERE $__timeFilter(month::timestamp)
+            AND month < date_trunc('month', current_date)::date
+        ),
+        ranked AS (
+          SELECT month, row_number() OVER (ORDER BY month DESC) AS rn
+          FROM complete_months
+        ),
+        comparison AS (
+          SELECT cur_month, pri_month
+          FROM (
+            SELECT
+              (SELECT month FROM ranked WHERE rn = 1) AS cur_month,
+              (SELECT month FROM ranked WHERE rn = 2) AS pri_month
+          ) AS pair
+          WHERE cur_month IS NOT NULL AND pri_month IS NOT NULL
+        ),
+        cur AS (
+          SELECT source.${keyColumn}, source.amount
+          FROM household_finance.${table} AS source
+          JOIN comparison ON source.month = comparison.cur_month
+        ),
+        pri AS (
+          SELECT source.${keyColumn}, source.amount
+          FROM household_finance.${table} AS source
+          JOIN comparison ON source.month = comparison.pri_month
+        )
+        SELECT
+          ${keyColumn} AS "${keyLabel}",
+          coalesce(pri.amount, 0)::double precision AS "Prior",
+          coalesce(cur.amount, 0)::double precision AS "Current",
+          (coalesce(cur.amount, 0) - coalesce(pri.amount, 0))::double precision AS "Delta"
+        FROM cur
+        FULL JOIN pri USING (${keyColumn})
+        ORDER BY abs(coalesce(cur.amount, 0) - coalesce(pri.amount, 0)) DESC
+        ${if limit == null then "" else "LIMIT ${toString limit}"}
+      '';
+    };
+
+  moversOverrides = [
+    (fieldOverride "Prior" [{ id = "unit"; value = "currencyUSD"; }])
+    (fieldOverride "Current" [{ id = "unit"; value = "currencyUSD"; }])
+    (fieldOverride "Delta" [{ id = "unit"; value = "currencyUSD"; }])
+  ];
 
   asOfPanel = id: {
     inherit id;
@@ -609,7 +740,7 @@ let
         id = 5;
         type = "timeseries";
         title = "Amazon spend by person";
-        description = "Exact lading attribution remains separate from (unattributed); no charge is spread or dropped.";
+        description = "Exact lading attribution remains separate from (unattributed); no charge is spread or dropped. The dashed rule is the configured AMAZON_BASELINE, a reference level rather than a limit; it is absent from the chart whenever it is absent from config_values.";
         datasource = datasource;
         gridPos = gridPos 11 8 16 10;
         pluginVersion = "12.3.6";
@@ -625,6 +756,11 @@ let
               ORDER BY month, person
             '';
           })
+          (configLine {
+            name = "AMAZON_BASELINE";
+            series = "Baseline";
+            refId = "B";
+          })
         ];
         fieldConfig = {
           defaults = timeSeriesDefaults {
@@ -636,6 +772,11 @@ let
             (fieldOverride "ryan" [{ id = "color"; value = { fixedColor = colors.green; mode = "fixed"; }; }])
             (fieldOverride "steffi" [{ id = "color"; value = { fixedColor = colors.blue; mode = "fixed"; }; }])
             (fieldOverride "(unattributed)" [{ id = "color"; value = { fixedColor = colors.amber; mode = "fixed"; }; }])
+            # Gray, not red. The baseline is a descriptive monthly average, so
+            # it gets the same neutral treatment as "Monthly floor" on the
+            # debt dashboard. Colouring it as a limit would imply a breach the
+            # projection is not entitled to declare.
+            (referenceLineOverride "Baseline" colors.gray)
           ];
         };
         options = timeSeriesOptions;
@@ -666,28 +807,103 @@ let
           })
         ];
         fieldConfig = {
-          defaults = {
-            custom = {
-              align = "auto";
-              cellOptions.type = "auto";
-              inspect = false;
-            };
-            mappings = [ ];
-          };
+          defaults = tableFieldDefaults;
           overrides = [
             (fieldOverride "Spend" [{ id = "unit"; value = "currencyUSD"; }])
           ];
         };
-        options = {
-          cellHeight = "sm";
-          footer = {
-            countRows = false;
-            fields = "";
-            reducer = [ "sum" ];
-            show = false;
-          };
-          showHeader = true;
+        options = tableOptions;
+      }
+      {
+        id = 7;
+        type = "table";
+        title = "Top movers · categories";
+        description = "Needs two complete months in range: with fewer, this panel is deliberately empty rather than wrong. Month-over-month change for every category, largest absolute move first, comparing the two most recent complete months; the in-progress month is excluded, and a missing prior month is never treated as zero — that would render an ordinary month as entirely new spending. Unranked and uncoloured on purpose: it reports what moved, it does not judge which moves matter.";
+        datasource = datasource;
+        gridPos = gridPos 9 8 0 28;
+        pluginVersion = "12.3.6";
+        targets = [
+          (moversQuery {
+            table = "category_monthly";
+            keyColumn = "category";
+            keyLabel = "Category";
+          })
+        ];
+        fieldConfig = {
+          defaults = tableFieldDefaults;
+          overrides = moversOverrides;
         };
+        options = tableOptions;
+      }
+      {
+        id = 8;
+        type = "table";
+        title = "Top movers · merchants";
+        description = "Needs two complete months in range, same as the category panel, and is empty otherwise. The same comparison at payee level, capped at the 25 largest absolute moves. A payee that merely got renamed upstream appears twice, once falling to zero and once rising from it; that pairing is left visible rather than smoothed away.";
+        datasource = datasource;
+        gridPos = gridPos 9 8 8 28;
+        pluginVersion = "12.3.6";
+        targets = [
+          (moversQuery {
+            table = "merchant_monthly";
+            keyColumn = "payee";
+            keyLabel = "Merchant";
+            limit = 25;
+          })
+        ];
+        fieldConfig = {
+          defaults = tableFieldDefaults;
+          overrides = moversOverrides;
+        };
+        options = tableOptions;
+      }
+      {
+        id = 9;
+        type = "table";
+        title = "New merchants";
+        description = "Needs one complete month in range, and is empty otherwise. Payees whose first appearance anywhere in merchant_monthly is the same complete month the movers panels compare, with more than $100 of spend. First-seen is computed over all history, not the selected range, so widening or narrowing the time picker cannot manufacture a new merchant.";
+        datasource = datasource;
+        gridPos = gridPos 9 8 16 28;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            format = "table";
+            sql = ''
+              WITH complete_months AS (
+                SELECT DISTINCT month
+                FROM household_finance.merchant_monthly
+                WHERE $__timeFilter(month::timestamp)
+                  AND month < date_trunc('month', current_date)::date
+              ),
+              current_month AS (
+                SELECT max(month) AS month FROM complete_months
+              ),
+              first_seen AS (
+                SELECT payee, min(month) AS first_month
+                FROM household_finance.merchant_monthly
+                GROUP BY payee
+              )
+              SELECT
+                merchant.payee AS "Merchant",
+                merchant.amount::double precision AS "Spend",
+                merchant.txn_count AS "Transactions"
+              FROM household_finance.merchant_monthly AS merchant
+              JOIN current_month ON merchant.month = current_month.month
+              JOIN first_seen
+                ON first_seen.payee = merchant.payee
+                AND first_seen.first_month = current_month.month
+              WHERE merchant.amount > 100
+              ORDER BY merchant.amount DESC
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = tableFieldDefaults;
+          overrides = [
+            (fieldOverride "Spend" [{ id = "unit"; value = "currencyUSD"; }])
+          ];
+        };
+        options = tableOptions;
       }
     ];
   };
@@ -806,7 +1022,7 @@ let
         id = 4;
         type = "timeseries";
         title = "Buffer history";
-        description = "Newest point may use bank-available basis; historical points use the register. Events annotate breaches, bridges, strikes, and dated notes.";
+        description = "Newest point may use bank-available basis; historical points use the register. Events annotate breaches, bridges, strikes, and dated notes. The dashed rule is the configured BUFFER_FLOOR; it is absent from the chart whenever it is absent from config_values, and crossing it is described here but acted on nowhere.";
         datasource = datasource;
         gridPos = gridPos 9 16 0 11;
         pluginVersion = "12.3.6";
@@ -822,12 +1038,27 @@ let
               ORDER BY date
             '';
           })
+          (configLine {
+            name = "BUFFER_FLOOR";
+            series = "Buffer floor";
+            refId = "B";
+          })
         ];
         fieldConfig = {
           defaults = timeSeriesDefaults { fillOpacity = 12; };
           overrides = [
             (fieldOverride "Buffer" [{ id = "color"; value = { fixedColor = colors.green; mode = "fixed"; }; }])
             (fieldOverride "Checking available" [{ id = "color"; value = { fixedColor = colors.blue; mode = "fixed"; }; }])
+            # Red here, unlike the gray Amazon baseline, because BUFFER_FLOOR
+            # is the one level in the suite the household has actually agreed
+            # not to cross. Still only glass: the line describes the breach,
+            # the sentinel is what notices it.
+            (referenceLineOverride "Buffer floor" colors.red)
+            # FLOOR is deliberately NOT overlaid on this panel. It is a
+            # monthly *spending* floor; this chart is a checking *headroom*
+            # level. Both are dollars, so a second line would happily draw and
+            # would be read as comparable when it is not. FLOOR already has an
+            # honest home on "Spend pace vs monthly floor" below.
           ];
         };
         options = timeSeriesOptions;
@@ -905,7 +1136,7 @@ let
         title = "Project spend";
         description = "Transaction-level project shares parsed from [proj:<tag>=<amount>] notes; txn_ref traces each row to Actual.";
         datasource = datasource;
-        gridPos = gridPos 8 24 0 20;
+        gridPos = gridPos 8 13 0 20;
         pluginVersion = "12.3.6";
         targets = [
           (query {
@@ -923,28 +1154,61 @@ let
           })
         ];
         fieldConfig = {
-          defaults = {
-            custom = {
-              align = "auto";
-              cellOptions.type = "auto";
-              inspect = false;
-            };
-            mappings = [ ];
-          };
+          defaults = tableFieldDefaults;
           overrides = [
             (fieldOverride "Amount" [{ id = "unit"; value = "currencyUSD"; }])
           ];
         };
-        options = {
-          cellHeight = "sm";
-          footer = {
-            countRows = false;
-            fields = "";
-            reducer = [ "sum" ];
-            show = false;
+        options = tableOptions;
+      }
+      {
+        id = 7;
+        type = "timeseries";
+        title = "Project cumulative";
+        description = "Running total per proj_tag, one line per project. The running sum is taken from each project's first transaction, not from the start of the selected range, so panning the time picker never re-zeros a project mid-flight. Refunds carry mirrored negative shares by convention, so a curve stepping down is correct rather than a data fault; a project that nets to zero is a purchase and its return, both recorded. Steps are drawn square because nothing is known between transactions.";
+        datasource = datasource;
+        gridPos = gridPos 8 11 13 20;
+        pluginVersion = "12.3.6";
+        targets = [
+          (query {
+            sql = ''
+              WITH daily AS (
+                SELECT proj_tag, date, sum(amount) AS amount
+                FROM household_finance.project_spend
+                GROUP BY proj_tag, date
+              ),
+              cumulative AS (
+                SELECT
+                  proj_tag,
+                  date,
+                  sum(amount) OVER (PARTITION BY proj_tag ORDER BY date) AS running
+                FROM daily
+              )
+              SELECT
+                date::timestamp AT TIME ZONE 'America/New_York' AS time,
+                running::double precision AS value,
+                proj_tag AS metric
+              FROM cumulative
+              WHERE $__timeFilter(date::timestamp)
+              -- Time first. Grafana's long-to-wide conversion rejects a frame
+              -- that is not globally ascending by time, so grouping by
+              -- proj_tag here would fail the panel outright.
+              ORDER BY date, proj_tag
+            '';
+          })
+        ];
+        fieldConfig = {
+          defaults = timeSeriesDefaults {
+            fillOpacity = 0;
+            # Square steps and visible points: project spend is a handful of
+            # discrete transactions, and a smoothed curve would invent a
+            # spending rate between them that never happened.
+            lineInterpolation = "stepAfter";
+            showPoints = "always";
           };
-          showHeader = true;
+          overrides = [ ];
         };
+        options = timeSeriesOptions;
       }
     ];
   };
