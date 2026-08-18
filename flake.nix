@@ -672,6 +672,7 @@
                   "tank/services"
                   "tank/services/worldmonitor"
                   "tank/services/go2rtc"
+                  "rpool/temp"
                 ];
                 criticalServicePaths = [
                   "tank/services/bichon"
@@ -700,10 +701,10 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 47;
+              assert manifest.summary.classified == 48;
               assert manifest.summary.byClass == {
                 critical = 10;
-                ephemeral = 20;
+                ephemeral = 21;
                 # 15 since 2026-08-17: lading gained a declared dataset. It
                 # had been running on the impermanence-rolled-back root with
                 # no dataset and no persistence entry, so its state was wiped

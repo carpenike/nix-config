@@ -37,14 +37,15 @@ let
   mkSnapshotService = jobName: jobConfig:
     let
       dataset = jobConfig.zfsDataset;
+      sourcePool = builtins.head (lib.splitString "/" dataset);
       snapshotName = "backup-${jobName}";
-      cloneName = "tank/temp/clone-${jobName}"; # Temporary clone dataset
+      cloneName = "${sourcePool}/temp/clone-${jobName}"; # Temporary clone dataset
       cloneMountpoint = "/var/lib/backup-snapshots/${jobName}"; # Mount location outside of /tmp to avoid PrivateTmp conflicts
     in
     {
       "zfs-snapshot-${jobName}" = {
         description = "Create ZFS snapshot and clone for ${jobName} backup";
-        # Ensure the declarative datasets service has run first (creates tank/temp)
+        # Ensure the declarative datasets service has run first (creates the pool's temp dataset)
         after = [ "zfs-service-datasets.service" ];
         wants = [ "zfs-service-datasets.service" ];
         # Automatically stop when no longer needed by any active unit

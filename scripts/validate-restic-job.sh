@@ -225,8 +225,11 @@ if systemctl cat "$snapshot_service" >/dev/null 2>&1; then
   # Match the literal variable reference embedded in the generated helper.
   # shellcheck disable=SC2016
   dataset_key=$(sed -n 's/.*DATASET_LOCK="\$LOCK_DIR\/\([^"]*\)".*/\1/p' "$helper" | head -1)
+  clone_name=$(sed -n 's/.*Creating temporary clone \([^"]*\)".*/\1/p' "$helper" | head -1)
 
-  if zfs list "tank/temp/clone-${job}" >/dev/null 2>&1; then
+  if [[ -z $clone_name ]]; then
+    fail "clone-path-present"
+  elif zfs list "$clone_name" >/dev/null 2>&1; then
     fail "clone-cleanup"
   else
     pass "clone-cleanup"

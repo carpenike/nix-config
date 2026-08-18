@@ -112,6 +112,27 @@ in
 
       # Utility datasets (not under parentDataset/services)
       utility = {
+        "rpool/temp" = {
+          mountpoint = "none";
+          compression = "lz4";
+          recordsize = "128K";
+          properties = {
+            "com.sun:auto-snapshot" = "false";
+          };
+          protection = {
+            class = "ephemeral";
+            objectives = {
+              onsiteRpoSeconds = null;
+              offsiteRpoSeconds = null;
+              rtoSeconds = null;
+            };
+            requiredTiers = [ ];
+            consistency = "crash-consistent";
+            validator = null;
+            allowEmptyBootstrap = true;
+          };
+        };
+
         # Temporary dataset for ZFS clone-based backups
         # Used by snapshot-based backup services (dispatcharr, plex)
         # to avoid .zfs directory issues when backing up mounted filesystems

@@ -110,7 +110,7 @@ in
           HOMELAB_MCP_POCKETID_CLIENT_ID = "mcp";
           HOMELAB_MCP_COOKLANG_BASE_URL = "https://cook.holthome.net";
           HOMELAB_MCP_FEDERATION_BASE_URL = "https://fedcook.holthome.net";
-          HOMELAB_MCP_GATUS_BASE_URL = "https://gatus.holthome.net";
+          HOMELAB_MCP_GATUS_BASE_URL = "http://127.0.0.1:8090";
           # Grocy REST API base. The /api path is intentionally exempt from
           # the PocketID gate (see hosts/forge/services/grocy.nix
           # caddySecurity.bypassPaths); the grocy_* tools authenticate with

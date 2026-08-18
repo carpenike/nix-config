@@ -97,7 +97,7 @@ let
         ProtectSystem = "strict";
         ReadWritePaths = [
           restoreDrillRoot
-          "/run/postgresql/pgbackrest-backup.lock"
+          "/run/postgresql"
           "/var/lib/node_exporter/textfile_collector"
           "/var/lib/pgbackrest/spool"
           "/var/log/pgbackrest"
