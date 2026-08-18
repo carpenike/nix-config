@@ -606,6 +606,7 @@
                 rendered = builtins.fromJSON forge.environment.etc."homelab/protection-manifest.json".text;
                 actual = manifest.datasets."tank/services/actual";
                 homeAssistant = manifest.datasets."tank/services/home-assistant";
+                lading = manifest.datasets."tank/services/lading";
                 musicAssistant = manifest.datasets."tank/services/music-assistant";
                 legacyDirectPreseed = forge.systemd.services.preseed-mealie;
                 legacyFactoryMain = forge.systemd.services.podman-qbittorrent;
@@ -699,20 +700,56 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 46;
+              assert manifest.summary.classified == 47;
               assert manifest.summary.byClass == {
                 critical = 10;
                 ephemeral = 20;
-                standard = 14;
+                # 15 since 2026-08-17: lading gained a declared dataset. It
+                # had been running on the impermanence-rolled-back root with
+                # no dataset and no persistence entry, so its state was wiped
+                # every boot and the manifest could not see it at all.
+                standard = 15;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];
               assert builtins.hasAttr "rpool/safe/persist" manifest.datasets;
-              assert manifest.datasets."rpool/safe/persist".missingRequiredTiers == [ "offsite-backup" ];
+              # The system identity dataset: /persist carries the SSH host key
+              # that IS forge's SOPS identity. The `system-persist-offsite`
+              # Restic job closed its offsite gap on 2026-08-17, so this now
+              # asserts full coverage. Recovering from that copy still needs
+              # the offline PGP key to reach the Restic password and R2
+              # credentials - see the comment on the job in
+              # hosts/forge/infrastructure/storage.nix.
+              assert manifest.datasets."rpool/safe/persist".missingRequiredTiers == [ ];
+              # /home is deliberately still onsite-only. It is user data
+              # rather than recovery-critical identity, and it is far larger
+              # than /persist, so its offsite copy is a cost decision that has
+              # not been made rather than an oversight.
               assert manifest.datasets."rpool/safe/home".missingRequiredTiers == [ "offsite-backup" ];
               assert actual.classification == "critical";
-              assert actual.missingRequiredTiers == [ "offsite-backup" ];
+              # The household ledger. Every required tier is satisfied: the
+              # `actual-offsite` Restic job to r2-offsite closed the offsite
+              # gap on 2026-08-17, so this asserts full coverage rather than
+              # codifying a known hole. If it starts failing, an offsite tier
+              # regressed - restore it rather than relaxing the assertion.
+              assert actual.missingRequiredTiers == [ ];
               assert homeAssistant.missingRequiredTiers == [ "offsite-backup" ];
+              # lading holds rotating Costco/Sam's tokens and a live Amazon
+              # cookie jar. The dataset itself is the assertion that matters:
+              # without one, /var/lib/lading sits on the root dataset that
+              # initrd rolls back to @blank every boot, and the manifest
+              # cannot see the dataset to complain. Asserting its presence and
+              # full tier coverage is what stops that regressing unnoticed.
+              assert lading.classification == "standard";
+              assert lading.missingRequiredTiers == [ ];
+              # Deliberately true, unlike the other standard services - which
+              # is exactly why lading is not in standardServicePaths below.
+              # There is no preseed unit, so an empty dataset must be a legal
+              # state: the units re-seed the warehouse tokens from sops and
+              # re-login to Amazon. That path is expensive and challenge-prone,
+              # not impossible.
+              assert lading.policy.allowEmptyBootstrap;
+              assert !(builtins.hasAttr "lading" failClosedUnits);
               assert musicAssistant.coverage.automatedRestore;
               assert builtins.all
                 (name:
@@ -821,16 +858,33 @@
                 # nothing, so the service had no backup at all. These counts are
                 # tripwires on the deployment guard's timer set -- a backup job
                 # appearing or vanishing should force exactly this review.
-              assert builtins.length expectedTimers == 125;
+                #
+                # 2026-08-17, 125 -> 131 timers, 57 -> 58 snapshot datasets and
+                # 58 -> 61 restic jobs. Six new timers, all intended:
+                #   pgbackrest-restore-drill-repo{1,2}.timer  - the restore
+                #     drills existed as services that nothing ever scheduled;
+                #     these arm them.
+                #   restic-backup-actual-offsite.timer        - Actual Budget
+                #     to r2-offsite, closing the ledger's offsite gap.
+                #   restic-backup-system-persist-offsite.timer - /persist (the
+                #     SOPS identity) to r2-offsite.
+                #   restic-backup-lading.timer                - lading's new
+                #     dataset, which also brings the +1 snapshot dataset and
+                #     syncoid-tank-services-lading.timer.
+                # The drill timers land in this set on purpose: the guard
+                # pauses them for a deploy and restores them after, which is
+                # what should happen to a job that takes the pgBackRest
+                # backup lock.
+              assert builtins.length expectedTimers == 131;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
               assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
-              assert builtins.length (builtins.attrNames snapshotDatasets) == 57;
+              assert builtins.length (builtins.attrNames snapshotDatasets) == 58;
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 58;
+              assert builtins.length (builtins.attrNames enabledResticJobs) == 61;
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;

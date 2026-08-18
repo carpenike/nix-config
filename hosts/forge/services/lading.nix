@@ -49,14 +49,26 @@
 # writing to this same database — never a second credential in one env file.
 # That keeps a compromised env file worth exactly one account.
 #
-# FLAKE LOCK: Renovate watches homelab-mcp and auto-merges its bumps within
-# minutes; nothing watches carpenike/lading. So after pushing lading you MUST
-# bump its input here by hand — on 2026-08-04 that was missed, and the deployed
-# closure ran ahead of the committed lock, meaning the next apply from a clean
-# checkout would have silently rolled a fix back with no diff to explain it.
-# When in doubt, check the deployed closure rather than the lock:
+# FLAKE LOCK: homelab-mcp's bumps land within minutes because its own repo
+# fires a repository_dispatch at .github/workflows/update-flake-input.yml,
+# which opens and auto-merges the lock PR. That is NOT Renovate — Renovate's
+# nix support is switched off in .github/renovate.json5 ("Flake inputs handled
+# by update-flake-lock.yml workflow"), so adding lading there would do nothing.
+#
+# That path is HALF-ARMED for lading as of 2026-08-17. The nix-config side is
+# done: `lading` is in both allowlists in update-flake-input.yml (the
+# workflow_dispatch choice list and the case gate), so a manual run works
+# today. The push-to-deploy side still needs a notify-nix-config.yml in
+# carpenike/lading that fires `flake-input-updated` with
+# client_payload.input = "lading" — copy the one in homelab-mcp. Until that
+# exists, nothing watches carpenike/lading, so after pushing lading you MUST
+# bump its input here by hand (or run the workflow manually).
+#
+# On 2026-08-04 that was missed, and the deployed closure ran ahead of the
+# committed lock, meaning the next apply from a clean checkout would have
+# silently rolled a fix back with no diff to explain it. When in doubt, check
+# the deployed closure rather than the lock:
 #   grep -c <symbol> /nix/store/*-lading-*/lib/python*/site-packages/lading/...
-# Adding lading to Renovate's watch list would remove the whole class of bug.
 #
 # One-time setup:
 #   1. Add `carpenike/lading` to the fine-grained GitHub PAT behind the
@@ -140,6 +152,10 @@ let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
 
   serviceName = "lading";
+  # Both units' StateDirectory lands here: the health unit takes
+  # StateDirectory=lading and each sync unit takes lading/<account>.
+  dataDir = "/var/lib/${serviceName}";
+  dataset = "tank/services/${serviceName}";
   listenAddr = "127.0.0.1";
   # 9200 is homelab-mcp, 9210 its Actual sidecar, 9220 schoolhouse. Next in
   # that family; the first schoolhouse deploy failed with EADDRINUSE for
@@ -325,6 +341,158 @@ in
     }
 
     (lib.mkIf serviceEnabled {
+      # ── State: a real dataset, not the rolled-back root ───────────────
+      #
+      # THIS DATASET IS LOAD-BEARING. forge is an impermanence host: the root
+      # dataset is rolled back to rpool/local/root@blank in initrd on EVERY
+      # boot, and only two kinds of path survive it — a directory listed in
+      # modules.system.impermanence.directories (just /var/log, /var/lib/cache
+      # and /var/lib/nixos), or a ZFS dataset mounted over the path. Until
+      # this declaration existed lading had NEITHER, so /var/lib/lading was
+      # ordinary root-dataset state and every reboot silently emptied it.
+      #
+      # What that cost, concretely — none of it visible in any dashboard,
+      # because a wiped state directory and a first-ever run look identical:
+      #
+      #   * The Costco and Sam's Club refresh tokens are ROTATING. Azure B2C
+      #     hands back a new one on every use and the live value lives here,
+      #     not in sops. Losing it silently falls back to re-seeding from
+      #     lading/<account>/{costco,samsclub}_tokens, and that seed is good
+      #     for about 90 days. So the failure is deferred, not avoided: the
+      #     first reboot after the seed goes stale is when warehouse receipts
+      #     stop, and the seed's shelf life is being spent by every reboot.
+      #   * The Amazon cookie jar is a LIVE AUTHENTICATED SESSION. Losing it
+      #     forces a full login on the next run — which is exactly the path
+      #     that hit a JavaScript challenge on 2026-08-04 and had to be
+      #     unblocked by hand-copying a jar from another host.
+      #   * Re-seeding Sam's is not a browser snippet. It needs that person's
+      #     PHONE behind a proxy with a CA installed (see syncAccounts above).
+      #
+      # It also meant lading was invisible to the protection manifest, so no
+      # assertion in flake.nix could ever have caught the gap — the manifest
+      # only sees declared datasets.
+      #
+      # ── CUTOVER: READ BEFORE THE FIRST APPLY ─────────────────────────
+      #
+      # On the first apply, ZFS mounts this new EMPTY dataset over
+      # /var/lib/lading. OpenZFS mounts over a non-empty directory happily
+      # (overlay=on), so the live tokens are not deleted — they are HIDDEN
+      # underneath on the root dataset, and the next boot's rollback then
+      # destroys them for good. Applying without this sequence therefore
+      # spends the one thing this change exists to protect:
+      #
+      #   1. systemctl stop lading-sync-ryan.timer lading-sync-steffi.timer
+      #      systemctl stop lading.service
+      #   2. cp -a /var/lib/lading /var/lib/lading.premigration
+      #      (still on the rolled-back root — do not reboot from here)
+      #   3. task nix:apply-nixos host=forge     # dataset created and mounted
+      #   4. cp -a /var/lib/lading.premigration/. /var/lib/lading/
+      #      chown -R lading:lading /var/lib/lading
+      #   5. systemctl start lading.service
+      #      systemctl start lading-sync-ryan.service   # verify on real tokens
+      #      journalctl -u lading-sync-ryan -n 50
+      #      Expect "amazon session authenticated" and a Costco/Sam's fetch
+      #      that does NOT report re-seeding from the sops seed.
+      #   6. Only once that run is clean: rm -rf /var/lib/lading.premigration
+      #      and restart the timers.
+      #
+      # If a reboot intervenes before step 4, the sops seeds still cover you —
+      # but that spends ~90 days of Costco/Sam's shelf life and forces a fresh
+      # Amazon login. Do not treat it as a free fallback.
+      modules.storage.datasets.services.${serviceName} = {
+        mountpoint = dataDir;
+        # Small JSON credential files (cookie jars, token blobs), not bulk.
+        recordsize = "16K";
+        compression = "zstd";
+        properties = {
+          atime = "off";
+          "com.sun:auto-snapshot" = "true";
+        };
+        owner = serviceName;
+        group = serviceName;
+        # 0700, matching signal-api and homelab-mcp rather than the 0755 a
+        # bare StateDirectory would leave: everything in here is a credential
+        # that can place Amazon orders. Both units run as lading, so nothing
+        # legitimate needs to traverse it. systemd cannot chmod a pre-existing
+        # ZFS mountpoint, which is why the mode is set here.
+        mode = "0700";
+
+        protection = {
+          # Standard, not critical. Losing this dataset loses no household
+          # RECORD — the orders, receipts and transactions all live in
+          # PostgreSQL, which pgBackRest covers with PITR to two repositories.
+          # What is lost is session and token state, which is reconstructible.
+          # It is not FREE to reconstruct (a phone behind mitmproxy for Sam's,
+          # a DevTools capture for Costco, a challenge-prone login for
+          # Amazon), which is why it is not ephemeral either.
+          class = "standard";
+          objectives = {
+            # The sync is daily, so a day of token rotation is the most that
+            # can be lost between snapshots without consequence.
+            onsiteRpoSeconds = 86400;
+            offsiteRpoSeconds = null;
+            rtoSeconds = 28800;
+          };
+          requiredTiers = [
+            "local-snapshot"
+            "replication"
+            "nas-backup"
+          ];
+          consistency = "crash-consistent";
+          # Deliberately null. See the note on the `validator` option in
+          # lib/types/protection.nix: nothing consumes this field yet, and
+          # naming a checker that does not exist would assert a guarantee
+          # this dataset does not have.
+          validator = null;
+
+          # true, and this is the honest reading rather than a shortcut.
+          # There is no preseed unit for lading, so `automated-restore` is not
+          # claimed above. An empty dataset IS a supported state: the units
+          # re-seed the warehouse tokens from sops and re-login to Amazon.
+          # That path works — it is just expensive and challenge-prone, which
+          # is the entire argument for keeping the live state instead of
+          # relying on it.
+          allowEmptyBootstrap = true;
+
+          notes = ''
+            Holds rotating Costco/Sam's Club refresh tokens and a live Amazon
+            cookie jar. The sops secrets lading/<account>/{costco,samsclub}_tokens
+            are SEEDS, not backups: they are installed only when no live token
+            exists and expire in roughly 90 days. Treat the contents as
+            credentials — the Amazon session can place orders and change
+            shipping addresses.
+          '';
+        };
+      };
+
+      modules.backup.sanoid.datasets.${dataset} =
+        forgeDefaults.mkSanoidDataset serviceName;
+
+      # NAS backup only, no r2-offsite copy, and that is a decision rather
+      # than an omission.
+      #
+      # The offsite copy of this credential material already exists and is not
+      # here: lading/<account>/{costco,samsclub}_tokens live in
+      # hosts/forge/secrets.sops.yaml, which is in git and encrypted to the
+      # offline PGP key. In the disaster this would protect against — the site
+      # is gone and forge is rebuilt — any live token restored from R2 would
+      # be long past its rotation window anyway, so it would buy nothing the
+      # seeds do not already buy. Pushing a live Amazon session cookie to a
+      # third-party bucket for that non-benefit is the wrong trade.
+      #
+      # If the offsite calculus changes (e.g. the seeds stop being maintained,
+      # or a second membership makes re-seeding materially harder), revisit
+      # this and add `offsite-backup` to requiredTiers at the same time.
+      modules.services.backup.restic.jobs.${serviceName} = {
+        enable = true;
+        repository = forgeDefaults.backup.repository;
+        paths = [ dataDir ];
+        tags = [ serviceName "credentials" "finances" "forge" ];
+        frequency = "daily";
+        useSnapshots = true;
+        zfsDataset = dataset;
+      };
+
       # The health endpoint being down is a nuisance; the SYNC being broken is
       # the failure that matters, and it is silent by construction — a scraper
       # that stopped working looks exactly like a quiet month of not buying

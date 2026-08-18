@@ -130,6 +130,7 @@ nav:
       - Backup System: backup-system-onboarding.md
       - Unified Backup Design: unified-backup-design-patterns.md
       - Disaster Recovery: disaster-recovery-preseed-pattern.md
+      - Recovery Drills: disaster-recovery-drills.md
       - Preseed Restore Methods: preseed-restore-methods-guide.md
       - Flake Management: flake-management.md
       - Garbage Collection: nix-garbage-collection.md

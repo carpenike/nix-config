@@ -1124,6 +1124,49 @@ in
       };
     };
 
+    # Restore drills. The services above have existed since the drill work
+    # landed, but nothing scheduled them, so they had never run outside a
+    # manual `systemctl start` - a restore capability that is built but not
+    # armed proves nothing. These timers arm them; the
+    # `pgbackrest-restore-drill-*` alert rules below are what make a drill
+    # that quietly stops running visible.
+    #
+    # WEEKLY, not daily, and on the weekend. A drill takes the exclusive
+    # pgBackRest backup lock (see backupLockScript) for its whole run, so
+    # while it works the hourly incremental waits. That is acceptable once a
+    # week at a quiet hour and would not be nightly. Repo2 additionally pulls
+    # a full backup back down from R2, which costs egress.
+    #
+    # Persistent = false, unlike every other timer in this file. Those are
+    # backups: a missed run is data at risk and must catch up at boot. This is
+    # a verification job with an 8h timeout that seizes the backup lock -
+    # firing it automatically moments after a boot, which is exactly when the
+    # host is least idle, trades a real risk for no benefit. A skipped week is
+    # absorbed by the 9-day staleness threshold on the alert below.
+    pgbackrest-restore-drill-repo1 = {
+      description = "Weekly pgBackRest repo1 (NFS) restore drill timer";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        # Saturday, clear of the 02:00/03:00 fulls and the 05:00/06:00 expires.
+        OnCalendar = "Sat 09:00";
+        Persistent = false;
+        RandomizedDelaySec = "30m";
+      };
+    };
+
+    pgbackrest-restore-drill-repo2 = {
+      description = "Weekly pgBackRest repo2 (R2) restore drill timer";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        # A different day from repo1 so two lock-holding drills can never
+        # queue behind each other, and after the Sunday 07:00 repository
+        # check rather than contending with it.
+        OnCalendar = "Sun 10:00";
+        Persistent = false;
+        RandomizedDelaySec = "30m";
+      };
+    };
+
     # Differential backup timer removed - using simplified schedule
     # Daily full (2 AM) + Hourly NFS incremental + Daily R2 incremental (2 PM)
   };
@@ -1523,6 +1566,94 @@ in
       annotations = {
         summary = "pgBackRest spool usage high on {{ $labels.instance }}";
         description = "Archive queue exceeds 8 GiB of its 16 GiB safety limit ({{ $value | humanize1024 }}B). Check both repositories before pgBackRest drops queued WAL and breaks PITR continuity.";
+      };
+    };
+
+    # ── Restore drills ────────────────────────────────────────────────
+    # The drills prove the backups are RESTORABLE, which no other rule here
+    # does: every alert above watches whether a backup was written, not
+    # whether it can be read back. Until the timers above landed, these
+    # metrics were produced by units that nothing ever ran, so the whole
+    # signal was silently absent - which is why the absence rule below
+    # exists alongside the staleness one.
+
+    # Latest drill failed. The drill's cleanup trap writes status=0 on any
+    # failure path, so this covers a bad restore, a corrupt backup, and a
+    # disposable instance that would not start.
+    "pgbackrest-restore-drill-failed" = {
+      type = "promql";
+      alertname = "PgBackRestRestoreDrillFailed";
+      expr = "pgbackrest_restore_drill_status == 0";
+      # Not 0m: a single failure can be an NFS blip or an R2 throttle, and
+      # this is a weekly job, so a few minutes of settle costs nothing.
+      for = "15m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "pgBackRest restore drill failed for repo {{ $labels.repo }} on {{ $labels.instance }}";
+        description = "The disposable restore from repo {{ $labels.repo }} did not complete. The backups in that repository are not proven restorable. Check the drill journal before trusting PITR.";
+        command = "journalctl -u pgbackrest-restore-drill-repo{{ $labels.repo }}.service -xe";
+      };
+    };
+
+    # No successful drill in over 9 days. Tolerates one skipped weekly run
+    # (the timers are Persistent = false, so a reboot spanning the slot skips
+    # that week) but not two. Also covers the never-succeeded case: the drill
+    # writes last_success=0 until its first pass, and time() - 0 is far past
+    # any threshold.
+    "pgbackrest-restore-drill-stale" = {
+      type = "promql";
+      alertname = "PgBackRestRestoreDrillStale";
+      expr = "time() - pgbackrest_restore_drill_last_success_timestamp_seconds > 777600";
+      for = "1h";
+      severity = "medium";
+      labels = { service = "pgbackrest"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "pgBackRest restore drill for repo {{ $labels.repo }} has not succeeded in over 9 days";
+        description = "Restore capability from repo {{ $labels.repo }} is unproven for more than one weekly cycle. Check the drill timer and its last run.";
+        command = "systemctl status pgbackrest-restore-drill-repo{{ $labels.repo }}.timer pgbackrest-restore-drill-repo{{ $labels.repo }}.service";
+      };
+    };
+
+    # The metric series is gone entirely. The staleness rule above is a
+    # comparison against a series, so it matches nothing when the series does
+    # not exist - which is precisely the state this whole item was: drills
+    # built, never run, no metric, and every dashboard green. This rule is
+    # what makes "no signal" distinguishable from "good signal".
+    #
+    # The textfile collector files are pre-created empty by tmpfiles, so an
+    # empty file exports no series rather than a zero.
+    "pgbackrest-restore-drill-metrics-absent" = {
+      type = "promql";
+      alertname = "PgBackRestRestoreDrillMetricsAbsent";
+      expr = "absent(pgbackrest_restore_drill_last_success_timestamp_seconds)";
+      # Long window: node_exporter restarts and the drill's own metric
+      # rewrite (temp file then rename) must not trip this.
+      for = "6h";
+      severity = "medium";
+      labels = { service = "pgbackrest"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "pgBackRest restore drill metrics are absent on forge";
+        description = "No pgbackrest_restore_drill_* series is being scraped, so neither drill has ever written metrics or the textfile collector is not reading them. Restore capability is entirely unverified.";
+        command = "ls -l /var/lib/node_exporter/textfile_collector/pgbackrest-restore-drill-repo*.prom; systemctl list-timers 'pgbackrest-restore-drill-*'";
+      };
+    };
+
+    # Unit-level failure, which catches what the status metric cannot: a
+    # drill killed by the 8h TimeoutStartSec or by the OOM killer never runs
+    # its cleanup trap, so it never writes status=0. Mirrors the
+    # pgbackrest-backup-failed rule above.
+    "pgbackrest-restore-drill-unit-failed" = {
+      type = "promql";
+      alertname = "PgBackRestRestoreDrillUnitFailed";
+      expr = ''node_systemd_unit_state{name=~"pgbackrest-restore-drill-repo[12][.]service",state="failed"} == 1'';
+      for = "0m";
+      severity = "high";
+      labels = { service = "pgbackrest"; category = "disaster-recovery"; };
+      annotations = {
+        summary = "pgBackRest restore drill unit {{ $labels.name }} failed on {{ $labels.instance }}";
+        description = "A restore drill unit entered the failed state. If the status metric is stale rather than 0, the run was killed before its cleanup trap could record the outcome - check for a timeout or an OOM kill, and confirm the disposable instance and its restore directory were cleaned up.";
+        command = "systemctl status {{ $labels.name }}";
       };
     };
 

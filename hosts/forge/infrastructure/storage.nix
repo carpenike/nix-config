@@ -232,6 +232,58 @@ in
     };
   };
 
+  # Offsite copy of the system identity dataset.
+  #
+  # WHY THIS EXISTS. /persist holds /etc/ssh/ssh_host_ed25519_key, and forge's
+  # SOPS identity is derived from that key (`sops.age.sshKeyPaths` in
+  # hosts/forge/secrets.nix). Lose it and the host cannot decrypt a single
+  # secret. Until now its only protection was local snapshots plus Syncoid
+  # replication to nas-1 - both onsite, both in the same building, so one
+  # fire, flood or theft took the original and every copy together. That made
+  # the offline PGP key the sole surviving path to a rebuilt site.
+  #
+  # THE BOOTSTRAP ORDER MATTERS, and this job does not break the cycle on its
+  # own. Reading this repository requires the Restic password and the R2
+  # credentials, both of which are SOPS secrets decrypted by the very key
+  # stored inside it. The chain that actually works in a total loss is:
+  #
+  #   offline PGP key (DA80 0206 0402 EC39 ... , a recipient on every
+  #   *.sops.yaml - see .sops.yaml)
+  #     -> decrypt hosts/forge/secrets.sops.yaml straight from the git repo
+  #     -> restic/password + restic/r2-prod-env
+  #     -> restore /persist from this repository
+  #     -> forge's own age identity is back
+  #
+  # So this job converts "the PGP key is the only path" into "the PGP key
+  # unlocks a path", which is a materially better position but still rests on
+  # that key. The PGP recovery drill is the load-bearing untested step and is
+  # tracked in docs/disaster-recovery-drills.md - do not treat this job as
+  # having closed the risk on its own.
+  #
+  # r2-offsite only, deliberately. The NAS already holds a full replica of
+  # this dataset via Syncoid; a second onsite copy in a different format would
+  # add cost and no failure-domain independence.
+  modules.services.backup.restic.jobs.system-persist-offsite = {
+    enable = true;
+    repository = "r2-offsite";
+    paths = [ "/persist" ];
+    tags = [ "system" "identity" "persist" "offsite" "forge" ];
+    frequency = "daily";
+    # Read from a ZFS clone rather than the live tree: /persist is written
+    # continuously (logs, machine state), and this captures a consistent
+    # point-in-time image the same way the service jobs do.
+    useSnapshots = true;
+    zfsDataset = "rpool/safe/persist";
+    excludePatterns = [
+      # Persisted for post-reboot debugging, not for recovery, and by far the
+      # largest thing in the dataset. Excluding it keeps a daily offsite push
+      # of the identity data small enough to be free.
+      "**/var/log/**"
+      # Explicitly cache; rebuildable by definition.
+      "**/var/lib/cache/**"
+    ];
+  };
+
   # ZFS monitoring alerts (co-located with storage configuration following contribution pattern)
   modules.alerting.rules = lib.mkIf config.modules.filesystems.zfs.enable {
     # ZFS pool health degraded

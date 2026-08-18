@@ -565,6 +565,43 @@ in
 
         modules.alerting.rules."homelab-mcp-service-down" =
           forgeDefaults.mkSystemdServiceDownAlert "homelab-mcp" "HomelabMCP" "Claude tools bridge";
+
+        # External black-box check over the FULL public path:
+        # Cloudflare Tunnel -> cloudflared -> Caddy -> this service. The
+        # service-down alert above watches the systemd unit and the sidecar
+        # check further down probes 127.0.0.1, so between them every hop
+        # INSIDE forge is covered and every hop OUTSIDE it was not: the
+        # tunnel could be down, the DNS record wrong, or the Caddy vhost
+        # misrouted, and both existing signals would stay green while Claude
+        # could not reach a single tool.
+        #
+        # /healthz is the right probe target because it is the one route the
+        # server deliberately serves without a bearer token - unauthenticated,
+        # GET-only, and explicitly exempted from the JWT middleware
+        # (`extra_unauthenticated_paths` in the upstream app.py). It is also
+        # dependency-free: it touches no upstream and no database, so this
+        # check answers "is the path to the process open", not "is Grocy up".
+        # Do not point it at the /mcp route - that requires a JWT and fails
+        # closed forever.
+        modules.services.gatus.contributions.${serviceName} = {
+          name = "Homelab MCP";
+          group = "applications";
+          url = "https://${serviceDomain}/healthz";
+          interval = "60s";
+          conditions = [
+            "[STATUS] == 200"
+            "[BODY].status == ok"
+            # Through a tunnel and a reverse proxy, so a looser bound than the
+            # loopback sidecar check's 5s.
+            "[RESPONSE_TIME] < 5000"
+          ];
+          alerts = [{
+            type = "pushover";
+            sendOnResolved = true;
+            failureThreshold = 3;
+            successThreshold = 1;
+          }];
+        };
       }
     ))
 
