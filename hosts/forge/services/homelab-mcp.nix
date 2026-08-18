@@ -244,6 +244,14 @@ in
               # services/hermes-agent.nix — two deliberate steps, not one.
               "nixos_apply_config"
               "nixos_deploy_status"
+              # homelab_list_status — superset rule: the advisor must be
+              # able to reproduce anything hermes can say (it needed this
+              # read to check hermes's own claims during the 08-12..15
+              # wedge diagnosis). Granted 2026-08-18, Ryan-approved
+              # (finances DECISIONS; mcp#61 is the source-of-truth half —
+              # this line is the one with effect until nix consumes the
+              # scopes.json artifact).
+              "homelab_list_status"
             ];
             # DELIBERATELY NO amazon_* HERE, and do not add them while
             # "filling out the list". Purchase history leaks gifts before they
