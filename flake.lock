@@ -692,11 +692,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787095538,
-        "narHash": "sha256-huWg0oLIJ9mPoNLOXri/+pL57T1vKGtV6kLusaIyxME=",
+        "lastModified": 1787097087,
+        "narHash": "sha256-hptD6VkgfLoSe+duyXt7CssVfKQIPGKhXnfIo/96JNU=",
         "owner": "carpenike",
         "repo": "schoolhouse",
-        "rev": "45c2361e474070d862e73c3f34675d992a736fa8",
+        "rev": "14e4175dd9c5a19e73e9f07580030b07deaffc79",
         "type": "github"
       },
       "original": {
