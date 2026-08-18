@@ -254,11 +254,18 @@ in
   #     -> restore /persist from this repository
   #     -> forge's own age identity is back
   #
-  # So this job converts "the PGP key is the only path" into "the PGP key
-  # unlocks a path", which is a materially better position but still rests on
-  # that key. The PGP recovery drill is the load-bearing untested step and is
-  # tracked in docs/disaster-recovery-drills.md - do not treat this job as
-  # having closed the risk on its own.
+  # The PGP link itself is NOT the weak point, contrary to what this comment
+  # said when the job landed: there is no age identity on the operator's Mac,
+  # so every edit of a sops file already exercises it. Nor is restoring
+  # /persist untested in general - `task bootstrap:remote-install RECOVER=true`
+  # has done it across several rebuilds.
+  #
+  # What is untested is THIS repository. RECOVER=true pulls from nas-1, so
+  # every proven recovery so far assumed the NAS survived - which is the one
+  # assumption a fire does not grant. Until the offsite drill in
+  # docs/disaster-recovery-drills.md passes, treat this job as an untested
+  # copy rather than a recovery path, and do not let "offsite-backup:
+  # covered" in the protection manifest imply otherwise.
   #
   # r2-offsite only, deliberately. The NAS already holds a full replica of
   # this dataset via Syncoid; a second onsite copy in a different format would
