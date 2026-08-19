@@ -103,6 +103,17 @@ in
           cpus = "2.0";
         };
 
+        # Celery is a SEPARATE container with its own 1g default, and it is the
+        # one that actually does the heavy lifting: XMLTV parsing, bulk channel
+        # creation and EPG fuzzy-matching all run here. Three of the four OOM
+        # kills above were celery (peak 978M against the 1.074G cap); raising
+        # only `resources` above leaves the real offender untouched.
+        celeryResources = {
+          memory = "2g";
+          memoryReservation = "256M";
+          cpus = "2.0";
+        };
+
         # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
         healthcheck.enable = true; # Enable container health monitoring
 
