@@ -158,9 +158,17 @@ in
     #
     # Dispatcharr has no plugin scheduler and Lineuparr exposes no schedule
     # field, so the plugin's run endpoint is driven over HTTP instead.
-    # Only stream/EPG re-matching is scheduled -- NOT full_sync, which would
-    # recreate all 463 lineup channels and replace stream assignments on every
-    # run. Run full_sync by hand when the lineup itself changes.
+    # Only apply_stream_match is scheduled.
+    #
+    # NOT full_sync: it recreates all 463 lineup channels and replaces stream
+    # assignments on every run. Run it by hand when the lineup changes.
+    #
+    # NOT apply_epg_match: EPG re-matching is unscoped by country and has
+    # repeatedly re-bound German channels (group GERMAN, ch 8000-8999) onto
+    # US/UK guide entries -- e.g. DE Nickelodeon -> Nickelodeon.us -- because
+    # it targets any channel lacking EPG and the fuzzy matcher has no country
+    # gate. Those mappings were corrected by hand; running it on a timer would
+    # silently undo that. Re-match EPG deliberately, scoped to one source.
     #
     # EPG source freshness is handled inside Dispatcharr by EPG Janitor's
     # watchdog (6-hourly) and deliberately has no timer here.
@@ -172,7 +180,7 @@ in
       };
 
       systemd.services.dispatcharr-lineup-sync = {
-        description = "Dispatcharr Lineuparr stream and EPG re-sync";
+        description = "Dispatcharr Lineuparr stream re-sync";
         after = [ "network-online.target" "podman-dispatcharr.service" ];
         wants = [ "network-online.target" ];
         path = [ pkgs.curl pkgs.coreutils ];
@@ -187,19 +195,15 @@ in
           key="$(tr -d '\r\n' < "$CREDENTIALS_DIRECTORY/api_key")"
           base="https://iptv.${config.networking.domain}"
 
-          # apply_stream_match re-attaches provider streams to existing
-          # channels as the upstream M3U rotates them; apply_epg_match then
-          # picks up guide entries for anything newly matchable.
-          for action in apply_stream_match apply_epg_match; do
-            echo "lineuparr: $action"
-            curl -fsS --max-time 900 \
-              -X POST "$base/api/plugins/plugins/lineuparr/run/" \
-              -H "X-API-Key: $key" \
-              -H 'Content-Type: application/json' \
-              -d "{\"action\":\"$action\"}"
-            echo
-            sleep 120
-          done
+          # Re-attach provider streams to existing channels as the upstream
+          # M3U rotates them. Structure/EPG are intentionally left alone.
+          echo "lineuparr: apply_stream_match"
+          curl -fsS --max-time 900 \
+            -X POST "$base/api/plugins/plugins/lineuparr/run/" \
+            -H "X-API-Key: $key" \
+            -H 'Content-Type: application/json' \
+            -d '{"action":"apply_stream_match"}'
+          echo
         '';
       };
 
