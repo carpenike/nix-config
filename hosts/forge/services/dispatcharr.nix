@@ -1,4 +1,4 @@
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 # Dispatcharr Configuration for forge
 #
 # IPTV stream management service
@@ -16,6 +16,14 @@ let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   # Centralize enable flag so database provisioning is conditional
   dispatcharrEnabled = config.modules.services.dispatcharr.enable or false;
+
+  # Weekly Lineuparr re-sync (see the systemd units below).
+  #
+  # Requires dispatcharr/api_key in hosts/forge/secrets.sops.yaml -- sops-nix
+  # fails activation for a declared-but-missing secret, so set this back to
+  # false if that secret is ever removed. Rotate the key from the Dispatcharr
+  # UI (Settings -> API Keys) and update the sops entry to match.
+  lineupSyncEnabled = true;
 in
 {
   config = lib.mkMerge [
@@ -77,6 +85,24 @@ in
 
         redis.database = 1;
 
+        # Raised from the 1g module default after observed OOM kills.
+        #
+        # At 1g, building out the channel lineup produced four
+        # CONSTRAINT_MEMCG kills on 2026-08-18 (celery x3, uwsgi x1). Neither
+        # container restarted and both kept reporting "healthy" -- the kernel
+        # was killing worker children, which Celery/uwsgi silently respawn --
+        # so the failures were invisible to systemd and to the healthcheck.
+        # Symptom is a Celery task that stops making progress, not an error.
+        #
+        # Measured peaks under load: celery 978M, app 882M against a 1.074G
+        # cap. 2g gives both real headroom for EPG imports and bulk matching
+        # across ~700 channels.
+        resources = {
+          memory = "2g";
+          memoryReservation = "512M";
+          cpus = "2.0";
+        };
+
         # dataDir defaults to /var/lib/dispatcharr (dataset mountpoint)
         healthcheck.enable = true; # Enable container health monitoring
 
@@ -115,6 +141,66 @@ in
       # Contributes to host-level alerting configuration following the contribution pattern
       modules.alerting.rules."dispatcharr-service-down" =
         forgeDefaults.mkServiceDownAlert "dispatcharr" "Dispatcharr" "IPTV stream management";
+    })
+
+    # Scheduled Lineuparr re-sync.
+    #
+    # Dispatcharr has no plugin scheduler and Lineuparr exposes no schedule
+    # field, so the plugin's run endpoint is driven over HTTP instead.
+    # Only stream/EPG re-matching is scheduled -- NOT full_sync, which would
+    # recreate all 463 lineup channels and replace stream assignments on every
+    # run. Run full_sync by hand when the lineup itself changes.
+    #
+    # EPG source freshness is handled inside Dispatcharr by EPG Janitor's
+    # watchdog (6-hourly) and deliberately has no timer here.
+    (lib.mkIf (dispatcharrEnabled && lineupSyncEnabled) {
+      sops.secrets."dispatcharr/api_key" = {
+        mode = "0400";
+        owner = "root";
+        group = "root";
+      };
+
+      systemd.services.dispatcharr-lineup-sync = {
+        description = "Dispatcharr Lineuparr stream and EPG re-sync";
+        after = [ "network-online.target" "podman-dispatcharr.service" ];
+        wants = [ "network-online.target" ];
+        path = [ pkgs.curl pkgs.coreutils ];
+        serviceConfig = {
+          Type = "oneshot";
+          LoadCredential = [
+            "api_key:${config.sops.secrets."dispatcharr/api_key".path}"
+          ];
+        };
+        script = ''
+          set -euo pipefail
+          key="$(tr -d '\r\n' < "$CREDENTIALS_DIRECTORY/api_key")"
+          base="https://iptv.${config.networking.domain}"
+
+          # apply_stream_match re-attaches provider streams to existing
+          # channels as the upstream M3U rotates them; apply_epg_match then
+          # picks up guide entries for anything newly matchable.
+          for action in apply_stream_match apply_epg_match; do
+            echo "lineuparr: $action"
+            curl -fsS --max-time 900 \
+              -X POST "$base/api/plugins/plugins/lineuparr/run/" \
+              -H "X-API-Key: $key" \
+              -H 'Content-Type: application/json' \
+              -d "{\"action\":\"$action\"}"
+            echo
+            sleep 120
+          done
+        '';
+      };
+
+      systemd.timers.dispatcharr-lineup-sync = {
+        description = "Weekly Dispatcharr Lineuparr re-sync";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "Sun 04:00";
+          Persistent = true;
+          RandomizedDelaySec = "30m";
+        };
+      };
     })
   ];
 }
