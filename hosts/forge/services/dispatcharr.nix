@@ -85,6 +85,12 @@ in
 
         redis.database = 1;
 
+        # Publishes the Dispatcharr Exporter plugin's /metrics endpoint so
+        # Prometheus can scrape it (see infrastructure/observability/prometheus.nix).
+        # The exporter surfaces EPG/M3U source status -- the signal that was
+        # missing when the EPG source 404'd unnoticed for four months.
+        metricsPort = 9192;
+
         # Raised from the 1g module default after observed OOM kills.
         #
         # At 1g, building out the channel lineup produced four

@@ -113,6 +113,18 @@ in
       description = "Resource limits for the container";
     };
 
+    metricsPort = lib.mkOption {
+      type = lib.types.nullOr lib.types.port;
+      default = null;
+      example = 9192;
+      description = ''
+        Host port to publish the Dispatcharr Exporter plugin's Prometheus
+        endpoint on. The plugin listens inside the container (default 9192);
+        without publishing it here, nothing outside the container can scrape
+        it. Leave null when the exporter plugin is not installed.
+      '';
+    };
+
     celeryResources = lib.mkOption {
       type = lib.types.nullOr sharedTypes.containerResourcesSubmodule;
       default = {
@@ -518,7 +530,8 @@ in
         ];
         ports = [
           "${toString dispatcharrPort}:9191"
-        ];
+        ] ++ lib.optional (cfg.metricsPort != null)
+          "${toString cfg.metricsPort}:9192";
         resources = cfg.resources;
         extraOptions = [
           # Podman-level umask ensures container process creates files with group-readable permissions

@@ -316,6 +316,18 @@ in
         ];
       }
 
+      # Dispatcharr exporter (IPTV: M3U account + EPG source health, channels,
+      # active clients). Provided by the Dispatcharr Exporter plugin and
+      # published via modules.services.dispatcharr.metricsPort.
+      # Scraped less often than the default -- it queries Dispatcharr's own API.
+      {
+        job_name = "dispatcharr";
+        scrape_interval = "60s";
+        static_configs = [
+          { targets = [ "127.0.0.1:9192" ]; labels = { instance = "forge.holthome.net"; host = "forge"; }; }
+        ];
+      }
+
       # Prometheus self-monitoring
       {
         job_name = "prometheus";
