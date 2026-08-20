@@ -4,15 +4,76 @@
 , ...
 }:
 let
+  sopsFile = ../secrets.sops.yaml;
+  sshPublicKey = ../config/ssh/ssh.pub;
+
   # sops-nix (home-manager) decrypts to a runtime dir and symlinks into the
   # home; reference these paths so the shell loaders never hardcode them.
   keystorePasswordPath = config.sops.secrets."www-shield/keystore-password".path;
   keyPasswordPath = config.sops.secrets."www-shield/key-password".path;
+
+  # Exercise each YubiKey-backed key operation so gpg-agent caches its unlock.
+  yubikeyUnlock = pkgs.writeShellApplication {
+    name = "yubikey-unlock";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gnupg
+      pkgs.openssh
+      pkgs.sops
+    ];
+    text = ''
+      signing_key=${lib.escapeShellArg config.modules.shell.git.signingKey}
+      ssh_public_key=${lib.escapeShellArg (toString sshPublicKey)}
+      sops_file=${lib.escapeShellArg (toString sopsFile)}
+
+      challenge="$(mktemp "''${TMPDIR:-/tmp}/yubikey-unlock.XXXXXX")"
+      gpg_signature="$challenge.gpg"
+      ssh_signature="$challenge.sig"
+
+      cleanup() {
+        rm -f "$challenge" "$gpg_signature" "$ssh_signature"
+      }
+      trap cleanup EXIT
+
+      printf 'Checking YubiKey... '
+      gpgconf --launch gpg-agent
+      gpg --card-status >/dev/null
+      echo "ready"
+
+      printf 'Unlocking GPG signing key... '
+      printf 'yubikey-unlock\n' > "$challenge"
+      gpg \
+        --quiet \
+        --local-user "$signing_key" \
+        --detach-sign \
+        --output "$gpg_signature" \
+        "$challenge"
+      echo "ready"
+
+      printf 'Unlocking SSH authentication key... '
+      export SSH_AUTH_SOCK
+      SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
+      ssh-keygen \
+        -Y sign \
+        -f "$ssh_public_key" \
+        -n yubikey-unlock \
+        "$challenge" \
+        >/dev/null
+      echo "ready"
+
+      printf 'Unlocking SOPS decryption key... '
+      sops --decrypt "$sops_file" >/dev/null
+      echo "ready"
+
+      echo "YubiKey unlocked for GPG signing, SSH authentication, and SOPS decryption."
+    '';
+  };
 in
 {
-  home.packages = with pkgs; [
-    podman
-    podman-compose
+  home.packages = [
+    pkgs.podman
+    pkgs.podman-compose
+    yubikeyUnlock
   ];
 
   # WWW Shield signing keystore.
@@ -31,12 +92,14 @@ in
   sops = {
     # rymac has no machine age key in .sops.yaml; decrypt with my PGP key.
     gnupg.home = "${config.home.homeDirectory}/.gnupg";
-    defaultSopsFile = ../secrets.sops.yaml;
+    defaultSopsFile = sopsFile;
     secrets = {
       "www-shield/keystore-password" = { };
       "www-shield/key-password" = { };
     };
   };
+
+  programs.bash.shellAliases.yku = "yubikey-unlock";
 
   programs.bash.initExtra = lib.mkAfter ''
     export WWW_SHIELD_KEYSTORE="/Users/ryan/src/material/www-shield-release.jks"
@@ -48,6 +111,8 @@ in
       export WWW_SHIELD_KEY_PASSWORD="$(cat "${keyPasswordPath}")"
     fi
   '';
+
+  programs.fish.shellAbbrs.yku = "yubikey-unlock";
 
   programs.fish.interactiveShellInit = lib.mkAfter ''
     set -gx WWW_SHIELD_KEYSTORE "/Users/ryan/src/material/www-shield-release.jks"
