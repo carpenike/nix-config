@@ -35,7 +35,7 @@ mylib.mkContainerService {
     # Core service configuration. The web port option is aliased to
     # listenPort (see extraOptions below); the container listens on 9000.
     port = 9925;
-    image = "ghcr.io/mealie-recipes/mealie:v3.22.0";
+    image = "ghcr.io/mealie-recipes/mealie:v3.23.1";
     operationalProfile = "productivity";
     displayName = "Mealie";
     function = "recipes";
