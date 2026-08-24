@@ -72,13 +72,13 @@ in
   # This service runs before the UPS driver starts and replaces the placeholder
   systemd.services.ups-inject-secrets = lib.mkIf serviceEnabled {
     description = "Inject UPS SNMP community string from sops-nix";
-    wantedBy = [ "nut-driver-apc.service" ];
-    before = [ "nut-driver-apc.service" ];
+    before = [ "upsdrv.service" ];
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     serviceConfig = {
       Type = "oneshot";
-      RemainAfterExit = true;
+      # /etc/nut/ups.conf is regenerated on every NixOS switch.
+      RemainAfterExit = false;
     };
     script = ''
       # Read the SNMP community string from sops secret
