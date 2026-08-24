@@ -1,5 +1,82 @@
-{ ... }:
+{ lib, pkgs, ... }:
 
+let
+  bootStatusState = "/var/lib/boot-status/state";
+  bootStatusMetrics = "/var/lib/node_exporter/textfile_collector/boot-status.prom";
+
+  exportBootStatus = pkgs.writeShellScript "export-boot-status" ''
+    set -euo pipefail
+
+    state_file=${lib.escapeShellArg bootStatusState}
+    metrics_file=${lib.escapeShellArg bootStatusMetrics}
+    current_boot_id="$(cat /proc/sys/kernel/random/boot_id)"
+    boot_timestamp="$(awk '$1 == "btime" { print $2 }' /proc/stat)"
+    previous_clean=1
+    previous_state=unknown
+    previous_boot_id=""
+    saved_result=1
+
+    mkdir -p "$(dirname "$state_file")" "$(dirname "$metrics_file")"
+
+    if [[ -r "$state_file" ]]; then
+      read -r previous_state previous_boot_id saved_result < "$state_file" || true
+      if [[ "$previous_boot_id" == "$current_boot_id" ]]; then
+        previous_clean="''${saved_result:-1}"
+      elif [[ "$previous_state" == "running" ]]; then
+        previous_clean=0
+      fi
+    else
+      # First activation has no marker yet. Journald still tells us whether
+      # this boot followed an abrupt reset, including the 2026-08-24 freeze.
+      journal_unclean="$(journalctl -b 0 -u systemd-journald.service --no-pager \
+        --output=cat --grep="corrupted or uncleanly shut down" || true)"
+      if [[ -n "$journal_unclean" ]]; then
+        previous_clean=0
+      fi
+    fi
+
+    state_tmp="''${state_file}.tmp"
+    printf 'running %s %s\n' "$current_boot_id" "$previous_clean" > "$state_tmp"
+    mv "$state_tmp" "$state_file"
+
+    metrics_tmp="''${metrics_file}.tmp"
+    {
+      echo '# HELP host_previous_shutdown_clean Whether the previous shutdown completed cleanly (1=yes, 0=no).'
+      echo '# TYPE host_previous_shutdown_clean gauge'
+      printf 'host_previous_shutdown_clean %s\n' "$previous_clean"
+      echo '# HELP host_unclean_boot_timestamp_seconds Boot time following an unclean shutdown, or zero.'
+      echo '# TYPE host_unclean_boot_timestamp_seconds gauge'
+      if [[ "$previous_clean" == 0 ]]; then
+        printf 'host_unclean_boot_timestamp_seconds %s\n' "$boot_timestamp"
+      else
+        echo 'host_unclean_boot_timestamp_seconds 0'
+      fi
+    } > "$metrics_tmp"
+    mv "$metrics_tmp" "$metrics_file"
+  '';
+
+  markBootClean = pkgs.writeShellScript "mark-boot-clean" ''
+    set -euo pipefail
+
+    state_file=${lib.escapeShellArg bootStatusState}
+    current_boot_id="$(cat /proc/sys/kernel/random/boot_id)"
+    saved_result=1
+    marker_boot_id=""
+    marker_result=1
+
+    mkdir -p "$(dirname "$state_file")"
+    if [[ -r "$state_file" ]]; then
+      read -r _ marker_boot_id marker_result < "$state_file" || true
+      if [[ "$marker_boot_id" == "$current_boot_id" ]]; then
+        saved_result="''${marker_result:-1}"
+      fi
+    fi
+
+    state_tmp="''${state_file}.tmp"
+    printf 'clean %s %s\n' "$current_boot_id" "$saved_result" > "$state_tmp"
+    mv "$state_tmp" "$state_file"
+  '';
+in
 {
   # Core system health monitoring for forge
   # These alerts monitor fundamental OS-level metrics: CPU, memory, disk, systemd units
@@ -33,6 +110,27 @@
       annotations = {
         summary = "Watchdog alert for monitoring pipeline";
         description = "This alert is always firing to test the entire monitoring pipeline. It should be routed to an external dead man's switch service.";
+      };
+    };
+
+    # Distinguish a hard reset/watchdog recovery from a planned reboot. The
+    # metric is emitted after boot from the persistent marker below and only
+    # pages during the first hour, so it records the incident without becoming
+    # a permanent alert for the lifetime of the new boot.
+    "unclean-host-reboot" = {
+      type = "promql";
+      alertname = "UncleanHostReboot";
+      expr = ''
+        host_previous_shutdown_clean{host="forge"} == 0
+        and on(instance)
+        (time() - node_boot_time_seconds{host="forge"} < 3600)
+      '';
+      for = "1m";
+      severity = "critical";
+      labels = { service = "system"; category = "availability"; };
+      annotations = {
+        summary = "Forge recovered from an unclean shutdown";
+        description = "Forge rebooted without completing its shutdown path. Inspect the previous boot journal and /var/lib/systemd/pstore for a panic, watchdog reset, power loss, or hard lock.";
       };
     };
 
@@ -259,6 +357,31 @@
         summary = "Systemd timer {{ $labels.name }} hasn't fired in 2+ days on {{ $labels.instance }}";
         description = "Timer {{ $labels.name }} last triggered {{ $value | humanizeDuration }} ago. Check: systemctl list-timers {{ $labels.name }}";
       };
+    };
+  };
+
+  # Keep one boot ID in the persistent system dataset. ExecStop marks an
+  # orderly shutdown; a hard lock leaves the marker as "running", which the
+  # next boot exports through node-exporter's textfile collector.
+  modules.system.impermanence.directories = [{
+    directory = "/var/lib/boot-status";
+    user = "root";
+    group = "root";
+    mode = "0755";
+  }];
+
+  systemd.services.boot-status-metrics = {
+    description = "Export previous shutdown status";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "local-fs.target" "systemd-journald.service" "prometheus-node-exporter.service" ];
+    wants = [ "prometheus-node-exporter.service" ];
+    path = [ pkgs.coreutils pkgs.gawk pkgs.systemd ];
+    unitConfig.RequiresMountsFor = [ "/var/lib/boot-status" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = exportBootStatus;
+      ExecStop = markBootClean;
     };
   };
 }

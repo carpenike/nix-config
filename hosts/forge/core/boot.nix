@@ -20,6 +20,20 @@
     "zfs.zfs_arc_max=8589934592" # 8GB ARC max (25% of 32GB RAM)
   ];
 
+  # Recover from whole-host freezes and preserve a useful panic in EFI pstore.
+  # Forge exposes an iTCO_wdt device, but systemd leaves it inactive by default.
+  # The kernel NMI watchdog is already supported on this hardware; promote its
+  # lockup reports (and driver oopses such as the historical nouveau fault) to a
+  # panic, then reboot after pstore has had time to persist the kernel log.
+  systemd.settings.Manager.RuntimeWatchdogSec = "60s";
+  boot.kernel.sysctl = {
+    "kernel.nmi_watchdog" = 1;
+    "kernel.hardlockup_panic" = 1;
+    "kernel.softlockup_panic" = 1;
+    "kernel.panic_on_oops" = 1;
+    "kernel.panic" = 30;
+  };
+
   # zram compressed swap — OOM safety net
   # Forge has no disk swap; with 60+ services on 32GB RAM, OOM kills are frequent.
   # zram provides ~4GB effective swap in compressed memory without disk I/O pressure on rpool.

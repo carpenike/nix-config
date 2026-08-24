@@ -8,6 +8,7 @@
     pkgs.tmux
     pkgs.wget
     pkgs.curl
+    pkgs.nvd
 
     # Interactive network/API debugging
     pkgs.jq
