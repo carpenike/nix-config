@@ -113,13 +113,36 @@ in
       modules.alerting.rules."gatus-metrics-stale" = mylib.monitoring-helpers.mkThresholdAlert {
         name = "gatus";
         alertname = "GatusMetricsStale";
-        expr = ''time() - gatus_results_last_execution_timestamp_seconds > 300'';
+        expr = ''
+          (sum(increase(gatus_results_total{job="service-gatus"}[5m])) == 0)
+          or absent(gatus_results_total{job="service-gatus"})
+        '';
         for = "5m";
         severity = "high";
         category = "availability";
         summary = "Gatus endpoint checks are stale on {{ $labels.instance }}";
         description = "Gatus has not executed endpoint checks for over 5 minutes. The monitoring service may be frozen or overloaded.";
       };
+
+      # Forge uses its dedicated Prometheus module rather than the observability
+      # orchestrator's auto-discovered scrape targets.
+      services.prometheus.scrapeConfigs = lib.optionals
+        (config.modules.services.gatus.metrics.enable or false)
+        [{
+          job_name = "service-gatus";
+          metrics_path = config.modules.services.gatus.metrics.path or "/metrics";
+          scrape_interval = config.modules.services.gatus.metrics.scrapeInterval or "60s";
+          scrape_timeout = config.modules.services.gatus.metrics.scrapeTimeout or "10s";
+          static_configs = [{
+            targets = [
+              "${config.modules.services.gatus.metrics.interface or "127.0.0.1"}:${toString config.modules.services.gatus.metrics.port}"
+            ];
+            labels = (config.modules.services.gatus.metrics.labels or { }) // {
+              host = config.networking.hostName;
+              instance = "${config.networking.hostName}.${config.networking.domain}";
+            };
+          }];
+        }];
     })
   ];
 }

@@ -1,0 +1,8 @@
+{
+  "default_tier": "standard",
+  "critical": [
+    "garage-chest-freezer",
+    "garage-upright-freezer"
+  ],
+  "ignore": []
+}

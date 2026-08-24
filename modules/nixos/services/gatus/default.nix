@@ -417,6 +417,7 @@ in
         # Core settings
         {
           web.port = cfg.port;
+          metrics = cfg.metrics != null && cfg.metrics.enable;
 
           storage = {
             type = cfg.storage.type;
