@@ -15,7 +15,7 @@ let
     pname = "cooklang-frontend-assets";
     inherit (src) version;
     inherit (src) src;
-    npmDepsHash = "sha256-HbuCSCgEz9FZsb5DJ37twFdxsuin0k4osqb8BP6XEI0=";
+    npmDepsHash = "sha256-ZSRd4tcAsR1tKZ8ZBcb95C1FWEaijsA0WQ5EME0cOfo=";
 
     # Two build scripts, so npmBuildScript (singular) does not fit.
     buildPhase = ''
