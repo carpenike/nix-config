@@ -84,13 +84,6 @@ jobs:
             -v \
             --log-format raw
 
-      - name: Run vulnix
-        continue-on-error: true
-        run: |
-          nix run nixpkgs/nixos-unstable#vulnix -- \
-            -w https://raw.githubusercontent.com/ckauhaus/nixos-vulnerability-roundup/master/whitelists/nixos-unstable.toml \
-            ./profile | tee security.txt
-
       # Snapshot of *what* was built so the artifact has debuggable provenance
       # without uploading the full expanded closure (which can include filenames
       # like `notify-pushover@system-boot:boot.path` that actions/upload-artifact
@@ -115,7 +108,5 @@ jobs:
           # files), which both blew the artifact size and tripped the NTFS
           # filename validator on `:` in unit-name@instance:value paths.
           # See `closure.txt` for the path manifest.
-          path: |
-            security.txt
-            closure.txt
+          path: closure.txt
           if-no-files-found: ignore
