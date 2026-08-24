@@ -38,16 +38,20 @@ jobs:
         with:
           python-version: '3.14'
 
+      # Pinned via docs/requirements.txt for reproducible doc builds
+      # (everything else in this repo is pinned); Renovate's pip_requirements
+      # manager proposes bumps, and the file hash keys the cache so a bump
+      # invalidates it.
       - name: Cache pip dependencies
         uses: actions/cache@v6
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-mkdocs-material
+          key: ${{ runner.os }}-pip-${{ hashFiles('docs/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
       - name: Install MkDocs Material
-        run: pip install mkdocs-material
+        run: pip install -r docs/requirements.txt
 
       - name: Build documentation
         run: mkdocs build --strict

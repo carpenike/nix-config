@@ -2,37 +2,38 @@ name: Build Nix systems
 
 on:
   workflow_dispatch:  # Manual trigger only
+  # `pull_request` is deliberately NOT filtered on `branches: [main]`.
+  #
+  # With that filter, a stacked PR based on another feature branch never
+  # triggered this workflow at all. Retargeting it onto main afterwards
+  # emits only `pull_request.edited` -- the head SHA is unchanged, so there
+  # is no `synchronize` -- and `edited` is not in the default trigger types
+  # ([opened, synchronize, reopened]). The PR then sat at
+  # mergeStateStatus=CLEAN with just lint checks green while flake-check and
+  # every nix-build matrix job had *never* run. That is a merge-on-green
+  # trap: CLEAN that reads as fully validated but carries zero build and
+  # zero eval validation. It nearly landed the deletion of a 2,386-line
+  # module unbuilt (see #831 / #832).
+  #
+  # Building every PR regardless of base closes it at the source: a stacked
+  # PR is validated from the moment it opens, so retargeting is a non-event
+  # and no `edited` handling is needed. Adding `edited` instead would have
+  # been worse -- it also fires on every title/body edit, and guarding those
+  # into skipped jobs makes GitHub report them as success, which would flip
+  # a red PR green on a typo fix.
+  #
+  # Cost: PRs targeting a non-main base now run the matrix. That is the
+  # intended trade -- a stacked PR should be validated, not exempt.
+  #
+  # Also deliberately NOT filtered on `paths:`. The `Nix Build Successful`
+  # roll-up job is a REQUIRED status check (main ruleset). A workflow-level
+  # paths filter means the check never materializes on PRs that don't match
+  # (e.g. docs-only), which blocks their merge forever. Instead the workflow
+  # always starts, the `changes` job decides what actually needs building
+  # via dorny/paths-filter, and the roll-up reports success when nothing
+  # was affected. Path filtering lives in exactly one place: the `changes`
+  # job below.
   pull_request:
-    # Deliberately NOT filtered on `branches: [main]`.
-    #
-    # With that filter, a stacked PR based on another feature branch never
-    # triggered this workflow at all. Retargeting it onto main afterwards
-    # emits only `pull_request.edited` -- the head SHA is unchanged, so there
-    # is no `synchronize` -- and `edited` is not in the default trigger types
-    # ([opened, synchronize, reopened]). The PR then sat at
-    # mergeStateStatus=CLEAN with just Nix Lint / Pre-commit Checks green
-    # while flake-check and every nix-build matrix job had *never* run. That
-    # is a merge-on-green trap: CLEAN that reads as fully validated but
-    # carries zero build and zero eval validation. It nearly landed the
-    # deletion of a 2,386-line module unbuilt (see #831 / #832).
-    #
-    # Building every PR regardless of base closes it at the source: a stacked
-    # PR is validated from the moment it opens, so retargeting is a non-event
-    # and no `edited` handling is needed. Adding `edited` instead would have
-    # been worse -- it also fires on every title/body edit, and guarding those
-    # into skipped jobs makes GitHub report them as success, which would flip
-    # a red PR green on a typo fix.
-    #
-    # Cost: PRs targeting a non-main base now run the matrix. That is the
-    # intended trade -- a stacked PR should be validated, not exempt.
-    paths:
-      # Only trigger on actual Nix changes, NOT workflow changes
-      - "**.nix"
-      - "flake.lock"
-      # nvfetcher writes JSON/lock data here that flows into pkgs/ derivations.
-      # Without this, nvfetcher digest-only updates can change the closure
-      # (e.g., a Caddy plugin bump) without triggering a build.
-      - "pkgs/_sources/**"
 
 permissions:
   contents: read
@@ -55,13 +56,22 @@ concurrency:
 #   heavy  - forge, luna
 #            Large closures (forge has ~50 services incl. Home Assistant,
 #            Plex, Postgres, custom Caddy etc; luna runs the auth+DNS
-#            stack). Cold rebuilds exceed the 6h runner ceiling.
-#            NOT built per-PR. Validated by:
-#              1. `nix flake check --no-build` (eval-time only) on every PR
-#                 - catches type errors, missing options, eval failures
-#              2. Scheduled `Flake Health` workflow which does a full
-#                 closure build of forge (and can be extended to luna)
-#              3. The actual `task nix:apply-nixos host=<heavy>` command
+#            stack). Cold-cache rebuilds can exceed the 6h runner ceiling,
+#            but against a warm Cachix (populated by the daily Flake Health
+#            runs) they build in ~6-7 min.
+#            NOT built on ordinary PRs. Validated by:
+#              1. `nix flake check --no-build` (eval-time only) on every
+#                 nix-touching PR - catches type errors, missing options,
+#                 eval failures
+#              2. Per-PR closure builds when flake.lock changes (the
+#                 nix-build-heavy job below). Dependency bumps are the
+#                 highest-risk change class for these hosts and the one
+#                 nobody reviews, so they pay the build cost pre-merge.
+#                 Slow only on mass-rebuild weeks - exactly when pre-merge
+#                 validation matters most.
+#              3. Scheduled `Flake Health` workflow: full closure build of
+#                 forge + luna daily, keeps Cachix warm
+#              4. The actual `task nix:apply-nixos host=<heavy>` command
 #                 which builds the closure on the target host where the
 #                 Nix store cache is naturally warm
 # ---------------------------------------------------------------------------
@@ -76,6 +86,8 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       heavy_changed: ${{ steps.set-matrix.outputs.heavy_changed }}
+      nix_changed: ${{ steps.filter.outputs.nix }}
+      lock_changed: ${{ steps.filter.outputs.lock }}
     steps:
       - uses: actions/checkout@v7
 
@@ -83,6 +95,20 @@ jobs:
         id: filter
         with:
           filters: |
+            # Anything that can affect a Nix closure. Gates flake-check and
+            # the build matrix; when false (docs-only PRs, workflow edits)
+            # every downstream job skips and the roll-up reports success.
+            # pkgs/_sources/** is included because nvfetcher digest-only
+            # updates can change the closure (e.g. a Caddy plugin bump)
+            # without touching any .nix file.
+            nix:
+              - '**.nix'
+              - 'flake.lock'
+              - 'pkgs/_sources/**'
+            # flake.lock bumps are the highest-risk unreviewed change class:
+            # they trigger pre-merge closure builds of the heavy hosts.
+            lock:
+              - 'flake.lock'
             global:
               - 'flake.nix'
               - 'flake.lock'
@@ -148,10 +174,12 @@ jobs:
 
   # `nix flake check --no-build` runs once for the whole flake, catching
   # eval-time issues that would affect heavy hosts even when we're not
-  # closure-building them per-PR. Cheap (<2 min), so always run.
+  # closure-building them per-PR. Cheap (<2 min), so run on every PR that
+  # touches anything nix-relevant.
   flake-check:
     runs-on: ubuntu-latest
     needs: changes
+    if: ${{ needs.changes.outputs.nix_changed == 'true' }}
     steps:
       - uses: actions/checkout@v7
       - uses: DeterminateSystems/determinate-nix-action@v3
@@ -164,14 +192,15 @@ jobs:
       - name: Nix flake check (eval only)
         run: nix flake check --no-build
       - name: Note skipped heavy hosts
-        if: ${{ needs.changes.outputs.heavy_changed == 'true' }}
+        if: ${{ needs.changes.outputs.heavy_changed == 'true' && needs.changes.outputs.lock_changed != 'true' }}
         run: |
           {
             echo "## ⚠️ Heavy hosts changed but not built per-PR"
             echo ""
-            echo "This PR touches files affecting \`forge\` and/or \`luna\`."
-            echo "Per-PR closure builds for those hosts exceed GitHub Actions'"
-            echo "6-hour runner ceiling. Validation paths used instead:"
+            echo "This PR touches files affecting \`forge\` and/or \`luna\`"
+            echo "without changing \`flake.lock\`, so their closures are not"
+            echo "built here (cold-cache builds can exceed the runner ceiling)."
+            echo "Validation paths used instead:"
             echo ""
             echo "- \`nix flake check --no-build\` (eval) - this job ✅"
             echo "- Scheduled \`Flake Health\` workflow - full forge + luna closure"
@@ -209,8 +238,6 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       # Use Determinate Nix (recommended over nix-installer-action in 2025)
       - name: Install Nix
@@ -232,15 +259,6 @@ jobs:
         with:
           name: carpenike
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-
-      # Check flake health (outdated inputs, etc.).
-      # Pinned to v12 (2025-07-15) for supply-chain hygiene; bump deliberately.
-      - name: Flake health check
-        uses: DeterminateSystems/flake-checker-action@v13
-        continue-on-error: true
-
-      - name: Garbage collect build dependencies
-        run: nix-collect-garbage
 
       - name: Build ${{ matrix.system }} system
         run: |
@@ -279,25 +297,91 @@ jobs:
             /tmp/nix-build-err.log
           if-no-files-found: ignore
 
+  # Heavy hosts (forge, luna) build pre-merge ONLY when flake.lock changed:
+  # dependency bumps are unreviewed, auto-merged, and the main way these
+  # hosts break. Against a Cachix warmed by the daily Flake Health run this
+  # is ~6-7 min per host; on mass-rebuild weeks it is slow, and that is the
+  # intended trade - those are the weeks pre-merge validation matters.
+  nix-build-heavy:
+    needs: changes
+    if: ${{ needs.changes.outputs.lock_changed == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - forge
+          - luna
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        uses: endersonmenezes/free-disk-space@v4
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          remove_tool_cache: true
+          remove_swap: true
+          remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
+          remove_packages_one_command: true
+          remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle /usr/lib/jvm /home/runner/.rust /usr/local/.ghcup"
+          rm_cmd: "rmz"
+          rmz_version: "3.1.1"
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+
+      # Pushing here means the closure for the new lock file is already in
+      # Cachix before it lands on main - hosts' autoUpgrade pulls prebuilt
+      # paths instead of compiling.
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v17
+        continue-on-error: true
+        with:
+          name: carpenike
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Build ${{ matrix.host }} closure
+        run: |
+          nix build .#ciSystems.${{ matrix.host }} \
+            --fallback \
+            -v \
+            --log-format raw
+
+  # REQUIRED status check (main ruleset). Must materialize on every PR, so
+  # this job always runs; it translates "everything that needed to run
+  # succeeded, everything else skipped" into a single green check.
   nix-build-success:
     if: ${{ always() }}
     needs:
       - changes
       - flake-check
       - nix-build
+      - nix-build-heavy
     name: Nix Build Successful
     runs-on: ubuntu-latest
     steps:
-      - name: Check flake-check status
-        if: ${{ needs.flake-check.result != 'success' }}
+      - name: Check for failures
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
-          echo "❌ flake-check did not succeed (result: ${{ needs.flake-check.result }})"
+          echo "❌ A required job failed or was cancelled"
           exit 1
-      - name: Check if any builds were needed
-        if: ${{ needs.changes.outputs.matrix == '[]' }}
+      - name: Check flake-check ran when needed
+        if: ${{ needs.changes.outputs.nix_changed == 'true' && needs.flake-check.result != 'success' }}
         run: |
-          echo "✅ No light hosts affected by this change - flake-check only"
-          exit 0
-      - name: Check matrix status
-        if: ${{ needs.changes.outputs.matrix != '[]' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
-        run: exit 1
+          echo "❌ Nix files changed but flake-check did not succeed (result: ${{ needs.flake-check.result }})"
+          exit 1
+      - name: Report
+        run: |
+          if [[ "${{ needs.changes.outputs.nix_changed }}" != "true" ]]; then
+            echo "✅ No nix-relevant changes - nothing to build"
+          elif [[ "${{ needs.changes.outputs.matrix }}" == "[]" && "${{ needs.changes.outputs.lock_changed }}" != "true" ]]; then
+            echo "✅ No host builds needed - flake-check only"
+          else
+            echo "✅ All required builds succeeded"
+          fi
