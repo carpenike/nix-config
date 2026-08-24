@@ -312,7 +312,6 @@ jobs:
           - forge
           - luna
     runs-on: ubuntu-latest
-    name: nix-build-heavy (${{ matrix.host }})
     steps:
       - name: Free disk space
         uses: endersonmenezes/free-disk-space@v4
