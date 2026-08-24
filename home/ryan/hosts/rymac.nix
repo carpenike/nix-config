@@ -5,12 +5,13 @@
 }:
 let
   sopsFile = ../secrets.sops.yaml;
-  sshPublicKey = ../config/ssh/ssh.pub;
+  sshPublicKey = builtins.readFile ../config/ssh/ssh.pub;
 
   # sops-nix (home-manager) decrypts to a runtime dir and symlinks into the
   # home; reference these paths so the shell loaders never hardcode them.
   keystorePasswordPath = config.sops.secrets."www-shield/keystore-password".path;
   keyPasswordPath = config.sops.secrets."www-shield/key-password".path;
+  yubikeyUnlockCommand = "${config.home.profileDirectory}/bin/yubikey-unlock";
 
   # Exercise each YubiKey-backed key operation so gpg-agent caches its unlock.
   yubikeyUnlock = pkgs.writeShellApplication {
@@ -23,20 +24,23 @@ let
     ];
     text = ''
       signing_key=${lib.escapeShellArg config.modules.shell.git.signingKey}
-      ssh_public_key=${lib.escapeShellArg (toString sshPublicKey)}
+      ssh_public_key=${lib.escapeShellArg sshPublicKey}
       sops_file=${lib.escapeShellArg (toString sopsFile)}
 
       challenge="$(mktemp "''${TMPDIR:-/tmp}/yubikey-unlock.XXXXXX")"
       gpg_signature="$challenge.gpg"
-      ssh_signature="$challenge.sig"
+      ssh_public_key_file="$challenge.pub"
 
       cleanup() {
-        rm -f "$challenge" "$gpg_signature" "$ssh_signature"
+        rm -f "$challenge" "$gpg_signature" "$ssh_public_key_file"
       }
       trap cleanup EXIT
 
-      printf 'Checking YubiKey... '
+      printf 'Checking GnuPG agent... '
       gpgconf --launch gpg-agent
+      echo "ready"
+
+      printf 'Checking YubiKey... '
       gpg --card-status >/dev/null
       echo "ready"
 
@@ -53,12 +57,8 @@ let
       printf 'Unlocking SSH authentication key... '
       export SSH_AUTH_SOCK
       SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)"
-      ssh-keygen \
-        -Y sign \
-        -f "$ssh_public_key" \
-        -n yubikey-unlock \
-        "$challenge" \
-        >/dev/null
+      printf '%s' "$ssh_public_key" > "$ssh_public_key_file"
+      ssh-add -T "$ssh_public_key_file"
       echo "ready"
 
       printf 'Unlocking SOPS decryption key... '
@@ -99,7 +99,7 @@ in
     };
   };
 
-  programs.bash.shellAliases.yku = "yubikey-unlock";
+  programs.bash.shellAliases.yku = yubikeyUnlockCommand;
 
   programs.bash.initExtra = lib.mkAfter ''
     export WWW_SHIELD_KEYSTORE="/Users/ryan/src/material/www-shield-release.jks"
@@ -112,7 +112,7 @@ in
     fi
   '';
 
-  programs.fish.shellAbbrs.yku = "yubikey-unlock";
+  programs.fish.shellAbbrs.yku = yubikeyUnlockCommand;
 
   programs.fish.interactiveShellInit = lib.mkAfter ''
     set -gx WWW_SHIELD_KEYSTORE "/Users/ryan/src/material/www-shield-release.jks"
