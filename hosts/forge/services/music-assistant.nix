@@ -36,13 +36,12 @@
 #                  ports here too if you enable airplay/snapcast/squeezelite/…)
 #
 # Auth model:
-#   Music Assistant has NO built-in authentication, so the human-facing web UI
-#   is gated at the edge by Caddy + PocketID SSO (caddySecurity.home — requires
-#   the "home" group). The HA integration and players bypass Caddy: HA connects
-#   over loopback (127.0.0.1:8095) and players pull audio from the LAN stream
-#   port, so SSO never blocks machine-to-machine traffic. The web UI port (8095)
-#   is deliberately left out of the firewall so the only browser path is through
-#   the authenticated Caddy vhost.
+#   Music Assistant 2.9 has built-in account/token authentication. Caddy adds a
+#   second PocketID gate for the human-facing UI (caddySecurity.home requires the
+#   "home" group). The HA integration and players bypass Caddy: HA connects over
+#   loopback with its MA token, and players pull audio from the LAN stream port.
+#   The web UI port (8095) remains outside the firewall, so the only browser path
+#   is through the authenticated Caddy vhost.
 #
 # Providers:
 #   Music/player providers are configured at runtime in the MA web UI and stored
@@ -78,7 +77,12 @@
 #     point it at the server URL `http://127.0.0.1:8095` (co-located) — or let
 #     it auto-discover via mDNS.
 
-{ config, lib, mylib, pkgs, ... }:
+{ config
+, lib
+, mylib
+, pkgs
+, ...
+}:
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   storageHelpers = mylib.storageHelpers pkgs;
@@ -105,6 +109,74 @@ let
   };
 
   serviceEnabled = config.services.music-assistant.enable or false;
+
+  configureMusicAssistant = pkgs.writeShellScript "configure-music-assistant" ''
+    set -euo pipefail
+
+    settings_file="$1"
+    base_url="$2"
+    bind_port="$3"
+    [[ -f "$settings_file" ]] || exit 0
+
+    if ${pkgs.jq}/bin/jq -e \
+      --arg base_url "$base_url" \
+      --argjson bind_port "$bind_port" '
+      (.core.webserver.values.base_url? == $base_url)
+      and (.core.webserver.values.bind_port? == $bind_port)
+      and (
+        [
+          (.providers // {})[]
+          | select(
+              .domain == "spotify"
+              and .values.refresh_token? != null
+              and (.values.client_id? == null or .values.client_id == "")
+              and (
+                .values.refresh_token_global? == null
+                or .values.refresh_token_global == ""
+              )
+            )
+        ]
+        | length == 0
+      )
+    ' "$settings_file" >/dev/null; then
+      exit 0
+    fi
+
+    tmp_file="$(mktemp "''${settings_file}.XXXXXX")"
+    trap 'rm -f "$tmp_file"' EXIT
+
+    ${pkgs.jq}/bin/jq \
+      --arg base_url "$base_url" \
+      --argjson bind_port "$bind_port" '
+      .core.webserver.values.base_url = $base_url
+      | .core.webserver.values.bind_port = $bind_port
+      | .providers |= with_entries(
+        if (
+          .value.domain == "spotify"
+          and .value.values.refresh_token? != null
+          and (
+            .value.values.client_id? == null
+            or .value.values.client_id == ""
+          )
+          and (
+            .value.values.refresh_token_global? == null
+            or .value.values.refresh_token_global == ""
+          )
+        ) then
+          .value.values.refresh_token_global = .value.values.refresh_token
+          | del(.value.values.refresh_token)
+        else
+          .
+        end
+      )
+    ' "$settings_file" > "$tmp_file"
+
+    chmod --reference="$settings_file" "$tmp_file"
+    mv "$tmp_file" "$settings_file"
+    trap - EXIT
+
+    echo "Updated Music Assistant managed configuration"
+  '';
 in
 {
   config = lib.mkMerge [
@@ -112,8 +184,14 @@ in
       services.music-assistant = {
         enable = true;
 
-        # Extra system binaries for providers that need them. Add entries here
-        # as you enable the matching providers in the MA web UI (see header).
+        # Stable nixpkgs is frozen at MA 2.6.3, whose Spotify provider crashes
+        # when a valid token-refresh response omits refresh_token. Use the
+        # current stable MA release from the independently updated package set.
+        package = pkgs.unstable.music-assistant;
+
+        # MA 2.9's matching module automatically includes providersBuiltins;
+        # the stable 25.11 module does not, so carry that package contract here.
+        # Add optional entries below as they are enabled in the MA web UI.
         #   "spotify" → pulls in librespot-ma, required by MA's Spotify music
         #   provider. Needs a Spotify Premium account, configured at runtime in
         #   the MA web UI (Settings → Music Providers → Spotify). No Nix secret
@@ -131,7 +209,11 @@ in
         #   the host's mDNS/UPnP multicast (avahi is already enabled on forge);
         #   players stream from the open 8097 port, so no extra firewall change.
         #   (Use "sonos_s1" instead for legacy S1 systems.)
-        providers = [ "spotify" "ytmusic" "sonos" ];
+        providers = pkgs.unstable.music-assistant.providersBuiltins ++ [
+          "spotify"
+          "ytmusic"
+          "sonos"
+        ];
       };
 
       # Open the LAN-facing audio stream port so players can fetch the rendered
@@ -147,7 +229,23 @@ in
       # replog / whiskey-whiskey-whiskey.)
       systemd.services.music-assistant.unitConfig.RequiresMountsFor = [ dataDir ];
 
-      # Caddy edge: TLS + PocketID SSO in front of MA's unauthenticated web UI.
+      # The stable 25.11 module denies @resources, but MA 2.9's OpenBLAS uses
+      # mbind during startup. Mirror the newer module's least-privilege filter.
+      systemd.services.music-assistant.serviceConfig.SystemCallFilter = lib.mkForce [
+        "@system-service"
+        "~@privileged"
+        "mbind"
+        "@pkey"
+      ];
+
+      # Keep the reverse-proxy URL distinct from MA's unprivileged internal
+      # listener. Also migrate the legacy Spotify token key atomically. Once the
+      # managed values are correct, subsequent starts are no-ops.
+      systemd.services.music-assistant.preStart = lib.mkBefore ''
+        ${configureMusicAssistant} ${dataDir}/settings.json https://${serviceDomain} ${toString webPort}
+      '';
+
+      # Caddy edge: TLS + PocketID SSO in front of MA's authenticated web UI.
       modules.services.caddy.virtualHosts.${serviceName} = {
         enable = true;
         hostName = serviceDomain;
@@ -240,8 +338,7 @@ in
       };
 
       # ZFS snapshots + replication to nas-1 via the standard forge template.
-      modules.backup.sanoid.datasets.${dataset} =
-        forgeDefaults.mkSanoidDataset serviceName;
+      modules.backup.sanoid.datasets.${dataset} = forgeDefaults.mkSanoidDataset serviceName;
 
       # Restic backup. The upstream module uses DynamicUser, so it doesn't plug
       # into the unified `modules.services.<name>.backup` auto-discovery — register
@@ -251,7 +348,12 @@ in
         enable = true;
         repository = forgeDefaults.backup.repository;
         paths = [ dataDir ];
-        tags = [ serviceName "music" "home-automation" "forge" ];
+        tags = [
+          serviceName
+          "music"
+          "home-automation"
+          "forge"
+        ];
         frequency = "daily";
         useSnapshots = true;
         zfsDataset = dataset;
@@ -259,17 +361,13 @@ in
 
       # Service-down alert (native systemd unit).
       modules.alerting.rules."${serviceName}-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert
-          serviceName
-          "Music Assistant"
+        forgeDefaults.mkSystemdServiceDownAlert serviceName "Music Assistant"
           "music library & multi-room player server";
 
       # Service-down alert for the PO-token sidecar (YouTube Music breaks
       # silently without it).
       modules.alerting.rules."bgutil-pot-service-down" =
-        forgeDefaults.mkSystemdServiceDownAlert
-          "podman-bgutil-pot"
-          "Music Assistant PO-Token Server"
+        forgeDefaults.mkSystemdServiceDownAlert "podman-bgutil-pot" "Music Assistant PO-Token Server"
           "YouTube Music PO-token generator";
 
       # Gatus blackbox check through the full Caddy + SSO path. An
@@ -284,12 +382,14 @@ in
           "[STATUS] == any(200, 302)"
           "[RESPONSE_TIME] < 5000"
         ];
-        alerts = [{
-          type = "pushover";
-          sendOnResolved = true;
-          failureThreshold = 3;
-          successThreshold = 1;
-        }];
+        alerts = [
+          {
+            type = "pushover";
+            sendOnResolved = true;
+            failureThreshold = 3;
+            successThreshold = 1;
+          }
+        ];
       };
     })
 
@@ -309,7 +409,10 @@ in
         resticRepoUrl = nasRepository.url;
         resticPasswordFile = nasRepository.passwordFile;
         resticPaths = [ dataDir ];
-        restoreMethods = [ "syncoid" "local" ];
+        restoreMethods = [
+          "syncoid"
+          "local"
+        ];
         hasCentralizedNotifications = config.modules.notifications.enable or false;
         allowEmptyBootstrap = false;
         owner = "root";

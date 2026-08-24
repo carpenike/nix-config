@@ -265,6 +265,19 @@ as everything else in this file.
 
 Services using `pkgs.unstable.*` instead of stable packages:
 
+### music-assistant
+
+| Field | Value |
+| --- | --- |
+| **Location** | `hosts/forge/services/music-assistant.nix` |
+| **Reason** | The EOL nixos-25.11 channel is frozen at Music Assistant 2.6.3. Its Spotify provider unconditionally reads `auth_info["refresh_token"]`, but Spotify may omit that field when the existing refresh token remains valid, preventing the provider from loading. The locked unstable package is the stable 2.9.13 release, which retains the existing token when Spotify does not rotate it. |
+| **Module compatibility** | The stable 25.11 service module also removes systemd's `@resources` syscall group. Music Assistant 2.9.13 then exits with `SIGSYS` when OpenBLAS initializes via `mbind`. The host override mirrors the newer module's filter by retaining `@system-service` and the `@privileged` deny while explicitly allowing only `mbind` and the existing YouTube Music `@pkey` group. The newer module also appends `package.providersBuiltins`; mirroring that list installs mandatory dependencies such as `aiosendspin` and `sounddevice` instead of hand-maintaining Python packages. |
+| **Config migration** | Music Assistant 2.9 renames the default-client `refresh_token` to `refresh_token_global`, but generic config validation requires the new key before the provider's own legacy migration can run. A pre-start script atomically moves the existing encrypted value without printing or replacing it. It runs only when the old key is non-empty, no custom client ID is present, and the new key is absent; otherwise it is a no-op. Music Assistant 2.9 separately requires a one-time playback authorization, which was completed through its supported browser flow. |
+| **Managed webserver** | The same pre-start script keeps the reverse-proxy Base URL (`https://music.holthome.net`) separate from MA's internal bind port (`8095`). Setting the internal port to the external TLS port `443` leaves the systemd service active but makes its webserver fail with `PermissionError`, producing Caddy 502 responses and a permanent “Connection Lost” screen. |
+| **Validation** | 2026-08-24: built the 2.9.13 package and full Forge closure; deployed through `task nix:apply-nixos`; confirmed the service is active with zero `SIGSYS` and refresh-token `KeyError` events, Spotify has no `last_error`, and the Spotify-backed Country Mix playlist resolves 50 track rows. |
+| **Check** | Return to `pkgs.music-assistant` and remove the local `SystemCallFilter` and provider-list overrides when the root stable nixpkgs input provides both a Music Assistant release with the omitted-refresh-token fallback (known present in 2.9.13) and its matching service module. Remove the pre-start migration after upstream validates legacy configs before requiring the renamed key and retained disaster-recovery backups can no longer restore a 2.6-era Spotify config. Then rebuild Forge and re-verify Spotify playback. |
+| **Impact** | Without the newer stable release, Spotify-backed playlists have no playable items because the provider fails during login with `KeyError: 'refresh_token'`. |
+
 ### beszel
 
 | Field | Value |
