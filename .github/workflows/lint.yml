@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+# Single lint gate for all PRs. Replaces the former nix-lint.yml and
+# pre-commit.yml pair, which both bootstrapped Nix to lint different slices
+# of the tree.
+#
+# The `Lint` job is a REQUIRED status check (main ruleset), so this workflow
+# deliberately has NO path filters: a required check that never materializes
+# blocks the PR forever. Doc-only PRs pay ~1 min here; that is the price of
+# the check always existing.
+#
+# Covers:
+#   - nix fmt --check        (formatting, via the flake's wrapped formatter)
+#   - statix / deadnix       (flake checks; BLOCKING - the tree is clean)
+#   - pre-commit hooks       (shellcheck, yamllint, ruff, check-json,
+#                             check-toml, gitleaks, whitespace/EOF fixers -
+#                             mirrors the local hooks for when they're skipped)
+
+name: Lint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          # Inject access-tokens for private flake inputs (currently
+          # carpenike/whiskey-whiskey-whiskey). Without this, flake
+          # evaluation fails with a 404 on the private fetch.
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+
+      - name: Check formatting
+        run: nix fmt -- --check .
+
+      - name: Statix and deadnix
+        run: |
+          nix build --no-link \
+            .#checks.x86_64-linux.statix \
+            .#checks.x86_64-linux.deadnix
+
+      - name: Run pre-commit hooks via Nix devshell
+        run: |
+          # Enter the devshell and run pre-commit against all files.
+          # This mirrors exactly the hooks configured in flake.nix.
+          nix develop --command bash -c '
+            pre-commit run --all-files --show-diff-on-failure \
+              --color=always \
+              2>&1
+          '
