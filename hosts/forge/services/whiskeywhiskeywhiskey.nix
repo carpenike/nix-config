@@ -124,6 +124,32 @@ in
           WWW_APK_DIR = "${dataDir}/apk";
           WWW_PHOTO_DIR = "${dataDir}/op-photos";
 
+          # OAuth RESOURCE-SERVER mode (docs/POCKETID_RESOURCE_SERVER.md).
+          # With these set, the bunker stops acting as its own authorization
+          # server for MCP and accepts access tokens minted by Pocket ID, so the
+          # Claude MOBILE app can attach as a connector (mobile does real OAuth
+          # and cannot use the mcp-remote stdio bridge). The RFC 9728 protected
+          # resource metadata flips to advertise Pocket ID as the issuer.
+          #
+          # WWW_EXTERNAL_AS_RESOURCE is REQUIRED whenever the issuer is set —
+          # the server refuses to boot with only one of them. It is the expected
+          # `aud` on every incoming token and is the control that stops a token
+          # Pocket ID minted for some other client being replayed here, so it
+          # must match the Pocket ID API resource EXACTLY (see the API named
+          # "Whiskey Whiskey Whiskey MCP"; Pocket ID strips trailing slashes and
+          # so does the resource-server code).
+          #
+          # Deliberately NOT setting WWW_EXTERNAL_AS_REQUIRED_SCOPE: Claude picks
+          # scopes from the 401's `scope` param, else the PRM's `scopes_supported`,
+          # else the AS metadata. This server sends neither, so Claude will never
+          # request `mcp:access` and requiring it would reject every real token.
+          # The audience check is the sound control on its own.
+          #
+          # Rollback: drop these two lines and redeploy. The embedded
+          # authorization server is still present and resumes serving.
+          WWW_EXTERNAL_AS_ISSUER = pocketIdIssuer;
+          WWW_EXTERNAL_AS_RESOURCE = "https://${apexDomain}/api/mcp";
+
           # Op cover-image generation (HOF-063). Non-secret default provider
           # selector; the matching API keys are secrets injected via the SOPS
           # env template (see hosts/forge/secrets.nix). The feature is INERT

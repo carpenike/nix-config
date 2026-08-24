@@ -67,6 +67,19 @@ in
           LOG_JSON = true;
           METRICS_ENABLED = true;
           UI_CONFIG_DISABLED = true;
+          # Client ID Metadata Documents (CIMD), required for the Claude mobile
+          # connector to reach whiskeywhiskeywhiskey.org/api/mcp. An EMPTY
+          # allowlist (the default) disables metadata-document clients and makes
+          # discovery advertise `client_id_metadata_document_supported: false`,
+          # which sends Claude down the Dynamic Client Registration path that
+          # Pocket ID does not implement.
+          #
+          # Scoped to the /oauth/ subtree deliberately, NOT `https://claude.ai/**`:
+          # published Claude artifacts are served under claude.ai/code/artifact/...,
+          # so a whole-origin wildcard would let a crafted artifact register itself
+          # as an OAuth client. `**` is a globstar and crosses path segments; a
+          # single `*` would not.
+          CIMD_URL_ALLOWLIST = ''["https://claude.ai/oauth/**"]'';
           FILE_BACKEND = "filesystem"; # Required to be "filesystem", "database", or "s3" in v1.16.0+
           UPLOAD_PATH = "${dataDir}/uploads";
           KEYS_STORAGE = "database";
