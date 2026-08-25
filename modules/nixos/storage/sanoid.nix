@@ -654,6 +654,7 @@ in
                   set -eu
                   # Ensure metrics directory exists
                   mkdir -p "$(dirname "${metricFile}")"
+                  last_success="$(${pkgs.gnugrep}/bin/grep '^syncoid_replication_last_success_timestamp{' "${metricFile}" 2>/dev/null || true)"
                   # Write 'in-progress' metric
                   cat > "${metricFile}.tmp" <<EOF
                   # HELP syncoid_replication_status Current status of a syncoid replication job (0=fail, 1=success, 2=in-progress)
@@ -663,6 +664,13 @@ in
                   # TYPE syncoid_replication_info gauge
                   syncoid_replication_info{dataset="${dataset}",target_host="${conf.replication.targetHost}",target_name="${conf.replication.targetName}",target_location="${conf.replication.targetLocation}",unit="${serviceName}"} 1
                   EOF
+                  if [ -n "$last_success" ]; then
+                    cat >> "${metricFile}.tmp" <<EOF
+                  # HELP syncoid_replication_last_success_timestamp Timestamp of the last successful replication
+                  # TYPE syncoid_replication_last_success_timestamp gauge
+                  $last_success
+                  EOF
+                  fi
                   mv "${metricFile}.tmp" "${metricFile}"
                 '')
               ];
