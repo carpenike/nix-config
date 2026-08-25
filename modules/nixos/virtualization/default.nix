@@ -1,9 +1,18 @@
 { lib
 , config
+, pkgs
 , ...
 }:
 let
   cfg = config.modules.virtualization;
+  externalBridgeNetworks = lib.filterAttrs
+    (
+      _networkName: networkConfig:
+        networkConfig.driver == "bridge" && !networkConfig.internal
+    )
+    cfg.podman.networks;
+  needsIpv4Forwarding = externalBridgeNetworks != { };
+  forwardingGuardUnit = "podman-ipv4-forwarding-guard.service";
 in
 {
   options.modules.virtualization = {
@@ -87,38 +96,112 @@ in
     # Enable container backend for oci-containers
     virtualisation.oci-containers.backend = "podman";
 
+    boot.kernel.sysctl = lib.mkIf needsIpv4Forwarding {
+      "net.ipv4.ip_forward" = lib.mkDefault 1;
+    };
+
+    assertions = lib.optional needsIpv4Forwarding {
+      assertion = builtins.elem config.boot.kernel.sysctl."net.ipv4.ip_forward" [ 1 true "1" ];
+      message = "External Podman bridge networks require net.ipv4.ip_forward=1.";
+    };
+
     # Create networks declaratively using NixOS's built-in option
     # This ensures networks are created before containers that need them
-    systemd.services = lib.mapAttrs'
-      (networkName: networkConfig:
-        lib.nameValuePair "podman-network-${networkName}" {
-          description = "Podman network: ${networkName}";
-          wantedBy = [ "multi-user.target" ];
-          # The Podman CLI manages networks directly; it does not require the
-          # socket-activated API service to be running.
-          script =
-            let
-              options = lib.concatStringsSep " " (
-                [ "--driver=${networkConfig.driver}" ]
-                ++ lib.optional (networkConfig.subnet != null) "--subnet=${networkConfig.subnet}"
-                ++ lib.optional (networkConfig.gateway != null) "--gateway=${networkConfig.gateway}"
-                ++ lib.optional networkConfig.internal "--internal"
-                ++ lib.optional networkConfig.ipv6 "--ipv6"
-                ++ lib.optional networkConfig.isolate "--opt isolate=true"
-              );
-            in
-            ''
-              ${config.virtualisation.podman.package}/bin/podman network create ${options} ${networkName} || true
+    systemd.services = lib.mkMerge [
+      (lib.mapAttrs'
+        (networkName: networkConfig:
+          lib.nameValuePair "podman-network-${networkName}" {
+            description = "Podman network: ${networkName}";
+            wantedBy = [ "multi-user.target" ];
+            requires = lib.optional
+              (
+                networkConfig.driver == "bridge" && !networkConfig.internal
+              )
+              forwardingGuardUnit;
+            after = lib.optional
+              (
+                networkConfig.driver == "bridge" && !networkConfig.internal
+              )
+              forwardingGuardUnit;
+            # The Podman CLI manages networks directly; it does not require the
+            # socket-activated API service to be running.
+            script =
+              let
+                options = lib.concatStringsSep " " (
+                  [ "--driver=${networkConfig.driver}" ]
+                  ++ lib.optional (networkConfig.subnet != null) "--subnet=${networkConfig.subnet}"
+                  ++ lib.optional (networkConfig.gateway != null) "--gateway=${networkConfig.gateway}"
+                  ++ lib.optional networkConfig.internal "--internal"
+                  ++ lib.optional networkConfig.ipv6 "--ipv6"
+                  ++ lib.optional networkConfig.isolate "--opt isolate=true"
+                );
+              in
+              ''
+                ${config.virtualisation.podman.package}/bin/podman network create ${options} ${networkName} || true
+              '';
+            preStop = ''
+              ${config.virtualisation.podman.package}/bin/podman network rm ${networkName} || true
             '';
-          preStop = ''
-            ${config.virtualisation.podman.package}/bin/podman network rm ${networkName} || true
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+          }
+        )
+        cfg.podman.networks)
+
+      (lib.mkIf needsIpv4Forwarding {
+        podman-ipv4-forwarding-guard = {
+          description = "Ensure IPv4 forwarding for external Podman bridges";
+          after = [ "systemd-sysctl.service" ];
+          wants = [ "systemd-sysctl.service" ];
+          script = ''
+            forwarding_file=/proc/sys/net/ipv4/ip_forward
+            current="$(${pkgs.coreutils}/bin/cat "$forwarding_file")"
+
+            if [[ "$current" != "1" ]]; then
+              echo "IPv4 forwarding drifted to $current; restoring net.ipv4.ip_forward=1" >&2
+              ${pkgs.procps}/bin/sysctl -q -w net.ipv4.ip_forward=1
+            fi
+
+            [[ "$(${pkgs.coreutils}/bin/cat "$forwarding_file")" == "1" ]]
           '';
           serviceConfig = {
             Type = "oneshot";
-            RemainAfterExit = true;
+            CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+            NoNewPrivileges = true;
+            PrivateDevices = true;
+            PrivateTmp = true;
+            ProtectControlGroups = true;
+            ProtectHome = true;
+            ProtectKernelModules = true;
+            ProtectKernelTunables = false;
+            ProtectSystem = "strict";
           };
-        }
-      )
-      cfg.podman.networks;
+        };
+      })
+
+      (lib.mkIf needsIpv4Forwarding (
+        lib.mapAttrs'
+          (containerName: _containerConfig:
+            lib.nameValuePair "podman-${containerName}" {
+              requires = [ forwardingGuardUnit ];
+              after = [ forwardingGuardUnit ];
+            }
+          )
+          config.virtualisation.oci-containers.containers
+      ))
+    ];
+
+    systemd.timers.podman-ipv4-forwarding-guard = lib.mkIf needsIpv4Forwarding {
+      description = "Reconcile IPv4 forwarding for external Podman bridges";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "30s";
+        OnUnitActiveSec = "1m";
+        AccuracySec = "5s";
+        Unit = forwardingGuardUnit;
+      };
+    };
   };
 }
