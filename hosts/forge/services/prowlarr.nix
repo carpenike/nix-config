@@ -34,7 +34,7 @@ in
           caddySecurity = forgeDefaults.caddySecurity.mediaWithApiBypass;
         };
 
-        # Resource limits: use module defaults (256M memory, 1 CPU)
+        # Resource limits: use module defaults (512M memory, 1 CPU)
 
         # Enable crash-consistent backups from a read-only ZFS snapshot.
         backup = forgeDefaults.backup // {

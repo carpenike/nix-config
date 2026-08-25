@@ -36,10 +36,10 @@ mylib.mkContainerService {
     # Metrics endpoint
     metricsPath = "/api/v1/health";
 
-    # Resource limits - lighter than Sonarr/Radarr
+    # Resource limits
     resources = {
-      memory = "256M";
-      memoryReservation = "128M";
+      memory = "512M";
+      memoryReservation = "256M";
       cpus = "1.0";
     };
 
