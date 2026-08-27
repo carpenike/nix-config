@@ -70,9 +70,9 @@
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v6.2.0";
+      rev = "v6.4.1";
       fetchSubmodules = false;
-      sha256 = "sha256-GKiv8D4pbb24/nEiHF1OI58DZruYY6mMesJDTS8FiGA=";
+      sha256 = "sha256-6m2nD4f6dcRRbWCt3YB3hxh8khC7tQuvFTdAS8/wHxs=";
     };
   };
 }
