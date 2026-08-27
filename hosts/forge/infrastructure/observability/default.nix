@@ -8,6 +8,7 @@
   # - Grafana: Metrics and logs visualization dashboards
   # - Loki: Log aggregation and storage
   # - Promtail: Log shipping and collection agent
+  # - Alloy: Browser telemetry (Grafana Faro RUM) receiver -> Loki
 
   imports = [
     ./prometheus.nix
@@ -15,6 +16,7 @@
     ./grafana.nix
     ./loki.nix
     ./promtail.nix
+    ./alloy.nix
   ];
 
   # Enable the thin observability orchestrator
