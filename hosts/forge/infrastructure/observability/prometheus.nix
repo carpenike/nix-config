@@ -336,6 +336,17 @@ in
         ];
       }
 
+      # Grafana Alloy — self metrics plus the faro_receiver_* counters
+      # (logs/exceptions/measurements/events accepted, and rejections). This
+      # is the RED view of browser telemetry ingest: if exceptions_total
+      # spikes, the SPA is broken for real users.
+      {
+        job_name = "alloy";
+        static_configs = [
+          { targets = [ "127.0.0.1:12345" ]; labels = { instance = "forge.holthome.net"; host = "forge"; service = "alloy"; }; }
+        ];
+      }
+
       # Alertmanager monitoring
       {
         job_name = "alertmanager";

@@ -84,6 +84,12 @@ let
   listenAddr = "127.0.0.1";
   listenPort = 3417; # matches the port hinted at in the upstream module example
 
+  # Grafana Alloy's faro.receiver, defined in
+  # infrastructure/observability/alloy.nix. Fronted on this vhost at /relay/*
+  # so the SPA can beacon same-origin.
+  faroCollectorHost = "127.0.0.1";
+  faroCollectorPort = 12347;
+
   # systemd StateDirectory name; the upstream module hard-codes
   # `StateDirectory = "whiskey-whiskey-whiskey"`, which yields this path.
   stateDirName = "whiskey-whiskey-whiskey";
@@ -226,6 +232,28 @@ in
           tunnel = "forge";
           dns.zoneName = cloudflareZone;
         };
+
+        # Browser telemetry (Grafana Faro RUM) beacon endpoint.
+        #
+        # `handle_path` strips the /relay prefix, so /relay/collect reaches
+        # Alloy's faro.receiver as its native /collect route (and
+        # /relay/-/ready reaches /-/ready). Despite appearing AFTER the
+        # generated site-level `reverse_proxy` in the rendered Caddyfile,
+        # Caddy's directive ordering runs handle_path first and it is
+        # terminal for matching requests -- verified with `caddy adapt`.
+        #
+        # Same-origin by design: no CORS preflight, no second Cloudflare
+        # hostname to provision, and an innocuous path that content blockers
+        # don't recognize as an analytics endpoint. The SPA hardcodes this
+        # path in src/telemetry/faro.ts -- the two must move together.
+        #
+        # See hosts/forge/infrastructure/observability/alloy.nix for the
+        # receiver, its rate limit and payload cap.
+        extraConfig = ''
+          handle_path /relay/* {
+            reverse_proxy ${faroCollectorHost}:${toString faroCollectorPort}
+          }
+        '';
       };
 
       # Caddy vhost — www → apex 301. handleOnly is required because we do
