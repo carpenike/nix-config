@@ -13,6 +13,8 @@ let
   dataset = "tank/services/${serviceName}";
   serviceIds = mylib.serviceUids.hermes;
   serviceEnabled = config.services.hermes-agent.enable or false;
+  homelabMcpEnabled = config.services.homelab-mcp.enable or false;
+  homelabMcpPort = config.services.homelab-mcp.port or 9200;
   hermesPackage = inputs.hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
   inferenceProvider = "anthropic";
   inferenceModel = "claude-sonnet-5";
@@ -996,17 +998,29 @@ in
       # ProtectSystem=strict, PrivateTmp, and a dedicated user. Tighten the
       # remaining host boundary and cap runaway agent resource consumption.
       systemd.services.hermes-agent = {
+        # WORKAROUND (2026-08-26): Do not let the long-lived gateway initialize
+        # its OAuth HTTP MCP clients while homelab-mcp is still starting.
+        # Affects: Hermes finance tools after Forge boots and deployments.
+        # Upstream: https://github.com/NousResearch/hermes-agent/issues/77765
+        # Check: Remove the health gate after upstream reliably recovers a
+        # long-lived gateway whose initial MCP connection was unavailable.
+        #
+        # Keep this optional: Signal and Telegram remain useful if homelab-mcp
+        # is deliberately disabled, and a later MCP restart must not tear down
+        # their live adapters.
         # Keep Hermes running across signal-api restarts so its WebSocket loop
         # can reconnect with the adapter's jittered 2s -> 60s backoff.
-        after = [ "podman-signal-api.service" ];
-        wants = [ "podman-signal-api.service" ];
+        after = [ "podman-signal-api.service" ]
+          ++ lib.optional homelabMcpEnabled "homelab-mcp.service";
+        wants = [ "podman-signal-api.service" ]
+          ++ lib.optional homelabMcpEnabled "homelab-mcp.service";
 
         # Hermes expands env references only in YAML values, not mapping keys.
         # Render the SOPS-held family and test group IDs into exact Signal chat
         # keys before startup. Only the gateway's merged .env receives both
         # allowed IDs; cron seed units retain the family-only source secret.
-        # Then wait for the REST API so the initial connect is not lost while
-        # the json-rpc daemon is still warming up.
+        # Then wait for both enabled backends so their initial connections are
+        # not lost while Signal's json-rpc daemon or homelab-mcp is warming up.
         preStart = ''
           mkdir -p "${stateDir}/.hermes/plugins"
           ln -sfnT ${householdScribeGuardPlugin} \
@@ -1087,6 +1101,14 @@ in
             --connect-timeout 2 --max-time 5 \
             "http://127.0.0.1:${toString config.modules.services.signal-api.port}/v1/health" \
             --output /dev/null
+
+          ${lib.optionalString homelabMcpEnabled ''
+            ${pkgs.curl}/bin/curl --fail --silent --show-error \
+              --retry 30 --retry-all-errors --retry-delay 2 \
+              --connect-timeout 2 --max-time 5 \
+              "http://127.0.0.1:${toString homelabMcpPort}/healthz" \
+              --output /dev/null
+          ''}
         '';
 
         # Upstream merges config.yaml during activation, outside the unit, so
