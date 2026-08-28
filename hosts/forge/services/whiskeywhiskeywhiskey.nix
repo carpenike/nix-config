@@ -322,6 +322,47 @@ in
           "WhiskeyWhiskeyWhiskey"
           "Operation W.W.W. command center";
 
+      # Browser-side error alert.
+      #
+      # Gatus and the systemd alert above both answer "is the server up".
+      # Neither notices the failure mode that actually reaches guests: the
+      # server is healthy, returns 200, and the SPA throws in their browser
+      # -- a bad deploy, a null field the UI didn't guard, a broken share
+      # page on op night. Before this rule the telemetry recorded those
+      # silently and someone had to think to go look at the dashboard.
+      #
+      # Counter comes from Alloy's faro.receiver (see
+      # infrastructure/observability/alloy.nix); `increase` handles the reset
+      # when Alloy restarts.
+      #
+      # Threshold reasoning: real traffic here is a handful of sessions a
+      # week, so a sustained handful of exceptions is not noise -- it is the
+      # app broken for whoever is using it. One transient error should not
+      # page anybody, hence >3 rather than >0, and `for` guards against a
+      # single scrape blip. This is deliberately NOT a rate: at this traffic
+      # volume a per-second rate is always ~0 and would never fire.
+      modules.alerting.rules."${serviceName}-browser-exceptions" = {
+        type = "promql";
+        alertname = "WhiskeyBrowserExceptions";
+        expr = "increase(faro_receiver_exceptions_total[15m]) > 3";
+        for = "5m";
+        severity = "medium";
+        labels = {
+          service = serviceName;
+          category = "application";
+        };
+        annotations = {
+          summary = "Operation W.W.W. is throwing JavaScript errors at users";
+          description =
+            "More than 3 browser exceptions in 15 minutes from the W.W.W. SPA. "
+            + "The server may be perfectly healthy -- this is the client failing. "
+            + "Check the Applications / W.W.W. Browser Telemetry dashboard, or "
+            + "query Loki directly. Stack traces are minified; app_version on each "
+            + "entry is the full git SHA, so compare against the deployed commit.";
+          command = ''logcli query '{job="faro", kind="exception"}' --since=30m'';
+        };
+      };
+
       # Gatus blackbox check from the public side. Lets us know if the full
       # Cloudflare → tunnel → Caddy → app path is healthy.
       modules.services.gatus.contributions.${serviceName} = {
