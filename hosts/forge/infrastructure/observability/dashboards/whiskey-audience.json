@@ -1,0 +1,491 @@
+{
+  "uid": "www-audience",
+  "title": "W.W.W. \u2014 Audience",
+  "description": "Who is using Operation W.W.W., when, and what they open. Sessions, not people: there is no identity field, because most users have no account -- they arrive on a token-gated share link. A session is one browser in one sitting (SPA sessions are sticky via localStorage; guest sessions are per-tab via sessionStorage, so a projector reloading itself is not counted as a returning visitor). Alloy flattens Faro event attributes with an `event_data_` prefix -- a bare `surface=\"...\"` matches nothing. `view_name` filters every signal from a surface; `event_data_surface` counts page views on it.",
+  "tags": [
+    "whiskey-whiskey-whiskey",
+    "rum",
+    "faro",
+    "audience"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": true,
+  "refresh": "5m",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Sessions",
+      "description": "Distinct browser sessions in the selected range, both guests and signed-in crew.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Guest sessions",
+      "description": "Sessions from the server-rendered share pages -- people with no account, arriving on a link you sent.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name=\"www-guest\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Page views",
+      "description": "Explicit page_view events. Faro has no first-class page-view signal, so these are emitted deliberately by both surfaces.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum(count_over_time({job=\"faro\"} | json | event_name=\"page_view\" [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Menu proposals opened",
+      "description": "Sessions that opened a ?menu proposal page. The Sharing tab receipt cannot answer this -- every variant of the share URL records against the same op id.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | view_name=\"public-op-menu\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Sessions over time",
+      "description": "When people actually use it. Buckets, not a line: at this traffic volume a smoothed rate reads as flat zero.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name=\"www-guest\" [$__auto])))",
+          "legendFormat": "guest",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "queryType": "range"
+        },
+        {
+          "refId": "B",
+          "expr": "count(count by (session_id) (count_over_time({job=\"faro\"} | json | sdk_name!=\"www-guest\" [$__auto])))",
+          "legendFormat": "signed in",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Page views by guest surface",
+      "description": "Which share page people land on: the live dossier, the concluded write-up, or the menu proposal sent for review.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (event_data_surface) (count_over_time({job=\"faro\"} | json | event_name=\"page_view\" | sdk_name=\"www-guest\" [$__auto]))",
+          "legendFormat": "{{event_data_surface}}",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "queryType": "range"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Menu proposal opens by operation",
+      "description": "Did the people you sent it to actually read it? Counts page views of the ?menu variant, grouped by op slug. Pair with the Sessions stat above -- one reviewer reloading three times is three views but one session.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "sum by (event_data_slug) (count_over_time({job=\"faro\"} | json | event_name=\"page_view\" | event_data_surface=\"public-op-menu\" [$__range]))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Bunker pages by route",
+      "description": "Where signed-in time goes. Route labels are bounded and carry no ids: `#/op/<id>/menu` reports as `op:menu`, and an unrecognised section collapses to `op:other`.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "expr": "topk(15, sum by (event_data_route) (count_over_time({job=\"faro\"} | json | event_name=\"page_view\" | sdk_name!=\"www-guest\" [$__range])))",
+          "instant": true,
+          "queryType": "instant"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Guest page load time p75",
+      "description": "What a guest on mobile data actually waits. The host never sees this case on their own laptop. Reported by the inline beacon on the share pages, not by the SPA.",
+      "datasource": {
+        "type": "loki",
+        "uid": "auto-loki-auto"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "quantile_over_time(0.75, {job=\"faro\", kind=\"measurement\"} | json | type=\"page_load\" | unwrap value_load | __error__=\"\" [$__auto])",
+          "legendFormat": "load",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "queryType": "range"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile_over_time(0.75, {job=\"faro\", kind=\"measurement\"} | json | type=\"page_load\" | unwrap value_ttfb | __error__=\"\" [$__auto])",
+          "legendFormat": "TTFB",
+          "datasource": {
+            "type": "loki",
+            "uid": "auto-loki-auto"
+          },
+          "queryType": "range"
+        }
+      ]
+    }
+  ]
+}
