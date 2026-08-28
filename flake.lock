@@ -803,11 +803,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787881069,
-        "narHash": "sha256-N0qdesStFasI28ZdOu3dmvKpgP1E6oHyv6A2MopnAQY=",
+        "lastModified": 1787882556,
+        "narHash": "sha256-H49e/4f9ViAuim2AfbLGt47Jrf1l3OtZKG2PEzmwcfc=",
         "owner": "carpenike",
         "repo": "whiskey-whiskey-whiskey",
-        "rev": "1a51670e02e512ef832a638d15d947ed12254f79",
+        "rev": "4e56d6e231cdaacc00997e2fc4b7d068347ca069",
         "type": "github"
       },
       "original": {
