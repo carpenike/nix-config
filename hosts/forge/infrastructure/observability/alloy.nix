@@ -29,7 +29,7 @@
 # api_key option wouldn't change that (the key would ship in the JS bundle).
 # The controls that matter are the rate limit and payload cap below.
 
-{ config, lib, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   forgeDefaults = import ../../lib/defaults.nix { inherit config lib; };
@@ -46,6 +46,23 @@ let
   faroListenPort = 12347;
 
   lokiPushUrl = "http://127.0.0.1:3100/loki/api/v1/push";
+
+  # Grafana's dashboard provider needs a path that EXISTS ON FORGE AT RUNTIME.
+  #
+  # `path = ./dashboards` does not: inside a flake it resolves to a subpath of
+  # the evaluated flake source (/nix/store/<hash>-source/hosts/...), which is a
+  # build-time input, not part of the system closure. It survived `nix eval`
+  # and the deploy, then Grafana logged "failed to walk provisioned dashboards
+  # ... no such file or directory" every 60s and the dashboard never appeared.
+  #
+  # Copying the JSON into a derivation of its own gives the provisioner a real
+  # store path that the closure references and the deploy therefore copies.
+  # (Same shape as the teslamate module, which points at a fetched source
+  # derivation rather than at repo-relative paths.)
+  dashboardsDir = pkgs.runCommandLocal "whiskey-faro-dashboards" { } ''
+    mkdir -p "$out"
+    cp ${./dashboards}/*.json "$out"/
+  '';
 
   faroConfig = ''
     // Browser telemetry from the Operation W.W.W. SPA.
@@ -139,15 +156,15 @@ in
       wants = [ "loki.service" ];
     };
 
-    # Provisioned RUM dashboard. `path` is a DIRECTORY of dashboard JSON, so
-    # further front-end dashboards drop in alongside this one with no Nix
-    # change. Grafana rescans it every 60s; the files stay editable in the UI
-    # but edits are overwritten on the next rebuild -- the JSON in this repo
-    # is the source of truth.
+    # Provisioned RUM dashboard. `dashboardsDir` wraps a DIRECTORY of dashboard
+    # JSON, so further front-end dashboards drop into ./dashboards alongside
+    # this one with no change here. Grafana rescans every 60s; the files stay
+    # editable in the UI but edits are overwritten on the next rebuild -- the
+    # JSON in this repo is the source of truth.
     modules.services.grafana.provisioning.dashboards.whiskey-faro = {
       name = "Operation W.W.W.";
       folder = "Applications";
-      path = ./dashboards;
+      path = dashboardsDir;
     };
 
     modules.alerting.rules."alloy-service-down" =
