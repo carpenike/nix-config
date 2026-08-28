@@ -249,7 +249,21 @@ in
         #
         # See hosts/forge/infrastructure/observability/alloy.nix for the
         # receiver, its rate limit and payload cap.
+        # The app's Prometheus endpoint is unauthenticated by design --
+        # Prometheus scrapes it over loopback at 127.0.0.1:3417/metrics, which
+        # keeps SOPS out of the scrape path. That is only safe because the
+        # exposure is closed HERE: without this rule, /metrics would publish
+        # the route table and traffic shape of the bunker to anyone who asks.
+        # 404 rather than 403 so the endpoint's existence isn't confirmed.
+        #
+        # `handle` is terminal and Caddy orders it ahead of the generated
+        # site-level reverse_proxy, the same mechanism the /relay route relies
+        # on -- verified with `caddy adapt` against the rendered vhost.
         extraConfig = ''
+          handle /metrics {
+            respond 404
+          }
+
           handle_path /relay/* {
             reverse_proxy ${faroCollectorHost}:${toString faroCollectorPort}
           }

@@ -336,6 +336,19 @@ in
         ];
       }
 
+      # Operation W.W.W. — server-side RED metrics (request rate, error rate,
+      # duration histogram) labelled by route pattern. The browser telemetry
+      # next door says a page was slow; this says whether the API behind it
+      # was. Scraped on the app's own port, NOT through Caddy, which returns
+      # 404 for /metrics publicly (see services/whiskeywhiskeywhiskey.nix).
+      # Port must match `listenPort` there.
+      {
+        job_name = "whiskeywhiskeywhiskey";
+        static_configs = [
+          { targets = [ "127.0.0.1:3417" ]; labels = { instance = "forge.holthome.net"; host = "forge"; service = "whiskeywhiskeywhiskey"; }; }
+        ];
+      }
+
       # Grafana Alloy — self metrics plus the faro_receiver_* counters
       # (logs/exceptions/measurements/events accepted, and rejections). This
       # is the RED view of browser telemetry ingest: if exceptions_total
