@@ -164,11 +164,14 @@ let
   weeklyPulseJobName = "weekly-household-pulse";
   weeklyPulsePrompt = ''
     Compose the weekly household finance pulse from live data at run time.
-    Call exactly these six tools, once each: finances_sync_status,
+    Call exactly these eight tools, once each: finances_sync_status,
     finances_monthly_summary, finances_recurring, finances_debt_status,
-    finances_room, and finances_clarify_candidates. Call
-    finances_clarify_candidates with `max_items=3` explicitly and leave its
-    other arguments at their defaults. Never use signal_send; native cron
+    finances_room, finances_buffer, finances_breaches, and
+    finances_clarify_candidates. Call finances_clarify_candidates with
+    `max_items=3` explicitly and leave its other arguments at their defaults.
+    Call finances_breaches with `lookback_days=7` explicitly, so it surfaces
+    only what appeared since the last pulse and an already-explained candidate
+    is not re-reported weekly for a month. Never use signal_send; native cron
     delivery sends your final response. Never cache the spending floor or
     Amazon baseline, and never state a number absent from current tool output.
 
@@ -185,10 +188,11 @@ let
 
     Amazon: <seven-day and month-to-date fact>
     HELOC: $<absolute current balance> · <principal result>
+    Buffer: $<buffer> · <floor fact>
 
     Recurring: <payment and unusual-activity fact>
 
-    Fill those five fact lines as follows:
+    Fill those six fact lines as follows:
     1. Data health. If any account is stale by more than three days, make that
        warning start with ⚠️; otherwise start with ✅ and say all accounts are
        fresh.
@@ -220,6 +224,27 @@ let
        progress. Celebration is permitted only in the principal-down form.
     5. Missing/changed recurring payments and new payees over the returned
        threshold; if none, say "all recurring paid; nothing unusual."
+    6. Buffer. Report `finances_buffer.buffer` and NOTHING ELSE as the buffer
+       figure. Never report `buffer_after_scheduled`, and never describe it as
+       being under the floor: that projection subtracts fourteen days of
+       scheduled outflows while adding NO expected income, and pay is
+       semi-monthly (~12th and ~28th), so its trough swings by a whole
+       paycheck depending on which side of the window payday falls. Quoting it
+       as a breach fires a false alarm every fortnight, days before payday,
+       erased hours later by a deposit the projection never modelled. Use the
+       returned `status` field, which is already computed from `buffer`:
+       `above_floor` -> "$<buffer> · above floor"; `near_floor` -> "$<buffer> ·
+       near floor"; `below_floor` -> "$<buffer> · BELOW floor" with ⚠️. If
+       `status` is `no_floor`, say "$<buffer> · no floor set".
+    7. Breach preemption. If finances_breaches returns any candidate, REPLACE
+       the Recurring line with a breach line and never soften it: "🛑 Breach:
+       $<amount> from <payee> into checking on <date> — not income." List each
+       candidate on its own line. Operations run on checking alone (PLAN.md's
+       bright line), so a non-income deposit is reported as a candidate, not
+       adjudicated — the pulse never explains one away, never calls it
+       legitimate, and never suppresses it because it looks deliberate. The
+       household dispositions it; the pulse only surfaces it. If there are no
+       candidates, the Recurring line appears as normal.
 
     Be a scoreboard, not a referee: concise facts and deltas, no blame or advice.
     Celebrate on-track spending and principal reductions. If detail will not
