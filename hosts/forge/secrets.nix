@@ -92,6 +92,37 @@ let
   whiskeyWhiskeyWhiskeyImageGenGeminiEnabled = true;
   whiskeyWhiskeyWhiskeyImageGenOpenaiEnabled = true;
   whiskeyWhiskeyWhiskeyImageGenOpenrouterEnabled = true;
+  # Opt-in: crew credentialing (upstream docs/CREW_AUTH_PLAN.md Phase 1).
+  # Lets the host issue whiskeywhiskeywhiskey.org/join/<code> links; the
+  # invitee creates their OWN PocketID account through a single-use signup
+  # token scoped to the www-crew group and returns credentialed, bound to
+  # their roster row.
+  #
+  # DEFAULT OFF: this needs a PocketID admin API key that does not exist
+  # yet, and one cannot be minted over the API (PocketID refuses to let an
+  # API key create another) — so it is a manual admin-UI step. Until it is
+  # done, flipping this true would render an env line pointing at a
+  # missing SOPS value and fail the build. Setup, in order:
+  #   1. PocketID admin UI → Settings → Admin → API Keys → Add API Key,
+  #      named `www-bunker`, ~1y expiry. Shown ONCE.
+  #   2. sops hosts/forge/secrets.sops.yaml
+  #      → whiskey-whiskey-whiskey: pocketid_api_key: <key>
+  #   3. flip this to true, then `task nix:apply-nixos host=forge`.
+  #
+  # ⚠ A PocketID admin key is INSTANCE-WIDE and write-capable — it can
+  # touch users, groups and every OIDC client on id.holthome.net, not just
+  # the bunker's. That is the single biggest cost of the feature and it is
+  # accepted deliberately upstream (threat model §1). A dedicated
+  # `www-bunker` key does not narrow the key's power; it makes revocation
+  # surgical — revoke it and crew credentialing stops dead while the
+  # network-config audit key keeps working. The bunker only ever calls
+  # GET /user-groups, POST /signup-tokens and DELETE /signup-tokens/{id},
+  # and minting is unreachable from MCP, the Field Radio and every API
+  # token by construction (host browser session only).
+  #
+  # The non-secret half (WWW_POCKETID_API_URL) lives in the service
+  # settings; the feature stays inert while either half is missing.
+  whiskeyWhiskeyWhiskeyCrewInvitesEnabled = false;
   # NOTE: PARTIFUL_FIREBASE_AUTH was removed 2026-05-18. As of upstream
   # commit 7703b7b4 ("strict per-caller credential routing; remove
   # env-var + cross-host fallbacks") the Fastify server no longer reads
@@ -1119,6 +1150,20 @@ in
             group = "root";
           };
         }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyCrewInvitesEnabled) {
+          # PocketID admin API key for crew credentialing (upstream
+          # docs/CREW_AUTH_PLAN.md Phase 1). Sent as `X-API-KEY`, NOT as a
+          # bearer. Mint a DEDICATED key named `www-bunker` in the PocketID
+          # admin UI (it cannot be created over the API) so revoking the
+          # bunker's access never disturbs the network-config audit key.
+          # Instance-wide and write-capable — see the toggle comment above.
+          # Consumed via the env template below as WWW_POCKETID_API_KEY.
+          "whiskey-whiskey-whiskey/pocketid_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyImageGenGeminiEnabled) {
           # Gemini API key for op cover-image generation (HOF-063). Plain
           # Gemini API key (no Vertex/GCP project). Maps to GEMINI_API_KEY in
@@ -1683,6 +1728,8 @@ in
                 "OPENAI_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/openai_api_key"}"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyImageGenOpenrouterEnabled
                 "OPENROUTER_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/openrouter_api_key"}"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyCrewInvitesEnabled
+                "WWW_POCKETID_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/pocketid_api_key"}"}
               ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)
                 "WWW_PUSHOVER_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/pushover_token"}"}
               ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)

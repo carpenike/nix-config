@@ -56,6 +56,32 @@
 #       4. `task nix:apply-nixos host=forge`.
 #     The bunker's timezone defaults to America/New_York (forge's TZ); set
 #     `settings.PARTIFUL_TIMEZONE` if you ever need to override.
+#   * Crew credentialing (upstream docs/CREW_AUTH_PLAN.md) — the host issues
+#     a crew member a whiskeywhiskeywhiskey.org/join/<code> link; the invitee
+#     creates their own PocketID account (scoped to the www-crew group) and
+#     comes back with a bunker session bound to their roster row. To enable:
+#       1. In PocketID admin → Settings → Admin → API Keys → Add API Key.
+#          Name it `www-bunker`, ~1y expiry. The key is shown ONCE.
+#          It CANNOT be created over the API — PocketID refuses to let one
+#          API key mint another — so this step is unavoidably manual.
+#          ⚠ PocketID admin keys are instance-wide and write-capable: this
+#          key can touch users, groups and every OIDC client on the
+#          instance. A dedicated key doesn't shrink that power, it makes
+#          REVOKING the bunker's access surgical. The bunker only calls
+#          GET /user-groups, POST /signup-tokens and DELETE
+#          /signup-tokens/{id}, and minting is unreachable from MCP, the
+#          Field Radio, and any API token by design (upstream threat model).
+#       2. `sops hosts/forge/secrets.sops.yaml` and add under
+#          `whiskey-whiskey-whiskey:` the key `pocketid_api_key: <key>`.
+#       3. Flip `whiskeyWhiskeyWhiskeyCrewInvitesEnabled` to `true` in
+#          `hosts/forge/secrets.nix`.
+#       4. `task nix:apply-nixos host=forge`.
+#     Phase 0 on the PocketID side (www-crew added to this client's allowed
+#     groups, client logo, EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED
+#     in services/pocketid.nix) is already done — see network-config
+#     docs/pocketid-site-holthome.md § "Crew-auth Phase 0".
+#     Rollback: remove `www-crew` from the client's allowed groups in
+#     PocketID, revoke the `www-bunker` key, flip the toggle back off.
 #   * Pushover host-push (HOF-054) — when the daily outbox cron stages
 #     auto-drafts, the bunker sends one best-effort Pushover push telling
 #     the host that drafts are waiting for review (never an approval path;
@@ -167,6 +193,22 @@ in
           # whose key is enabled in secrets.nix (gemini/openai/openrouter) can
           # be used per call regardless of this default.
           IMAGE_GEN_PROVIDER = "gemini";
+
+          # Crew credentialing (upstream docs/CREW_AUTH_PLAN.md Phase 1).
+          # The PocketID instance the bunker mints crew signup tokens
+          # against. Non-secret; the matching admin API key is injected
+          # through the SOPS env template as WWW_POCKETID_API_KEY and is
+          # gated by `whiskeyWhiskeyWhiskeyCrewInvitesEnabled` in
+          # hosts/forge/secrets.nix.
+          #
+          # The feature is INERT until BOTH are present (and WWW_TOKEN_KEY,
+          # which encrypts the stored signup token): with the key absent
+          # the roster panel shows no INVITE control, /join answers 503,
+          # and the mint route returns 503 with a reason. So setting the
+          # URL here ahead of the key is harmless and keeps the two halves
+          # in their proper repos — non-secret config in the store,
+          # secret in SOPS.
+          WWW_POCKETID_API_URL = pocketIdIssuer;
 
           # Cooklang deep-link resolver (HOF-020, upstream dbd15d8). When set,
           # recipe rows with a `cooklang_ref` gain a derived `cooklangUrl`

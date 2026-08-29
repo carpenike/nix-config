@@ -80,6 +80,30 @@ in
           # as an OAuth client. `**` is a globstar and crosses path segments; a
           # single `*` would not.
           CIMD_URL_ALLOWLIST = ''["https://claude.ai/oauth/**"]'';
+          # Self-service email one-time access: the login page offers
+          # "email me a login link", which lands the user on /lc/<token>.
+          # Upstream-rate-limited (3 requests per 10 min) and it delivers
+          # through the SMTP config already set here.
+          #
+          # Required by the Whiskey crew-auth flow (whiskey-whiskey-whiskey
+          # docs/CREW_AUTH_PLAN.md § Recovery): SESSION_DURATION is 60
+          # minutes, so a crew member who SKIPS passkey registration during
+          # signup needs an emailed link at nearly every future login, not
+          # just after losing a device. Without this they are locked out
+          # and the host is the help desk.
+          #
+          # INSTANCE-WIDE: this affects every user of all ~30 clients here,
+          # not just the bunker's. Assessed and accepted — accounts still
+          # only reach clients their groups allow, the endpoint is rate
+          # limited, and the admin-issued variant
+          # (EMAIL_ONE_TIME_ACCESS_AS_ADMIN_ENABLED) was already on.
+          #
+          # Note the app config on this instance is DECLARATIVE
+          # (UI_CONFIG_DISABLED above): the API and the admin UI both
+          # refuse config writes, so this env var is the only way to set
+          # it. See network-config docs/pocketid-site-holthome.md.
+          EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED = true;
+
           FILE_BACKEND = "filesystem"; # Required to be "filesystem", "database", or "s3" in v1.16.0+
           UPLOAD_PATH = "${dataDir}/uploads";
           KEYS_STORAGE = "database";
