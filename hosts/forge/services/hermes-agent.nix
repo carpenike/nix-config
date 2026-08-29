@@ -307,6 +307,88 @@ let
     cd "${stateDir}/workspace"
     exec ${hermesPackage}/bin/hermes "$@"
   '';
+  # ── Automated remediation for the poisoned-OAuth-lock fault ─────────
+  # mcp/client/auth/oauth2.py holds `self.context.lock` ACROSS its yields. When
+  # httpx closes the generator mid-request, __aexit__ runs in a different task
+  # than acquired the lock, anyio refuses the release, and the lock is
+  # unreleasable for the life of the process. Every reconnect then fails with
+  # TimeoutError forever. Upstream: modelcontextprotocol/python-sdk#3382, fix
+  # PR #2858 open and unmerged; main still holds the lock across both yields,
+  # so bumping the mcp pin does not help. Also NousResearch/hermes-agent#81051.
+  #
+  # This cost a FOUR DAY sentinel outage (2026-08-27 → 08-29). Everything that
+  # was supposed to fire, fired: the heartbeat detected it correctly every six
+  # hours and named the remedy, and six pages reached Pushover with HTTP 200.
+  # The loop broke at the last step — six identical "still stale" pages did not
+  # convert into someone running one command. So the answer is not a louder
+  # alarm, it is to run the command.
+  #
+  # Restart is known-good and provably complete: `hermes mcp test` went from
+  # TimeoutError to "Connected (561ms), 13 tools" immediately after one.
+  mcpRecoverScript = pkgs.writeShellScript "hermes-mcp-recover" ''
+    set -eu
+
+    UNIT=hermes-agent.service
+    SIG="failed initial connection after 3 attempts, parking until a reconnect is requested"
+    # Do not restart a gateway that only just started: it may still be
+    # connecting, and this also bounds us to at most one restart per interval.
+    MIN_UPTIME_S=900
+    # If restarting is not working, stop restarting. A loop would mask a
+    # different fault and churn Signal/Telegram; let the heartbeat page instead.
+    MAX_RESTARTS=3
+    RESTART_WINDOW_S=21600
+
+    JOURNAL=${pkgs.systemd}/bin/journalctl
+    SYSTEMCTL=${pkgs.systemd}/bin/systemctl
+    GREP=${pkgs.gnugrep}/bin/grep
+    DATE=${pkgs.coreutils}/bin/date
+    AWK=${pkgs.gawk}/bin/awk
+
+    # Nothing to do unless the specific signature is present and recent.
+    if ! "$JOURNAL" -u "$UNIT" --since "-15min" --no-pager 2>/dev/null \
+         | "$GREP" -qF "$SIG"; then
+      exit 0
+    fi
+
+    started_us=$("$SYSTEMCTL" show "$UNIT" -p ActiveEnterTimestampMonotonic --value)
+    now_us=$("$AWK" '{printf "%d", $1*1000000}' /proc/uptime)
+    up_s=$(( (now_us - started_us) / 1000000 ))
+    if [ "$up_s" -lt "$MIN_UPTIME_S" ]; then
+      echo "hermes-mcp-recover: parked signature present but $UNIT has only been up ''${up_s}s (< ''${MIN_UPTIME_S}s); leaving it to settle."
+      exit 0
+    fi
+
+    now=$("$DATE" +%s)
+    state="$STATE_DIRECTORY/restarts"
+    : > "$state.tmp"
+    if [ -f "$state" ]; then
+      "$AWK" -v cut=$(( now - RESTART_WINDOW_S )) '$1 > cut' "$state" > "$state.tmp"
+    fi
+    mv "$state.tmp" "$state"
+    count=$("$AWK" 'END {print NR}' "$state")
+
+    if [ "$count" -ge "$MAX_RESTARTS" ]; then
+      echo "hermes-mcp-recover: ALREADY RESTARTED $count TIMES in the last $(( RESTART_WINDOW_S / 3600 ))h and the MCP clients are parked again. Not restarting: this is no longer the known lock fault, or restarting is not fixing it. Investigate; the sentinel heartbeat will keep paging." >&2
+      exit 1
+    fi
+
+    if [ "''${HERMES_MCP_RECOVER_DRY_RUN:-0}" = "1" ]; then
+      echo "hermes-mcp-recover: DRY RUN — would restart $UNIT (up ''${up_s}s, $count prior restarts in window)."
+      exit 0
+    fi
+
+    echo "hermes-mcp-recover: MCP clients parked (poisoned OAuth lock; python-sdk#3382). Restarting $UNIT after ''${up_s}s uptime; $count prior restarts in the last $(( RESTART_WINDOW_S / 3600 ))h."
+    echo "$now" >> "$state"
+    "$SYSTEMCTL" restart "$UNIT"
+
+    ${pkgs.coreutils}/bin/sleep 45
+    if "$JOURNAL" -u "$UNIT" --since "-1min" --no-pager 2>/dev/null | "$GREP" -qF "$SIG"; then
+      echo "hermes-mcp-recover: STILL PARKED after restart — not the known lock fault. Escalating." >&2
+      exit 1
+    fi
+    echo "hermes-mcp-recover: restart complete, no parked signature since. Verify with: hermes mcp test holthome"
+  '';
+
   weeklyPulsePromptFile = pkgs.writeText "hermes-weekly-pulse-prompt" weeklyPulsePrompt;
   dailySentinelPromptFile = pkgs.writeText "hermes-daily-finance-sentinel-prompt" dailySentinelPrompt;
   weeklyPulseSeedScript = pkgs.writeShellScript "hermes-weekly-pulse-seed" ''
@@ -1348,6 +1430,49 @@ in
           # of the three days it actually took in August 2026.
           OnCalendar = "*-*-* 00,06,12,18:20:00";
           RandomizedDelaySec = "5m";
+          Persistent = true;
+        };
+      };
+
+      # Runs every 10 minutes rather than hanging off the heartbeat's
+      # OnFailure: the heartbeat sweeps 6-hourly, so hooking it there would
+      # leave the sentinel dead for up to six hours. This also leaves the
+      # working detect/page chain completely untouched — if remediation fails,
+      # the heartbeat still pages exactly as it does today.
+      systemd.services.hermes-agent-mcp-recover = {
+        description = "Restart hermes-agent when its MCP clients are parked on a poisoned auth lock";
+        # Deliberately no dependency on hermes-agent: this must run precisely
+        # when hermes is unhealthy.
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = mcpRecoverScript;
+          StateDirectory = "hermes-mcp-recover";
+          # Needs root to restart the unit and read the journal; keep the rest
+          # of the host boundary tight.
+          NoNewPrivileges = true;
+          ProtectHome = true;
+          ProtectClock = true;
+          ProtectKernelLogs = false; # reads the journal
+          ProtectKernelModules = true;
+          ProtectKernelTunables = true;
+          RestrictSUIDSGID = true;
+          LockPersonality = true;
+          RestrictRealtime = true;
+          SystemCallArchitectures = "native";
+          MemoryMax = "128M";
+          TasksMax = 16;
+        };
+      };
+
+      systemd.timers.hermes-agent-mcp-recover = {
+        description = "Watch for hermes-agent MCP clients parked on a poisoned auth lock";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          # hermes retries roughly every 9 minutes and always fails once the
+          # lock is poisoned, so a 10-minute sweep catches it within one cycle.
+          OnBootSec = "15m";
+          OnUnitActiveSec = "10m";
+          RandomizedDelaySec = "1m";
           Persistent = true;
         };
       };
