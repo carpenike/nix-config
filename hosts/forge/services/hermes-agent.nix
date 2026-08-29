@@ -1133,6 +1133,46 @@ in
               --connect-timeout 2 --max-time 5 \
               "http://127.0.0.1:${toString homelabMcpPort}/healthz" \
               --output /dev/null
+
+            # /healthz is LIVENESS, not MCP READINESS. homelab-mcp answers it
+            # before its MCP route serves, and per upstream #77765 hermes never
+            # recovers a gateway whose INITIAL MCP connection failed — so one
+            # bad moment at startup leaves the finance tools dead until a human
+            # restarts the unit. That disarmed the daily sentinel on 2026-08-29,
+            # after a deploy restarted BOTH units: homelab-mcp via the flake
+            # repin, hermes-agent via restartTriggers because a prompt edit is a
+            # settings change. The /healthz gate above passed and the tools were
+            # still gone.
+            #
+            # So gate on the MCP route itself. Unauthenticated it answers 401
+            # once the auth layer is mounted and serving — verified against the
+            # live server — which is the surface hermes actually needs. 000
+            # (refused), 404 (unmounted) and 5xx (warming) all mean not yet.
+            #
+            # DELIBERATELY DOES NOT FAIL THE UNIT. A preStart exit would
+            # crash-loop, and the crash-loop is invisible: the ServiceDown rule
+            # needs 120s continuous inactive and RestartSec=10 never supplies it
+            # (measured — see the alerting comment below). Failing would take
+            # Signal and Telegram down too and still page nobody, which is
+            # strictly worse than starting degraded. Detection belongs to
+            # hermes-agent-sentinel-heartbeat, which reads the sentinel's own
+            # output rather than systemd's opinion of the unit.
+            mcpReady=""
+            mcpCode="000"
+            for _ in $(${pkgs.coreutils}/bin/seq 1 90); do
+              mcpCode="$(${pkgs.curl}/bin/curl --silent --output /dev/null \
+                --write-out '%{http_code}' --connect-timeout 2 --max-time 5 \
+                --request POST --header 'Content-Type: application/json' \
+                --data '{"jsonrpc":"2.0","id":1,"method":"initialize"}' \
+                "http://127.0.0.1:${toString homelabMcpPort}/mcp" || echo 000)"
+              case "$mcpCode" in
+                200|202|401|403) mcpReady=1; break ;;
+              esac
+              ${pkgs.coreutils}/bin/sleep 2
+            done
+            if [ -z "$mcpReady" ]; then
+              echo "hermes-agent: homelab-mcp /mcp never became ready (~180s, last status $mcpCode). Starting anyway so Signal and Telegram stay up, but THE FINANCE TOOLS ARE PROBABLY DEAD and hermes does not recover on its own — restart this unit once homelab-mcp is serving." >&2
+            fi
           ''}
         '';
 
