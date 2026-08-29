@@ -1134,20 +1134,40 @@ in
               "http://127.0.0.1:${toString homelabMcpPort}/healthz" \
               --output /dev/null
 
-            # /healthz is LIVENESS, not MCP READINESS. homelab-mcp answers it
-            # before its MCP route serves, and per upstream #77765 hermes never
-            # recovers a gateway whose INITIAL MCP connection failed — so one
-            # bad moment at startup leaves the finance tools dead until a human
-            # restarts the unit. That disarmed the daily sentinel on 2026-08-29,
-            # after a deploy restarted BOTH units: homelab-mcp via the flake
-            # repin, hermes-agent via restartTriggers because a prompt edit is a
-            # settings change. The /healthz gate above passed and the tools were
-            # still gone.
+            # A LATER construction checkpoint than /healthz — marginal
+            # hardening, NOT a proven fix. Read the honest limits before
+            # trusting this:
             #
-            # So gate on the MCP route itself. Unauthenticated it answers 401
-            # once the auth layer is mounted and serving — verified against the
-            # live server — which is the surface hermes actually needs. 000
-            # (refused), 404 (unmounted) and 5xx (warming) all mean not yet.
+            # On 2026-08-29 the daily finance sentinel failed with "tool not
+            # available" after a deploy restarted both units. The /healthz gate
+            # above PASSED and the tools were still gone, so whatever happened
+            # was not caught by it.
+            #
+            # The tempting explanation — /healthz is liveness and answers before
+            # the MCP route serves — is WRONG for this server, and the source
+            # says so: homelab_mcp/app.py builds create_app in the order
+            # register_all(tools) -> streamable_http_app() -> contract routes ->
+            # APPEND /healthz -> wire OAuth. /healthz is registered AFTER the
+            # tools and the MCP route, so a 200 already implies the tool
+            # registry exists. THE ROOT CAUSE IS NOT ESTABLISHED.
+            #
+            # What this probe does buy: OAuth wiring is the LAST step of
+            # create_app, so an unauthenticated 401 proves construction reached
+            # further than /healthz did. That is a strictly later checkpoint and
+            # costs nothing.
+            #
+            # What it does NOT prove: the 401 comes from the JWT middleware for
+            # ANY path — /definitely-not-mounted returns 401 too, verified
+            # against the live server — so this is an app-construction signal,
+            # never evidence that a tool call would succeed. An authenticated
+            # tools/list would be the real check; it needs the client_credentials
+            # secret and was judged not worth putting in a preStart until the
+            # actual failure mechanism is known.
+            #
+            # Still true regardless of mechanism: per upstream #77765 hermes
+            # never recovers a gateway whose INITIAL MCP connection failed, so
+            # one bad moment at startup leaves the finance tools dead until a
+            # human restarts the unit.
             #
             # DELIBERATELY DOES NOT FAIL THE UNIT. A preStart exit would
             # crash-loop, and the crash-loop is invisible: the ServiceDown rule
@@ -1164,7 +1184,7 @@ in
                 --write-out '%{http_code}' --connect-timeout 2 --max-time 5 \
                 --request POST --header 'Content-Type: application/json' \
                 --data '{"jsonrpc":"2.0","id":1,"method":"initialize"}' \
-                "http://127.0.0.1:${toString homelabMcpPort}/mcp" || echo 000)"
+                "http://127.0.0.1:${toString homelabMcpPort}/mcp" || true)"
               case "$mcpCode" in
                 200|202|401|403) mcpReady=1; break ;;
               esac
