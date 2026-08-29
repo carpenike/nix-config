@@ -39,5 +39,7 @@ pkgs.caddy.withPlugins {
   # Hash captured from CI build failure.
   # Updated 2026-07-26: hash drifted after the lockfile moved Caddy to 2.11.4
   # (plugin versions unchanged). Hash captured from forge build failure.
-  hash = "sha256-g5nkznriJu/7pSY81na6iXC6fy8P0ipCeMUbum/WpU4=";
+  # Updated 2026-08-29: hash drifted again after flake.lock bump 6da305ba
+  # (plugin versions unchanged). Hash captured from forge build failure.
+  hash = "sha256-zRBvH01Ds5t8DicchWxlgvXrUHMZcXYtYHXhu4I7a4I=";
 }
