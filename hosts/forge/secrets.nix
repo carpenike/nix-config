@@ -122,7 +122,7 @@ let
   #
   # The non-secret half (WWW_POCKETID_API_URL) lives in the service
   # settings; the feature stays inert while either half is missing.
-  whiskeyWhiskeyWhiskeyCrewInvitesEnabled = false;
+  whiskeyWhiskeyWhiskeyCrewInvitesEnabled = true;
   # NOTE: PARTIFUL_FIREBASE_AUTH was removed 2026-05-18. As of upstream
   # commit 7703b7b4 ("strict per-caller credential routing; remove
   # env-var + cross-host fallbacks") the Fastify server no longer reads
