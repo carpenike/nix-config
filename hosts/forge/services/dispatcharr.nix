@@ -81,7 +81,7 @@ in
         # Pin to specific version for stability and prevent unexpected changes
         # Find releases at: https://github.com/Dispatcharr/Dispatcharr/releases
         # Using digest pinning for immutable references (Renovate will update both tag and digest)
-        image = "ghcr.io/dispatcharr/dispatcharr:0.29.0@sha256:df768adcb9993b58f5e67010cc802c8659b7f964cb1213ab7ff9bb9384db9145";
+        image = "ghcr.io/dispatcharr/dispatcharr:0.30.0@sha256:e764cd3fb3a4b14e0c96eeb830cce645b44ef0a2494838e21462c71dde5abeb4";
 
         redis.database = 1;
 
