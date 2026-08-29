@@ -80,6 +80,37 @@ in
           # as an OAuth client. `**` is a globstar and crosses path segments; a
           # single `*` would not.
           CIMD_URL_ALLOWLIST = ''["https://claude.ai/oauth/**"]'';
+          # Signup posture: token-only. SECURITY-IDENTICAL to the previous
+          # implicit default of "disabled" — the backend gate is a single
+          # line (backend/internal/usersignup/service.go):
+          #
+          #   if config.AllowUserSignups.String() != "open" && !tokenProvided {
+          #       return ..., apperror.OpenSignupDisabled()
+          #   }
+          #
+          # i.e. signup is permitted whenever a valid signup token is
+          # presented, and ONLY "open" allows signup with no token at all.
+          # So "disabled" and "withToken" behave identically on the wire;
+          # neither permits open registration.
+          #
+          # The difference is the UI, and it matters. Under "disabled" the
+          # signup page's onMount sets the error unconditionally:
+          #
+          #   if (!allowUserSignups || allowUserSignups === 'disabled') {
+          #       error = m.user_signups_are_disabled(); return;
+          #   }
+          #
+          # ...without checking for the token, while the form itself renders
+          # on `allowUserSignups === 'open' || data.token`. A crew member
+          # redeeming a perfectly valid invite therefore lands on a red X
+          # reading "User signups are currently disabled" ABOVE a working
+          # form. It succeeds if they push through, but it reads as broken —
+          # which is the exact "this looks broken, I'll text the host"
+          # failure the whole crew-auth flow exists to eliminate.
+          # "withToken" silences the false alarm and still errors correctly
+          # when a token really is missing.
+          ALLOW_USER_SIGNUPS = "withToken";
+
           # Self-service email one-time access: the login page offers
           # "email me a login link", which lands the user on /lc/<token>.
           # Upstream-rate-limited (3 requests per 10 min) and it delivers
