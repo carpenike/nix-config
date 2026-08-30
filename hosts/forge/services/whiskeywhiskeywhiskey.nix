@@ -82,6 +82,21 @@
 #     docs/pocketid-site-holthome.md § "Crew-auth Phase 0".
 #     Rollback: remove `www-crew` from the client's allowed groups in
 #     PocketID, revoke the `www-bunker` key, flip the toggle back off.
+#   * Crew invite email (upstream PR #67) — adds "ISSUE & EMAIL" beside
+#     "ISSUE INVITE" on the roster panel, plus RESEND on a pending invite.
+#     To enable:
+#       1. Mailgun → Sending → API keys. Create a sending key scoped to
+#          the whiskeywhiskeywhiskey.org domain.
+#       2. `sops hosts/forge/secrets.sops.yaml` and add under
+#          `whiskey-whiskey-whiskey:` the key `mailgun_api_key: <key>`.
+#       3. `whiskeyWhiskeyWhiskeyInviteEmailEnabled` in secrets.nix is
+#          already true — so add the key BEFORE the next deploy, or
+#          activation fails at sops-install-secrets.
+#       4. `task nix:apply-nixos host=forge`.
+#     ⚠ The email carries a LIVE account-creating capability. Single-use,
+#     7-day expiry, and a resend REVOKES the previous link. Do not reuse
+#     this transport for the long-lived capability URLs (present / hub /
+#     board) without a fresh decision.
 #   * Pushover host-push (HOF-054) — when the daily outbox cron stages
 #     auto-drafts, the bunker sends one best-effort Pushover push telling
 #     the host that drafts are waiting for review (never an approval path;
@@ -209,6 +224,22 @@ in
           # in their proper repos — non-secret config in the store,
           # secret in SOPS.
           WWW_POCKETID_API_URL = pocketIdIssuer;
+
+          # Crew invite email (upstream PR #67). Non-secret half; the
+          # Mailgun API key rides the SOPS env template, gated by
+          # `whiskeyWhiskeyWhiskeyInviteEmailEnabled` in secrets.nix.
+          #
+          # The sending domain is the apex, which is where the DKIM
+          # record lives (selector `smtp`), and the From address MUST be
+          # on that domain or DMARC alignment fails. Verified over DoH
+          # 2026-08-29: SPF `v=spf1 include:mailgun.org ~all`, DKIM at
+          # smtp._domainkey, DMARC `p=none` with Mailgun aggregate
+          # reporting. (Don't verify these with `dig` from inside the
+          # network — port 53 is redirected to AdGuard, which holds a
+          # split-horizon rewrite for this domain and will tell you the
+          # records are missing. See network-config AGENTS.md.)
+          WWW_MAILGUN_DOMAIN = apexDomain;
+          WWW_MAIL_FROM = "HQ COMMAND <hq@${apexDomain}>";
 
           # Cooklang deep-link resolver (HOF-020, upstream dbd15d8). When set,
           # recipe rows with a `cooklang_ref` gain a derived `cooklangUrl`
