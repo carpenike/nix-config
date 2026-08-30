@@ -123,6 +123,28 @@ let
   # The non-secret half (WWW_POCKETID_API_URL) lives in the service
   # settings; the feature stays inert while either half is missing.
   whiskeyWhiskeyWhiskeyCrewInvitesEnabled = true;
+  # Opt-in: crew invite EMAIL delivery (upstream PR #67). Adds an
+  # "ISSUE & EMAIL" button beside "ISSUE INVITE" on the roster panel, and
+  # RESEND on a pending invite, mailing the join link to the member's
+  # on-file address instead of the host copy-pasting it.
+  #
+  # Deliberately NOT a notify.ts channel: that module's hard contract is
+  # "HOST-ONLY — never sends anything to guests", and this is guest-facing
+  # mail. Upstream keeps it in server/lib/mailer.ts.
+  #
+  # ⚠ The email carries a LIVE account-creating capability into an inbox.
+  # Accepted upstream with the mitigations that make it defensible:
+  # single-use, 7-day expiry, and a resend REVOKES the previous link. The
+  # transport is deliberately NOT reused for the long-lived capability
+  # URLs (present / hub / board).
+  #
+  # Requires `whiskey-whiskey-whiskey/mailgun_api_key` in SOPS — add it
+  # BEFORE deploying, or activation fails at sops-install-secrets. The
+  # non-secret half (WWW_MAILGUN_DOMAIN, WWW_MAIL_FROM) is in the service
+  # settings. whiskeywhiskeywhiskey.org publishes SPF, DKIM and DMARC
+  # (verified 2026-08-29 over DoH), and WWW_MAIL_FROM must stay ON that
+  # domain or DMARC alignment fails.
+  whiskeyWhiskeyWhiskeyInviteEmailEnabled = true;
   # NOTE: PARTIFUL_FIREBASE_AUTH was removed 2026-05-18. As of upstream
   # commit 7703b7b4 ("strict per-caller credential routing; remove
   # env-var + cross-host fallbacks") the Fastify server no longer reads
@@ -1164,6 +1186,19 @@ in
             group = "root";
           };
         }
+        // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyInviteEmailEnabled) {
+          # Mailgun sending API key for crew invite email (upstream PR
+          # #67). Guest-facing mail — see the toggle comment above for
+          # why this is not a notify.ts channel and what the email
+          # carries. Create it in Mailgun under Sending → API keys,
+          # scoped to the whiskeywhiskeywhiskey.org sending domain.
+          # Consumed via the env template below as WWW_MAILGUN_API_KEY.
+          "whiskey-whiskey-whiskey/mailgun_api_key" = {
+            mode = "0400";
+            owner = "root";
+            group = "root";
+          };
+        }
         // optionalAttrs (whiskeyWhiskeyWhiskeyEnabled && whiskeyWhiskeyWhiskeyImageGenGeminiEnabled) {
           # Gemini API key for op cover-image generation (HOF-063). Plain
           # Gemini API key (no Vertex/GCP project). Maps to GEMINI_API_KEY in
@@ -1730,6 +1765,8 @@ in
                 "OPENROUTER_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/openrouter_api_key"}"}
               ${lib.optionalString whiskeyWhiskeyWhiskeyCrewInvitesEnabled
                 "WWW_POCKETID_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/pocketid_api_key"}"}
+              ${lib.optionalString whiskeyWhiskeyWhiskeyInviteEmailEnabled
+                "WWW_MAILGUN_API_KEY=${config.sops.placeholder."whiskey-whiskey-whiskey/mailgun_api_key"}"}
               ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)
                 "WWW_PUSHOVER_TOKEN=${config.sops.placeholder."whiskey-whiskey-whiskey/pushover_token"}"}
               ${lib.optionalString (whiskeyWhiskeyWhiskeyPushoverEnabled && alertingEnabled)
