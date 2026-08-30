@@ -67,6 +67,38 @@ in
           LOG_JSON = true;
           METRICS_ENABLED = true;
           UI_CONFIG_DISABLED = true;
+
+          # ── Branding ─────────────────────────────────────────────────
+          # Both of these only take effect BECAUSE UI_CONFIG_DISABLED is
+          # true above: under the declarative posture Pocket ID reads UI
+          # config from the environment and falls back to its own
+          # defaults for anything unset, while the admin UI and the API
+          # both refuse config writes. There is no other way to set them.
+          #
+          # INSTANCE-WIDE — this is the front door for all 22 OIDC
+          # clients (Grafana, Paperless, Actual Budget, Mealie, ...), so
+          # the name is deliberately institutional rather than themed. It
+          # has to describe an identity provider without reading as a
+          # costume in front of a budgeting app.
+          #
+          # "Central Records" also closes a real defect rather than just
+          # decorating. The bunker's crew-auth copy already calls this
+          # instance Central Records in nine places (whiskey-whiskey-
+          # whiskey: server/routes/join.ts, server/lib/invite-email.ts,
+          # server/routes/roster-invite.ts) — but the page an invitee
+          # actually landed on said "Pocket ID". A stranger's product
+          # name, at the exact moment someone is deciding whether a link
+          # that arrived by email is legitimate. The screen now matches
+          # the orders that sent them there.
+          APP_NAME = "Central Records";
+
+          # Olive drab, lifted verbatim from the bunker's own palette
+          # (--olive, whiskey-whiskey-whiskey src/styles/global.css).
+          # Muted enough to read as a serious institutional green in
+          # front of the household's other services rather than as a WWII
+          # skin. Per-client logos already carry whatever brand each app
+          # needs — Whiskey is the only client that sets one today.
+          ACCENT_COLOR = "#4a4d2a";
           # Client ID Metadata Documents (CIMD), required for the Claude mobile
           # connector to reach whiskeywhiskeywhiskey.org/api/mcp. An EMPTY
           # allowlist (the default) disables metadata-document clients and makes
