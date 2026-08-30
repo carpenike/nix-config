@@ -18,7 +18,7 @@ in
 
         # Pin container image to a specific version with a digest for immutability.
         # Renovate bot can be configured to automate updates.
-        image = "ghcr.io/home-operations/sonarr:4.0.19.3008@sha256:bd8f94115e6b9314fb50aff83b5913e249f086beaa9902f5dcd813c4fe6368e0";
+        image = "ghcr.io/home-operations/sonarr:4.0.19.3009@sha256:67815effd2ea18398ffc2011d974b8b1cd3939eec5aa74688ffbf371ff65dd84";
 
         # Use shared NFS mount and attach to the media services network.
         nfsMountDependency = "media";
