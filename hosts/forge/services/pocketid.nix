@@ -46,6 +46,32 @@ let
     ${portalTransforms}
   '';
   serviceEnabled = config.modules.services.pocketid.enable or false;
+
+  # The login page's backdrop, RENDERED AT BUILD TIME from a checked-in
+  # script rather than committed as an opaque blob.
+  #
+  # Pocket ID keeps its branding images as plain files under
+  # <dataDir>/uploads/application-images/, which is service state, not Nix.
+  # They survive the nightly rebuild but are invisible to git and would be
+  # lost silently on a bare-metal restore, with no record of what they were
+  # or where they came from. Generating from a seeded stdlib script makes
+  # the asset reproducible from text: same input, same bytes, forever, and
+  # a reviewable diff when it changes.
+  #
+  # Wrapped in a derivation deliberately. A bare `./pocketid-assets/...`
+  # path used at RUNTIME evaluates fine and then 404s on the host, because
+  # flake source paths are not part of the system closure — only what a
+  # derivation pulls in is copied to the store.
+  pocketIdBranding = pkgs.runCommand "central-records-branding"
+    {
+      nativeBuildInputs = [ pkgs.python3 pkgs.libwebp ];
+    } ''
+    mkdir -p "$out"
+    python3 ${./pocketid-assets/backdrop.py} backdrop.png
+    cwebp -quiet -q 88 backdrop.png -o "$out/background.webp"
+    python3 ${./pocketid-assets/mark.py} "$out"
+  '';
+
 in
 {
   config = mkMerge [
@@ -227,6 +253,27 @@ in
       };
 
     }
+
+    (lib.mkIf serviceEnabled {
+      # Stamp the branding images into place on every start, so the store
+      # copy always wins. Pocket ID serves these straight off disk, so a
+      # plain file install is the whole mechanism — no API call, no
+      # restart-order dependency, and nothing to redo after a restore.
+      #
+      # Safe under the unit's sandbox: ProtectSystem=strict with
+      # ReadWritePaths=[dataDir], and uploads/ lives inside dataDir. Runs
+      # as the pocket-id user, which already owns the tree.
+      #
+      # NOTE the filenames are load-bearing — Pocket ID looks each image up
+      # by exact name and extension (background.webp, logo.svg,
+      # favicon.ico). Changing a format means changing the name too.
+      systemd.services.pocket-id.preStart = ''
+        images=${dataDir}/uploads/application-images
+        install -D -m 0644 ${pocketIdBranding}/background.webp "$images/background.webp"
+        install -D -m 0644 ${pocketIdBranding}/logo.svg        "$images/logo.svg"
+        install -D -m 0644 ${pocketIdBranding}/favicon.ico     "$images/favicon.ico"
+      '';
+    })
 
     (lib.mkIf serviceEnabled {
       modules.storage.datasets.services.pocketid.protection = {
