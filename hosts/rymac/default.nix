@@ -133,6 +133,7 @@ in
         "Pages" = 409201541;
         "PerformanceTest" = 1560051043;
         "Slack" = 803453959;
+        "WireGuard" = 1451685025;
         "Windows App" = 1295203466;
       };
     };
