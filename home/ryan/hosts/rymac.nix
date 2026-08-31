@@ -5,6 +5,7 @@
 }:
 let
   sopsFile = ../secrets.sops.yaml;
+  sopsDocument = builtins.readFile sopsFile;
   sshPublicKey = builtins.readFile ../config/ssh/ssh.pub;
 
   # sops-nix (home-manager) decrypts to a runtime dir and symlinks into the
@@ -25,14 +26,16 @@ let
     text = ''
       signing_key=${lib.escapeShellArg config.modules.shell.git.signingKey}
       ssh_public_key=${lib.escapeShellArg sshPublicKey}
-      sops_file=${lib.escapeShellArg (toString sopsFile)}
+      sops_document=${lib.escapeShellArg sopsDocument}
 
+      umask 077
       challenge="$(mktemp "''${TMPDIR:-/tmp}/yubikey-unlock.XXXXXX")"
       gpg_signature="$challenge.gpg"
       ssh_public_key_file="$challenge.pub"
+      sops_file="$challenge.sops.yaml"
 
       cleanup() {
-        rm -f "$challenge" "$gpg_signature" "$ssh_public_key_file"
+        rm -f "$challenge" "$gpg_signature" "$ssh_public_key_file" "$sops_file"
       }
       trap cleanup EXIT
 
@@ -62,6 +65,7 @@ let
       echo "ready"
 
       printf 'Unlocking SOPS decryption key... '
+      printf '%s' "$sops_document" > "$sops_file"
       sops --decrypt "$sops_file" >/dev/null
       echo "ready"
 
