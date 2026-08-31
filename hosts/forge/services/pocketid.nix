@@ -62,13 +62,14 @@ let
   # path used at RUNTIME evaluates fine and then 404s on the host, because
   # flake source paths are not part of the system closure — only what a
   # derivation pulls in is copied to the store.
-  pocketIdBackdrop = pkgs.runCommand "central-records-backdrop"
+  pocketIdBranding = pkgs.runCommand "central-records-branding"
     {
       nativeBuildInputs = [ pkgs.python3 pkgs.libwebp ];
     } ''
     mkdir -p "$out"
     python3 ${./pocketid-assets/backdrop.py} backdrop.png
     cwebp -quiet -q 88 backdrop.png -o "$out/background.webp"
+    python3 ${./pocketid-assets/mark.py} "$out"
   '';
 
 in
@@ -254,7 +255,7 @@ in
     }
 
     (lib.mkIf serviceEnabled {
-      # Stamp the branding image into place on every start, so the store
+      # Stamp the branding images into place on every start, so the store
       # copy always wins. Pocket ID serves these straight off disk, so a
       # plain file install is the whole mechanism — no API call, no
       # restart-order dependency, and nothing to redo after a restore.
@@ -263,11 +264,14 @@ in
       # ReadWritePaths=[dataDir], and uploads/ lives inside dataDir. Runs
       # as the pocket-id user, which already owns the tree.
       #
-      # NOTE the extension is load-bearing — Pocket ID looks the file up as
-      # background.webp. Changing format means changing the name it writes.
+      # NOTE the filenames are load-bearing — Pocket ID looks each image up
+      # by exact name and extension (background.webp, logo.svg,
+      # favicon.ico). Changing a format means changing the name too.
       systemd.services.pocket-id.preStart = ''
-        install -D -m 0644 ${pocketIdBackdrop}/background.webp \
-          ${dataDir}/uploads/application-images/background.webp
+        images=${dataDir}/uploads/application-images
+        install -D -m 0644 ${pocketIdBranding}/background.webp "$images/background.webp"
+        install -D -m 0644 ${pocketIdBranding}/logo.svg        "$images/logo.svg"
+        install -D -m 0644 ${pocketIdBranding}/favicon.ico     "$images/favicon.ico"
       '';
     })
 
