@@ -1277,6 +1277,15 @@ in
             group = "postgres";
           };
 
+          # Password for the `grafana-schoolhouse` role. Same shape as the
+          # owner password: provisioning reads it at activation, and the
+          # datasource is rendered from the same file.
+          "schoolhouse/grafana_password" = {
+            mode = "0440";
+            owner = "root";
+            group = "postgres";
+          };
+
           # Parent Schoology login (app.schoology.com — the NATIVE parent
           # account created with a 12-digit Parent Access Code, not an FCPS
           # SSO account).

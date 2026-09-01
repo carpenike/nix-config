@@ -50,6 +50,10 @@ let
   listenPort = 9220;
 
   serviceEnabled = config.services.schoolhouse.enable or false;
+
+  # Grafana boards over this store. Built here rather than in homelab-mcp
+  # because the data and the grant belong to this service, not to the reader.
+  schoolhouseDashboards = import ./schoolhouse-dashboards.nix { inherit pkgs; };
 in
 {
   imports = [
@@ -104,6 +108,49 @@ in
           passwordFile = config.sops.secrets."schoolhouse/reader_password".path;
           grantRoles = [ "readonly" ];
         };
+
+        # Grafana reads the same store through the same guarantee. Its own
+        # role rather than a shared credential, but the same `readonly`
+        # membership: a dashboard cannot write a child's grade history either.
+        #
+        # Worth being explicit about what this exposes, because it is three
+        # minors' education records. It lands behind Pocket ID on
+        # grafana.${config.networking.domain} — which is a stricter boundary
+        # than answering the same questions conversationally, since that ships
+        # names, courses and grades to a third-party inference API. The
+        # dashboard is the more private surface, not the less.
+        additionalRoles."grafana-schoolhouse" = {
+          passwordFile = config.sops.secrets."schoolhouse/grafana_password".path;
+          grantRoles = [ "readonly" ];
+        };
+
+        grafanaDatasources = [{
+          name = "Schoolhouse";
+          uid = "schoolhouse";
+          integrationName = "schoolhouse";
+          datasourceKey = "schoolhouse";
+          credentialName = "schoolhouse-db-password";
+          folder = "Schoolhouse";
+          host = "127.0.0.1";
+          port = 5432;
+          database = serviceName;
+          user = "grafana-schoolhouse";
+          passwordFile = config.sops.secrets."schoolhouse/grafana_password".path;
+          sslMode = "disable";
+          jsonData = {
+            database = serviceName;
+            postgresVersion = 1700;
+            maxOpenConns = 5;
+            maxIdleConns = 2;
+            connMaxLifetime = 14400;
+          };
+          dashboards = [{
+            name = "Schoolhouse";
+            folder = "Schoolhouse";
+            path = schoolhouseDashboards;
+            attrName = "schoolhouse";
+          }];
+        }];
       };
 
       # Both units must wait for forge's declarative provisioning, not just
