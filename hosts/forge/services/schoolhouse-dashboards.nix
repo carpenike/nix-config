@@ -85,189 +85,191 @@ let
 
   noThresholds = { mode = "absolute"; steps = [{ color = "text"; value = null; }]; };
 
-  dashboard = { title, uid, description, panels, refresh ? "5m" }: {
-    inherit title uid description panels refresh;
-    annotations.list = [ ];
-    editable = false;
-    graphTooltip = 1;
-    schemaVersion = 39;
-    tags = [ "schoolhouse" "household" ];
-    templating.list = [ ];
-    time = { from = "now-30d"; to = "now"; };
-    timezone = "America/New_York";
-    weekStart = "";
+  # A picker over one column. `$__all` expands to every option, so a panel's
+  # SQL needs no special case for "all" — which is why every filtered query
+  # below reads the same whether one child is selected or three.
+  pick = { name, label, sql, allValue ? null }: {
+    inherit name label;
+    type = "query";
+    datasource = datasource;
+    query = sql;
+    definition = sql;
+    multi = true;
+    includeAll = true;
+    inherit allValue;
+    refresh = 1;
+    sort = 1;
+    hide = 0;
+    current = { text = [ "All" ]; value = [ "$__all" ]; };
+    options = [ ];
+    regex = "";
+    skipUrlSync = false;
   };
 
-  # ── ingest health ───────────────────────────────────────────────────
+  childPicker = pick {
+    name = "child";
+    label = "Child";
+    sql = "SELECT display_name FROM children WHERE active ORDER BY display_name";
+  };
+
+  # Chained to the child picker, so choosing one kid narrows the course list
+  # instead of offering every course in the house.
+  coursePicker = pick {
+    name = "course";
+    label = "Course";
+    sql =
+      "SELECT DISTINCT c.title FROM courses c JOIN children ch ON ch.id = c.child_id"
+      # `\${` in a DOUBLE-quoted string; `''${` is the escape for indented
+      # strings only. Written the other way round, Nix reads `child:sqlstring`
+      # as a legacy URI literal and the query builds as `IN (''child:sqlstring)`
+      # — which statix caught and the built JSON confirmed.
+      + " WHERE c.active AND ch.display_name IN (\${child:sqlstring}) ORDER BY c.title";
+  };
+
+  stat = { id, title, description, sql, gridPos, unit ? "", decimals ? 0, steps }: {
+    inherit id title description gridPos;
+    type = "stat";
+    datasource = datasource;
+    targets = [ (query { inherit sql; format = "table"; }) ];
+    fieldConfig = {
+      defaults = {
+        inherit unit decimals;
+        color.mode = "thresholds";
+        thresholds = { mode = "absolute"; inherit steps; };
+      };
+      overrides = [ ];
+    };
+    options = {
+      colorMode = "value";
+      graphMode = "none";
+      justifyMode = "auto";
+      orientation = "auto";
+      reduceOptions = { calcs = [ "lastNotNull" ]; fields = ""; values = false; };
+      textMode = "auto";
+    };
+  };
+
+  table = { id, title, description, sql, gridPos, overrides ? [ ], sortBy ? [ ] }: {
+    inherit id title description gridPos;
+    type = "table";
+    datasource = datasource;
+    targets = [ (query { inherit sql; format = "table"; }) ];
+    fieldConfig = {
+      defaults = {
+        custom = {
+          align = "auto";
+          cellOptions.type = "auto";
+          filterable = true;
+          inspect = false;
+        };
+        thresholds = noThresholds;
+      };
+      inherit overrides;
+    };
+    options = tableOptions // { inherit sortBy; };
+  };
+
+  dashboard =
+    { title
+    , uid
+    , description
+    , panels
+    , refresh ? "5m"
+    , variables ? [ ]
+    , from ? "now-30d"
+    }: {
+      inherit title uid description panels refresh;
+      annotations.list = [ ];
+      editable = false;
+      graphTooltip = 1;
+      schemaVersion = 39;
+      tags = [ "schoolhouse" "household" ];
+      templating.list = variables;
+      time = { inherit from; to = "now"; };
+      timezone = "America/New_York";
+      weekStart = "";
+    };
+
+
+  # ── 1. is the sync working ──────────────────────────────────────────
+  # Operator board. No child data at all, so it answers "is it running"
+  # without putting a grade on screen to do it.
   health = dashboard {
-    title = "Schoolhouse — Ingest health";
+    title = "Schoolhouse — Sync health";
     uid = "schoolhouse-health";
     description =
-      "Whether the scraper is reading everything it fetches. `partial` is the "
-      + "normal steady state, not an error: it means at least one page carried "
-      + "something the parsers declined to guess at.";
+      "Whether the scraper is running and reading everything it fetches. "
+      + "`partial` is not a fault: it means a parser declined to guess. The "
+      + "queue itself lives on its own board.";
     panels = [
-      {
+      (stat {
         id = 1;
-        type = "stat";
-        title = "Last run";
-        description = "Age of the most recent scraper run. The timer is 7am and 4pm on weekdays, so anything past ~18h is stale.";
-        datasource = datasource;
-        gridPos = gridPos 4 6 0 0;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''
-              SELECT EXTRACT(EPOCH FROM now() - max(finished_at)) / 3600 AS "Hours"
-              FROM ingest_runs WHERE source = 'scraper' AND finished_at IS NOT NULL
-            '';
-          })
+        title = "Since last run";
+        description = "The timer is 7am and 4pm on weekdays, so past ~18h is stale.";
+        gridPos = gridPos 5 6 0 0;
+        unit = "h";
+        decimals = 1;
+        sql = ''
+          SELECT EXTRACT(EPOCH FROM now() - max(finished_at)) / 3600 AS "Hours"
+          FROM ingest_runs WHERE source = 'scraper' AND finished_at IS NOT NULL
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 18; }
+          { color = colors.red; value = 36; }
         ];
-        fieldConfig = {
-          defaults = {
-            unit = "h";
-            decimals = 1;
-            color.mode = "thresholds";
-            thresholds = {
-              mode = "absolute";
-              steps = [
-                { color = colors.green; value = null; }
-                { color = colors.amber; value = 18; }
-                { color = colors.red; value = 36; }
-              ];
-            };
-          };
-          overrides = [ ];
-        };
-        options = {
-          colorMode = "value";
-          graphMode = "none";
-          justifyMode = "auto";
-          orientation = "auto";
-          reduceOptions = { calcs = [ "lastNotNull" ]; fields = ""; values = false; };
-          textMode = "auto";
-        };
-      }
-      {
+      })
+      (stat {
         id = 2;
-        type = "stat";
-        title = "Open gaps";
-        description = "Distinct things the parsers could not read. NOT the same as `parsers_pending`, which counts payloads and runs several times higher.";
-        datasource = datasource;
-        gridPos = gridPos 4 6 6 0;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''SELECT count(*)::int AS "Gaps" FROM open_parser_gaps'';
-          })
-        ];
-        fieldConfig = {
-          defaults = {
-            color.mode = "thresholds";
-            thresholds = {
-              mode = "absolute";
-              steps = [
-                { color = colors.green; value = null; }
-                { color = colors.amber; value = 1; }
-                { color = colors.red; value = 15; }
-              ];
-            };
-          };
-          overrides = [ ];
-        };
-        options = {
-          colorMode = "value";
-          graphMode = "none";
-          justifyMode = "auto";
-          orientation = "auto";
-          reduceOptions = { calcs = [ "lastNotNull" ]; fields = ""; values = false; };
-          textMode = "auto";
-        };
-      }
-      {
+        title = "Pages read";
+        description = "Grew from 69 to ~141 as folder walking and the To Do page were added.";
+        gridPos = gridPos 5 6 6 0;
+        sql = ''
+          SELECT pages_fetched::int AS "Pages" FROM ingest_runs
+          WHERE source = 'scraper' AND finished_at IS NOT NULL
+          ORDER BY id DESC LIMIT 1
+        '';
+        steps = [{ color = colors.blue; value = null; }];
+      })
+      (stat {
         id = 3;
-        type = "stat";
-        title = "Needs a person";
-        description = "Gaps whose `actionable` flag is true. A gap waiting on a date that has not arrived is excluded — there is genuinely nothing to learn from it yet.";
-        datasource = datasource;
-        gridPos = gridPos 4 6 12 0;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''SELECT count(*)::int AS "Actionable" FROM open_parser_gaps WHERE actionable'';
-          })
+        title = "Held back";
+        description =
+          "Payloads whose records were discarded because a parser could not "
+          + "trust them. Zero is the normal state; anything else means a page "
+          + "changed shape.";
+        gridPos = gridPos 5 6 12 0;
+        sql = ''
+          SELECT parsers_pending::int AS "Held" FROM ingest_runs
+          WHERE source = 'scraper' AND finished_at IS NOT NULL
+          ORDER BY id DESC LIMIT 1
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.red; value = 1; }
         ];
-        fieldConfig = {
-          defaults = {
-            color.mode = "thresholds";
-            thresholds = {
-              mode = "absolute";
-              steps = [
-                { color = colors.green; value = null; }
-                { color = colors.amber; value = 1; }
-              ];
-            };
-          };
-          overrides = [ ];
-        };
-        options = {
-          colorMode = "value";
-          graphMode = "none";
-          justifyMode = "auto";
-          orientation = "auto";
-          reduceOptions = { calcs = [ "lastNotNull" ]; fields = ""; values = false; };
-          textMode = "auto";
-        };
-      }
-      {
+      })
+      (stat {
         id = 4;
-        type = "stat";
-        title = "Held back last run";
-        description = "Payloads whose records were discarded because the parser could not trust them. Zero is the goal and the normal state.";
-        datasource = datasource;
-        gridPos = gridPos 4 6 18 0;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''
-              SELECT parsers_pending::int AS "Pending"
-              FROM ingest_runs WHERE source = 'scraper'
-              ORDER BY id DESC LIMIT 1
-            '';
-          })
+        title = "Open gaps";
+        description = "Detail on the Review queue board.";
+        gridPos = gridPos 5 6 18 0;
+        sql = ''SELECT count(*)::int AS "Gaps" FROM open_parser_gaps'';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 1; }
+          { color = colors.red; value = 15; }
         ];
-        fieldConfig = {
-          defaults = {
-            color.mode = "thresholds";
-            thresholds = {
-              mode = "absolute";
-              steps = [
-                { color = colors.green; value = null; }
-                { color = colors.red; value = 1; }
-              ];
-            };
-          };
-          overrides = [ ];
-        };
-        options = {
-          colorMode = "value";
-          graphMode = "none";
-          justifyMode = "auto";
-          orientation = "auto";
-          reduceOptions = { calcs = [ "lastNotNull" ]; fields = ""; values = false; };
-          textMode = "auto";
-        };
-      }
+      })
       {
         id = 5;
         type = "timeseries";
         title = "What each run saw";
         description =
-          "`records_seen` counts normalized records from batches that were "
-          + "trusted. A drop with no page drop means a parser started refusing "
-          + "something — which is the signal, not a fault.";
+          "A drop in records with no drop in pages means a parser started "
+          + "refusing something — the signal, not a fault.";
         datasource = datasource;
-        gridPos = gridPos 8 12 0 4;
+        gridPos = gridPos 9 24 0 5;
         targets = [
           (query {
             sql = ''
@@ -297,216 +299,164 @@ let
         };
         options = timeSeriesOptions;
       }
-      {
-        id = 6;
-        type = "timeseries";
-        title = "Gaps over time";
-        description = "Open gaps per run against payloads held back. The two move independently on purpose.";
-        datasource = datasource;
-        gridPos = gridPos 8 12 12 4;
-        targets = [
-          (query {
-            sql = ''
-              SELECT finished_at AS time,
-                     open_gaps::double precision AS "Open gaps",
-                     parsers_pending::double precision AS "Held back"
-              FROM ingest_runs
-              WHERE source = 'scraper' AND finished_at IS NOT NULL
-                AND $__timeFilter(finished_at)
-              ORDER BY finished_at
-            '';
-          })
-        ];
-        fieldConfig = {
-          defaults = {
-            color.mode = "palette-classic";
-            custom = timeSeriesCustom { fillOpacity = 18; };
-            thresholds = noThresholds;
-          };
-          overrides = [
-            (fieldOverride "Open gaps" [{
-              id = "color";
-              value = { fixedColor = colors.amber; mode = "fixed"; };
-            }])
-            (fieldOverride "Held back" [{
-              id = "color";
-              value = { fixedColor = colors.red; mode = "fixed"; };
-            }])
-          ];
-        };
-        options = timeSeriesOptions;
-      }
-      {
-        id = 7;
-        type = "table";
-        title = "The queue";
-        description =
-          "Worst first. `affects` is the answer a gap qualifies, so a row here "
-          + "means that answer may be incomplete. `seen` is how many runs it has "
-          + "survived — a high count on a low severity is usually a shape nobody "
-          + "has decided about yet, not neglect.";
-        datasource = datasource;
-        gridPos = gridPos 10 24 0 12;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''
-              SELECT severity AS "Sev",
-                     affects AS "Affects",
-                     COALESCE(child_name, 'all children') AS "Child",
-                     COALESCE(course_title, NULLIF(section_id, '''), ''') AS "Course",
-                     kind AS "Page",
-                     reason AS "Reason",
-                     times_seen AS "Seen",
-                     actionable AS "Actionable",
-                     detail::text AS "Evidence"
-              FROM open_parser_gaps
-              ORDER BY severity, last_seen_at DESC
-            '';
-          })
-        ];
-        fieldConfig = {
-          defaults = {
-            custom = {
-              align = "auto";
-              cellOptions.type = "auto";
-              filterable = true;
-              inspect = false;
-            };
-            thresholds = noThresholds;
-          };
-          overrides = [
-            (fieldOverride "Sev" [
-              {
-                id = "custom.cellOptions";
-                value = { type = "color-background"; mode = "gradient"; };
-              }
-              {
-                id = "thresholds";
-                value = {
-                  mode = "absolute";
-                  steps = [
-                    { color = colors.red; value = null; }
-                    { color = colors.amber; value = 3; }
-                    { color = colors.gray; value = 5; }
-                  ];
-                };
-              }
-              { id = "custom.width"; value = 60; }
-            ])
-            (fieldOverride "Evidence" [{ id = "custom.width"; value = 380; }])
-          ];
-        };
-        options = tableOptions // {
-          sortBy = [{ desc = false; displayName = "Sev"; }];
-        };
-      }
     ];
   };
 
-  # ── what the store actually knows ───────────────────────────────────
-  school = dashboard {
-    title = "Schoolhouse — Coverage and grades";
-    uid = "schoolhouse-school";
+  # ── 2. the worklist ─────────────────────────────────────────────────
+  queue = dashboard {
+    title = "Schoolhouse — Review queue";
+    uid = "schoolhouse-queue";
     description =
-      "What the store holds per child. Coverage matters as much as the numbers: "
-      + "an assignment with no due date cannot be placed in a week, and for a "
-      + "long time most of them had none.";
+      "What the ingest could not read, worst first. `affects` names the ANSWER "
+      + "a row qualifies, so anything listed here means that answer may be "
+      + "incomplete. Evidence is kept in its own panel so the worklist stays "
+      + "scannable.";
+    variables = [
+      childPicker
+      (pick {
+        name = "affects";
+        label = "Affects";
+        sql = ''
+          SELECT unnest(ARRAY['missing_work','upcoming_work','grades',
+                              'announcements','courses','staff','other']) ORDER BY 1
+        '';
+      })
+    ];
+    panels = [
+      (stat {
+        id = 1;
+        title = "Open";
+        description = "Distinct blind spots, not affected payloads.";
+        gridPos = gridPos 4 8 0 0;
+        sql = ''
+          SELECT count(*)::int AS "Open" FROM open_parser_gaps
+          WHERE affects IN (''${affects:sqlstring})
+            AND (child_name IS NULL OR child_name IN (''${child:sqlstring}))
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 1; }
+        ];
+      })
+      (stat {
+        id = 2;
+        title = "Needs a person";
+        description =
+          "Excludes anything waiting on a date that has not arrived — there is "
+          + "genuinely nothing to learn from those yet.";
+        gridPos = gridPos 4 8 8 0;
+        sql = ''
+          SELECT count(*)::int AS "Actionable" FROM open_parser_gaps
+          WHERE actionable AND affects IN (''${affects:sqlstring})
+            AND (child_name IS NULL OR child_name IN (''${child:sqlstring}))
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 1; }
+        ];
+      })
+      (stat {
+        id = 3;
+        title = "Longest open";
+        description = "Days since the oldest listed gap was first raised.";
+        gridPos = gridPos 4 8 16 0;
+        unit = "d";
+        sql = ''
+          SELECT COALESCE(EXTRACT(EPOCH FROM now() - min(first_seen_at)) / 86400, 0) AS "Days"
+          FROM open_parser_gaps
+          WHERE affects IN (''${affects:sqlstring})
+            AND (child_name IS NULL OR child_name IN (''${child:sqlstring}))
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 7; }
+          { color = colors.red; value = 30; }
+        ];
+      })
+      (table {
+        id = 4;
+        title = "Worklist";
+        description = "Seven columns, worst first. The evidence is below.";
+        gridPos = gridPos 9 24 0 4;
+        sql = ''
+          SELECT severity AS "Sev",
+                 affects AS "Affects",
+                 COALESCE(child_name, 'all') AS "Child",
+                 COALESCE(course_title, NULLIF(section_id, '''), ''') AS "Course",
+                 reason AS "Reason",
+                 times_seen AS "Seen",
+                 actionable AS "Now"
+          FROM open_parser_gaps
+          WHERE affects IN (''${affects:sqlstring})
+            AND (child_name IS NULL OR child_name IN (''${child:sqlstring}))
+          ORDER BY severity, last_seen_at DESC
+        '';
+        sortBy = [{ desc = false; displayName = "Sev"; }];
+        overrides = [
+          (fieldOverride "Sev" [
+            { id = "custom.cellOptions"; value = { type = "color-background"; mode = "gradient"; }; }
+            {
+              id = "thresholds";
+              value = {
+                mode = "absolute";
+                steps = [
+                  { color = colors.red; value = null; }
+                  { color = colors.amber; value = 3; }
+                  { color = colors.gray; value = 5; }
+                ];
+              };
+            }
+            { id = "custom.width"; value = 60; }
+          ])
+          (fieldOverride "Seen" [{ id = "custom.width"; value = 70; }])
+          (fieldOverride "Now" [{ id = "custom.width"; value = 70; }])
+        ];
+      })
+      (table {
+        id = 5;
+        title = "Evidence";
+        description =
+          "What each gap actually saw. This is what a fixture is captured "
+          + "from, so it is the difference between a worklist and a to-do list.";
+        gridPos = gridPos 8 24 0 13;
+        sql = ''
+          SELECT COALESCE(child_name, 'all') AS "Child",
+                 kind AS "Page",
+                 reason AS "Reason",
+                 detail::text AS "Saw"
+          FROM open_parser_gaps
+          WHERE affects IN (''${affects:sqlstring})
+            AND (child_name IS NULL OR child_name IN (''${child:sqlstring}))
+          ORDER BY severity, last_seen_at DESC
+        '';
+        overrides = [ (fieldOverride "Saw" [{ id = "custom.width"; value = 620; }]) ];
+      })
+    ];
+  };
+
+  # ── 3. grades ───────────────────────────────────────────────────────
+  # The trajectory chart is why this board has filters. Unfiltered it draws
+  # one line per child-and-course — twelve of them from eighteen points on
+  # the day this was written, and worse every week. One child at a time is
+  # the only way it reads as anything.
+  grades = dashboard {
+    title = "Schoolhouse — Grades";
+    uid = "schoolhouse-grades";
+    description =
+      "Course grades and how they moved. `course_grades` only appends when a "
+      + "value changes, so the line is real history rather than a resampled "
+      + "snapshot. A letter-only grade carries no percentage and appears in "
+      + "the table but not the chart.";
+    from = "now-90d";
+    variables = [ childPicker coursePicker ];
     panels = [
       {
         id = 1;
-        type = "table";
-        title = "Coverage by child";
-        description =
-          "`Dated` is the one that decides whether 'what is due Thursday' can "
-          + "be answered at all. Points arrive only once something is graded.";
-        datasource = datasource;
-        gridPos = gridPos 7 12 0 0;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''
-              SELECT ch.display_name AS "Child",
-                     count(*) AS "Assignments",
-                     count(*) FILTER (WHERE a.due_at IS NOT NULL) AS "Dated",
-                     count(*) FILTER (WHERE a.points_possible IS NOT NULL) AS "Pointed",
-                     count(*) FILTER (WHERE a.due_at > now()) AS "Still ahead"
-              FROM assignments a
-              JOIN courses c ON c.id = a.course_id
-              JOIN children ch ON ch.id = c.child_id
-              WHERE c.active
-              GROUP BY ch.display_name
-              ORDER BY ch.display_name
-            '';
-          })
-        ];
-        fieldConfig = {
-          defaults = {
-            custom = { align = "auto"; cellOptions.type = "auto"; filterable = false; inspect = false; };
-            thresholds = noThresholds;
-          };
-          overrides = [ ];
-        };
-        options = tableOptions;
-      }
-      {
-        id = 2;
-        type = "table";
-        title = "Outstanding, by due date";
-        description =
-          "Work Schoology itself reports as not turned in. Lateness is NOT read "
-          + "from the page — that endpoint labels work due in five days '4 days "
-          + "overdue' — it is computed here from the due date.";
-        datasource = datasource;
-        gridPos = gridPos 7 12 12 0;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''
-              SELECT ch.display_name AS "Child",
-                     c.title AS "Course",
-                     a.title AS "Work",
-                     a.due_at AT TIME ZONE 'America/New_York' AS "Due",
-                     CASE WHEN a.due_at < now() THEN 'late' ELSE 'ahead' END AS "State"
-              FROM assignments a
-              JOIN courses c ON c.id = a.course_id
-              JOIN children ch ON ch.id = c.child_id
-              JOIN latest_assignment_state s ON s.assignment_id = a.id
-              WHERE s.status = 'assigned' AND a.due_at IS NOT NULL AND c.active
-              ORDER BY a.due_at
-            '';
-          })
-        ];
-        fieldConfig = {
-          defaults = {
-            custom = { align = "auto"; cellOptions.type = "auto"; filterable = true; inspect = false; };
-            thresholds = noThresholds;
-          };
-          overrides = [
-            (fieldOverride "State" [{
-              id = "mappings";
-              value = [{
-                type = "value";
-                options = {
-                  late = { color = colors.red; index = 0; text = "late"; };
-                  ahead = { color = colors.green; index = 1; text = "ahead"; };
-                };
-              }];
-            }])
-          ];
-        };
-        options = tableOptions;
-      }
-      {
-        id = 3;
         type = "timeseries";
-        title = "Course grades over the term";
-        description =
-          "`course_grades` is append-only and only appends on change, so this is "
-          + "real history rather than a resampled snapshot. Letter-only grades "
-          + "carry no percentage and do not appear here.";
+        title = "How each grade has moved";
+        description = "Pick one child to read it. Points, not lines, where a course has a single observation.";
         datasource = datasource;
-        gridPos = gridPos 10 24 0 7;
+        gridPos = gridPos 11 24 0 0;
         targets = [
           (query {
             sql = ''
@@ -516,7 +466,11 @@ let
               FROM course_grades g
               JOIN courses c ON c.id = g.course_id
               JOIN children ch ON ch.id = c.child_id
-              WHERE g.percent IS NOT NULL AND $__timeFilter(g.observed_at)
+              WHERE g.percent IS NOT NULL
+                AND c.active
+                AND ch.display_name IN (''${child:sqlstring})
+                AND c.title IN (''${course:sqlstring})
+                AND $__timeFilter(g.observed_at)
               ORDER BY g.observed_at
             '';
           })
@@ -525,7 +479,7 @@ let
           defaults = {
             unit = "percent";
             min = 0;
-            max = 100;
+            max = 105;
             color.mode = "palette-classic";
             custom = timeSeriesCustom { fillOpacity = 0; showPoints = "always"; };
             thresholds = noThresholds;
@@ -534,74 +488,189 @@ let
         };
         options = timeSeriesOptions;
       }
-      {
-        id = 4;
-        type = "table";
+      (table {
+        id = 2;
         title = "Where each course stands";
-        description = "The latest observation per course and marking period, including letter-only grades.";
-        datasource = datasource;
-        gridPos = gridPos 9 24 0 17;
-        targets = [
-          (query {
-            format = "table";
-            sql = ''
-              SELECT ch.display_name AS "Child",
-                     c.title AS "Course",
-                     COALESCE(NULLIF(c.period, '''), '—') AS "Period",
-                     COALESCE(s.display_name, c.teacher) AS "Teacher",
-                     g.grading_period AS "Term",
-                     g.percent AS "Percent",
-                     NULLIF(g.letter, ''') AS "Letter",
-                     g.observed_at AT TIME ZONE 'America/New_York' AS "Observed"
-              FROM latest_course_grade g
-              JOIN courses c ON c.id = g.course_id
-              JOIN children ch ON ch.id = c.child_id
-              LEFT JOIN staff s ON s.schoology_uid = c.teacher_uid
-              WHERE c.active
-              ORDER BY ch.display_name, c.title
-            '';
-          })
+        description = "Latest observation per course and marking period, including letter-only grades.";
+        gridPos = gridPos 10 24 0 11;
+        sql = ''
+          SELECT ch.display_name AS "Child",
+                 c.title AS "Course",
+                 COALESCE(s.display_name, NULLIF(c.teacher, '''), '—') AS "Teacher",
+                 g.percent AS "Percent",
+                 NULLIF(g.letter, ''') AS "Letter",
+                 g.observed_at AT TIME ZONE 'America/New_York' AS "As of"
+          FROM latest_course_grade g
+          JOIN courses c ON c.id = g.course_id
+          JOIN children ch ON ch.id = c.child_id
+          LEFT JOIN staff s ON s.schoology_uid = c.teacher_uid
+          WHERE c.active
+            AND ch.display_name IN (''${child:sqlstring})
+            AND c.title IN (''${course:sqlstring})
+          ORDER BY ch.display_name, c.title
+        '';
+        overrides = [
+          (fieldOverride "Percent" [
+            { id = "unit"; value = "percent"; }
+            { id = "decimals"; value = 1; }
+            { id = "custom.cellOptions"; value = { type = "color-text"; }; }
+            {
+              id = "thresholds";
+              value = {
+                mode = "absolute";
+                steps = [
+                  { color = colors.red; value = null; }
+                  { color = colors.amber; value = 70; }
+                  { color = colors.green; value = 85; }
+                ];
+              };
+            }
+          ])
+          (fieldOverride "Letter" [{ id = "custom.width"; value = 80; }])
         ];
-        fieldConfig = {
-          defaults = {
-            custom = { align = "auto"; cellOptions.type = "auto"; filterable = true; inspect = false; };
-            thresholds = noThresholds;
-          };
-          overrides = [
-            (fieldOverride "Percent" [
-              { id = "unit"; value = "percent"; }
-              { id = "decimals"; value = 1; }
-              {
-                id = "custom.cellOptions";
-                value = { type = "color-text"; };
-              }
-              {
-                id = "thresholds";
-                value = {
-                  mode = "absolute";
-                  steps = [
-                    { color = colors.red; value = null; }
-                    { color = colors.amber; value = 70; }
-                    { color = colors.green; value = 85; }
-                  ];
+      })
+    ];
+  };
+
+  # ── 4. work ─────────────────────────────────────────────────────────
+  work = dashboard {
+    title = "Schoolhouse — Work";
+    uid = "schoolhouse-work";
+    description =
+      "What is outstanding and what is coming. Lateness is computed from the "
+      + "due date, never read from Schoology's own wording — that page labels "
+      + "work due in five days '4 days overdue'.";
+    from = "now-7d";
+    variables = [ childPicker ];
+    panels = [
+      (stat {
+        id = 1;
+        title = "Late";
+        description = "Reported outstanding and past its due date.";
+        gridPos = gridPos 4 8 0 0;
+        sql = ''
+          SELECT count(*)::int AS "Late"
+          FROM assignments a
+          JOIN courses c ON c.id = a.course_id
+          JOIN children ch ON ch.id = c.child_id
+          JOIN latest_assignment_state s ON s.assignment_id = a.id
+          WHERE s.status = 'assigned' AND c.active AND a.due_at < now()
+            AND ch.display_name IN (''${child:sqlstring})
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 1; }
+          { color = colors.red; value = 5; }
+        ];
+      })
+      (stat {
+        id = 2;
+        title = "Due in 7 days";
+        gridPos = gridPos 4 8 8 0;
+        description = "Everything dated in the coming week, whatever its state.";
+        sql = ''
+          SELECT count(*)::int AS "Due"
+          FROM assignments a
+          JOIN courses c ON c.id = a.course_id
+          JOIN children ch ON ch.id = c.child_id
+          WHERE c.active AND a.due_at BETWEEN now() AND now() + interval '7 days'
+            AND ch.display_name IN (''${child:sqlstring})
+        '';
+        steps = [{ color = colors.blue; value = null; }];
+      })
+      (stat {
+        id = 3;
+        title = "Undated";
+        description =
+          "Work the store knows about but cannot place in time, so it can "
+          + "never appear in a 'what is due this week' answer. Materials "
+          + "carries no due date; the gradebook and the To Do page do.";
+        gridPos = gridPos 4 8 16 0;
+        sql = ''
+          SELECT count(*)::int AS "Undated"
+          FROM assignments a
+          JOIN courses c ON c.id = a.course_id
+          JOIN children ch ON ch.id = c.child_id
+          WHERE c.active AND a.due_at IS NULL
+            AND ch.display_name IN (''${child:sqlstring})
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 1; }
+        ];
+      })
+      (table {
+        id = 4;
+        title = "Outstanding, soonest first";
+        description = "Schoology reports these as not turned in. `State` is computed here from the due date.";
+        gridPos = gridPos 9 24 0 4;
+        sql = ''
+          SELECT ch.display_name AS "Child",
+                 c.title AS "Course",
+                 a.title AS "Work",
+                 a.due_at AT TIME ZONE 'America/New_York' AS "Due",
+                 CASE WHEN a.due_at < now() THEN 'late' ELSE 'ahead' END AS "State"
+          FROM assignments a
+          JOIN courses c ON c.id = a.course_id
+          JOIN children ch ON ch.id = c.child_id
+          JOIN latest_assignment_state s ON s.assignment_id = a.id
+          WHERE s.status = 'assigned' AND a.due_at IS NOT NULL AND c.active
+            AND ch.display_name IN (''${child:sqlstring})
+          ORDER BY a.due_at
+        '';
+        overrides = [
+          (fieldOverride "State" [
+            { id = "custom.cellOptions"; value = { type = "color-text"; }; }
+            {
+              id = "mappings";
+              value = [{
+                type = "value";
+                options = {
+                  late = { color = colors.red; index = 0; text = "late"; };
+                  ahead = { color = colors.green; index = 1; text = "ahead"; };
                 };
-              }
-            ])
-          ];
-        };
-        options = tableOptions;
-      }
+              }];
+            }
+            { id = "custom.width"; value = 90; }
+          ])
+        ];
+      })
+      (table {
+        id = 5;
+        title = "Coverage";
+        description =
+          "`Dated` is what decides whether 'what is due Thursday' can be "
+          + "answered at all. Points arrive only once something is graded.";
+        gridPos = gridPos 7 24 0 13;
+        sql = ''
+          SELECT ch.display_name AS "Child",
+                 count(*) AS "Known",
+                 count(*) FILTER (WHERE a.due_at IS NOT NULL) AS "Dated",
+                 count(*) FILTER (WHERE a.points_possible IS NOT NULL) AS "Pointed",
+                 count(*) FILTER (WHERE a.due_at > now()) AS "Still ahead"
+          FROM assignments a
+          JOIN courses c ON c.id = a.course_id
+          JOIN children ch ON ch.id = c.child_id
+          WHERE c.active AND ch.display_name IN (''${child:sqlstring})
+          GROUP BY ch.display_name
+          ORDER BY ch.display_name
+        '';
+      })
     ];
   };
 
   healthJson = pkgs.writeText "schoolhouse-health.json" (builtins.toJSON health);
-  schoolJson = pkgs.writeText "schoolhouse-school.json" (builtins.toJSON school);
+  queueJson = pkgs.writeText "schoolhouse-queue.json" (builtins.toJSON queue);
+  gradesJson = pkgs.writeText "schoolhouse-grades.json" (builtins.toJSON grades);
+  workJson = pkgs.writeText "schoolhouse-work.json" (builtins.toJSON work);
 in
 pkgs.runCommand "schoolhouse-grafana-dashboards"
 {
-  passthru.dashboardDefinitions = { inherit health school; };
+  passthru.dashboardDefinitions = { inherit health queue grades work; };
 } ''
   mkdir -p "$out"
-  cp ${healthJson} "$out/ingest-health.json"
-  cp ${schoolJson} "$out/coverage-and-grades.json"
+  cp ${healthJson} "$out/sync-health.json"
+  cp ${queueJson} "$out/review-queue.json"
+  cp ${gradesJson} "$out/grades.json"
+  cp ${workJson} "$out/work.json"
 ''
