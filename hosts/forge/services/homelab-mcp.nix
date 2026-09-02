@@ -182,6 +182,11 @@ in
               "finances_breaches"
               "finances_room"
               "finances_reconcile"
+              # finances DECISIONS 2026-09-02: the amortization solver behind
+              # the monthly loan adjustments. Advisor-only; the sentinel
+              # composes it server-side, so hermes needs no grant.
+              "finances_loan_adjustments"
+              "finances_loan_adjustment_post"
               "finances_subscriptions"
               "finances_net_worth"
               "finances_payoff_projection"
