@@ -186,6 +186,7 @@ in
               # the monthly loan adjustments. Advisor-only; the sentinel
               # composes it server-side, so hermes needs no grant.
               "finances_loan_adjustments"
+              "finances_loan_adjustment_post"
               "finances_subscriptions"
               "finances_net_worth"
               "finances_payoff_projection"
