@@ -33,9 +33,15 @@ let
       gpg_signature="$challenge.gpg"
       ssh_public_key_file="$challenge.pub"
       sops_file="$challenge.sops.yaml"
+      card_status_error="$challenge.card-status-error"
 
       cleanup() {
-        rm -f "$challenge" "$gpg_signature" "$ssh_public_key_file" "$sops_file"
+        rm -f \
+          "$challenge" \
+          "$gpg_signature" \
+          "$ssh_public_key_file" \
+          "$sops_file" \
+          "$card_status_error"
       }
       trap cleanup EXIT
 
@@ -44,7 +50,28 @@ let
       echo "ready"
 
       printf 'Checking YubiKey... '
-      gpg --card-status >/dev/null
+      card_ready=false
+      for attempt in 1 2 3; do
+        if gpg --card-status >/dev/null 2>"$card_status_error"; then
+          card_ready=true
+          break
+        fi
+
+        if [[ "$(<"$card_status_error")" != *"OpenPGP card not available: General error"* ]]; then
+          cat "$card_status_error" >&2
+          exit 1
+        fi
+
+        if (( attempt < 3 )); then
+          printf 'waiting... '
+          sleep 1
+        fi
+      done
+
+      if [[ "$card_ready" != true ]]; then
+        cat "$card_status_error" >&2
+        exit 1
+      fi
       echo "ready"
 
       printf 'Unlocking GPG signing key... '
