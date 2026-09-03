@@ -212,6 +212,122 @@ in
           "Schoolhouse"
           "Schoology ingest health probe";
 
+      # Scrape the same process Gatus probes. /healthz answers as a verdict
+      # for the status page; /metrics publishes the underlying timestamp so
+      # the alerting threshold can live in PromQL, where the ingest schedule
+      # is actually expressible. Loopback-only, like the probe.
+      services.prometheus.scrapeConfigs = [{
+        job_name = "service-schoolhouse";
+        metrics_path = "/metrics";
+        # The gauges are four SELECTs against a small table; there is no
+        # reason to ask more often than the data can change, and the ingest
+        # changes it three times a day.
+        scrape_interval = "60s";
+        scrape_timeout = "10s";
+        static_configs = [{
+          targets = [ "${listenAddr}:${toString listenPort}" ];
+          labels = {
+            host = config.networking.hostName;
+            service = serviceName;
+          };
+        }];
+      }];
+
+      # The alert that matters, and the reason /metrics exists at all.
+      #
+      # A flat "older than N hours" cannot describe this ingest. It runs
+      # weekdays only, so Friday evening to Monday morning is ~59 hours of
+      # entirely legitimate silence — stale_after_hours = 18 calls that a
+      # fault, and would page every Saturday if the Gatus alert it feeds
+      # could send at all.
+      #
+      # So the window is stated instead of the threshold. Evaluate only on
+      # weekdays, and only from 14:00 UTC, which is 10:00 EDT / 09:00 EST —
+      # comfortably after the 07:00 run plus its 15 minutes of jitter, in
+      # both halves of the year. PromQL's hour() and day_of_week() are UTC
+      # and have no idea the district is in America/New_York, so the guard
+      # is chosen to be correct across the DST boundary rather than exact.
+      #
+      # 12h, not 14h: inside that window a healthy service is ~3 hours stale,
+      # and a single missed morning run puts it at ~13-14. 12 separates those
+      # cleanly, where 14 would sit right on top of the failure it is meant
+      # to catch.
+      modules.alerting.rules."${serviceName}-ingest-stale" = {
+        type = "promql";
+        alertname = "SchoolhouseIngestStale";
+        expr = ''
+          (time() - schoolhouse_last_successful_ingest_timestamp_seconds) > 12 * 3600
+            and on() (day_of_week() > 0 < 6)
+            and on() (hour() >= 14)
+        '';
+        for = "30m";
+        severity = "high";
+        labels = { service = serviceName; category = "availability"; };
+        annotations = {
+          summary = "Schoolhouse ingest has not succeeded in over 12 hours";
+          description =
+            "The last ingest run finished more than 12 hours ago on a school "
+            + "day. Grades, assignments and missing work are all frozen at "
+            + "that point, and nothing about the UI will say so. Check "
+            + "`journalctl -u schoolhouse-ingest -n 50` for a LoginFailedError, "
+            + "which means the captured form shape drifted.";
+        };
+      };
+
+      # Distinguishable from the process being gone, which is what the
+      # systemd rule above already covers. `up == 0` cannot tell those apart.
+      modules.alerting.rules."${serviceName}-database-unreachable" = {
+        type = "promql";
+        alertname = "SchoolhouseDatabaseUnreachable";
+        expr = "schoolhouse_database_up == 0";
+        for = "10m";
+        severity = "medium";
+        labels = { service = serviceName; category = "availability"; };
+        annotations = {
+          summary = "Schoolhouse cannot reach its database";
+          description =
+            "The health endpoint is serving but its Postgres queries are "
+            + "failing. The ingest writes through the same database, so it "
+            + "is almost certainly failing too.";
+        };
+      };
+
+      # The failure this whole service was built around was never a crash.
+      # Runs kept succeeding while the records they saw fell away underneath
+      # — 643, then 558, then 532 — because teachers had moved content to
+      # linked sections the parser did not follow. Nothing alerted, because
+      # from the outside a scraper seeing less looks exactly like a quieter
+      # week at school.
+      #
+      # Low severity and a long `for` on purpose: this compares against a
+      # 14-day average, so it will also fire once at the end of a term when
+      # the drop is real and expected. That is the known cost of catching
+      # the silent version, and it is the rule to watch if it gets noisy.
+      modules.alerting.rules."${serviceName}-records-collapsed" = {
+        type = "promql";
+        alertname = "SchoolhouseRecordsCollapsed";
+        expr = ''
+          schoolhouse_last_run_records_seen
+            < 0.5 * avg_over_time(schoolhouse_last_run_records_seen[14d])
+        '';
+        for = "6h";
+        severity = "low";
+        labels = { service = serviceName; category = "correctness"; };
+        annotations = {
+          summary = "Schoolhouse is seeing half the records it used to";
+          description =
+            "The most recent ingest parsed far fewer records than the "
+            + "fortnight average while still reporting success. That is what "
+            + "a parser going blind looks like from the outside. Check the "
+            + "review queue for newly opened gaps.";
+        };
+      };
+
+      # Open parser gaps are deliberately NOT alerted on. They are a review
+      # queue with a dashboard, expected to be non-empty, and cleared by
+      # somebody reading them — paging on a work queue is how a queue becomes
+      # furniture people mute.
+
       # Deliberately NOT contributed to homepage: the dashboard is shared,
       # and a tile linking to three children's grades does not belong on it.
       # There is also nothing to link to — this unit serves only /healthz.
