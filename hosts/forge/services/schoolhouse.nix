@@ -3,9 +3,13 @@
 #
 # Two units from one package, sharing a Postgres schema and nothing else:
 #
-#   schoolhouse-ingest.service   oneshot, twice daily on weekdays. Holds the
-#                                Schoology credentials and does the fragile
-#                                work (login, fetch, parse).
+#   schoolhouse-ingest.service   oneshot, three times daily on weekdays. Holds
+#                                the Schoology credentials and does the fragile
+#                                work (login, fetch, parse). The 20:00 run
+#                                exists because an assignment due 23:59 is not
+#                                yet late at 16:00, so with only a morning and
+#                                an afternoon run its first verdict landed the
+#                                next day — after the deadline had passed.
 #   schoolhouse.service          health endpoint. Serves exactly one route,
 #                                /healthz, so Gatus can alert on a sync that
 #                                quietly stopped.
@@ -82,8 +86,15 @@ in
           # "due Thursday" means Thursday here rather than 7:59pm UTC.
           timezone = "America/New_York";
           # /healthz flips to 503 past this, which is what Gatus alerts on.
+          # Sized for the weekday gap, and it does NOT cover the weekend: the
+          # ingest is weekdays-only, so Friday evening to Monday morning is
+          # ~59h and /healthz reports stale for most of it. A flat hour count
+          # cannot express "late for the next scheduled run" — fixing that
+          # properly means teaching the probe the schedule, rather than
+          # raising this to 60+ and going blind to a real weekday breakage
+          # for two and a half days.
           stale_after_hours = 18;
-          # ~10 MB of gzipped HTML per run at 2 runs/day. The archive is what
+          # ~10 MB of gzipped HTML per run at 3 runs/day. The archive is what
           # makes a broken parser fixable after the fact rather than a data
           # loss event, so this is deliberately generous.
           raw_retention_days = 30;
