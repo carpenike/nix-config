@@ -539,15 +539,22 @@ let
     description =
       "What is outstanding and what is coming. Lateness is computed from the "
       + "due date, never read from Schoology's own wording — that page labels "
-      + "work due in five days '4 days overdue'.";
+      + "work due in five days '4 days overdue'. Late and Unknown are two "
+      + "different questions and are counted separately: Late is what "
+      + "Schoology reports outstanding, Unknown is what it has never said "
+      + "anything about. Reading Late alone understates the picture, which "
+      + "is exactly what this board used to do.";
     from = "now-7d";
     variables = [ childPicker ];
     panels = [
       (stat {
         id = 1;
         title = "Late";
-        description = "Reported outstanding and past its due date.";
-        gridPos = gridPos 4 8 0 0;
+        description =
+          "Schoology itself reports these outstanding, and the due date has "
+          + "passed. This is the half we actually know about — read it next "
+          + "to Unknown, never on its own.";
+        gridPos = gridPos 4 6 0 0;
         sql = ''
           SELECT count(*)::int AS "Late"
           FROM assignments a
@@ -563,10 +570,43 @@ let
           { color = colors.red; value = 5; }
         ];
       })
+      # The panel this board was missing, and the reason a child with real
+      # blind spots could read as entirely clear. The gradebook shows a bare
+      # em-dash for these: no score, no submission icon, nothing. Schoology
+      # cannot distinguish "not yet graded" from "never turned in", so
+      # neither can we, and the honest answer is to say we do not know rather
+      # than to leave the row out of the query.
+      #
+      # This is the same population the MCP returns as basis=inferred_past_due
+      # in school_get_missing_work. The two must agree; they did not before,
+      # because the Late panel above inner-joins the state table and anything
+      # with no state at all silently vanished.
+      (stat {
+        id = 6;
+        title = "Unknown";
+        description =
+          "Past due, and no submission state has ever been observed. NOT a "
+          + "count of missed work — it is a count of questions the store "
+          + "cannot answer, and each one needs a human to look.";
+        gridPos = gridPos 4 6 6 0;
+        sql = ''
+          SELECT count(*)::int AS "Unknown"
+          FROM assignments a
+          JOIN courses c ON c.id = a.course_id
+          JOIN children ch ON ch.id = c.child_id
+          LEFT JOIN latest_assignment_state s ON s.assignment_id = a.id
+          WHERE s.assignment_id IS NULL AND c.active AND a.due_at < now()
+            AND ch.display_name IN (''${child:sqlstring})
+        '';
+        steps = [
+          { color = colors.green; value = null; }
+          { color = colors.amber; value = 1; }
+        ];
+      })
       (stat {
         id = 2;
         title = "Due in 7 days";
-        gridPos = gridPos 4 8 8 0;
+        gridPos = gridPos 4 6 12 0;
         description = "Everything dated in the coming week, whatever its state.";
         sql = ''
           SELECT count(*)::int AS "Due"
@@ -585,7 +625,7 @@ let
           "Work the store knows about but cannot place in time, so it can "
           + "never appear in a 'what is due this week' answer. Materials "
           + "carries no due date; the gradebook and the To Do page do.";
-        gridPos = gridPos 4 8 16 0;
+        gridPos = gridPos 4 6 18 0;
         sql = ''
           SELECT count(*)::int AS "Undated"
           FROM assignments a
@@ -602,19 +642,41 @@ let
       (table {
         id = 4;
         title = "Outstanding, soonest first";
-        description = "Schoology reports these as not turned in. `State` is computed here from the due date.";
+        description =
+          "`State` is computed here from the due date, never read from "
+          + "Schoology's wording. `Basis` says how much to trust the row: "
+          + "*observed* means Schoology reports it not turned in; *inferred* "
+          + "means the due date passed and no submission state was ever seen, "
+          + "which often just means nobody has graded it yet. Same vocabulary "
+          + "as school_get_missing_work, deliberately — the two must agree.";
         gridPos = gridPos 9 24 0 4;
+        # LEFT JOIN, not JOIN. The inner join here is what hid every
+        # never-observed assignment from this table, and a child whose only
+        # past-due work was unobserved read as completely clear.
         sql = ''
           SELECT ch.display_name AS "Child",
                  c.title AS "Course",
                  a.title AS "Work",
                  a.due_at AT TIME ZONE 'America/New_York' AS "Due",
-                 CASE WHEN a.due_at < now() THEN 'late' ELSE 'ahead' END AS "State"
+                 CASE WHEN a.due_at < now() THEN 'late' ELSE 'ahead' END AS "State",
+                 CASE WHEN s.assignment_id IS NULL THEN 'inferred'
+                      ELSE 'observed' END AS "Basis"
           FROM assignments a
           JOIN courses c ON c.id = a.course_id
           JOIN children ch ON ch.id = c.child_id
-          JOIN latest_assignment_state s ON s.assignment_id = a.id
-          WHERE s.status = 'assigned' AND a.due_at IS NOT NULL AND c.active
+          LEFT JOIN latest_assignment_state s
+            ON s.assignment_id = a.id AND s.status = 'assigned'
+          WHERE a.due_at IS NOT NULL AND c.active
+            AND (
+              -- Schoology says it is outstanding, whenever it is due.
+              s.assignment_id IS NOT NULL
+              -- Or it is past due and the store has never seen any state
+              -- for it at all. Future-dated work with no state yet is
+              -- simply not started, and belongs in "Due in 7 days".
+              OR (a.due_at < now()
+                  AND NOT EXISTS (SELECT 1 FROM latest_assignment_state x
+                                  WHERE x.assignment_id = a.id))
+            )
             AND ch.display_name IN (''${child:sqlstring})
           ORDER BY a.due_at
         '';
@@ -632,6 +694,23 @@ let
               }];
             }
             { id = "custom.width"; value = 90; }
+          ])
+          # Amber, not red. An inferred row is a question, not a verdict —
+          # colouring it like a confirmed miss would tell a parent something
+          # the store does not actually know.
+          (fieldOverride "Basis" [
+            { id = "custom.cellOptions"; value = { type = "color-text"; }; }
+            {
+              id = "mappings";
+              value = [{
+                type = "value";
+                options = {
+                  observed = { color = colors.red; index = 0; text = "observed"; };
+                  inferred = { color = colors.amber; index = 1; text = "inferred"; };
+                };
+              }];
+            }
+            { id = "custom.width"; value = 100; }
           ])
         ];
       })
