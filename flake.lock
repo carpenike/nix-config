@@ -118,11 +118,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1788306937,
-        "narHash": "sha256-lbrI1UYVpFgKSsyrU9oeF7FHfnu8nLD9ja0ou9f2rxk=",
+        "lastModified": 1788450739,
+        "narHash": "sha256-glZLQlzIn1fXH6PazR2iUmTo7kzzyYSshrWhLS9TqCU=",
         "owner": "hercules-ci",
         "repo": "flake-parts",
-        "rev": "f16b25b8c3d2809b87925d0b76652d7821a75c68",
+        "rev": "31729ca8cbdb4fa927b34e5f4353e6a83f39e993",
         "type": "github"
       },
       "original": {
@@ -422,11 +422,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1788321782,
-        "narHash": "sha256-sOg8M7qYl3mW8woJMVn00kVdzpH0EwezD9jneHYdgwE=",
+        "lastModified": 1788408011,
+        "narHash": "sha256-VErLyHIT3U4x64a2G6J6wplB4yDPIpMXlhUpBjUMNEE=",
         "owner": "nix-community",
         "repo": "nix-vscode-extensions",
-        "rev": "4633f7c14cd41bf0d2512fc8784c35181e063a5e",
+        "rev": "f848614222a7ef023998450a6f6773e10f8adf83",
         "type": "github"
       },
       "original": {
@@ -470,11 +470,11 @@
     },
     "nixpkgs-unstable": {
       "locked": {
-        "lastModified": 1788179007,
-        "narHash": "sha256-hn1oU2rue2SYK8dAr8+WNZWtbsz1S2W5mnHlSEuh3bo=",
+        "lastModified": 1788316716,
+        "narHash": "sha256-bc7rSpXIdn9QWGNqfWcPZWOhEVF8NoeAZkWq0XWnf/k=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "34ab99075ac4f7e40cf037eef32cb1c360bb85e9",
+        "rev": "3ed67ec0a4d3c7ab4ae1f04f8ee8df07bfa506a2",
         "type": "github"
       },
       "original": {
@@ -672,11 +672,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1788332415,
-        "narHash": "sha256-BTFrmyh0oaVDsvA9NNw0YpbbeppTwU0t70iVx672Ew8=",
+        "lastModified": 1788456718,
+        "narHash": "sha256-TxHC0sBjV2pmsBLKAX02JTXlye/EOLt6Do+WNtGofGw=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "860d7c835ab91bfc8972b67092f5f2db8e9390a0",
+        "rev": "0b20a18e84d9164464739189c2b2a1b00f6f0e4b",
         "type": "github"
       },
       "original": {
@@ -692,11 +692,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1788272319,
-        "narHash": "sha256-2mx8Hf4UUt17KMl7AJT3rBu23gUCzcyMusSwZtzNJR8=",
+        "lastModified": 1788477247,
+        "narHash": "sha256-2B981/N2eP3Urh0NB9rI7y8520spZsFDHnKm18c/IDA=",
         "owner": "carpenike",
         "repo": "schoolhouse",
-        "rev": "ad5a59f95aa870d8d7d2a72e3465ff938a1993ec",
+        "rev": "8bc5604c4fdf47c2e42fe70f3bca26526fed60fa",
         "type": "github"
       },
       "original": {
