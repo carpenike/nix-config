@@ -161,9 +161,13 @@ mylib.mkContainerService {
     displayName = "LiteLLM";
     function = "ai_gateway";
 
-    # /health needs a key; /health/liveliness does not. The image ships
-    # wget, not curl (matches upstream docker-compose).
-    healthCommand = "wget --no-verbose --tries=1 --spider http://127.0.0.1:${toString containerPort}/health/liveliness || exit 1";
+    # /health needs a key; /health/liveliness does not. The v1.99 image ships
+    # NEITHER wget NOR curl (the 2025 litellm-database image had wget): with
+    # the old wget probe every check failed, and once the startup grace ran
+    # out podman's on-failure=kill stopped a perfectly healthy proxy 5 min
+    # after start, cleanly enough that nothing alerted (2026-09-04). Probe
+    # with the interpreter the image is built on instead.
+    healthCommand = ''python3 -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:${toString containerPort}/health/liveliness', timeout=5).status == 200 else 1)"'';
     # Prisma migrations run on every start and can take a while.
     startPeriod = "120s";
 
