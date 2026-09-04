@@ -70,6 +70,7 @@ in
     ./services/qui-auto-recheck.nix # Auto-recheck cross-seeded torrents with missingFiles
     ./services/cloudflare-tunnel.nix # Cloudflare Tunnel for external access
     ./services/litellm.nix # LiteLLM unified AI gateway
+    ./services/copilot-api.nix # GitHub Copilot inference proxy (feeds LiteLLM + Claude Code)
     ./services/hermes-agent.nix # Hermes Agent AI gateway
     ./services/sonarr.nix # Sonarr TV series management
     ./services/prowlarr.nix # Prowlarr indexer manager

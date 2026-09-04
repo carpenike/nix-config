@@ -1,46 +1,97 @@
-# LiteLLM - Unified AI Gateway for Forge
+# hosts/forge/services/litellm.nix
 #
-# Provides a unified API gateway for multiple AI providers:
-# - Azure OpenAI (GPT-4o, GPT-5 variants, o3-mini, embeddings)
-# - Anthropic Claude
-# - Google Gemini
-# - OpenAI
+# LiteLLM on forge — the one endpoint every AI client on the LAN should be
+# pointed at. Reusable module: modules/nixos/services/litellm/default.nix
+# (read its header first). Rebuilt 2026-09-04 onto the service factory
+# alongside the new copilot-api proxy.
 #
-# CONTAINER MODE: Uses the ghcr.io/berriai/litellm-database image with
-# full PostgreSQL support for spend tracking, virtual keys, and user management.
+# Model routes (what clients ask for → where it goes)
+# ---------------------------------------------------
+#   copilot/<id>          → copilot-api (Anthropic Messages path). Use for
+#                           Claude models from the Copilot catalogue, e.g.
+#                           copilot/claude-sonnet-4.5. `GET /v1/models` on
+#                           copilot-api lists the current ids.
+#   copilot-oai/<id>      → copilot-api (OpenAI chat path) for gpt-*/o*.
+#   anthropic/<id>        → api.anthropic.com   (ANTHROPIC_API_KEY)
+#   gemini/<id>           → Google AI Studio    (GOOGLE_API_KEY)
+#   openai/<id>           → api.openai.com      (OPENAI_API_KEY)
+#   claude-opus/-sonnet/-haiku
+#                         → friendly aliases onto anthropic/…
+#   <azure deployment>    → the ryholt-simplechat-aifoundry resource, one
+#                           entry per deployment name that exists there.
 #
-# Features:
-# - PostgreSQL database for enterprise features
-# - SSO via PocketID (JWT/OIDC authentication, free for up to 5 users)
-# - ZFS storage with optimized recordsize
-# - Local-only access (no Cloudflare Tunnel)
+# Provider wildcards replaced the 2025-era pinned list (claude-3, gemini-1.5
+# …) so new model ids work without a deploy; the Azure entries stay explicit
+# because a deployment name that is not deployed 404s.
 #
+# Clients
+# -------
+#   Claude Code:   ANTHROPIC_BASE_URL=https://llm.holthome.net
+#                  ANTHROPIC_AUTH_TOKEN=<virtual key from the Admin UI>
+#                  ANTHROPIC_MODEL=copilot/claude-sonnet-4.5   (or anthropic/…)
+#   OpenAI SDKs:   base_url=https://llm.holthome.net/v1, api_key=<virtual key>
+#
+# Secrets (secrets.nix): litellm/provider-keys (env file), litellm/master_key,
+# litellm/database_password, litellm/oidc-client-secret. The copilot-api
+# client key is read straight from that service's generated key file.
+#
+# Exposure: loopback + Caddy on LAN addresses only, no caddySecurity (LiteLLM
+# authenticates every API call with its own virtual keys; the Admin UI logs in
+# through PocketID). Never in the Cloudflare tunnel.
+
 { config, lib, ... }:
 
 let
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
-  serviceEnabled = config.modules.services.litellm.enable or false;
+  serviceName = "litellm";
+  serviceEnabled = config.modules.services.${serviceName}.enable or false;
+  serviceDomain = "llm.${config.networking.domain}";
+  listenPort = 4100; # 4000 is TeslaMate
+
+  copilotCfg = config.modules.services.copilot-api;
+  copilotEnabled = copilotCfg.enable or false;
+  copilotKeyFile =
+    if copilotCfg.apiKeysFile or null != null
+    then copilotCfg.apiKeysFile
+    else "/var/lib/copilot-api/api-key";
+  copilotBase = "http://copilot-api:${toString copilotCfg.port}";
+
+  azureFoundry = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
+  azureDeployment = { name, apiVersion ? "2024-12-01-preview", modelInfo ? { } }: {
+    inherit name modelInfo;
+    model = "azure/${name}";
+    apiBase = azureFoundry;
+    apiKey = "AZURE_API_KEY";
+    inherit apiVersion;
+  };
 in
 {
   config = lib.mkMerge [
-    # =========================================================================
-    # Service Configuration
-    # =========================================================================
     {
       modules.services.litellm = {
-        # Disabled 2026-06-01: unused AI gateway, reduces memory/swap pressure on forge.
-        enable = false;
-        port = 4100; # 8080=qbittorrent, 4000=teslamate
+        # Re-enabled 2026-09-04 (was off since 2026-06-01 as an unused
+        # gateway) to front copilot-api for Claude Code and the household
+        # agents. Memory stays capped at 1G below.
+        enable = true;
 
-        # Provider credentials via SOPS (defined in secrets.nix)
+        # Pin container image (Renovate will update)
+        image = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";
+
+        port = listenPort;
+
+        # Shared bridge: reaches copilot-api by container name, and lets
+        # other containers reach `litellm:4000`.
+        podmanNetwork = forgeDefaults.podmanNetwork;
+
+        # Provider credentials and the master key via sops (secrets.nix)
         environmentFile = config.sops.secrets."litellm/provider-keys".path;
-
-        # Master key for API authentication (optional - auto-generated if not provided)
         masterKeyFile = config.sops.secrets."litellm/master_key".path;
 
-        # =====================================================================
-        # Database Configuration (PostgreSQL)
-        # =====================================================================
+        # The copilot-api client key, owned by that service.
+        extraCredentialFiles = lib.optionalAttrs copilotEnabled {
+          COPILOT_API_KEY = copilotKeyFile;
+        };
+
         database = {
           host = "host.containers.internal";
           port = 5432;
@@ -51,250 +102,144 @@ in
           localInstance = true;
         };
 
-        # =====================================================================
-        # Container Network Configuration
-        # =====================================================================
-        # Override DNS for id.holthome.net to use internal Podman bridge IP
-        # Required because the container can't reach Cloudflare-proxied domains
-        # via hairpin NAT. Caddy listens on 10.89.0.1 for internal HTTPS traffic.
+        # The container must reach id.holthome.net for the SSO token
+        # exchange; public DNS points at Cloudflare, which hairpin NAT can't
+        # reach. Caddy listens on the Podman bridge IP for exactly this.
         extraHosts = {
           "id.holthome.net" = "10.89.0.1";
         };
 
-        # =====================================================================
-        # SSO Configuration (PocketID - OAuth2 Generic for Admin UI)
-        # NOTE: JWT API auth is enterprise-only; we only use Admin UI SSO
-        # =====================================================================
-        sso = {
-          # Admin UI SSO (OAuth2 Generic Provider) - FREE feature
-          adminUi = {
-            enable = true;
-            clientId = "litellm";
-            clientSecretFile = config.sops.secrets."litellm/oidc-client-secret".path;
-            authorizationEndpoint = "https://id.holthome.net/authorize";
-            tokenEndpoint = "https://id.holthome.net/api/oidc/token";
-            userinfoEndpoint = "https://id.holthome.net/api/oidc/userinfo";
-            redirectUri = "https://llm.holthome.net/sso/callback";
-            scope = "openid profile email";
-            proxyAdminId = "ryan";
-          };
+        # Admin UI SSO through PocketID (free tier, ≤5 users). API traffic
+        # uses virtual keys; JWT API auth is enterprise-only and not used.
+        sso.adminUi = {
+          enable = true;
+          clientId = "litellm";
+          clientSecretFile = config.sops.secrets."litellm/oidc-client-secret".path;
+          authorizationEndpoint = "https://id.holthome.net/authorize";
+          tokenEndpoint = "https://id.holthome.net/api/oidc/token";
+          userinfoEndpoint = "https://id.holthome.net/api/oidc/userinfo";
+          redirectUri = "https://${serviceDomain}/sso/callback";
+          scope = "openid profile email";
+          # Role claim is ignored upstream (docs/workarounds.md); grant admin
+          # by user id instead.
+          proxyAdminId = "ryan";
         };
 
-        # =====================================================================
-        # General Settings
-        # =====================================================================
-        # Enable store_model_in_db so config-defined models are synced to the
-        # database and visible/testable in the Admin UI
         generalSettings = {
+          # Config-defined models are mirrored into the DB so the Admin UI
+          # can show and test them.
           store_model_in_db = true;
+          proxy_batch_write_at = 60;
+          disable_error_logs = true;
+          database_connection_pool_limit = 10;
         };
 
-        litellmSettings = {
-          drop_params = true;
-          set_verbose = false;
-        };
+        models =
+          # --- GitHub Copilot via copilot-api (same Podman network) ---------
+          lib.optionals copilotEnabled [
+            {
+              name = "copilot/*";
+              model = "anthropic/*";
+              apiBase = copilotBase;
+              apiKey = "COPILOT_API_KEY";
+            }
+            {
+              name = "copilot-oai/*";
+              model = "openai/*";
+              apiBase = "${copilotBase}/v1";
+              apiKey = "COPILOT_API_KEY";
+            }
+          ]
+          # --- Azure AI Foundry deployments --------------------------------
+          ++ [
+            (azureDeployment { name = "gpt-4o"; })
+            (azureDeployment { name = "gpt-5"; })
+            (azureDeployment { name = "gpt-5-chat"; })
+            (azureDeployment { name = "gpt-5-codex"; })
+            (azureDeployment { name = "gpt-5-pro"; })
+            (azureDeployment { name = "gpt-5.1"; })
+            (azureDeployment { name = "gpt-5.1-codex"; apiVersion = "2025-04-01-preview"; })
+            (azureDeployment { name = "o3-mini"; apiVersion = "2025-01-01-preview"; })
+            (azureDeployment { name = "text-embedding-3-small"; modelInfo = { mode = "embedding"; }; })
 
-        # =====================================================================
-        # Model Configuration
-        # =====================================================================
-        # Azure OpenAI/AI Foundry deployments
-        # API key is set via AZURE_API_KEY in environmentFile (SOPS secret: litellm/provider-keys)
-        models = [
-          # GPT-4o - Latest GPT-4 multimodal
-          {
-            name = "gpt-4o";
-            model = "azure/gpt-4o";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-12-01-preview"; };
-          }
-          # GPT-5 variants
-          {
-            name = "gpt-5";
-            model = "azure/gpt-5";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-12-01-preview"; };
-          }
-          {
-            name = "gpt-5-chat";
-            model = "azure/gpt-5-chat";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-12-01-preview"; };
-          }
-          {
-            name = "gpt-5-codex";
-            model = "azure/gpt-5-codex";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-12-01-preview"; };
-          }
-          {
-            name = "gpt-5-pro";
-            model = "azure/gpt-5-pro";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-12-01-preview"; };
-          }
-          {
-            name = "gpt-5.1";
-            model = "azure/gpt-5.1";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-12-01-preview"; };
-          }
-          {
-            name = "gpt-5.1-codex";
-            model = "azure/gpt-5.1-codex";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2025-04-01-preview"; };
-          }
-          # Reasoning model
-          {
-            name = "o3-mini";
-            model = "azure/o3-mini";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2025-01-01-preview"; };
-          }
-          # Embeddings
-          {
-            name = "text-embedding-3-small";
-            model = "azure/text-embedding-3-small";
-            apiBase = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
-            apiKey = "AZURE_API_KEY";
-            extraParams = { api_version = "2024-12-01-preview"; };
-          }
+            # --- Direct providers: wildcards + aliases -----------------------
+            { name = "anthropic/*"; model = "anthropic/*"; apiKey = "ANTHROPIC_API_KEY"; }
+            { name = "gemini/*"; model = "gemini/*"; apiKey = "GOOGLE_API_KEY"; }
+            { name = "openai/*"; model = "openai/*"; apiKey = "OPENAI_API_KEY"; }
 
-          # Anthropic Claude models
-          {
-            name = "claude-3-opus";
-            model = "anthropic/claude-3-opus-20240229";
-            apiKey = "ANTHROPIC_API_KEY";
-          }
-          {
-            name = "claude-3-sonnet";
-            model = "anthropic/claude-3-sonnet-20240229";
-            apiKey = "ANTHROPIC_API_KEY";
-          }
-          {
-            name = "claude-3-haiku";
-            model = "anthropic/claude-3-haiku-20240307";
-            apiKey = "ANTHROPIC_API_KEY";
-          }
-          {
-            name = "claude-3.5-sonnet";
-            model = "anthropic/claude-3-5-sonnet-20241022";
-            apiKey = "ANTHROPIC_API_KEY";
-          }
-          {
-            name = "claude-sonnet-4";
-            model = "anthropic/claude-sonnet-4-20250514";
-            apiKey = "ANTHROPIC_API_KEY";
-          }
-          {
-            name = "claude-opus-4";
-            model = "anthropic/claude-opus-4-20250514";
-            apiKey = "ANTHROPIC_API_KEY";
-          }
+            { name = "claude-opus"; model = "anthropic/claude-opus-5"; apiKey = "ANTHROPIC_API_KEY"; }
+            { name = "claude-sonnet"; model = "anthropic/claude-sonnet-5"; apiKey = "ANTHROPIC_API_KEY"; }
+            { name = "claude-haiku"; model = "anthropic/claude-haiku-4-5-20251001"; apiKey = "ANTHROPIC_API_KEY"; }
+          ];
 
-          # Google Gemini models
-          {
-            name = "gemini-pro";
-            model = "gemini/gemini-pro";
-            apiKey = "GOOGLE_API_KEY";
-          }
-          {
-            name = "gemini-1.5-pro";
-            model = "gemini/gemini-1.5-pro";
-            apiKey = "GOOGLE_API_KEY";
-          }
-          {
-            name = "gemini-1.5-flash";
-            model = "gemini/gemini-1.5-flash";
-            apiKey = "GOOGLE_API_KEY";
-          }
-          {
-            name = "gemini-2.0-flash";
-            model = "gemini/gemini-2.0-flash";
-            apiKey = "GOOGLE_API_KEY";
-          }
-          {
-            name = "gemini-2.5-pro";
-            model = "gemini/gemini-2.5-pro-preview-06-05";
-            apiKey = "GOOGLE_API_KEY";
-          }
-
-          # OpenAI direct models (fallback/comparison)
-          {
-            name = "openai-gpt-4o";
-            model = "gpt-4o";
-            apiKey = "OPENAI_API_KEY";
-          }
-          {
-            name = "openai-gpt-4-turbo";
-            model = "gpt-4-turbo";
-            apiKey = "OPENAI_API_KEY";
-          }
-        ];
-
-        # Router settings for load balancing and fallbacks
-        routerSettings = {
-          routing_strategy = "simple-shuffle";
-          num_retries = 2;
-          timeout = 300;
-        };
-
-        # =====================================================================
-        # ZFS Storage
-        # =====================================================================
-        datasetPath = "tank/services/litellm";
-
-        # =====================================================================
-        # Reverse Proxy (Local Only - No Cloudflare)
-        # =====================================================================
         reverseProxy = {
           enable = true;
-          hostName = "llm.holthome.net";
-          backend = {
-            host = "127.0.0.1";
-            port = 4100;
-          };
+          hostName = serviceDomain;
+          # No caddySecurity: virtual keys on the API, SSO on the UI.
         };
 
-        # =====================================================================
-        # Resource Limits
-        # =====================================================================
-        # Observed usage: ~468MB avg, 657MB peak over 48h
+        # Observed ~470MB avg / 660MB peak over 48h on the previous deployment.
         resources = {
           memory = "1G";
           memoryReservation = "512M";
           cpus = "1.0";
         };
 
-        # =====================================================================
-        # Backup Configuration
-        # =====================================================================
-        backup = forgeDefaults.backup;
+        backup = forgeDefaults.mkBackupWithSnapshots serviceName;
+        notifications.enable = true;
         preseed = forgeDefaults.mkPreseed [ "syncoid" "local" ];
       };
-
-      # Secrets are defined in secrets.nix (centralized pattern)
     }
 
-    # =========================================================================
-    # Infrastructure Contributions (guarded by service enable)
-    # =========================================================================
     (lib.mkIf serviceEnabled {
-      # ZFS snapshot and replication to NAS
-      modules.backup.sanoid.datasets."tank/services/litellm" =
-        forgeDefaults.mkSanoidDataset "litellm";
+      # The dataset only holds the generated master key (when no sops key is
+      # set) and scratch; everything of value is in PostgreSQL (pgBackRest).
+      modules.storage.datasets.services.${serviceName}.protection = {
+        class = "standard";
+        objectives = {
+          onsiteRpoSeconds = 86400;
+          offsiteRpoSeconds = null;
+          rtoSeconds = 28800;
+        };
+        requiredTiers = [
+          "local-snapshot"
+          "replication"
+          "nas-backup"
+          "automated-restore"
+        ];
+        consistency = "crash-consistent";
+        validator = null;
+        allowEmptyBootstrap = true;
+      };
 
-      # Service monitoring alert (container-based)
-      modules.alerting.rules."litellm-service-down" =
-        forgeDefaults.mkServiceDownAlert "litellm" "LiteLLM" "AI gateway";
+      modules.backup.sanoid.datasets."tank/services/${serviceName}" =
+        forgeDefaults.mkSanoidDataset serviceName;
+
+      modules.alerting.rules."${serviceName}-service-down" =
+        forgeDefaults.mkServiceDownAlert serviceName "LiteLLM" "AI gateway";
+
+      # Make sure copilot-api's key exists before we try to load it.
+      systemd.services.litellm-env = lib.mkIf copilotEnabled {
+        after = [ "copilot-api-keys.service" ];
+        wants = [ "copilot-api-keys.service" ];
+      };
+
+      modules.services.homepage.contributions.${serviceName} = {
+        group = "Infrastructure";
+        name = "LiteLLM";
+        icon = "litellm";
+        href = "https://${serviceDomain}/ui";
+        description = "AI gateway: virtual keys, spend, model routing";
+        siteMonitor = "http://localhost:${toString listenPort}/health/liveliness";
+      };
+
+      modules.services.gatus.contributions.${serviceName} = {
+        name = "LiteLLM";
+        group = "Infrastructure";
+        url = "http://127.0.0.1:${toString listenPort}/health/liveliness";
+        interval = "300s";
+        conditions = [ "[STATUS] == 200" ];
+      };
     })
   ];
 }

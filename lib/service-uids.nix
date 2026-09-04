@@ -407,6 +407,13 @@
     extraGroups = [ ];
   };
 
+  copilot-api = {
+    uid = 948;
+    gid = 948;
+    description = "copilot-api GitHub Copilot inference proxy";
+    extraGroups = [ ];
+  };
+
   homepage = {
     uid = 965;
     gid = 959;
@@ -676,7 +683,7 @@
   # When adding a new service, use the next available UID in the 996+ range
   # and document the actual deployed values after first deployment.
   #
-  # Next available: 948
+  # Next available: 949
   # ============================================================================
 
   # ============================================================================
@@ -738,12 +745,13 @@
   # ============================================================================
 
   _meta = {
-    version = 6;
-    lastUpdated = "2026-07-13";
+    version = 7;
+    lastUpdated = "2026-09-04";
     lastAuditedAgainst = "forge.holthome.net";
     sharedUids = [ 911 ]; # Document intentional sharing (lidarr/readarr)
     sharedGids = [ 973 ]; # cooklang and cooklang-federation share a group
     changes = [
+      "v7: Added copilot-api service identity"
       "v6: Added PeaNUT service identity"
       "v5: Added extraGroups to all service entries"
       "v5: Added sharedGroups section for infrastructure groups"

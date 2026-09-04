@@ -1,286 +1,200 @@
-# LiteLLM - Unified AI Gateway (Container-based)
+# modules/nixos/services/litellm/default.nix
 #
-# Containerized deployment using the official ghcr.io/berriai/litellm-database image.
-# This version supports full database features unlike the native NixOS module.
+# LiteLLM — one Anthropic/OpenAI-compatible front door for every model
+# provider forge can reach (Azure Foundry, Anthropic, Gemini, OpenAI, and
+# the local copilot-api proxy). Virtual keys, per-key budgets and spend
+# tracking live in PostgreSQL; the Admin UI signs in through PocketID.
 #
-# Features:
-# - PostgreSQL integration for spend tracking, virtual keys, user management
-# - SSO via PocketID (OIDC/JWT authentication, free for up to 5 users)
-# - Generated config.yaml with environment variable references for secrets
-# - ZFS storage management
-# - Standard homelab integrations (reverse proxy, backup, preseed, notifications)
+# Factory-based implementation (see lib/service-factory.nix, ADR-011).
+# Rebuilt 2026-09-04 from the hand-rolled 2025-12 module; the factory now
+# owns the container, dataset, user, Caddy vhost, backup, preseed and
+# notifications, and this file keeps only what is LiteLLM-specific.
 #
-# The container expects config.yaml for model configuration. Secrets are
-# substituted into config.yaml at runtime using envsubst, which resolves
-# the limitation where LiteLLM's `os.environ/` syntax only works during
-# database sync and not when reading config.yaml directly.
+# Image: ghcr.io/berriai/litellm (pinned release tag + digest). The
+# `litellm-database` image this module used to default to is now a legacy
+# alias — upstream bundles the Prisma toolchain in the main image and says
+# new deployments should use it.
 #
-# Reference: https://docs.litellm.ai/docs/proxy/deploy
-# SSO Docs: https://docs.litellm.ai/docs/proxy/admin_ui_sso
+# Configuration model
+# -------------------
+# config.yaml is rendered at build time from `models`, `routerSettings`,
+# `litellmSettings` and `generalSettings` and mounted read-only from the
+# Nix store. It contains NO secrets: every credential is an `os.environ/VAR`
+# reference, which LiteLLM resolves from the container environment — the
+# documented mechanism, and the reason the old envsubst-at-runtime
+# generator is gone. The environment itself is assembled by a root oneshot
+# (`litellm-env`) from systemd credentials into /run/litellm/env, so sops
+# secrets are never mounted into the container:
 #
-{ config, lib, mylib, pkgs, podmanLib, ... }:
+#   DATABASE_URL          from database.* + the db password credential
+#   LITELLM_MASTER_KEY    masterKeyFile, or generated once into
+#                         <dataDir>/secrets/master-key
+#   LITELLM_SALT_KEY      saltKeyFile, or generated once into
+#                         <dataDir>/secrets/salt-key. Encrypts credentials
+#                         LiteLLM stores in the database; it can never be
+#                         rotated afterwards, so it is persisted on the
+#                         (snapshotted, replicated, backed-up) dataset.
+#   LITELLM_MODE=PRODUCTION
+#   GENERIC_* / PROXY_*   Admin UI SSO (sso.adminUi)
+#   <VAR>=<file contents> for every extraCredentialFiles entry
+#   + the whole `environmentFile` (provider API keys), verbatim
+#
+# Production settings that are not the upstream defaults are applied in the
+# option defaults below (request_timeout, json_logs, batched spend writes,
+# error-log suppression, connection-pool cap) and can be overridden per host.
+#
+# Exposure
+# --------
+# Loopback publish only; LAN access through Caddy at reverseProxy.hostName
+# (no caddySecurity — LiteLLM enforces its own virtual keys on every API
+# route and the UI has its own SSO login). Never in the Cloudflare tunnel.
+# Other containers on the same Podman network reach it as `litellm:4000`.
+#
+# Reference: https://docs.litellm.ai/docs/proxy/prod
+# SSO:       https://docs.litellm.ai/docs/proxy/admin_ui_sso
+{ lib
+, mylib
+, pkgs
+, config
+, podmanLib
+, ...
+}:
 
 let
-  inherit (lib)
-    mkEnableOption
-    mkOption
-    mkIf
-    mkMerge
-    types
-    optional
-    optionals
-    optionalAttrs
-    optionalString
-    ;
+  inherit (lib) mkOption mkEnableOption types optional optionalAttrs optionalString;
 
-  cfg = config.modules.services.litellm;
   serviceName = "litellm";
+  containerPort = 4000;
   backend = config.virtualisation.oci-containers.backend;
-  # NixOS systemd module attribute keys must NOT include the `.service`
-  # suffix — NixOS appends it when rendering the unit. Using the suffixed
-  # name as a key creates a phantom attribute that NixOS silently ignores.
-  # mainServiceUnit (with suffix) is for places that need the unit *name*
-  # for cross-references (OnFailure, Wants, After, etc).
   mainServiceName = "${backend}-${serviceName}";
   mainServiceUnit = "${mainServiceName}.service";
+  envUnitName = "${serviceName}-env";
 
-  # LiteLLM container listens on port 4000 internally (hardcoded in image CMD)
-  internalContainerPort = 4000;
-
-  # Import shared types for standardized submodules
-  sharedTypes = mylib.types;
-
-  # Storage helpers via mylib injection (centralized import)
-  storageHelpers = mylib.storageHelpers pkgs;
-
-  storageCfg = config.modules.storage or { };
-  datasetsCfg = storageCfg.datasets or { };
-  notificationsCfg = config.modules.notifications or { };
-  hasCentralizedNotifications = notificationsCfg.enable or false;
-
-  # Default dataset path based on storage module configuration
-  defaultDatasetPath =
-    if datasetsCfg ? parentDataset then
-      "${datasetsCfg.parentDataset}/${serviceName}"
-    else
-      null;
-
-  datasetPath = cfg.datasetPath or defaultDatasetPath;
-
-  # Environment directory for assembled secrets
   envDir = "/run/${serviceName}";
   envFile = "${envDir}/env";
+  secretsDirOn = cfg: "${cfg.dataDir}/secrets";
 
-  # Configuration directory
-  configDir = "/var/lib/${serviceName}/config";
-  configFile = "${configDir}/config.yaml";
+  yamlFormat = pkgs.formats.yaml { };
 
-  # Build model_list configuration for LiteLLM config.yaml
-  # Uses shell variable syntax ($VAR_NAME) for API keys.
-  # These will be substituted by envsubst when the config is generated at runtime.
-  buildModelList = models: map
-    (m: {
-      model_name = m.name;
-      litellm_params = {
-        model = m.model;
-      } // optionalAttrs (m.apiBase != null) {
-        api_base = m.apiBase;
-      } // optionalAttrs (m.apiKey != null) {
-        # Shell variable reference - will be substituted by envsubst at runtime
-        api_key = "\${${m.apiKey}}";
-      } // optionalAttrs (m.apiVersion != null) {
-        api_version = m.apiVersion;
-      } // (m.extraParams or { });
-    })
-    models;
-
-  # Build the LiteLLM config.yaml content
-  # This is a Nix attrset that will be converted to YAML
-  litellmConfig = {
-    model_list = buildModelList cfg.models;
-
-    router_settings = cfg.routerSettings;
-
-    litellm_settings = cfg.litellmSettings;
-
-    general_settings = {
-      # Master key from environment (substituted by envsubst at runtime)
-      master_key = "\${LITELLM_MASTER_KEY}";
-
-      # Database URL from environment (substituted by envsubst at runtime)
-      database_url = "\${DATABASE_URL}";
-    } // optionalAttrs cfg.sso.adminUi.enable {
-      # Admin UI SSO requires ui_access_mode = "all"
-      # NOTE: JWT auth (enable_jwt_auth) is enterprise-only as of late 2024
-      # We only use OAuth2 Generic for Admin UI login (free feature)
-      ui_access_mode = "all";
-    } // cfg.generalSettings;
-  };
-
-  # Generate JSON first, then convert to proper YAML
-  configJson = pkgs.writeText "litellm-config.json" (
-    builtins.toJSON litellmConfig
-  );
-
-  # Convert JSON to proper YAML format using yq
-  configYaml = pkgs.runCommand "litellm-config.yaml"
+  mkModel = m:
     {
-      nativeBuildInputs = [ pkgs.yq-go ];
-    } ''
-    yq -o=yaml '.' ${configJson} > $out
-  '';
+      model_name = m.name;
+      litellm_params =
+        { model = m.model; }
+        // optionalAttrs (m.apiBase != null) { api_base = m.apiBase; }
+        // optionalAttrs (m.apiKey != null) { api_key = "os.environ/${m.apiKey}"; }
+        // optionalAttrs (m.apiVersion != null) { api_version = m.apiVersion; }
+        // m.extraParams;
+    }
+    // optionalAttrs (m.modelInfo != { }) { model_info = m.modelInfo; };
 
-  # Build replication config for preseed (walks up dataset tree to find inherited config)
-  replicationConfig = storageHelpers.mkReplicationConfig { inherit config datasetPath; };
-
-  # Build container environment variables
-  # Note: PORT is not set because the image CMD hardcodes --port 4000
-  containerEnv = {
-    TZ = config.time.timeZone or "UTC";
-    LITELLM_CONFIG_PATH = "/app/config.yaml";
+  renderConfig = cfg: yamlFormat.generate "litellm-config.yaml" {
+    model_list = map mkModel cfg.models;
+    router_settings = cfg.routerSettings;
+    litellm_settings = cfg.litellmSettings;
+    general_settings =
+      { master_key = "os.environ/LITELLM_MASTER_KEY"; }
+      // optionalAttrs cfg.sso.adminUi.enable { ui_access_mode = "all"; }
+      // cfg.generalSettings;
   };
 
-  # Build healthcheck options (use internal container port)
-  # Note: /health requires API key auth, but /health/liveliness is unauthenticated
-  # Note: LiteLLM container doesn't have curl, use wget (matches upstream docker-compose)
-  healthcheckOptions = optionals (cfg.healthcheck != null && cfg.healthcheck.enable) [
-    "--health-cmd=wget --no-verbose --tries=1 http://127.0.0.1:${toString internalContainerPort}/health/liveliness || exit 1"
-    "--health-interval=${cfg.healthcheck.interval}"
-    "--health-timeout=${cfg.healthcheck.timeout}"
-    "--health-retries=${toString cfg.healthcheck.retries}"
-    "--health-start-period=${cfg.healthcheck.startPeriod}"
-  ];
-
-  # Default backend for reverse proxy
-  defaultBackend = {
-    scheme = "http";
-    host = "127.0.0.1";
-    port = cfg.port;
+  modelSubmodule = types.submodule {
+    options = {
+      name = mkOption {
+        type = types.str;
+        description = "Model name clients request. Wildcards such as `anthropic/*` are allowed.";
+        example = "claude-sonnet";
+      };
+      model = mkOption {
+        type = types.str;
+        description = "Provider-qualified model identifier (LiteLLM `litellm_params.model`).";
+        example = "anthropic/claude-sonnet-5";
+      };
+      apiBase = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Provider base URL (Azure resources, self-hosted proxies).";
+        example = "http://copilot-api:4141";
+      };
+      apiKey = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Name of the environment variable holding the API key. Rendered as
+          `os.environ/<NAME>`; the variable must be present in
+          `environmentFile` or `extraCredentialFiles`.
+        '';
+        example = "AZURE_API_KEY";
+      };
+      apiVersion = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Provider API version (Azure).";
+        example = "2024-12-01-preview";
+      };
+      extraParams = mkOption {
+        type = types.attrsOf types.anything;
+        default = { };
+        description = "Additional `litellm_params` for this deployment.";
+        example = { rpm = 100; };
+      };
+      modelInfo = mkOption {
+        type = types.attrsOf types.anything;
+        default = { };
+        description = "`model_info` block (e.g. `mode = \"embedding\"`).";
+        example = { mode = "embedding"; };
+      };
+    };
   };
-
-  reverseProxyBackend =
-    if cfg.reverseProxy != null then lib.attrByPath [ "backend" ] { } cfg.reverseProxy else { };
-
-  effectiveBackend = lib.recursiveUpdate defaultBackend reverseProxyBackend;
-
 in
-{
-  options.modules.services.litellm = {
-    enable = mkEnableOption "LiteLLM unified AI gateway (containerized with database)";
+mylib.mkContainerService {
+  inherit lib mylib pkgs config podmanLib;
 
-    # ==========================================================================
-    # Container Configuration
-    # ==========================================================================
+  name = serviceName;
+  description = "LiteLLM AI gateway";
 
-    image = mkOption {
-      type = types.str;
-      default = "ghcr.io/berriai/litellm-database:main-stable@sha256:2d3ec2c7e6726e0e0b837c7635f43ab69ed7e1b74e72b00cb792b4186662bda8";
-      description = ''
-        Container image for LiteLLM. Use the -database variant for PostgreSQL support.
-        Pinned to specific digest for reproducibility.
-      '';
-      example = "ghcr.io/berriai/litellm-database:main-v1.55.0@sha256:...";
+  spec = {
+    port = containerPort;
+    inherit containerPort;
+    image = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";
+    operationalProfile = "ai";
+    displayName = "LiteLLM";
+    function = "ai_gateway";
+
+    # /health needs a key; /health/liveliness does not. The image ships
+    # wget, not curl (matches upstream docker-compose).
+    healthCommand = "wget --no-verbose --tries=1 --spider http://127.0.0.1:${toString containerPort}/health/liveliness || exit 1";
+    # Prisma migrations run on every start and can take a while.
+    startPeriod = "120s";
+
+    # ~470MB average, 660MB peak observed over 48h on the old deployment;
+    # upstream calls 4Gi a floor for high-traffic pods, which this is not.
+    resources = {
+      memory = "1G";
+      memoryReservation = "512M";
+      cpus = "1.0";
     };
 
-    user = mkOption {
-      type = types.str;
-      default = serviceName;
-      description = "System user that owns LiteLLM state and runs auxiliary jobs.";
-    };
+    # The stock image expects root (Prisma writes into its own tree at
+    # startup); the non_root variant would need a different layout.
+    runAsRoot = true;
 
-    group = mkOption {
-      type = types.str;
-      default = serviceName;
-      description = "Primary group for LiteLLM data.";
-    };
+    # config.yaml comes from the store; /app/data is the only writable mount.
+    skipDefaultConfigMount = true;
+    volumes = cfg: [
+      "${renderConfig cfg}:/app/config.yaml:ro"
+      "${cfg.dataDir}/data:/app/data:rw"
+    ];
 
-    # ==========================================================================
-    # Network Configuration
-    # ==========================================================================
+    extraOptions = { cfg, ... }:
+      lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts;
+  };
 
-    port = mkOption {
-      type = types.port;
-      default = 4000;
-      description = ''
-        Host port for LiteLLM API server.
-        Note: The container internally listens on port 4000 (hardcoded in image).
-        This option controls which host port is mapped to the container.
-      '';
-    };
-
-    listenAddress = mkOption {
-      type = types.str;
-      default = "127.0.0.1";
-      description = "Host address to bind the LiteLLM ports to.";
-    };
-
-    # ==========================================================================
-    # Storage Configuration
-    # ==========================================================================
-
-    dataDir = mkOption {
-      type = types.path;
-      default = "/var/lib/${serviceName}";
-      description = "Directory for LiteLLM persistent data.";
-    };
-
-    datasetPath = mkOption {
-      type = types.nullOr types.str;
-      default = defaultDatasetPath;
-      description = "ZFS dataset backing LiteLLM data (used for auto-creation and replication).";
-      example = "tank/services/litellm";
-    };
-
-    # ==========================================================================
-    # Model Configuration
-    # ==========================================================================
-
+  extraOptions = {
     models = mkOption {
-      type = types.listOf (types.submodule {
-        options = {
-          name = mkOption {
-            type = types.str;
-            description = "User-friendly model name (what clients request).";
-            example = "gpt-4o";
-          };
-
-          model = mkOption {
-            type = types.str;
-            description = "Provider-specific model identifier.";
-            example = "azure/gpt-4o";
-          };
-
-          apiBase = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "API base URL (for Azure deployments).";
-            example = "https://myresource.openai.azure.com";
-          };
-
-          apiKey = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "Environment variable name containing API key. Will be substituted at runtime via envsubst.";
-            example = "AZURE_API_KEY";
-          };
-
-          apiVersion = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "API version (for Azure deployments).";
-            example = "2024-08-01-preview";
-          };
-
-          extraParams = mkOption {
-            type = types.attrsOf types.anything;
-            default = { };
-            description = "Additional litellm_params for this model.";
-            example = { rpm = 100; tpm = 10000; };
-          };
-        };
-      });
+      type = types.listOf modelSubmodule;
       default = [ ];
-      description = "List of AI models to expose through LiteLLM.";
+      description = "Deployments rendered into `model_list`.";
     };
 
     routerSettings = mkOption {
@@ -288,9 +202,10 @@ in
       default = {
         routing_strategy = "simple-shuffle";
         num_retries = 2;
-        timeout = 300;
+        # Long streamed completions with large thinking budgets.
+        timeout = 600;
       };
-      description = "LiteLLM router settings (fallbacks, load balancing).";
+      description = "`router_settings` block.";
     };
 
     litellmSettings = mkOption {
@@ -298,716 +213,310 @@ in
       default = {
         drop_params = true;
         set_verbose = false;
+        json_logs = true;
+        # Upstream default is 6000s; fail hung requests instead.
+        request_timeout = 600;
       };
-      description = "LiteLLM general settings.";
+      description = "`litellm_settings` block.";
     };
 
     generalSettings = mkOption {
       type = types.attrsOf types.anything;
-      default = { };
-      description = "Additional general_settings for config.yaml.";
+      default = {
+        # Batch spend writes instead of one DB write per request.
+        proxy_batch_write_at = 60;
+        # Provider errors otherwise bloat the spend-logs table.
+        disable_error_logs = true;
+        database_connection_pool_limit = 10;
+      };
+      description = ''
+        `general_settings` block. `master_key` (and `ui_access_mode` when
+        Admin UI SSO is on) are always added; `database_url` is supplied via
+        the DATABASE_URL environment variable instead.
+      '';
     };
-
-    # ==========================================================================
-    # Database Configuration (PostgreSQL)
-    # ==========================================================================
 
     database = {
       host = mkOption {
         type = types.str;
         default = "host.containers.internal";
-        description = "Database host (use host.containers.internal for local PostgreSQL).";
+        description = "PostgreSQL host as seen from inside the container.";
       };
-
       port = mkOption {
         type = types.port;
         default = 5432;
-        description = "Database port.";
+        description = "PostgreSQL port.";
       };
-
       name = mkOption {
         type = types.str;
-        default = serviceName;
+        default = "litellm";
         description = "Database name.";
       };
-
       user = mkOption {
         type = types.str;
-        default = serviceName;
-        description = "Database role/owner.";
+        default = "litellm";
+        description = "Database role.";
       };
-
       passwordFile = mkOption {
         type = types.nullOr types.path;
         default = null;
-        description = "Path to the database password file (SOPS).";
+        description = "File containing the database password (sops secret).";
       };
-
       manageDatabase = mkOption {
         type = types.bool;
         default = true;
-        description = "Automatically provision the PostgreSQL role/database.";
+        description = "Provision the database and role through modules.services.postgresql.";
       };
-
       localInstance = mkOption {
         type = types.bool;
         default = true;
-        description = "Whether to add dependencies on the local PostgreSQL service.";
+        description = "Order the container after the local postgresql.service.";
       };
     };
-
-    # ==========================================================================
-    # SSO Configuration (OIDC/JWT - free for up to 5 users)
-    # ==========================================================================
-
-    sso = mkOption {
-      type = types.submodule {
-        options = {
-          enable = mkEnableOption "SSO via JWT/OIDC authentication";
-
-          jwksUrl = mkOption {
-            type = types.str;
-            default = "";
-            example = "https://id.holthome.net/.well-known/openid-configuration/jwks";
-            description = ''
-              JWKS URL for JWT validation. For PocketID, this is typically:
-              https://id.example.com/.well-known/openid-configuration/jwks
-            '';
-          };
-
-          audience = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            example = "litellm";
-            description = "Expected JWT audience claim for validation.";
-          };
-
-          userIdField = mkOption {
-            type = types.str;
-            default = "sub";
-            description = "JWT claim containing the user ID.";
-          };
-
-          userEmailField = mkOption {
-            type = types.str;
-            default = "email";
-            description = "JWT claim containing the user email.";
-          };
-
-          teamIdField = mkOption {
-            type = types.str;
-            default = "groups";
-            description = "JWT claim containing team/group information.";
-          };
-
-          adminScope = mkOption {
-            type = types.nullOr types.str;
-            default = "litellm-admin";
-            example = "litellm-proxy-admin";
-            description = "JWT scope/claim value that grants admin access.";
-          };
-
-          allowedEmailDomains = mkOption {
-            type = types.listOf types.str;
-            default = [ ];
-            example = [ "holthome.net" ];
-            description = ''
-              Email domains allowed to access. When set, enables user_id_upsert
-              to auto-create users on first login.
-            '';
-          };
-
-          # =================================================================
-          # Admin UI SSO (OAuth2 flow for web UI login)
-          # =================================================================
-          adminUi = mkOption {
-            type = types.submodule {
-              options = {
-                enable = mkEnableOption "Admin UI SSO via OAuth2";
-
-                clientId = mkOption {
-                  type = types.str;
-                  default = "";
-                  example = "litellm";
-                  description = "OAuth2 client ID for Admin UI SSO.";
-                };
-
-                clientSecretFile = mkOption {
-                  type = types.nullOr types.path;
-                  default = null;
-                  description = "Path to file containing OAuth2 client secret.";
-                };
-
-                authorizationEndpoint = mkOption {
-                  type = types.str;
-                  default = "";
-                  example = "https://id.holthome.net/authorize";
-                  description = "OAuth2 authorization endpoint.";
-                };
-
-                tokenEndpoint = mkOption {
-                  type = types.str;
-                  default = "";
-                  example = "https://id.holthome.net/token";
-                  description = "OAuth2 token endpoint.";
-                };
-
-                userinfoEndpoint = mkOption {
-                  type = types.str;
-                  default = "";
-                  example = "https://id.holthome.net/userinfo";
-                  description = "OAuth2 userinfo endpoint.";
-                };
-
-                scope = mkOption {
-                  type = types.str;
-                  default = "openid profile email";
-                  description = "OAuth2 scopes to request.";
-                };
-
-                redirectUri = mkOption {
-                  type = types.nullOr types.str;
-                  default = null;
-                  example = "https://llm.holthome.net/sso/callback";
-                  description = "OAuth2 redirect URI. Defaults to <proxy_base_url>/sso/callback.";
-                };
-
-                userIdAttribute = mkOption {
-                  type = types.str;
-                  default = "sub";
-                  description = "Attribute containing user ID in OAuth2 response.";
-                };
-
-                userEmailAttribute = mkOption {
-                  type = types.str;
-                  default = "email";
-                  description = "Attribute containing user email in OAuth2 response.";
-                };
-
-                userDisplayNameAttribute = mkOption {
-                  type = types.str;
-                  default = "name";
-                  description = "Attribute containing display name in OAuth2 response.";
-                };
-
-                userRoleAttribute = mkOption {
-                  type = types.nullOr types.str;
-                  default = null;
-                  example = "litellm_role";
-                  description = ''
-                    KNOWN ISSUE: This option currently does NOT work with Generic SSO providers
-                    due to a bug in LiteLLM's generic_response_convertor function, which always
-                    sets user_role=None. Use proxyAdminId as a workaround until LiteLLM fixes this.
-
-                    When working, this would specify the attribute containing user role in
-                    OAuth2 userinfo response. The claim value must be a valid LiteLLM role:
-                    - proxy_admin: Full admin access
-                    - proxy_admin_viewer: Read-only admin access
-                    - internal_user: Can create/manage own keys
-                    - internal_user_viewer: Can view own keys (read-only)
-
-                    See: https://github.com/BerriAI/litellm/blob/main/litellm/proxy/management_endpoints/ui_sso.py
-                  '';
-                };
-
-                proxyAdminId = mkOption {
-                  type = types.nullOr types.str;
-                  default = null;
-                  example = "ryan@example.com";
-                  description = ''
-                    User ID (email) to grant proxy admin access on first SSO login.
-                    Must match the value returned in userIdAttribute claim (typically email).
-
-                    NOTE: Only supports a SINGLE admin. For multiple admins:
-                    1. Set this to the first/primary admin's email
-                    2. Have that admin use the LiteLLM UI to promote other users
-                       via Internal Users → Update User Role → proxy_admin
-
-                    This is a LiteLLM limitation - PROXY_ADMIN_ID does direct string
-                    comparison, not list parsing.
-                  '';
-                };
-              };
-            };
-            default = { };
-            description = ''
-              Admin UI SSO configuration for web-based login.
-              Uses OAuth2 Generic provider pattern.
-              See: https://docs.litellm.ai/docs/proxy/admin_ui_sso
-            '';
-          };
-        };
-      };
-      default = { };
-      description = ''
-        SSO configuration using JWT/OIDC. Free for up to 5 users.
-        See: https://docs.litellm.ai/docs/proxy/admin_ui_sso
-      '';
-    };
-
-    # ==========================================================================
-    # Secrets Configuration
-    # ==========================================================================
 
     masterKeyFile = mkOption {
       type = types.nullOr types.path;
       default = null;
       description = ''
-        Path to file containing LiteLLM master key for admin access.
-        If not provided, a random key will be auto-generated.
+        File containing LITELLM_MASTER_KEY (must start with `sk-`). When
+        null a key is generated once into <dataDir>/secrets/master-key.
+      '';
+    };
+
+    saltKeyFile = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = ''
+        File containing LITELLM_SALT_KEY, which encrypts credentials stored
+        in the database (`store_model_in_db`). When null a key is generated
+        once into <dataDir>/secrets/salt-key. Upstream: the salt key cannot
+        be rotated once models are stored, so switching an existing
+        deployment from the generated key to a sops one means clearing the
+        DB-stored model rows (or the database) first.
       '';
     };
 
     environmentFile = mkOption {
-      type = types.path;
-      description = "Path to file containing provider API keys (AZURE_API_KEY, OPENAI_API_KEY, etc.).";
+      type = types.nullOr types.path;
+      default = null;
+      description = "Env-file with provider API keys (AZURE_API_KEY=...), appended verbatim to the container environment.";
       example = "/run/secrets/litellm/provider-keys";
     };
 
-    # ==========================================================================
-    # Container Configuration
-    # ==========================================================================
-
-    podmanNetwork = mkOption {
-      type = types.nullOr types.str;
-      default = null;
-      description = "Attach LiteLLM to a named Podman network.";
+    extraCredentialFiles = mkOption {
+      type = types.attrsOf types.path;
+      default = { };
+      description = ''
+        Environment variable name → file whose first line becomes that
+        variable. Loaded through systemd credentials, so the files may be
+        root-only. Used to hand LiteLLM keys owned by other services.
+      '';
+      example = { COPILOT_API_KEY = "/var/lib/copilot-api/api-key"; };
     };
 
     extraHosts = mkOption {
       type = types.attrsOf types.str;
       default = { };
-      description = ''
-        Extra /etc/hosts entries for the container.
-
-        Useful for overriding DNS resolution when containers need to reach
-        host services via internal bridge IPs (hairpin NAT workaround).
-
-        Example: When using PocketID SSO, the container needs to reach
-        id.holthome.net but public DNS points to Cloudflare. Use this to
-        point to the Podman bridge IP where Caddy listens internally.
-      '';
-      example = {
-        "id.holthome.net" = "10.89.0.1";
-      };
+      description = "Extra /etc/hosts entries for the container (hairpin-NAT workaround for id.holthome.net).";
+      example = { "id.holthome.net" = "10.89.0.1"; };
     };
 
-    resources = mkOption {
-      type = types.nullOr sharedTypes.containerResourcesSubmodule;
-      default = null;
-      description = "Podman resource limits for the LiteLLM container.";
-    };
-
-    healthcheck = mkOption {
-      type = types.nullOr sharedTypes.healthcheckSubmodule;
-      default = {
-        enable = true;
-        interval = "30s";
-        timeout = "10s";
-        retries = 3;
-        startPeriod = "40s"; # Matches upstream docker-compose
-      };
-      description = "Container healthcheck configuration.";
-    };
-
-    # ==========================================================================
-    # Standard Integration Submodules
-    # ==========================================================================
-
-    reverseProxy = mkOption {
-      type = types.nullOr sharedTypes.reverseProxySubmodule;
-      default = null;
-      description = "Reverse proxy configuration.";
-    };
-
-    backup = mkOption {
-      type = types.nullOr sharedTypes.backupSubmodule;
-      default = null;
-      description = "Backup configuration.";
-    };
-
-    logging = mkOption {
-      type = types.nullOr sharedTypes.loggingSubmodule;
-      default = {
-        enable = true;
-        journalUnit = mainServiceUnit;
-        labels = {
-          service = serviceName;
-          service_type = "ai-gateway";
-        };
-      };
-      description = "Log shipping configuration.";
-    };
-
-    notifications = mkOption {
-      type = types.nullOr sharedTypes.notificationSubmodule;
-      default = {
-        enable = true;
-        channels.onFailure = [ "system-alerts" ];
-        customMessages.failure = "LiteLLM AI gateway failed on ${config.networking.hostName}";
-      };
-      description = "Notification configuration.";
-    };
-
-    preseed = {
-      enable = mkEnableOption "automatic restore before service start";
-
-      repositoryUrl = mkOption {
-        type = types.str;
-        default = "";
-        description = "Restic repository URL for preseed restore.";
-      };
-
-      passwordFile = mkOption {
-        type = types.nullOr types.path;
+    sso.adminUi = {
+      enable = mkEnableOption "Admin UI SSO through a generic OIDC provider (free for up to 5 users)";
+      clientId = mkOption { type = types.str; default = "litellm"; description = "OIDC client ID."; };
+      clientSecretFile = mkOption { type = types.nullOr types.path; default = null; description = "OIDC client secret file."; };
+      authorizationEndpoint = mkOption { type = types.str; default = ""; description = "OIDC authorization endpoint."; };
+      tokenEndpoint = mkOption { type = types.str; default = ""; description = "OIDC token endpoint."; };
+      userinfoEndpoint = mkOption { type = types.str; default = ""; description = "OIDC userinfo endpoint."; };
+      scope = mkOption { type = types.str; default = "openid profile email"; description = "OIDC scopes."; };
+      redirectUri = mkOption {
+        type = types.nullOr types.str;
         default = null;
-        description = "Restic password file.";
+        description = "Callback URL registered with the IdP (`https://<host>/sso/callback`). Sets PROXY_BASE_URL.";
       };
-
-      environmentFile = mkOption {
-        type = types.nullOr types.path;
+      userIdAttribute = mkOption { type = types.str; default = "sub"; description = "Claim used as the LiteLLM user id."; };
+      userEmailAttribute = mkOption { type = types.str; default = "email"; description = "Claim used as the email."; };
+      userDisplayNameAttribute = mkOption { type = types.str; default = "name"; description = "Claim used as the display name."; };
+      userRoleAttribute = mkOption {
+        type = types.nullOr types.str;
         default = null;
-        description = "Environment file for cloud credentials.";
+        description = "Claim carrying the LiteLLM role. Leave null and use proxyAdminId (see docs/workarounds.md, generic SSO role bug).";
       };
+      proxyAdminId = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "User id (per userIdAttribute) granted proxy_admin on SSO login.";
+      };
+    };
 
-      restoreMethods = mkOption {
-        type = types.listOf (types.enum [ "syncoid" "local" "restic" ]);
-        default = [ "syncoid" "local" ];
-        description = "Preferred restore method order.";
-      };
+    # /metrics requires a LiteLLM key since v1.85; the factory scraper
+    # cannot present one, so keep metrics opt-in.
+    metrics = mkOption {
+      type = types.nullOr mylib.types.metricsSubmodule;
+      default = null;
+      description = "Prometheus metrics collection (LiteLLM's /metrics is key-authenticated).";
     };
   };
 
-  config = mkMerge [
-    (mkIf cfg.enable {
-      # ========================================================================
-      # Assertions
-      # ========================================================================
+  extraConfig = cfg:
+    let
+      ui = cfg.sso.adminUi;
+      credName = var: "extra-${lib.toLower (lib.replaceStrings [ "_" ] [ "-" ] var)}";
+      envScript = ''
+        set -euo pipefail
+        umask 077
+        install -d -o root -g root -m 0700 "${secretsDirOn cfg}"
+        tmp="${envFile}.tmp"
+        trap 'rm -f "$tmp"' EXIT
+
+        # First line of a credential, newline stripped (key files may
+        # carry several keys; the first is ours).
+        read_cred() { ${pkgs.coreutils}/bin/head -n 1 "$CREDENTIALS_DIRECTORY/$1" | ${pkgs.coreutils}/bin/tr -d '\n'; }
+
+        # DATABASE_URL — the password is percent-encoded so any character
+        # in the secret survives URL parsing.
+        db_pass=$(read_cred db-password | ${pkgs.jq}/bin/jq -Rr @uri)
+        database_url="postgresql://${cfg.database.user}:$db_pass@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}"
+
+        ${if cfg.masterKeyFile != null then ''
+          master_key=$(read_cred master-key)
+        '' else ''
+          master_key_file="${secretsDirOn cfg}/master-key"
+          if [ ! -s "$master_key_file" ]; then
+            printf 'sk-%s\n' "$(${pkgs.coreutils}/bin/head -c 48 /dev/urandom | ${pkgs.coreutils}/bin/base64 | ${pkgs.coreutils}/bin/tr -d '/+=\n' | ${pkgs.coreutils}/bin/head -c 48)" > "$master_key_file"
+            echo "litellm: generated master key at $master_key_file"
+          fi
+          master_key=$(${pkgs.coreutils}/bin/tr -d '\n' < "$master_key_file")
+        ''}
+
+        ${if cfg.saltKeyFile != null then ''
+
+          salt_key=$(read_cred salt-key)
+
+        '' else ''
+
+          salt_key_file="${secretsDirOn cfg}/salt-key"
+
+          if [ ! -s "$salt_key_file" ]; then
+
+            printf 'sk-%s\n' "$(${pkgs.coreutils}/bin/head -c 48 /dev/urandom | ${pkgs.coreutils}/bin/base64 | ${pkgs.coreutils}/bin/tr -d '/+=\n' | ${pkgs.coreutils}/bin/head -c 48)" > "$salt_key_file"
+
+            echo "litellm: generated salt key at $salt_key_file"
+
+          fi
+
+          salt_key=$(${pkgs.coreutils}/bin/tr -d '\n' < "$salt_key_file")
+
+        ''}
+
+
+        {
+          echo "DATABASE_URL=$database_url"
+          echo "LITELLM_MASTER_KEY=$master_key"
+          echo "LITELLM_MODE=PRODUCTION"
+          echo "LITELLM_SALT_KEY=$salt_key"
+          ${optionalString ui.enable ''
+            echo "GENERIC_CLIENT_ID=${ui.clientId}"
+            echo "GENERIC_CLIENT_SECRET=$(read_cred oidc-client-secret)"
+            echo "GENERIC_AUTHORIZATION_ENDPOINT=${ui.authorizationEndpoint}"
+            echo "GENERIC_TOKEN_ENDPOINT=${ui.tokenEndpoint}"
+            echo "GENERIC_USERINFO_ENDPOINT=${ui.userinfoEndpoint}"
+            echo "GENERIC_SCOPE=${ui.scope}"
+            ${optionalString (ui.redirectUri != null) ''echo "PROXY_BASE_URL=${lib.removeSuffix "/sso/callback" ui.redirectUri}"''}
+            ${optionalString (ui.userIdAttribute != "sub") ''echo "GENERIC_USER_ID_ATTRIBUTE=${ui.userIdAttribute}"''}
+            ${optionalString (ui.userEmailAttribute != "email") ''echo "GENERIC_USER_EMAIL_ATTRIBUTE=${ui.userEmailAttribute}"''}
+            ${optionalString (ui.userDisplayNameAttribute != "name") ''echo "GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=${ui.userDisplayNameAttribute}"''}
+            ${optionalString (ui.userRoleAttribute != null) ''echo "GENERIC_USER_ROLE_ATTRIBUTE=${ui.userRoleAttribute}"''}
+            ${optionalString (ui.proxyAdminId != null && ui.userRoleAttribute == null) ''echo "PROXY_ADMIN_ID=${ui.proxyAdminId}"''}
+          ''}
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (var: _: ''echo "${var}=$(read_cred ${credName var})"'') cfg.extraCredentialFiles)}
+          ${optionalString (cfg.environmentFile != null) ''cat "$CREDENTIALS_DIRECTORY/provider-keys"''}
+        } > "$tmp"
+
+        install -m 0600 "$tmp" "${envFile}"
+      '';
+    in
+    {
       assertions = [
         {
           assertion = cfg.database.passwordFile != null;
           message = "modules.services.litellm.database.passwordFile must be set.";
         }
         {
-          assertion = cfg.environmentFile != null;
-          message = "modules.services.litellm.environmentFile must be set (for provider API keys).";
-        }
-        {
-          assertion = !cfg.sso.enable || cfg.sso.jwksUrl != "";
-          message = "modules.services.litellm.sso.jwksUrl must be set when SSO is enabled.";
-        }
-        {
-          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.clientId != "";
-          message = "modules.services.litellm.sso.adminUi.clientId must be set when Admin UI SSO is enabled.";
-        }
-        {
-          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.clientSecretFile != null;
+          assertion = !ui.enable || ui.clientSecretFile != null;
           message = "modules.services.litellm.sso.adminUi.clientSecretFile must be set when Admin UI SSO is enabled.";
         }
         {
-          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.authorizationEndpoint != "";
-          message = "modules.services.litellm.sso.adminUi.authorizationEndpoint must be set when Admin UI SSO is enabled.";
-        }
-        {
-          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.tokenEndpoint != "";
-          message = "modules.services.litellm.sso.adminUi.tokenEndpoint must be set when Admin UI SSO is enabled.";
-        }
-        {
-          assertion = !cfg.sso.adminUi.enable || cfg.sso.adminUi.userinfoEndpoint != "";
-          message = "modules.services.litellm.sso.adminUi.userinfoEndpoint must be set when Admin UI SSO is enabled.";
+          assertion = !ui.enable || (ui.authorizationEndpoint != "" && ui.tokenEndpoint != "" && ui.userinfoEndpoint != "");
+          message = "modules.services.litellm.sso.adminUi.{authorizationEndpoint,tokenEndpoint,userinfoEndpoint} must all be set when Admin UI SSO is enabled.";
         }
       ];
 
-      # ========================================================================
-      # User and Group
-      # ========================================================================
-
-      users.users.${cfg.user} = {
-        isSystemUser = true;
-        group = cfg.group;
-        description = "LiteLLM service account";
-      };
-
-      users.groups.${cfg.group} = { };
-
-      # ========================================================================
-      # Directory Setup
-      # ========================================================================
-
-      systemd.tmpfiles.rules = [
-        "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} -"
-        "d ${configDir} 0750 ${cfg.user} ${cfg.group} -"
-        "d ${envDir} 0700 root root -"
-      ];
-
-      # ========================================================================
-      # ZFS Dataset Configuration
-      # ========================================================================
-
-      modules.storage.datasets.services.${serviceName} = {
-        mountpoint = cfg.dataDir;
-        recordsize = "128K";
-        compression = "zstd";
-        owner = cfg.user;
-        group = cfg.group;
-        mode = "0750";
-      };
-
-      # ========================================================================
-      # PostgreSQL Database Provisioning
-      # ========================================================================
-
-      modules.services.postgresql.databases.${cfg.database.name} = mkIf cfg.database.manageDatabase {
+      modules.services.postgresql.databases.${cfg.database.name} = lib.mkIf cfg.database.manageDatabase {
         owner = cfg.database.user;
         ownerPasswordFile = cfg.database.passwordFile;
         permissionsPolicy = "owner-readwrite+readonly-select";
       };
 
-      # ========================================================================
-      # Container Configuration
-      # ========================================================================
-
-      virtualisation.oci-containers.containers.${serviceName} = podmanLib.mkContainer serviceName {
-        image = cfg.image;
-
-        # Explicitly specify --config to load models from config.yaml
-        # The litellm-database image default CMD doesn't include this
-        cmd = [ "--config" "/app/config.yaml" "--port" (toString internalContainerPort) ];
-
+      virtualisation.oci-containers.containers.${serviceName} = {
+        # The image CMD does not pass --config; be explicit.
+        cmd = [ "--config" "/app/config.yaml" "--port" (toString containerPort) ];
         environmentFiles = [ envFile ];
-
-        environment = containerEnv;
-
-        volumes = [
-          # Mount generated config.yaml
-          "${configFile}:/app/config.yaml:ro"
-          # Mount data directory for any runtime state
-          "${cfg.dataDir}:/app/data:rw"
+        # Drop the PUID/PGID/UMASK the factory injects for runAsRoot images;
+        # LiteLLM does not use them.
+        environment = lib.mkForce {
+          TZ = cfg.timezone;
+          LITELLM_CONFIG_PATH = "/app/config.yaml";
+        };
+        # Loopback only — the factory default publishes on all interfaces.
+        ports = lib.mkForce [
+          "127.0.0.1:${toString cfg.port}:${toString containerPort}"
         ];
-
-        # Map host port to internal container port (4000 is hardcoded in image CMD)
-        ports = [
-          "${cfg.listenAddress}:${toString cfg.port}:${toString internalContainerPort}/tcp"
-        ];
-
-        resources = cfg.resources;
-
-        extraOptions = optionals (cfg.podmanNetwork != null) [
-          "--network=${cfg.podmanNetwork}"
-        ] ++ optionals (cfg.extraHosts != { }) (
-          lib.mapAttrsToList (host: ip: "--add-host=${host}:${ip}") cfg.extraHosts
-        ) ++ healthcheckOptions;
       };
 
-      # ========================================================================
-      # Systemd Service Configuration
-      # ========================================================================
+      systemd.services.${mainServiceName} = {
+        after = [ "network-online.target" "${envUnitName}.service" ]
+          ++ optional cfg.database.localInstance "postgresql.service"
+          ++ optional (cfg.database.manageDatabase && cfg.database.localInstance) "postgresql-provision-databases.service";
+        wants = [ "network-online.target" ];
+        requires = [ "${envUnitName}.service" ]
+          ++ optional (cfg.database.manageDatabase && cfg.database.localInstance) "postgresql-provision-databases.service";
+        serviceConfig = {
+          Restart = lib.mkForce "on-failure";
+          RestartSec = "10s";
+        };
+        preStart = ''
+          install -d -o root -g root -m 0750 ${cfg.dataDir}/data
+        '';
+      };
 
-      systemd.services."${mainServiceName}" = lib.mkMerge [
-        {
-          after = [ "network-online.target" "${serviceName}-env.service" ]
-            ++ optional cfg.database.localInstance "postgresql.service"
-            ++ optionals cfg.preseed.enable [ "${serviceName}-preseed.service" ];
-          wants = [ "network-online.target" ]
-            ++ optionals cfg.preseed.enable [ "${serviceName}-preseed.service" ];
-          requires = [ "${serviceName}-env.service" ]
-            ++ optionals (cfg.database.manageDatabase && cfg.database.localInstance) [ "postgresql-provision-databases.service" ];
-
-          serviceConfig = {
-            Restart = lib.mkForce "on-failure";
-            RestartSec = "10s";
-          };
-        }
-        (lib.mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-          unitConfig.OnFailure = [ "notify@${serviceName}-failure:%n.service" ];
-        })
-      ];
-
-      # ========================================================================
-      # Environment File Generator (oneshot service)
-      # ========================================================================
-      # Generates the environment file with secrets before container starts.
-      # Uses PartOf to ensure this service restarts when container restarts.
-
-      systemd.services."${serviceName}-env" = {
-        description = "LiteLLM Environment File Generator";
+      # Assembles /run/litellm/env from systemd credentials. PartOf ties its
+      # lifetime to the container so a restart re-reads rotated secrets.
+      systemd.services.${envUnitName} = {
+        description = "LiteLLM environment file generator";
         wantedBy = [ "multi-user.target" ];
-        before = [ "${mainServiceUnit}" ];
-        requiredBy = [ "${mainServiceUnit}" ];
-        # PartOf ensures this service is stopped when container stops,
-        # and the before+requiredBy ensures it starts before container
-        partOf = [ "${mainServiceUnit}" ];
+        before = [ mainServiceUnit ];
+        requiredBy = [ mainServiceUnit ];
+        partOf = [ mainServiceUnit ];
 
         serviceConfig = {
           Type = "oneshot";
           RemainAfterExit = true;
           RuntimeDirectory = serviceName;
           RuntimeDirectoryMode = "0700";
-          StateDirectory = serviceName;
-          StateDirectoryMode = "0700";
-
-          LoadCredential = [
-            "provider-keys:${cfg.environmentFile}"
-            "db_password:${cfg.database.passwordFile}"
-          ] ++ optional (cfg.masterKeyFile != null) "master-key:${cfg.masterKeyFile}"
-          ++ optional (cfg.sso.adminUi.enable && cfg.sso.adminUi.clientSecretFile != null)
-            "oidc-client-secret:${cfg.sso.adminUi.clientSecretFile}";
+          LoadCredential =
+            [ "db-password:${cfg.database.passwordFile}" ]
+            ++ optional (cfg.environmentFile != null) "provider-keys:${cfg.environmentFile}"
+            ++ optional (cfg.masterKeyFile != null) "master-key:${cfg.masterKeyFile}"
+            ++ optional (cfg.saltKeyFile != null) "salt-key:${cfg.saltKeyFile}"
+            ++ optional (ui.enable && ui.clientSecretFile != null) "oidc-client-secret:${ui.clientSecretFile}"
+            ++ lib.mapAttrsToList (var: file: "${credName var}:${file}") cfg.extraCredentialFiles;
         };
 
-        script = ''
-          set -euo pipefail
-          tmp="${envFile}.tmp"
-          trap 'rm -f "$tmp"' EXIT
-
-          # Export variables as we build them (for envsubst later)
-          set -a
-
-          # Load provider keys into environment
-          # shellcheck source=/dev/null
-          source "$CREDENTIALS_DIRECTORY/provider-keys"
-
-          # Database connection URL
-          DB_PASS=$(cat "$CREDENTIALS_DIRECTORY/db_password")
-          DATABASE_URL="postgresql://${cfg.database.user}:$DB_PASS@${cfg.database.host}:${toString cfg.database.port}/${cfg.database.name}"
-
-          # Master key handling
-          if [[ -f "$CREDENTIALS_DIRECTORY/master-key" ]]; then
-            LITELLM_MASTER_KEY=$(cat "$CREDENTIALS_DIRECTORY/master-key")
-          else
-            # Auto-generate master key if not provided
-            MASTER_KEY_FILE="/var/lib/${serviceName}/master-key"
-            if [[ ! -f "$MASTER_KEY_FILE" ]]; then
-              head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32 > "$MASTER_KEY_FILE"
-              chmod 600 "$MASTER_KEY_FILE"
-            fi
-            LITELLM_MASTER_KEY=$(cat "$MASTER_KEY_FILE")
-          fi
-        '' + optionalString cfg.sso.adminUi.enable ''
-
-          # Admin UI SSO (OAuth2 Generic Provider)
-          GENERIC_CLIENT_ID="${cfg.sso.adminUi.clientId}"
-          if [[ -f "$CREDENTIALS_DIRECTORY/oidc-client-secret" ]]; then
-            GENERIC_CLIENT_SECRET=$(cat "$CREDENTIALS_DIRECTORY/oidc-client-secret")
-          fi
-          GENERIC_AUTHORIZATION_ENDPOINT="${cfg.sso.adminUi.authorizationEndpoint}"
-          GENERIC_TOKEN_ENDPOINT="${cfg.sso.adminUi.tokenEndpoint}"
-          GENERIC_USERINFO_ENDPOINT="${cfg.sso.adminUi.userinfoEndpoint}"
-          GENERIC_SCOPE="${cfg.sso.adminUi.scope}"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.redirectUri != null) ''
-          PROXY_BASE_URL="${lib.removeSuffix "/sso/callback" cfg.sso.adminUi.redirectUri}"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userIdAttribute != "sub") ''
-          GENERIC_USER_ID_ATTRIBUTE="${cfg.sso.adminUi.userIdAttribute}"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userEmailAttribute != "email") ''
-          GENERIC_USER_EMAIL_ATTRIBUTE="${cfg.sso.adminUi.userEmailAttribute}"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userDisplayNameAttribute != "name") ''
-          GENERIC_USER_DISPLAY_NAME_ATTRIBUTE="${cfg.sso.adminUi.userDisplayNameAttribute}"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userRoleAttribute != null) ''
-          GENERIC_USER_ROLE_ATTRIBUTE="${cfg.sso.adminUi.userRoleAttribute}"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.proxyAdminId != null && cfg.sso.adminUi.userRoleAttribute == null) ''
-          PROXY_ADMIN_ID="${cfg.sso.adminUi.proxyAdminId}"
-        '' + ''
-
-          set +a
-
-          # Write environment file for Podman (unquoted KEY=value format)
-          {
-            # Provider keys
-            cat "$CREDENTIALS_DIRECTORY/provider-keys"
-
-            # Core variables
-            echo "DATABASE_URL=$DATABASE_URL"
-            echo "LITELLM_MASTER_KEY=$LITELLM_MASTER_KEY"
-        '' + optionalString cfg.sso.adminUi.enable ''
-          # SSO variables
-          echo "GENERIC_CLIENT_ID=$GENERIC_CLIENT_ID"
-          echo "GENERIC_CLIENT_SECRET=''${GENERIC_CLIENT_SECRET:-}"
-          echo "GENERIC_AUTHORIZATION_ENDPOINT=$GENERIC_AUTHORIZATION_ENDPOINT"
-          echo "GENERIC_TOKEN_ENDPOINT=$GENERIC_TOKEN_ENDPOINT"
-          echo "GENERIC_USERINFO_ENDPOINT=$GENERIC_USERINFO_ENDPOINT"
-          echo "GENERIC_SCOPE=$GENERIC_SCOPE"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.redirectUri != null) ''
-          echo "PROXY_BASE_URL=$PROXY_BASE_URL"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userIdAttribute != "sub") ''
-          echo "GENERIC_USER_ID_ATTRIBUTE=$GENERIC_USER_ID_ATTRIBUTE"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userEmailAttribute != "email") ''
-          echo "GENERIC_USER_EMAIL_ATTRIBUTE=$GENERIC_USER_EMAIL_ATTRIBUTE"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userDisplayNameAttribute != "name") ''
-          echo "GENERIC_USER_DISPLAY_NAME_ATTRIBUTE=$GENERIC_USER_DISPLAY_NAME_ATTRIBUTE"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.userRoleAttribute != null) ''
-          echo "GENERIC_USER_ROLE_ATTRIBUTE=$GENERIC_USER_ROLE_ATTRIBUTE"
-        '' + optionalString (cfg.sso.adminUi.enable && cfg.sso.adminUi.proxyAdminId != null && cfg.sso.adminUi.userRoleAttribute == null) ''
-          echo "PROXY_ADMIN_ID=$PROXY_ADMIN_ID"
-        '' + ''
-          } > "$tmp"
-
-          install -m 600 "$tmp" "${envFile}"
-          echo "Environment file created at ${envFile}"
-
-          # Process config.yaml through envsubst to substitute actual values
-          # Variables are already exported from above, so envsubst can use them directly
-          ${pkgs.envsubst}/bin/envsubst < "${configYaml}" > "${configFile}.tmp"
-          install -D -m 644 "${configFile}.tmp" "${configFile}"
-          rm -f "${configFile}.tmp"
-          echo "Config file installed at ${configFile} (with substituted values)"
-        '';
+        script = envScript;
+        # Re-run on the next switch whenever the assembled script changes
+        # (RemainAfterExit oneshots are otherwise left as-is, issue #852).
+        restartTriggers = [ envScript ];
       };
-
-      # ========================================================================
-      # Notification Templates
-      # ========================================================================
-
-      modules.notifications.templates = mkIf (hasCentralizedNotifications && cfg.notifications != null && cfg.notifications.enable) {
-        "${serviceName}-failure" = {
-          enable = true;
-          priority = "high";
-          title = "❌ LiteLLM service failed";
-          body = ''
-            <b>Host:</b> ${config.networking.hostName}
-            <b>Service:</b> ${mainServiceUnit}
-
-            Check logs: <code>journalctl -u ${mainServiceUnit} -n 200</code>
-          '';
-        };
-      };
-
-      # ========================================================================
-      # Reverse Proxy (Caddy) Integration
-      # ========================================================================
-
-      modules.services.caddy.virtualHosts.${serviceName} = mkIf (cfg.reverseProxy != null && cfg.reverseProxy.enable) {
-        enable = true;
-        hostName = cfg.reverseProxy.hostName;
-        backend = effectiveBackend;
-        auth = cfg.reverseProxy.auth;
-        security = cfg.reverseProxy.security;
-        extraConfig = cfg.reverseProxy.extraConfig;
-      };
-    })
-
-    # ==========================================================================
-    # Preseed Service (Disaster Recovery)
-    # ==========================================================================
-    (mkIf (cfg.enable && cfg.preseed.enable) (
-      storageHelpers.mkPreseedService {
-        inherit serviceName;
-        dataset = datasetPath;
-        mountpoint = cfg.dataDir;
-        inherit mainServiceUnit;
-        replicationCfg = replicationConfig;
-        datasetProperties = {
-          recordsize = "128K";
-          compression = "zstd";
-          "com.sun:auto-snapshot" = "true";
-        };
-        resticRepoUrl = cfg.preseed.repositoryUrl;
-        resticPasswordFile = cfg.preseed.passwordFile;
-        resticEnvironmentFile = cfg.preseed.environmentFile;
-        resticPaths = [ cfg.dataDir ];
-        restoreMethods = cfg.preseed.restoreMethods;
-        inherit hasCentralizedNotifications;
-        owner = cfg.user;
-        group = cfg.group;
-      }
-    ))
-  ];
+    };
 }
