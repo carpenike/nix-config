@@ -131,6 +131,13 @@ Things that are deliberately unchanged:
   factory scraper cannot present. Enable it later with
   `litellm_settings.callbacks = ["prometheus"]` and an authenticated scrape.
 
+Provider keys live in the `litellm/provider-keys` sops env file (one
+`NAME=value` per line, referenced as `os.environ/NAME` from `config.yaml`);
+the Admin UI is for virtual keys, budgets and teams, not provider credentials.
+Re-encrypting any `litellm/*` secret restarts `podman-litellm` on the next
+switch (`restartUnits`). The router runs with `max_fallbacks = 0`: an unknown
+model id fails instead of being retried across the other providers.
+
 ### Model routes
 
 | Request model | Goes to |

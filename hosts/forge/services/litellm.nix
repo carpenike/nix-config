@@ -132,6 +132,19 @@ in
           proxyAdminId = "ryan";
         };
 
+        # No cross-model fallbacks. With wildcard deployments for four
+        # providers, a request for a model id that does not exist made the
+        # router walk other providers' catalogues (gemini-exp, claude-3-haiku,
+        # gpt-5-nano, ...) on 2026-09-04 — harmless only because the direct
+        # keys were stale. A typo must fail, not spend on three providers.
+        # Per-key: virtual keys can also carry metadata.disable_fallbacks.
+        routerSettings = {
+          routing_strategy = "simple-shuffle";
+          num_retries = 2;
+          timeout = 600;
+          max_fallbacks = 0;
+        };
+
         generalSettings = {
           # Config-defined models are mirrored into the DB so the Admin UI
           # can show and test them.

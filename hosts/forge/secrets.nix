@@ -904,12 +904,17 @@ in
           # LiteLLM AI Gateway secrets
           # Uses PostgreSQL for spend tracking, virtual keys, and user management
 
+          # All four are read by the litellm-env oneshot, which only re-runs
+          # when the container unit restarts (it is PartOf podman-litellm), so
+          # a re-encrypted secret must restart the container to take effect.
+
           # Provider API keys (environment file format)
           # Contains: AZURE_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY
           "litellm/provider-keys" = {
             mode = "0400";
             owner = "root";
             group = "root";
+            restartUnits = [ "podman-litellm.service" ];
           };
 
           # PostgreSQL database password (litellm user)
@@ -917,6 +922,7 @@ in
             mode = "0440";
             owner = "root";
             group = "postgres";
+            restartUnits = [ "podman-litellm.service" ];
           };
 
           # Master key for API authentication (optional - auto-generated if not set)
@@ -924,6 +930,7 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+            restartUnits = [ "podman-litellm.service" ];
           };
 
           # OIDC client secret for Admin UI SSO (PocketID)
@@ -931,6 +938,7 @@ in
             mode = "0400";
             owner = "root";
             group = "root";
+            restartUnits = [ "podman-litellm.service" ];
           };
         }
         // optionalAttrs paperlessEnabled {
