@@ -1816,6 +1816,21 @@ in
           #
           # systemd reads both as root before dropping to the `schoolhouse`
           # system user, so they are root-only.
+          # Gatus reads these as environment variables and nothing else —
+          # it has no file-based secret loading — so the two raw secrets are
+          # rendered into one EnvironmentFile here. Read by systemd as root
+          # before it drops to the gatus user, hence root:root 0400.
+          "gatus-pushover-env" = {
+            content = ''
+              GATUS_PUSHOVER_TOKEN=${config.sops.placeholder."pushover/token"}
+              GATUS_PUSHOVER_USER=${config.sops.placeholder."pushover/user-key"}
+            '';
+            mode = "0400";
+            owner = "root";
+            group = "root";
+            restartUnits = [ "gatus.service" ];
+          };
+
           "schoolhouse-ingest-env" = {
             content = ''
               SCHOOLHOUSE_DATABASE_URL=postgresql://schoolhouse:${config.sops.placeholder."schoolhouse/db_password"}@127.0.0.1:5432/schoolhouse
