@@ -71,7 +71,7 @@ in
       modules.services.litellm = {
         # Re-enabled 2026-09-04 (was off since 2026-06-01 as an unused
         # gateway) to front copilot-api for Claude Code and the household
-        # agents. Memory stays capped at 1G below.
+        # agents. Memory is capped at 2G below.
         enable = true;
 
         # Pin container image (Renovate will update)
@@ -178,10 +178,15 @@ in
           # No caddySecurity: virtual keys on the API, SSO on the UI.
         };
 
-        # Observed ~470MB avg / 660MB peak over 48h on the previous deployment.
+        # 2026-09-04: the first start of v1.99 under the old 1G cap was
+        # OOM-killed twice, 16s in, while Prisma ran migrations — the kernel
+        # logged the litellm process at ~740MB anon RSS in a 1G cgroup, so the
+        # 2025 observation (~470MB avg / 660MB peak) no longer holds for
+        # startup. 2G matches the host floor for containers; steady state
+        # should settle well below it.
         resources = {
-          memory = "1G";
-          memoryReservation = "512M";
+          memory = "2G";
+          memoryReservation = "1G";
           cpus = "1.0";
         };
 
