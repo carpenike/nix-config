@@ -20,7 +20,7 @@ mylib.mkContainerService {
   spec = {
     port = 3005;
     containerPort = 3002;
-    image = "chrisvel/tududi:1.4.1@sha256:864d1a9f9cba650fba5d12da9693d9711b4199a58c3bb0eba20be7952f707d97";
+    image = "chrisvel/tududi:1.4.2@sha256:1433ec2ea84d563c1ffe61195a53ed2a0f7a1981d39d7f15a446cdf0a39824ad";
     operationalProfile = "productivity";
 
     displayName = "Tududi";
