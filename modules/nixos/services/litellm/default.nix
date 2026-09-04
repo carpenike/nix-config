@@ -498,6 +498,10 @@ mylib.mkContainerService {
         before = [ mainServiceUnit ];
         requiredBy = [ mainServiceUnit ];
         partOf = [ mainServiceUnit ];
+        # Writes generated keys into <dataDir>/secrets, so the dataset must be
+        # mounted (and restored) first — see the copilot-api-keys note.
+        after = [ "zfs-service-datasets.service" "preseed-${serviceName}.service" ];
+        requires = [ "zfs-service-datasets.service" ];
 
         serviceConfig = {
           Type = "oneshot";
