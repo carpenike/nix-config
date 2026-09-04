@@ -261,6 +261,12 @@ mylib.mkContainerService {
         before = [ mainServiceUnit ];
         requiredBy = [ mainServiceUnit ];
         partOf = [ mainServiceUnit ];
+        # Must not run before the dataset is mounted (and, on a rebuild,
+        # restored): on 2026-09-04 this unit fired at multi-user.target ahead
+        # of zfs-service-datasets, created <dataDir>/data on the root
+        # filesystem, and the dataset was never created underneath it.
+        after = [ "zfs-service-datasets.service" "preseed-${serviceName}.service" ];
+        requires = [ "zfs-service-datasets.service" ];
 
         serviceConfig = {
           Type = "oneshot";
