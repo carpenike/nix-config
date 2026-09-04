@@ -408,8 +408,13 @@
   };
 
   copilot-api = {
-    uid = 948;
-    gid = 948;
+    # 924, not 948: 948 was "next available" in this file but forge had
+    # already auto-allocated it to schoolhouse (and gid 948 to miniflux) —
+    # services that create their user without a pinned id are invisible
+    # here. Deploying with 948 produced a duplicate uid. Verify a candidate
+    # against the host before claiming it (see the note below).
+    uid = 924;
+    gid = 924;
     description = "copilot-api GitHub Copilot inference proxy";
     extraGroups = [ ];
   };
@@ -680,10 +685,18 @@
   # ============================================================================
   # NEXT AVAILABLE UIDs (for new deployments)
   # ============================================================================
-  # When adding a new service, use the next available UID in the 996+ range
-  # and document the actual deployed values after first deployment.
+  # When adding a new service, pick an id that is free BOTH in this file and
+  # on the target host. This file only knows about pinned ids; NixOS
+  # auto-allocates the rest (users declared without `uid`, e.g. schoolhouse,
+  # miniflux, n8n) from the same 900-999 pool and remembers them in
+  # /var/lib/nixos/{uid,gid}-map even after the user is gone. Check with:
   #
-  # Next available: 949
+  #   ssh forge 'getent passwd 924; getent group 924; \
+  #     sudo jq "to_entries[]|select(.value==924)" /var/lib/nixos/uid-map /var/lib/nixos/gid-map'
+  #
+  # Document the actual deployed values after first deployment.
+  #
+  # Next available (free here and on forge as of 2026-09-04): 925
   # ============================================================================
 
   # ============================================================================
@@ -751,7 +764,7 @@
     sharedUids = [ 911 ]; # Document intentional sharing (lidarr/readarr)
     sharedGids = [ 973 ]; # cooklang and cooklang-federation share a group
     changes = [
-      "v7: Added copilot-api service identity"
+      "v7: Added copilot-api service identity (924; 948 collided with forge auto-allocations)"
       "v6: Added PeaNUT service identity"
       "v5: Added extraGroups to all service entries"
       "v5: Added sharedGroups section for infrastructure groups"
