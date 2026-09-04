@@ -353,7 +353,7 @@ Services using `pkgs.unstable.*` instead of stable packages:
 
 | Field | Value |
 |-------|-------|
-| **Location** | `modules/nixos/services/litellm/default.nix:494` |
+| **Location** | `modules/nixos/services/litellm/default.nix` (`sso.adminUi.proxyAdminId`, `userRoleAttribute`) |
 | **Reason** | `generic_response_convertor` always sets `user_role=None` |
 | **Workaround** | Use `proxyAdminId` instead of role claim |
 | **Upstream** | https://github.com/BerriAI/litellm |

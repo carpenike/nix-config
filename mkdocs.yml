@@ -159,6 +159,7 @@ nav:
       - pgBackRest Multi-Repo: pgbackrest-multi-repo-workaround.md
       - PostgreSQL Preseed Fix: postgresql-preseed-marker-fix.md
   - Services:
+      - AI Gateway (LiteLLM + copilot-api): services/ai-gateway.md
       - Arr Services Implementation: services/arr-services-implementation.md
       - Arr API Configuration: arr-services-api-key-configuration.md
       - Cooklang Module Design: services/cooklang-module-design.md

@@ -3,6 +3,7 @@
 { ... }:
 {
   imports = [
+    ../copilot-api # GitHub Copilot subscription as an Anthropic/OpenAI-compatible API
     ../litellm # Unified AI gateway
     ../open-webui # AI chat interface
   ];

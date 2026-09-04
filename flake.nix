@@ -787,7 +787,9 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              assert manifest.summary.classified == 48;
+              # 2026-09-04, 48 -> 50: copilot-api (new) and litellm (re-enabled)
+              # both declare a `standard` protection policy.
+              assert manifest.summary.classified == 50;
               assert manifest.summary.byClass == {
                 critical = 10;
                 ephemeral = 21;
@@ -795,7 +797,9 @@
                 # had been running on the impermanence-rolled-back root with
                 # no dataset and no persistence entry, so its state was wiped
                 # every boot and the manifest could not see it at all.
-                standard = 15;
+                # 17 since 2026-09-04: copilot-api (new) and litellm
+                # (re-enabled) both declare `standard`.
+                standard = 17;
                 system = 2;
               };
               assert manifest.summary.unknownRepositories == [ ];
@@ -962,16 +966,22 @@
                 # pauses them for a deploy and restores them after, which is
                 # what should happen to a job that takes the pgBackRest
                 # backup lock.
-              assert builtins.length expectedTimers == 131;
+                #
+                # 2026-09-04, 131 -> 135 timers, 58 -> 60 snapshot datasets and
+                # 61 -> 63 restic jobs: copilot-api (new) and litellm (re-enabled,
+                # off since 2026-06-01) each bring a restic job
+                # (restic-backup-service-<name>.timer) and a replicated dataset
+                # (syncoid-tank-services-<name>.timer).
+              assert builtins.length expectedTimers == 135;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
               assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
-              assert builtins.length (builtins.attrNames snapshotDatasets) == 58;
+              assert builtins.length (builtins.attrNames snapshotDatasets) == 60;
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 61;
+              assert builtins.length (builtins.attrNames enabledResticJobs) == 63;
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;
