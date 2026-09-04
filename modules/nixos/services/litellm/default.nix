@@ -508,6 +508,12 @@ mylib.mkContainerService {
           RemainAfterExit = true;
           RuntimeDirectory = serviceName;
           RuntimeDirectoryMode = "0700";
+          # Keep /run/litellm across a stop of this oneshot. During a switch
+          # systemd stops it (PartOf the container) and the container's restart
+          # job can run before the start job rewrites the env file; without
+          # this the first attempt fails with "open /run/litellm/env: no such
+          # file" and only the on-failure restart recovers it (2026-09-04).
+          RuntimeDirectoryPreserve = "yes";
           LoadCredential =
             [ "db-password:${cfg.database.passwordFile}" ]
             ++ optional (cfg.environmentFile != null) "provider-keys:${cfg.environmentFile}"
