@@ -434,7 +434,24 @@ mylib.mkContainerService {
             ${optionalString (ui.proxyAdminId != null && ui.userRoleAttribute == null) ''echo "PROXY_ADMIN_ID=${ui.proxyAdminId}"''}
           ''}
           ${lib.concatStringsSep "\n" (lib.mapAttrsToList (var: _: ''echo "${var}=$(read_cred ${credName var})"'') cfg.extraCredentialFiles)}
-          ${optionalString (cfg.environmentFile != null) ''cat "$CREDENTIALS_DIRECTORY/provider-keys"''}
+          ${optionalString (cfg.environmentFile != null) ''
+            # Provider keys. The sops file is shell env-file syntax and quotes
+            # its values (KEY="sk-..."); podman's --env-file passes quotes
+            # through literally, so a verbatim copy handed every provider a
+            # key starting with a double quote and all four failed auth
+            # (2026-09-04). Let the shell parse the file, then re-emit each
+            # variable unquoted, one per line.
+            (
+              set -a
+              # shellcheck disable=SC1091
+              source "$CREDENTIALS_DIRECTORY/provider-keys"
+              set +a
+              while IFS= read -r name; do
+                [ -n "$name" ] || continue
+                printf '%s=%s\n' "$name" "''${!name}"
+              done < <(${pkgs.gnugrep}/bin/grep -oE '^(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=' "$CREDENTIALS_DIRECTORY/provider-keys" | ${pkgs.gnused}/bin/sed -E 's/^export[[:space:]]+//; s/=$//')
+            )
+          ''}
         } > "$tmp"
 
         install -m 0600 "$tmp" "${envFile}"
