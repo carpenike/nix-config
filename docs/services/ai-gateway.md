@@ -19,7 +19,7 @@ Claude Code / SDKs / Open WebUI
         ▼
    Caddy (llm.holthome.net, LAN only) ──► litellm:4000
         │ config.yaml model routes
-        ├─ copilot/*      ──► copilot-api:4141  (Podman network, client key)
+        ├─ copilot/*      ──► host.containers.internal:4141 → copilot-api (client key)
         ├─ anthropic/*    ──► api.anthropic.com
         ├─ gemini/*       ──► Google AI Studio
         ├─ openai/*       ──► api.openai.com

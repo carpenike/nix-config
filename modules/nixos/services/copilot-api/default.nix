@@ -47,8 +47,12 @@
 # carry no data; the host file additionally 404s `/usage-viewer*` and
 # `/admin*` at Caddy so the admin surface is reachable only from forge.
 #
-# Other containers on the same Podman network reach it as
-# `http://copilot-api:<port>` — that is how LiteLLM consumes it.
+# Containers on Podman's default network reach it as
+# `http://host.containers.internal:<port>` when `bridgePublishAddress` is
+# set to that bridge's host address — that is how LiteLLM consumes it.
+# (A shared named network with container DNS was tried first; PostgreSQL
+# only listens on, and pg_hba only admits, the default bridge, so moving
+# LiteLLM onto another bridge cut it off from its database.)
 #
 # Bootstrap (one-time, interactive)
 # ---------------------------------
@@ -183,6 +187,18 @@ mylib.mkContainerService {
       example = "/run/secrets/copilot-api/api-keys";
     };
 
+    bridgePublishAddress = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Additional host address to publish the port on, for containers on
+        Podman's default network that reach the host as
+        host.containers.internal (10.88.0.1 on forge). Loopback is always
+        published. Leave null if nothing in a container needs it.
+      '';
+      example = "10.88.0.1";
+    };
+
     # copilot-api has no /metrics endpoint; keep the factory default off.
     metrics = lib.mkOption {
       type = lib.types.nullOr mylib.types.metricsSubmodule;
@@ -237,9 +253,11 @@ mylib.mkContainerService {
         # Loopback only. The factory default publishes on all interfaces,
         # which for a service whose only auth is a bearer key would hand the
         # Copilot subscription to anything on the LAN that guessed the key.
-        ports = lib.mkForce [
-          "127.0.0.1:${toString cfg.port}:${toString containerPort}"
-        ];
+        ports = lib.mkForce (
+          [ "127.0.0.1:${toString cfg.port}:${toString containerPort}" ]
+          ++ lib.optional (cfg.bridgePublishAddress != null)
+            "${cfg.bridgePublishAddress}:${toString cfg.port}:${toString containerPort}"
+        );
       };
 
       systemd.services.${mainServiceName} = {

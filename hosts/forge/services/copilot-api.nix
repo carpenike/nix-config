@@ -6,7 +6,7 @@
 #
 # Who talks to it
 # ---------------
-#   LiteLLM (same Podman network)  → http://copilot-api:4141   (bearer key)
+#   LiteLLM (default Podman net)   → http://host.containers.internal:4141 (bearer key)
 #   Claude Code / tools on the LAN → https://copilot.holthome.net (bearer key)
 #
 # Every client presents the copilot-api client key. With no `apiKeysFile`
@@ -55,9 +55,12 @@ in
         # 4141 is upstream's default and unused elsewhere on forge.
         port = listenPort;
 
-        # Shared bridge so LiteLLM can reach `copilot-api:4141` by name
-        # without leaving the container network.
-        podmanNetwork = forgeDefaults.podmanNetwork;
+        # Default Podman network (no podmanNetwork): LiteLLM lives there too
+        # because PostgreSQL only listens on that bridge. LiteLLM reaches this
+        # service as http://host.containers.internal:4141 through the extra
+        # publish below; the address is host-local to the bridge, and the app
+        # requires the bearer key on every inference route regardless.
+        bridgePublishAddress = "10.88.0.1";
 
         # Client keys: leave null to have the module generate one, or point
         # at a sops secret with one key per line, e.g.

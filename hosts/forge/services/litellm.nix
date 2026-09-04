@@ -7,7 +7,8 @@
 #
 # Model routes (what clients ask for → where it goes)
 # ---------------------------------------------------
-#   copilot/<id>          → copilot-api (Anthropic Messages path). Use for
+#   copilot/<id>          → copilot-api via host.containers.internal:4141
+#                           (Anthropic Messages path). Use for
 #                           Claude models from the Copilot catalogue, e.g.
 #                           copilot/claude-sonnet-4.5. `GET /v1/models` on
 #                           copilot-api lists the current ids.
@@ -54,7 +55,10 @@ let
     if copilotCfg.apiKeysFile or null != null
     then copilotCfg.apiKeysFile
     else "/var/lib/copilot-api/api-key";
-  copilotBase = "http://copilot-api:${toString copilotCfg.port}";
+  # copilot-api publishes on the default bridge's host address (see its
+  # bridgePublishAddress); from a container on that network the host is
+  # host.containers.internal.
+  copilotBase = "http://host.containers.internal:${toString copilotCfg.port}";
 
   azureFoundry = "https://ryholt-simplechat-aifoundry.cognitiveservices.azure.com";
   azureDeployment = { name, apiVersion ? "2024-12-01-preview", modelInfo ? { } }: {
@@ -79,9 +83,12 @@ in
 
         port = listenPort;
 
-        # Shared bridge: reaches copilot-api by container name, and lets
-        # other containers reach `litellm:4000`.
-        podmanNetwork = forgeDefaults.podmanNetwork;
+        # Deliberately NOT on forgeDefaults.podmanNetwork: PostgreSQL listens
+        # on 127.0.0.1 and the default bridge (10.88.0.1) and pg_hba admits
+        # only 10.88.0.0/16, so on media-services the container could not
+        # reach its database (first deploy, 2026-09-04). Admitting another
+        # bridge would restart PostgreSQL for every service; the default
+        # network is where teslamate and mealie already reach it.
 
         # Provider credentials and the master key via sops (secrets.nix)
         environmentFile = config.sops.secrets."litellm/provider-keys".path;
