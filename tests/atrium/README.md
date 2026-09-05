@@ -20,11 +20,12 @@ call is performed. The test host does not start a resolver or reconciler.
   input. A caller may instead supply an exact reference for an isolated local
   review. No live service is enabled.
 
-The root flake pins the published `atr/N02-registry-module` commit and follows
-the existing stable nixpkgs input; no unrelated input is updated. HTTPS Git
-transport uses the operator's existing Git credential helper for this private
-repository. No GitHub token is written to configuration or passed on a command
-line.
+The root flake pins an immutable published Atrium commit and follows the existing
+stable nixpkgs input; no unrelated input is updated. The GitHub fetcher uses Nix's
+protected access-token configuration. Existing CI already supplies
+`NIX_FLAKE_INPUTS_PAT`; that token must have read access to the private Atrium
+repository. Keep token values outside this repository and the Nix store. The pin
+does not depend on retaining a feature branch after review.
 
 ```sh
 nix build --no-link --builders '' .#checks.aarch64-darwin.atrium-registry-values
@@ -40,7 +41,7 @@ nix eval --json --file tests/atrium/evaluate.nix \
   }).report'
 ```
 
-The same interface accepts a published private Git flake reference. Local
+The same interface accepts a published private GitHub flake reference. Local
 overrides do not modify the root lock file or import the fixture into live forge
 configuration.
 
@@ -100,13 +101,16 @@ image-only modality enforcement. No undeclared provider fallback is configured.
 ## Evidence and blockers
 
 Current schema-2 evaluation passes **18 paired static mutations and 19 structural
-assertions**. The matching Atrium implementation passes **29 permit checks, 209
+assertions**. The matching Atrium implementation passes **35 permit checks, 217
 deny checks, and 18 module assertions**, including the restored ownership,
 affinity, read/write, view enforcement, role, child-model and fallback invariants.
 The evaluator rejects schema 1 and legacy unclassified source catalogs.
 The verified schema-2 Atrium input is
-**`f19c8ad5186774d092cbfe8e04dccf4aacf51150`**, consumed through an immutable local
-Git flake reference; the report returned this exact `atrium_revision`.
+**`88c442446d7c867b3475355611fb1f0033f34871`**, consumed through the pinned
+private GitHub input. The report returns this exact `atrium_revision`.
+Identity IDs match R01's 64-character grammar; native subjects share its 512-byte
+UTF-8 bound and are not normalized. The earlier `f19c8ad` source passed 29/209
+checks before those cross-component identity constraints were tightened.
 
 **Historical schema-1 evidence, not the current input:** initial N02 validation
 used Nix **2.31.5** and the immutable local Atrium flake

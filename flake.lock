@@ -43,19 +43,18 @@
         ]
       },
       "locked": {
-        "lastModified": 1788638995,
-        "narHash": "sha256-3kSpqRWRTzwoIpWadstuIXIYW/OYnNNDCPb3I0ki+9o=",
-        "ref": "atr/N02-registry-module",
-        "rev": "8552abdb0ceeb136d015d9a5b73c65b8b641b194",
-        "revCount": 4,
-        "type": "git",
-        "url": "https://github.com/carpenike/atrium"
+        "lastModified": 1788640756,
+        "narHash": "sha256-I0PznRf3uh4+TfJpiHV5tY2C/F8wO0IJSOUJm8yDCnU=",
+        "owner": "carpenike",
+        "repo": "atrium",
+        "rev": "88c442446d7c867b3475355611fb1f0033f34871",
+        "type": "github"
       },
       "original": {
-        "ref": "atr/N02-registry-module",
-        "rev": "8552abdb0ceeb136d015d9a5b73c65b8b641b194",
-        "type": "git",
-        "url": "https://github.com/carpenike/atrium"
+        "owner": "carpenike",
+        "repo": "atrium",
+        "rev": "88c442446d7c867b3475355611fb1f0033f34871",
+        "type": "github"
       }
     },
     "catppuccin": {

@@ -131,7 +131,7 @@
 
     # ATR-N02: module and policy checks only; no live forge service is enabled.
     atrium = {
-      url = "git+https://github.com/carpenike/atrium?ref=atr/N02-registry-module&rev=8552abdb0ceeb136d015d9a5b73c65b8b641b194";
+      url = "github:carpenike/atrium/88c442446d7c867b3475355611fb1f0033f34871";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
