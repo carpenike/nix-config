@@ -36,6 +36,28 @@
         "type": "github"
       }
     },
+    "atrium": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788638995,
+        "narHash": "sha256-3kSpqRWRTzwoIpWadstuIXIYW/OYnNNDCPb3I0ki+9o=",
+        "ref": "atr/N02-registry-module",
+        "rev": "8552abdb0ceeb136d015d9a5b73c65b8b641b194",
+        "revCount": 4,
+        "type": "git",
+        "url": "https://github.com/carpenike/atrium"
+      },
+      "original": {
+        "ref": "atr/N02-registry-module",
+        "rev": "8552abdb0ceeb136d015d9a5b73c65b8b641b194",
+        "type": "git",
+        "url": "https://github.com/carpenike/atrium"
+      }
+    },
     "catppuccin": {
       "locked": {
         "lastModified": 1719915848,
@@ -638,6 +660,7 @@
       "inputs": {
         "actual-nixpkgs": "actual-nixpkgs",
         "ambit": "ambit",
+        "atrium": "atrium",
         "catppuccin": "catppuccin",
         "coachiq": "coachiq",
         "disko": "disko",

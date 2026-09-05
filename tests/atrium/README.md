@@ -1,22 +1,37 @@
 # ATR-N02 isolated registry values
 
-These are **test-only declarations**, not forge configuration. Nothing here is
-imported by the root flake, forge, or any live service. No deployment, key/team
+These are **isolated declarations owned by forge**, not enabled forge services.
+The values live under `hosts/forge/atrium/` but are deliberately not imported by
+`hosts/forge/default.nix` or any live service. No deployment, key/team
 mutation, refresh migration, firewall change, real child account, or paid model
 call is performed. The test host does not start a resolver or reconciler.
 
 ## Placement and consumption
 
-- `registry.nix`: concrete `personal:ryan` / `family:holt` values and permission
-  templates, consuming an **Atrium flake**, not copied option/validator code.
+- `hosts/forge/atrium/registry-isolated.nix`: concrete `personal:ryan` /
+  `family:holt` values and permission templates, consuming an **Atrium flake**,
+  not copied option/validator code. `tests/atrium/registry.nix` imports this one
+  declaration rather than maintaining a parallel copy.
 - `host.nix`: isolated NixOS module fixture importing
   `atrium.nixosModules.atrium`; it asserts the fixture hostname and disabled runtime
   components. It is never imported by `hosts/forge`.
-- `evaluate.nix`: real Nix permit/deny and generated-policy checks. The caller must
-  supply an exact Atrium flake reference. It consumes that flake's locked nixpkgs,
-  avoiding changes to live inputs or unrelated dependency updates.
+- `evaluate.nix`: real Nix permit/deny and generated-policy checks. The root flake's
+  `checks.<system>.atrium-registry-values` supplies its immutable private Atrium
+  input. A caller may instead supply an exact reference for an isolated local
+  review. No live service is enabled.
 
-Use the accepted Atrium module commit from the paired ATR-N02 report:
+The root flake pins the published `atr/N02-registry-module` commit and follows
+the existing stable nixpkgs input; no unrelated input is updated. HTTPS Git
+transport uses the operator's existing Git credential helper for this private
+repository. No GitHub token is written to configuration or passed on a command
+line.
+
+```sh
+nix build --no-link --builders '' .#checks.aarch64-darwin.atrium-registry-values
+```
+
+For a separate immutable local review, use the module commit from the paired
+ATR-N02 report:
 
 ```sh
 nix eval --json --file tests/atrium/evaluate.nix \
@@ -25,10 +40,9 @@ nix eval --json --file tests/atrium/evaluate.nix \
   }).report'
 ```
 
-The same interface accepts an **approved, published** private GitHub commit ref.
-No public availability or unpublished commit is assumed. Until the parent
-publishes and supplies that ref, keep this caller-pinned interface; do not guess a
-remote URL/ref or import the fixture into live forge configuration.
+The same interface accepts a published private Git flake reference. Local
+overrides do not modify the root lock file or import the fixture into live forge
+configuration.
 
 Inspect the R01 input without embedding another schema:
 
@@ -46,9 +60,12 @@ are snake_case; all identifiers remain canonical. Display labels use **wing**.
 ## Values and explicit limitations
 
 The two new fixture team IDs are `cc.personal.ryan` and `cc.family.holt`, with
-`owner = "command-center"`. They are an authoritative managed inventory, not an
-adoption rule. Existing teams, keys, aliases and consumers remain unowned and
-unchanged. Alias targets assert domain/provider/account/credential ownership.
+`owner = "command-center"`. They are desired-state identifiers, not allocated
+native IDs, adoption approval, or evidence of protected runtime ownership. N04
+must establish installation-qualified native bindings and reject name collisions
+without adopting existing objects. Existing teams, keys, aliases and consumers
+remain unowned and unchanged. Alias targets declare required
+domain/provider/account/credential relationships.
 
 Canonical `ryan` is the fixture administrator; `fixture-child` is an explicitly
 synthetic child. Both native subject bindings and the Pocket ID issuer are fake.

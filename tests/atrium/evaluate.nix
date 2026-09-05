@@ -1,7 +1,10 @@
-{ atriumFlake }:
+{ atriumInput ? null, atriumFlake ? null }:
 let
-  # The caller supplies the exact approved flake ref; no guessed GitHub availability.
-  atrium = builtins.getFlake atriumFlake;
+  atrium =
+    if (atriumInput == null) == (atriumFlake == null) then
+      throw "Supply exactly one Atrium flake input or immutable reference."
+    else if atriumInput != null then atriumInput
+    else builtins.getFlake atriumFlake;
   inherit (atrium.inputs.nixpkgs) lib;
   registry = import ./registry.nix { inherit atrium; };
   documents = atrium.lib.render registry;
@@ -46,9 +49,10 @@ let
   structural = {
     only-initial-domains = builtins.attrNames documents.registry.domains == [ "family:holt" "personal:ryan" ];
     only-new-owned-teams = documents.litellm.ownership.managed_team_ids == [ "cc.family.holt" "cc.personal.ryan" ];
-    synthetic-child-only = documents.resolver.principals.fixture-child.bindings == [ {
-      authority = "pocket-id-fixture"; subject = "synthetic-child-subject";
-    } ];
+    synthetic-child-only = documents.resolver.principals.fixture-child.bindings == [{
+      authority = "pocket-id-fixture";
+      subject = "synthetic-child-subject";
+    }];
     one-home-deployment = builtins.attrNames documents.homeMcp.deployments == [ "home-mcp" ];
     child-source-derived-view = documents.homeMcp.instances.family-home-child.tool_allowlist == [ "fixture_read" ];
     child-source-derived-resource = documents.homeMcp.instances.family-home-child.resource_allowlist == [ "fixture://notes" ];
