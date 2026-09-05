@@ -31,6 +31,15 @@ let
     missing-device-evidence-policy = patch { instances.personal-scratch.deviceAcl = { mode = "agnostic"; devices = [ ]; }; };
     management-route = patch { modelTemplates.personal-client.routes = [ "/team/update" ]; };
     secret-store-path = patch { serviceCredentials.personal-model.runtimePath = "/nix/store/fixture-key"; };
+    unknown-instance-owner = patch { instances.family-home-child.ownerPrincipal = "missing"; };
+    read-only-view-widened = patch { instances.family-home-child.scopes = [ "fixture.read" "fixture.write" ]; };
+    discovery-only-view = patch { deployments.home-mcp.viewEnforcement = "discovery-only"; };
+    wrong-affinity = patch { instances.personal-scratch.affinity = "remote"; };
+    fallback-enabled = patch { modelRouting.crossProviderFallback = true; };
+    child-admin-profile = patch {
+      instances.family-home-admin.acl.principals = [ "ryan" "fixture-child" ];
+      routeTemplates.family-admin.acl.principals = [ "fixture-child" ];
+    };
   };
   permit = accepts registry;
   pairs = lib.mapAttrs (_: mutation: { permit = permit; deny = !accepts mutation; }) mutations;
@@ -52,6 +61,13 @@ let
     no-listening-ports = host.config.networking.firewall.allowedTCPPorts == [ ];
     six-generated-documents = lib.length (builtins.attrNames host.config.services.atrium.generated) == 6;
     valid-host-assertions = lib.all (item: item.assertion) host.config.assertions;
+    schema-two = documents.resolver.schema_version == 2;
+    explicit-owner = documents.resolver.instances.family-home-child.owner_principal == "ryan";
+    child-read-only = documents.resolver.instances.family-home-child.access == "read-only";
+    mirrored-groups-not-replaced = documents.resolver.group_membership.nix_membership == "ceiling-only";
+    per-principal-child-model = documents.litellm.principal_model_allowlists.fixture-child."family:holt".models
+      == [ "cc.family.holt.child" ];
+    explicit-admin-profile = documents.resolver.route_templates.family-admin.scopes == [ "admin" ];
   };
   success = lib.all (pair: pair.permit && pair.deny) (builtins.attrValues pairs)
     && lib.all (value: value) (builtins.attrValues structural);
@@ -60,7 +76,7 @@ assert success;
 {
   inherit documents;
   report = {
-    schema_version = 1;
+    schema_version = 2;
     kind = "atrium.nix-config-static-evaluation";
     inherit success pairs structural;
     pair_count = lib.length (builtins.attrNames pairs);

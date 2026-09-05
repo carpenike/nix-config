@@ -3,6 +3,9 @@ let
   acl = principals: groups: { inherit principals groups; };
   instance = domain: deployment: route: principals: groups: {
     inherit domain deployment route;
+    ownerPrincipal = "ryan";
+    affinity = if deployment == "sidecar" then "local" else "remote";
+    access = "read-only";
     kind = "view";
     displayName = "Isolated fixture";
     audience = deployment;
@@ -29,7 +32,7 @@ let
   servicePrincipal = displayName: {
     inherit displayName;
     kind = "service";
-    roles = [ "member" ];
+    roles = [ ];
     bindings = [ ];
   };
   imageProviders = [ "openai" "gemini" "openrouter" ];
@@ -102,18 +105,26 @@ in
       adapter = "home-mcp";
       endpoint = "https://home-mcp.atrium.invalid";
       catalog = "home-mcp-fixture";
+      viewEnforcement = "server-dispatch";
     };
-    whiskey = { adapter = "whiskey"; endpoint = "https://whiskey.atrium.invalid"; };
-    litellm = { adapter = "litellm"; endpoint = "https://litellm.atrium.invalid"; };
+    whiskey = { adapter = "whiskey"; endpoint = "https://whiskey.atrium.invalid"; viewEnforcement = "server-dispatch"; };
+    litellm = { adapter = "litellm"; endpoint = "https://litellm.atrium.invalid"; viewEnforcement = "server-dispatch"; };
     sidecar = {
       adapter = "sidecar";
       endpoint = "http://127.0.0.1:18761";
       catalog = "sidecar-fixture";
+      viewEnforcement = "server-dispatch";
     };
   };
   instances = {
+    family-home-admin = instance "family:holt" "home-mcp" "/cc/views/admin" [ "ryan" ] [ ] // {
+      displayName = "Family wing admin fixture";
+      access = "read-write";
+      scopes = [ "admin" ];
+    };
     family-home-adults = instance "family:holt" "home-mcp" "/cc/views/adults" [ ] [ "adults" ] // {
       displayName = "Family wing adult fixture";
+      access = "read-write";
       scopes = [ "fixture.read" "fixture.write" ];
     };
     family-home-child = instance "family:holt" "home-mcp" "/cc/views/child" [ "ryan" ] [ "fixture-children" ] // {
@@ -122,6 +133,8 @@ in
     };
     personal-whiskey = instance "personal:ryan" "whiskey" "/cc/mcp" [ "ryan" ] [ ] // {
       displayName = "Personal wing Whiskey fixture";
+      kind = "deployment";
+      access = "read-write";
       permissions = [ "read" "write" "host" ];
     };
     personal-models = instance "personal:ryan" "litellm" "/personal" [ "ryan" "whiskey-service" ] [ ] // {
@@ -138,6 +151,7 @@ in
     };
   };
   routeTemplates = {
+    family-admin = routeTemplate "family:holt" "family-home-admin" [ "ryan" ] [ ] [ "admin" ] [ ];
     family-adults = routeTemplate "family:holt" "family-home-adults" [ ] [ "adults" ]
       [ "fixture.read" "fixture.write" ] [ ];
     family-child-view = routeTemplate "family:holt" "family-home-child" [ "ryan" ] [ "fixture-children" ]
