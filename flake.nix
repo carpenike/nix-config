@@ -129,6 +129,12 @@
 
     #################### Personal Repositories ####################
 
+    # ATR-N02: module and policy checks only; no live forge service is enabled.
+    atrium = {
+      url = "git+https://github.com/carpenike/atrium?ref=atr/N02-registry-module&rev=8552abdb0ceeb136d015d9a5b73c65b8b641b194";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Hermes Agent — persistent AI agent and messaging gateway
     # https://github.com/NousResearch/hermes-agent
     # WORKAROUND (2026-07-30, rebased 2026-08-16 onto v0.20.2): Pin Signal
@@ -494,6 +500,11 @@
 
           # Checks for CI
           checks = {
+            atrium-registry-values = pkgs.writeText "atrium-registry-values-v2.json"
+              (builtins.toJSON (import ./tests/atrium/evaluate.nix {
+                atriumInput = inputs.atrium;
+              }).report);
+
             # Statix linter (uses statix.toml for configuration)
             statix = pkgs.runCommand "statix-check" { nativeBuildInputs = [ pkgs.statix ]; } ''
               cd ${./.}
