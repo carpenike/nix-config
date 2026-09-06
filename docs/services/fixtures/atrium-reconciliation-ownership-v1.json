@@ -1,0 +1,449 @@
+{
+  "schema_version": 1,
+  "ticket": "ATR-N01",
+  "fixture_only": true,
+  "live_objects_included": false,
+  "real_adapter_results": {
+    "T4": "blocked-not-executed",
+    "T19": "blocked-not-executed"
+  },
+  "clock": {
+    "last_deploy": "2030-01-01T10:00:00Z",
+    "now": "2030-01-01T10:10:00Z"
+  },
+  "catalog": {
+    "fixture-team-owned": {
+      "kind": "team",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-team-owned",
+      "name": "personal:ryan",
+      "models": ["fixture-personal-model", "fixture-obsolete-model"],
+      "metadata": {}
+    },
+    "fixture-team-unowned": {
+      "kind": "team",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-team-unowned",
+      "name": "personal:ryan",
+      "models": ["fixture-legacy-model"],
+      "metadata": {"fixture-sentinel": "preserve-entire-object"}
+    },
+    "fixture-alias-owned": {
+      "kind": "alias",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-alias-owned",
+      "name": "fixture-personal-model",
+      "scope": "global",
+      "backends": [
+        {
+          "native_model_id": "fixture-model-owned",
+          "model": "fixture-personal-backend",
+          "domain": "personal:ryan",
+          "account_ref": "fixture-personal-account"
+        }
+      ],
+      "metadata": {}
+    },
+    "fixture-alias-unowned": {
+      "kind": "alias",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-alias-unowned",
+      "name": "fixture-personal-model",
+      "scope": "global",
+      "backends": [
+        {
+          "native_model_id": "fixture-model-unowned",
+          "model": "fixture-family-backend",
+          "domain": "family:holt",
+          "account_ref": "fixture-family-account"
+        }
+      ],
+      "metadata": {"fixture-sentinel": "preserve-entire-object"}
+    },
+    "fixture-key-runtime": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-runtime",
+      "name": "cc.fixture-client",
+      "team_id": "fixture-team-owned",
+      "models": ["fixture-personal-model"],
+      "issued_at": "2030-01-01T10:05:00Z",
+      "native_expires_at": "2030-01-01T10:35:00Z",
+      "disabled": false,
+      "metadata": {
+        "cc.owner": "command-center",
+        "cc.template": "fixture-template-personal",
+        "cc.principal": "fixture-adult",
+        "cc.domain": "personal:ryan",
+        "cc.expires": "2030-01-01T10:35:00Z"
+      }
+    },
+    "fixture-key-retired": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-retired",
+      "name": "cc.fixture-retired",
+      "team_id": "fixture-team-owned",
+      "models": ["fixture-personal-model"],
+      "issued_at": "2030-01-01T09:55:00Z",
+      "native_expires_at": "2030-01-01T10:25:00Z",
+      "disabled": false,
+      "metadata": {
+        "cc.owner": "command-center",
+        "cc.template": "fixture-template-removed",
+        "cc.principal": "fixture-adult",
+        "cc.domain": "personal:ryan",
+        "cc.expires": "2030-01-01T10:25:00Z"
+      }
+    },
+    "fixture-key-unowned": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-unowned",
+      "name": "cc.fixture-client",
+      "team_id": "fixture-team-unowned",
+      "models": ["fixture-legacy-model"],
+      "disabled": false,
+      "metadata": {"fixture-sentinel": "preserve-entire-object"}
+    },
+    "fixture-key-unowned-member": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-unowned-member",
+      "name": "cc.fixture-client",
+      "team_id": "fixture-team-owned",
+      "models": ["fixture-personal-model"],
+      "disabled": false,
+      "metadata": {"fixture-sentinel": "preserve-entire-object"}
+    },
+    "fixture-key-shared-team": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-shared-team",
+      "name": "cc.fixture-shared-team",
+      "team_id": "fixture-team-unowned",
+      "models": ["fixture-legacy-model"],
+      "issued_at": "2030-01-01T10:05:00Z",
+      "native_expires_at": "2030-01-01T10:35:00Z",
+      "disabled": false,
+      "metadata": {
+        "cc.owner": "command-center",
+        "cc.template": "fixture-template-shared-team",
+        "cc.principal": "fixture-adult",
+        "cc.domain": "personal:ryan",
+        "cc.expires": "2030-01-01T10:35:00Z"
+      }
+    }
+  },
+  "protected_inventory": {
+    "fixture-team-owned": {
+      "kind": "team",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-team-owned",
+      "domain": "personal:ryan",
+      "provenance": "fixture-controller-created"
+    },
+    "fixture-alias-owned": {
+      "kind": "alias",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-alias-owned",
+      "scope": "global",
+      "native_model_ids": ["fixture-model-owned"],
+      "domain": "personal:ryan",
+      "account_ref": "fixture-personal-account",
+      "provenance": "fixture-controller-created"
+    },
+    "fixture-key-runtime": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-runtime",
+      "template": "fixture-template-personal",
+      "team_id": "fixture-team-owned",
+      "principal": "fixture-adult",
+      "domain": "personal:ryan",
+      "expires": "2030-01-01T10:35:00Z",
+      "provenance": "fixture-resolver-issued-after-deploy"
+    },
+    "fixture-key-retired": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-retired",
+      "template": "fixture-template-removed",
+      "team_id": "fixture-team-owned",
+      "principal": "fixture-adult",
+      "domain": "personal:ryan",
+      "expires": "2030-01-01T10:25:00Z",
+      "provenance": "fixture-resolver-issued-before-deploy"
+    },
+    "fixture-key-shared-team": {
+      "kind": "key",
+      "installation": "fixture-installation-a",
+      "native_id": "fixture-key-shared-team",
+      "template": "fixture-template-shared-team",
+      "team_id": "fixture-team-unowned",
+      "principal": "fixture-adult",
+      "domain": "personal:ryan",
+      "expires": "2030-01-01T10:35:00Z",
+      "provenance": "fixture-existing-managed-key"
+    }
+  },
+  "templates": {
+    "fixture-template-personal": {
+      "team_id": "fixture-team-owned",
+      "domain": "personal:ryan",
+      "principal": "fixture-adult",
+      "models": ["fixture-personal-model"],
+      "alias_refs": ["fixture-alias-owned"],
+      "max_lifetime_seconds": 3600,
+      "management_allowed": false
+    },
+    "fixture-template-shared-team": {
+      "team_id": "fixture-team-unowned",
+      "domain": "personal:ryan",
+      "principal": "fixture-adult",
+      "models": ["fixture-personal-model"],
+      "alias_refs": ["fixture-alias-owned"],
+      "max_lifetime_seconds": 3600,
+      "management_allowed": false
+    }
+  },
+  "cases": [
+    {
+      "id": "N01-01",
+      "title": "Dry-run never writes, including when an owned key has a removed template",
+      "mode": "dry-run",
+      "observed": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned", "fixture-alias-unowned", "fixture-key-runtime", "fixture-key-retired", "fixture-key-unowned"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-runtime", "fixture-key-retired"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {},
+      "expected": {
+        "plan": "report-only",
+        "required_actions": [],
+        "must_preserve": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned", "fixture-alias-unowned", "fixture-key-runtime", "fixture-key-retired", "fixture-key-unowned"],
+        "inventory_writes": 0,
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-02",
+      "title": "Same-name teams are distinguished by protected native identity",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {},
+      "expected": {
+        "plan": "owned-only",
+        "required_actions": [
+          {"action": "set-exact-team-models", "target": "fixture-team-owned", "models": ["fixture-personal-model"]}
+        ],
+        "must_preserve": ["fixture-team-unowned"],
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-03",
+      "title": "Post-deploy runtime key survives; key names and owned-team membership confer no ownership",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned", "fixture-key-runtime", "fixture-key-unowned", "fixture-key-unowned-member"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-runtime"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {},
+      "expected": {
+        "plan": "owned-only",
+        "required_actions": [
+          {"action": "retain-authorized-runtime-key", "target": "fixture-key-runtime"}
+        ],
+        "must_preserve": ["fixture-team-unowned", "fixture-key-unowned", "fixture-key-unowned-member"],
+        "inference_after": {"fixture-key-runtime": "allowed"},
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-04",
+      "title": "Removed template disables only the owned key",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned", "fixture-key-retired", "fixture-key-unowned"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-retired"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {
+        "fixture-key-unowned": {"metadata": {"cc.template": "fixture-template-removed", "fixture-sentinel": "preserve-entire-object"}}
+      },
+      "expected": {
+        "plan": "owned-only",
+        "required_actions": [
+          {"action": "disable-removed-template-key", "target": "fixture-key-retired"}
+        ],
+        "must_preserve": ["fixture-team-unowned", "fixture-key-unowned"],
+        "inference_after": {"fixture-key-retired": "denied"},
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-05",
+      "title": "Exclusive owned alias with verified in-domain account and backend is accepted",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-runtime"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-runtime"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {},
+      "expected": {
+        "plan": "owned-only",
+        "required_actions": [
+          {"action": "assert-exact-alias-bindings", "target": "fixture-alias-owned", "native_model_ids": ["fixture-model-owned"]}
+        ],
+        "must_preserve": [],
+        "inference_after": {"fixture-key-runtime": "allowed"},
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-06",
+      "title": "Same alias name also reaches an unowned binding in another domain",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-alias-owned", "fixture-alias-unowned"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {},
+      "expected": {
+        "plan": "refuse-affected-template",
+        "reason": "Alias spelling does not grant ownership of every reachable deployment; do not rewrite the unowned binding.",
+        "required_actions": [],
+        "must_preserve": ["fixture-team-owned", "fixture-alias-owned", "fixture-alias-unowned"],
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-07",
+      "title": "Reconciling an owned key must not widen its shared unowned team",
+      "mode": "reconcile",
+      "observed": ["fixture-team-unowned", "fixture-alias-owned", "fixture-key-shared-team", "fixture-key-unowned"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-alias-owned", "fixture-key-shared-team"],
+      "active_templates": ["fixture-template-shared-team"],
+      "observed_overrides": {},
+      "expected": {
+        "plan": "refuse-affected-template",
+        "reason": "The required team allowlist change is outside controller ownership.",
+        "required_actions": [],
+        "must_preserve": ["fixture-team-unowned", "fixture-alias-owned", "fixture-key-shared-team", "fixture-key-unowned"],
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-08",
+      "title": "Self-asserted metadata on familiar team, alias and key names does not authorize adoption",
+      "mode": "reconcile",
+      "observed": ["fixture-team-unowned", "fixture-alias-unowned", "fixture-key-unowned"],
+      "inventory_available": true,
+      "trusted_inventory_refs": [],
+      "active_templates": [],
+      "observed_overrides": {
+        "fixture-team-unowned": {"metadata": {"cc.owner": "command-center"}},
+        "fixture-alias-unowned": {"metadata": {"cc.owner": "command-center"}},
+        "fixture-key-unowned": {
+          "metadata": {
+            "cc.owner": "command-center",
+            "cc.template": "fixture-template-removed",
+            "cc.principal": "fixture-adult",
+            "cc.domain": "personal:ryan",
+            "cc.expires": "2030-01-01T10:35:00Z"
+          }
+        }
+      },
+      "expected": {
+        "plan": "leave-unadopted",
+        "required_actions": [],
+        "must_preserve": ["fixture-team-unowned", "fixture-alias-unowned", "fixture-key-unowned"],
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-09",
+      "title": "A known managed removed-template key remains managed when native metadata disappears",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned", "fixture-key-retired", "fixture-key-unowned"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-retired"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {"fixture-key-retired": {"metadata": {}}},
+      "expected": {
+        "plan": "owned-only",
+        "reason": "Protected issuance identity identifies the removed template even without native metadata.",
+        "required_actions": [
+          {"action": "disable-removed-template-key", "target": "fixture-key-retired"}
+        ],
+        "must_preserve": ["fixture-team-unowned", "fixture-key-unowned"],
+        "inference_after": {"fixture-key-retired": "denied"},
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-10",
+      "title": "Unavailable ownership inventory cannot be treated as an empty ledger",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned", "fixture-key-runtime", "fixture-key-retired", "fixture-key-unowned"],
+      "inventory_available": false,
+      "trusted_inventory_refs": [],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {},
+      "expected": {
+        "plan": "refuse-unavailable-inventory",
+        "required_actions": [],
+        "must_preserve": ["fixture-team-owned", "fixture-team-unowned", "fixture-alias-owned", "fixture-key-runtime", "fixture-key-retired", "fixture-key-unowned"],
+        "inventory_writes": 0,
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-11",
+      "title": "An identical native key ID from a different installation is not the owned identity",
+      "mode": "reconcile",
+      "observed": ["fixture-key-runtime"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-key-runtime"],
+      "active_templates": [],
+      "observed_overrides": {"fixture-key-runtime": {"installation": "fixture-installation-b"}},
+      "expected": {
+        "plan": "refuse-foreign-snapshot",
+        "required_actions": [],
+        "must_preserve": ["fixture-key-runtime"],
+        "adoptions": []
+      }
+    },
+    {
+      "id": "N01-12",
+      "title": "Unavailable native alias identity cannot fall back to name-based ownership",
+      "mode": "reconcile",
+      "observed": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-runtime"],
+      "inventory_available": true,
+      "trusted_inventory_refs": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-runtime"],
+      "active_templates": ["fixture-template-personal"],
+      "observed_overrides": {
+        "fixture-alias-owned": {
+          "native_id": null,
+          "backends": [
+            {
+              "native_model_id": null,
+              "model": "fixture-personal-backend",
+              "domain": "personal:ryan",
+              "account_ref": "fixture-personal-account"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "plan": "refuse-affected-template",
+        "required_actions": [],
+        "must_preserve": ["fixture-team-owned", "fixture-alias-owned", "fixture-key-runtime"],
+        "adoptions": []
+      }
+    }
+  ]
+}
