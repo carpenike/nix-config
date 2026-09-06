@@ -156,7 +156,7 @@ mylib.mkContainerService {
   spec = {
     port = containerPort;
     inherit containerPort;
-    image = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";
+    image = "ghcr.io/berriai/litellm:v1.100.0@sha256:c8756e7b9a61fe45df2ccb5b781d388c3b2f3a21ef9e4956630caef20f9f03aa";
     operationalProfile = "ai";
     displayName = "LiteLLM";
     function = "ai_gateway";
