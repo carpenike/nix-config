@@ -101,16 +101,22 @@ image-only modality enforcement. No undeclared provider fallback is configured.
 ## Evidence and blockers
 
 Current schema-2 evaluation passes **18 paired static mutations and 19 structural
-assertions**. The matching Atrium implementation passes **35 permit checks, 217
+assertions**. The matching Atrium implementation passes **36 permit checks, 217
 deny checks, and 18 module assertions**, including the restored ownership,
 affinity, read/write, view enforcement, role, child-model and fallback invariants.
 The evaluator rejects schema 1 and legacy unclassified source catalogs.
 The verified schema-2 Atrium input is
-**`88c442446d7c867b3475355611fb1f0033f34871`**, consumed through the pinned
+**`ea2d120c665cd53906cf34e920c940385f65c85e`**, consumed through the pinned
 private GitHub input. The report returns this exact `atrium_revision`.
 Identity IDs match R01's 64-character grammar; native subjects share its 512-byte
 UTF-8 bound and are not normalized. The earlier `f19c8ad` source passed 29/209
 checks before those cross-component identity constraints were tightened.
+
+The synthetic catalog snapshots are generated from Atrium's one fixture producer
+and checked for drift, including negative-case inputs. They are immutable source
+files, not `builtins.toFile` paths that require a warmed store. Atrium's
+`registry-readonly` check executes all static cases against an empty, read-only
+`dummy://` store; it is separate from the still-blocked real-adapter gates.
 
 **Historical schema-1 evidence, not the current input:** initial N02 validation
 used Nix **2.31.5** and the immutable local Atrium flake
