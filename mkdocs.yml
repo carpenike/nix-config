@@ -160,6 +160,8 @@ nav:
       - PostgreSQL Preseed Fix: postgresql-preseed-marker-fix.md
   - Services:
       - AI Gateway (LiteLLM + copilot-api): services/ai-gateway.md
+      - Atrium Brownfield Inventory (ATR-N01): services/atrium-brownfield-inventory.md
+      - Atrium Ownership and Adoption: services/atrium-ownership.md
       - Arr Services Implementation: services/arr-services-implementation.md
       - Arr API Configuration: arr-services-api-key-configuration.md
       - Cooklang Module Design: services/cooklang-module-design.md
