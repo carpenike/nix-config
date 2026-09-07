@@ -55,6 +55,10 @@ for this lane so it cannot hide a missing authentication-failure observation.
 Neither the host nor shared VM clock is changed. Normal protocol runs retain
 the actual background poller.
 
+The [clean review-fix receipt](results/n05-review-bc5eb776.json) binds both
+two-worker regressions to `bc5eb776c16024b8976967e3d4fad13c893fe071`.
+It does not promote the remaining unexecuted N05 routes or fault cases.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or
