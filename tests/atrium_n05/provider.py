@@ -158,7 +158,33 @@ def handler(inference_key, observer_key):
                 if not data.get("stream"):
                     self.reply(200, completed)
                 else:
-                    self.sse([completed], done=True)
+                    self.sse(
+                        [
+                            completed
+                            | {
+                                "choices": [
+                                    {
+                                        "index": 0,
+                                        "text": MARKER,
+                                        "finish_reason": None,
+                                        "logprobs": None,
+                                    }
+                                ]
+                            },
+                            completed
+                            | {
+                                "choices": [
+                                    {
+                                        "index": 0,
+                                        "text": "",
+                                        "finish_reason": "stop",
+                                        "logprobs": None,
+                                    }
+                                ]
+                            },
+                        ],
+                        done=True,
+                    )
                 return
             if self.path == "/v1/responses":
                 message = {

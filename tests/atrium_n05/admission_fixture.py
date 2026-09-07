@@ -55,8 +55,10 @@ class Fixture:
         self.policy_path = ROOT / "policy.json"
         self.feed_mode = "live"
         self.feed_override = None
+        self.feed_backup = None
         self.producer_backups = {}
         self.keys = {}
+        self.native_users = set()
         for record in self.policy["authorities"].values():
             record["jwks_uri"] = "http://127.0.0.1:9010/jwks"
         for template in self.policy["model_templates"].values():
@@ -224,7 +226,7 @@ class Fixture:
                 raise ValueError("resolver_fixture_request_failed")
             return None if response.status_code == 204 else response.json()
 
-    def mint(self, kind):
+    def mint(self, kind, native_seconds=180):
         now = int(time.time())
         template_id = {
             "child": "child-client",
@@ -263,6 +265,22 @@ class Fixture:
                 decision = response.json()["decision"]
         team = template["team"]
         with httpx.Client(trust_env=False, timeout=10) as client:
+            if kind == "admin" and principal not in self.native_users:
+                created_user = client.post(
+                    ISSUER + "/user/new",
+                    headers={"Authorization": "Bearer " + self.master},
+                    json={
+                        "user_id": principal,
+                        "user_role": "proxy_admin",
+                        "auto_create_key": False,
+                    },
+                )
+                if (
+                    created_user.status_code != 200
+                    or created_user.json().get("user_role") != "proxy_admin"
+                ):
+                    raise ValueError("native_admin_owner_not_verified")
+                self.native_users.add(principal)
             response = client.post(
                 ISSUER + "/team/new",
                 headers={"Authorization": "Bearer " + self.master},
@@ -283,7 +301,7 @@ class Fixture:
         digest = hashlib.sha256(raw.get_secret_value().encode()).hexdigest()
         expected = {
             "team_id": team,
-            "user_id": None,
+            "user_id": principal if kind == "admin" else None,
             "models": template["models"],
             "allowed_routes": template["routes"],
             "max_budget": template["budget"]["usd"],
@@ -307,7 +325,9 @@ class Fixture:
             if kind != "legacy"
             else {"fixture.owner": "unowned"},
         }
-        self.native.generate({**expected, "duration": "180s"}, raw)
+        if native_seconds not in (5, 180):
+            raise ValueError("invalid_fixture_lifetime")
+        self.native.generate({**expected, "duration": str(native_seconds) + "s"}, raw)
         record = self.native.info(digest)
         expires = self.native.verify(record, expected, now=now, deadline=now + 240)
         if kind == "service":
@@ -386,7 +406,7 @@ class Fixture:
     def action(self, body):
         action = body["action"]
         if action == "mint":
-            return self.mint(body["kind"])
+            return self.mint(body["kind"], body.get("native_seconds", 180))
         if action == "deny":
             return self.resolver(
                 "POST" if body.get("value", True) else "DELETE",
@@ -406,6 +426,11 @@ class Fixture:
         if action == "drain":
             return self.resolver("POST", "/v1/denies/revocations/drain", {"limit": 8})
         if action == "feed":
+            if body["mode"] == "capture":
+                self.feed_backup = httpx.get(
+                    "http://127.0.0.1:8765/v1/deny-feed", trust_env=False
+                ).text
+                return {"applied": True}
             self.feed_mode = body["mode"]
             if self.feed_mode == "signed-stale":
                 now = int(time.time())
@@ -429,6 +454,9 @@ class Fixture:
                     ),
                     now=now - body.get("age", 301),
                 )
+            elif self.feed_mode == "live":
+                with self.state.transaction(write=True) as db:
+                    db.execute("UPDATE deny_generation SET generation=generation+1")
             return {"applied": True}
         if action == "producer":
             name = body["producer"]
@@ -437,7 +465,13 @@ class Fixture:
                 if name == "resolver"
                 else "producer-n04/service-associations.json"
             )
-            if body["mode"] == "restore":
+            if body["mode"] == "capture":
+                self.producer_backups[name] = path.read_bytes()
+            elif body["mode"] == "rollback":
+                latest = path.read_bytes()
+                atomic_private_write(path, self.producer_backups[name])
+                self.producer_backups[name] = latest
+            elif body["mode"] == "restore":
                 atomic_private_write(path, self.producer_backups[name])
             else:
                 self.producer_backups[name] = path.read_bytes()
@@ -445,6 +479,23 @@ class Fixture:
                     path.unlink()
                 elif body["mode"] == "corrupt":
                     atomic_private_write(path, b"{}")
+            return {"applied": True}
+        if action == "lifecycle":
+            key = body["hash"]
+            with self.state.transaction(write=True) as db:
+                row = db.execute(
+                    "SELECT permissions_json FROM credential_associations WHERE credential_sha256=?",
+                    (key,),
+                ).fetchone()
+                metadata = json.loads(row[0])
+                metadata["status"] = body["status"]
+                db.execute(
+                    "UPDATE credential_associations SET permissions_json=? WHERE credential_sha256=?",
+                    (json.dumps(metadata), key),
+                )
+            publish_associations(
+                self.broker_settings.runtime_directory, self.state, self.broker_settings
+            )
             return {"applied": True}
         if action == "status":
             state = json.loads(
@@ -487,6 +538,8 @@ def main():
                     self.reply(200, b"invalid", "application/jwt")
                 elif fixture.feed_mode == "signed-stale":
                     self.reply(200, fixture.feed_override.encode(), "application/jwt")
+                elif fixture.feed_mode == "replay":
+                    self.reply(200, fixture.feed_backup.encode(), "application/jwt")
                 else:
                     response = httpx.get(
                         "http://127.0.0.1:8765/v1/deny-feed", trust_env=False

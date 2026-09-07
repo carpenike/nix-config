@@ -302,6 +302,34 @@ except Exception as error:
                     )
                 return {"status": response.status_code, "provider_requests": delta}
 
+            action("feed", mode="missing")
+            cold_child = action("mint", kind="child")
+            cold_admin = action("mint", kind="admin")
+            cold_service = action("mint", kind="service")
+            cold_legacy = action("mint", kind="legacy")
+            cold = {
+                "id": "cold-missing-feed",
+                "status": "passed",
+                "child": infer(cold_child, expected=403, nonce="cold-child"),
+                "admin": infer(cold_admin, nonce="cold-admin"),
+                "service": infer(cold_service, expected=403, nonce="cold-service"),
+                "non_owned": infer(cold_legacy, nonce="cold-legacy"),
+            }
+            require(action("status")["alerts"], "cold_admin_durable_alert_missing")
+            evidence["cases"].append(cold)
+            action("feed", mode="live")
+            time.sleep(2)
+            expiring = action("mint", kind="admin", native_seconds=5)
+            before_expiry = infer(expiring, nonce="expiring")
+            time.sleep(max(0, expiring["expires_at"] + 1 - time.time()))
+            evidence["cases"].append(
+                {
+                    "id": "native-expiry-remains-native",
+                    "status": "passed",
+                    "permit": before_expiry,
+                    "deny": infer(expiring, expected=401, nonce="expiring"),
+                }
+            )
             from protocol_cases import run_protocols
 
             run_protocols(
@@ -336,7 +364,35 @@ except Exception as error:
                         "permit": infer(key, nonce=name),
                     }
                 )
+            for method, route in (
+                ("GET", "/key/list"),
+                ("GET", "/key/info"),
+                ("GET", "/user/info"),
+                ("GET", "/team/info"),
+                ("POST", "/key/generate"),
+                ("POST", "/key/delete"),
+                ("POST", "/user/new"),
+                ("POST", "/team/new"),
+            ):
+                response = client.request(
+                    method,
+                    route,
+                    headers={"Authorization": "Bearer " + admin["key"]},
+                    json={},
+                )
+                require(
+                    response.status_code == 403, "native_management_separation_failed"
+                )
+                evidence["cases"].append(
+                    {
+                        "id": "management-" + method + "-" + route,
+                        "status": "passed",
+                        "native_owner": "proxy_admin",
+                        "native_status": 403,
+                    }
+                )
             action("native_failure", value=True)
+            action("feed", mode="capture")
             action("deny", hash=child["hash"])
             pending = action("drain")
             require(pending["pending"] > 0, "native_revoke_failure_not_pending")
@@ -349,6 +405,58 @@ except Exception as error:
                     "deny": denied,
                     "pending_native_work": True,
                     "non_owned": infer(legacy, nonce="legacy"),
+                }
+            )
+            for mode in ("invalid", "replay"):
+                action("feed", mode=mode)
+                time.sleep(2)
+                evidence["cases"].append(
+                    {
+                        "id": "feed-" + mode + "-retains-deny",
+                        "status": "passed",
+                        "deny": infer(child, expected=403, nonce="child"),
+                    }
+                )
+            action("feed", mode="live")
+            time.sleep(2)
+            for producer in ("resolver", "services"):
+                for mode in ("missing", "corrupt"):
+                    action("producer", producer=producer, mode=mode)
+                    rejected = infer(admin, expected=503, nonce="admin")
+                    action("producer", producer=producer, mode="restore")
+                    recovered = infer(admin, nonce="admin")
+                    evidence["cases"].append(
+                        {
+                            "id": producer + "-" + mode,
+                            "status": "passed",
+                            "deny": rejected,
+                            "permit": recovered,
+                        }
+                    )
+            reservation = action("mint", kind="child")
+            action("lifecycle", hash=reservation["hash"], status="reserved")
+            rejected = infer(reservation, expected=403, nonce="reservation")
+            action("lifecycle", hash=reservation["hash"], status="prepared")
+            evidence["cases"].append(
+                {
+                    "id": "reserved-not-admission",
+                    "status": "passed",
+                    "deny": rejected,
+                    "permit": infer(reservation, nonce="reservation"),
+                }
+            )
+            action("producer", producer="resolver", mode="capture")
+            newest = action("mint", kind="child")
+            infer(newest, nonce="newest")
+            action("producer", producer="resolver", mode="rollback")
+            rejected = infer(newest, expected=503, nonce="newest")
+            action("producer", producer="resolver", mode="restore")
+            evidence["cases"].append(
+                {
+                    "id": "producer-rollback-not-legacy",
+                    "status": "passed",
+                    "deny": rejected,
+                    "permit": infer(newest, nonce="newest"),
                 }
             )
             action("deny", hash=admin["hash"])
@@ -376,6 +484,15 @@ except Exception as error:
                     "service": stale_service,
                     "admin": stale_admin,
                     "durable_alert_count": len(status["alerts"]),
+                }
+            )
+            action("feed", mode="signed-stale", age=301, principals=["fixture-admin"])
+            time.sleep(2)
+            evidence["cases"].append(
+                {
+                    "id": "known-admin-denied-while-stale",
+                    "status": "passed",
+                    "deny": infer(admin, expected=403, nonce="admin"),
                 }
             )
             checkpoint()
