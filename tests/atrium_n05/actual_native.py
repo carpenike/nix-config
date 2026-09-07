@@ -171,6 +171,7 @@ def main():
         code = (ROOT / "tests/atrium_n05/admission_fixture.py").read_text()
         loader = """
 import io,json,pathlib,sys,traceback
+sys.path.insert(0,"/run/atrium-n05/python")
 data=json.loads(sys.stdin.readline())
 source=data.pop("code")
 sys.stdin=io.StringIO(json.dumps(data)+"\\n")
