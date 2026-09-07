@@ -88,6 +88,7 @@ jobs:
       heavy_changed: ${{ steps.set-matrix.outputs.heavy_changed }}
       nix_changed: ${{ steps.filter.outputs.nix }}
       lock_changed: ${{ steps.filter.outputs.lock }}
+      atrium_admission_changed: ${{ steps.filter.outputs.atrium_admission }}
     steps:
       - uses: actions/checkout@v7
 
@@ -109,6 +110,13 @@ jobs:
             # they trigger pre-merge closure builds of the heavy hosts.
             lock:
               - 'flake.lock'
+            atrium_admission:
+              - 'flake.nix'
+              - 'flake.lock'
+              - 'pkgs/default.nix'
+              - 'pkgs/atrium-litellm-admission/**'
+              - 'tests/atrium_n05/**'
+              - '.github/workflows/nix-build.yml'
             global:
               - 'flake.nix'
               - 'flake.lock'
@@ -206,6 +214,23 @@ jobs:
             echo "- Scheduled \`Flake Health\` workflow - full forge + luna closure"
             echo "- \`task nix:apply-nixos host=<host>\` - build on the target"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  atrium-admission-checks:
+    needs: changes
+    if: ${{ needs.changes.outputs.atrium_admission_changed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+      - name: Build isolated admission package and checks
+        run: |
+          nix build --no-link --builders '' \
+            .#checks.x86_64-linux.atrium-n05-package \
+            .#checks.x86_64-linux.atrium-n05-python \
+            .#checks.x86_64-linux.atrium-n05-units
 
   nix-build:
     needs: changes
@@ -363,6 +388,7 @@ jobs:
       - flake-check
       - nix-build
       - nix-build-heavy
+      - atrium-admission-checks
     name: Nix Build Successful
     runs-on: ubuntu-latest
     steps:
@@ -376,10 +402,18 @@ jobs:
         run: |
           echo "❌ Nix files changed but flake-check did not succeed (result: ${{ needs.flake-check.result }})"
           exit 1
+      - name: Check admission checks ran when needed
+        if: ${{ needs.changes.outputs.atrium_admission_changed == 'true' && needs.atrium-admission-checks.result != 'success' }}
+        run: |
+          echo "Admission files changed but their package and checks did not succeed"
+          exit 1
       - name: Report
         run: |
+          if [[ "${{ needs.changes.outputs.atrium_admission_changed }}" == "true" ]]; then
+            echo "✅ Isolated admission package and checks passed"
+          fi
           if [[ "${{ needs.changes.outputs.nix_changed }}" != "true" ]]; then
-            echo "✅ No nix-relevant changes - nothing to build"
+            echo "✅ All requested checks succeeded"
           elif [[ "${{ needs.changes.outputs.matrix }}" == "[]" && "${{ needs.changes.outputs.lock_changed }}" != "true" ]]; then
             echo "✅ No host builds needed - flake-check only"
           else

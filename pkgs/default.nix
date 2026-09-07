@@ -1,6 +1,7 @@
 # Custom packages, that can be defined similarly to ones from nixpkgs
 # You can build them using 'nix build .#example' or (legacy) 'nix-build -A example'
 { pkgs ? import <nixpkgs> { }
+, inputs ? { }
 , ...
 }:
 {
@@ -27,4 +28,10 @@
   thelounge-theme-mininapse = pkgs.callPackage ./thelounge-theme-mininapse.nix { };
   tracearr-retention-plan = pkgs.callPackage ./tracearr-retention-plan.nix { };
   usage = pkgs.callPackage ./usage.nix { };
-}
+} // (if inputs ? atrium then {
+  atrium-litellm-admission = pkgs.callPackage ./atrium-litellm-admission/package.nix {
+    python3Packages = pkgs.python312Packages;
+    atriumResolver = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system}.resolver;
+    atriumProfiles = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system}.credential-profiles;
+  };
+} else { })
