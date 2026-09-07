@@ -93,7 +93,11 @@ def exercise(client, observer, control, observer_headers, result, run_id, checkp
         "native_routes_not_exact",
     )
     result["identity"] = {
-        "native_key_digest_sha256": hashlib.sha256(key_hash.encode()).hexdigest(),
+        "credential_fingerprint": {
+            "algorithm": "sha256",
+            "input": "native-key-sha256",
+            "digest": hashlib.sha256(key_hash.encode()).hexdigest(),
+        },
         "validated_user_api_key_context": True,
         "caller_labels_authoritative": False,
     }

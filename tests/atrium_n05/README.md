@@ -90,3 +90,39 @@ unexecuted APIs. A passing candidate here is **not the final production hook**:
 other enabled inference protocols, shared/Redis caches, additional workers,
 R04/C1 feed admission/outages, native-revocation failure integration, ownership
 history, and independent management-route restrictions remain outside this pass.
+
+## Observed result
+
+The clean source revision `a8cefd788214a1d7bb07618ab4cbd05ae486e11a` passed
+against actual pinned LiteLLM **1.99.1**. Full evidence is
+[`results/n05-native-a8cefd78.json`](results/n05-native-a8cefd78.json).
+Native worker PIDs **222 and 223** each supplied warm local-cache positives,
+pre-output denials, and cache-preserving recovery for every row:
+
+| Protocol | Mode | Actual worker/cache paths | Denied result | Status |
+| --- | --- | --- | --- | --- |
+| `/v1/chat/completions` | Non-streaming | Both workers; warmed native local output cache | HTTP 403; zero provider calls; no cached output | Proven |
+| `/v1/chat/completions` | Streaming | Both workers; warmed native local output cache | HTTP 403 before SSE; zero provider calls/output | Proven |
+| `/chat/completions` | Non-streaming | Both workers; warmed native local output cache | HTTP 403; zero provider calls; no cached output | Proven |
+| `/chat/completions` | Streaming | Both workers; warmed native local output cache | HTTP 403 before SSE; zero provider calls/output | Proven |
+| Native invalid-key authentication | Each row above | Native verifier, before placement hook | HTTP 401; zero hook calls and provider calls | Proven |
+| `/v1/completions`, `/completions` | All modes | Advertised by actual OpenAPI; not requested | — | Unexecuted |
+| `/v1/embeddings`, `/embeddings` | All modes | Advertised by actual OpenAPI; not requested | — | Unexecuted |
+| `/v1/responses`, `/responses`, `/v1/messages` | All modes | Advertised by actual OpenAPI; not requested | — | Unexecuted |
+| Images, audio, rerank, other advertised APIs | All modes | Not requested | — | Unexecuted |
+| Shared/Redis caches, other worker counts/restarts | All protocols | Not configured in this bounded probe | — | Unexecuted |
+| R04 feed/cache/outage/admin policy and ownership lookup | All protocols | Not implemented by the fixture deny set | — | Unimplemented |
+
+The four rows made eight cold provider calls total (one per worker per row),
+then observed 21 warm-cache positives. All **33 fixture-denied requests** returned
+403 with zero provider calls, and every recovery used retained cache with zero
+provider calls. Four invalid-native-key requests remained native 401 failures
+and never reached the hook.
+
+Conclusion: `CustomLogger.async_pre_call_hook` is a **proven pre-admission
+candidate for these chat/local-cache/two-worker paths**, not a final selection
+for all enabled endpoints. No alternative candidate was needed after this
+successful placement proof. The initial startup-only failure remains recorded
+separately, rather than being treated as failed hook coverage or impossibility.
+Exact container/network cleanup passed; `ambit-db` remained running unchanged.
+No production source/service, R06 fix, N04 implementation, VM, or image was changed.
