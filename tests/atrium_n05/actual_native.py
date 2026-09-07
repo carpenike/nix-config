@@ -65,7 +65,10 @@ def main():
     selection.add_argument("--review-only", action="store_true")
     selection.add_argument("--context-only", action="store_true")
     selection.add_argument("--post-auth-only", action="store_true")
+    selection.add_argument("--post-auth-review-only", action="store_true")
     args = parser.parse_args()
+    post_auth = args.post_auth_only or args.post_auth_review_only
+    review = args.review_only or args.post_auth_review_only
     native, harness_hashes = load_harness(args.harness)
     from harness.common import EvidenceWriter, HarnessError, require
     from harness.containers import Resources
@@ -81,8 +84,10 @@ def main():
         "run_id": "n05-adapter-" + secrets.token_hex(8),
         "status": "running",
         "full_n05": "incomplete",
-        "selected_protocol": "review-faults"
-        if args.review_only
+        "selected_protocol": "post-native-auth-review"
+        if args.post_auth_review_only
+        else "review-faults"
+        if review
         else "request-context"
         if args.context_only
         else "post-native-auth"
@@ -124,6 +129,8 @@ def main():
         result["command"].append("--context-only")
     if args.post_auth_only:
         result["command"].append("--post-auth-only")
+    if args.post_auth_review_only:
+        result["command"].append("--post-auth-review-only")
     writer = EvidenceWriter(output, result)
     try:
         wheels, result["source"]["wheel_sha256"] = verified_wheels(
@@ -198,7 +205,7 @@ def main():
                     "master": data["environment"]["LITELLM_MASTER_KEY"],
                     "fixture_control": state["fixture_token"],
                     "initial_feed_mode": "live"
-                    if args.context_only or args.review_only or args.protocol_only
+                    if args.context_only or review or args.protocol_only
                     else "missing",
                     "policy": json.loads(
                         git(
@@ -221,13 +228,13 @@ def main():
                         "TMPDIR": RUNTIME,
                         "PYTHONDONTWRITEBYTECODE": "1",
                         "LITELLM_WORKER_STARTUP_HOOKS": "admission_loader:install"
-                        if args.post_auth_only
+                        if post_auth
                         else "",
                         "ATRIUM_ADMISSION_SETTINGS": RUNTIME
                         + "/admission-settings.json",
                         "N05_OBSERVER_URL": "http://" + self.prefix + "-provider:8000",
                         "N05_OBSERVER_KEY": state["observer_key"],
-                        "N05_REVIEW_CLOCK": "1" if args.review_only else "0",
+                        "N05_REVIEW_CLOCK": "1" if review else "0",
                     }
                 )
                 if args.context_only:
@@ -304,7 +311,7 @@ def main():
             {
                 "native_only": False,
                 "admission_hook": True,
-                "post_native_auth_dependency": args.post_auth_only,
+                "post_native_auth_dependency": post_auth,
                 "actual_admission_package": True,
                 "shared_R04_cache": True,
                 "real_R07_feed": True,
@@ -325,7 +332,7 @@ def main():
         )
         try:
             native.wait_http(helper, "/ready", {}, seconds=30)
-            if args.post_auth_only:
+            if post_auth:
                 deadline = time.monotonic() + 30
                 while True:
                     response = observer.get("/_probe/state", headers=observer_headers)
@@ -386,7 +393,7 @@ def main():
                     )
                 return {"status": response.status_code, "provider_requests": delta}
 
-            if args.review_only:
+            if review:
                 from review_cases import run_reviews
 
                 run_reviews(

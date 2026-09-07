@@ -85,19 +85,31 @@ def run_protocols(
         require(response.status_code == 200, "observer_unavailable")
         return response.json()
 
-    def request(path, body, *, expected):
+    def connection():
+        return httpx.Client(
+            base_url=str(client.base_url),
+            trust_env=False,
+            timeout=25,
+            limits=httpx.Limits(
+                max_connections=1, max_keepalive_connections=1, keepalive_expiry=None
+            ),
+        )
+
+    def request(path, body, *, expected, worker=None):
         before = snapshot()
-        with httpx.Client(
-            base_url=str(client.base_url), trust_env=False, timeout=25
-        ) as fresh:
+        fresh = worker or connection()
+        try:
             response = fresh.post(
                 path,
                 headers={
                     "Authorization": "Bearer " + key["key"],
-                    "Connection": "close",
+                    "Connection": "keep-alive" if worker else "close",
                 },
                 json=body,
             )
+        finally:
+            if worker is None:
+                fresh.close()
         after = snapshot()
         events = after["events"][len(before["events"]) :]
         authenticated = after["auth_events"][len(before["auth_events"]) :]
@@ -191,10 +203,23 @@ def run_protocols(
                     checkpoint()
                     continue
                 denied = False
+                connections = {}
                 try:
-                    warmed = set()
+                    # Keep a real TCP connection to each observed worker so warm
+                    # and denied requests do not depend on repeated accept fairness.
                     for _ in range(35):
-                        response, observation = request(path, body, expected="permit")
+                        candidate = connection()
+                        try:
+                            response, observation = request(
+                                path, body, expected="permit", worker=candidate
+                            )
+                            pid = observation.get("worker_pid")
+                            require(type(pid) is int, "native_worker_identity_missing")
+                            if pid not in connections:
+                                connections[pid] = candidate
+                        finally:
+                            if candidate not in connections.values():
+                                candidate.close()
                         row["warmup"].append(observation)
                         require(
                             output_present(response, kind, stream),
@@ -205,19 +230,46 @@ def run_protocols(
                             and observation["post_auth_calls"] == int(post_auth),
                             "actual_admission_not_observed",
                         )
-                        if observation["provider_requests"] == 0:
-                            warmed.add(observation["worker_pid"])
-                        if len(warmed) == 2:
+                        if len(connections) == 2:
                             break
-                        time.sleep(0.05)
+                        time.sleep(0.1)
+                    require(len(connections) == 2, "two_native_workers_not_observed")
+                    warmed = set()
+                    for pid, worker in connections.items():
+                        for _ in range(5):
+                            response, observation = request(
+                                path, body, expected="permit", worker=worker
+                            )
+                            row["warmup"].append(observation)
+                            require(
+                                observation["worker_pid"] == pid,
+                                "native_worker_connection_changed",
+                            )
+                            require(
+                                output_present(response, kind, stream)
+                                and observation["hook_calls"] == 1
+                                and observation["post_auth_calls"] == int(post_auth),
+                                "protocol_worker_positive_missing",
+                            )
+                            if observation["provider_requests"] == 0:
+                                warmed.add(pid)
+                                break
+                            time.sleep(0.05)
                     require(len(warmed) == 2, "two_worker_native_cache_not_observed")
+                    row["warm_worker_pids"] = sorted(warmed)
                     action("deny", hash=key["hash"])
                     denied = True
                     time.sleep(2)
                     observed = set()
-                    for _ in range(30):
-                        _, observation = request(path, body, expected="deny")
+                    for pid, worker in connections.items():
+                        _, observation = request(
+                            path, body, expected="deny", worker=worker
+                        )
                         row["denials"].append(observation)
+                        require(
+                            observation["worker_pid"] == pid,
+                            "native_worker_connection_changed",
+                        )
                         require(
                             observation["hook_calls"] == int(not post_auth)
                             and observation["post_auth_calls"] == int(post_auth)
@@ -227,9 +279,24 @@ def run_protocols(
                             "actual_post_auth_denial_not_observed",
                         )
                         observed.add(observation["worker_pid"])
-                        if observed == warmed:
-                            break
                     require(observed == warmed, "both_worker_denials_not_observed")
+                    action("deny", hash=key["hash"], value=False)
+                    denied = False
+                    time.sleep(2)
+                    row["recovery"] = []
+                    for pid, worker in connections.items():
+                        response, observation = request(
+                            path, body, expected="permit", worker=worker
+                        )
+                        row["recovery"].append(observation)
+                        require(
+                            observation["worker_pid"] == pid
+                            and output_present(response, kind, stream)
+                            and observation["provider_requests"] == 0
+                            and observation["hook_calls"] == 1
+                            and observation["post_auth_calls"] == int(post_auth),
+                            "both_worker_cache_recovery_missing",
+                        )
                     row.update(
                         status="passed",
                         warm_worker_pids=sorted(warmed),
@@ -243,10 +310,14 @@ def run_protocols(
                         ),
                     )
                 finally:
-                    if denied:
-                        action("deny", hash=key["hash"], value=False)
-                        time.sleep(2)
-                    checkpoint()
+                    try:
+                        if denied:
+                            action("deny", hash=key["hash"], value=False)
+                            time.sleep(2)
+                    finally:
+                        for worker in connections.values():
+                            worker.close()
+                        checkpoint()
     evidence["full_protocol_gate"] = (
         "passed" if all(row["status"] == "passed" for row in rows) else "incomplete"
     )

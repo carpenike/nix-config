@@ -22,6 +22,7 @@ def handler(inference_key, observer_key):
     events, denied = [], set()
     clocks = []
     auth_events, installations = [], []
+    control_events = []
     bootstrap_errors = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -93,6 +94,7 @@ def handler(inference_key, observer_key):
                             "provider": counts,
                             "events": events,
                             "auth_events": auth_events,
+                            "control_events": control_events,
                             "installations": installations,
                             "bootstrap_errors": bootstrap_errors,
                         },
@@ -139,6 +141,43 @@ def handler(inference_key, observer_key):
                             raise ValueError()
                         with lock:
                             installations.append(data)
+                        self.reply(200, {"recorded": True})
+                        return
+                    if self.path in ("/_probe/control-auth", "/_probe/control-call"):
+                        fields = {
+                            "pid",
+                            "context_type",
+                            "status",
+                            "native_request_route",
+                            "control_identity",
+                        } | (
+                            {"transport"}
+                            if self.path == "/_probe/control-auth"
+                            else {"call_type", "has_proxy_server_request"}
+                        )
+                        if (
+                            set(data) != fields
+                            or data["control_identity"] != "native-master"
+                            or data["context_type"] != "UserAPIKeyAuth"
+                            or type(data["pid"]) is not int
+                            or type(data["status"]) is not int
+                            or not isinstance(data["native_request_route"], str)
+                            or (
+                                self.path == "/_probe/control-auth"
+                                and data["transport"] not in ("http", "websocket")
+                            )
+                            or (
+                                self.path == "/_probe/control-call"
+                                and (
+                                    not isinstance(data["call_type"], str)
+                                    or type(data["has_proxy_server_request"])
+                                    is not bool
+                                )
+                            )
+                        ):
+                            raise ValueError()
+                        with lock:
+                            control_events.append({"kind": self.path, **data})
                         self.reply(200, {"recorded": True})
                         return
                     if not isinstance(data, dict) or not re.fullmatch(

@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import httpx
 from fastapi import HTTPException
+from litellm.constants import LITELLM_PROXY_MASTER_KEY_ALIAS
 
 from atrium_admission.hook import OwnedAdmission
 from atrium_admission.bootstrap import install as install_admission
@@ -51,6 +52,34 @@ class ObservedAdmission(OwnedAdmission):
             engine.feed.close()
         return engine
 
+    async def _record(self, route, identity, fields):
+        native_id = getattr(identity, "api_key", None)
+        payload = {
+            "key_sha256": native_id,
+            "pid": os.getpid(),
+            "context_type": type(identity).__name__,
+            "native_request_route": getattr(identity, "request_route", None),
+            **fields,
+        }
+        if native_id == LITELLM_PROXY_MASTER_KEY_ALIAS:
+            del payload["key_sha256"]
+            payload["control_identity"] = "native-master"
+            route = (
+                "/_probe/control-auth"
+                if route == "/_probe/auth"
+                else "/_probe/control-call"
+            )
+        async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
+            response = await client.post(
+                os.environ["N05_OBSERVER_URL"] + route,
+                headers={"Authorization": "Bearer " + os.environ["N05_OBSERVER_KEY"]},
+                json=payload,
+            )
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=503, detail="fixture_observer_unavailable"
+                )
+
     async def async_post_native_auth(self, user_api_key_dict, connection):
         status = 200
         try:
@@ -59,27 +88,11 @@ class ObservedAdmission(OwnedAdmission):
             status = error.status_code
             raise
         finally:
-            async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
-                response = await client.post(
-                    os.environ["N05_OBSERVER_URL"] + "/_probe/auth",
-                    headers={
-                        "Authorization": "Bearer " + os.environ["N05_OBSERVER_KEY"]
-                    },
-                    json={
-                        "key_sha256": getattr(user_api_key_dict, "api_key", None),
-                        "pid": os.getpid(),
-                        "context_type": type(user_api_key_dict).__name__,
-                        "status": status,
-                        "native_request_route": getattr(
-                            user_api_key_dict, "request_route", None
-                        ),
-                        "transport": connection.scope["type"],
-                    },
-                )
-                if response.status_code != 200:
-                    raise HTTPException(
-                        status_code=503, detail="fixture_observer_unavailable"
-                    )
+            await self._record(
+                "/_probe/auth",
+                user_api_key_dict,
+                {"status": status, "transport": connection.scope["type"]},
+            )
 
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
         status = 200
@@ -91,29 +104,16 @@ class ObservedAdmission(OwnedAdmission):
             status = error.status_code
             raise
         finally:
-            async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
-                response = await client.post(
-                    os.environ["N05_OBSERVER_URL"] + "/_probe/record",
-                    headers={
-                        "Authorization": "Bearer " + os.environ["N05_OBSERVER_KEY"]
-                    },
-                    json={
-                        "key_sha256": getattr(user_api_key_dict, "api_key", None),
-                        "pid": os.getpid(),
-                        "context_type": type(user_api_key_dict).__name__,
-                        "status": status,
-                        "call_type": call_type,
-                        "native_request_route": getattr(
-                            user_api_key_dict, "request_route", None
-                        ),
-                        "has_proxy_server_request": isinstance(data, dict)
-                        and "proxy_server_request" in data,
-                    },
-                )
-                if response.status_code != 200:
-                    raise HTTPException(
-                        status_code=503, detail="fixture_observer_unavailable"
-                    )
+            await self._record(
+                "/_probe/record",
+                user_api_key_dict,
+                {
+                    "status": status,
+                    "call_type": call_type,
+                    "has_proxy_server_request": isinstance(data, dict)
+                    and "proxy_server_request" in data,
+                },
+            )
 
     async def async_post_call_failure_hook(
         self, request_data, original_exception, user_api_key_dict, traceback_str=None

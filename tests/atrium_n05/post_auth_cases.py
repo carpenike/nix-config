@@ -212,12 +212,31 @@ def run_post_auth(
             )
             row["owned_count_refused"] = both(key, COUNT_PATH, payload, expected=403)
             action("native_failure", value=True)
-            action("deny", hash=key["hash"])
+            applied = False
+            principal_deny = kind == "service"
             try:
-                row["pending_native_revocations"] = action("drain")["pending"]
-                require(
-                    row["pending_native_revocations"] > 0, "native_failure_not_pending"
-                )
+                action("deny", hash=key["hash"], by_principal=principal_deny)
+                applied = True
+                row["deny_kind"] = "principal" if principal_deny else "credential"
+                if principal_deny:
+                    row["native_service_delete_failure"] = action(
+                        "service_revoke_failure", hash=key["hash"]
+                    )
+                    require(
+                        row["native_service_delete_failure"]
+                        == {"code": "native_rejected", "still_native_live": True},
+                        "service_native_failure_not_proven",
+                    )
+                    row["service_queue_scope"] = (
+                        "N04 service ownership is not fabricated as an R06 broker association; "
+                        "real signed principal deny plus failed native delete, not R07 queue coverage"
+                    )
+                else:
+                    row["pending_native_revocations"] = action("drain")["pending"]
+                    require(
+                        row["pending_native_revocations"] > 0,
+                        "native_failure_not_pending",
+                    )
                 time.sleep(2)
                 row["warm_inference_after_deny"] = both(
                     key, CHAT_PATH, payload, expected=403
@@ -229,9 +248,17 @@ def run_post_auth(
                     legacy, COUNT_PATH, body(legacy, "count"), expected=200
                 )
             finally:
-                action("deny", hash=key["hash"], value=False)
-                action("native_failure", value=False)
-                time.sleep(2)
+                try:
+                    if applied:
+                        action(
+                            "deny",
+                            hash=key["hash"],
+                            value=False,
+                            by_principal=principal_deny,
+                        )
+                finally:
+                    action("native_failure", value=False)
+                    time.sleep(2)
 
         if not record("owned-token-count-" + kind, owned):
             evidence["post_native_auth_scope"]["remaining_owned_templates"] = (

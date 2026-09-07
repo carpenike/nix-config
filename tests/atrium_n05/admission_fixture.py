@@ -31,7 +31,7 @@ from atrium_resolver.config import Authority, Bootstrap, Settings
 from atrium_resolver.litellm_broker import ModelKeyMetadata
 from atrium_resolver.litellm_config import LiteLLMSettings
 from atrium_resolver.litellm_inventory import publish_associations
-from atrium_resolver.litellm_native import NativeKeyClient
+from atrium_resolver.litellm_native import NativeKeyClient, NativeKeyError
 from atrium_resolver.native_revocation import NativeKeyRevoker
 from atrium_resolver.policy import PolicyEngine, PolicySeed
 from atrium_resolver.policy_schema import Budget, INFERENCE_ROUTES, PolicyDocument
@@ -461,6 +461,15 @@ class Fixture:
                 == [path.read_bytes() for path in producer_paths],
             }
         if action == "deny":
+            if body.get("by_principal"):
+                key = self.keys.get(body["hash"])
+                if key is None or key["kind"] != "service":
+                    raise ValueError("invalid_service_deny_fixture")
+                return self.resolver(
+                    "POST" if body.get("value", True) else "DELETE",
+                    "/v1/denies",
+                    {"kind": "principal", "identifier": key["principal"]},
+                )
             return self.resolver(
                 "POST" if body.get("value", True) else "DELETE",
                 "/v1/denies",
@@ -470,6 +479,18 @@ class Fixture:
                     "identifier": "sha256:" + body["hash"],
                 },
             )
+        if action == "service_revoke_failure":
+            key = self.keys.get(body["hash"])
+            if key is None or key["kind"] != "service":
+                raise ValueError("invalid_service_revocation_fixture")
+            try:
+                self.revocation.delete(body["hash"])
+            except NativeKeyError as error:
+                return {
+                    "code": error.code,
+                    "still_native_live": self.native.info(body["hash"]) is not None,
+                }
+            raise ValueError("service_revocation_did_not_fail")
         if action == "native_failure":
             value = (
                 self.master if not body["value"] else "sk-" + secrets.token_urlsafe(32)

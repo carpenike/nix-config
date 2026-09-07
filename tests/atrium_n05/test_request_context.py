@@ -176,7 +176,17 @@ def test_post_native_gate_permits_only_protected_model_and_native_route(fixture)
         asyncio.run(hook.async_post_native_auth(native, request))
 
 
-def test_native_master_alias_is_a_known_candidate_blocker_not_a_role_exemption(fixture):
+def test_native_master_alias_uses_trusted_control_identity_not_a_role_exemption(
+    fixture, monkeypatch
+):
+    import hashlib
+    import secrets
+    from litellm.proxy import proxy_server
+    from litellm.proxy._types import LitellmUserRoles
+    from atrium_profiles.runtime import atomic_private_write
+
+    master = "sk-" + secrets.token_urlsafe(32)
+    monkeypatch.setattr(proxy_server, "master_key", master)
     hook = OwnedAdmission()
     hook.engine = fixture["engine"]
     native = UserAPIKeyAuth(
@@ -185,11 +195,74 @@ def test_native_master_alias_is_a_known_candidate_blocker_not_a_role_exemption(f
         via_virtual_key=True,
         request_route="/v1/models",
     )
+    native.via_virtual_key = True
+    assert native.user_role == LitellmUserRoles.PROXY_ADMIN
+    assert proxy_server.master_key == master
     assert native.api_key == LITELLM_PROXY_MASTER_KEY_ALIAS
     request = Request(
         {"type": "http", "method": "GET", "path": "/v1/models", "headers": []}
     )
-    with pytest.raises(HTTPException) as blocked:
+    assert (
         asyncio.run(hook.async_post_native_auth(native, request))
-    assert blocked.value.status_code == 503
-    assert blocked.value.detail == "admission_unavailable"
+        == "verified-non-owned"
+    )
+    assert native.api_key == LITELLM_PROXY_MASTER_KEY_ALIAS
+    master_hash = hashlib.sha256(master.encode()).hexdigest()
+    with fixture["engine"].store.transaction() as state:
+        assert master_hash not in state["history"]
+
+    fixture["record"].update(
+        native_key_id=master_hash, credential_id="sha256:" + master_hash
+    )
+    fixture["documents"]["resolver"]["generation"] += 1
+    fixture["publish"]()
+    with pytest.raises(HTTPException) as owned:
+        asyncio.run(hook.async_post_native_auth(native, request))
+    assert owned.value.status_code == 403
+
+    ordinary_admin = UserAPIKeyAuth(
+        api_key=master_hash, user_role="proxy_admin", request_route="/v1/models"
+    )
+    with pytest.raises(HTTPException) as scoped:
+        asyncio.run(hook.async_post_native_auth(ordinary_admin, request))
+    assert scoped.value.status_code == 403
+    assert native.api_key == LITELLM_PROXY_MASTER_KEY_ALIAS
+
+    atomic_private_write(fixture["primary"], b"invalid")
+    with pytest.raises(HTTPException) as unavailable:
+        asyncio.run(hook.async_post_native_auth(native, request))
+    assert unavailable.value.status_code == 503
+
+
+@pytest.mark.parametrize(
+    "role,provenance,has_master",
+    [
+        ("internal_user", True, True),
+        ("proxy_admin", False, True),
+        ("proxy_admin", True, False),
+    ],
+)
+def test_master_alias_requires_native_provenance_and_runtime_identity(
+    fixture, monkeypatch, role, provenance, has_master
+):
+    import secrets
+    from litellm.proxy import proxy_server
+
+    master = "sk-" + secrets.token_urlsafe(32) if has_master else None
+    monkeypatch.setattr(proxy_server, "master_key", master)
+    hook = OwnedAdmission()
+    hook.engine = fixture["engine"]
+    native = UserAPIKeyAuth(
+        api_key=LITELLM_PROXY_MASTER_KEY_ALIAS,
+        user_role=role,
+        via_virtual_key=provenance,
+        request_route="/v1/models",
+    )
+    native.via_virtual_key = provenance
+    request = Request(
+        {"type": "http", "method": "GET", "path": "/v1/models", "headers": []}
+    )
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(hook.async_post_native_auth(native, request))
+    assert rejected.value.status_code == 503
+    assert rejected.value.detail == "native_control_identity_unavailable"

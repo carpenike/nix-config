@@ -32,12 +32,13 @@ caller-controlled and is never trusted.
 
 ## Current boundaries
 
-### Post-native-auth candidate: blocked, not selected
+### Post-native-auth boundary: native proof, integration pending
 
-`atrium_admission.bootstrap.install` is an **unvalidated candidate**, exercised only
-by the explicit `--post-auth-only` native fixture lane. Do not wire its worker
-startup hook into a deployment yet. Ordinary fixture lanes retain pre-call-only
-placement and its documented token-count gap.
+`atrium_admission.bootstrap.install` is exercised by the explicit
+`--post-auth-only` native fixture lane. Its token-count boundary now has real
+permit/deny proof, but final review and integration remain pending. Do not
+activate a production deployment. Ordinary fixture lanes still retain
+pre-call-only placement and cannot stand in for the new boundary's evidence.
 
 The candidate uses pinned LiteLLM's `LITELLM_WORKER_STARTUP_HOOKS` seam and
 FastAPI's dependency override registry. It awaits the original HTTP/WebSocket
@@ -51,24 +52,32 @@ The Anthropic router is lazy in 1.99.1. Bootstrap uses the same native loader as
 its middleware and `/lazy/warm` before inspecting the actual token-count
 dependency. It does not rewrite that handler or disable legacy counting.
 
-Two bounded native attempts did not reach the permit/deny matrix. In the second,
+The first two bounded native attempts did not reach the permit/deny matrix. In the second,
 both workers installed the wrappers, but native master-key `/v1/models` requests
 returned 503. Pinned `user_api_key_auth.py:1799–1827` deliberately substitutes
 `LITELLM_PROXY_MASTER_KEY_ALIAS` for the master key **and its hash** in the returned
-identity. That alias is not the digest required by the current protected-history
-lookup; the candidate therefore refuses it instead of assuming it is legacy.
+identity. The adapter now recognizes that reserved native marker only with
+native virtual-key provenance, the native administrator role, and an available
+runtime master key. It privately resolves the current master fingerprint for
+the same protected ownership lookup used by ordinary keys. It does not mutate
+the native identity or emit the master credential/fingerprint into telemetry.
+A matching known-owned fingerprint or unverifiable ownership still fails closed;
+an ordinary admin-owned key receives no controller exemption.
 
-Follow-up must bind the authenticated native control identity to a verifiable
-protected identity/association without a native-role-only or client-label
-exemption, then execute the real legacy/count/normal/cache/clock twins. A scoped
-native admin-owned key must not inherit a controller exemption. No such exemption
-or C8 amendment is implemented here. Direct manual auth calls and other native
-auth dependencies also remain outside the dependency-wrapper coverage claim.
+The post-auth lane now proves nine token-count/admission groups and sixteen
+enabled protocol/mode rows in both workers, including cache denial and recovery.
+Real legacy token counting remains available; denied child, admin and service
+credentials cannot return count/cached output or reach the provider. Service
+denial uses the actual signed principal deny plus an actual failed native delete;
+it does not fabricate an R06 association or claim service-key R07 queue coverage.
+`/messages` is natively absent and remains an explicit refusal, not a positive
+protocol claim. Direct manual auth calls and other native auth dependencies
+remain outside the dependency-wrapper coverage claim.
 
-If this candidate is completed, integration would require
+Final integration requires
 `LITELLM_WORKER_STARTUP_HOOKS=atrium_admission.bootstrap:install` alongside the
-existing callback and protected settings. This is a future wiring requirement,
-not an instruction to activate the currently blocked candidate.
+existing callback and protected settings. This is not a production activation
+instruction or a whole-ticket completion claim.
 
 ### Existing pre-call engine
 
@@ -131,7 +140,8 @@ normal protocols, raw legacy compatibility, and disabled native routes separatel
 It found that `/v1/messages/count_tokens` admits an owned key without invoking
 this callback and attempts a provider request. Native `allowed_routes` entries
 match path prefixes, so `/v1/messages` also admits this subroute at native auth.
-The handler calls `internal_token_counter` directly. This requires an additional
-native authenticated admission boundary; changing this callback cannot protect a
-handler that never invokes it. See `tests/atrium_n05/README.md`. Do not promote
-N05 or globally disable legacy endpoints to conceal this gap.
+The handler calls `internal_token_counter` directly. The additional post-native
+boundary now covers this gap in its isolated lane; the original callback alone
+still cannot protect a handler that never invokes it. See
+`tests/atrium_n05/README.md` for the separate receipts and remaining boundaries.
+Do not promote N05 or globally disable legacy endpoints to conceal missing coverage.

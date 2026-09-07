@@ -194,8 +194,10 @@ PYTHONDONTWRITEBYTECODE=1 .artifacts/n05-venv/bin/python \
   --evidence tests/atrium_n05/results/n05-post-auth-NEW.json
 ```
 
-**This lane is blocked; do not treat its tests as executed native gate cases.**
-Other lanes do not select its startup override. The token-count provider double
+**The initial candidate was blocked; the historical diagnostics below are not
+passing native gate cases.** Subsequent control-identity work described below
+reaches and exercises the post-auth boundary. Other lanes do not yet select its
+startup override. The token-count provider double
 now supports the standard authenticated `/v1/responses/input_tokens` response, so
 a future legacy permit can require native provider output rather than the previous
 local-tokenizer fallback.
@@ -241,7 +243,37 @@ cleanup passed with `ambit-db` unchanged. This is **not** a clean native HTTP
 receipt: token-count permit/deny, normal endpoint/cache/worker, and failed-auth
 clock revalidation for the candidate remain unexecuted. No third native HTTP
 attempt was made after the agreed limit. Nix/workflow wiring was not changed,
-and the candidate startup environment setting must not be activated yet.
+and the candidate startup environment setting was not activated at that revision.
+
+### Subsequent native control-identity completion
+
+The adapter now resolves the reserved, natively verified master marker to the
+runtime master fingerprint **only inside protected ownership lookup**. It checks
+native virtual-key provenance and does not mutate the native identity or publish
+the master fingerprint in observer events. An admin role alone is not sufficient;
+known-owned fingerprints and unavailable ownership still fail closed.
+
+The explicit post-auth lane subsequently reaches all nine permit/deny groups,
+including real legacy token counting and owned child/admin/service refusal after
+signed denial and actual native-revocation failure. The service case uses a real
+signed principal deny and an actual failed native delete, not a fabricated R06
+broker association or an assertion that the R07 service-key queue is integrated.
+
+Protocol coverage retains a real TCP connection to each observed native worker
+and checks that subsequent cache, denial and recovery requests stay on that PID.
+This avoids relying on shared-socket accept fairness to rediscover the second
+worker for every request. All sixteen enabled protocol/mode rows pass on both
+workers. The two `/messages` rows remain verified native refusals, not positive
+coverage of a nonexistent route; the full N05 gate remains explicitly incomplete.
+
+Final review and complete integration are still required before enabling the new
+startup boundary outside this isolated lane. The historical blocked receipts above
+are retained rather than rewritten as successful evidence.
+
+`--post-auth-review-only` repeats the real ACL-removal and native-expiry/clock-
+rollback regressions with the dependency boundary installed. Both workers remain
+subject to the same current policy and durable clock after this additional gate;
+no host or VM clock is changed.
 
 ## Historical placement probe
 

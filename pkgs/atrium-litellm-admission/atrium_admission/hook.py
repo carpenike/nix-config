@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import time
+from hashlib import sha256
 from pathlib import Path
 
 from atrium_profiles import ProfileError
@@ -27,6 +28,27 @@ INFERENCE_CALLS = {
         ("messages", "anthropic_messages"),
     )
 }
+
+
+def _native_key_hash(identity):
+    from litellm.constants import LITELLM_PROXY_MASTER_KEY_ALIAS
+    from litellm.proxy._types import LitellmUserRoles
+
+    native_id = getattr(identity, "api_key", None)
+    if native_id != LITELLM_PROXY_MASTER_KEY_ALIAS:
+        return native_id
+    from litellm.proxy.proxy_server import master_key
+
+    if (
+        getattr(identity, "via_virtual_key", False) is not True
+        or getattr(identity, "user_role", None) != LitellmUserRoles.PROXY_ADMIN
+        or not isinstance(master_key, str)
+        or not master_key
+    ):
+        raise AdmissionError("native_control_identity_unavailable", 503)
+    # Native auth replaces the verified master with a reserved alias. Resolve it
+    # privately for ownership checks; never change the identity used by native logs.
+    return sha256(master_key.encode()).hexdigest()
 
 
 class OwnedAdmission(CustomLogger):
@@ -59,7 +81,7 @@ class OwnedAdmission(CustomLogger):
             engine = await run_in_threadpool(self._observed_engine, observed)
             return await run_in_threadpool(
                 engine.admit,
-                getattr(user_api_key_dict, "api_key", None),
+                _native_key_hash(user_api_key_dict),
                 getattr(user_api_key_dict, "team_id", None),
                 model,
                 path,

@@ -11,6 +11,39 @@ from native_runner import MARKER, content
 from provider import handler
 
 
+def test_control_observations_use_a_label_not_a_credential_fingerprint(
+    fixture_provider,
+):
+    client, inference, observer = fixture_provider
+    data = {
+        "pid": 123,
+        "context_type": "UserAPIKeyAuth",
+        "status": 200,
+        "native_request_route": "/v1/models",
+        "transport": "http",
+        "control_identity": "native-master",
+    }
+    assert (
+        client.post("/_probe/control-auth", headers=inference, json=data).status_code
+        == 401
+    )
+    assert (
+        client.post("/_probe/control-auth", headers=observer, json=data).status_code
+        == 200
+    )
+    recorded = client.get("/_probe/state", headers=observer).json()
+    assert recorded["control_events"] == [{"kind": "/_probe/control-auth", **data}]
+    assert recorded["auth_events"] == []
+    assert (
+        client.post(
+            "/_probe/control-auth",
+            headers=observer,
+            json=data | {"key_sha256": "a" * 64},
+        ).status_code
+        == 400
+    )
+
+
 @pytest.fixture
 def fixture_provider():
     inference, observer = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
