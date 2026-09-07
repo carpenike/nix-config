@@ -71,6 +71,11 @@ class ObservedAdmission(OwnedAdmission):
                         "context_type": type(user_api_key_dict).__name__,
                         "status": status,
                         "call_type": call_type,
+                        "native_request_route": getattr(
+                            user_api_key_dict, "request_route", None
+                        ),
+                        "has_proxy_server_request": isinstance(data, dict)
+                        and "proxy_server_request" in data,
                     },
                 )
                 if response.status_code != 200:

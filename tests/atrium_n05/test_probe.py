@@ -161,3 +161,31 @@ def test_stream_parser_accepts_null_control_text_but_rejects_late_errors():
     )
     failed = body + 'data: {"error":{"message":"fixture failure"}}\n\n'
     assert not output_present(httpx.Response(200, text=failed), "completions", True)
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_legacy_anthropic_fixture_has_standard_authenticated_shapes(
+    fixture_provider, stream
+):
+    from protocol_cases import output_present
+
+    client, inference, observer = fixture_provider
+    body = {
+        "model": "cc.family.text",
+        "max_tokens": 4,
+        "messages": [{"role": "user", "content": "fixture only"}],
+        "stream": stream,
+    }
+    assert client.post("/v1/messages", json=body).status_code == 401
+    headers = {"x-api-key": inference["Authorization"].removeprefix("Bearer ")}
+    response = client.post("/v1/messages", headers=headers, json=body)
+    assert output_present(response, "messages", stream)
+    if stream:
+        assert "event: message_start" in response.text
+        assert "event: message_stop" in response.text
+    assert client.get("/v1/models").status_code == 401
+    assert client.get("/v1/models", headers=headers).json()["data"][0]["id"] == (
+        "fixture-legacy"
+    )
+    counts = client.get("/_fixture/counts", headers=observer).json()
+    assert counts["received"] == 4 and counts["authorized"] == 2

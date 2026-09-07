@@ -1,6 +1,8 @@
 """Isolated native fixture: real R07 service, R06/N04 producers, synthetic inputs."""
 
 import hashlib
+import importlib.metadata
+import importlib.util
 import json
 import logging
 import os
@@ -408,6 +410,51 @@ class Fixture:
         action = body["action"]
         if action == "mint":
             return self.mint(body["kind"], body.get("native_seconds", 180))
+        if action == "context_source":
+            root = Path(importlib.util.find_spec("litellm").origin).parent
+            names = (
+                "proxy/auth/auth_utils.py",
+                "proxy/auth/user_api_key_auth.py",
+                "proxy/auth/route_checks.py",
+                "proxy/anthropic_endpoints/endpoints.py",
+                "proxy/pass_through_endpoints/pass_through_endpoints.py",
+                "proxy/pass_through_endpoints/llm_passthrough_endpoints.py",
+                "proxy/pass_through_endpoints/passthrough_endpoint_router.py",
+            )
+            return {
+                "version": importlib.metadata.version("litellm"),
+                "source_sha256": {
+                    name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+                    for name in names
+                },
+            }
+        if action == "native_raw_routes":
+            digest = body["hash"]
+            if digest not in self.keys:
+                raise ValueError("unknown_fixture_key")
+            producer_paths = (
+                ROOT / "producer-r06/admission-associations.json",
+                ROOT / "producer-n04/service-associations.json",
+            )
+            before = [path.read_bytes() for path in producer_paths]
+            routes = sorted(INFERENCE_ROUTES | {"/anthropic"})
+            with httpx.Client(trust_env=False, timeout=20) as client:
+                response = client.post(
+                    ISSUER + "/key/update",
+                    headers={"Authorization": "Bearer " + self.master},
+                    json={"key": digest, "allowed_routes": routes},
+                )
+            if (
+                response.status_code != 200
+                or self.native.info(digest).get("allowed_routes") != routes
+            ):
+                raise ValueError("native_route_fixture_not_applied")
+            return {
+                "native_routes": routes,
+                "protected_routes": sorted(INFERENCE_ROUTES),
+                "protected_routes_unchanged": before
+                == [path.read_bytes() for path in producer_paths],
+            }
         if action == "deny":
             return self.resolver(
                 "POST" if body.get("value", True) else "DELETE",

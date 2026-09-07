@@ -195,6 +195,19 @@ def test_actual_profile_cache_applies_a_signed_deny_and_preserves_non_owned(fixt
     assert admit(f, key_hash="f" * 64) == "verified-non-owned"
 
 
+@pytest.mark.parametrize(
+    "context",
+    [{"model": None}, {"path": None}, {"model": {"caller": "label"}, "path": []}],
+)
+def test_context_requirements_apply_only_after_verified_ownership(fixture, context):
+    assert admit(fixture, key_hash="f" * 64, **context) == "verified-non-owned"
+    with pytest.raises(AdmissionError, match="owned_request_context_unsupported"):
+        admit(fixture, **context)
+    fixture["primary"].unlink()
+    with pytest.raises(AdmissionError, match="ownership_unverified"):
+        admit(fixture, key_hash="f" * 64, **context)
+
+
 @pytest.mark.parametrize("status", ["reserved", "cleanup", "revoked"])
 def test_non_admitting_lifecycle_states_never_fall_back_to_legacy(fixture, status):
     f = fixture

@@ -65,6 +65,8 @@ class Admission:
                 return "verified-non-owned"
             if stored["producer"] in errors or not stored["present"]:
                 raise AdmissionError("owned_authorization_unavailable")
+            if not isinstance(model, str) or not isinstance(path, str):
+                raise AdmissionError("owned_request_context_unsupported")
             record = Credential.model_validate_json(json.dumps(stored["record"]))
             producer = next(
                 p for p in self.settings.producers if p.id == stored["producer"]

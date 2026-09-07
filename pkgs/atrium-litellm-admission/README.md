@@ -22,9 +22,13 @@ atrium-litellm-admission --settings /protected/runtime/settings.json initialize
 
 Initialization is never an HTTP operation or a missing-state fallback. Register
 `atrium_admission.hook.admission` through the supported LiteLLM callbacks setting.
-The callback consumes the native authenticated hash/team and the native-rebuilt
-request URL/method. It does not accept identity/ownership/administrator labels
-from the request body.
+The callback consumes the native authenticated hash/team and `request_route`,
+which pinned native authentication derives from the ASGI path. Its normalization
+preserves the exact ordinary inference paths, including distinct `/v1` prefixes.
+An explicit route/callback-type pair identifies supported owned HTTP inference;
+the body cannot select transport provenance, identity, ownership, or administrator
+eligibility. In particular, raw passthrough's `proxy_server_request` field is
+caller-controlled and is never trusted.
 
 ## Current boundaries
 
@@ -42,6 +46,17 @@ unknown ownership is refused rather than assumed legacy. This intentionally
 requires fresh ownership verification; it does not promise legacy availability
 when that verification is unavailable. A deny-feed outage alone does not affect
 verified non-owned credentials.
+
+Ownership is resolved before owned model/context requirements. Verified non-owned
+callbacks retain native behavior even without a model, common-processor transport
+fields, or a supported owned callback type. Unsupported owned contexts are refused
+before output or inference whenever this callback is invoked.
+
+Raw `/anthropic/*` passthrough remains legacy-only. Its native provider-global
+credential/destination selection is not N04's per-alias/domain routing. An owned
+credential remains refused there even if native route permissions drift wider
+than its protected association. This does not disable the native legacy endpoint
+or promise context isolation.
 
 Owned admission requires the allowed lifecycle, unexpired protected credential,
 current N02 principal/template/instance/authority/device bindings, exact target,
@@ -71,6 +86,12 @@ cache, or service/native-host roles. Runtime state, signing/control data, and ra
 keys are not Nix-store/package inputs. This package stores no raw native key or
 private signing material.
 
-**Native coverage is not yet complete.** The earlier committed placement probe
-proved only the supported chat/local-cache/two-worker hook location. It is not
-evidence of this adapter's full R04/R06/N04 integration or every native protocol.
+**Native coverage is not yet complete.** The bounded context matrix exercises
+normal protocols, raw legacy compatibility, and disabled native routes separately.
+It found that `/v1/messages/count_tokens` admits an owned key without invoking
+this callback and attempts a provider request. Native `allowed_routes` entries
+match path prefixes, so `/v1/messages` also admits this subroute at native auth.
+The handler calls `internal_token_counter` directly. This requires an additional
+native authenticated admission boundary; changing this callback cannot protect a
+handler that never invokes it. See `tests/atrium_n05/README.md`. Do not promote
+N05 or globally disable legacy endpoints to conceal this gap.

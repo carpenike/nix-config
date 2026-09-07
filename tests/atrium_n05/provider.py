@@ -12,7 +12,13 @@ MARKER = "fixture-ok-n05"
 
 def handler(inference_key, observer_key):
     lock = threading.Lock()
-    counts = {"received": 0, "authorized": 0, "models": [], "protocols": []}
+    counts = {
+        "received": 0,
+        "authorized": 0,
+        "models": [],
+        "protocols": [],
+        "requests": [],
+    }
     events, denied = [], set()
     clocks = []
 
@@ -23,6 +29,11 @@ def handler(inference_key, observer_key):
         def authorized(self, key):
             return secrets.compare_digest(
                 self.headers.get("Authorization", ""), "Bearer " + key
+            )
+
+        def anthropic_authorized(self):
+            return secrets.compare_digest(
+                self.headers.get("x-api-key", ""), inference_key
             )
 
         def reply(self, status, document):
@@ -40,6 +51,33 @@ def handler(inference_key, observer_key):
             return json.loads(self.rfile.read(length))
 
         def do_GET(self):
+            if self.path == "/v1/models":
+                with lock:
+                    counts["received"] += 1
+                    counts["requests"].append({"method": "GET", "path": self.path})
+                if not self.anthropic_authorized():
+                    self.reply(401, {"error": "unauthorized"})
+                    return
+                with lock:
+                    counts["authorized"] += 1
+                    counts["protocols"].append(
+                        {"path": self.path, "stream": False, "legacy_passthrough": True}
+                    )
+                self.reply(
+                    200,
+                    {
+                        "data": [
+                            {
+                                "id": "fixture-legacy",
+                                "type": "model",
+                                "display_name": "Legacy fixture",
+                                "created_at": "2026-01-01T00:00:00Z",
+                            }
+                        ],
+                        "has_more": False,
+                    },
+                )
+                return
             if not self.authorized(observer_key):
                 self.reply(401, {"error": "unauthorized"})
                 return
@@ -103,6 +141,82 @@ def handler(inference_key, observer_key):
                 return
             with lock:
                 counts["received"] += 1
+                counts["requests"].append({"method": "POST", "path": self.path})
+            if self.path == "/v1/messages":
+                if not self.anthropic_authorized():
+                    self.reply(401, {"error": "unauthorized"})
+                    return
+                try:
+                    data = self.body()
+                    model = data["model"]
+                    if (
+                        model not in ("cc.family.text", "cc.personal.text")
+                        or type(data.get("stream", False)) is not bool
+                    ):
+                        raise ValueError()
+                except (ValueError, TypeError, KeyError):
+                    self.reply(400, {"error": "unsupported_fixture_request"})
+                    return
+                with lock:
+                    counts["authorized"] += 1
+                    counts["models"].append(model)
+                    counts["protocols"].append(
+                        {
+                            "path": self.path,
+                            "stream": data.get("stream", False),
+                            "legacy_passthrough": True,
+                        }
+                    )
+                    identifier = "msg_n05_legacy_" + str(counts["authorized"])
+                completed = {
+                    "id": identifier,
+                    "type": "message",
+                    "role": "assistant",
+                    "model": model,
+                    "content": [{"type": "text", "text": MARKER}],
+                    "stop_reason": "end_turn",
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
+                }
+                if not data.get("stream"):
+                    self.reply(200, completed)
+                else:
+                    self.sse(
+                        [
+                            {
+                                "type": "message_start",
+                                "message": completed
+                                | {
+                                    "content": [],
+                                    "stop_reason": None,
+                                    "usage": {"input_tokens": 1, "output_tokens": 0},
+                                },
+                            },
+                            {
+                                "type": "content_block_start",
+                                "index": 0,
+                                "content_block": {"type": "text", "text": ""},
+                            },
+                            {
+                                "type": "content_block_delta",
+                                "index": 0,
+                                "delta": {"type": "text_delta", "text": MARKER},
+                            },
+                            {"type": "content_block_stop", "index": 0},
+                            {
+                                "type": "message_delta",
+                                "delta": {
+                                    "stop_reason": "end_turn",
+                                    "stop_sequence": None,
+                                },
+                                "usage": {"output_tokens": 1},
+                            },
+                            {"type": "message_stop"},
+                        ],
+                        done=False,
+                        named=True,
+                    )
+                return
             if self.path not in (
                 "/v1/chat/completions",
                 "/v1/completions",
@@ -373,9 +487,15 @@ def handler(inference_key, observer_key):
                 self.wfile.write(chunk)
                 self.wfile.flush()
 
-        def sse(self, events, *, done):
+        def sse(self, events, *, done, named=False):
             body = b"".join(
-                ("data: " + json.dumps(event) + "\n\n").encode() for event in events
+                (
+                    ("event: " + event["type"] + "\n" if named else "")
+                    + "data: "
+                    + json.dumps(event)
+                    + "\n\n"
+                ).encode()
+                for event in events
             )
             if done:
                 body += b"data: [DONE]\n\n"

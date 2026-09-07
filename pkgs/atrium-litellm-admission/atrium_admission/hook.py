@@ -4,7 +4,6 @@ import os
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from atrium_profiles import ProfileError
 from fastapi import HTTPException
@@ -16,6 +15,18 @@ from .engine import Admission
 from .models import AdmissionError
 
 logger = logging.getLogger(__name__)
+
+INFERENCE_CALLS = {
+    f"{prefix}/{route}": call_type
+    for prefix in ("", "/v1")
+    for route, call_type in (
+        ("chat/completions", "acompletion"),
+        ("completions", "atext_completion"),
+        ("embeddings", "aembedding"),
+        ("responses", "aresponses"),
+        ("messages", "anthropic_messages"),
+    )
+}
 
 
 class OwnedAdmission(CustomLogger):
@@ -46,20 +57,21 @@ class OwnedAdmission(CustomLogger):
         observed = int(time.time())
         try:
             engine = await run_in_threadpool(self._observed_engine, observed)
-            transport = data.get("proxy_server_request")
-            if (
-                not isinstance(transport, dict)
-                or transport.get("method") != "POST"
-                or not isinstance(transport.get("url"), str)
-                or not isinstance(data.get("model"), str)
-            ):
-                raise AdmissionError("native_request_context_missing")
-            path = urlsplit(transport["url"]).path
+            # Native auth stamps this from ASGI scope; raw passthrough body fields
+            # named proxy_server_request are not authenticated transport context.
+            route = getattr(user_api_key_dict, "request_route", None)
+            path = (
+                route
+                if isinstance(route, str)
+                and route in INFERENCE_CALLS
+                and INFERENCE_CALLS[route] == call_type
+                else None
+            )
             await run_in_threadpool(
                 engine.admit,
                 getattr(user_api_key_dict, "api_key", None),
                 getattr(user_api_key_dict, "team_id", None),
-                data["model"],
+                data.get("model") if isinstance(data, dict) else None,
                 path,
             )
         except AdmissionError as error:

@@ -37,6 +37,7 @@ def main():
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--protocol-only", choices=("completions",))
     selection.add_argument("--review-only", action="store_true")
+    selection.add_argument("--context-only", action="store_true")
     args = parser.parse_args()
     native, harness_hashes = load_harness(args.harness)
     from harness.common import EvidenceWriter, HarnessError, require
@@ -47,6 +48,7 @@ def main():
         output.is_relative_to(ROOT / "tests/atrium_n05/results"),
         "evidence_path_refused",
     )
+    require(not output.exists(), "existing_evidence_refused")
     result = {
         "ticket": "ATR-N05",
         "run_id": "n05-adapter-" + secrets.token_hex(8),
@@ -54,6 +56,8 @@ def main():
         "full_n05": "incomplete",
         "selected_protocol": "review-faults"
         if args.review_only
+        else "request-context"
+        if args.context_only
         else args.protocol_only or "all-N02-allowed",
         "source": {
             "commit": git(ROOT, "rev-parse", "HEAD").decode().strip(),
@@ -87,6 +91,8 @@ def main():
     ] + ([] if args.protocol_only is None else ["--protocol-only", args.protocol_only])
     if args.review_only:
         result["command"].append("--review-only")
+    if args.context_only:
+        result["command"].append("--context-only")
     writer = EvidenceWriter(output, result)
     try:
         wheels, result["source"]["wheel_sha256"] = verified_wheels(
@@ -156,6 +162,8 @@ def main():
                 data["environment"].update(
                     {
                         "PYTHONPATH": RUNTIME + "/python",
+                        "TMPDIR": RUNTIME,
+                        "PYTHONDONTWRITEBYTECODE": "1",
                         "ATRIUM_ADMISSION_SETTINGS": RUNTIME
                         + "/admission-settings.json",
                         "N05_OBSERVER_URL": "http://" + self.prefix + "-provider:8000",
@@ -163,6 +171,19 @@ def main():
                         "N05_REVIEW_CLOCK": "1" if args.review_only else "0",
                     }
                 )
+                if args.context_only:
+                    # A synthetic global provider is a legacy compatibility twin,
+                    # never evidence of owned per-alias/per-domain passthrough.
+                    data["environment"].update(
+                        {
+                            "ANTHROPIC_API_BASE": "http://"
+                            + self.prefix
+                            + "-provider:8000",
+                            "ANTHROPIC_API_KEY": data["environment"][
+                                "SYNTHETIC_PROVIDER_KEY"
+                            ],
+                        }
+                    )
                 payload = json.dumps(data)
             return super().start(identifier, payload)
 
@@ -342,6 +363,29 @@ except Exception as error:
                 from review_cases import run_reviews
 
                 run_reviews(
+                    client,
+                    observer,
+                    observer_headers,
+                    action,
+                    evidence,
+                    run_id,
+                    checkpoint,
+                )
+                return
+            if args.context_only:
+                from context_cases import run_contexts
+                from protocol_cases import run_protocols
+
+                run_contexts(
+                    client,
+                    observer,
+                    observer_headers,
+                    action,
+                    evidence,
+                    run_id,
+                    checkpoint,
+                )
+                run_protocols(
                     client,
                     observer,
                     observer_headers,
@@ -568,9 +612,9 @@ except Exception as error:
         result["status"] = (
             "partial"
             if any(
-                row["status"] == "blocked"
-                for row in result.get("protocol_coverage", [])
+                row["status"] != "passed" for row in result.get("protocol_coverage", [])
             )
+            or result.get("request_context_gate") == "incomplete"
             else "passed"
         )
     except HarnessError as error:

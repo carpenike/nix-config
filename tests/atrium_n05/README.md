@@ -20,8 +20,9 @@ python tests/atrium_n05/actual_native.py \
   --evidence tests/atrium_n05/results/n05-completions-NEW.json
 ```
 
-Omit `--protocol-only` to execute the broader implemented matrix. Blocked
-protocol rows produce a partial result and nonzero exit, not a passing run.
+Omit `--protocol-only` to execute the broader implemented matrix. Blocked or
+native-unavailable protocol rows produce a partial result and nonzero exit,
+not a passing all-protocol run.
 `full_n05` remains explicitly incomplete until every required native route,
 fault, permission, and ownership case is accounted for.
 
@@ -58,6 +59,82 @@ the actual background poller.
 The [clean review-fix receipt](results/n05-review-bc5eb776.json) binds both
 two-worker regressions to `bc5eb776c16024b8976967e3d4fad13c893fe071`.
 It does not promote the remaining unexecuted N05 routes or fault cases.
+
+## Bounded request-context and route accounting
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .artifacts/n05-venv/bin/python \
+  tests/atrium_n05/focused_native.py --harness /path/to/atrium-r06 \
+  --evidence tests/atrium_n05/results/n05-focused-NEW.json
+PYTHONDONTWRITEBYTECODE=1 .artifacts/n05-venv/bin/python \
+  tests/atrium_n05/actual_native.py --harness /path/to/atrium-r06 \
+  --spec /path/to/current-owner-spec.md --context-only \
+  --evidence tests/atrium_n05/results/n05-context-NEW.json
+```
+
+`focused_native.py` reuses the already installed pytest dependencies and verified
+product/admission wheels in a network-disabled pinned container. All signing
+fixtures and pytest runtime files live under its private `/run` tmpfs, not host
+temporary directories or the repository. It runs the focused engine, callback,
+provider, and wheel-provenance tests; this is not a substitute for native HTTP
+permit/deny evidence.
+
+The context lane keeps the actual auth/router/cache/admission implementations.
+It distinguishes:
+
+* **Normal inference:** chat, completions, embeddings, responses, and
+  `/v1/messages`, with streaming where applicable and both workers' warm native
+  local caches. Native auth's `request_route` is authoritative; body transport,
+  route, ownership, and administrator labels cannot select admission.
+* **Native absence:** `/messages` has no native advertised handler. Its refusal
+  is recorded separately, not treated as an enabled positive. The pinned product
+  `1d620cd3` shared `INFERENCE_ROUTES` contains the ten ordinary paths with/without
+  `/v1`; it does **not** include `/anthropic/v1/messages`. These are implementation
+  route-enumeration facts, not mandates from the locked spec.
+* **Raw passthrough:** default owned native route limits refuse
+  `/anthropic/v1/messages`. A test-only native `/key/update` then widens route
+  permission while verifying protected producers remain byte-identical. Actual
+  admission still refuses owned child/admin/service keys, with and without forged
+  common-processor labels. Verified non-owned legacy callers retain native
+  passthrough, including streaming and GET `/anthropic/v1/models` without a model
+  or common transport fields. Missing ownership input must still fail closed.
+* **Disabled APIs:** explicit requests cover images, audio, rerank, moderation,
+  alternate deployment/engine/Gemini paths, realtime handshakes/session APIs, and
+  response compaction. Native 401 and 403 refusals are distinguished in evidence;
+  neither upstream failure nor an unavailable route is an inference permit.
+
+Only this legacy-compatibility lane supplies an isolated synthetic global
+Anthropic provider credential/base. Its success is **not** owned per-alias/domain
+routing evidence. Native passthrough selects the first applicable
+`use_in_pass_through` provider/region credential, or a global environment credential;
+`/anthropic/*` uses the global base URL. No global credential substitutes for N04's
+owned alias expectations. Adopting that path would require an explicit
+authenticated per-alias/domain implementation and its paired routing tests.
+
+### Remaining native boundary: token counting
+
+The initial native context receipt, [n05-context-initial.json](results/n05-context-initial.json),
+records an owned request to `/v1/messages/count_tokens` returning **200**, with
+**one provider request and zero admission callbacks**. This is not a positive
+coverage result. Pinned source explains it:
+
+* `proxy/auth/route_checks.py:549–572` accepts descendant paths of an
+  `allowed_routes` entry, including descendants of `/v1/messages`.
+* `proxy/anthropic_endpoints/endpoints.py:227–310` authenticates natively, then
+  calls `internal_token_counter(..., call_endpoint=True)` directly, without the
+  common processor or `async_pre_call_hook`.
+
+The context lane also checks this path after a real signed deny and failed native
+revocation, pairing it with the same key's ordinary chat permit/deny. The affected
+gate must remain blocked until authenticated admission covers that handler
+without removing native legacy behavior. No locked-contract impossibility or C8
+amendment follows from this implementation gap.
+
+Other remaining gates include exhaustive advertised-route accounting, legacy
+WebSocket positive behavior, shared/Redis cache paths, and broader worker/restart
+and R04/R07 fault coverage. `legacy_context_gate` reports the bounded compatibility
+fix separately from `request_context_gate`, `full_protocol_gate`, and `full_n05`;
+none of those broader gates is promoted by a legacy passthrough success.
 
 ## Historical placement probe
 
