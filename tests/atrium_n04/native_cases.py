@@ -354,7 +354,7 @@ class Fixture:
                 if m["model_name"] in ("personal-fixture", "family-fixture")
             ],
         }
-        return {name: digest(row) for name, row in rows.items()}
+        return {name: {"sha256": digest(row)} for name, row in rows.items()}
 
     def start_consumer(self):
         def identity():
