@@ -300,6 +300,7 @@
           };
           admissionTestPython = pkgs.python312.withPackages (ps: [
             ps.pytest
+            ps.fastapi
             availablePackages.atrium-litellm-admission
           ]);
         in

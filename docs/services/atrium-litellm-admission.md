@@ -59,6 +59,8 @@ The package check builds the distribution and imports its engine/producer
 modules. The Python check runs the existing pytest fixtures with the actual
 admission, resolver, and profile sources. Generated keys and fixture state
 remain in the build's private temporary directory, not the output or source.
+Tests requiring the native LiteLLM SDK are explicitly conditional and remain
+part of the separate pinned-native validation, not this Nix unit-check claim.
 The module check evaluates the real NixOS module with valid/invalid inputs
 and confirms explicit isolation, reference-only settings, default-disabled
 behavior, and absence of gateway activation or public ports.
