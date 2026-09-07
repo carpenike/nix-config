@@ -288,5 +288,51 @@ Native results are controller slices, not unit-fixture gate claims:
 N05 admission, signed-feed outages/revocation fallback, multiple workers, warm
 output caches, streaming/other inference protocols, real R06 broker integration,
 and W03 are **not implemented or claimed** by this ticket. The full gate remains
-blocked on those owners. Final revision-bound results are recorded separately
-after the implementation commit.
+blocked on those owners.
+
+### Executed, revision-bound evidence
+
+Implementation: `ae51fdfb8eff63ce76021ad93d99133fb3345efd`.
+Validated controller/fixture revision: `bd0e871510502bcf88e11dc2877c5bd5ddbe5318`
+(explicit non-secret state-digest representation; controller unchanged).
+Native evidence: `tests/atrium_n04/results/n04-native-bd0e8715.json`.
+The committed controller/harness source hashes and the owner's current spec SHA256
+`7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e`
+are included in that report. The owner document was unchanged throughout the runs.
+
+| Validation | Observed result |
+| --- | --- |
+| Existing pytest/UV runner, `tests/atrium_n04/test_controller.py` | **44 passed** |
+| Real N04 + pinned native harness, committed source above | **17 executed controller cases passed** |
+| Native key/user/team management | **12 HTTP 403 denials**, each with a same-key inference permit |
+| Live service consumer | **35 concurrent successful reads**, old/new identities observed without restart |
+| Synthetic provider accounts | **73 received = 73 authorized**: personal account 68, family account 5; denial deltas zero |
+| Isolated Nix unit evaluation | **12 assertions passed**, not activated-unit runtime evidence |
+| Exported Nix package + `checks.aarch64-darwin.atrium-n04-units` | **Built successfully**, local builders only |
+| Installed package CLI | `--help` executed successfully |
+| Original repository pre-commit hooks | **Passed**; non-applicable shell/YAML checks skipped |
+| Native resource cleanup | **Six owned containers and the owned network removed**; cached images retained |
+| Foreign resource observation | `ambit-db` ID `a914bf6c7045` remained `running`, unchanged before/after |
+| Production/source preservation | Live LiteLLM/Forge configuration and `flake.lock` unchanged; no push, PR, merge or deployment |
+
+The exact native invocation was:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 uv run --frozen \
+  --project /Users/ryan/src/atrium-n07/resolver python \
+  tests/atrium_n04/native_runner.py \
+  --harness /Users/ryan/src/atrium-n07 \
+  --spec /Users/ryan/src/atrium/docs/atrium-spec-v1.0.md \
+  --evidence tests/atrium_n04/results/n04-native-bd0e8715.json
+```
+
+The successful normal build used the command above without `--offline`. Two
+earlier offline attempts were interrupted after their logs showed Darwin
+toolchain source bootstrapping; they are not counted as successful builds.
+Normal substitution fetched three small official-cache build dependencies and
+completed the exact package derivation, followed by the exported flake targets.
+No dependency or native-image pin was changed to make the gate pass.
+
+No amendment is proposed. T5/T13/T19/T29/T30 are reported at their executed N04
+controller/native scope; parent R06, N05 and W03 must supply their real integrated
+twins before claiming the complete adapter/promotion gate.
