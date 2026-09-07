@@ -93,3 +93,31 @@ def test_observer_refuses_malformed_instrumentation(fixture_provider, changes):
     )
     assert response.status_code == 400
     assert client.get("/_probe/state", headers=observer).json()["events"] == []
+
+
+@pytest.mark.parametrize(
+    "kind,stream",
+    [
+        ("embeddings", False),
+        ("completions", False),
+        ("completions", True),
+        ("responses", False),
+        ("responses", True),
+    ],
+)
+def test_extended_provider_protocol_shapes(fixture_provider, kind, stream):
+    from protocol_cases import output_present
+
+    client, inference, observer = fixture_provider
+    response = client.post(
+        "/v1/" + kind,
+        headers=inference,
+        json={
+            "model": "fixture-family",
+            "stream": stream,
+            "input": "fixture",
+            "prompt": "fixture",
+        },
+    )
+    assert output_present(response, kind, stream)
+    assert client.get("/_fixture/counts", headers=observer).json()["authorized"] == 1

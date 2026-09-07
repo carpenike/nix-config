@@ -71,12 +71,16 @@ def handler(inference_key, observer_key):
                             )
                             self.reply(200, {"applied": True})
                         elif (
-                            self.path == "/_probe/check"
+                            self.path in ("/_probe/check", "/_probe/record")
                             and type(data.get("pid")) is int
                         ):
                             if data.get("context_type") != "UserAPIKeyAuth":
                                 raise ValueError()
-                            blocked = data["key_sha256"] in denied
+                            blocked = (
+                                data["key_sha256"] in denied
+                                if self.path == "/_probe/check"
+                                else data["status"] != 200
+                            )
                             events.append(
                                 {**data, "denied": blocked, "sequence": len(events)}
                             )
@@ -88,9 +92,12 @@ def handler(inference_key, observer_key):
                 return
             with lock:
                 counts["received"] += 1
-            if self.path != "/v1/chat/completions" or not self.authorized(
-                inference_key
-            ):
+            if self.path not in (
+                "/v1/chat/completions",
+                "/v1/completions",
+                "/v1/embeddings",
+                "/v1/responses",
+            ) or not self.authorized(inference_key):
                 self.reply(401, {"error": "unauthorized"})
                 return
             try:
@@ -108,6 +115,131 @@ def handler(inference_key, observer_key):
                 counts["authorized"] += 1
                 counts["models"].append(model)
                 identifier = "n05-fixture-" + str(counts["authorized"])
+            if self.path == "/v1/embeddings":
+                values = data.get("input", "")
+                number = len(values) if isinstance(values, list) else 1
+                self.reply(
+                    200,
+                    {
+                        "object": "list",
+                        "model": model,
+                        "data": [
+                            {
+                                "object": "embedding",
+                                "index": index,
+                                "embedding": [0.1, 0.2, 0.3],
+                            }
+                            for index in range(number)
+                        ],
+                        "usage": {"prompt_tokens": 1, "total_tokens": 1},
+                    },
+                )
+                return
+            if self.path == "/v1/completions":
+                completed = {
+                    "id": identifier,
+                    "object": "text_completion",
+                    "created": 1,
+                    "model": model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "text": MARKER,
+                            "finish_reason": "stop",
+                            "logprobs": None,
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 1,
+                        "completion_tokens": 1,
+                        "total_tokens": 2,
+                    },
+                }
+                if not data.get("stream"):
+                    self.reply(200, completed)
+                else:
+                    self.sse([completed], done=True)
+                return
+            if self.path == "/v1/responses":
+                message = {
+                    "id": "msg_" + identifier,
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [
+                        {"type": "output_text", "text": MARKER, "annotations": []}
+                    ],
+                }
+                completed = {
+                    "id": "resp_" + identifier,
+                    "object": "response",
+                    "created_at": 1,
+                    "status": "completed",
+                    "model": model,
+                    "output": [message],
+                    "parallel_tool_calls": False,
+                    "tools": [],
+                    "tool_choice": "auto",
+                    "error": None,
+                    "incomplete_details": None,
+                    "instructions": None,
+                    "metadata": {},
+                    "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+                }
+                if not data.get("stream"):
+                    self.reply(200, completed)
+                else:
+                    response_events = [
+                        {
+                            "type": "response.created",
+                            "response": completed
+                            | {"status": "in_progress", "output": []},
+                        },
+                        {
+                            "type": "response.output_item.added",
+                            "output_index": 0,
+                            "item": message | {"status": "in_progress", "content": []},
+                        },
+                        {
+                            "type": "response.content_part.added",
+                            "item_id": message["id"],
+                            "output_index": 0,
+                            "content_index": 0,
+                            "part": {
+                                "type": "output_text",
+                                "text": "",
+                                "annotations": [],
+                            },
+                        },
+                        {
+                            "type": "response.output_text.delta",
+                            "item_id": message["id"],
+                            "output_index": 0,
+                            "content_index": 0,
+                            "delta": MARKER,
+                        },
+                        {
+                            "type": "response.output_text.done",
+                            "item_id": message["id"],
+                            "output_index": 0,
+                            "content_index": 0,
+                            "text": MARKER,
+                        },
+                        {
+                            "type": "response.output_item.done",
+                            "output_index": 0,
+                            "item": message,
+                        },
+                        {"type": "response.completed", "response": completed},
+                    ]
+                    self.sse(
+                        [
+                            event | {"sequence_number": index}
+                            for index, event in enumerate(response_events)
+                        ],
+                        done=False,
+                    )
+                return
             if not data.get("stream"):
                 self.reply(
                     200,
@@ -184,6 +316,19 @@ def handler(inference_key, observer_key):
             for chunk in payload:
                 self.wfile.write(chunk)
                 self.wfile.flush()
+
+        def sse(self, events, *, done):
+            body = b"".join(
+                ("data: " + json.dumps(event) + "\n\n").encode() for event in events
+            )
+            if done:
+                body += b"data: [DONE]\n\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
 
     return Handler
 

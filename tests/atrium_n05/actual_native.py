@@ -23,7 +23,7 @@ root=pathlib.Path("/run/atrium-n05")
 for name,encoded in data.pop("wheels").items():
  with zipfile.ZipFile(io.BytesIO(base64.b64decode(encoded))) as wheel:
   wheel.extractall(root/"python")
-(root/"admission_loader.py").write_text("from atrium_admission.hook import admission\\n")
+(root/"admission_loader.py").write_text(data.pop("observer_source"))
 config=root/"config.json"
 config.write_text(json.dumps(data["config"]))
 config.chmod(0o600)
@@ -120,14 +120,26 @@ def main():
             return identifier
 
         def start(self, identifier, payload=""):
+            role = next(
+                row["role"]
+                for row in self.result["resources"]
+                if row.get("id") == identifier
+            )
+            if role == "provider":
+                state["observer_key"] = json.loads(payload)["observer"]
             if identifier == state.get("gateway"):
                 data = json.loads(payload)
                 data["wheels"] = wheels
+                data["observer_source"] = (
+                    ROOT / "tests/atrium_n05/observed_admission.py"
+                ).read_text()
                 data["environment"].update(
                     {
                         "PYTHONPATH": RUNTIME + "/python",
                         "ATRIUM_ADMISSION_SETTINGS": RUNTIME
                         + "/admission-settings.json",
+                        "N05_OBSERVER_URL": "http://" + self.prefix + "-provider:8000",
+                        "N05_OBSERVER_KEY": state["observer_key"],
                     }
                 )
                 payload = json.dumps(data)
@@ -290,6 +302,11 @@ except Exception as error:
                     )
                 return {"status": response.status_code, "provider_requests": delta}
 
+            from protocol_cases import run_protocols
+
+            run_protocols(
+                client, observer, observer_headers, action, evidence, run_id, checkpoint
+            )
             child = action("mint", kind="child")
             admin = action("mint", kind="admin")
             service = action("mint", kind="service")
