@@ -136,6 +136,53 @@ and R04/R07 fault coverage. `legacy_context_gate` reports the bounded compatibil
 fix separately from `request_context_gate`, `full_protocol_gate`, and `full_n05`;
 none of those broader gates is promoted by a legacy passthrough success.
 
+### Clean-source context receipt
+
+Both receipts below ran with a clean working tree at source commit
+`27c312573d32d3082327484c09d424a85e6a6422`, against pinned **1.99.1** and
+owner spec SHA-256 `7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e`:
+
+* [Focused receipt](results/n05-context-focused-27c31257.json): **75 passed**,
+  no skipped tests; signing fixtures confined to the native `/run` tmpfs.
+* [Native receipt](results/n05-context-27c31257.json): **24 context/legacy cases**
+  and **34 additional route forms** pass (the latter refused for child, native
+  admin-owner, and service templates). All normal **16 available protocol/mode
+  rows** pass permit/deny with both actual worker PIDs **222/223**, including warm
+  native local caches. `/messages` remains separately unavailable in both modes.
+
+Raw legacy streaming/non-streaming calls, forged-body variants, and the model-less
+GET all pass on both workers. Owned raw requests remain 403 with no upstream or
+SSE output even after native permission drift. A missing producer produces 503
+for the otherwise working legacy GET; restoring the protected producer restores
+native access. The initial legacy forged-body row's single-worker sampling limit
+was corrected with a 100 ms gap between fresh connections, not by changing native
+worker scheduling or admission.
+
+**Two token-count checks remain blocked.** With real native revocation failure
+pending, the same child key's chat request goes from 200 to admission-enforced
+403, but `/v1/messages/count_tokens` still returns **200**, invokes admission
+**zero times**, and attempts **POST `/v1/responses/input_tokens`** at the fixture
+provider. The provider records the attempted request; this is not an authorized
+provider-output claim. Native source hashes for the auth, normalization, raw
+passthrough, and token-count boundaries are embedded in the receipt. The public
+source hashes are rendered as explicit algorithm/digest objects to distinguish
+them from credentials; the original captured receipt hash is retained, and no
+observations or checksum values were changed.
+
+Thus `legacy_context_gate=passed`, while `request_context_gate`,
+`full_protocol_gate`, and `full_n05` remain incomplete; the native command exits
+nonzero/partial. This tranche supplies the T26 request-context subset and
+ordinary-endpoint T15/T25 pairs, **not complete T15/T20/T24/T25/T26/T30 closure**.
+Follow-up must cover token-count dispatch after native authentication and before
+its upstream call, preserving verified non-owned native behavior. No amendment
+is proposed; the affected native boundary is handed back without further retries.
+
+Both runs removed every exact owned container ID; the native run also removed
+`atrium-harness-n05-adapter-454687f331082757-net`. Both retained the pre-existing
+`ambit-db` container `a914bf6c7045` running unchanged. Cleanup receipts report zero
+remaining owned resources; no production host configuration, other worktree,
+shared VM/image, or household service was modified.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or
