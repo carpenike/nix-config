@@ -41,7 +41,7 @@ def output_present(response, kind, stream):
         else:
             for choice in value.get("choices", []):
                 parts.append(
-                    choice.get("text", "")
+                    choice.get("text", choice.get("delta", {}).get("content", ""))
                     if kind == "completions"
                     else choice.get("delta", {}).get("content", "")
                 )
@@ -49,7 +49,7 @@ def output_present(response, kind, stream):
 
 
 def run_protocols(
-    client, observer, observer_headers, action, evidence, run_id, checkpoint
+    client, observer, observer_headers, action, evidence, run_id, checkpoint, kinds=None
 ):
     from harness.common import require
 
@@ -92,6 +92,14 @@ def run_protocols(
             "provider_requests": delta,
             "hook_calls": len(events),
         }
+        if response.status_code == 200 and body.get("stream"):
+            shapes = set()
+            for line in response.text.splitlines():
+                if line.startswith("data: ") and line != "data: [DONE]":
+                    chunk = json.loads(line[6:])
+                    for choice in chunk.get("choices", []):
+                        shapes.add(",".join(sorted(choice)))
+            observation["native_stream_choice_fields"] = sorted(shapes)
         if events:
             observation["worker_pid"] = events[-1]["pid"]
         if expected == "deny":
@@ -106,7 +114,7 @@ def run_protocols(
             )
         return response, observation
 
-    for kind in (
+    for kind in kinds or (
         "chat/completions",
         "completions",
         "embeddings",

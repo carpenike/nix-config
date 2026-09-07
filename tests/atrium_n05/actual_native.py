@@ -35,6 +35,7 @@ def main():
     parser.add_argument("--harness", type=Path, required=True)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--protocol-only", choices=("completions",))
     args = parser.parse_args()
     native, harness_hashes = load_harness(args.harness)
     from harness.common import EvidenceWriter, HarnessError, require
@@ -50,6 +51,7 @@ def main():
         "run_id": "n05-adapter-" + secrets.token_hex(8),
         "status": "running",
         "full_n05": "incomplete",
+        "selected_protocol": args.protocol_only or "all-N02-allowed",
         "source": {
             "commit": git(ROOT, "rev-parse", "HEAD").decode().strip(),
             "dirty": bool(git(ROOT, "status", "--porcelain").strip()),
@@ -70,6 +72,16 @@ def main():
             },
         },
     }
+    result["command"] = [
+        "python",
+        "tests/atrium_n05/actual_native.py",
+        "--harness",
+        str(args.harness),
+        "--spec",
+        str(args.spec),
+        "--evidence",
+        str(args.evidence),
+    ] + ([] if args.protocol_only is None else ["--protocol-only", args.protocol_only])
     writer = EvidenceWriter(output, result)
     wheels = {
         p.name: base64.b64encode(p.read_bytes()).decode()
@@ -302,6 +314,20 @@ except Exception as error:
                     )
                 return {"status": response.status_code, "provider_requests": delta}
 
+            if args.protocol_only:
+                from protocol_cases import run_protocols
+
+                run_protocols(
+                    client,
+                    observer,
+                    observer_headers,
+                    action,
+                    evidence,
+                    run_id,
+                    checkpoint,
+                    kinds=(args.protocol_only,),
+                )
+                return
             action("feed", mode="missing")
             cold_child = action("mint", kind="child")
             cold_admin = action("mint", kind="admin")
