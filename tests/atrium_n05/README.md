@@ -46,6 +46,15 @@ container. It emits exception types and code-frame locations, not exception
 bodies or credentials. Supply `--harness` and a new `--evidence` path. This
 diagnostic is **not** native authentication or N05 admission evidence.
 
+`actual_native.py --review-only` exercises current ACL removal and native
+expiry followed by clock rollback, with paired permit/deny requests through
+both real workers. Only clock inputs are controlled in that fixture: native
+authentication, key lookup, expiry logic, the adapter, and its durable state
+remain actual implementations. Background polling is deliberately stopped
+for this lane so it cannot hide a missing authentication-failure observation.
+Neither the host nor shared VM clock is changed. Normal protocol runs retain
+the actual background poller.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or

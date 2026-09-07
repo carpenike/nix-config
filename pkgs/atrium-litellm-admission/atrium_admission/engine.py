@@ -1,5 +1,4 @@
 import json
-import time
 
 from atrium_profiles import ProfileError
 from atrium_profiles.models import AuthorizationContext, IssuerQualifiedCredential
@@ -45,8 +44,7 @@ class Admission:
         TypeAdapter(Digest).validate_python(key_hash, strict=True)
         self.feed.poll()
         with self.store.transaction() as state:
-            now = max(int(time.time()), state["last_now"])
-            state["last_now"] = now
+            now = self.store.advance_clock(state)
             policy = self.policy()
             errors = {}
             for producer in self.settings.producers:
@@ -96,6 +94,17 @@ class Admission:
                 or path not in template.routes
                 or record.budget.duration_seconds != template.budget.duration_seconds
                 or record.budget.usd > template.budget.usd
+            ):
+                raise AdmissionError("owned_request_not_permitted")
+            allowlist = policy.principal_model_allowlists.get(record.principal, {}).get(
+                record.domain
+            )
+            if (
+                record.principal not in policy.potential_members(instance.acl)
+                or record.principal not in policy.potential_members(template.acl)
+                or allowlist is None
+                or record.template_id not in allowlist.templates
+                or model not in allowlist.models
             ):
                 raise AdmissionError("owned_request_not_permitted")
             service = producer.kind == "controller-service"

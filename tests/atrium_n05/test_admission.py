@@ -13,6 +13,7 @@ from atrium_profiles.deny import DenyClaims
 from atrium_profiles.keyring import SigningKeyRing
 from atrium_profiles.runtime import atomic_private_write
 from atrium_resolver import __file__ as resolver_file
+from atrium_resolver.policy_schema import PolicyDocument
 
 from atrium_admission.engine import Admission
 from atrium_admission.models import AdmissionError, Settings
@@ -250,6 +251,96 @@ def test_native_binding_model_and_route_ceilings_remain_mandatory(fixture, chang
         admit(fixture, **changes)
 
 
+@pytest.mark.parametrize("ceiling", ["instance", "template", "group"])
+def test_current_acl_removal_refuses_an_unexpired_historical_grant(fixture, ceiling):
+    f = fixture
+    assert admit(f) == "fresh"
+    original = copy.deepcopy(f["policy"])
+    if ceiling == "instance":
+        f["policy"]["instances"]["family-models"]["acl"] = {
+            "principals": ["fixture-peer"],
+            "groups": ["fixture-parents"],
+        }
+    if ceiling in ("instance", "template"):
+        f["policy"]["model_templates"]["child-client"]["acl"] = {
+            "principals": ["fixture-peer"],
+            "groups": [],
+        }
+        f["policy"]["principal_model_allowlists"]["fixture-child"] = {}
+    elif ceiling == "group":
+        f["policy"]["principals"]["fixture-child"]["groups"] = []
+        f["policy"]["principal_model_allowlists"]["fixture-child"] = {}
+    PolicyDocument.model_validate_json(json.dumps(f["policy"]))
+    atomic_private_write(f["policy_path"], json.dumps(f["policy"]).encode())
+    with pytest.raises(AdmissionError, match="owned_request_not_permitted"):
+        admit(f)
+    atomic_private_write(f["policy_path"], json.dumps(original).encode())
+    assert admit(f) == "fresh"
+
+
+@pytest.mark.parametrize("failure", ["timeout", "malformed"])
+def test_failed_poll_records_completion_time_before_clock_rollback(
+    fixture, monkeypatch, failure
+):
+    f = fixture
+    assert admit(f) == "fresh"
+    clock = [f["now"]]
+    monkeypatch.setattr("atrium_admission.state.time.time", lambda: clock[0])
+    original = f["engine"].feed._fetch
+
+    async def failed_fetch():
+        keys, document = await original()
+        clock[0] = f["now"] + 361
+        if failure == "timeout":
+            raise TimeoutError()
+        return b"malformed", document
+
+    monkeypatch.setattr(f["engine"].feed, "_fetch", failed_fetch)
+    f["engine"].feed.poll(force=True)
+    with f["engine"].store.transaction() as state:
+        assert state["last_now"] == f["now"] + 361
+    clock[0] = f["now"] + 10
+    f["documents"]["services"].update(
+        generation=2, generated_at=f["now"] + 361, expires_at=f["now"] + 661
+    )
+    f["publish"]()
+    with pytest.raises(ProfileError, match="deny_feed_stale"):
+        admit(f)
+
+
+def test_clock_observation_survives_publication_failure(fixture, monkeypatch):
+    from atrium_admission import state as state_module
+
+    f = fixture
+    assert admit(f) == "fresh"
+    original = state_module.atomic_private_write
+
+    def unavailable(*_args):
+        raise OSError("fixture storage failure")
+
+    monkeypatch.setattr(state_module, "atomic_private_write", unavailable)
+    with pytest.raises(OSError):
+        f["engine"].store.observe_clock(minimum=f["now"] + 361)
+    monkeypatch.setattr(state_module, "atomic_private_write", original)
+    f["engine"].store.observe_clock(minimum=f["now"] + 10)
+    with f["engine"].store.transaction() as state:
+        assert state["last_now"] >= f["now"] + 361
+
+
+def test_duplicate_clock_observations_do_not_republish_state(fixture, monkeypatch):
+    from atrium_admission import state as state_module
+
+    f = fixture
+    monkeypatch.setattr(state_module.time, "time", lambda: f["now"])
+    f["engine"].store.observe_clock()
+
+    def unexpected_write(*_args):
+        pytest.fail("Unchanged clock state was republished")
+
+    monkeypatch.setattr(state_module, "atomic_private_write", unexpected_write)
+    f["engine"].store.observe_clock()
+
+
 def test_feed_invalid_and_rollback_preserve_last_verified_denies(fixture):
     f = fixture
     assert admit(f) == "fresh"
@@ -267,9 +358,12 @@ def test_feed_invalid_and_rollback_preserve_last_verified_denies(fixture):
     "age,expected",
     [(29, "fresh"), (30, "bounded-stale"), (300, "bounded-stale"), (301, "deny")],
 )
-def test_shared_c1_boundaries_are_not_reimplemented(fixture, age, expected):
+def test_shared_c1_boundaries_are_not_reimplemented(
+    fixture, monkeypatch, age, expected
+):
     f = fixture
-    f["raw"]["issued_at"] = int(time.time()) - age
+    monkeypatch.setattr("atrium_admission.state.time.time", lambda: f["now"])
+    f["raw"]["issued_at"] = f["now"] - age
     f["engine"].feed.poll(force=True)
     if expected == "deny":
         with pytest.raises(ProfileError, match="deny_feed_stale"):

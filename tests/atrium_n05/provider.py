@@ -14,6 +14,7 @@ def handler(inference_key, observer_key):
     lock = threading.Lock()
     counts = {"received": 0, "authorized": 0, "models": [], "protocols": []}
     events, denied = [], set()
+    clocks = []
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -47,6 +48,8 @@ def handler(inference_key, observer_key):
                     self.reply(200, counts)
                 elif self.path == "/_probe/state":
                     self.reply(200, {"provider": counts, "events": events})
+                elif self.path == "/_probe/clocks":
+                    self.reply(200, clocks)
                 else:
                     self.reply(404, {"error": "unknown_probe_route"})
 
@@ -62,7 +65,15 @@ def handler(inference_key, observer_key):
                     ):
                         raise ValueError()
                     with lock:
-                        if (
+                        if self.path == "/_probe/clock":
+                            if set(data) != {"key_sha256", "pid", "last_now"} or any(
+                                type(data[name]) is not int or data[name] < 0
+                                for name in ("pid", "last_now")
+                            ):
+                                raise ValueError()
+                            clocks.append(data)
+                            self.reply(200, {"recorded": True})
+                        elif (
                             self.path == "/_probe/deny"
                             and type(data.get("deny")) is bool
                         ):

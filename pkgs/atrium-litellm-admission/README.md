@@ -48,6 +48,18 @@ current N02 principal/template/instance/authority/device bindings, exact target,
 native team, model, route, lifetime and budget ceiling. Only eligible human
 administrator state can enter the C1 freshness exception.
 
+Current instance/template ACL membership and the principal's generated
+per-domain template/model allowlist are checked on every request. Historical
+issuance does not preserve access after a current N02 ceiling is removed.
+
+The clock high-water advances at the start and completion of feed attempts,
+including failed fetches or parsing, and before request admission. Native
+1.99.1 also awaits `async_post_call_failure_hook` on authentication rejection;
+the adapter records time there without treating the failed identity as
+authorized or replacing the native error. A failed clock publication keeps
+the observation in memory for recovery and emits a bounded local error.
+Unchanged observations do not rewrite the state file.
+
 The actual shared `DenyCache`, `PublicKeys`, `AuthorizationContext` and
 `DurableAlertLog` implement feed verification/admission. Cached signed public
 policy and its trusted public keys persist across workers/restart. Invalid

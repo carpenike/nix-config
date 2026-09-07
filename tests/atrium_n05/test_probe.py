@@ -96,6 +96,23 @@ def test_observer_refuses_malformed_instrumentation(fixture_provider, changes):
     assert client.get("/_probe/state", headers=observer).json()["events"] == []
 
 
+def test_clock_observations_require_fixture_auth_and_a_nonsecret_shape(
+    fixture_provider,
+):
+    client, inference, observer = fixture_provider
+    body = {"key_sha256": "a" * 64, "pid": 123, "last_now": 2000}
+    assert client.post("/_probe/clock", headers=inference, json=body).status_code == 401
+    assert client.post("/_probe/clock", headers=observer, json=body).status_code == 200
+    assert client.get("/_probe/clocks", headers=observer).json() == [body]
+    assert client.get("/_probe/state", headers=observer).json()["events"] == []
+    assert (
+        client.post(
+            "/_probe/clock", headers=observer, json=body | {"token": "not-permitted"}
+        ).status_code
+        == 400
+    )
+
+
 @pytest.mark.parametrize(
     "kind,stream",
     [

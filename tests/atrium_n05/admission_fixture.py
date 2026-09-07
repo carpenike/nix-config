@@ -32,7 +32,7 @@ from atrium_resolver.litellm_inventory import publish_associations
 from atrium_resolver.litellm_native import NativeKeyClient
 from atrium_resolver.native_revocation import NativeKeyRevoker
 from atrium_resolver.policy import PolicyEngine, PolicySeed
-from atrium_resolver.policy_schema import Budget, INFERENCE_ROUTES
+from atrium_resolver.policy_schema import Budget, INFERENCE_ROUTES, PolicyDocument
 from atrium_resolver.signing import SigningService, SigningSettings
 from atrium_resolver.state import State
 
@@ -57,6 +57,7 @@ class Fixture:
         self.feed_override = None
         self.feed_backup = None
         self.producer_backups = {}
+        self.policy_backup = None
         self.keys = {}
         self.native_users = set()
         for record in self.policy["authorities"].values():
@@ -497,6 +498,29 @@ class Fixture:
                 self.broker_settings.runtime_directory, self.state, self.broker_settings
             )
             return {"applied": True}
+        if action == "policy":
+            if body["mode"] == "exclude-child":
+                self.policy_backup = json.dumps(self.policy).encode()
+                self.policy["model_templates"]["child-client"]["acl"] = {
+                    "principals": ["fixture-peer"],
+                    "groups": [],
+                }
+                self.policy["principal_model_allowlists"]["fixture-child"] = {}
+            elif body["mode"] == "restore" and self.policy_backup is not None:
+                self.policy = json.loads(self.policy_backup)
+            else:
+                raise ValueError("invalid_policy_fixture_action")
+            PolicyDocument.model_validate_json(json.dumps(self.policy))
+            atomic_private_write(self.policy_path, json.dumps(self.policy).encode())
+            return {"applied": True}
+        if action == "clock":
+            now = body["now"]
+            if now is not None and (type(now) is not int or now <= 0):
+                raise ValueError("invalid_fixture_clock")
+            atomic_private_write(
+                ROOT / "review-clock.json", json.dumps({"now": now}).encode()
+            )
+            return {"applied": True}
         if action == "status":
             state = json.loads(
                 (ROOT / "admission-state/admission-state.json").read_text()
@@ -505,6 +529,7 @@ class Fixture:
             return {
                 "known_owned": len(state["history"]),
                 "feed_error": state["feed_error"],
+                "last_now": state["last_now"],
                 "alerts": []
                 if not alert.exists()
                 else [json.loads(row) for row in alert.read_text().splitlines()],

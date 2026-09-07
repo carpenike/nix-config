@@ -21,6 +21,9 @@ names = (
  "main.py", "llms/openai/completion/handler.py",
  "llms/openai/completion/transformation.py",
  "litellm_core_utils/streaming_handler.py",
+ "proxy/auth/auth_exception_handler.py",
+ "proxy/pass_through_endpoints/llm_passthrough_endpoints.py",
+ "proxy/pass_through_endpoints/pass_through_endpoints.py",
 )
 print(json.dumps({
  "version": importlib.metadata.version("litellm"),

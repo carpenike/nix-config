@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from contextlib import contextmanager
 
 from atrium_profiles.runtime import (
@@ -34,6 +35,7 @@ class State:
         self.anchor = self.directory / "initialized"
         self.lock_path = self.directory / "state.lock"
         self._thread_lock = threading.RLock()
+        self._last_now = 0
         self.identity = {
             "installation": settings.installation,
             "issuer": settings.issuer,
@@ -119,7 +121,23 @@ class State:
                 payload = canonical(data)
                 if len(payload) > MAX_STATE_BYTES:
                     raise AdmissionError("admission_state_capacity", 503)
-                atomic_private_write(self.path, payload)
+                if payload != body:
+                    atomic_private_write(self.path, payload)
+
+    def advance_clock(self, state, *, minimum=0):
+        with self._thread_lock:
+            self._last_now = max(
+                self._last_now, minimum, int(time.time()), state["last_now"]
+            )
+            state["last_now"] = self._last_now
+            return self._last_now
+
+    def observe_clock(self, *, minimum=0):
+        # Keep the observation in memory even if opening or publishing state fails.
+        with self._thread_lock:
+            self._last_now = max(self._last_now, minimum, int(time.time()))
+        with self.transaction() as state:
+            return self.advance_clock(state)
 
 
 def protected_document(path, uid):

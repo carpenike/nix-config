@@ -1,13 +1,15 @@
 import asyncio
 import json
+import logging
 import threading
-import time
 
 import httpx
 from atrium_profiles import ProfileError, PublicKeys
 from atrium_profiles.deny import DenyCache
 
 from .models import AdmissionError
+
+logger = logging.getLogger(__name__)
 
 
 def verified_cache(settings, state, now):
@@ -52,19 +54,17 @@ class Feed:
 
     def poll(self, *, force=False):
         with self.store.transaction() as state:
-            now = max(int(time.time()), state["last_now"])
-            state["last_now"] = now
+            now = self.store.advance_clock(state)
             if not force and now - state["last_poll"] < self.settings.poll_seconds:
                 return
             state["last_poll"] = now
-            cache = verified_cache(self.settings, state, now)
             try:
+                cache = verified_cache(self.settings, state, now)
                 keys_body, document = asyncio.run(self._fetch())
                 jwks = json.loads(keys_body)
                 token = document.decode("ascii")
                 keys = PublicKeys(jwks)
-                now = max(int(time.time()), state["last_now"])
-                state["last_now"] = now
+                now = self.store.advance_clock(state)
                 cache.receive(token, keys, now=now)
             except ProfileError as error:
                 state["feed_error"] = error.code
@@ -79,6 +79,8 @@ class Feed:
             else:
                 state["feed"] = {"document": token, "jwks": jwks}
                 state["feed_error"] = None
+            finally:
+                self.store.advance_clock(state)
 
     def start(self):
         if self.thread is not None:
@@ -88,9 +90,8 @@ class Feed:
             while not self.stop.is_set():
                 try:
                     self.poll()
-                except Exception:
-                    # Request admission independently fails closed on corrupt/unavailable state.
-                    pass
+                except (AdmissionError, ProfileError, OSError, ValueError):
+                    logger.error("admission_poll_unavailable")
                 self.stop.wait(self.settings.poll_seconds)
 
         self.thread = threading.Thread(

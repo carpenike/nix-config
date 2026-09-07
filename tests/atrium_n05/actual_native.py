@@ -34,7 +34,9 @@ def main():
     parser.add_argument("--harness", type=Path, required=True)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
-    parser.add_argument("--protocol-only", choices=("completions",))
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--protocol-only", choices=("completions",))
+    selection.add_argument("--review-only", action="store_true")
     args = parser.parse_args()
     native, harness_hashes = load_harness(args.harness)
     from harness.common import EvidenceWriter, HarnessError, require
@@ -50,7 +52,9 @@ def main():
         "run_id": "n05-adapter-" + secrets.token_hex(8),
         "status": "running",
         "full_n05": "incomplete",
-        "selected_protocol": args.protocol_only or "all-N02-allowed",
+        "selected_protocol": "review-faults"
+        if args.review_only
+        else args.protocol_only or "all-N02-allowed",
         "source": {
             "commit": git(ROOT, "rev-parse", "HEAD").decode().strip(),
             "dirty": bool(git(ROOT, "status", "--porcelain").strip()),
@@ -81,6 +85,8 @@ def main():
         "--evidence",
         str(args.evidence),
     ] + ([] if args.protocol_only is None else ["--protocol-only", args.protocol_only])
+    if args.review_only:
+        result["command"].append("--review-only")
     writer = EvidenceWriter(output, result)
     try:
         wheels, result["source"]["wheel_sha256"] = verified_wheels(
@@ -154,6 +160,7 @@ def main():
                         + "/admission-settings.json",
                         "N05_OBSERVER_URL": "http://" + self.prefix + "-provider:8000",
                         "N05_OBSERVER_KEY": state["observer_key"],
+                        "N05_REVIEW_CLOCK": "1" if args.review_only else "0",
                     }
                 )
                 payload = json.dumps(data)
@@ -331,6 +338,19 @@ except Exception as error:
                     )
                 return {"status": response.status_code, "provider_requests": delta}
 
+            if args.review_only:
+                from review_cases import run_reviews
+
+                run_reviews(
+                    client,
+                    observer,
+                    observer_headers,
+                    action,
+                    evidence,
+                    run_id,
+                    checkpoint,
+                )
+                return
             if args.protocol_only:
                 from protocol_cases import run_protocols
 
