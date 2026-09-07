@@ -29,9 +29,12 @@ def output_present(response, kind, stream):
         return body["choices"][0]["message"]["content"] == "fixture-ok-n05"
     parts = []
     for line in response.text.splitlines():
-        if not line.startswith("data: ") or line == "data: [DONE]":
+        if not line.startswith("data:"):
             continue
-        value = json.loads(line[6:])
+        encoded = line[5:].strip()
+        if encoded == "[DONE]":
+            continue
+        value = json.loads(encoded)
         if kind == "responses":
             if value.get("type") == "response.output_text.delta":
                 parts.append(value["delta"])
@@ -91,12 +94,14 @@ def run_protocols(
             "status": response.status_code,
             "provider_requests": delta,
             "hook_calls": len(events),
+            "response_bytes": len(response.content),
+            "content_type": response.headers.get("content-type", ""),
         }
         if response.status_code == 200 and body.get("stream"):
             shapes = set()
             for line in response.text.splitlines():
-                if line.startswith("data: ") and line != "data: [DONE]":
-                    chunk = json.loads(line[6:])
+                if line.startswith("data:") and line[5:].strip() != "[DONE]":
+                    chunk = json.loads(line[5:].strip())
                     for choice in chunk.get("choices", []):
                         shapes.add(",".join(sorted(choice)))
             observation["native_stream_choice_fields"] = sorted(shapes)
