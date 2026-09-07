@@ -500,6 +500,11 @@
 
           # Checks for CI
           checks = {
+            atrium-n04-units = pkgs.writeText "atrium-n04-unit-checks.json"
+              (builtins.toJSON (import ./tests/atrium_n04/evaluate.nix {
+                atrium = inputs.atrium;
+                nixpkgs = inputs.nixpkgs;
+              }));
             atrium-registry-values = pkgs.writeText "atrium-registry-values-v2.json"
               (builtins.toJSON (import ./tests/atrium/evaluate.nix {
                 atriumInput = inputs.atrium;

@@ -47,6 +47,20 @@
 { ... }:
 
 {
+  # Reserved only for the opt-in ATR-N04 isolated host; no live host imports it.
+  atrium-reconciler-fixture = {
+    uid = 65430;
+    gid = 65430;
+    description = "Isolated Atrium controller fixture";
+    extraGroups = [ "atrium-consumer-fixture" ];
+  };
+  atrium-consumer-fixture = {
+    uid = 65431;
+    gid = 65431;
+    description = "Isolated Atrium inference consumer fixture";
+    extraGroups = [ ];
+  };
+
   # ============================================================================
   # SHARED GROUPS (infrastructure groups for cross-service access)
   # ============================================================================
