@@ -15,6 +15,7 @@ names = (
  "proxy/proxy_server.py", "proxy/common_request_processing.py", "proxy/utils.py",
  "proxy/auth/user_api_key_auth.py", "integrations/custom_logger.py",
  "proxy/types_utils/utils.py", "proxy/proxy_cli.py",
+ "proxy/litellm_pre_call_utils.py", "types/caching.py",
  "caching/caching.py", "caching/in_memory_cache.py", "utils.py",
  "types/proxy/_types.py", "router.py",
 )
