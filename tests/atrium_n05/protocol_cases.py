@@ -66,6 +66,7 @@ def run_protocols(
 ):
     from harness.common import require
 
+    post_auth = evidence["scope"].get("post_native_auth_dependency", False)
     schema = client.get("/openapi.json")
     require(schema.status_code == 200, "native_openapi_unavailable")
     advertised = schema.json()["paths"]
@@ -99,11 +100,13 @@ def run_protocols(
             )
         after = snapshot()
         events = after["events"][len(before["events"]) :]
+        authenticated = after["auth_events"][len(before["auth_events"]) :]
         delta = after["provider"]["received"] - before["provider"]["received"]
         observation = {
             "status": response.status_code,
             "provider_requests": delta,
             "hook_calls": len(events),
+            "post_auth_calls": len(authenticated),
             "response_bytes": len(response.content),
             "content_type": response.headers.get("content-type", ""),
         }
@@ -118,8 +121,17 @@ def run_protocols(
                     for choice in chunk.get("choices", []):
                         shapes.add(",".join(sorted(choice)))
             observation["native_stream_choice_fields"] = sorted(shapes)
+        if authenticated:
+            observation["worker_pid"] = authenticated[-1]["pid"]
+            observation["post_auth_status"] = authenticated[-1]["status"]
         if events:
-            observation["worker_pid"] = events[-1]["pid"]
+            if post_auth:
+                require(
+                    authenticated and events[-1]["pid"] == authenticated[-1]["pid"],
+                    "native_admission_worker_changed",
+                )
+            else:
+                observation["worker_pid"] = events[-1]["pid"]
         if expected == "deny":
             require(
                 response.status_code == 403
@@ -189,7 +201,8 @@ def run_protocols(
                             "protocol_positive_output_unavailable",
                         )
                         require(
-                            observation["hook_calls"] == 1,
+                            observation["hook_calls"] == 1
+                            and observation["post_auth_calls"] == int(post_auth),
                             "actual_admission_not_observed",
                         )
                         if observation["provider_requests"] == 0:
@@ -206,7 +219,12 @@ def run_protocols(
                         _, observation = request(path, body, expected="deny")
                         row["denials"].append(observation)
                         require(
-                            observation["hook_calls"] == 1, "actual_denial_not_observed"
+                            observation["hook_calls"] == int(not post_auth)
+                            and observation["post_auth_calls"] == int(post_auth)
+                            and (
+                                not post_auth or observation["post_auth_status"] == 403
+                            ),
+                            "actual_post_auth_denial_not_observed",
                         )
                         observed.add(observation["worker_pid"])
                         if observed == warmed:

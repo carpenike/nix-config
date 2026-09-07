@@ -6,7 +6,6 @@ import json
 import logging
 import secrets
 import signal
-import subprocess
 import time
 from pathlib import Path
 
@@ -17,7 +16,7 @@ from supervisor import ROOT, git, inventory, load_harness, verified_wheels
 PRODUCT = "1d620cd30f27f2b5849533fb2a9bdb5016385f69"
 RUNTIME = "/run/atrium-n05"
 BOOT = """
-import base64,io,pathlib,zipfile
+import base64,http.client,io,pathlib,subprocess,time,zipfile
 root=pathlib.Path("/run/atrium-n05")
 for name,encoded in data.pop("wheels").items():
  with zipfile.ZipFile(io.BytesIO(base64.b64decode(encoded))) as wheel:
@@ -26,6 +25,33 @@ for name,encoded in data.pop("wheels").items():
 config=root/"config.json"
 config.write_text(json.dumps(data["config"]))
 config.chmod(0o600)
+fixture=root/"admission_fixture.py"
+fixture.write_text(data.pop("fixture_source"))
+helper=subprocess.Popen(
+ [sys.executable,"-B",str(fixture)],stdin=subprocess.PIPE,
+ stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,text=True,
+ env=os.environ|data["environment"],
+)
+helper.stdin.write(json.dumps(data.pop("fixture_inputs"))+"\\n")
+helper.stdin.close()
+for attempt in range(300):
+ if helper.poll() is not None:
+  raise RuntimeError("protected_fixture_startup_failed")
+ connection=http.client.HTTPConnection("127.0.0.1",9010,timeout=1)
+ try:
+  connection.request("GET","/ready")
+  response=connection.getresponse()
+  ready=response.status==200
+  response.read()
+ except OSError:
+  ready=False
+ finally:
+  connection.close()
+ if ready:
+  break
+ time.sleep(0.1)
+else:
+ raise RuntimeError("protected_fixture_startup_timeout")
 """
 
 
@@ -38,6 +64,7 @@ def main():
     selection.add_argument("--protocol-only", choices=("completions",))
     selection.add_argument("--review-only", action="store_true")
     selection.add_argument("--context-only", action="store_true")
+    selection.add_argument("--post-auth-only", action="store_true")
     args = parser.parse_args()
     native, harness_hashes = load_harness(args.harness)
     from harness.common import EvidenceWriter, HarnessError, require
@@ -58,6 +85,8 @@ def main():
         if args.review_only
         else "request-context"
         if args.context_only
+        else "post-native-auth"
+        if args.post_auth_only
         else args.protocol_only or "all-N02-allowed",
         "source": {
             "commit": git(ROOT, "rev-parse", "HEAD").decode().strip(),
@@ -93,6 +122,8 @@ def main():
         result["command"].append("--review-only")
     if args.context_only:
         result["command"].append("--context-only")
+    if args.post_auth_only:
+        result["command"].append("--post-auth-only")
     writer = EvidenceWriter(output, result)
     try:
         wheels, result["source"]["wheel_sha256"] = verified_wheels(
@@ -159,11 +190,39 @@ def main():
                 data["observer_source"] = (
                     ROOT / "tests/atrium_n05/observed_admission.py"
                 ).read_text()
+                state["fixture_token"] = secrets.token_urlsafe(32)
+                data["fixture_source"] = (
+                    ROOT / "tests/atrium_n05/admission_fixture.py"
+                ).read_text()
+                data["fixture_inputs"] = {
+                    "master": data["environment"]["LITELLM_MASTER_KEY"],
+                    "fixture_control": state["fixture_token"],
+                    "initial_feed_mode": "live"
+                    if args.context_only or args.review_only or args.protocol_only
+                    else "missing",
+                    "policy": json.loads(
+                        git(
+                            args.harness,
+                            "show",
+                            PRODUCT + ":resolver/fixtures/policy.generated.json",
+                        )
+                    ),
+                    "seed": json.loads(
+                        git(
+                            args.harness,
+                            "show",
+                            PRODUCT + ":resolver/fixtures/policy-seed.synthetic.json",
+                        )
+                    ),
+                }
                 data["environment"].update(
                     {
-                        "PYTHONPATH": RUNTIME + "/python",
+                        "PYTHONPATH": RUNTIME + ":" + RUNTIME + "/python",
                         "TMPDIR": RUNTIME,
                         "PYTHONDONTWRITEBYTECODE": "1",
+                        "LITELLM_WORKER_STARTUP_HOOKS": "admission_loader:install"
+                        if args.post_auth_only
+                        else "",
                         "ATRIUM_ADMISSION_SETTINGS": RUNTIME
                         + "/admission-settings.json",
                         "N05_OBSERVER_URL": "http://" + self.prefix + "-provider:8000",
@@ -188,6 +247,21 @@ def main():
             return super().start(identifier, payload)
 
         def cleanup(self):
+            if state.get("provider_endpoint"):
+                try:
+                    response = httpx.get(
+                        state["provider_endpoint"] + "/_probe/state",
+                        headers={"Authorization": "Bearer " + state["observer_key"]},
+                        trust_env=False,
+                        timeout=5,
+                    )
+                    observed = response.json()
+                    self.result["pre_cleanup_observer"] = {
+                        name: observed.get(name)
+                        for name in ("installations", "bootstrap_errors", "provider")
+                    }
+                except Exception:
+                    self.result["pre_cleanup_observer"] = {"error": "unavailable"}
             super().cleanup()
             after = inventory(self)
             self.result["foreign_after"] = {
@@ -199,6 +273,12 @@ def main():
             )
             self.result["foreign_resources_unchanged"] = True
             self.publish()
+
+        def endpoint(self, identifier, port):
+            value = super().endpoint(identifier, port)
+            if port == 8000:
+                state["provider_endpoint"] = value
+            return value
 
     original_configuration = native.configuration
 
@@ -224,6 +304,7 @@ def main():
             {
                 "native_only": False,
                 "admission_hook": True,
+                "post_native_auth_dependency": args.post_auth_only,
                 "actual_admission_package": True,
                 "shared_R04_cache": True,
                 "real_R07_feed": True,
@@ -236,84 +317,30 @@ def main():
             }
         )
         resources = state["resources"]
-        fixture_token = secrets.token_urlsafe(32)
-        code = (ROOT / "tests/atrium_n05/admission_fixture.py").read_text()
-        loader = """
-import io,json,pathlib,sys,traceback
-sys.path.insert(0,"/run/atrium-n05/python")
-data=json.loads(sys.stdin.readline())
-source=data.pop("code")
-sys.stdin=io.StringIO(json.dumps(data)+"\\n")
-try:
- exec(compile(source,"admission_fixture.py","exec"))
-except Exception as error:
- frame=traceback.extract_tb(error.__traceback__)[-1]
- print(json.dumps({"error":"fixture_startup_failed","exception":type(error).__name__,
-                  "file":pathlib.Path(frame.filename).name,"line":frame.lineno}),flush=True)
- raise SystemExit(1) from None
-"""
-        argv = [
-            *resources.prefix_command,
-            "exec",
-            "--interactive",
-            state["gateway"],
-            "python",
-            "-B",
-            "-c",
-            loader,
-        ]
-        process = subprocess.Popen(
-            argv,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-        resources.processes.append(process)
-        record = {
-            "argv": argv,
-            "status": "attached",
-            "stdin": "not recorded; runtime fixture input",
-        }
-        resources.process_records.append(record)
-        evidence["commands"].append(record)
-        process.stdin.write(
-            json.dumps(
-                {
-                    "code": code,
-                    "master": control["Authorization"].removeprefix("Bearer "),
-                    "fixture_control": fixture_token,
-                    "policy": json.loads(
-                        git(
-                            args.harness,
-                            "show",
-                            PRODUCT + ":resolver/fixtures/policy.generated.json",
-                        )
-                    ),
-                    "seed": json.loads(
-                        git(
-                            args.harness,
-                            "show",
-                            PRODUCT + ":resolver/fixtures/policy-seed.synthetic.json",
-                        )
-                    ),
-                }
-            )
-            + "\n"
-        )
-        process.stdin.close()
+        fixture_token = state["fixture_token"]
         helper = httpx.Client(
             base_url=resources.endpoint(state["gateway"], 9010),
             trust_env=False,
             timeout=20,
         )
         try:
-            try:
-                native.wait_http(helper, "/ready", {}, seconds=30)
-            except HarnessError:
-                if process.poll() is not None:
-                    evidence["fixture_startup"] = json.loads(process.stdout.read(65536))
-                raise
+            native.wait_http(helper, "/ready", {}, seconds=30)
+            if args.post_auth_only:
+                deadline = time.monotonic() + 30
+                while True:
+                    response = observer.get("/_probe/state", headers=observer_headers)
+                    require(
+                        response.status_code == 200, "installation_observer_unavailable"
+                    )
+                    installed = response.json()["installations"]
+                    if len({row["pid"] for row in installed}) == 2:
+                        break
+                    require(
+                        time.monotonic() < deadline, "post_auth_worker_not_installed"
+                    )
+                    time.sleep(0.1)
+                evidence["post_native_auth_installation"] = installed
+                checkpoint()
 
             def action(name, **values):
                 response = helper.post(
@@ -363,6 +390,29 @@ except Exception as error:
                 from review_cases import run_reviews
 
                 run_reviews(
+                    client,
+                    observer,
+                    observer_headers,
+                    action,
+                    evidence,
+                    run_id,
+                    checkpoint,
+                )
+                return
+            if args.post_auth_only:
+                from post_auth_cases import run_post_auth
+                from protocol_cases import run_protocols
+
+                run_post_auth(
+                    client,
+                    observer,
+                    observer_headers,
+                    action,
+                    evidence,
+                    run_id,
+                    checkpoint,
+                )
+                run_protocols(
                     client,
                     observer,
                     observer_headers,
@@ -615,6 +665,7 @@ except Exception as error:
                 row["status"] != "passed" for row in result.get("protocol_coverage", [])
             )
             or result.get("request_context_gate") == "incomplete"
+            or result.get("post_native_auth_gate") == "incomplete"
             else "passed"
         )
     except HarnessError as error:

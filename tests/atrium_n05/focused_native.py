@@ -17,6 +17,7 @@ from supervisor import ROOT, git, inventory, load_harness, ready, verified_wheel
 TESTS = (
     "test_admission.py",
     "test_request_context.py",
+    "test_bootstrap.py",
     "test_probe.py",
     "test_artifacts.py",
 )
@@ -109,7 +110,10 @@ def main():
                 archive.getvalue()
             ).hexdigest(),
             "files": {
-                name: hashlib.sha256(text.encode()).hexdigest()
+                name: {
+                    "algorithm": "sha256",
+                    "digest": hashlib.sha256(text.encode()).hexdigest(),
+                }
                 for name, text in files.items()
             },
         },

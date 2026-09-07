@@ -43,6 +43,7 @@ def run_contexts(
 ):
     from harness.common import require
 
+    post_auth = evidence["scope"].get("post_native_auth_dependency", False)
     rows = evidence.setdefault("request_context_coverage", [])
     evidence["source"]["native_context"] = action("context_source")
     evidence["request_context_scope"] = {
@@ -89,6 +90,7 @@ def run_contexts(
             )
         after = snapshot()
         events = after["events"][len(before["events"]) :]
+        authenticated = after["auth_events"][len(before["auth_events"]) :]
         observation = {
             "status": response.status_code,
             "provider_requests": after["provider"]["received"]
@@ -97,6 +99,14 @@ def run_contexts(
                 len(before["provider"]["requests"]) :
             ],
             "hook_calls": len(events),
+            "post_auth_calls": len(authenticated),
+            "post_auth_events": [
+                {
+                    name: event[name]
+                    for name in ("pid", "status", "native_request_route", "transport")
+                }
+                for event in authenticated
+            ],
             "response_bytes": len(response.content),
             "content_type": response.headers.get("content-type", ""),
             "output_present": "fixture-ok-n05" in response.text,
@@ -130,15 +140,20 @@ def run_contexts(
         for _ in range(30):
             response, observation = request(key, method, path, body)
             row.setdefault("observations", []).append(observation)
-            require(observation["hook_calls"] == 1, "context_hook_not_observed")
-            event = observation["events"][0]
+            boundary = (
+                observation["post_auth_events"] if post_auth else observation["events"]
+            )
+            require(len(boundary) == 1, "context_admission_not_observed")
+            event = boundary[0]
             require(
                 event["native_request_route"] == path, "native_route_context_mismatch"
             )
-            if path.startswith("/anthropic/"):
+            if path.startswith("/anthropic/") and (permit or not post_auth):
+                require(observation["hook_calls"] == 1, "legacy_pre_call_not_observed")
+                pre_call = observation["events"][0]
                 require(
-                    event["call_type"] == "pass_through_endpoint"
-                    and event["has_proxy_server_request"]
+                    pre_call["call_type"] == "pass_through_endpoint"
+                    and pre_call["has_proxy_server_request"]
                     == (isinstance(body, dict) and "proxy_server_request" in body),
                     "raw_callback_shape_not_observed",
                 )
@@ -158,6 +173,10 @@ def run_contexts(
                     )
             else:
                 denied(response, observation)
+                require(
+                    observation["hook_calls"] == int(not post_auth),
+                    "owned_denial_boundary_mismatch",
+                )
             workers.add(event["pid"])
             if len(workers) == 2:
                 row["worker_pids"] = sorted(workers)

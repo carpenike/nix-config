@@ -53,25 +53,15 @@ class OwnedAdmission(CustomLogger):
         engine.store.observe_clock(minimum=minimum)
         return engine
 
-    async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+    async def _admit(self, user_api_key_dict, model, path):
         observed = int(time.time())
         try:
             engine = await run_in_threadpool(self._observed_engine, observed)
-            # Native auth stamps this from ASGI scope; raw passthrough body fields
-            # named proxy_server_request are not authenticated transport context.
-            route = getattr(user_api_key_dict, "request_route", None)
-            path = (
-                route
-                if isinstance(route, str)
-                and route in INFERENCE_CALLS
-                and INFERENCE_CALLS[route] == call_type
-                else None
-            )
-            await run_in_threadpool(
+            return await run_in_threadpool(
                 engine.admit,
                 getattr(user_api_key_dict, "api_key", None),
                 getattr(user_api_key_dict, "team_id", None),
-                data.get("model") if isinstance(data, dict) else None,
+                model,
                 path,
             )
         except AdmissionError as error:
@@ -82,6 +72,39 @@ class OwnedAdmission(CustomLogger):
             raise HTTPException(
                 status_code=503, detail="admission_unavailable"
             ) from None
+
+    async def async_post_native_auth(self, user_api_key_dict, connection):
+        from litellm.proxy.common_utils.http_parsing_utils import _read_request_body
+
+        route = getattr(user_api_key_dict, "request_route", None)
+        model, path = None, None
+        if (
+            connection.scope["type"] == "http"
+            and connection.scope.get("method") == "POST"
+            and isinstance(route, str)
+            and route in INFERENCE_CALLS
+        ):
+            data = await _read_request_body(connection)
+            model = data.get("model") if isinstance(data, dict) else None
+            path = route
+        return await self._admit(user_api_key_dict, model, path)
+
+    async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
+        # Native auth stamps this from ASGI scope; raw passthrough body fields
+        # named proxy_server_request are not authenticated transport context.
+        route = getattr(user_api_key_dict, "request_route", None)
+        path = (
+            route
+            if isinstance(route, str)
+            and route in INFERENCE_CALLS
+            and INFERENCE_CALLS[route] == call_type
+            else None
+        )
+        await self._admit(
+            user_api_key_dict,
+            data.get("model") if isinstance(data, dict) else None,
+            path,
+        )
         return data
 
     async def async_post_call_failure_hook(

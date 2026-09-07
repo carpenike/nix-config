@@ -189,3 +189,32 @@ def test_legacy_anthropic_fixture_has_standard_authenticated_shapes(
     )
     counts = client.get("/_fixture/counts", headers=observer).json()
     assert counts["received"] == 4 and counts["authorized"] == 2
+
+
+def test_provider_native_token_count_shape_is_authenticated(fixture_provider):
+    client, inference, observer = fixture_provider
+    path = "/v1/responses/input_tokens"
+    body = {"model": "fixture-family", "input": "fixture only"}
+    assert client.post(path, json=body).status_code == 401
+    assert client.post(path, headers=inference, json=body).json() == {
+        "object": "response.input_tokens",
+        "input_tokens": 7,
+    }
+    counts = client.get("/_fixture/counts", headers=observer).json()
+    assert counts["received"] == 2 and counts["authorized"] == 1
+
+
+def test_post_auth_observations_require_fixture_authorization(fixture_provider):
+    client, inference, observer = fixture_provider
+    body = {
+        "key_sha256": "a" * 64,
+        "pid": 123,
+        "context_type": "UserAPIKeyAuth",
+        "status": 403,
+        "native_request_route": "/v1/messages/count_tokens",
+        "transport": "http",
+    }
+    assert client.post("/_probe/auth", json=body).status_code == 401
+    assert client.post("/_probe/auth", headers=inference, json=body).status_code == 401
+    assert client.post("/_probe/auth", headers=observer, json=body).status_code == 200
+    assert client.get("/_probe/state", headers=observer).json()["auth_events"] == [body]

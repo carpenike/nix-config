@@ -55,7 +55,7 @@ class Fixture:
         self.jwk.update(kid="fixture-idp", alg="RS256", use="sig")
         self.policy = inputs["policy"]
         self.policy_path = ROOT / "policy.json"
-        self.feed_mode = "live"
+        self.feed_mode = inputs.get("initial_feed_mode", "live")
         self.feed_override = None
         self.feed_backup = None
         self.producer_backups = {}
@@ -424,7 +424,12 @@ class Fixture:
             return {
                 "version": importlib.metadata.version("litellm"),
                 "source_sha256": {
-                    name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+                    name: {
+                        "algorithm": "sha256",
+                        "digest": hashlib.sha256(
+                            (root / name).read_bytes()
+                        ).hexdigest(),
+                    }
                     for name in names
                 },
             }

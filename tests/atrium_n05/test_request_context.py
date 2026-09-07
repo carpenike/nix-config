@@ -1,6 +1,7 @@
 """Focused callback tests; native HTTP coverage lives in context_cases.py."""
 
 import asyncio
+import json
 
 import pytest
 from fastapi import HTTPException
@@ -9,6 +10,8 @@ from test_admission import fixture as admission_fixture
 pytest.importorskip("litellm")
 from litellm.proxy._types import UserAPIKeyAuth
 from litellm.proxy.auth.auth_utils import normalize_request_route
+from litellm.constants import LITELLM_PROXY_MASTER_KEY_ALIAS
+from starlette.requests import Request
 
 from atrium_admission.hook import INFERENCE_CALLS, OwnedAdmission
 
@@ -109,3 +112,84 @@ def test_forged_transport_does_not_turn_raw_passthrough_into_owned_inference(fix
         )
         is data
     )
+
+
+@pytest.mark.parametrize(
+    "method,route",
+    [
+        ("POST", "/v1/messages/count_tokens"),
+        ("GET", "/v1/responses"),
+        ("POST", "/anthropic/v1/messages"),
+    ],
+)
+def test_post_native_gate_applies_ownership_before_unsupported_context(
+    fixture, method, route
+):
+    hook = OwnedAdmission()
+    hook.engine = fixture["engine"]
+    request = Request({"type": "http", "method": method, "path": route, "headers": []})
+    owned = UserAPIKeyAuth(
+        api_key=fixture["key"], team_id="native-family", request_route=route
+    )
+    legacy = UserAPIKeyAuth(api_key="f" * 64, request_route=route)
+    assert (
+        asyncio.run(hook.async_post_native_auth(legacy, request))
+        == "verified-non-owned"
+    )
+    with pytest.raises(HTTPException) as denied:
+        asyncio.run(hook.async_post_native_auth(owned, request))
+    assert denied.value.detail == "owned_request_context_unsupported"
+    fixture["primary"].unlink()
+    with pytest.raises(HTTPException) as unknown:
+        asyncio.run(hook.async_post_native_auth(legacy, request))
+    assert unknown.value.status_code == 503
+
+
+def test_post_native_gate_permits_only_protected_model_and_native_route(fixture):
+    hook = OwnedAdmission()
+    hook.engine = fixture["engine"]
+    native = UserAPIKeyAuth(
+        api_key=fixture["key"],
+        team_id="native-family",
+        request_route="/v1/chat/completions",
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/v1/chat/completions",
+            "headers": [(b"content-type", b"application/json")],
+        }
+    )
+    request._body = json.dumps(
+        {
+            "model": "cc.family.text",
+            "proxy_server_request": {
+                "method": "GET",
+                "url": "http://forged/key/generate",
+            },
+        }
+    ).encode()
+    assert asyncio.run(hook.async_post_native_auth(native, request)) == "fresh"
+    native.request_route = "/v1/messages/count_tokens"
+    with pytest.raises(HTTPException):
+        asyncio.run(hook.async_post_native_auth(native, request))
+
+
+def test_native_master_alias_is_a_known_candidate_blocker_not_a_role_exemption(fixture):
+    hook = OwnedAdmission()
+    hook.engine = fixture["engine"]
+    native = UserAPIKeyAuth(
+        api_key=LITELLM_PROXY_MASTER_KEY_ALIAS,
+        user_role="proxy_admin",
+        via_virtual_key=True,
+        request_route="/v1/models",
+    )
+    assert native.api_key == LITELLM_PROXY_MASTER_KEY_ALIAS
+    request = Request(
+        {"type": "http", "method": "GET", "path": "/v1/models", "headers": []}
+    )
+    with pytest.raises(HTTPException) as blocked:
+        asyncio.run(hook.async_post_native_auth(native, request))
+    assert blocked.value.status_code == 503
+    assert blocked.value.detail == "admission_unavailable"

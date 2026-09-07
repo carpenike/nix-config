@@ -21,6 +21,8 @@ def handler(inference_key, observer_key):
     }
     events, denied = [], set()
     clocks = []
+    auth_events, installations = [], []
+    bootstrap_errors = []
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -85,7 +87,16 @@ def handler(inference_key, observer_key):
                 if self.path == "/_fixture/counts":
                     self.reply(200, counts)
                 elif self.path == "/_probe/state":
-                    self.reply(200, {"provider": counts, "events": events})
+                    self.reply(
+                        200,
+                        {
+                            "provider": counts,
+                            "events": events,
+                            "auth_events": auth_events,
+                            "installations": installations,
+                            "bootstrap_errors": bootstrap_errors,
+                        },
+                    )
                 elif self.path == "/_probe/clocks":
                     self.reply(200, clocks)
                 else:
@@ -98,6 +109,38 @@ def handler(inference_key, observer_key):
                     return
                 try:
                     data = self.body()
+                    if self.path == "/_probe/bootstrap_error":
+                        if (
+                            set(data) != {"pid", "exception", "file", "line"}
+                            or type(data["pid"]) is not int
+                            or type(data["line"]) is not int
+                            or not isinstance(data["file"], str)
+                            or not isinstance(data["exception"], str)
+                        ):
+                            raise ValueError()
+                        with lock:
+                            bootstrap_errors.append(data)
+                        self.reply(200, {"recorded": True})
+                        return
+                    if self.path == "/_probe/install":
+                        if (
+                            set(data) != {"pid", "dependency_paths"}
+                            or type(data["pid"]) is not int
+                            or set(data["dependency_paths"]) != {"request", "websocket"}
+                            or not all(
+                                isinstance(paths, list)
+                                and all(
+                                    isinstance(path, str) and path.startswith("/")
+                                    for path in paths
+                                )
+                                for paths in data["dependency_paths"].values()
+                            )
+                        ):
+                            raise ValueError()
+                        with lock:
+                            installations.append(data)
+                        self.reply(200, {"recorded": True})
+                        return
                     if not isinstance(data, dict) or not re.fullmatch(
                         r"[0-9a-f]{64}", data["key_sha256"]
                     ):
@@ -110,6 +153,26 @@ def handler(inference_key, observer_key):
                             ):
                                 raise ValueError()
                             clocks.append(data)
+                            self.reply(200, {"recorded": True})
+                        elif self.path == "/_probe/auth":
+                            if (
+                                set(data)
+                                != {
+                                    "key_sha256",
+                                    "pid",
+                                    "context_type",
+                                    "status",
+                                    "native_request_route",
+                                    "transport",
+                                }
+                                or type(data["pid"]) is not int
+                                or data["context_type"] != "UserAPIKeyAuth"
+                                or type(data["status"]) is not int
+                                or data["transport"] not in ("http", "websocket")
+                                or not isinstance(data["native_request_route"], str)
+                            ):
+                                raise ValueError()
+                            auth_events.append(data)
                             self.reply(200, {"recorded": True})
                         elif (
                             self.path == "/_probe/deny"
@@ -222,6 +285,7 @@ def handler(inference_key, observer_key):
                 "/v1/completions",
                 "/v1/embeddings",
                 "/v1/responses",
+                "/v1/responses/input_tokens",
             ) or not self.authorized(inference_key):
                 self.reply(401, {"error": "unauthorized"})
                 return
@@ -248,6 +312,9 @@ def handler(inference_key, observer_key):
                     }
                 )
                 identifier = "n05-fixture-" + str(counts["authorized"])
+            if self.path == "/v1/responses/input_tokens":
+                self.reply(200, {"object": "response.input_tokens", "input_tokens": 7})
+                return
             if self.path == "/v1/embeddings":
                 values = data.get("input", "")
                 number = len(values) if isinstance(values, list) else 1

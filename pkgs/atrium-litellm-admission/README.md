@@ -32,6 +32,46 @@ caller-controlled and is never trusted.
 
 ## Current boundaries
 
+### Post-native-auth candidate: blocked, not selected
+
+`atrium_admission.bootstrap.install` is an **unvalidated candidate**, exercised only
+by the explicit `--post-auth-only` native fixture lane. Do not wire its worker
+startup hook into a deployment yet. Ordinary fixture lanes retain pre-call-only
+placement and its documented token-count gap.
+
+The candidate uses pinned LiteLLM's `LITELLM_WORKER_STARTUP_HOOKS` seam and
+FastAPI's dependency override registry. It awaits the original HTTP/WebSocket
+authentication functions, retaining their security dependencies and resolved
+signature annotations, then returns the same native identity on success. There
+is no recursive `Depends(original)` override, replacement verifier, or native
+route-check patch. Native reservation release is reused when the additional
+gate rejects before dispatch.
+
+The Anthropic router is lazy in 1.99.1. Bootstrap uses the same native loader as
+its middleware and `/lazy/warm` before inspecting the actual token-count
+dependency. It does not rewrite that handler or disable legacy counting.
+
+Two bounded native attempts did not reach the permit/deny matrix. In the second,
+both workers installed the wrappers, but native master-key `/v1/models` requests
+returned 503. Pinned `user_api_key_auth.py:1799–1827` deliberately substitutes
+`LITELLM_PROXY_MASTER_KEY_ALIAS` for the master key **and its hash** in the returned
+identity. That alias is not the digest required by the current protected-history
+lookup; the candidate therefore refuses it instead of assuming it is legacy.
+
+Follow-up must bind the authenticated native control identity to a verifiable
+protected identity/association without a native-role-only or client-label
+exemption, then execute the real legacy/count/normal/cache/clock twins. A scoped
+native admin-owned key must not inherit a controller exemption. No such exemption
+or C8 amendment is implemented here. Direct manual auth calls and other native
+auth dependencies also remain outside the dependency-wrapper coverage claim.
+
+If this candidate is completed, integration would require
+`LITELLM_WORKER_STARTUP_HOOKS=atrium_admission.bootstrap:install` alongside the
+existing callback and protected settings. This is a future wiring requirement,
+not an instruction to activate the currently blocked candidate.
+
+### Existing pre-call engine
+
 Producer high-water marks and complete owned-identity history survive workers
 and restart in a private, locked, atomically replaced state file. Omission never
 erases ownership; conflicting/rebound/rolled-back inputs cannot restore access.

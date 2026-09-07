@@ -183,6 +183,56 @@ Both runs removed every exact owned container ID; the native run also removed
 remaining owned resources; no production host configuration, other worktree,
 shared VM/image, or household service was modified.
 
+## Post-native-auth follow-up: bounded candidate stopped
+
+The subsequent candidate is deliberately restricted to:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .artifacts/n05-venv/bin/python \
+  tests/atrium_n05/actual_native.py --harness /path/to/atrium-r06 \
+  --spec /path/to/current-owner-spec.md --post-auth-only \
+  --evidence tests/atrium_n05/results/n05-post-auth-NEW.json
+```
+
+**This lane is blocked; do not treat its tests as executed native gate cases.**
+Other lanes do not select its startup override. The token-count provider double
+now supports the standard authenticated `/v1/responses/input_tokens` response, so
+a future legacy permit can require native provider output rather than the previous
+local-tokenizer fallback.
+
+The fixture prepares its actual R04/R07 and R06/N04 inputs in private `/run` tmpfs
+before the gateway starts, since post-auth admission also encounters control
+requests. Startup installation observations are separately authenticated. The
+candidate warms the real lazy Anthropic router and wraps the original native HTTP
+and WebSocket dependencies; it does not intercept manual auth-function calls.
+
+| Diagnostic | Exact result |
+| --- | --- |
+| [First native attempt](results/n05-post-auth-initial.json) | Gateway readiness timed out; no inference cases ran. |
+| [Actual-app graph check](results/n05-post-auth-focused-native-graph.json) | 85 focused cases passed; installation failed because `/v1/messages/count_tokens` was not yet registered by the native lazy loader. |
+| [Corrected graph check](results/n05-post-auth-focused-lazy-graph.json) | 86 focused cases passed using the real native application graph. |
+| [Second native attempt](results/n05-post-auth-second.json) | Workers **229/230** installed wrappers over **433 HTTP / 8 WebSocket dependency paths**. `/v1/models` then returned **503**; zero provider requests, no permit/deny cases executed. |
+
+Pinned native source explains the concrete control-identity blocker:
+`proxy/auth/user_api_key_auth.py:1799–1827` replaces the authenticated master key
+and its hash with `LITELLM_PROXY_MASTER_KEY_ALIAS`. The candidate's digest-only
+admission rejects that sentinel. A focused guardrail test reproduces this shape
+and deliberately refuses to turn native `proxy_admin` status into an exemption.
+
+The two-native-attempt limit was reached. No third native attempt, master-role
+bypass, global endpoint disablement, or amendment was attempted. The next bounded
+implementation must establish a trusted control-identity association while
+preserving the original native identity, then execute the proposed token-count,
+legacy, cache/worker, freshness and failed-auth clock tests. Until then, both the
+candidate and the full N05 gate remain incomplete. These failure receipts record
+dirty diagnostic sources and cannot substitute for clean-source native acceptance.
+
+Both native attempts removed their exact container/network resources and retained
+`ambit-db` (`a914bf6c7045`) running unchanged. Public source/graph diagnostics are
+preserved under `.artifacts/n05-post-auth-pinned-source`,
+`.artifacts/n05-post-auth-source-inspection.json`, and
+`.artifacts/n05-native-graph-inspection.json`.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or

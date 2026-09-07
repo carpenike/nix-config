@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ import httpx
 from fastapi import HTTPException
 
 from atrium_admission.hook import OwnedAdmission
+from atrium_admission.bootstrap import install as install_admission
 
 REVIEW_CLOCK = os.environ.get("N05_REVIEW_CLOCK") == "1"
 
@@ -48,6 +50,36 @@ class ObservedAdmission(OwnedAdmission):
         if REVIEW_CLOCK:
             engine.feed.close()
         return engine
+
+    async def async_post_native_auth(self, user_api_key_dict, connection):
+        status = 200
+        try:
+            return await super().async_post_native_auth(user_api_key_dict, connection)
+        except HTTPException as error:
+            status = error.status_code
+            raise
+        finally:
+            async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
+                response = await client.post(
+                    os.environ["N05_OBSERVER_URL"] + "/_probe/auth",
+                    headers={
+                        "Authorization": "Bearer " + os.environ["N05_OBSERVER_KEY"]
+                    },
+                    json={
+                        "key_sha256": getattr(user_api_key_dict, "api_key", None),
+                        "pid": os.getpid(),
+                        "context_type": type(user_api_key_dict).__name__,
+                        "status": status,
+                        "native_request_route": getattr(
+                            user_api_key_dict, "request_route", None
+                        ),
+                        "transport": connection.scope["type"],
+                    },
+                )
+                if response.status_code != 200:
+                    raise HTTPException(
+                        status_code=503, detail="fixture_observer_unavailable"
+                    )
 
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
         status = 200
@@ -112,3 +144,30 @@ class ObservedAdmission(OwnedAdmission):
 
 
 admission = ObservedAdmission()
+
+
+async def install():
+    async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
+        headers = {"Authorization": "Bearer " + os.environ["N05_OBSERVER_KEY"]}
+        try:
+            coverage = await install_admission(adapter=admission)
+            response = await client.post(
+                os.environ["N05_OBSERVER_URL"] + "/_probe/install",
+                headers=headers,
+                json={"pid": os.getpid(), "dependency_paths": coverage},
+            )
+            if response.status_code != 200:
+                raise RuntimeError("fixture_installation_observer_unavailable")
+        except Exception as error:
+            frame = traceback.extract_tb(error.__traceback__)[-1]
+            await client.post(
+                os.environ["N05_OBSERVER_URL"] + "/_probe/bootstrap_error",
+                headers=headers,
+                json={
+                    "pid": os.getpid(),
+                    "exception": type(error).__name__,
+                    "file": Path(frame.filename).name,
+                    "line": frame.lineno,
+                },
+            )
+            raise

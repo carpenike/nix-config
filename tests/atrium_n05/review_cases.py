@@ -10,6 +10,7 @@ def run_reviews(
 ):
     from harness.common import require
 
+    post_auth = evidence["scope"].get("post_native_auth_dependency", False)
     evidence["scope"].update(
         {
             "background_poller": False,
@@ -42,12 +43,15 @@ def run_reviews(
             )
         after = snapshot()
         events = after["events"][len(before["events"]) :]
+        authenticated = after["auth_events"][len(before["auth_events"]) :]
+        boundary = authenticated if post_auth else events
         delta = after["provider"]["received"] - before["provider"]["received"]
         observed = {
             "status": response.status_code,
             "provider_requests": delta,
-            "admission_calls": len(events),
-            "worker_pid": events[-1]["pid"] if events else None,
+            "pre_call_calls": len(events),
+            "admission_calls": len(boundary),
+            "worker_pid": boundary[-1]["pid"] if boundary else None,
         }
         evidence["last_review_request"] = observed
         checkpoint()
@@ -63,7 +67,9 @@ def run_reviews(
                 "native_review_denied_effect",
             )
         require(
-            len(events) == (0 if expected == 401 else 1), "native_review_hook_boundary"
+            len(boundary) == (0 if expected == 401 else 1)
+            and (not post_auth or len(events) == (1 if expected == 200 else 0)),
+            "native_review_hook_boundary",
         )
         return observed
 
