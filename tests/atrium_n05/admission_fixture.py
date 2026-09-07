@@ -292,6 +292,12 @@ class Fixture:
             "aliases": {},
             "config": {},
             "blocked": False,
+            "router_settings": {
+                "num_retries": 0,
+                "fallbacks": [],
+                "context_window_fallbacks": [],
+                "model_group_alias": {},
+            },
             "metadata": {
                 "cc.owner": "command-center",
                 "cc.principal": principal,
