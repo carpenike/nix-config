@@ -33,6 +33,13 @@ SSE errors instead of treating partial text as success. These are fixture
 corrections; native authentication, decoding, caching, and admission are not
 patched.
 
+The clean-source [completion receipt](results/n05-completions-94e35f94.json)
+records all four `/completions` and `/v1/completions` streaming/non-streaming
+rows passing at `94e35f94bef1f6ddb8ea2c3f64eedbcbd64b5a3a`. Both native
+workers supply warm-cache positive output and deny the signed-listed key
+before provider calls or cached/SSE output. This resolves the earlier
+completion-stream fixture blocker, not the remaining full N05 gate.
+
 For a bounded decoder-only diagnosis, `completion_library_probe.py` runs the
 actual pinned library and a loopback provider in one network-disabled
 container. It emits exception types and code-frame locations, not exception
