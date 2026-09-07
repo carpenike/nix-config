@@ -18,6 +18,9 @@ import pathlib
 hook=pathlib.Path("/run/atrium-n05/admission_hook.py")
 hook.write_text(data.pop("probe_hook"))
 hook.chmod(0o600)
+configuration=pathlib.Path("/run/atrium-n05/config.json")
+configuration.write_text(json.dumps(data["config"]))
+configuration.chmod(0o600)
 """
 MARKER = "fixture-ok-n05"
 PATHS = ("/v1/chat/completions", "/chat/completions")
@@ -288,9 +291,12 @@ def main():
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(probe_source.glob("*.py"))
         },
-        "pinned_source": json.loads(
-            (ROOT / ".artifacts/n05-source-inspection.json").read_text()
-        )["source_sha256"],
+        "pinned_source": {
+            name: {"algorithm": "sha256", "digest": digest}
+            for name, digest in json.loads(
+                (ROOT / ".artifacts/n05-source-inspection.json").read_text()
+            )["source_sha256"].items()
+        },
     }
     result = {
         "ticket": "ATR-N05",
@@ -319,11 +325,13 @@ def main():
         and 'os.environ.update(data["environment"])' in base_boot,
         "unsupported_shared_bootstrap",
     )
-    native.LITELLM_BOOT = base_boot.replace(
-        '"--num_workers", "1"', '"--num_workers", "2"'
-    ).replace(
-        'os.environ.update(data["environment"])',
-        BOOT_ADDITION + '\nos.environ.update(data["environment"])',
+    native.LITELLM_BOOT = (
+        base_boot.replace('"--num_workers", "1"', '"--num_workers", "2"')
+        .replace(
+            'os.environ.update(data["environment"])',
+            BOOT_ADDITION + '\nos.environ.update(data["environment"])',
+        )
+        .replace('"/proc/self/fd/" + str(fd)', '"/run/atrium-n05/config.json"')
     )
     base_config = native.configuration
 

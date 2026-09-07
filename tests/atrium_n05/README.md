@@ -49,6 +49,13 @@ Native auth, worker scheduling, router, and cache implementations are untouched.
 Runtime keys remain memory/stdin/environment only. Container output logs are
 disabled; recorded evidence contains no bearer or provider credential.
 
+The first full attempt stopped at gateway startup before any coverage case.
+The one-worker harness's `/proc/self/fd` config is unsuitable for the native
+Uvicorn multi-process spawn path (`proxy/proxy_cli.py:1406–1411`). The probe now
+uses a private `/run/atrium-n05/config.json` beside the callback module, readable
+by actual spawned workers. It contains environment references, not runtime keys.
+This is a bootstrap prerequisite correction, not a failed hook/cache candidate.
+
 Every full-stack start refuses a shared VM already running a fixture other than
 `ambit-db`. Exact `Resources` IDs/invocation labels control cleanup, and metadata
 before/after checks preserve all pre-existing containers. No VM/image removal,
