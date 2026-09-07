@@ -18,6 +18,8 @@ result-*
 # committing these defeats the cache and balloons the repo).
 .serena/cache/
 .ruff_cache/
+.atrium-n04-state/
+tests/atrium_n04/results/n04-development-*.json
 
 # Logs
 logs
