@@ -233,6 +233,16 @@ preserved under `.artifacts/n05-post-auth-pinned-source`,
 `.artifacts/n05-post-auth-source-inspection.json`, and
 `.artifacts/n05-native-graph-inspection.json`.
 
+The [clean focused receipt](results/n05-post-auth-focused-0b34a052.json) binds
+**87 passing focused tests** to clean source
+`0b34a05245f6a83b8c55200d8feece996f605913`, including the actual native application
+graph and the deliberately fail-closed master-alias regression. Its container
+cleanup passed with `ambit-db` unchanged. This is **not** a clean native HTTP
+receipt: token-count permit/deny, normal endpoint/cache/worker, and failed-auth
+clock revalidation for the candidate remain unexecuted. No third native HTTP
+attempt was made after the agreed limit. Nix/workflow wiring was not changed,
+and the candidate startup environment setting must not be activated yet.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or
