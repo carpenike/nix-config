@@ -1,4 +1,45 @@
-# ATR-N05 bounded request-hook coverage probe
+# ATR-N05 native admission fixtures
+
+There are two distinct lanes. `native_runner.py` is the historical placement
+probe documented below. `actual_native.py` loads the real admission package,
+shared R04 profiles/cache, R07 feed, and R06/N04 protected producer methods.
+Neither lane activates production services.
+
+The actual lane verifies every packaged module/resource in its four wheels
+against the local admission/controller source and the declared immutable
+Atrium revision before loading them. A missing, changed, additional, or
+corrupt artifact cannot silently stand in for the code named in a receipt.
+Wheel hashes are included in evidence. The existing four wheel artifacts
+under `.artifacts/admission-wheels` must be rebuilt when those sources change.
+
+```sh
+python -m pytest -q tests/atrium_n05/test_probe.py tests/atrium_n05/test_artifacts.py
+python tests/atrium_n05/actual_native.py \
+  --harness /path/to/atrium-r06 --spec /path/to/current-owner-spec.md \
+  --protocol-only completions \
+  --evidence tests/atrium_n05/results/n05-completions-NEW.json
+```
+
+Omit `--protocol-only` to execute the broader implemented matrix. Blocked
+protocol rows produce a partial result and nonzero exit, not a passing run.
+`full_n05` remains explicitly incomplete until every required native route,
+fault, permission, and ownership case is accounted for.
+
+The completion-stream fixture sends usage only when requested, in a final
+usage chunk, rather than duplicating it in every content chunk. Unsolicited
+usage previously triggered a native usage-serialization failure. The stream
+observer also accepts null text in terminal control chunks and rejects late
+SSE errors instead of treating partial text as success. These are fixture
+corrections; native authentication, decoding, caching, and admission are not
+patched.
+
+For a bounded decoder-only diagnosis, `completion_library_probe.py` runs the
+actual pinned library and a loopback provider in one network-disabled
+container. It emits exception types and code-frame locations, not exception
+bodies or credentials. Supply `--harness` and a new `--evidence` path. This
+diagnostic is **not** native authentication or N05 admission evidence.
+
+## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or
 production wiring. It does not install the R04 deny feed, compute administrator

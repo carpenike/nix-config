@@ -1,7 +1,6 @@
 """Actual owned-admission integration using the existing pinned native supervisor."""
 
 import argparse
-import base64
 import hashlib
 import json
 import logging
@@ -13,7 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from supervisor import ROOT, git, inventory, load_harness
+from supervisor import ROOT, git, inventory, load_harness, verified_wheels
 
 PRODUCT = "1d620cd30f27f2b5849533fb2a9bdb5016385f69"
 RUNTIME = "/run/atrium-n05"
@@ -83,11 +82,14 @@ def main():
         str(args.evidence),
     ] + ([] if args.protocol_only is None else ["--protocol-only", args.protocol_only])
     writer = EvidenceWriter(output, result)
-    wheels = {
-        p.name: base64.b64encode(p.read_bytes()).decode()
-        for p in (ROOT / ".artifacts/admission-wheels").glob("*.whl")
-    }
-    require(len(wheels) == 4, "actual_admission_wheels_missing")
+    try:
+        wheels, result["source"]["wheel_sha256"] = verified_wheels(
+            args.harness, PRODUCT
+        )
+    except RuntimeError as error:
+        result.update(status="blocked", error=str(error))
+        writer.publish()
+        return 2
     state = {}
     original_boot = native.LITELLM_BOOT
     native.LITELLM_BOOT = (
@@ -190,6 +192,21 @@ def main():
     def exercise(
         client, observer, control, observer_headers, evidence, run_id, checkpoint
     ):
+        evidence["scope"].update(
+            {
+                "native_only": False,
+                "admission_hook": True,
+                "actual_admission_package": True,
+                "shared_R04_cache": True,
+                "real_R07_feed": True,
+                "real_R06_N04_producers": True,
+                "full_R06_issuance": False,
+                "full_N04_reconciliation": False,
+                "workers": 2,
+                "output_cache": "native local",
+                "protocols": [],
+            }
+        )
         resources = state["resources"]
         fixture_token = secrets.token_urlsafe(32)
         code = (ROOT / "tests/atrium_n05/admission_fixture.py").read_text()
@@ -365,18 +382,6 @@ except Exception as error:
             admin = action("mint", kind="admin")
             service = action("mint", kind="service")
             legacy = action("mint", kind="legacy")
-            evidence["scope"].update(
-                {
-                    "actual_admission_package": True,
-                    "shared_R04_cache": True,
-                    "real_R07_feed": True,
-                    "real_R06_N04_producers": True,
-                    "full_R06_issuance": False,
-                    "full_N04_reconciliation": False,
-                    "workers": 2,
-                    "output_cache": "native local",
-                }
-            )
             for name, key in (
                 ("child", child),
                 ("admin", admin),
@@ -540,7 +545,14 @@ except Exception as error:
             configure=configure,
             exercise_adapter=exercise,
         )
-        result["status"] = "passed"
+        result["status"] = (
+            "partial"
+            if any(
+                row["status"] == "blocked"
+                for row in result.get("protocol_coverage", [])
+            )
+            else "passed"
+        )
     except HarnessError as error:
         result.update(status="failed", error=error.code)
     except KeyboardInterrupt:

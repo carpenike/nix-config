@@ -1,11 +1,15 @@
 """Load only the explicitly pinned N07 orchestration, never current R06 work."""
 
+import base64
 import hashlib
 import importlib
+import io
 import json
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 ROOT = Path(__file__).resolve().parents[2]
 HARNESS_REVISION = "5eb22c6e5e0e9308f9b177471775ac71d8ae5ed8"
@@ -55,6 +59,66 @@ def inventory(resources):
         if len(values) == 3:
             rows[values[0]] = {"name": values[1], "state": values[2]}
     return rows
+
+
+def verified_wheels(repository, revision):
+    expected = {}
+    archived = git(repository, "archive", revision, "profiles/src", "resolver/src")
+    with tarfile.open(fileobj=io.BytesIO(archived)) as sources:
+        for member in sources.getmembers():
+            for prefix in ("profiles/src/", "resolver/src/"):
+                if member.isfile() and member.name.startswith(prefix):
+                    expected[member.name.removeprefix(prefix)] = sources.extractfile(
+                        member
+                    ).read()
+    for directory in ("atrium-litellm-admission", "atrium-litellm-controller"):
+        package = ROOT / "pkgs" / directory
+        for path in package.rglob("*"):
+            if (
+                path.is_file()
+                and "__pycache__" not in path.parts
+                and path.suffix != ".pyc"
+            ):
+                relative = str(path.relative_to(package))
+                if relative.startswith(("atrium_admission/", "atrium_litellm/")):
+                    expected[relative] = path.read_bytes()
+    paths = sorted((ROOT / ".artifacts/admission-wheels").glob("*.whl"))
+    if len(paths) != 4:
+        raise RuntimeError("actual_admission_wheels_missing")
+    seen, encoded, hashes = set(), {}, {}
+    for path in paths:
+        content = path.read_bytes()
+        metadata = path.name.split("-")[:2]
+        metadata_directory = "-".join(metadata) + ".dist-info"
+        try:
+            with ZipFile(io.BytesIO(content)) as wheel:
+                for name in wheel.namelist():
+                    if name.endswith("/"):
+                        continue
+                    if name in expected:
+                        if name in seen or wheel.read(name) != expected[name]:
+                            raise RuntimeError("actual_wheel_source_mismatch")
+                        seen.add(name)
+                    elif (
+                        len(parts := name.split("/")) != 2
+                        or parts[0] != metadata_directory
+                        or parts[1]
+                        not in {
+                            "METADATA",
+                            "WHEEL",
+                            "RECORD",
+                            "entry_points.txt",
+                            "top_level.txt",
+                        }
+                    ):
+                        raise RuntimeError("actual_wheel_source_mismatch")
+        except BadZipFile:
+            raise RuntimeError("invalid_native_wheel") from None
+        encoded[path.name] = base64.b64encode(content).decode()
+        hashes[path.name] = hashlib.sha256(content).hexdigest()
+    if seen != expected.keys():
+        raise RuntimeError("actual_wheel_source_incomplete")
+    return encoded, hashes
 
 
 def ready(resources):

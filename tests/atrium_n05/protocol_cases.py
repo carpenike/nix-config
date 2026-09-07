@@ -35,6 +35,12 @@ def output_present(response, kind, stream):
         if encoded == "[DONE]":
             continue
         value = json.loads(encoded)
+        if (
+            not isinstance(value, dict)
+            or value.get("error") is not None
+            or value.get("type") in ("error", "response.failed", "response.incomplete")
+        ):
+            return False
         if kind == "responses":
             if value.get("type") == "response.output_text.delta":
                 parts.append(value["delta"])
@@ -43,11 +49,15 @@ def output_present(response, kind, stream):
                 parts.append(value["delta"].get("text", ""))
         else:
             for choice in value.get("choices", []):
-                parts.append(
+                text = (
                     choice.get("text", choice.get("delta", {}).get("content", ""))
                     if kind == "completions"
                     else choice.get("delta", {}).get("content", "")
                 )
+                if text is not None:
+                    if not isinstance(text, str):
+                        return False
+                    parts.append(text)
     return "".join(parts) == "fixture-ok-n05"
 
 
@@ -97,6 +107,9 @@ def run_protocols(
             "response_bytes": len(response.content),
             "content_type": response.headers.get("content-type", ""),
         }
+        observation["provider_protocols"] = after["provider"].get("protocols", [])[
+            len(before["provider"].get("protocols", [])) :
+        ]
         if response.status_code == 200 and body.get("stream"):
             shapes = set()
             for line in response.text.splitlines():
@@ -219,3 +232,7 @@ def run_protocols(
     evidence["full_protocol_gate"] = (
         "passed" if all(row["status"] == "passed" for row in rows) else "incomplete"
     )
+    evidence["scope"]["protocols"] = [
+        f"POST {row['path']} ({'streaming' if row['stream'] else 'non-streaming'})"
+        for row in rows
+    ]

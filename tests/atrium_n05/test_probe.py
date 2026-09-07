@@ -1,4 +1,5 @@
 import hashlib
+import json
 import secrets
 import threading
 from http.server import ThreadingHTTPServer
@@ -120,4 +121,26 @@ def test_extended_provider_protocol_shapes(fixture_provider, kind, stream):
         },
     )
     assert output_present(response, kind, stream)
+    if kind == "completions" and stream:
+        chunks = [
+            json.loads(line[5:].strip())
+            for line in response.text.splitlines()
+            if line.startswith("data:") and line[5:].strip() != "[DONE]"
+        ]
+        assert all("usage" not in chunk for chunk in chunks)
     assert client.get("/_fixture/counts", headers=observer).json()["authorized"] == 1
+
+
+def test_stream_parser_accepts_null_control_text_but_rejects_late_errors():
+    from protocol_cases import output_present
+
+    chunks = [
+        {"choices": [{"text": "fixture-ok-n05", "finish_reason": None}]},
+        {"choices": [{"text": None, "finish_reason": "stop"}]},
+    ]
+    body = "".join("data: " + json.dumps(chunk) + "\n\n" for chunk in chunks)
+    assert output_present(
+        httpx.Response(200, text=body + "data: [DONE]\n\n"), "completions", True
+    )
+    failed = body + 'data: {"error":{"message":"fixture failure"}}\n\n'
+    assert not output_present(httpx.Response(200, text=failed), "completions", True)

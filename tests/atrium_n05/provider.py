@@ -12,7 +12,7 @@ MARKER = "fixture-ok-n05"
 
 def handler(inference_key, observer_key):
     lock = threading.Lock()
-    counts = {"received": 0, "authorized": 0, "models": []}
+    counts = {"received": 0, "authorized": 0, "models": [], "protocols": []}
     events, denied = [], set()
 
     class Handler(BaseHTTPRequestHandler):
@@ -114,6 +114,14 @@ def handler(inference_key, observer_key):
             with lock:
                 counts["authorized"] += 1
                 counts["models"].append(model)
+                counts["protocols"].append(
+                    {
+                        "path": self.path,
+                        "stream": data.get("stream", False),
+                        "include_usage": isinstance(data.get("stream_options"), dict)
+                        and data["stream_options"].get("include_usage") is True,
+                    }
+                )
                 identifier = "n05-fixture-" + str(counts["authorized"])
             if self.path == "/v1/embeddings":
                 values = data.get("input", "")
@@ -158,31 +166,42 @@ def handler(inference_key, observer_key):
                 if not data.get("stream"):
                     self.reply(200, completed)
                 else:
+                    streamed = {
+                        key: value for key, value in completed.items() if key != "usage"
+                    }
+                    chunks = [
+                        streamed
+                        | {
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "text": MARKER,
+                                    "finish_reason": None,
+                                    "logprobs": None,
+                                }
+                            ]
+                        },
+                        streamed
+                        | {
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "text": "",
+                                    "finish_reason": "stop",
+                                    "logprobs": None,
+                                }
+                            ]
+                        },
+                    ]
+                    if (
+                        isinstance(data.get("stream_options"), dict)
+                        and data["stream_options"].get("include_usage") is True
+                    ):
+                        chunks.append(
+                            streamed | {"choices": [], "usage": completed["usage"]}
+                        )
                     self.sse(
-                        [
-                            completed
-                            | {
-                                "choices": [
-                                    {
-                                        "index": 0,
-                                        "text": MARKER,
-                                        "finish_reason": None,
-                                        "logprobs": None,
-                                    }
-                                ]
-                            },
-                            completed
-                            | {
-                                "choices": [
-                                    {
-                                        "index": 0,
-                                        "text": "",
-                                        "finish_reason": "stop",
-                                        "logprobs": None,
-                                    }
-                                ]
-                            },
-                        ],
+                        chunks,
                         done=True,
                     )
                 return

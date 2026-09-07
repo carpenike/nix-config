@@ -18,6 +18,9 @@ names = (
  "proxy/litellm_pre_call_utils.py", "types/caching.py",
  "caching/caching.py", "caching/in_memory_cache.py", "utils.py",
  "types/proxy/_types.py", "router.py",
+ "main.py", "llms/openai/completion/handler.py",
+ "llms/openai/completion/transformation.py",
+ "litellm_core_utils/streaming_handler.py",
 )
 print(json.dumps({
  "version": importlib.metadata.version("litellm"),
