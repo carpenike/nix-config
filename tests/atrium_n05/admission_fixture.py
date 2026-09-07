@@ -519,7 +519,7 @@ def main():
                     ).encode(),
                 )
 
-    ThreadingHTTPServer(("127.0.0.1", 9010), Handler).serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", 9010), Handler).serve_forever()
 
 
 if __name__ == "__main__":
