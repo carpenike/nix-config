@@ -275,6 +275,20 @@ rollback regressions with the dependency boundary installed. Both workers remain
 subject to the same current policy and durable clock after this additional gate;
 no host or VM clock is changed.
 
+Clean source `ea0341b270bd93c07eb45e9831f91a69d944ffe8` is bound by:
+
+* [Post-auth HTTP and protocol receipt](results/n05-post-auth-ea0341b2.json):
+  nine post-auth groups and sixteen enabled protocol/mode rows pass in both
+  workers. The aggregate remains partial because `/messages` is absent.
+* [Post-auth ACL/clock receipt](results/n05-post-auth-review-ea0341b2.json):
+  both native regressions pass in both workers with zero denied provider effects.
+* [Focused native-SDK receipt](results/n05-focused-ea0341b2.json):
+  91 existing-runner cases pass on the pinned image.
+
+All three runs verified exact component wheel bytes and cleaned their own
+resources. These receipts do not claim unexecuted manual-auth, legacy WebSocket,
+network, or cross-adapter gate coverage.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or
