@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "atrium-litellm-admission"
+version = "0.1.0"
+description = "Opt-in isolated Atrium owned-key admission"
+requires-python = ">=3.12"
+dependencies = [
+  "atrium-profiles==0.1.0",
+  "atrium-resolver==0.1.0",
+  "httpx>=0.28,<1",
+  "pydantic>=2.11,<3",
+]
+
+[project.scripts]
+atrium-litellm-admission = "atrium_admission.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["atrium_admission"]

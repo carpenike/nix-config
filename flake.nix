@@ -129,9 +129,9 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N02: module and policy checks only; no live forge service is enabled.
+    # ATR-N05: shared profiles/resolver for isolated admission; no live service is enabled.
     atrium = {
-      url = "github:carpenike/atrium/ea2d120c665cd53906cf34e920c940385f65c85e";
+      url = "github:carpenike/atrium/1d620cd30f27f2b5849533fb2a9bdb5016385f69";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -292,6 +292,17 @@
               isAvailable
             )
             allPackages;
+          admissionTests = inputs.nixpkgs.lib.fileset.toSource {
+            root = ./tests/atrium_n05;
+            fileset = inputs.nixpkgs.lib.fileset.fileFilter
+              (file: file.hasExt "py")
+              ./tests/atrium_n05;
+          };
+          admissionTestPython = pkgs.python312.withPackages (ps: [
+            ps.pytest
+            ps.fastapi
+            availablePackages.atrium-litellm-admission
+          ]);
         in
         {
           # Pre-commit hooks configuration (git-hooks.nix)
@@ -500,6 +511,24 @@
 
           # Checks for CI
           checks = {
+            atrium-n05-package = availablePackages.atrium-litellm-admission;
+            atrium-n05-python = pkgs.runCommand "atrium-n05-python-checks"
+              {
+                nativeBuildInputs = [ admissionTestPython ];
+                PYTHONPATH = "${./pkgs/atrium-litellm-admission}:${inputs.atrium}/resolver/src:${inputs.atrium}/profiles/src";
+                PYTHONDONTWRITEBYTECODE = "1";
+                __darwinAllowLocalNetworking = true;
+              } ''
+              python -m pytest -q --rootdir="$TMPDIR" \
+                -o cache_dir="$TMPDIR/pytest-cache" \
+                --basetemp="$TMPDIR/private-fixtures" ${admissionTests}
+              touch "$out"
+            '';
+            atrium-n05-units = pkgs.writeText "atrium-n05-unit-checks.json"
+              (builtins.toJSON (import ./tests/atrium_n05/evaluate.nix {
+                atrium = inputs.atrium;
+                nixpkgs = inputs.nixpkgs;
+              }));
             atrium-n04-units = pkgs.writeText "atrium-n04-unit-checks.json"
               (builtins.toJSON (import ./tests/atrium_n04/evaluate.nix {
                 atrium = inputs.atrium;

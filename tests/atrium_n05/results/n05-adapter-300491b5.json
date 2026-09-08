@@ -1,0 +1,878 @@
+{
+  "cases": [
+    {
+      "id": "positive-child",
+      "permit": {
+        "provider_requests": 1,
+        "status": 200
+      },
+      "status": "passed"
+    },
+    {
+      "id": "positive-admin",
+      "permit": {
+        "provider_requests": 1,
+        "status": 200
+      },
+      "status": "passed"
+    },
+    {
+      "id": "positive-service",
+      "permit": {
+        "provider_requests": 1,
+        "status": 200
+      },
+      "status": "passed"
+    },
+    {
+      "id": "positive-legacy",
+      "permit": {
+        "provider_requests": 1,
+        "status": 200
+      },
+      "status": "passed"
+    },
+    {
+      "deny": {
+        "provider_requests": 0,
+        "status": 403
+      },
+      "id": "native-failure-signed-deny",
+      "non_owned": {
+        "provider_requests": 0,
+        "status": 200
+      },
+      "pending_native_work": true,
+      "status": "passed"
+    },
+    {
+      "deny": {
+        "provider_requests": 0,
+        "status": 403
+      },
+      "id": "known-admin-deny",
+      "status": "passed"
+    },
+    {
+      "admin": {
+        "provider_requests": 0,
+        "status": 200
+      },
+      "child": {
+        "provider_requests": 0,
+        "status": 403
+      },
+      "durable_alert_count": 1,
+      "id": "stale-human-vs-service",
+      "service": {
+        "provider_requests": 0,
+        "status": 403
+      },
+      "status": "passed"
+    }
+  ],
+  "cleanup": {
+    "images_removed": false,
+    "remaining_owned_resources": [],
+    "shared_vm_and_preexisting_resources_modified": false,
+    "status": "passed"
+  },
+  "commands": [
+    {
+      "argv": [
+        "podman",
+        "system",
+        "connection",
+        "list",
+        "--format=json"
+      ],
+      "duration_ms": 52,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 112,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "info",
+        "--format",
+        "json"
+      ],
+      "duration_ms": 105,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "image",
+        "inspect",
+        "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+      ],
+      "duration_ms": 68,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-version",
+        "--label",
+        "atrium.harness.run=n05-adapter-bfa5673504b1fc0b",
+        "--network",
+        "none",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-c",
+        "import importlib.metadata,json,platform; print(json.dumps({'litellm':importlib.metadata.version('litellm'),'python':platform.python_version()}))"
+      ],
+      "duration_ms": 70,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "e486a2c39b47f54f6f7a4cfbedde60a24a7b702d0dfc3cb11b9cf3bb6dc11df5"
+      ],
+      "duration_ms": 143,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "image",
+        "inspect",
+        "docker.io/library/postgres@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571"
+      ],
+      "duration_ms": 58,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "create",
+        "--internal",
+        "--label",
+        "atrium.harness.run=n05-adapter-bfa5673504b1fc0b",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-net"
+      ],
+      "duration_ms": 60,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "inspect",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-net"
+      ],
+      "duration_ms": 63,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-postgres",
+        "--label",
+        "atrium.harness.run=n05-adapter-bfa5673504b1fc0b",
+        "--network",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-net",
+        "--memory",
+        "1024m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "/bin/sh",
+        "--tmpfs",
+        "/var/lib/postgresql/data:rw,nosuid,nodev,noexec,size=768m,mode=0700",
+        "75f5a96988cdf694a215073c3e9c001b706b371e2f94df3967f2efdec2787f6b",
+        "-c",
+        "IFS= read -r POSTGRES_PASSWORD; export POSTGRES_PASSWORD; export POSTGRES_USER=atrium_fixture POSTGRES_DB=atrium_fixture; exec docker-entrypoint.sh postgres -c max_connections=24 -c shared_buffers=64MB -c logging_collector=off -c log_statement=none"
+      ],
+      "duration_ms": 68,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563"
+      ],
+      "exit_code": 0,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563"
+      ],
+      "duration_ms": 62,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563"
+      ],
+      "duration_ms": 61,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 93,
+      "exit_code": 2,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 104,
+      "exit_code": 2,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 105,
+      "exit_code": 2,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 108,
+      "exit_code": 1,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 179,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563",
+        "postgres",
+        "--version"
+      ],
+      "duration_ms": 97,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-provider",
+        "--label",
+        "atrium.harness.run=n05-adapter-bfa5673504b1fc0b",
+        "--network",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-net",
+        "--memory",
+        "256m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--publish",
+        "127.0.0.1::8000",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\"\"\"Non-actuating streaming provider and authenticated placement observer.\"\"\"\n\nimport json\nimport re\nimport secrets\nimport sys\nimport threading\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\nMARKER = \"fixture-ok-n05\"\n\n\ndef handler(inference_key, observer_key):\n    lock = threading.Lock()\n    counts = {\"received\": 0, \"authorized\": 0, \"models\": []}\n    events, denied = [], set()\n\n    class Handler(BaseHTTPRequestHandler):\n        def log_message(self, *_args):\n            pass\n\n        def authorized(self, key):\n            return secrets.compare_digest(\n                self.headers.get(\"Authorization\", \"\"), \"Bearer \" + key\n            )\n\n        def reply(self, status, document):\n            body = json.dumps(document).encode()\n            self.send_response(status)\n            self.send_header(\"Content-Type\", \"application/json\")\n            self.send_header(\"Content-Length\", str(len(body)))\n            self.end_headers()\n            self.wfile.write(body)\n\n        def body(self):\n            length = int(self.headers.get(\"Content-Length\", \"0\"))\n            if not 0 < length <= 65536:\n                raise ValueError()\n            return json.loads(self.rfile.read(length))\n\n        def do_GET(self):\n            if not self.authorized(observer_key):\n                self.reply(401, {\"error\": \"unauthorized\"})\n                return\n            with lock:\n                if self.path == \"/_fixture/counts\":\n                    self.reply(200, counts)\n                elif self.path == \"/_probe/state\":\n                    self.reply(200, {\"provider\": counts, \"events\": events})\n                else:\n                    self.reply(404, {\"error\": \"unknown_probe_route\"})\n\n        def do_POST(self):\n            if self.path.startswith(\"/_probe/\"):\n                if not self.authorized(observer_key):\n                    self.reply(401, {\"error\": \"unauthorized\"})\n                    return\n                try:\n                    data = self.body()\n                    if not isinstance(data, dict) or not re.fullmatch(\n                        r\"[0-9a-f]{64}\", data[\"key_sha256\"]\n                    ):\n                        raise ValueError()\n                    with lock:\n                        if (\n                            self.path == \"/_probe/deny\"\n                            and type(data.get(\"deny\")) is bool\n                        ):\n                            (denied.add if data[\"deny\"] else denied.discard)(\n                                data[\"key_sha256\"]\n                            )\n                            self.reply(200, {\"applied\": True})\n                        elif (\n                            self.path == \"/_probe/check\"\n                            and type(data.get(\"pid\")) is int\n                        ):\n                            if data.get(\"context_type\") != \"UserAPIKeyAuth\":\n                                raise ValueError()\n                            blocked = data[\"key_sha256\"] in denied\n                            events.append(\n                                {**data, \"denied\": blocked, \"sequence\": len(events)}\n                            )\n                            self.reply(200, {\"deny\": blocked})\n                        else:\n                            raise ValueError()\n                except (ValueError, TypeError, KeyError):\n                    self.reply(400, {\"error\": \"invalid_probe_request\"})\n                return\n            with lock:\n                counts[\"received\"] += 1\n            if self.path != \"/v1/chat/completions\" or not self.authorized(\n                inference_key\n            ):\n                self.reply(401, {\"error\": \"unauthorized\"})\n                return\n            try:\n                data = self.body()\n                model = data[\"model\"]\n                if (\n                    model not in (\"fixture-family\", \"fixture-personal\")\n                    or type(data.get(\"stream\", False)) is not bool\n                ):\n                    raise ValueError()\n            except (ValueError, TypeError, KeyError):\n                self.reply(400, {\"error\": \"unsupported_fixture_request\"})\n                return\n            with lock:\n                counts[\"authorized\"] += 1\n                counts[\"models\"].append(model)\n                identifier = \"n05-fixture-\" + str(counts[\"authorized\"])\n            if not data.get(\"stream\"):\n                self.reply(\n                    200,\n                    {\n                        \"id\": identifier,\n                        \"object\": \"chat.completion\",\n                        \"created\": 1,\n                        \"model\": model,\n                        \"choices\": [\n                            {\n                                \"index\": 0,\n                                \"message\": {\"role\": \"assistant\", \"content\": MARKER},\n                                \"finish_reason\": \"stop\",\n                            }\n                        ],\n                        \"usage\": {\n                            \"prompt_tokens\": 1,\n                            \"completion_tokens\": 1,\n                            \"total_tokens\": 2,\n                        },\n                    },\n                )\n                return\n            chunks = [\n                {\n                    \"index\": 0,\n                    \"delta\": {\"role\": \"assistant\", \"content\": \"fixture-\"},\n                    \"finish_reason\": None,\n                },\n                {\"index\": 0, \"delta\": {\"content\": \"ok-n05\"}, \"finish_reason\": None},\n                {\"index\": 0, \"delta\": {}, \"finish_reason\": \"stop\"},\n            ]\n            payload = [\n                (\n                    \"data: \"\n                    + json.dumps(\n                        {\n                            \"id\": identifier,\n                            \"object\": \"chat.completion.chunk\",\n                            \"created\": 1,\n                            \"model\": model,\n                            \"choices\": [chunk],\n                        }\n                    )\n                    + \"\\n\\n\"\n                ).encode()\n                for chunk in chunks\n            ]\n            payload.append(\n                (\n                    \"data: \"\n                    + json.dumps(\n                        {\n                            \"id\": identifier,\n                            \"object\": \"chat.completion.chunk\",\n                            \"created\": 1,\n                            \"model\": model,\n                            \"choices\": [],\n                            \"usage\": {\n                                \"prompt_tokens\": 1,\n                                \"completion_tokens\": 1,\n                                \"total_tokens\": 2,\n                            },\n                        }\n                    )\n                    + \"\\n\\n\"\n                ).encode()\n            )\n            payload.append(b\"data: [DONE]\\n\\n\")\n            self.send_response(200)\n            self.send_header(\"Content-Type\", \"text/event-stream\")\n            self.send_header(\"Content-Length\", str(sum(map(len, payload))))\n            self.end_headers()\n            for chunk in payload:\n                self.wfile.write(chunk)\n                self.wfile.flush()\n\n    return Handler\n\n\ndef main():\n    credentials = json.loads(sys.stdin.readline())\n    ThreadingHTTPServer(\n        (\"0.0.0.0\", 8000), handler(credentials[\"inference\"], credentials[\"observer\"])\n    ).serve_forever()\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      ],
+      "duration_ms": 72,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "2343a94a4ff221cf96e596fa961067910b683312881112d2b1237c466b97a67a"
+      ],
+      "exit_code": 137,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "2343a94a4ff221cf96e596fa961067910b683312881112d2b1237c466b97a67a"
+      ],
+      "duration_ms": 70,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "2343a94a4ff221cf96e596fa961067910b683312881112d2b1237c466b97a67a"
+      ],
+      "duration_ms": 83,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "port",
+        "2343a94a4ff221cf96e596fa961067910b683312881112d2b1237c466b97a67a",
+        "8000/tcp"
+      ],
+      "duration_ms": 77,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-litellm",
+        "--label",
+        "atrium.harness.run=n05-adapter-bfa5673504b1fc0b",
+        "--network",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-net",
+        "--memory",
+        "3072m",
+        "--cpus",
+        "2",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--publish",
+        "127.0.0.1::4000",
+        "--tmpfs",
+        "/run/atrium-n05:rw,nosuid,nodev,noexec,size=64m,mode=0700",
+        "--publish",
+        "127.0.0.1::9010",
+        "--publish",
+        "127.0.0.1::8765",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-c",
+        "\nimport json, os, sys\ndata = json.loads(sys.stdin.readline())\n\nimport base64,io,pathlib,zipfile\nroot=pathlib.Path(\"/run/atrium-n05\")\nfor name,encoded in data.pop(\"wheels\").items():\n with zipfile.ZipFile(io.BytesIO(base64.b64decode(encoded))) as wheel:\n  wheel.extractall(root/\"python\")\n(root/\"admission_loader.py\").write_text(\"from atrium_admission.hook import admission\\n\")\nconfig=root/\"config.json\"\nconfig.write_text(json.dumps(data[\"config\"]))\nconfig.chmod(0o600)\n\nos.environ.update(data[\"environment\"])\nfd = os.memfd_create(\"atrium-harness-config\", 0)\nos.write(fd, json.dumps(data[\"config\"]).encode())\nos.execv(\"/app/docker/prod_entrypoint.sh\", [\n    \"docker/prod_entrypoint.sh\", \"--config\", \"/run/atrium-n05/config.json\",\n    \"--host\", \"0.0.0.0\", \"--port\", \"4000\", \"--num_workers\", \"2\",\n])\n"
+      ],
+      "duration_ms": 81,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "6ea80c3cadfb772bab18bffb1f15c62921cd5810316d2bfff107772bbe639dfc"
+      ],
+      "exit_code": 0,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "6ea80c3cadfb772bab18bffb1f15c62921cd5810316d2bfff107772bbe639dfc"
+      ],
+      "duration_ms": 59,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "port",
+        "6ea80c3cadfb772bab18bffb1f15c62921cd5810316d2bfff107772bbe639dfc",
+        "4000/tcp"
+      ],
+      "duration_ms": 63,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "--interactive",
+        "6ea80c3cadfb772bab18bffb1f15c62921cd5810316d2bfff107772bbe639dfc",
+        "python",
+        "-B",
+        "-c",
+        "\nimport io,json,pathlib,sys,traceback\nsys.path.insert(0,\"/run/atrium-n05/python\")\ndata=json.loads(sys.stdin.readline())\nsource=data.pop(\"code\")\nsys.stdin=io.StringIO(json.dumps(data)+\"\\n\")\ntry:\n exec(compile(source,\"admission_fixture.py\",\"exec\"))\nexcept Exception as error:\n frame=traceback.extract_tb(error.__traceback__)[-1]\n print(json.dumps({\"error\":\"fixture_startup_failed\",\"exception\":type(error).__name__,\n                  \"file\":pathlib.Path(frame.filename).name,\"line\":frame.lineno}),flush=True)\n raise SystemExit(1) from None\n"
+      ],
+      "exit_code": 125,
+      "status": "exited",
+      "stdin": "not recorded; runtime fixture input"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "port",
+        "6ea80c3cadfb772bab18bffb1f15c62921cd5810316d2bfff107772bbe639dfc",
+        "9010/tcp"
+      ],
+      "duration_ms": 62,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "6ea80c3cadfb772bab18bffb1f15c62921cd5810316d2bfff107772bbe639dfc"
+      ],
+      "duration_ms": 1951,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "2343a94a4ff221cf96e596fa961067910b683312881112d2b1237c466b97a67a"
+      ],
+      "duration_ms": 5136,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563"
+      ],
+      "duration_ms": 200,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "e486a2c39b47f54f6f7a4cfbedde60a24a7b702d0dfc3cb11b9cf3bb6dc11df5"
+      ],
+      "duration_ms": 67,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "rm",
+        "atrium-harness-n05-adapter-bfa5673504b1fc0b-net"
+      ],
+      "duration_ms": 66,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 63,
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ],
+  "engine": {
+    "connection": "podman-machine-default",
+    "loopback": true,
+    "transport": "local-vm"
+  },
+  "foreign_after": {
+    "a914bf6c7045": {
+      "name": "ambit-db",
+      "state": "running"
+    }
+  },
+  "foreign_before": {
+    "a914bf6c7045": {
+      "name": "ambit-db",
+      "state": "running"
+    }
+  },
+  "foreign_resources_unchanged": true,
+  "full_n05": "incomplete",
+  "gateway_readiness": {
+    "last_status": 200,
+    "path": "/v1/models"
+  },
+  "images": {
+    "litellm": {
+      "architecture": "arm64",
+      "image_id": "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+      "os": "linux",
+      "python_version": "3.13.15",
+      "repo_digests": [
+        "ghcr.io/berriai/litellm@sha256:2d0f10790c6d9a72f240465ebe755987c40bdd0795cba9f57cbebc7ddc6e5c6f",
+        "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+      ],
+      "requested": "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c",
+      "verified_package_version": "1.99.1"
+    },
+    "postgres": {
+      "architecture": "amd64",
+      "image_id": "75f5a96988cdf694a215073c3e9c001b706b371e2f94df3967f2efdec2787f6b",
+      "os": "linux",
+      "repo_digests": [
+        "docker.io/library/postgres@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571",
+        "docker.io/library/postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      ],
+      "requested": "docker.io/library/postgres@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571",
+      "version": "postgres (PostgreSQL) 16.15"
+    }
+  },
+  "network": {
+    "driver": "bridge",
+    "internal": true,
+    "name": "atrium-harness-n05-adapter-bfa5673504b1fc0b-net"
+  },
+  "podman": {
+    "architecture": "arm64",
+    "os": "linux",
+    "server_version": "5.7.1"
+  },
+  "readiness": {
+    "litellm": "authenticated /v1/models HTTP 200",
+    "postgres": "pg_isready",
+    "provider": "authenticated observer HTTP 200"
+  },
+  "resources": [
+    {
+      "id": "e486a2c39b47f54f6f7a4cfbedde60a24a7b702d0dfc3cb11b9cf3bb6dc11df5",
+      "name": "atrium-harness-n05-adapter-bfa5673504b1fc0b-version",
+      "role": "version",
+      "status": "created"
+    },
+    {
+      "id": "479c66e506ca846f6806c38f225f52dc920688772629666ddb031e60b4282563",
+      "name": "atrium-harness-n05-adapter-bfa5673504b1fc0b-postgres",
+      "role": "postgres",
+      "status": "created"
+    },
+    {
+      "id": "2343a94a4ff221cf96e596fa961067910b683312881112d2b1237c466b97a67a",
+      "name": "atrium-harness-n05-adapter-bfa5673504b1fc0b-provider",
+      "role": "provider",
+      "status": "created"
+    },
+    {
+      "id": "6ea80c3cadfb772bab18bffb1f15c62921cd5810316d2bfff107772bbe639dfc",
+      "name": "atrium-harness-n05-adapter-bfa5673504b1fc0b-litellm",
+      "role": "litellm",
+      "status": "created"
+    }
+  ],
+  "run_id": "n05-adapter-bfa5673504b1fc0b",
+  "scope": {
+    "actual_admission_package": true,
+    "admission_hook": false,
+    "full_N04_reconciliation": false,
+    "full_R06_issuance": false,
+    "native_only": true,
+    "network_claim": "Dedicated internal Podman network, not N03/N06 production egress proof.",
+    "no_paid_calls": "Internal container network; only non-actuating provider fixture configured.",
+    "output_cache": "native local",
+    "owned_controller": false,
+    "protocols": [
+      "POST /v1/chat/completions (non-streaming)"
+    ],
+    "real_R06_N04_producers": true,
+    "real_R07_feed": true,
+    "shared_R04_cache": true,
+    "synthetic_domains": [
+      "personal:ryan",
+      "family:holt"
+    ],
+    "workers": 2
+  },
+  "source": {
+    "commit": "300491b54eff6f74ab66c23117f35c39e985736a",
+    "dirty": false,
+    "files": {
+      "pkgs/atrium-litellm-admission/atrium_admission/__init__.py": {
+        "algorithm": "sha256",
+        "digest": "cf2a6a283b25609bf5f82c9ed2bb18fc4c2573a557ff70eb2561069257f0cc8f"
+      },
+      "pkgs/atrium-litellm-admission/atrium_admission/cli.py": {
+        "algorithm": "sha256",
+        "digest": "1998491fa1f0895e3b90af75268c4e8309c22bfaded51d141e1846c6e35b418c"
+      },
+      "pkgs/atrium-litellm-admission/atrium_admission/engine.py": {
+        "algorithm": "sha256",
+        "digest": "8049ed9a9340307882360044d247e3232bfc376c8e150c08f02974c400f729c0"
+      },
+      "pkgs/atrium-litellm-admission/atrium_admission/feed.py": {
+        "algorithm": "sha256",
+        "digest": "8cb453b35db487aec779d0949744e2dc0cb3cb147f215ac226c60fee05795b7d"
+      },
+      "pkgs/atrium-litellm-admission/atrium_admission/hook.py": {
+        "algorithm": "sha256",
+        "digest": "0b1af0de1e44746dcb75f81a3b5529773e29f26b6f1f60ae4b026facca1b52bf"
+      },
+      "pkgs/atrium-litellm-admission/atrium_admission/models.py": {
+        "algorithm": "sha256",
+        "digest": "751e9a8b6bee48d81c4a937523130f9a5428906b0ae0965ff434dbc99075f91e"
+      },
+      "pkgs/atrium-litellm-admission/atrium_admission/producers.py": {
+        "algorithm": "sha256",
+        "digest": "abd1a03f213cadf1e47d336020816d15f6766e8ef899904df62fbc58b752222c"
+      },
+      "pkgs/atrium-litellm-admission/atrium_admission/state.py": {
+        "algorithm": "sha256",
+        "digest": "304393a309f85b32851fbf62b49f48b9e537d010ea1a4075b89e0d7cc8ed38d5"
+      },
+      "tests/atrium_n05/actual_native.py": {
+        "algorithm": "sha256",
+        "digest": "0ae9c2d006b272a38dfa90854629aa374ac78409ab91b6e1f7d65dcfc248d8c4"
+      },
+      "tests/atrium_n05/admission_fixture.py": {
+        "algorithm": "sha256",
+        "digest": "cb67440af7ba0146309f5247bff7be0f741ea595c69d7033f023e27a3d8a81d2"
+      },
+      "tests/atrium_n05/admission_hook.py": {
+        "algorithm": "sha256",
+        "digest": "03878312186e0512919f1a761854e2a1e021eef503fa03caa28f9b389e7bfbe5"
+      },
+      "tests/atrium_n05/inspect_source.py": {
+        "algorithm": "sha256",
+        "digest": "e6ce57db4849d09f6c7b9cd989928eaaaaedf2dcf913750acf42b5d7ff1396f9"
+      },
+      "tests/atrium_n05/native_runner.py": {
+        "algorithm": "sha256",
+        "digest": "5f49bc5613a2f06b60e9084c5e01e93304fa536b9fc7db1122e58980e66b1171"
+      },
+      "tests/atrium_n05/provider.py": {
+        "algorithm": "sha256",
+        "digest": "c9087cb6627390ac0fa2c1fbf03afa02c8a28bed4e312e7decd2a29f199e6da2"
+      },
+      "tests/atrium_n05/supervisor.py": {
+        "algorithm": "sha256",
+        "digest": "46ba582d6ac474c2f362029618d139dea96191e6d183d28696988cdfcd13848c"
+      },
+      "tests/atrium_n05/test_admission.py": {
+        "algorithm": "sha256",
+        "digest": "7af4a7fb51c66ff3dc4869c66de907fa59b1b746f967cd1a5ed5ef1daec0298b"
+      },
+      "tests/atrium_n05/test_probe.py": {
+        "algorithm": "sha256",
+        "digest": "449e41c54254507eb37aefb560411efe93d2412fc3166f611c7ab59695683e1e"
+      }
+    },
+    "owner_spec_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "product_revision": "1d620cd30f27f2b5849533fb2a9bdb5016385f69",
+    "shared_harness": {
+      "__init__.py": "0d79d014efb12c7fb1730ed22a46a4a80591314535b51a1e3f5c9162c81058eb",
+      "common.py": "5cb4f6ad40beb1856cbfb972423eff7f20f5be825abbe3f6523aded7fde70c1d",
+      "containers.py": "cb973acebfdc7fa7e2dc527672173832d307c671e3f9c0bab50891ee245cf0fe",
+      "litellm_native.py": "8afec40cb5da9dd1d0006ad3ab382f2b1bccb3a5f6ddd0f3beca4065767a15b1",
+      "pins.json": "4ade35fe39f624ce4d999251834edcd6a6cc5e5afe3dcb9188f98b220706e32b",
+      "provider.py": "a859f8a1b3fff458f9b98722bf7bda3fce61784b00fc098507828de2c42c9067"
+    }
+  },
+  "status": "passed",
+  "ticket": "ATR-N05"
+}

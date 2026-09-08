@@ -1,0 +1,288 @@
+{
+  "cleanup": {
+    "images_removed": false,
+    "remaining_owned_resources": [],
+    "shared_vm_and_preexisting_resources_modified": false,
+    "status": "passed"
+  },
+  "commands": [
+    {
+      "argv": [
+        "podman",
+        "system",
+        "connection",
+        "list",
+        "--format=json"
+      ],
+      "duration_ms": 15,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 76,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "info",
+        "--format",
+        "json"
+      ],
+      "duration_ms": 107,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "image",
+        "inspect",
+        "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+      ],
+      "duration_ms": 63,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n05-focused-c18035b2f1ad-pytest",
+        "--label",
+        "atrium.harness.run=n05-focused-c18035b2f1ad",
+        "--network",
+        "none",
+        "--memory",
+        "1536m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--tmpfs",
+        "/run/atrium-n05-focused:rw,nosuid,nodev,noexec,size=128m,mode=0700",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\nimport base64,contextlib,importlib.metadata,io,json,logging,os,pathlib,sys,zipfile\nroot=pathlib.Path(\"/run/atrium-n05-focused\")\ndata=json.loads(sys.stdin.readline())\nos.environ.update(\n PYTEST_DISABLE_PLUGIN_AUTOLOAD=\"1\", PYTHONDONTWRITEBYTECODE=\"1\",\n TMPDIR=str(root), LITELLM_LOCAL_MODEL_COST_MAP=\"True\",\n LITELLM_TELEMETRY=\"False\", DO_NOT_TRACK=\"1\", LITELLM_LOG=\"ERROR\",\n)\nfor encoded in data[\"wheels\"].values():\n with zipfile.ZipFile(io.BytesIO(base64.b64decode(encoded))) as wheel:\n  wheel.extractall(root/\"python\")\nwith zipfile.ZipFile(io.BytesIO(base64.b64decode(data[\"pytest\"]))) as packages:\n packages.extractall(root/\"python\")\nfor name,text in data[\"files\"].items():\n path=root/name\n path.parent.mkdir(parents=True,exist_ok=True)\n path.write_text(text)\nsys.path.insert(0,str(root/\"python\"))\nsys.path.insert(0,str(root/\"tests/atrium_n05\"))\nos.chdir(root)\nlogging.disable(logging.CRITICAL)\nimport pytest\nversion=importlib.metadata.version(\"litellm\")\nassert version==\"1.99.1\"\nclass Summary:\n def pytest_sessionfinish(self,session,exitstatus):\n  reporter=session.config.pluginmanager.get_plugin(\"terminalreporter\")\n  self.counts={name:len(items) for name,items in reporter.stats.items() if name}\nsummary=Summary()\noutput=io.StringIO()\nwith contextlib.redirect_stdout(output),contextlib.redirect_stderr(output):\n status=pytest.main([\"-q\",\"--tb=short\",\"-p\",\"no:cacheprovider\",\n  \"--basetemp\",str(root/\"cases\"),*data[\"tests\"]],plugins=[summary])\nresult={\"exit_code\":int(status),\"counts\":getattr(summary,\"counts\",{}),\"litellm_version\":version}\nif status:\n result[\"diagnostic\"]=output.getvalue()\nprint(json.dumps(result))\nraise SystemExit(int(status))\n"
+      ],
+      "duration_ms": 70,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "d6d67eee3d22e7352c42759f0097c98aa25d173b5b0042fc99d003088671fb2d"
+      ],
+      "duration_ms": 66,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 63,
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ],
+  "engine": {
+    "connection": "podman-machine-default",
+    "loopback": true,
+    "transport": "local-vm"
+  },
+  "foreign_after": {
+    "a914bf6c7045": {
+      "name": "ambit-db",
+      "state": "running"
+    }
+  },
+  "foreign_before": {
+    "a914bf6c7045": {
+      "name": "ambit-db",
+      "state": "running"
+    }
+  },
+  "foreign_resources_unchanged": true,
+  "image": {
+    "architecture": "arm64",
+    "image_id": "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+    "os": "linux",
+    "repo_digests": [
+      "ghcr.io/berriai/litellm@sha256:2d0f10790c6d9a72f240465ebe755987c40bdd0795cba9f57cbebc7ddc6e5c6f",
+      "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+    ],
+    "requested": "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+  },
+  "pytest": {
+    "counts": {
+      "passed": 91
+    },
+    "exit_code": 0,
+    "litellm_version": "1.99.1"
+  },
+  "resources": [
+    {
+      "id": "d6d67eee3d22e7352c42759f0097c98aa25d173b5b0042fc99d003088671fb2d",
+      "name": "atrium-harness-n05-focused-c18035b2f1ad-pytest",
+      "role": "pytest",
+      "status": "created"
+    }
+  ],
+  "run_id": "n05-focused-c18035b2f1ad",
+  "scope": "focused tests; not native HTTP gate evidence",
+  "source": {
+    "commit": "ea0341b270bd93c07eb45e9831f91a69d944ffe8",
+    "dirty": false,
+    "files": {
+      "fixtures/policy.generated.json": {
+        "algorithm": "sha256",
+        "digest": "af21c3fddbe3d77f97278b2f29dc7ebe67a5adee706a17948488cad3595ad495"
+      },
+      "tests/atrium_n05/actual_native.py": {
+        "algorithm": "sha256",
+        "digest": "e7118ae3e2fd5e14cd60e717391c6c64a9b5e7955e9f835d11848d3907276fbe"
+      },
+      "tests/atrium_n05/admission_fixture.py": {
+        "algorithm": "sha256",
+        "digest": "7e83f02c6df0e4c8959671a54ab34cddf9f16577b5dd91a016f6e924b4269b13"
+      },
+      "tests/atrium_n05/admission_hook.py": {
+        "algorithm": "sha256",
+        "digest": "03878312186e0512919f1a761854e2a1e021eef503fa03caa28f9b389e7bfbe5"
+      },
+      "tests/atrium_n05/completion_library_probe.py": {
+        "algorithm": "sha256",
+        "digest": "d8377814af0f56b73d7d0b2937197274e0839672b9b6d222ae79e4ce8bcda9f1"
+      },
+      "tests/atrium_n05/context_cases.py": {
+        "algorithm": "sha256",
+        "digest": "1c29c889ffd8d175dcf0df0c2e2d26e1ded27224afbee1df8951f31d7147dd1f"
+      },
+      "tests/atrium_n05/focused_native.py": {
+        "algorithm": "sha256",
+        "digest": "cf994d327e7337ce1d1ff251007dfd94d0ca09808a78e83b84e9e839279731ba"
+      },
+      "tests/atrium_n05/inspect_source.py": {
+        "algorithm": "sha256",
+        "digest": "44b0078ef0397b63a960dbba5964f71acb5e7f7835da440bbcd06a8ec8897bc4"
+      },
+      "tests/atrium_n05/native_runner.py": {
+        "algorithm": "sha256",
+        "digest": "5f49bc5613a2f06b60e9084c5e01e93304fa536b9fc7db1122e58980e66b1171"
+      },
+      "tests/atrium_n05/observed_admission.py": {
+        "algorithm": "sha256",
+        "digest": "4672d89888bd69dda8cb53acb7c74fefbcc6ea6648ba4ef2558d1d7a24e18d2b"
+      },
+      "tests/atrium_n05/post_auth_cases.py": {
+        "algorithm": "sha256",
+        "digest": "0d0423b29b011f68774d8b9c97f6ac2d0b0d742b6a057ab3990ebe01a3a1e49d"
+      },
+      "tests/atrium_n05/protocol_cases.py": {
+        "algorithm": "sha256",
+        "digest": "b38d1f09b8a696c0961d5acfb5d5391c459d4edc5956ae629ca9b67ff6c4dca5"
+      },
+      "tests/atrium_n05/provider.py": {
+        "algorithm": "sha256",
+        "digest": "eb7a664fd2f563023ab1974282774f7db65caef160d7bd23fe780ed76d587992"
+      },
+      "tests/atrium_n05/review_cases.py": {
+        "algorithm": "sha256",
+        "digest": "4c2f221832f4666facd43e9e1998bc2a9219cfd114a4835a40901b13273b3c1f"
+      },
+      "tests/atrium_n05/supervisor.py": {
+        "algorithm": "sha256",
+        "digest": "e30d87dd0328349c3120b7a8a7d11ac53879bdabed9248ce4c33167c706374e4"
+      },
+      "tests/atrium_n05/test_admission.py": {
+        "algorithm": "sha256",
+        "digest": "356b1ae1114569ff393eb1cb5b361adb465ee31cc0472333f0e45a80fd47dce9"
+      },
+      "tests/atrium_n05/test_artifacts.py": {
+        "algorithm": "sha256",
+        "digest": "1d40f8bbe90da5eef299696377db71c7e5c0faf3c323e8ee88372538d27fda49"
+      },
+      "tests/atrium_n05/test_bootstrap.py": {
+        "algorithm": "sha256",
+        "digest": "13ae765d540005b25ce35938043e0ea82fd4c647ad93cf07bb9c009e6e5fbda1"
+      },
+      "tests/atrium_n05/test_probe.py": {
+        "algorithm": "sha256",
+        "digest": "d4f0f1697be9e149a14ae369424e44e326435d4c743795481ada9978e09feba4"
+      },
+      "tests/atrium_n05/test_request_context.py": {
+        "algorithm": "sha256",
+        "digest": "5d84661a424e3062258c106f440cf1a9a1cc727a101e7f6d349b032de66af53d"
+      }
+    },
+    "product_revision": "1d620cd30f27f2b5849533fb2a9bdb5016385f69",
+    "shared_harness": {
+      "__init__.py": "0d79d014efb12c7fb1730ed22a46a4a80591314535b51a1e3f5c9162c81058eb",
+      "common.py": "5cb4f6ad40beb1856cbfb972423eff7f20f5be825abbe3f6523aded7fde70c1d",
+      "containers.py": "cb973acebfdc7fa7e2dc527672173832d307c671e3f9c0bab50891ee245cf0fe",
+      "litellm_native.py": "8afec40cb5da9dd1d0006ad3ab382f2b1bccb3a5f6ddd0f3beca4065767a15b1",
+      "pins.json": "4ade35fe39f624ce4d999251834edcd6a6cc5e5afe3dcb9188f98b220706e32b",
+      "provider.py": "a859f8a1b3fff458f9b98722bf7bda3fce61784b00fc098507828de2c42c9067"
+    },
+    "test_dependencies": {
+      "iniconfig": "2.3.0",
+      "packaging": "26.3",
+      "pluggy": "1.6.0",
+      "pygments": "2.21.0",
+      "pytest": "9.1.1"
+    },
+    "test_dependency_archive_sha256": "2c447fa4be5538b818d08547720cadfee79fc9596dd493754879531151b549e5",
+    "wheel_sha256": {
+      "atrium_litellm_admission-0.1.0-py3-none-any.whl": "8dd0820d5a0e98aca7ae96c45fdba60005a12ac2961e93aa6029e12b518fd26b",
+      "atrium_litellm_controller-0.1.0-py3-none-any.whl": "a4b12ae121a6f94cb81961112cc2ab19c76ba33acf282f1f65df8a97cbc9db33",
+      "atrium_profiles-0.1.0-py3-none-any.whl": "e675ee6d106dd374bc38f7befd0060d7a3d36f1d02af5f5ebd77b708a3ac4eda",
+      "atrium_resolver-0.1.0-py3-none-any.whl": "93dab90f74b0b1424e0200deb618deda73926835040a1d31a9d3b24ca82e04ad"
+    }
+  },
+  "status": "passed",
+  "tests": [
+    "tests/atrium_n05/test_admission.py",
+    "tests/atrium_n05/test_request_context.py",
+    "tests/atrium_n05/test_bootstrap.py",
+    "tests/atrium_n05/test_probe.py",
+    "tests/atrium_n05/test_artifacts.py"
+  ],
+  "ticket": "ATR-N05"
+}
