@@ -40,6 +40,8 @@ in
     import isolated_tls
     @registration path /v1/devices/register /v1/devices/register/*
     respond @registration 404
+    @native_policy path /v1/native-policy /v1/native-policy/*
+    respond @native_policy 404
     reverse_proxy 127.0.0.1:18765 {
       import native_headers
       transport http {
@@ -53,6 +55,8 @@ in
     import isolated_tls
     @private_issue path /cc/issue /cc/issue/*
     respond @private_issue 404
+    @native_policy path /v1/native-policy /v1/native-policy/*
+    respond @native_policy 404
     reverse_proxy https://127.0.0.1:${toString f.port} {
       import native_headers
       header_up Host 127.0.0.1:${toString f.port}

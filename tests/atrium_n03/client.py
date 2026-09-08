@@ -8,6 +8,9 @@ import socket
 import ssl
 import sys
 import tarfile
+import secrets
+import hashlib
+from urllib.parse import parse_qs, urlencode, urlsplit
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -48,8 +51,6 @@ def worker():
             if action == "stop":
                 return
             if action == "request":
-                from urllib.parse import urlsplit
-
                 parsed = urlsplit(command["url"])
                 origin = f"{parsed.scheme}://{parsed.netloc}"
                 if origin not in clients:
@@ -83,6 +84,99 @@ def worker():
                     )
                 except httpx.HTTPError as error:
                     reply({"status": 0, "transport_error": type(error).__name__})
+            elif action == "native-oauth":
+                origin = config["endpoints"]["native"]
+                if origin not in clients:
+                    clients[origin] = httpx.Client(
+                        verify=context, trust_env=False, timeout=15
+                    )
+                native = clients[origin]
+                if command["operation"] == "refresh":
+                    response = native.post(
+                        origin + "/oauth/token",
+                        data={
+                            "grant_type": "refresh_token",
+                            "client_id": command["client_id"],
+                            "refresh_token": command["refresh_token"],
+                            **(
+                                {"scope": command["scope"]}
+                                if "scope" in command
+                                else {}
+                            ),
+                        },
+                    )
+                    reply({"status": response.status_code, "body": response.text})
+                    continue
+                registration = native.post(
+                    origin + "/oauth/register",
+                    json={
+                        "redirect_uris": ["https://claude.ai/n03-fixture"],
+                        "token_endpoint_auth_method": "none",
+                    },
+                )
+                if registration.status_code != 201:
+                    reply({"status": registration.status_code, "phase": "registration"})
+                    continue
+                client_id = registration.json()["client_id"]
+                verifier = secrets.token_urlsafe(48)
+                challenge = (
+                    base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+                    .decode()
+                    .rstrip("=")
+                )
+                authorization = native.get(
+                    origin + "/oauth/authorize",
+                    params={
+                        "client_id": client_id,
+                        "redirect_uri": "https://claude.ai/n03-fixture",
+                        "response_type": "code",
+                        "code_challenge": challenge,
+                        "code_challenge_method": "S256",
+                        "scope": command.get("scope", "fixture.read"),
+                        **command.get("overrides", {}),
+                    },
+                )
+                if authorization.status_code != 302:
+                    reply({"status": authorization.status_code, "phase": "authorize"})
+                    continue
+                upstream = (
+                    authorization.headers["location"]
+                    + "&"
+                    + urlencode(
+                        {
+                            "fixture_principal": command.get(
+                                "principal", "fixture-child"
+                            ),
+                            "fixture_lifetime": command.get("lifetime", 900),
+                        }
+                    )
+                )
+                signed_in = native.get(upstream)
+                if signed_in.status_code != 302:
+                    reply({"status": signed_in.status_code, "phase": "identity"})
+                    continue
+                callback = native.get(signed_in.headers["location"])
+                if callback.status_code != 302:
+                    reply({"status": callback.status_code, "phase": "callback"})
+                    continue
+                code = parse_qs(urlsplit(callback.headers["location"]).query)["code"][0]
+                response = native.post(
+                    origin + "/oauth/token",
+                    data={
+                        "grant_type": "authorization_code",
+                        "client_id": client_id,
+                        "redirect_uri": "https://claude.ai/n03-fixture",
+                        "code": code,
+                        "code_verifier": verifier,
+                    },
+                )
+                reply(
+                    {
+                        "status": response.status_code,
+                        "body": response.text,
+                        "client_id": client_id,
+                    }
+                )
             elif action == "connect":
                 try:
                     with socket.create_connection(

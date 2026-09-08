@@ -15,6 +15,8 @@ let
     (import ../../lib/service-uids.nix { });
   runtime = "/run/atrium-n03";
   port = 18443;
+  nativePolicyPort = 18767;
+  nativePolicyEndpoint = "https://127.0.0.1:${toString nativePolicyPort}/v1/native-policy";
   frontAddress = "198.19.3.2";
   names = {
     resolver = "atrium.atrium.invalid";
@@ -44,11 +46,16 @@ let
       family-home-public = base.instances.family-home-admin // {
         route = "/mcp";
         displayName = "Family wing native public entry";
+        scopes = [ "admin" "fixture.read" ];
+        acl = base.instances.family-home-child.acl;
       };
       family-home-adults.scopes = [ "hermes" ];
     };
     routeTemplates = {
       family-public = base.routeTemplates.family-admin // {
+        instance = "family-home-public";
+      };
+      family-public-read = base.routeTemplates.family-child-view // {
         instance = "family-home-public";
       };
       family-adults.scopes = [ "hermes" ];
@@ -112,20 +119,43 @@ let
     litellm = null;
   };
   nativeResource = generated.resolver.instances.family-home-public;
+  nativePolicyConfig = (resolverConfig "atrium-native-policy") // {
+    devices = null;
+    home_mcp = null;
+    native_policy = {
+      audience = nativePolicyEndpoint;
+      server_certificate_path = credential "atrium-native-policy" "policy-server-cert";
+      server_private_key_path = credential "atrium-native-policy" "policy-server-key";
+      client_ca_path = credential "atrium-native-policy" "policy-client-ca";
+      adapters = [{
+        id = "homelab-mcp-fixture";
+        native_issuer = endpoints.native;
+        deployment = "home-mcp";
+        authorities.pocket-id-fixture = "atrium-n03-native";
+        views = builtins.attrNames (lib.filterAttrs
+          (_: instance: instance.status == "active" && instance.adapter == "home-mcp"
+            && instance.deployment == "home-mcp")
+          generated.resolver.instances);
+        # Runtime PKI provisioning must fill the actual public leaf fingerprint.
+        certificates = [ ];
+      }];
+    };
+  };
 in
 {
-  inherit registry generated runtime port frontAddress names endpoints state ids;
+  inherit registry generated runtime port frontAddress names endpoints state ids nativePolicyPort nativePolicyEndpoint;
   namespacePath = "/run/atrium-n03/netns";
   modelPlaneReady = false;
   modelPlaneBlocker = "protected-live-publication-export-interface";
   versions = {
-    atrium = "87e1ecaea98688ea079707083413f7b2f6ba1a70";
-    native = "34652871465482627d645e3ea7caea7248547925";
+    atrium = "5f919f085ca0e77664b72d13e96ceeb0680688e4";
+    native = "338cbbdb990a5751d199f276c5d65b07730cd97d";
     consumer = "273cf414cac75276492ee849bb3ea257ce47f8de";
     litellm = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";
   };
   resolver = resolverConfig "atrium-resolver";
   registration = resolverConfig "atrium-device-registration";
+  nativePolicy = nativePolicyConfig;
   registrationPort = 19443;
   native = {
     resource = {
@@ -148,6 +178,16 @@ in
       jwks_url = "${endpoints.resolver}/.well-known/jwks.json";
       ca_bundle = credential "homelab-mcp" "front-ca";
       state_directory = "${state.native}/denial";
+    };
+    policy = {
+      endpoint = nativePolicyEndpoint;
+      authority = "pocket-id-fixture";
+      resolver_issuer = endpoints.resolver;
+      resolver_jwks = credential "homelab-mcp" "resolver-jwks";
+      ca_certificate_path = credential "homelab-mcp" "policy-ca";
+      client_certificate_path = credential "homelab-mcp" "policy-client-cert";
+      client_private_key_path = credential "homelab-mcp" "policy-client-key";
+      timeout_seconds = 5;
     };
   };
   whiskey = {

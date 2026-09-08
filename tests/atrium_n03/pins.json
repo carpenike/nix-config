@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "atrium": "87e1ecaea98688ea079707083413f7b2f6ba1a70",
-  "native": "34652871465482627d645e3ea7caea7248547925",
+  "atrium": "5f919f085ca0e77664b72d13e96ceeb0680688e4",
+  "native": "338cbbdb990a5751d199f276c5d65b07730cd97d",
   "consumer": "273cf414cac75276492ee849bb3ea257ce47f8de",
   "sqlite_addon": {
     "version": "12.10.0",

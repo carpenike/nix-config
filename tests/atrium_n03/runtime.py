@@ -97,6 +97,9 @@ def foundation(data):
     processes = []
     roles_by_pid = {}
     fault_active = False
+    policy_stopped = False
+    native_process = None
+    policy_process = None
 
     def launch(role, uid, command, environment):
         process = start(uid, command, environment, tools)
@@ -213,6 +216,20 @@ def foundation(data):
             ],
             resolver_env,
         )
+        policy_command = [
+            sys.executable,
+            "-B",
+            "-m",
+            "atrium_resolver.cli",
+            "--config",
+            str(ROOT / "native-policy.json"),
+            "serve-native-policy",
+            "--port",
+            str(f["nativePolicyPort"]),
+        ]
+        policy_process = launch(
+            "native-policy", resolver_uid, policy_command, resolver_env
+        )
         launch(
             "tcp-entry",
             roles["atrium-forwarder-fixture"]["uid"],
@@ -240,15 +257,17 @@ def foundation(data):
                 time.sleep(0.2)
             else:
                 raise ValueError("resolver_start_timeout")
-        launch(
+        native_command = [sys.executable, "-B", str(ROOT / "fixture/native_service.py")]
+        native_environment = {
+            **config["native_environment"],
+            "PYTHONPATH": str(ROOT / "native-python"),
+            "NIX_SSL_CERT_FILE": "/run/credentials/homelab-mcp.service/front-ca",
+        }
+        native_process = launch(
             "native",
             native_uid,
-            [sys.executable, "-B", str(ROOT / "fixture/native_service.py")],
-            {
-                **config["native_environment"],
-                "PYTHONPATH": str(ROOT / "native-python"),
-                "NIX_SSL_CERT_FILE": "/run/credentials/homelab-mcp.service/front-ca",
-            },
+            native_command,
+            native_environment,
         )
         # The live W03 key path remains empty/closed pending the documented producer interface.
         delivery = ROOT / "delivery"
@@ -357,6 +376,13 @@ def foundation(data):
                 "namespace": os.readlink("/proc/self/ns/net"),
                 "services": service_status,
                 "public": config["public"],
+                "native_policy": {
+                    "endpoint": f["nativePolicyEndpoint"],
+                    "uid": resolver_uid,
+                    "state_shared_only_with_resolver": True,
+                    "client_certificate_sha256": config["policy_fingerprint"],
+                    "native_client_uid": native_uid,
+                },
             }
         )
         for line in sys.stdin:
@@ -406,6 +432,12 @@ def foundation(data):
                     issued = database.execute(
                         "SELECT count(*) FROM native_issuance"
                     ).fetchone()[0]
+                    public_access = database.execute(
+                        "SELECT count(*) FROM public_native_access"
+                    ).fetchone()[0]
+                    refreshes = database.execute(
+                        "SELECT count(*) FROM refresh_token"
+                    ).fetchone()[0]
                 with sqlite3.connect(
                     f["state"]["native"] + "/denial/denial.sqlite"
                 ) as database:
@@ -420,10 +452,166 @@ def foundation(data):
                 reply(
                     {
                         "issued": issued,
+                        "public_access": public_access,
+                        "refreshes": refreshes,
                         "alerts": alerts,
                         "generation": snapshot["generation"],
                     }
                 )
+            elif command["action"] == "policy-state":
+                import sqlite3
+
+                with sqlite3.connect(
+                    f["state"]["resolver"] + "/resolver.sqlite3"
+                ) as database:
+                    counts = {
+                        table: database.execute(
+                            f"SELECT count(*) FROM {table}"
+                        ).fetchone()[0]
+                        for table in (
+                            "native_policy_requests",
+                            "credential_associations",
+                            "group_assertions",
+                        )
+                    }
+                    group_deadlines = [
+                        row[0]
+                        for row in database.execute(
+                            "SELECT expires_at FROM group_assertions WHERE principal_id = ?",
+                            (command.get("principal", "fixture-child"),),
+                        )
+                    ]
+                reply({"counts": counts, "group_deadlines": group_deadlines})
+            elif command["action"] == "policy-outage":
+                if command["enabled"]:
+                    if policy_stopped:
+                        raise ValueError("policy_fault_already_owned")
+                    stop([policy_process])
+                    processes.remove(policy_process)
+                    policy_stopped = True
+                else:
+                    if not policy_stopped:
+                        raise ValueError("policy_fault_not_owned")
+                    policy_process = launch(
+                        "native-policy", resolver_uid, policy_command, resolver_env
+                    )
+                    policy_stopped = False
+                reply({"changed": True})
+            elif command["action"] == "policy-peer":
+                from prepare import write
+
+                stop([native_process])
+                processes.remove(native_process)
+                prefix = "wrong-" if command["wrong"] else ""
+                for name in ("policy-client-cert", "policy-client-key"):
+                    path = Path("/run/credentials/homelab-mcp.service") / name
+                    path.unlink()
+                    write(
+                        path,
+                        config["policy_client_material"][prefix + name],
+                        native_uid,
+                    )
+                native_process = launch(
+                    "native", native_uid, native_command, native_environment
+                )
+                with httpx.Client(
+                    verify=native_tls, trust_env=False, timeout=2
+                ) as native_health:
+                    deadline = time.monotonic() + 15
+                    while time.monotonic() < deadline:
+                        if failure := running():
+                            reply(failure)
+                            break
+                        try:
+                            if (
+                                native_health.get(
+                                    f["endpoints"]["native"] + "/healthz"
+                                ).status_code
+                                == 200
+                            ):
+                                reply({"changed": True})
+                                break
+                        except httpx.HTTPError:
+                            pass
+                        time.sleep(0.2)
+                    else:
+                        raise ValueError("native_start_timeout")
+            elif command["action"] == "policy-probe":
+                # Only adverse probes use this synthetic assertion. All permits use
+                # actual native OAuth/current-access -> native policy transport.
+                from copy import deepcopy
+                from uuid import uuid4
+
+                mode = command["mode"]
+                current = int(time.time())
+                body = {
+                    "schema_version": 1,
+                    "request_id": uuid4().hex,
+                    "audience": f["nativePolicyEndpoint"],
+                    "native_issuer": f["endpoints"]["native"],
+                    "authority": "pocket-id-fixture",
+                    "identity": {
+                        "issuer": f["endpoints"]["identity"],
+                        "subject": f["generated"]["resolver"]["principals"][
+                            "fixture-child"
+                        ]["bindings"][0]["subject"],
+                    },
+                    "resource": deepcopy(f["native"]["resource"]),
+                    "scopes": ["fixture.read"],
+                    "operation": "issue",
+                    "verification": {
+                        "kind": "refresh",
+                        "credential_issuer": f["endpoints"]["native"],
+                        "credential_id": "sha256:" + "0" * 64,
+                        "observed_at": current,
+                        "expires_at": current + 60,
+                    },
+                }
+                if mode not in (
+                    "missing-peer",
+                    "wrong-peer",
+                    "audience",
+                    "authority",
+                    "view",
+                ):
+                    raise ValueError("adverse_policy_probe_required")
+                probe = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                probe.load_verify_locations(cadata=config["policy_ca"])
+                if mode != "missing-peer":
+                    prefix = "wrong-" if mode == "wrong-peer" else ""
+                    # Load only already provisioned invocation-owned test material.
+                    material = config["policy_client_material"]
+                    for suffix in ("cert", "key"):
+                        path = ROOT / ("policy-probe." + suffix)
+                        path.unlink(missing_ok=True)
+                        from prepare import write
+
+                        write(path, material[prefix + "policy-client-" + suffix])
+                    probe.load_cert_chain(
+                        ROOT / "policy-probe.cert", ROOT / "policy-probe.key"
+                    )
+                if mode == "audience":
+                    body["audience"] = f["endpoints"]["resolver"] + "/v1/native-policy"
+                elif mode == "authority":
+                    body["authority"] = "unregistered-authority"
+                elif mode == "view":
+                    body["resource"]["id"] = "unknown-view"
+                try:
+                    with httpx.Client(verify=probe, trust_env=False, timeout=5) as peer:
+                        rejected = peer.post(
+                            f["nativePolicyEndpoint"],
+                            json=body,
+                            headers={
+                                "X-SSL-Client-Verify": "SUCCESS",
+                                "X-Principal": "ryan",
+                            },
+                        )
+                        reply({"status": rejected.status_code})
+                except httpx.HTTPError as error:
+                    reply({"status": 0, "transport_error": type(error).__name__})
+                finally:
+                    (ROOT / "policy-probe.cert").unlink(missing_ok=True)
+                    (ROOT / "policy-probe.key").unlink(missing_ok=True)
             elif command["action"] == "observed-headers":
                 reply(
                     json.loads(

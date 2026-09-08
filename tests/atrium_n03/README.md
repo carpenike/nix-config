@@ -27,8 +27,8 @@ listener, not a proxy-header assertion.
 repository's real alert helper and records health/coherent-backup/recovery
 references, without enabling external jobs, notifications or SSH.
 
-Only the Atrium input advances to accepted `87e1ec`; existing MCP `3465287`
-and Whiskey `273cf41` lock entries remain unchanged. `pins.json` identifies the
+This wiring slice advances Atrium to accepted `5f919f08` and MCP to `338cbbdb`;
+Whiskey remains `273cf41`. `pins.json` identifies the
 matching Node22/Linux SQLite addon. The native image is the N07-pinned LiteLLM
 1.99.1 image **as a Python runtime only**; this bounded lane does not start a
 gateway or substitute standalone N05/N06 results for N03.
@@ -73,7 +73,7 @@ that an unbuilt Linux service closure ran.
 The normal lane deliberately waits **310 real seconds** for C1 outage aging.
 No host/VM clock is changed. `--imports-only` and `--bootstrap-only` are explicitly
 non-gate probes; `--fault-probe` checks only the exact namespace fault mechanism.
-The full selected lane reports `partial`/exit 2 while declared integration gaps
+The full selected lane reports `partial`/exit 2 while the model-publication gap
 remain. Passing paired rows are not discarded or relabeled as a full gate.
 
 All generated keys, credentials, device state and native data stay in private
@@ -94,15 +94,29 @@ TLS-preserving R08 registration, challenge/replay and device denial; actual
 Whiskey native/companion routes; expiry; healthy R07 deny propagation; and C1
 outage/admin-alert/known-deny/recovery.
 
-Two independent implementation gaps stay explicit:
+One independent implementation gap stays explicit:
 
 * Non-secret protected R06/N04 publications cannot yet be delivered across
   distinct non-root reader UIDs while preserving atomic modes/history.
-* R07's accepted `_known()` logic misclassifies R05 native JWT delivery hashes
-  as opaque-key identities, rejecting a valid native issuer/JTI deny.
 
 The runbook gives exact upstream interfaces. No root/chown relay, shared signer
-UID, removed association hash or fabricated feed bypasses either gap. C8/PR14
-is unaccepted and remains outside the input graph. Full browser-origin/local
+UID across application roles, removed association hash or fabricated feed
+bypasses that gap. R07's native-JTI correction and the C8 policy transport/group
+validity fix are accepted and pinned. The new C8 and native-JTI rows are
+**unexecuted until this slice obtains its explicit runtime lease and records
+clean native proof**; prior partial/failed receipts are retained unchanged.
+
+The C8 fixture uses a separate resolver-owned private loopback listener,
+distinct native policy-client PKI, actual native OIDC callback/PKCE/code exchange
+and real current policy/SDK enforcement. No in-process `native_policy` or
+`CurrentNativeGrant` substitute provides its permit cases. Group observations
+retain the signed fixture issuer's original bounds.
+
+Scheduling is explicit: publication currently owns the native VM; N06 is next,
+then N03. Do not run `native_runner.py`, inspect/preempt containers, or infer a
+lease from resource availability. Wait for owner-qualified cleanup/release,
+parent coordination and atomic claim using the shared lease protocol.
+
+Full browser-origin/local
 network permission, all native stream modes, model and remaining N06 feature
 permits, backup execution and production promotion are not claimed.

@@ -105,7 +105,7 @@ def main():
         "run_id": "n03-" + secrets.token_hex(8),
         "status": "bootstrap",
         "full_n03": "incomplete",
-        "c8_adopted": False,
+        "c8_adopted": True,
         "source": {
             "commit": subprocess.run(
                 ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
@@ -131,12 +131,13 @@ def main():
             "actual_native_paths": [
                 "Caddy",
                 "R01/R02/R03/R04/R05/R07/R08",
-                "M01/M02/M03/M04",
+                "M01/M02/M03/M04/C8",
                 "W01/W02",
                 "S01",
             ],
             "model_plane": "blocked: protected non-secret publication sharing is not implemented",
-            "native_jti_deny": "blocked: R07 misclassifies R05 JWT hashes as opaque identities",
+            "native_jti_deny": "accepted R07 native-JTI classifier; real R05 permit/deny/recovery required in this run",
+            "retained_native_policy": "accepted private C8 transport wired; actual native OAuth/current-policy pairs required in this run",
             "full_phase1": False,
             "browser_local_network_permission": "not executed",
             "whiskey_egress_granularity": "IPv4 destination address and TCP port, not hostname/modality",

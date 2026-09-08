@@ -185,7 +185,7 @@ def execute(f, foundation, client, foundation_address, rows, checkpoint):
         "connected"
     ]
     denied_ports = []
-    for port in (18765, 18766, 13417, f["port"]):
+    for port in (18765, 18766, f["nativePolicyPort"], 13417, f["port"]):
         assert not client.call("connect", address=foundation_address, port=port)[
             "connected"
         ]
@@ -290,6 +290,217 @@ def execute(f, foundation, client, foundation_address, rows, checkpoint):
     foundation.call("native-peer", wrong=False)
     assert redeem(child, entry(child, "family-home-child"))["status"] == 200
     record("real-native-resolver-peer-refusal-and-recovery", ["T26"], [200], [503])
+
+    # Retained public OAuth uses the actual native callback and the private C8 service.
+    public_url = f["endpoints"]["native"] + "/mcp"
+    granted = client.call(
+        "native-oauth",
+        operation="login",
+        principal="fixture-child",
+        scope="fixture.read",
+        overrides={
+            "principal": "ryan",
+            "subject": "synthetic-ryan-subject",
+            "authority": "foreign-authority",
+            "view_id": "family-home-admin",
+        },
+    )
+    assert granted["status"] == 200, "native_public_oauth_not_permitted"
+    public_tokens = payload(granted)
+    public_session = initialize(public_url, public_tokens["access_token"])
+    before = effects()
+    assert (
+        rpc(public_url, public_tokens["access_token"], public_session)["status"] == 200
+    )
+    assert effects()["read"] == before["read"] + 1
+    references = f["generated"]["resolver"]["catalogs"]["home-mcp-fixture"]["scopes"][
+        "fixture.read"
+    ]["resources"]
+    assert references, "source_derived_read_resource_required"
+    before = effects()
+    resource = rpc(
+        public_url,
+        public_tokens["access_token"],
+        public_session,
+        "resources/read",
+        {"uri": references[0]},
+    )
+    assert resource["status"] == 200, "native_public_resource_not_permitted"
+    assert effects()["resource"] == before["resource"] + 1
+    before = effects()
+    denied_tool = rpc(
+        public_url,
+        public_tokens["access_token"],
+        public_session,
+        params={"name": "ha_call_service", "arguments": {}},
+    )
+    assert denied_tool["status"] == 403
+    foreign = rpc(adult["target"], public_tokens["access_token"], public_session)
+    assert foreign["status"] == 401
+    record(
+        "actual-public-native-oauth-c8-read-resource-and-scope-boundary",
+        ["T1", "T7", "T10", "T26"],
+        [200, 200],
+        [403, 401],
+        before,
+        effects(),
+    )
+    renewed = client.call(
+        "native-oauth",
+        operation="refresh",
+        client_id=granted["client_id"],
+        refresh_token=public_tokens["refresh_token"],
+    )
+    assert renewed["status"] == 200, "native_public_refresh_not_permitted"
+    refreshed = payload(renewed)
+    assert rpc(public_url, refreshed["access_token"], public_session)["status"] == 200
+    before = effects()
+    widened = client.call(
+        "native-oauth",
+        operation="refresh",
+        client_id=granted["client_id"],
+        refresh_token=refreshed["refresh_token"],
+        scope="admin fixture.read",
+    )
+    assert widened["status"] == 400
+    record(
+        "actual-native-current-policy-refresh-cannot-widen",
+        ["T10", "T18"],
+        [200],
+        [400],
+        before,
+        effects(),
+    )
+
+    before = effects()
+    before_policy = foundation.call("policy-state")["counts"]
+    private_denials = []
+    for route in (
+        "/v1/native-policy",
+        "/v1/native-policy/",
+        "/v1/%6eative-policy",
+    ):
+        for public_origin in (f["endpoints"]["resolver"], f["endpoints"]["native"]):
+            response = call("POST", public_origin + route, {**spoof, **auth(admin)}, {})
+            assert response["status"] == 404
+            private_denials.append(404)
+    for mode in ("missing-peer", "wrong-peer", "audience", "authority", "view"):
+        response = foundation.call("policy-probe", mode=mode)
+        assert response["status"] == (0 if mode == "missing-peer" else 403)
+        private_denials.append(response["status"])
+    assert foundation.call("policy-state")["counts"] == before_policy
+    record(
+        "private-native-policy-service-and-route-boundaries",
+        ["T4", "T26"],
+        [200],
+        private_denials,
+        before,
+        effects(),
+    )
+
+    foundation.call("policy-peer", wrong=True)
+    before_native = foundation.call("native-state")["public_access"]
+    before_policy = foundation.call("policy-state")["counts"]
+    wrong_service = client.call(
+        "native-oauth",
+        operation="login",
+        principal="fixture-child",
+        scope="fixture.read",
+    )
+    assert wrong_service["status"] == 400
+    assert foundation.call("native-state")["public_access"] == before_native
+    assert foundation.call("policy-state")["counts"] == before_policy
+    foundation.call("policy-peer", wrong=False)
+    recovered = client.call(
+        "native-oauth",
+        operation="login",
+        principal="fixture-child",
+        scope="fixture.read",
+    )
+    assert recovered["status"] == 200
+    recovered_tokens = payload(recovered)
+    current_session = initialize(public_url, recovered_tokens["access_token"])
+    assert (
+        rpc(public_url, recovered_tokens["access_token"], current_session)["status"]
+        == 200
+    )
+    record(
+        "actual-native-policy-client-mtls-refusal-and-recovery",
+        ["T26"],
+        [200],
+        [400],
+    )
+    assert foundation.call("policy-outage", enabled=True)["changed"]
+    before = effects()
+    assert (
+        rpc(public_url, recovered_tokens["access_token"], current_session)["status"]
+        == 503
+    )
+    denied_after = effects()
+    assert denied_after == before
+    assert foundation.call("policy-outage", enabled=False)["changed"]
+    wait_status(
+        lambda: rpc(public_url, recovered_tokens["access_token"], current_session),
+        200,
+        seconds=15,
+    )
+    record(
+        "required-private-native-policy-outage-and-recovery",
+        ["T20"],
+        [200],
+        [503],
+        before,
+        denied_after,
+    )
+
+    short_group = client.call(
+        "native-oauth",
+        operation="login",
+        principal="fixture-child",
+        scope="fixture.read",
+        lifetime=8,
+    )
+    assert short_group["status"] == 200
+    short_group_tokens = payload(short_group)
+    short_group_session = initialize(public_url, short_group_tokens["access_token"])
+    assert (
+        rpc(public_url, short_group_tokens["access_token"], short_group_session)[
+            "status"
+        ]
+        == 200
+    )
+    deadlines = foundation.call("policy-state")["group_deadlines"]
+    assert deadlines, "verified_native_group_observation_missing"
+    encoded = short_group_tokens["access_token"].split(".")[1]
+    native_expiry = json.loads(
+        base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+    )["exp"]
+    assert native_expiry <= min(deadlines)
+    time.sleep(max(0, min(deadlines) - time.time()) + 0.2)
+    before = effects()
+    expired_group_refresh = client.call(
+        "native-oauth",
+        operation="refresh",
+        client_id=short_group["client_id"],
+        refresh_token=short_group_tokens["refresh_token"],
+    )
+    assert expired_group_refresh["status"] == 400
+    assert foundation.call("policy-state")["group_deadlines"] == deadlines
+    record(
+        "actual-native-group-observation-bound-is-not-renewed",
+        ["T10", "T26"],
+        [200],
+        [400],
+        before,
+        effects(),
+    )
+
+    # Both earlier SDK sessions were process-local and cannot survive the native restart.
+    # Native callbacks also supplied newer genuine group observations; old upstream
+    # access tokens cannot overwrite those watermarks in later resolver probes.
+    child, admin = identity(), identity("ryan")
+    session = initialize(url, token)
+    adult_session = initialize(adult["target"], adult["credential"]["token"])
 
     registration_url = f"https://{f['names']['registration']}:{f['registrationPort']}/v1/devices/register"
     missing_peer = call("POST", registration_url, spoof, {"local_available": []})
@@ -472,20 +683,54 @@ def execute(f, foundation, client, foundation_address, rows, checkpoint):
 
     # Real elapsed time, not a patched clock or a fabricated stale publication.
     denied_admin = native_credential(admin)
-    rejected_native_deny = deny(
-        denied_admin["credential"]["token"], f["endpoints"]["native"], expected=403
+    denied_native_session = initialize(
+        denied_admin["target"], denied_admin["credential"]["token"]
     )
-    assert payload(rejected_native_deny)["error"]["code"] == "deny_target_not_known"
-    rows.append(
-        {
-            "case": "native-jti-deny-administration-blocked",
-            "status": "blocked",
-            "gates": ["T15"],
-            "reason": "R07 treats the R05 native JWT hash as an opaque-key identity",
-            "observed": [403],
-        }
+    assert (
+        rpc(
+            denied_admin["target"],
+            denied_admin["credential"]["token"],
+            denied_native_session,
+        )["status"]
+        == 200
     )
-    checkpoint()
+    deny(denied_admin["credential"]["token"], f["endpoints"]["native"])
+    native_jti_propagation = wait_status(
+        lambda: rpc(
+            denied_admin["target"],
+            denied_admin["credential"]["token"],
+            denied_native_session,
+        ),
+        403,
+    )
+    before = effects()
+    assert (
+        rpc(
+            denied_admin["target"],
+            denied_admin["credential"]["token"],
+            denied_native_session,
+        )["status"]
+        == 403
+    )
+    after = effects()
+    deny(denied_admin["credential"]["token"], f["endpoints"]["native"], remove=True)
+    wait_status(
+        lambda: rpc(
+            denied_admin["target"],
+            denied_admin["credential"]["token"],
+            denied_native_session,
+        ),
+        200,
+    )
+    record(
+        "actual-r05-native-jti-r07-denial-and-recovery",
+        ["T15", "T26"],
+        [200, 200],
+        [403],
+        before,
+        after,
+    )
+    rows[-1]["healthy_propagation_seconds"] = native_jti_propagation
     # The long-lived identity remains valid, but a newer assertion follows the short-expiry probe.
     child = identity()
     ordinary = native_credential(child)

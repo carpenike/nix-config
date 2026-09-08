@@ -6,7 +6,50 @@ provision production identities, decrypt live secrets, or change host/VM trust,
 DNS, routes or firewall rules. The guarantee remains credential-scoped access
 and accident prevention, not conversation/context isolation.
 
-## Source-bound bounded result
+## Current C8 wiring slice
+
+The stacked `atr/N03-native-policy-wiring` slice consumes accepted Atrium
+`5f919f085ca0e77664b72d13e96ceeb0680688e4` and Home MCP
+`338cbbdb990a5751d199f276c5d65b07730cd97d`; Whiskey remains
+`273cf414cac75276492ee849bb3ea257ce47f8de`. C8 is **accepted and implemented**,
+including current group-deadline enforcement. Its N03 wiring is now explicit:
+
+* `atrium-native-policy.service` runs the actual `serve-native-policy` command
+  at `https://127.0.0.1:18767/v1/native-policy` inside the owned namespace.
+* Only the resolver role/UID shares its existing R01 state and signing ring.
+  Native MCP and all other consumers receive no access to that database/key
+  custody.
+* Dedicated policy-server and native policy-client CA/certificate/key material
+  is distinct from R05's resolver client at `/cc/issue`. Actual client
+  fingerprints are inserted by runtime PKI provisioning; Nix stores references
+  and an unfilled public configuration template, never key contents.
+* `HOMELAB_MCP_ATRIUM_POLICY` names the exact private endpoint, retained
+  authority, resolver issuer/JWKS, CA/client material and bounded timeout.
+  Allowed service deployment/views/upstream OIDC audience are explicit.
+* Caddy rejects `/v1/native-policy` on public resolver/native origins and still
+  refuses public `/cc/issue`; it never acquires either service client key.
+
+The public `/mcp` fixture keeps the existing explicit admin grant and adds the
+existing source-derived `fixture.read` profile under the same synthetic
+child/adult eligibility already used by the child view. This allows the real
+native public OAuth/current-policy path to prove scoped reads and resources
+without inventing a catalog or broadening a child's operation rights.
+
+Independent preparation currently passes 29 isolated unit assertions, real
+Caddy adaptation, scoped formatting/lint, immutable wheel/source checks and
+runtime artifact preparation. **New native network rows are not yet executed**:
+the publication owner retains the exclusive runtime lease, N06 is scheduled
+next, and N03 must await explicit owner-qualified cleanup/release, parent green
+light and atomic claim. Resource inspection is not lease authority.
+
+The extended fixture requires actual native OIDC callback/PKCE/code exchange,
+private service TLS, R01/R02 current decisions, native scope/resource dispatch,
+warm access/refresh, wrong-peer/route/parameter refusal, group expiry and policy
+outage pairs. It also reruns the previously blocked native-JTI row using the
+accepted R07 classifier. Until a clean-source native receipt executes those
+rows, this section claims wiring/preparation only, not their gate completion.
+
+## Historical source-bound bounded result
 
 Implementation source: `a03c68e4717f5cf082d016c43ec7f5e9fe975a3a`.
 The [clean native receipt](../../tests/atrium_n03/results/n03-clean-a03c68e4.json)
@@ -36,18 +79,20 @@ All application/client processes ran non-root with zero capabilities and
 
 ## Accepted source boundary
 
-* Atrium `87e1ecaea98688ea079707083413f7b2f6ba1a70`: actual N02 module,
-  R01–R08, R04 profiles and S01/S02 packages.
-* Home MCP `34652871465482627d645e3ea7caea7248547925`: native M01–M04.
+* Atrium `5f919f085ca0e77664b72d13e96ceeb0680688e4`: accepted N02,
+  R01–R08, R04 profiles, S01–S03 and the accepted C8 policy transport.
+* Home MCP `338cbbdb990a5751d199f276c5d65b07730cd97d`: accepted native
+  M01–M04 and C8 group-bound current-policy client.
 * Whiskey `273cf414cac75276492ee849bb3ea257ce47f8de`: native W01–W03.
 * LiteLLM remains **1.99.1**, manifest
   `sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c`.
 * N04/N05/N06 come from this nix-config source, not a replacement controller,
   verifier or fake admission hook.
 
-Only the Atrium root input advances. Existing accepted MCP/Whiskey lock entries
-remain unchanged. C8/PR14 is an **unaccepted proposal**: its paused retained-public
-native assertion/current-policy backend is neither pinned nor implemented here.
+Only the Atrium and Home MCP root inputs advance in this slice; Whiskey's lock
+entry is unchanged. C8 was explicitly accepted through Atrium PR14 and its
+implementation/review fix through Atrium PR17 and MCP PR76. The original locked
+specification and older N03 receipts remain unchanged.
 
 The fixture consumes the existing nix-config isolated registry, the immutable
 MCP source-generated scope catalog and the real N02 renderer. It does not
@@ -79,7 +124,8 @@ address/host/scheme at the trusted boundary. Native `Authorization` and
 `X-Atrium-Grant` carriage is retained. Native OAuth discovery, JWKS, public
 metadata and intentional legacy routes are not wrapped in blanket SSO.
 Whiskey's existing private `/metrics` route stays closed at the public vhost.
-Missing C8-dependent current policy stays fail-closed.
+Unavailable required C8 current policy stays fail-closed, including during a
+C1 verified-admin freshness exception.
 The native SDK's host guard remains enabled: Caddy uses the canonical loopback
 Host upstream while preserving the public forwarded host and verifying the
 configured public TLS server name. This is routing, not native identity
@@ -144,7 +190,7 @@ positive/full-gate claims remain withheld.
 
 ## Operations and recovery boundary
 
-### Native credential-specific deny administration gap
+### Native credential-specific deny administration: accepted fix, local proof pending
 
 The real network lane exposes a separate upstream R07/R05 identity mismatch:
 R05 records a native JWT's delivery hash in `credential_sha256` while retaining
@@ -154,13 +200,14 @@ and requires `identifier == "sha256:" + hash`, so an actual native JTI deny
 returns `403 deny_target_not_known`. The metadata's `native-access` profile is
 consulted only when the hash is null.
 
-Needed product correction: classify the protected association profile/type first,
-retain issuer/JTI identity for native JWTs even when a delivery hash is present,
-and keep hash-qualified identity for actual opaque model keys. Do not remove the
-R05 hash, rename native JTIs, mutate stored associations, or publish a fabricated
-deny to hide this integration issue. Native device/principal and Whiskey
-companion deny paths remain independently testable; native-JTI/full-T15 claims
-are withheld pending an accepted upstream correction. This is not C8 adoption.
+That correction is now accepted via Atrium PR19 at `80c98ff` and included in the
+current pin: known association type is classified first, native issuer/JTI is
+retained alongside R05's delivery hash, and opaque model keys remain
+hash-qualified. Accepted N07 proof at `52758ec6` exercised the real trio.
+N03 does not duplicate the fix or change associations/hashes. Its original
+failed row remains historical; the updated local row must independently
+execute permit, actual R07 administration refusal, and recovery before N03
+claims the native-JTI portion of T15.
 
 These are isolated equivalents of the repository's native-unit, private-state,
 health and independent recovery conventions—not real backup/notification jobs.
@@ -186,7 +233,7 @@ health and independent recovery conventions—not real backup/notification jobs.
 * Stop only invocation-owned processes and remove exact recorded resources.
   Keep pre-existing `ambit-db`, images and unrelated namespaces intact.
 
-Full N03/N07, retained-public C8-dependent permission permits, model publication,
+Full N03/N07, the new retained-public N03 C8 network rows, model publication,
 all native stream modes, remaining N06 image/non-model permits, and real browser
 public-origin/local-network permission are not implied by this bounded lane.
 No browser security flags or trust bypasses are permitted.

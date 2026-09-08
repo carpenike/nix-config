@@ -131,7 +131,7 @@
 
     # ATR-N03: accepted foundation packages for isolated wiring; no live service is enabled.
     atrium = {
-      url = "github:carpenike/atrium/87e1ecaea98688ea079707083413f7b2f6ba1a70";
+      url = "github:carpenike/atrium/5f919f085ca0e77664b72d13e96ceeb0680688e4";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -193,7 +193,7 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      url = "github:carpenike/mcp";
+      url = "github:carpenike/mcp/338cbbdb990a5751d199f276c5d65b07730cd97d";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

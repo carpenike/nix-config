@@ -28,7 +28,7 @@ let
     UnsetEnvironment = [ "SSLKEYLOGFILE" "SSL_CERT_FILE" "SSL_CERT_DIR" "HTTP_PROXY" "HTTPS_PROXY" "ALL_PROXY" ];
     ProtectProc = "invisible";
   };
-  consumers = [ "atrium-resolver" "atrium-device-registration" "homelab-mcp" "whiskey-whiskey-whiskey" "caddy" "atrium-registration-entry" ];
+  consumers = [ "atrium-resolver" "atrium-device-registration" "atrium-native-policy" "homelab-mcp" "whiskey-whiskey-whiskey" "caddy" "atrium-registration-entry" ];
   user = id: group: { isSystemUser = true; uid = id.uid; inherit group; };
 in
 {
@@ -51,7 +51,7 @@ in
       assertion = inputs.atrium.rev == f.versions.atrium
         && inputs.homelab-mcp.rev == f.versions.native
         && inputs.whiskey-whiskey-whiskey.rev == f.versions.consumer;
-      message = "N03 requires explicit accepted component pins; C8 is not an implementation input.";
+      message = "N03 requires the exact accepted adapter and C8 implementation pins.";
     }
     {
       assertion = !f.modelPlaneReady && !config.services.atrium.runtime.reconciler.enable;
@@ -85,6 +85,7 @@ in
       HOMELAB_MCP_POCKETID_CLIENT_ID = "atrium-n03-native";
       HOMELAB_MCP_ATRIUM_VIEW_POLICY = "/etc/atrium/desired-state/resolver.json";
       HOMELAB_MCP_ATRIUM_DENY = builtins.toJSON f.native.deny;
+      HOMELAB_MCP_ATRIUM_POLICY = builtins.toJSON f.native.policy;
       HOMELAB_MCP_RESTRICTED_SCOPES = builtins.toJSON (lib.mapAttrs (_: scope: scope.tools)
         (lib.filterAttrs (name: scope: name != "admin" && scope.status == "active")
           f.generated.resolver.catalogs.home-mcp-fixture.scopes));
@@ -172,11 +173,38 @@ in
         Restart = "on-failure";
       };
     };
+    atrium-native-policy = {
+      description = "Isolated retained-native current policy over direct service mTLS";
+      requires = [ "atrium-n03-network.service" ];
+      after = [ "atrium-n03-network.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = privateNamespace // {
+        User = "atrium-resolver";
+        Group = "atrium-resolver";
+        ExecStart = "${lib.getExe resolverPackage} --config ${f.runtime}/native-policy.json serve-native-policy --port ${toString f.nativePolicyPort}";
+        LoadCredential = unitCredentials [ "policy-server-cert" "policy-server-key" "policy-client-ca" "front-ca" ];
+        StateDirectory = "atrium-resolver";
+        StateDirectoryMode = "0700";
+        UMask = "0077";
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        Restart = "on-failure";
+      };
+    };
     homelab-mcp = {
       requires = [ "atrium-n03-network.service" ];
       after = [ "atrium-n03-network.service" ];
       serviceConfig = privateNamespace // {
-        LoadCredential = unitCredentials [ "server-cert" "server-key" "resolver-client-ca" "resolver-jwks" "front-ca" ];
+        LoadCredential = unitCredentials [
+          "server-cert"
+          "server-key"
+          "resolver-client-ca"
+          "resolver-jwks"
+          "front-ca"
+          "policy-ca"
+          "policy-client-cert"
+          "policy-client-key"
+        ];
         EnvironmentFile = lib.mkForce [
           "${f.runtime}-input/native-secrets.env"
           "${f.runtime}/native-public.env"
@@ -256,6 +284,7 @@ in
     "atrium/n03/declarations.json".source = declarations;
     "atrium/n03/resolver.json".source = resolverConfig;
     "atrium/n03/registration.json".source = registrationConfig;
+    "atrium/n03/native-policy-template.json".source = jsonFile "atrium-n03-native-policy-template.json" f.nativePolicy;
     "atrium/n03/whiskey.json".source = jsonFile "atrium-n03-whiskey.json" f.whiskey;
     "atrium/n03/whiskey-model.json".source = jsonFile "atrium-n03-whiskey-model.json" f.whiskeyModel;
     "atrium/n03/operations.json".source = jsonFile "atrium-n03-operations.json"
