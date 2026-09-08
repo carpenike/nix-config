@@ -14,10 +14,10 @@ invocation-owned resources. All private runtime keys, certificates, databases an
 acknowledgements live inside private container runtime storage, never source or
 the Nix store.
 
-`full_n06` remains incomplete while the explicitly documented non-model/owner
-policy gates are outstanding. A passing bounded matrix must not be promoted into
-hostname isolation, image-only enforcement, full household integration, or a
-production cutover claim.
+`full_n06` remains incomplete: the bounded helper/transport proof does not
+complete deployment/adoption or the assembled phase-1 gates. A passing bounded
+matrix must not be promoted into hostname isolation, image-only enforcement,
+full household integration, or a production cutover claim.
 
 The [clean final receipt](results/n06-egress-17de47c2.json) records 14 passing
 bounded cases, including authenticated provider account/model observations and
@@ -87,8 +87,8 @@ produce one or two native document fetches; the observed count is recorded,
 not replaced with a fake single count.
 
 Full N06/T16/N03/N07 promotion and production dynamic-origin selection remain
-separate. Existing native receipts are historical proof of their exact source,
-not proof that this new extension has run.
+separate. Earlier native receipts are historical proof of their exact source;
+the required-feature proof below has its own clean source pin.
 
 The [first required-feature native receipt](results/n06-required-native-80cffd3f.json)
 binds 23 passing groups (15 retained controls and eight new feature groups) to
@@ -97,6 +97,38 @@ outbound request with `SQLITE_CONSTRAINT_FOREIGNKEY`: the fixture had omitted
 the synthetic owner required by the native subscription schema. Fixture setup
 now provisions that crew row with the existing `upsertUserOnLogin` helper,
 without changing the schema, auth, transport or egress policy. The failed
-diagnostic remains intact; corrected push evidence requires another clean run.
+diagnostic remains intact and is not counted as a passing push case.
 All seven exact invocation containers and its network were rechecked absent;
 the pre-existing `ambit-db` remained running unchanged.
+
+### Completed bounded native cohort
+
+The [corrected native receipt](results/n06-required-native-b47ce525.json) binds
+**24 passing groups** to clean source
+`b47ce5258da163189350a8891e0ba3ba117c2b57`: all 15 retained controls plus all nine
+required-feature permit/deny/recovery groups. There are 18 explicit feature
+denial cases with zero prohibited fixture effects and nine successful
+recoveries. The [handoff](results/n06-required-native-b47ce525-handoff.json)
+records exact commands, component pins, diagnostics and cleanup.
+
+All helper calls run in the same native PID 8 / UID 11001 with all five
+capability sets zero and `NoNewPrivileges=1`. Direct Anthropic and direct native
+backend denials each increment the kernel reject counter; all previous real
+text/image/reference permits remain successful. No policy, source adapter or
+authentication override was needed.
+
+Push now reaches the actual encrypted transport: the fixture verifies ES256
+VAPID and decrypts the AES128GCM payload, rejects the wrong subscription auth
+with HTTP 400 and zero accepted delivery, then accepts recovery with HTTP 201.
+Native foreign-owner deletion remains refused. The synthetic crew-row setup
+is not an OIDC/login or new-user-authority proof.
+
+All 14 exact containers and two networks from both attempts were rechecked
+absent; the complete foreign container inventory remained equal, with
+`ambit-db` running unchanged. Only N06's lease row was deleted, and the lease
+query was empty. No further VM use is needed for this delivery.
+
+These are actual helper/wire capabilities, not full browser login, invitation
+or push-permission workflows. N03 ingress assembly, N05 admission, broader
+cross-adapter gates and production selection of dynamic destinations remain
+separate; none is silently promoted by this receipt.
