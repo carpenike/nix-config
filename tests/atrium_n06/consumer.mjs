@@ -1,6 +1,7 @@
 import { createInterface } from 'node:readline';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 // Native helpers retain their networking; only fixture console output is suppressed.
 console.log = () => {};
@@ -19,6 +20,11 @@ reply({
   direct_anthropic_present: Object.hasOwn(process.env, 'ANTHROPIC_API_KEY'),
   direct_anthropic_model_present: Object.hasOwn(process.env, 'ANTHROPIC_MODEL'),
   capabilities: processStatus.match(/^CapEff:\s+(\w+)/m)?.[1],
+  capability_sets: Object.fromEntries(
+    ['CapInh', 'CapPrm', 'CapEff', 'CapBnd', 'CapAmb'].map((name) => [
+      name, processStatus.match(new RegExp(`^${name}:\\s+(\\w+)`, 'm'))?.[1],
+    ]),
+  ),
   no_new_privileges: processStatus.match(/^NoNewPrivs:\s+(\d+)/m)?.[1],
 });
 const input = createInterface({ input: process.stdin, terminal: false });
@@ -26,7 +32,10 @@ for await (const line of input) {
   const command = JSON.parse(line);
   if (command.action === 'stop') break;
   try {
-    if (command.action === 'text') {
+    if (command.action === 'attempt-filter-removal') {
+      const result = spawnSync(process.env.ATRIUM_N06_NFT, ['delete', 'table', 'inet', 'atrium_whiskey'], { stdio: 'ignore' });
+      reply({ attempted: true, exit_code: result.status, error_code: result.error?.code ?? null });
+    } else if (command.action === 'text') {
       const result = await callAnthropic(
         'Synthetic isolated N06 prompt.',
         [{ role: 'user', content: 'Synthetic egress test only.' }],

@@ -1,6 +1,7 @@
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.atriumWhiskeyEgressFixture;
+  consumerConfig = config.systemd.services.${cfg.consumerUnit}.serviceConfig;
   policyFile = pkgs.writeText "atrium-n06-egress-policy.json" (builtins.toJSON cfg.policy);
 in
 {
@@ -36,6 +37,11 @@ in
         assertion = (cfg.policy.service_uid or 0) >= 1000;
         message = "N06 requires a dedicated non-root synthetic consumer UID.";
       }
+      {
+        assertion = consumerConfig.CapabilityBoundingSet == [ "" ]
+          && consumerConfig.AmbientCapabilities == [ "" ];
+        message = "N06 consumer capability sets must remain empty after module composition.";
+      }
     ];
     systemd.services.atrium-whiskey-egress-fixture = {
       description = "Install isolated Whiskey address-level egress policy";
@@ -59,8 +65,9 @@ in
         User = toString cfg.policy.service_uid;
         NetworkNamespacePath = cfg.namespacePath;
         NoNewPrivileges = true;
-        CapabilityBoundingSet = [ ];
-        AmbientCapabilities = [ ];
+        # [] is omitted by unit rendering; [""] emits an explicit empty reset.
+        CapabilityBoundingSet = lib.mkForce [ "" ];
+        AmbientCapabilities = lib.mkForce [ "" ];
         EnvironmentFile = cfg.imageEnvironmentFile;
         UnsetEnvironment = [ "ANTHROPIC_API_KEY" "ANTHROPIC_MODEL" ];
         ReadOnlyPaths = cfg.credentialPaths;

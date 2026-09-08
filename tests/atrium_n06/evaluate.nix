@@ -2,7 +2,7 @@
 let
   lib = nixpkgs.lib;
   fixture = import ./fixture.nix { inherit atrium; };
-  eval = isolated: lib.nixosSystem {
+  eval = isolated: extraModules: lib.nixosSystem {
     system = "aarch64-linux";
     modules = [
       ./module.nix
@@ -21,11 +21,42 @@ let
         };
         systemd.services.atrium-whiskey-fixture.serviceConfig.ExecStart = "${nixpkgs.legacyPackages.aarch64-linux.coreutils}/bin/true";
       }
-    ];
+    ] ++ extraModules;
   };
-  config = (eval true).config;
+  config = (eval true [ ]).config;
   consumer = config.systemd.services.atrium-whiskey-fixture;
   setup = config.systemd.services.atrium-whiskey-egress-fixture;
+  compose = serviceConfig: (eval true [
+    { systemd.services.atrium-whiskey-fixture = { inherit serviceConfig; }; }
+  ]).config;
+  emptyCapabilities = cfg:
+    let service = cfg.systemd.services.atrium-whiskey-fixture.serviceConfig;
+    in service.CapabilityBoundingSet == [ "" ] && service.AmbientCapabilities == [ "" ];
+  privileged = compose {
+    CapabilityBoundingSet = [ "CAP_NET_ADMIN" "CAP_NET_RAW" "CAP_SYS_ADMIN" ];
+    AmbientCapabilities = [ "CAP_NET_ADMIN" "CAP_DAC_OVERRIDE" ];
+  };
+  defaultPrivileged = compose {
+    CapabilityBoundingSet = lib.mkDefault [ "CAP_NET_ADMIN" ];
+    AmbientCapabilities = lib.mkDefault [ "CAP_NET_RAW" ];
+  };
+  orderedPrivileged = compose {
+    CapabilityBoundingSet = lib.mkBefore [ "CAP_SYS_ADMIN" ];
+    AmbientCapabilities = lib.mkAfter [ "CAP_NET_ADMIN" ];
+  };
+  forcedPrivileged = compose {
+    CapabilityBoundingSet = lib.mkForce [ "CAP_NET_ADMIN" ];
+    AmbientCapabilities = lib.mkForce [ "CAP_SYS_ADMIN" ];
+  };
+  strongerPrivileged = compose {
+    CapabilityBoundingSet = lib.mkOverride 0 [ "CAP_NET_RAW" ];
+    AmbientCapabilities = lib.mkOverride 0 [ "CAP_DAC_OVERRIDE" ];
+  };
+  capabilityOverrideRejected = cfg: lib.any
+    (entry:
+      entry.message == "N06 consumer capability sets must remain empty after module composition."
+      && !entry.assertion)
+    cfg.assertions;
 in
 {
   registry_valid = builtins.isAttrs fixture.registry;
@@ -35,8 +66,18 @@ in
   publication_routes = fixture.litellm.model_templates.whiskey-service.routes == [ "/v1/messages" ];
   native_namespace_only = setup.serviceConfig.NetworkNamespacePath == "/run/atrium-n06/fixture/netns";
   nonroot_consumer = consumer.serviceConfig.User == "11001";
-  cannot_change_filter = consumer.serviceConfig.CapabilityBoundingSet == [ ] && consumer.serviceConfig.NoNewPrivileges;
+  cannot_change_filter = emptyCapabilities config && consumer.serviceConfig.NoNewPrivileges;
+  inherited_capabilities_cleared = emptyCapabilities privileged;
+  default_capabilities_cleared = emptyCapabilities defaultPrivileged;
+  ordered_capabilities_cleared = emptyCapabilities orderedPrivileged;
+  forced_capabilities_rejected = capabilityOverrideRejected forcedPrivileged;
+  stronger_capabilities_rejected = capabilityOverrideRejected strongerPrivileged;
+  rendered_capabilities_reset =
+    let text = privileged.systemd.units."atrium-whiskey-fixture.service".text;
+    in lib.hasInfix "CapabilityBoundingSet=\n" text
+      && lib.hasInfix "AmbientCapabilities=\n" text;
+  setup_keeps_namespace_capability = setup.serviceConfig.CapabilityBoundingSet == [ "CAP_NET_ADMIN" ];
   no_direct_anthropic_key = lib.elem "ANTHROPIC_API_KEY" consumer.serviceConfig.UnsetEnvironment;
   rotating_key_remains_live_path = consumer.environment.WWW_ATRIUM_MODEL_CONFIG == "/run/atrium-n06/consumer.json";
-  isolated_only = lib.any (entry: !entry.assertion) (eval false).config.assertions;
+  isolated_only = lib.any (entry: !entry.assertion) (eval false [ ]).config.assertions;
 }

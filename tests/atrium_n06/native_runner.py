@@ -139,11 +139,36 @@ def main():
             timeout=120,
         ).stdout
     )
+    module_checks = json.loads(
+        subprocess.run(
+            [
+                "nix",
+                "eval",
+                "--builders",
+                "",
+                "--offline",
+                "--no-write-lock-file",
+                "--impure",
+                "--json",
+                "--expr",
+                f"let f = builtins.getFlake {json.dumps(str(ROOT))}; in import {HERE / 'evaluate.nix'} {{ inherit (f.inputs) nixpkgs atrium; }}",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=120,
+        ).stdout
+    )
+    require(
+        all(value is True for value in module_checks.values()),
+        "n06_module_assertion_failed",
+    )
     result = {
         "ticket": "ATR-N06",
         "run_id": "n06-" + secrets.token_hex(8),
         "status": "running",
         "full_n06": "incomplete",
+        "module_checks": module_checks,
         "source": {
             "commit": git(ROOT, "rev-parse", "HEAD").decode().strip(),
             "dirty": bool(git(ROOT, "status", "--porcelain").strip()),
@@ -425,6 +450,12 @@ except Exception as error:
         require(
             boot["consumer"]["uid"] == 11001
             and int(boot["consumer"]["capabilities"], 16) == 0
+            and set(boot["consumer"]["capability_sets"])
+            == {"CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"}
+            and all(
+                int(value, 16) == 0
+                for value in boot["consumer"]["capability_sets"].values()
+            )
             and boot["consumer"]["no_new_privileges"] == "1",
             "consumer_can_change_egress",
         )
@@ -475,6 +506,22 @@ except Exception as error:
                 checkpoint()
 
             try:
+
+                def cannot_remove_filter(row):
+                    row["deny"] = process.call("attempt-filter-removal")
+                    require(
+                        row["deny"].get("attempted") is True
+                        and row["deny"].get("exit_code") not in (None, 0)
+                        and row["deny"].get("error_code") is None,
+                        "consumer_can_remove_filter",
+                    )
+                    row["table_retained"] = any(
+                        entry.get("table", {}).get("name") == "atrium_whiskey"
+                        for entry in process.call("rules")["rules"]["nftables"]
+                    )
+                    require(row["table_retained"], "consumer_removed_filter")
+
+                case("N06-consumer-cannot-remove-filter", cannot_remove_filter)
                 rotation = process.call("rotate")
                 evidence["initial_controller"] = rotation
                 require(rotation.get("ok"), "n04_publication_failed")

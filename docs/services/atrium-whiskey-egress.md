@@ -46,6 +46,19 @@ credential-path and environment restrictions to a `*-fixture` unit. Namespace
 creation and runtime secrets are explicit external prerequisites. Its evaluation
 checks are **not** native systemd/Forge deployment evidence.
 
+Both consumer capability settings use forced **empty systemd reset directives**.
+An ordinary empty Nix list neither overrides another module's capability list nor
+emits a reset into the generated unit. `lib.mkForce [ "" ]` clears normal/default/
+ordered definitions and renders `CapabilityBoundingSet=` and
+`AmbientCapabilities=`. A final-composition assertion rejects a competing forced
+or stronger definition that would retain any capability. The namespace setup unit
+alone retains `CAP_NET_ADMIN`; the selected consumer does not.
+
+Composition regressions cover pre-existing `CAP_NET_ADMIN`, `CAP_NET_RAW`,
+`CAP_SYS_ADMIN` and `CAP_DAC_OVERRIDE`, including forced overrides. The native lane
+records all five Linux capability sets and attempts filter removal as the actual
+consumer UID before executing its existing paired egress cases.
+
 ## Required outbound inventory
 
 The inventory is based on W03 source `c26e318`, not `.env` or live service state.

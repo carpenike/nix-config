@@ -187,6 +187,7 @@ def main():
         "PLEX_BASE_URL": "https://plex.atrium.invalid",
         "PLEX_TOKEN": credentials["plex"],
         "WWW_PUBLIC_BASE_ORIGIN": "https://whiskey.atrium.invalid",
+        "ATRIUM_N06_NFT": data["nft"],
     }
     consumer = subprocess.Popen(
         [
