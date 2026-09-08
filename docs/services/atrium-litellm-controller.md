@@ -197,6 +197,11 @@ observations and cleanup are recorded separately from ordinary unit fixtures.
 The paired Atrium candidate's `harness/PUBLICATIONS.md` documents the N03
 configuration handoff, exact isolated UID/GID roles, clean-source runner and
 Darwin setgid test limitation. Neither repository activates N03 in this follow-up.
+Its `harness.publications_models` follow-up enables these exports in the existing
+real R06 native driver and checks their actual outputs from a separate metadata
+reader UID. `tests/atrium_n04/publication_models.py` is only the invocation-owned
+fixture worker; it neither changes the controller nor claims split N03 service
+or live inference-hook coverage.
 
 ## Actual pinned native API findings
 
