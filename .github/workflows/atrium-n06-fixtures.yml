@@ -1,0 +1,48 @@
+---
+name: Atrium N06 fixture contracts
+
+"on":
+  pull_request:
+    paths:
+      - tests/atrium_n06/**
+      - .github/workflows/atrium-n06-fixtures.yml
+      - flake.lock
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fixture-contracts:
+    name: N06 host fixture contracts (not native egress)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+      - name: Restore existing pytest stack from the pinned Nix input
+        id: python
+        run: |
+          path="$(nix build --builders '' --no-link --no-write-lock-file \
+            --print-out-paths --impure --expr '
+              let
+                f = builtins.getFlake (toString ./.);
+                p = f.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+              in p.python312.withPackages
+                (ps: [ ps.pytest ps.pyjwt ps.cryptography ])
+            ')"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+      - name: Validate fixture contracts without native services
+        run: |
+          mkdir -p .artifacts/pytest-state
+          "${{ steps.python.outputs.path }}/bin/python" -m pytest \
+            -q -p no:cacheprovider \
+            tests/atrium_n06/test_egress.py \
+            tests/atrium_n06/test_source_artifact.py \
+            tests/atrium_n06/test_required_features.py \
+            --assert=plain --tb=short --basetemp=.artifacts/pytest-state/n06-ci

@@ -61,8 +61,10 @@ consumer UID before executing its existing paired egress cases.
 
 ## Required outbound inventory
 
-The inventory is based on W03 source `c26e318`, not `.env` or live service state.
-Configured origins, account selections, subscription URLs and tokens are not read.
+The inventory is checked against immutable accepted Whiskey
+`273cf414cac75276492ee849bb3ea257ce47f8de`, not `.env` or live service state.
+Earlier receipts retain their original W03 source pins. Real configured origins,
+account selections, subscription URLs and tokens are not read.
 
 | Capability | Actual code / destination source | Isolated treatment |
 | --- | --- | --- |
@@ -71,15 +73,15 @@ Configured origins, account selections, subscription URLs and tokens are not rea
 | Gemini image generation | `lib/image-gen.ts`; `generativelanguage.googleapis.com/v1beta/models/...:generateContent` | Direct native adapter, separate synthetic key |
 | OpenRouter image generation | `lib/image-gen.ts`; `openrouter.ai/api/v1/chat/completions` | Direct native adapter, separate synthetic key |
 | Partiful Firebase refresh | `integrations/partiful-firebase.ts`; `securetoken.googleapis.com` | Actual client with a synthetic fixture refresh grant; never a live grant |
-| Partiful reads/writes | Same client; `api.partiful.com`, `firestore.googleapis.com` | Non-actuating API fixtures; no real events, messages or writes |
-| Partiful calendar | `lib/partiful.ts`; origin of `PARTIFUL_CALENDAR_URL` (including webcal→HTTPS) | Explicit synthetic calendar destination; full sync permit remains separate |
+| Partiful reads/writes | Same client; `api.partiful.com`, `firestore.googleapis.com` | Actual paginated guest read, masked schedule update and multipart image upload; finite synthetic effects only |
+| Partiful calendar | `lib/partiful.ts`; origin of `PARTIFUL_CALENDAR_URL` (including webcal→HTTPS) | Actual HTTPS feed sync/reconciliation, persisted status and suggestion; invalid feed credential preserves operation schedule |
 | OIDC | `lib/oidc.ts`; `WWW_OIDC_ISSUER` discovery and declared authorization/token/JWKS/userinfo origins | Actual discovery client against synthetic TLS issuer; full login flow not claimed |
-| External resource-server identity | `lib/resource-server.ts`; `WWW_EXTERNAL_AS_ISSUER` discovery/JWKS | Inventory only; existing W01/W02 authorization is not replaced |
-| Pocket ID admin | `lib/pocketid-admin.ts`; `WWW_POCKETID_API_URL`, `X-API-KEY` credential | Inventory only; real invitation/admin operations not performed |
+| External resource-server identity | `lib/resource-server.ts`; `WWW_EXTERNAL_AS_ISSUER` discovery/JWKS | Actual metadata/JWKS and native JWT verification against a synthetic issuer; existing W01/W02 authorization is not replaced |
+| Pocket ID admin | `lib/pocketid-admin.ts`; `WWW_POCKETID_API_URL`, `X-API-KEY` credential | Actual single-use signup-token mint/delete against synthetic admin API; no real invitation/account creation |
 | Plex | `lib/plex.ts`; `PLEX_BASE_URL`, header credential | Actual identity read against synthetic Plex |
-| Cooklang | `lib/cooklang.ts`; `COOKLANG_BASE_URL` | Explicit synthetic destination; native recipe permit not claimed |
-| Mailgun | `lib/mailer.ts`; configured API base or `api.mailgun.net` / `api.eu.mailgun.net` | Explicit synthetic destination; native mail permit not claimed |
-| Web push | `lib/web-push.ts`; per-subscription endpoint and VAPID runtime keys | Explicit synthetic destination; platform endpoint policy still requires owner selection |
+| Cooklang | `lib/cooklang.ts`; `COOKLANG_BASE_URL` | Actual index, cache warm and parsed native recipe against synthetic API |
+| Mailgun | `lib/mailer.ts`; configured API base or `api.mailgun.net` / `api.eu.mailgun.net` | Actual authenticated form transport to a non-delivering synthetic recipient fixture |
+| Web push | `lib/web-push.ts`; per-subscription endpoint and VAPID runtime keys | Actual subscription CRUD and encrypted transport to a non-delivering fixture; production platform endpoint selection remains separate |
 | Reference/media reads | `lib/safe-fetch.ts`, `fetchReferenceImage`, Partiful media/Firebase Storage | Actual DNS-pinned SSRF-safe reference/image-edit calls against a synthetic public-looking address |
 
 `safe-fetch.ts` accepts arbitrary public HTTP/HTTPS URLs and revalidates redirects.
@@ -93,10 +95,17 @@ Production adoption requires an explicit allowed-origin/address update policy fo
 arbitrary reference URLs, calendar feed origins, push endpoints, OIDC off-origin
 metadata and configured household services. A fixed allowlist cannot preserve every
 possible public URL. This change does not choose Ryan's real accounts/origins,
-silently disable these features, or add an internet escape. Full calendar sync,
-Firestore/media upload, external issuer, Pocket ID admin, recipe, mail and push
-permit coverage remains unexecuted; those are **remaining N06 gates**, not green
-inferences from a successful TCP request.
+silently disable these features, or add an internet escape. Those production
+choices do not block isolated proof at explicitly declared synthetic destinations.
+The required calendar, Firestore/media-upload, external-issuer, Pocket ID admin,
+recipe, mail and push helper permits now have their own
+[source-bound native evidence](#required-feature-preservation-follow-up);
+they are not inferred from successful TCP requests.
+
+The selected helper/transport proof does not claim complete browser login,
+invitation or push-permission workflows, and does not make those deferred UI
+workflows new phase-1 prerequisites. Assembled T16/N03/N07 gate promotion and
+production adoption remain separate.
 
 T4 here concerns the Whiskey namespace's direct native gateway access, not a full
 LAN/N03 ingress audit. T22 reuses real N04 foreign-alias refusal paired with the
@@ -156,7 +165,8 @@ The existing checks also pass **10 policy tests and 9 Nix assertions**.
 * **T16 required permits exercised:** actual OpenAI/Gemini/OpenRouter image
   adapters, OIDC discovery, Partiful refresh/read, Plex identity, SSRF-safe
   reference fetch and OpenAI reference edit all work through the selected
-  restrictions. The unexecuted integration portions remain listed above.
+  restrictions. This historical receipt does not include the nine newer
+  required-feature groups documented below.
 * **T22 portion:** the actual N04 parser refuses `foreign_alias_backend`, paired
   with the configured valid alias reaching only its declared synthetic account.
 
@@ -194,5 +204,55 @@ traversable; credential/control permissions were not widened.
 Cleanup removed all exact owned resources and
 `atrium-harness-n06-a6f1542252fb5305-net`, retaining `ambit-db` unchanged.
 Enforcement remains IPv4 **address + TCP port**, not hostname or modality
-isolation. The previously documented unexecuted permits and owner decisions
-remain full-gate limits.
+isolation. The newer required-feature permits are separately source-bound below;
+production adoption and assembled-gate limits are unchanged.
+
+### Required feature-preservation follow-up
+
+The [owned required-permit extension](../../tests/atrium_n06/README.md#required-non-model-permit-extension)
+executes the required real client/helper paths against finite synthetic
+services. Its [corrected native receipt](../../tests/atrium_n06/results/n06-required-native-b47ce525.json)
+records **24 passing groups** at clean source
+`b47ce5258da163189350a8891e0ba3ba117c2b57`, with immutable accepted Whiskey
+`273cf414cac75276492ee849bb3ea257ce47f8de`. The exact
+[handoff](../../tests/atrium_n06/results/n06-required-native-b47ce525-handoff.json)
+records commands, pins, cleanup and scope limits.
+
+All nine added groups have native permit, deny and recovery results; the 18
+explicit feature denials have zero prohibited fixture effects. Every helper
+uses the same PID 8 / UID 11001, zero inheritable/permitted/effective/bounding/
+ambient capabilities and `NoNewPrivileges=1`. The original 15 text/image/
+reference and negative egress controls also pass at this same source pin.
+The existing 20 focused host tests and 16 isolated Nix assertions pass but are
+not substituted for the native proof.
+
+| Native group (`T16-required-*`) | Actual permit / bounded effect | Actual refusal |
+| --- | --- | --- |
+| `calendar-sync` | `GET calendar.atrium.invalid/calendar.ics`; two feed events, two schedule-field changes, one suggestion, persisted status; protected title/notes unchanged | Invalid capability query credential: 401, no operation schedule change |
+| `firestore-guests` | Native securetoken refresh then Firestore event GET and two guest pages | Invalid refresh; foreign event denied before successful event/guest reads |
+| `firestore-schedule` | Native refresh/GET/PATCH; exact four-field update mask, duration and timezone preserved | Invalid refresh; foreign event; zero schedule writes |
+| `partiful-upload` | Native refresh, SSRF-safe reference fetch and `POST api.partiful.com/uploadPhoto`; exact native PNG multipart body and parsed upload response | Invalid refresh; no media fetch or accepted upload |
+| `external-issuer` | Native resource-server discovery/JWKS and RFC9068 verification at `identity.atrium.invalid` | Wrong audience, issuer, scope, expiry and signature all yield no verified identity |
+| `pocketid-admin` | Native group lookup and `POST /api/signup-tokens` with exact single-use/group/TTL DTO; DELETE 204 and repeated 404 treated idempotently | Wrong native API key, invalid TTL and ungranted group; no signup creation |
+| `recipe` | Native recipe index, warm/cache and parsed ingredients/cookware/steps; two observed document requests within the documented prewarm bound | Unknown native index reference: no document fetch |
+| `mail` | Native Basic-authenticated `POST mail.atrium.invalid/v3/fixture.atrium.invalid/messages`, exact recipient/form and tracking disabled | Wrong key and invalid recipient; zero accepted fixture messages |
+| `push` | Native subscription CRUD and `POST push.atrium.invalid/fixture/subscription`; ES256 VAPID and AES128GCM decrypted payload verified, HTTP 201 | Foreign-owner deletion refused; wrong subscription auth gets 400 with zero accepted delivery; recovery gets 201 |
+
+Allowed validation reads and native calendar error-log persistence are not
+misreported as absent. The denial accounting concerns each case's explicitly
+prohibited data/action effect. Mail, upload and push are synthetic and
+non-delivering; no live account, device or household destination is used.
+
+The [first run](../../tests/atrium_n06/results/n06-required-native-80cffd3f.json)
+is retained unchanged: 23/24 groups passed, but push stopped before any outbound
+request with `SQLITE_CONSTRAINT_FOREIGNKEY`. The fixture had omitted the owner
+required by the native subscription table. The only repair provisions a
+synthetic crew row with the unchanged `upsertUserOnLogin` helper. No source
+adapter, schema, authentication, fetch or egress exception was changed.
+
+Both attempts' 14 exact containers and two networks were rechecked absent.
+The complete foreign container inventory remained unchanged, including the
+running `ambit-db`; only N06's lease row was removed and the lease query was
+empty. No subsequent VM use is part of this handoff. Full N06/T16/N03/N07,
+admission-hook integration, browser workflows and production origin selection
+are not claimed.
