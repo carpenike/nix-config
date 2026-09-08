@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { runSync, getCachedFeed, getSuggestions, getStatus } from './runtime/server/lib/partiful.js';
-import { opsService } from './runtime/server/lib/service.js';
+import { opsService, getUserBySub, upsertUserOnLogin } from './runtime/server/lib/service.js';
 import { OperationCreateSchema } from './runtime/server/lib/types.js';
 import { PartifulFirebaseClient } from './runtime/server/integrations/partiful-firebase.js';
 import { fetchReferenceImage } from './runtime/server/lib/image-gen.js';
@@ -132,6 +132,12 @@ export async function feature(command) {
     return { ok: result.ok, native_receipt: result.ok && result.id === '<n06-fixture-message>' };
   }
   if (command.action === 'push') {
+    if (!getUserBySub('n06-fixture-owner')) {
+      upsertUserOnLogin({
+        sub: 'n06-fixture-owner', email: 'fixture-owner@example.invalid',
+        name: 'N06 fixture owner', seedRole: 'crew',
+      });
+    }
     const subscription = privateInputs().push_subscription;
     upsertPushSubscription({
       endpoint: subscription.endpoint, userSub: 'n06-fixture-owner',

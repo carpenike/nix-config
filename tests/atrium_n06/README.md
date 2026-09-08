@@ -89,3 +89,14 @@ not replaced with a fake single count.
 Full N06/T16/N03/N07 promotion and production dynamic-origin selection remain
 separate. Existing native receipts are historical proof of their exact source,
 not proof that this new extension has run.
+
+The [first required-feature native receipt](results/n06-required-native-80cffd3f.json)
+binds 23 passing groups (15 retained controls and eight new feature groups) to
+clean source `80cffd3f6838ce7acf28ab5ff85a98103d2f8df4`. Push stopped before any
+outbound request with `SQLITE_CONSTRAINT_FOREIGNKEY`: the fixture had omitted
+the synthetic owner required by the native subscription schema. Fixture setup
+now provisions that crew row with the existing `upsertUserOnLogin` helper,
+without changing the schema, auth, transport or egress policy. The failed
+diagnostic remains intact; corrected push evidence requires another clean run.
+All seven exact invocation containers and its network were rechecked absent;
+the pre-existing `ambit-db` remained running unchanged.
