@@ -60,6 +60,13 @@
     description = "Isolated Atrium inference consumer fixture";
     extraGroups = [ ];
   };
+  # Reserved only for the unimported ATR-N03 foundation fixture.
+  atrium-resolver-fixture = { uid = 65432; gid = 65432; extraGroups = [ ]; };
+  atrium-caddy-fixture = { uid = 65433; gid = 65433; extraGroups = [ ]; };
+  atrium-mcp-fixture = { uid = 65434; gid = 65434; extraGroups = [ ]; };
+  atrium-identity-fixture = { uid = 65435; gid = 65435; extraGroups = [ ]; };
+  atrium-client-fixture = { uid = 65436; gid = 65436; extraGroups = [ ]; };
+  atrium-forwarder-fixture = { uid = 65438; gid = 65438; extraGroups = [ ]; };
 
   # ============================================================================
   # SHARED GROUPS (infrastructure groups for cross-service access)

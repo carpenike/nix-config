@@ -129,9 +129,9 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N05: shared profiles/resolver for isolated admission; no live service is enabled.
+    # ATR-N03: accepted foundation packages for isolated wiring; no live service is enabled.
     atrium = {
-      url = "github:carpenike/atrium/1d620cd30f27f2b5849533fb2a9bdb5016385f69";
+      url = "github:carpenike/atrium/87e1ecaea98688ea079707083413f7b2f6ba1a70";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -511,6 +511,18 @@
 
           # Checks for CI
           checks = {
+            atrium-n03-units = pkgs.writeText "atrium-n03-isolated-units.json"
+              (builtins.toJSON (import ./tests/atrium_n03/evaluate.nix {
+                inherit inputs;
+                system = "x86_64-linux";
+              }));
+            atrium-n03-caddy = pkgs.runCommand "atrium-n03-caddy-syntax"
+              { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
+              caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-Caddyfile"
+                (import ./tests/atrium_n03/caddy.nix {
+                  fixture = import ./tests/atrium_n03/fixture.nix { inherit inputs; };
+                })} > "$out"
+            '';
             atrium-n05-package = availablePackages.atrium-litellm-admission;
             atrium-n05-python = pkgs.runCommand "atrium-n05-python-checks"
               {

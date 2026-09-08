@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "atrium": "87e1ecaea98688ea079707083413f7b2f6ba1a70",
+  "native": "34652871465482627d645e3ea7caea7248547925",
+  "consumer": "273cf414cac75276492ee849bb3ea257ce47f8de",
+  "sqlite_addon": {
+    "version": "12.10.0",
+    "node_abi": 127,
+    "architecture": "arm64",
+    "url": "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.10.0/better-sqlite3-v12.10.0-node-v127-linux-arm64.tar.gz",
+    "sha256": "efb625877ea517be6003c14dbabdb748d0ac172ab50bc4e5af08c2cb272b70c6"
+  }
+}
