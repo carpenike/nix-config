@@ -29,6 +29,8 @@ def main():
         ):
             raise RuntimeError("tool_closure_paths_refused")
         archive.extractall("/", filter="fully_trusted")
+    for path in (Path("/nix"), Path("/nix/store")):
+        path.chmod(0o755)
     runtime = ROOT / "runtime"
     runtime.mkdir(mode=0o755)
     runtime.chmod(0o755)

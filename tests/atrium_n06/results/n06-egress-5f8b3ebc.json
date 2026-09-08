@@ -1,0 +1,4529 @@
+{
+  "bounded_n06_gate": "incomplete",
+  "cases": [
+    {
+      "deny": {
+        "attempted": true,
+        "error_code": "EACCES",
+        "exit_code": null,
+        "pid": 8,
+        "uid": 11001
+      },
+      "error": "consumer_can_remove_filter",
+      "id": "N06-consumer-cannot-remove-filter",
+      "status": "blocked"
+    },
+    {
+      "deny": {
+        "pid": 8,
+        "status": 503,
+        "stop_reason": null,
+        "text": null,
+        "uid": 11001
+      },
+      "destinations": [
+        {
+          "authorized": true,
+          "host": "litellm.atrium.invalid",
+          "method": "POST",
+          "path": "/v1/messages"
+        }
+      ],
+      "foreign_provider_requests": 0,
+      "id": "T16-adopted-text-runtime-credential",
+      "native_provider": {
+        "credential_matches": [
+          true
+        ],
+        "models": [
+          "fixture-personal"
+        ],
+        "paths": [
+          "/v1/responses"
+        ],
+        "requests": 1
+      },
+      "permit": {
+        "pid": 8,
+        "status": 200,
+        "stop_reason": "end_turn",
+        "text": "fixture-ok",
+        "uid": 11001
+      },
+      "recovery": {
+        "pid": 8,
+        "status": 200,
+        "stop_reason": "end_turn",
+        "text": "fixture-ok",
+        "uid": 11001
+      },
+      "status": "passed"
+    },
+    {
+      "deny": {
+        "code": "foreign_alias_backend",
+        "ok": false
+      },
+      "id": "T22-foreign-alias",
+      "status": "passed"
+    },
+    {
+      "deny": {
+        "error_code": null,
+        "error_type": "TypeError",
+        "ok": false,
+        "pid": 8,
+        "uid": 11001
+      },
+      "id": "T16-undeclared-direct-provider",
+      "kernel_rejected_packets": 1,
+      "reachable_from_setup_uid": {
+        "status": 200
+      },
+      "status": "passed"
+    },
+    {
+      "deny": {
+        "error_code": null,
+        "error_type": "TypeError",
+        "ok": false,
+        "pid": 8,
+        "uid": 11001
+      },
+      "id": "T4-direct-native-backend",
+      "kernel_rejected_packets": 1,
+      "reachable_from_setup_uid": {
+        "status": 200
+      },
+      "status": "passed"
+    },
+    {
+      "destinations": [
+        {
+          "authorized": true,
+          "host": "api.openai.com",
+          "method": "POST",
+          "path": "/v1/images/generations"
+        }
+      ],
+      "id": "T16-image-openai",
+      "permit": {
+        "height": 2,
+        "mime": "image/png",
+        "ok": true,
+        "pid": 8,
+        "provider": "openai",
+        "sha256": "b7db59ec74aec85d7cc1e98f45e7b81a47fed711326ace33507cdd46ff1fb1c4",
+        "uid": 11001,
+        "width": 2
+      },
+      "status": "passed"
+    },
+    {
+      "destinations": [
+        {
+          "authorized": true,
+          "host": "generativelanguage.googleapis.com",
+          "method": "POST",
+          "path": "/v1beta/models/gemini-3.1-flash-image:generateContent"
+        }
+      ],
+      "id": "T16-image-gemini",
+      "permit": {
+        "height": 2,
+        "mime": "image/png",
+        "ok": true,
+        "pid": 8,
+        "provider": "gemini",
+        "sha256": "b7db59ec74aec85d7cc1e98f45e7b81a47fed711326ace33507cdd46ff1fb1c4",
+        "uid": 11001,
+        "width": 2
+      },
+      "status": "passed"
+    },
+    {
+      "destinations": [
+        {
+          "authorized": true,
+          "host": "openrouter.ai",
+          "method": "POST",
+          "path": "/api/v1/chat/completions"
+        }
+      ],
+      "id": "T16-image-openrouter",
+      "permit": {
+        "height": 2,
+        "mime": "image/png",
+        "ok": true,
+        "pid": 8,
+        "provider": "openrouter",
+        "sha256": "b7db59ec74aec85d7cc1e98f45e7b81a47fed711326ace33507cdd46ff1fb1c4",
+        "uid": 11001,
+        "width": 2
+      },
+      "status": "passed"
+    },
+    {
+      "id": "T16-non-model-identity",
+      "permit": {
+        "ok": true,
+        "pid": 8,
+        "uid": 11001
+      },
+      "status": "passed"
+    },
+    {
+      "id": "T16-non-model-partiful",
+      "permit": {
+        "ok": true,
+        "pid": 8,
+        "uid": 11001
+      },
+      "status": "passed"
+    },
+    {
+      "id": "T16-non-model-plex",
+      "permit": {
+        "ok": true,
+        "pid": 8,
+        "uid": 11001
+      },
+      "status": "passed"
+    },
+    {
+      "id": "T16-reference-fetch",
+      "permit": {
+        "bytes": 74,
+        "mime": "image/png",
+        "ok": true,
+        "pid": 8,
+        "uid": 11001
+      },
+      "status": "passed"
+    },
+    {
+      "id": "T16-openai-reference-edit",
+      "permit": {
+        "height": 2,
+        "mime": "image/png",
+        "ok": true,
+        "pid": 8,
+        "provider": "openai",
+        "sha256": "b7db59ec74aec85d7cc1e98f45e7b81a47fed711326ace33507cdd46ff1fb1c4",
+        "uid": 11001,
+        "width": 2
+      },
+      "status": "passed"
+    },
+    {
+      "id": "address-granularity-cohost",
+      "permit": {
+        "pid": 8,
+        "status": 200,
+        "uid": 11001
+      },
+      "status": "passed"
+    },
+    {
+      "id": "provider-exception-not-image-only",
+      "permit": {
+        "pid": 8,
+        "status": 200,
+        "uid": 11001
+      },
+      "status": "passed"
+    }
+  ],
+  "cleanup": {
+    "images_removed": false,
+    "remaining_owned_resources": [],
+    "shared_vm_and_preexisting_resources_modified": false,
+    "status": "passed"
+  },
+  "commands": [
+    {
+      "argv": [
+        "podman",
+        "system",
+        "connection",
+        "list",
+        "--format=json"
+      ],
+      "duration_ms": 55,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 115,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "info",
+        "--format",
+        "json"
+      ],
+      "duration_ms": 109,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "image",
+        "inspect",
+        "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+      ],
+      "duration_ms": 65,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n06-4e66b8541eada254-version",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "--network",
+        "none",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-c",
+        "import importlib.metadata,json,platform; print(json.dumps({'litellm':importlib.metadata.version('litellm'),'python':platform.python_version()}))"
+      ],
+      "duration_ms": 70,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "d4029885bb745514f17a819723eb451ed3202cd4435792aff9ab7984f9d1dd11"
+      ],
+      "duration_ms": 160,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "image",
+        "inspect",
+        "docker.io/library/postgres@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571"
+      ],
+      "duration_ms": 66,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "create",
+        "--internal",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "atrium-harness-n06-4e66b8541eada254-net"
+      ],
+      "duration_ms": 60,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "inspect",
+        "atrium-harness-n06-4e66b8541eada254-net"
+      ],
+      "duration_ms": 59,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n06-4e66b8541eada254-postgres",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "--network",
+        "atrium-harness-n06-4e66b8541eada254-net",
+        "--memory",
+        "1024m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "/bin/sh",
+        "--tmpfs",
+        "/var/lib/postgresql/data:rw,nosuid,nodev,noexec,size=768m,mode=0700",
+        "75f5a96988cdf694a215073c3e9c001b706b371e2f94df3967f2efdec2787f6b",
+        "-c",
+        "IFS= read -r POSTGRES_PASSWORD; export POSTGRES_PASSWORD; export POSTGRES_USER=atrium_fixture POSTGRES_DB=atrium_fixture; exec docker-entrypoint.sh postgres -c max_connections=24 -c shared_buffers=64MB -c logging_collector=off -c log_statement=none"
+      ],
+      "duration_ms": 67,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955"
+      ],
+      "exit_code": 0,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955"
+      ],
+      "duration_ms": 62,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955"
+      ],
+      "duration_ms": 61,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 120,
+      "exit_code": 2,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 99,
+      "exit_code": 2,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 93,
+      "exit_code": 2,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 99,
+      "exit_code": 2,
+      "status": "failed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955",
+        "pg_isready",
+        "-U",
+        "atrium_fixture",
+        "-d",
+        "atrium_fixture"
+      ],
+      "duration_ms": 164,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "exec",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955",
+        "postgres",
+        "--version"
+      ],
+      "duration_ms": 104,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n06-4e66b8541eada254-provider",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "--network",
+        "atrium-harness-n06-4e66b8541eada254-net",
+        "--memory",
+        "256m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--publish",
+        "127.0.0.1::8000",
+        "--network-alias",
+        "personal.models.atrium.invalid",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\"\"\"Non-actuating OpenAI provider; every gateway/controller/helper is real.\"\"\"\n\nimport json\nimport secrets\nimport sys\nimport threading\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\n\ndef handler(inference_key, observer_key):\n    lock = threading.Lock()\n    counts = {\"received\": 0, \"authorized\": 0, \"models\": [], \"paths\": [], \"credential_matches\": []}\n\n    class Handler(BaseHTTPRequestHandler):\n        def log_message(self, *_):\n            pass\n\n        def authorized(self, key):\n            return secrets.compare_digest(self.headers.get(\"Authorization\", \"\"), \"Bearer \" + key)\n\n        def reply(self, status, body):\n            payload = json.dumps(body).encode()\n            self.send_response(status)\n            self.send_header(\"Content-Type\", \"application/json\")\n            self.send_header(\"Content-Length\", str(len(payload)))\n            self.end_headers()\n            self.wfile.write(payload)\n\n        def do_GET(self):\n            if self.path != \"/_fixture/counts\" or not self.authorized(observer_key):\n                self.reply(401, {\"error\": \"unauthorized\"})\n                return\n            with lock:\n                self.reply(200, counts)\n\n        def do_POST(self):\n            authenticated = self.authorized(inference_key)\n            with lock:\n                counts[\"received\"] += 1\n                counts[\"paths\"].append(self.path)\n                counts[\"credential_matches\"].append(authenticated)\n            if not authenticated:\n                self.reply(401, {\"error\": \"unauthorized\"})\n                return\n            try:\n                size = int(self.headers.get(\"Content-Length\", \"0\"))\n                if not 0 < size <= 65536:\n                    raise ValueError()\n                data = json.loads(self.rfile.read(size))\n                model = data.get(\"model\")\n                if model not in (\"fixture-personal\", \"fixture-family\") or data.get(\"stream\"):\n                    raise ValueError()\n            except (ValueError, TypeError, AttributeError):\n                self.reply(400, {\"error\": \"unsupported_fixture_request\"})\n                return\n            if self.path not in (\"/v1/chat/completions\", \"/v1/responses\"):\n                self.reply(400, {\"error\": \"unsupported_fixture_path\"})\n                return\n            with lock:\n                counts[\"authorized\"] += 1\n                counts[\"models\"].append(model)\n            if self.path == \"/v1/responses\":\n                self.reply(200, {\n                    \"id\": \"resp_w03_fixture\", \"object\": \"response\", \"created_at\": 1,\n                    \"model\": model, \"status\": \"completed\",\n                    \"output\": [{\n                        \"id\": \"msg_w03_fixture\", \"type\": \"message\", \"role\": \"assistant\",\n                        \"status\": \"completed\",\n                        \"content\": [{\"type\": \"output_text\", \"text\": \"fixture-ok\", \"annotations\": []}],\n                    }],\n                    \"usage\": {\"input_tokens\": 1, \"output_tokens\": 1, \"total_tokens\": 2},\n                })\n            else:\n                self.reply(200, {\n                    \"id\": \"fixture-completion\", \"object\": \"chat.completion\", \"created\": 1,\n                    \"model\": model,\n                    \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"fixture-ok\"},\n                                 \"finish_reason\": \"stop\"}],\n                    \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 1, \"total_tokens\": 2},\n                })\n\n    return Handler\n\n\nif __name__ == \"__main__\":\n    credentials = json.loads(sys.stdin.readline())\n    ThreadingHTTPServer(\n        (\"0.0.0.0\", 8000), handler(credentials[\"inference\"], credentials[\"observer\"]),\n    ).serve_forever()\n"
+      ],
+      "duration_ms": 66,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "8ab35afd8a4983f5a3daa319640337b391360e3e74d60074dea9bec5b693339d"
+      ],
+      "exit_code": 137,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "8ab35afd8a4983f5a3daa319640337b391360e3e74d60074dea9bec5b693339d"
+      ],
+      "duration_ms": 57,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "8ab35afd8a4983f5a3daa319640337b391360e3e74d60074dea9bec5b693339d"
+      ],
+      "duration_ms": 71,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "port",
+        "8ab35afd8a4983f5a3daa319640337b391360e3e74d60074dea9bec5b693339d",
+        "8000/tcp"
+      ],
+      "duration_ms": 70,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n06-4e66b8541eada254-family-provider",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "--network",
+        "atrium-harness-n06-4e66b8541eada254-net",
+        "--memory",
+        "256m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--publish",
+        "127.0.0.1::8000",
+        "--network-alias",
+        "family.models.atrium.invalid",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\"\"\"Non-actuating OpenAI provider; every gateway/controller/helper is real.\"\"\"\n\nimport json\nimport secrets\nimport sys\nimport threading\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n\n\ndef handler(inference_key, observer_key):\n    lock = threading.Lock()\n    counts = {\"received\": 0, \"authorized\": 0, \"models\": [], \"paths\": [], \"credential_matches\": []}\n\n    class Handler(BaseHTTPRequestHandler):\n        def log_message(self, *_):\n            pass\n\n        def authorized(self, key):\n            return secrets.compare_digest(self.headers.get(\"Authorization\", \"\"), \"Bearer \" + key)\n\n        def reply(self, status, body):\n            payload = json.dumps(body).encode()\n            self.send_response(status)\n            self.send_header(\"Content-Type\", \"application/json\")\n            self.send_header(\"Content-Length\", str(len(payload)))\n            self.end_headers()\n            self.wfile.write(payload)\n\n        def do_GET(self):\n            if self.path != \"/_fixture/counts\" or not self.authorized(observer_key):\n                self.reply(401, {\"error\": \"unauthorized\"})\n                return\n            with lock:\n                self.reply(200, counts)\n\n        def do_POST(self):\n            authenticated = self.authorized(inference_key)\n            with lock:\n                counts[\"received\"] += 1\n                counts[\"paths\"].append(self.path)\n                counts[\"credential_matches\"].append(authenticated)\n            if not authenticated:\n                self.reply(401, {\"error\": \"unauthorized\"})\n                return\n            try:\n                size = int(self.headers.get(\"Content-Length\", \"0\"))\n                if not 0 < size <= 65536:\n                    raise ValueError()\n                data = json.loads(self.rfile.read(size))\n                model = data.get(\"model\")\n                if model not in (\"fixture-personal\", \"fixture-family\") or data.get(\"stream\"):\n                    raise ValueError()\n            except (ValueError, TypeError, AttributeError):\n                self.reply(400, {\"error\": \"unsupported_fixture_request\"})\n                return\n            if self.path not in (\"/v1/chat/completions\", \"/v1/responses\"):\n                self.reply(400, {\"error\": \"unsupported_fixture_path\"})\n                return\n            with lock:\n                counts[\"authorized\"] += 1\n                counts[\"models\"].append(model)\n            if self.path == \"/v1/responses\":\n                self.reply(200, {\n                    \"id\": \"resp_w03_fixture\", \"object\": \"response\", \"created_at\": 1,\n                    \"model\": model, \"status\": \"completed\",\n                    \"output\": [{\n                        \"id\": \"msg_w03_fixture\", \"type\": \"message\", \"role\": \"assistant\",\n                        \"status\": \"completed\",\n                        \"content\": [{\"type\": \"output_text\", \"text\": \"fixture-ok\", \"annotations\": []}],\n                    }],\n                    \"usage\": {\"input_tokens\": 1, \"output_tokens\": 1, \"total_tokens\": 2},\n                })\n            else:\n                self.reply(200, {\n                    \"id\": \"fixture-completion\", \"object\": \"chat.completion\", \"created\": 1,\n                    \"model\": model,\n                    \"choices\": [{\"index\": 0, \"message\": {\"role\": \"assistant\", \"content\": \"fixture-ok\"},\n                                 \"finish_reason\": \"stop\"}],\n                    \"usage\": {\"prompt_tokens\": 1, \"completion_tokens\": 1, \"total_tokens\": 2},\n                })\n\n    return Handler\n\n\nif __name__ == \"__main__\":\n    credentials = json.loads(sys.stdin.readline())\n    ThreadingHTTPServer(\n        (\"0.0.0.0\", 8000), handler(credentials[\"inference\"], credentials[\"observer\"]),\n    ).serve_forever()\n"
+      ],
+      "duration_ms": 77,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "16f752580013a836510e7e52fe58eed5db5768bb6effd9cd62383289104d5931"
+      ],
+      "exit_code": 137,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "16f752580013a836510e7e52fe58eed5db5768bb6effd9cd62383289104d5931"
+      ],
+      "duration_ms": 62,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "16f752580013a836510e7e52fe58eed5db5768bb6effd9cd62383289104d5931"
+      ],
+      "duration_ms": 76,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "port",
+        "16f752580013a836510e7e52fe58eed5db5768bb6effd9cd62383289104d5931",
+        "8000/tcp"
+      ],
+      "duration_ms": 77,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n06-4e66b8541eada254-upstreams",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "--network",
+        "atrium-harness-n06-4e66b8541eada254-net",
+        "--memory",
+        "768m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--publish",
+        "127.0.0.1::8000",
+        "--cap-add",
+        "NET_ADMIN",
+        "--tmpfs",
+        "/run/atrium-n06-upstreams:rw,nosuid,nodev,size=16m,mode=0700",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\"\"\"Non-actuating TLS destinations and authenticated counters for isolated N06.\"\"\"\n\nimport base64\nimport datetime\nimport json\nimport os\nimport secrets\nimport ssl\nimport struct\nimport subprocess\nimport sys\nimport threading\nimport tarfile\nimport zlib\nfrom http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\nfrom pathlib import Path\nfrom urllib.parse import urlsplit\n\nimport httpx\nimport jwt\nfrom cryptography import x509\nfrom cryptography.hazmat.primitives import hashes, serialization\nfrom cryptography.hazmat.primitives.asymmetric import rsa\nfrom cryptography.x509.oid import NameOID\n\n\ndef main():\n    inputs = json.loads(sys.stdin.readline())\n    root = Path(\"/run/atrium-n06-upstreams\")\n    root.mkdir(mode=0o700, exist_ok=True)\n    os.umask(0o077)\n    with tarfile.open(\"/opt/n06-tools.tar.gz\") as archive:\n        archive.extractall(\"/\", filter=\"fully_trusted\")\n    for address in (inputs[\"media_address\"], inputs[\"canary_address\"]):\n        subprocess.run(\n            [inputs[\"ip\"], \"address\", \"add\", address + \"/32\", \"dev\", \"lo\"], check=True\n        )\n    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n    now = datetime.datetime.now(datetime.timezone.utc)\n    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, \"Atrium isolated N06\")])\n    certificate = (\n        x509.CertificateBuilder()\n        .subject_name(name)\n        .issuer_name(name)\n        .public_key(key.public_key())\n        .serial_number(x509.random_serial_number())\n        .not_valid_before(now - datetime.timedelta(minutes=1))\n        .not_valid_after(now + datetime.timedelta(hours=6))\n        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)\n        .add_extension(\n            x509.SubjectAlternativeName(\n                [x509.DNSName(host) for host in inputs[\"hosts\"]]\n            ),\n            critical=False,\n        )\n        .sign(key, hashes.SHA256())\n    )\n    (root / \"certificate.pem\").write_bytes(\n        certificate.public_bytes(serialization.Encoding.PEM)\n    )\n    (root / \"key.pem\").write_bytes(\n        key.private_bytes(\n            serialization.Encoding.PEM,\n            serialization.PrivateFormat.PKCS8,\n            serialization.NoEncryption(),\n        )\n    )\n\n    def chunk(kind, body):\n        return (\n            struct.pack(\"!I\", len(body))\n            + kind\n            + body\n            + struct.pack(\"!I\", zlib.crc32(kind + body) & 0xFFFFFFFF)\n        )\n\n    png = b\"\\x89PNG\\r\\n\\x1a\\n\" + chunk(\n        b\"IHDR\", struct.pack(\"!IIBBBBB\", 2, 2, 8, 6, 0, 0, 0)\n    )\n    png += chunk(b\"IDAT\", zlib.compress((b\"\\0\" + b\"\\x44\\x55\\x66\\xff\" * 2) * 2)) + chunk(\n        b\"IEND\", b\"\"\n    )\n    encoded = base64.b64encode(png).decode()\n    token = jwt.encode(\n        {\n            \"sub\": \"synthetic-partiful-user\",\n            \"iat\": int(now.timestamp()),\n            \"exp\": int(now.timestamp()) + 3600,\n        },\n        key,\n        algorithm=\"RS256\",\n    )\n    lock = threading.Lock()\n    events = []\n\n    class Handler(BaseHTTPRequestHandler):\n        def log_message(self, *_):\n            pass\n\n        def reply(self, status, value, content_type=\"application/json\"):\n            body = value if isinstance(value, bytes) else json.dumps(value).encode()\n            self.send_response(status)\n            self.send_header(\"Content-Type\", content_type)\n            self.send_header(\"Content-Length\", str(len(body)))\n            self.end_headers()\n            self.wfile.write(body)\n\n        def do_GET(self):\n            self.handle_request()\n\n        def do_POST(self):\n            self.handle_request()\n\n        def handle_request(self):\n            path = urlsplit(self.path).path\n            host = self.headers.get(\"Host\", \"\").split(\":\")[0]\n            if self.server.server_port == 8000:\n                if not secrets.compare_digest(\n                    self.headers.get(\"Authorization\", \"\"),\n                    \"Bearer \" + inputs[\"observer\"],\n                ):\n                    self.reply(401, {})\n                elif path == \"/state\":\n                    with lock:\n                        self.reply(200, {\"events\": events})\n                elif path == \"/ca\":\n                    self.reply(\n                        200,\n                        (root / \"certificate.pem\").read_bytes(),\n                        \"application/x-pem-file\",\n                    )\n                else:\n                    self.reply(404, {})\n                return\n            length = int(self.headers.get(\"Content-Length\", \"0\"))\n            if length > 8 * 1024 * 1024:\n                self.reply(413, {})\n                return\n            body = self.rfile.read(length) if length else b\"\"\n            credentials = inputs[\"credentials\"]\n            expected = {\n                \"api.openai.com\": (\"Authorization\", \"Bearer \" + credentials[\"openai\"]),\n                \"generativelanguage.googleapis.com\": (\n                    \"x-goog-api-key\",\n                    credentials[\"gemini\"],\n                ),\n                \"openrouter.ai\": (\n                    \"Authorization\",\n                    \"Bearer \" + credentials[\"openrouter\"],\n                ),\n                \"api.partiful.com\": (\"Authorization\", \"Bearer \" + token),\n                \"plex.atrium.invalid\": (\"X-Plex-Token\", credentials[\"plex\"]),\n            }.get(host)\n            authorized = expected is None or secrets.compare_digest(\n                self.headers.get(expected[0], \"\"), expected[1]\n            )\n            if host == \"securetoken.googleapis.com\":\n                authorized = credentials[\"partiful-refresh\"].encode() in body\n            with lock:\n                events.append(\n                    {\n                        \"host\": host,\n                        \"path\": path,\n                        \"method\": self.command,\n                        \"authorized\": authorized,\n                    }\n                )\n            if not authorized:\n                self.reply(401, {\"error\": \"fixture-credential-refused\"})\n                return\n            if host == \"litellm.atrium.invalid\":\n                with httpx.Client(\n                    trust_env=False, timeout=30, follow_redirects=False\n                ) as client:\n                    response = client.request(\n                        self.command,\n                        inputs[\"gateway\"] + path,\n                        content=body,\n                        headers={\n                            k: v\n                            for k, v in self.headers.items()\n                            if k.lower()\n                            in (\"authorization\", \"content-type\", \"anthropic-version\")\n                        },\n                    )\n                self.reply(\n                    response.status_code,\n                    response.content,\n                    response.headers.get(\"content-type\", \"application/json\"),\n                )\n            elif host == \"api.openai.com\" and path.startswith(\"/v1/images/\"):\n                self.reply(200, {\"data\": [{\"b64_json\": encoded}]})\n            elif host == \"generativelanguage.googleapis.com\":\n                self.reply(\n                    200,\n                    {\n                        \"candidates\": [\n                            {\n                                \"finishReason\": \"STOP\",\n                                \"content\": {\n                                    \"parts\": [\n                                        {\n                                            \"inlineData\": {\n                                                \"mimeType\": \"image/png\",\n                                                \"data\": encoded,\n                                            }\n                                        }\n                                    ]\n                                },\n                            }\n                        ]\n                    },\n                )\n            elif host == \"openrouter.ai\":\n                self.reply(\n                    200,\n                    {\n                        \"choices\": [\n                            {\n                                \"finish_reason\": \"stop\",\n                                \"message\": {\n                                    \"images\": [\n                                        {\n                                            \"image_url\": {\n                                                \"url\": \"data:image/png;base64,\"\n                                                + encoded\n                                            }\n                                        }\n                                    ]\n                                },\n                            }\n                        ],\n                        \"usage\": {\"cost\": 0},\n                    },\n                )\n            elif host == \"securetoken.googleapis.com\":\n                self.reply(\n                    200,\n                    {\n                        \"id_token\": token,\n                        \"expires_in\": \"3600\",\n                        \"refresh_token\": credentials[\"partiful-refresh\"],\n                    },\n                )\n            elif host == \"api.partiful.com\":\n                self.reply(\n                    200,\n                    {\n                        \"result\": {\n                            \"data\": {\"comments\": [], \"media\": [], \"hostMessages\": []}\n                        }\n                    },\n                )\n            elif host == \"identity.atrium.invalid\":\n                self.reply(\n                    200,\n                    {\n                        \"issuer\": \"https://identity.atrium.invalid\",\n                        \"authorization_endpoint\": \"https://identity.atrium.invalid/authorize\",\n                        \"token_endpoint\": \"https://identity.atrium.invalid/token\",\n                        \"jwks_uri\": \"https://identity.atrium.invalid/jwks\",\n                        \"userinfo_endpoint\": \"https://identity.atrium.invalid/userinfo\",\n                        \"response_types_supported\": [\"code\"],\n                        \"subject_types_supported\": [\"public\"],\n                        \"id_token_signing_alg_values_supported\": [\"RS256\"],\n                    },\n                )\n            elif host == \"media.atrium.invalid\":\n                self.reply(200, png, \"image/png\")\n            elif host == \"plex.atrium.invalid\":\n                self.reply(\n                    200, {\"MediaContainer\": {\"machineIdentifier\": \"synthetic-plex\"}}\n                )\n            else:\n                self.reply(200, {\"fixture\": True, \"non_actuating\": True})\n\n    control = ThreadingHTTPServer((\"0.0.0.0\", 8000), Handler)\n    threading.Thread(target=control.serve_forever, daemon=True).start()\n    server = ThreadingHTTPServer((\"0.0.0.0\", 443), Handler)\n    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)\n    context.load_cert_chain(root / \"certificate.pem\", root / \"key.pem\")\n    server.socket = context.wrap_socket(server.socket, server_side=True)\n    server.serve_forever()\n\n\nif __name__ == \"__main__\":\n    main()\n"
+      ],
+      "duration_ms": 78,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n06/.artifacts/n06-linux-tools.tar.gz",
+        "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed:/opt/n06-tools.tar.gz"
+      ],
+      "duration_ms": 485,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed"
+      ],
+      "exit_code": 137,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed"
+      ],
+      "duration_ms": 61,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed"
+      ],
+      "duration_ms": 75,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "port",
+        "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed",
+        "8000/tcp"
+      ],
+      "duration_ms": 63,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{json .NetworkSettings.Networks}}",
+        "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed"
+      ],
+      "duration_ms": 97,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n06-4e66b8541eada254-litellm",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "--network",
+        "atrium-harness-n06-4e66b8541eada254-net",
+        "--memory",
+        "3072m",
+        "--cpus",
+        "2",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--publish",
+        "127.0.0.1::4000",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-c",
+        "\nimport json, os, sys\ndata = json.loads(sys.stdin.readline())\nos.environ.update(data[\"environment\"])\nfd = os.memfd_create(\"atrium-harness-config\", 0)\nos.write(fd, json.dumps(data[\"config\"]).encode())\nos.execv(\"/app/docker/prod_entrypoint.sh\", [\n    \"docker/prod_entrypoint.sh\", \"--config\", \"/proc/self/fd/\" + str(fd),\n    \"--host\", \"0.0.0.0\", \"--port\", \"4000\", \"--num_workers\", \"1\",\n])\n"
+      ],
+      "duration_ms": 79,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "start",
+        "--attach",
+        "--interactive",
+        "f4252552e0c7c33d7cee9e46f7c51e1df6c3e3d06777d0a8b19a3d2f19d28211"
+      ],
+      "exit_code": 0,
+      "status": "exited",
+      "stdin": "not recorded; runtime secrets only"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "f4252552e0c7c33d7cee9e46f7c51e1df6c3e3d06777d0a8b19a3d2f19d28211"
+      ],
+      "duration_ms": 62,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{.State.Status}}",
+        "f4252552e0c7c33d7cee9e46f7c51e1df6c3e3d06777d0a8b19a3d2f19d28211"
+      ],
+      "duration_ms": 58,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "port",
+        "f4252552e0c7c33d7cee9e46f7c51e1df6c3e3d06777d0a8b19a3d2f19d28211",
+        "4000/tcp"
+      ],
+      "duration_ms": 67,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n06-4e66b8541eada254-whiskey",
+        "--label",
+        "atrium.harness.run=n06-4e66b8541eada254",
+        "--network",
+        "atrium-harness-n06-4e66b8541eada254-net",
+        "--memory",
+        "1536m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--cap-add",
+        "NET_ADMIN",
+        "--tmpfs",
+        "/run/atrium-n06:rw,nosuid,nodev,size=256m,mode=0755",
+        "--add-host",
+        "api.anthropic.com:203.0.113.77",
+        "--add-host",
+        "api.openai.com:10.89.1.5",
+        "--add-host",
+        "api.partiful.com:10.89.1.5",
+        "--add-host",
+        "calendar.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "cohost-undeclared.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "cooklang.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "firestore.googleapis.com:10.89.1.5",
+        "--add-host",
+        "generativelanguage.googleapis.com:10.89.1.5",
+        "--add-host",
+        "identity.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "litellm.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "mail.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "media.atrium.invalid:198.20.0.10",
+        "--add-host",
+        "openrouter.ai:10.89.1.5",
+        "--add-host",
+        "plex.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "push.atrium.invalid:10.89.1.5",
+        "--add-host",
+        "securetoken.googleapis.com:10.89.1.5",
+        "--add-host",
+        "whiskey.atrium.invalid:10.89.1.5",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\nimport json,pathlib,sys,traceback\ntry:\n exec(compile('\"\"\"Invocation-owned namespace bootstrap with real N04 publication and Node helpers.\"\"\"\\n\\nimport copy\\nimport hashlib\\nimport json\\nimport os\\nimport select\\nimport subprocess\\nimport sys\\nimport tarfile\\nimport time\\nfrom pathlib import Path\\n\\nimport httpx\\n\\nROOT = Path(\"/run/atrium-n06\")\\nUID = 11001\\n\\n\\ndef main():\\n    data = json.loads(sys.stdin.readline())\\n    os.umask(0o077)\\n    ROOT.mkdir(mode=0o755, exist_ok=True)\\n    ROOT.chmod(0o755)\\n    with tarfile.open(\"/opt/n06-tools.tar.gz\") as archive:\\n        if not all(\\n            member.name.startswith(\"nix/store/\") and \"..\" not in Path(member.name).parts\\n            for member in archive.getmembers()\\n        ):\\n            raise RuntimeError(\"tool_closure_paths_refused\")\\n        archive.extractall(\"/\", filter=\"fully_trusted\")\\n    runtime = ROOT / \"runtime\"\\n    runtime.mkdir(mode=0o755)\\n    runtime.chmod(0o755)\\n    with tarfile.open(\"/opt/whiskey.tar.gz\") as archive:\\n        archive.extractall(runtime, filter=\"fully_trusted\")\\n    with tarfile.open(\"/opt/sqlite.tar.gz\") as archive:\\n        archive.extractall(\\n            runtime / \"node_modules/better-sqlite3\", filter=\"fully_trusted\"\\n        )\\n    for directory in (\"providers\", \"input\", \"inventory\"):\\n        (ROOT / directory).mkdir(mode=0o700)\\n    for directory in (\"credentials\", \"delivery\"):\\n        path = ROOT / directory\\n        path.mkdir(mode=0o750)\\n        path.chmod(0o750)\\n        os.chown(path, 0, UID)\\n    for directory in (\"acks\", \"data\"):\\n        path = ROOT / directory\\n        path.mkdir(mode=0o700)\\n        os.chown(path, UID, UID)\\n    for name, value in data.pop(\"sources\").items():\\n        path = ROOT / \"python\" / name\\n        path.parent.mkdir(parents=True, exist_ok=True)\\n        path.write_text(value)\\n    sys.path.insert(0, str(ROOT / \"python\"))\\n    from atrium_litellm.associations import ProtectedSnapshotSource\\n    from atrium_litellm.controller import Controller\\n    from atrium_litellm.desired import Desired\\n    from atrium_litellm.files import atomic_json\\n    from atrium_litellm.ledger import Ledger\\n    from atrium_litellm.native import Native\\n    from egress import render\\n\\n    for name, value in data.pop(\"provider_keys\").items():\\n        (ROOT / \"providers\" / name).write_text(value)\\n    credentials = data.pop(\"credentials\")\\n    for name, value in credentials.items():\\n        path = ROOT / \"credentials\" / name\\n        path.write_text(value)\\n        path.chmod(0o640)\\n        os.chown(path, 0, UID)\\n    partiful = ROOT / \"credentials/partiful.json\"\\n    partiful.write_text(\\n        json.dumps(\\n            {\\n                \"refreshToken\": credentials[\"partiful-refresh\"],\\n                \"firebaseApiKey\": credentials[\"partiful-api\"],\\n            }\\n        )\\n    )\\n    partiful.chmod(0o640)\\n    os.chown(partiful, 0, UID)\\n    (ROOT / \"ca.pem\").write_text(data[\"ca\"])\\n    (ROOT / \"ca.pem\").chmod(0o644)\\n    (ROOT / \"consumer.mjs\").write_text(data[\"consumer\"])\\n    (ROOT / \"consumer.mjs\").chmod(0o644)\\n    for path in runtime.rglob(\"*\"):\\n        if not path.is_symlink():\\n            path.chmod(0o755 if path.is_dir() or os.access(path, os.X_OK) else 0o644)\\n    ip = data[\"ip\"]\\n    for address in (data[\"media_address\"], data[\"canary_address\"]):\\n        subprocess.run(\\n            [ip, \"route\", \"add\", address + \"/32\", \"via\", data[\"upstream_address\"]],\\n            check=True,\\n        )\\n    namespace = os.readlink(\"/proc/self/ns/net\")\\n    policy_path, bindings_path = ROOT / \"policy.json\", ROOT / \"bindings.json\"\\n    policy_path.write_text(json.dumps(data[\"policy\"]))\\n    bindings_path.write_text(json.dumps(data[\"bindings\"]))\\n    expected_rules = render(data[\"policy\"], data[\"bindings\"])\\n    applied = subprocess.run(\\n        [\\n            sys.executable,\\n            str(ROOT / \"python/egress.py\"),\\n            \"--policy\",\\n            str(policy_path),\\n            \"--bindings\",\\n            str(bindings_path),\\n            \"--expected-netns\",\\n            namespace,\\n            \"--nft\",\\n            data[\"nft\"],\\n        ],\\n        text=True,\\n        capture_output=True,\\n        check=True,\\n    )\\n    installation = json.loads(applied.stdout)\\n    installation[\"rules_sha256\"] = hashlib.sha256(expected_rules.encode()).hexdigest()\\n    desired = Desired.parse(data[\"desired\"])\\n    ledger = Ledger(\\n        ROOT / \"inventory\", data[\"installation\"], \"https://litellm.atrium.invalid\"\\n    )\\n    ledger.initialize()\\n    source = ProtectedSnapshotSource(\\n        ROOT / \"input/associations.json\",\\n        data[\"installation\"],\\n        \"https://litellm.atrium.invalid\",\\n        0,\\n    )\\n    operations = []\\n    native = Native(data[\"gateway\"], data.pop(\"management_key\"), operations=operations)\\n    transports = {\\n        name: {\\n            \"api_base\": \"http://\"\\n            + (\\n                \"personal.models.atrium.invalid\"\\n                if value[\"domain\"] == \"personal:ryan\"\\n                else \"family.models.atrium.invalid\"\\n            )\\n            + \":8000/v1\"\\n        }\\n        for name, value in desired.document[\"model_backends\"].items()\\n    }\\n    controller = Controller(\\n        desired,\\n        ledger,\\n        native,\\n        source,\\n        transports,\\n        service_delivery={\\n            \"whiskey-service\": {\\n                \"ack_path\": str(ROOT / \"acks/key.json\"),\\n                \"consumer_uid\": UID,\\n                \"consumer_gid\": UID,\\n                \"ack_timeout_seconds\": 30,\\n            }\\n        },\\n    )\\n    model_config = {\\n        \"schema_version\": 1,\\n        \"installation\": data[\"installation\"],\\n        \"issuer\": \"https://litellm.atrium.invalid\",\\n        \"model\": \"cc.personal.ryan.text\",\\n        \"template_id\": \"whiskey-service\",\\n        \"key_path\": str(ROOT / \"delivery/key.json\"),\\n        \"key_owner_uid\": 0,\\n        \"acknowledgement_path\": str(ROOT / \"acks/key.json\"),\\n        \"isolated_harness\": True,\\n    }\\n    (ROOT / \"consumer.json\").write_text(json.dumps(model_config))\\n    (ROOT / \"consumer.json\").chmod(0o644)\\n    environment = {\\n        \"PATH\": \"/usr/bin:/bin\",\\n        \"NODE_ENV\": \"test\",\\n        \"HOME\": str(ROOT / \"data\"),\\n        \"DATA_DIR\": str(ROOT / \"data\"),\\n        \"NODE_EXTRA_CA_CERTS\": str(ROOT / \"ca.pem\"),\\n        \"WWW_ATRIUM_MODEL_CONFIG\": str(ROOT / \"consumer.json\"),\\n        \"OPENAI_API_KEY\": credentials[\"openai\"],\\n        \"GEMINI_API_KEY\": credentials[\"gemini\"],\\n        \"OPENROUTER_API_KEY\": credentials[\"openrouter\"],\\n        \"WWW_OIDC_ISSUER\": \"https://identity.atrium.invalid\",\\n        \"WWW_OIDC_CLIENT_ID\": \"whiskey-fixture\",\\n        \"WWW_OIDC_REDIRECT_URI\": \"https://whiskey.atrium.invalid/callback\",\\n        \"PLEX_BASE_URL\": \"https://plex.atrium.invalid\",\\n        \"PLEX_TOKEN\": credentials[\"plex\"],\\n        \"WWW_PUBLIC_BASE_ORIGIN\": \"https://whiskey.atrium.invalid\",\\n        \"ATRIUM_N06_NFT\": data[\"nft\"],\\n    }\\n    consumer = subprocess.Popen(\\n        [\\n            data[\"setpriv\"],\\n            \"--reuid\",\\n            str(UID),\\n            \"--regid\",\\n            str(UID),\\n            \"--clear-groups\",\\n            \"--bounding-set=-all\",\\n            \"--inh-caps=-all\",\\n            \"--ambient-caps=-all\",\\n            \"--no-new-privs\",\\n            \"/usr/bin/node\",\\n            str(ROOT / \"consumer.mjs\"),\\n        ],\\n        cwd=ROOT,\\n        env=environment,\\n        stdin=subprocess.PIPE,\\n        stdout=subprocess.PIPE,\\n        stderr=subprocess.DEVNULL,\\n        text=True,\\n        bufsize=1,\\n    )\\n\\n    def receive():\\n        if not select.select([consumer.stdout], [], [], 45)[0]:\\n            raise RuntimeError(\"consumer_response_timeout\")\\n        value = consumer.stdout.readline()\\n        if not value:\\n            raise RuntimeError(\"consumer_exited\")\\n        return json.loads(value)\\n\\n    def reply(value):\\n        print(json.dumps(value), flush=True)\\n\\n    reply({\"ready\": True, \"consumer\": receive(), \"egress\": installation})\\n    generation = 0\\n    backup = None\\n    try:\\n        for line in sys.stdin:\\n            request = json.loads(line)\\n            action = request[\"action\"]\\n            if action == \"stop\":\\n                break\\n            try:\\n                if action in (\"rotate\", \"reject-foreign-backend\"):\\n                    generation += 1\\n                    now = int(time.time())\\n                    atomic_json(\\n                        source.path,\\n                        {\\n                            \"schema_version\": 1,\\n                            \"kind\": \"atrium.litellm-associations\",\\n                            \"installation\": data[\"installation\"],\\n                            \"issuer\": \"https://litellm.atrium.invalid\",\\n                            \"generation\": generation,\\n                            \"generated_at\": now,\\n                            \"expires_at\": now + 300,\\n                            \"associations\": [],\\n                        },\\n                    )\\n                    if action == \"reject-foreign-backend\":\\n                        foreign = copy.deepcopy(desired.document)\\n                        foreign[\"model_backends\"][\"personal-text\"][\"domain\"] = (\\n                            \"family:holt\"\\n                        )\\n                        Desired.parse(foreign)\\n                        raise RuntimeError(\"foreign_backend_accepted\")\\n                    offset = len(operations)\\n                    report = controller.run()\\n                    reply(\\n                        {\\n                            \"ok\": True,\\n                            \"rotation\": report[\"service_rotation\"],\\n                            \"operations\": operations[offset:],\\n                        }\\n                    )\\n                elif action == \"hide-key\":\\n                    backup = (ROOT / \"delivery/key.json\").read_bytes()\\n                    (ROOT / \"delivery/key.json\").unlink()\\n                    reply({\"hidden\": True})\\n                elif action == \"restore-key\":\\n                    atomic_json(\\n                        ROOT / \"delivery/key.json\",\\n                        json.loads(backup),\\n                        secret=True,\\n                        mode=0o640,\\n                        group=UID,\\n                    )\\n                    reply({\"restored\": True})\\n                elif action == \"root-probe\":\\n                    with httpx.Client(\\n                        trust_env=False, verify=str(ROOT / \"ca.pem\"), timeout=5\\n                    ) as client:\\n                        response = client.get(request[\"url\"])\\n                        reply({\"status\": response.status_code})\\n                elif action == \"rules\":\\n                    rules = subprocess.run(\\n                        [data[\"nft\"], \"-j\", \"list\", \"table\", \"inet\", \"atrium_whiskey\"],\\n                        capture_output=True,\\n                        text=True,\\n                        check=True,\\n                    )\\n                    reply({\"rules\": json.loads(rules.stdout)})\\n                else:\\n                    consumer.stdin.write(json.dumps(request) + \"\\\\n\")\\n                    consumer.stdin.flush()\\n                    reply(receive())\\n            except Exception as error:\\n                reply(\\n                    {\"ok\": False, \"code\": getattr(error, \"code\", type(error).__name__)}\\n                )\\n    finally:\\n        if consumer.poll() is None:\\n            consumer.stdin.write(\\'{\"action\":\"stop\"}\\\\n\\')\\n            consumer.stdin.flush()\\n            consumer.stdin.close()\\n            consumer.wait(timeout=10)\\n\\n\\nif __name__ == \"__main__\":\\n    main()\\n',\"runtime.py\",\"exec\"))\nexcept Exception as error:\n frame=traceback.extract_tb(error.__traceback__)[-1]\n print(json.dumps({\"ready\":False,\"code\":getattr(error,\"code\",type(error).__name__),\"file\":pathlib.Path(frame.filename).name,\"line\":frame.lineno}),flush=True)\n"
+      ],
+      "duration_ms": 67,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n06/.artifacts/n06-linux-tools.tar.gz",
+        "75ded918550bef69b74835f57f5637ae91555d1a2d6b6c2d9f3b0b34516f309f:/opt/n06-tools.tar.gz"
+      ],
+      "duration_ms": 475,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n06/.artifacts/n06-whiskey-runtime/whiskey.tar.gz",
+        "75ded918550bef69b74835f57f5637ae91555d1a2d6b6c2d9f3b0b34516f309f:/opt/whiskey.tar.gz"
+      ],
+      "duration_ms": 203,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n06/.artifacts/n06-native-addon/better-sqlite3-v12.10.0-node-v147-linux-arm64.tar.gz",
+        "75ded918550bef69b74835f57f5637ae91555d1a2d6b6c2d9f3b0b34516f309f:/opt/sqlite.tar.gz"
+      ],
+      "duration_ms": 148,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "inspect",
+        "--format",
+        "{{json .NetworkSettings.Networks}}",
+        "f4252552e0c7c33d7cee9e46f7c51e1df6c3e3d06777d0a8b19a3d2f19d28211"
+      ],
+      "duration_ms": 59,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "75ded918550bef69b74835f57f5637ae91555d1a2d6b6c2d9f3b0b34516f309f"
+      ],
+      "duration_ms": 127,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "f4252552e0c7c33d7cee9e46f7c51e1df6c3e3d06777d0a8b19a3d2f19d28211"
+      ],
+      "duration_ms": 2188,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed"
+      ],
+      "duration_ms": 5192,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "16f752580013a836510e7e52fe58eed5db5768bb6effd9cd62383289104d5931"
+      ],
+      "duration_ms": 5123,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "8ab35afd8a4983f5a3daa319640337b391360e3e74d60074dea9bec5b693339d"
+      ],
+      "duration_ms": 5141,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955"
+      ],
+      "duration_ms": 244,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "d4029885bb745514f17a819723eb451ed3202cd4435792aff9ab7984f9d1dd11"
+      ],
+      "duration_ms": 67,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "rm",
+        "atrium-harness-n06-4e66b8541eada254-net"
+      ],
+      "duration_ms": 66,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 63,
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ],
+  "engine": {
+    "connection": "podman-machine-default",
+    "loopback": true,
+    "transport": "local-vm"
+  },
+  "foreign_after": {
+    "a914bf6c7045": {
+      "name": "ambit-db",
+      "state": "running"
+    }
+  },
+  "foreign_before": {
+    "a914bf6c7045": {
+      "name": "ambit-db",
+      "state": "running"
+    }
+  },
+  "foreign_resources_unchanged": true,
+  "full_n06": "incomplete",
+  "gateway_readiness": {
+    "last_status": 200,
+    "path": "/v1/models"
+  },
+  "images": {
+    "litellm": {
+      "architecture": "arm64",
+      "image_id": "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+      "os": "linux",
+      "python_version": "3.13.15",
+      "repo_digests": [
+        "ghcr.io/berriai/litellm@sha256:2d0f10790c6d9a72f240465ebe755987c40bdd0795cba9f57cbebc7ddc6e5c6f",
+        "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+      ],
+      "requested": "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c",
+      "verified_package_version": "1.99.1"
+    },
+    "postgres": {
+      "architecture": "amd64",
+      "image_id": "75f5a96988cdf694a215073c3e9c001b706b371e2f94df3967f2efdec2787f6b",
+      "os": "linux",
+      "repo_digests": [
+        "docker.io/library/postgres@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571",
+        "docker.io/library/postgres@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+      ],
+      "requested": "docker.io/library/postgres@sha256:075f7ba66bc9b3ce7d6b8b635208ff61cd7cf1a67d71ec530eec5d7ae0cbe571",
+      "version": "postgres (PostgreSQL) 16.15"
+    }
+  },
+  "initial_controller": {
+    "ok": true,
+    "operations": [
+      {
+        "method": "GET",
+        "path": "/health/readiness",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/openapi.json",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/router/settings",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/model/info",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/credentials",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/credentials",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/credentials",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/credentials",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/credentials",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/model/new",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/model/info",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/model/new",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/model/info",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/model/new",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/model/info",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/team/new",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/team/info",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/team/new",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/team/info",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/model/info",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/credentials",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/team/info",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/team/info",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/key/generate",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/key/info",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/key/update",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/key/info",
+        "status": 200
+      }
+    ],
+    "rotation": [
+      {
+        "status": "awaiting-acknowledgement",
+        "template": "whiskey-service"
+      }
+    ]
+  },
+  "kernel_rules_after": {
+    "rules": {
+      "nftables": [
+        {
+          "metainfo": {
+            "json_schema_version": 1,
+            "release_name": "Commodore Bullmoose #6",
+            "version": "1.1.5"
+          }
+        },
+        {
+          "table": {
+            "family": "inet",
+            "handle": 2,
+            "name": "atrium_whiskey"
+          }
+        },
+        {
+          "chain": {
+            "family": "inet",
+            "handle": 1,
+            "hook": "output",
+            "name": "output",
+            "policy": "accept",
+            "prio": 0,
+            "table": "atrium_whiskey",
+            "type": "filter"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "ct": {
+                      "key": "direction"
+                    }
+                  },
+                  "op": "==",
+                  "right": "reply"
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 2,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "cooklang",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 36091,
+                  "packets": 100
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 3,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "gateway",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 4,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "gemini",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 5,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "identity",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 6,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "mail",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 7,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "media",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "198.20.0.10"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 5702,
+                  "packets": 16
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 8,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "openai",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 9,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "openrouter",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 10,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "partiful",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 11,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "plex",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 12,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "comment": "webpush",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "daddr",
+                      "protocol": "ip"
+                    }
+                  },
+                  "op": "==",
+                  "right": "10.89.1.5"
+                }
+              },
+              {
+                "match": {
+                  "left": {
+                    "payload": {
+                      "field": "dport",
+                      "protocol": "tcp"
+                    }
+                  },
+                  "op": "==",
+                  "right": 443
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 0,
+                  "packets": 0
+                }
+              },
+              {
+                "accept": null
+              }
+            ],
+            "family": "inet",
+            "handle": 13,
+            "table": "atrium_whiskey"
+          }
+        },
+        {
+          "rule": {
+            "chain": "output",
+            "expr": [
+              {
+                "match": {
+                  "left": {
+                    "meta": {
+                      "key": "skuid"
+                    }
+                  },
+                  "op": "==",
+                  "right": 11001
+                }
+              },
+              {
+                "counter": {
+                  "bytes": 120,
+                  "packets": 2
+                }
+              },
+              {
+                "reject": {
+                  "expr": "admin-prohibited",
+                  "type": "icmpx"
+                }
+              }
+            ],
+            "family": "inet",
+            "handle": 14,
+            "table": "atrium_whiskey"
+          }
+        }
+      ]
+    }
+  },
+  "module_checks": {
+    "cannot_change_filter": true,
+    "default_capabilities_cleared": true,
+    "forced_capabilities_rejected": true,
+    "image_exception_granularity": true,
+    "inherited_capabilities_cleared": true,
+    "isolated_only": true,
+    "native_namespace_only": true,
+    "no_direct_anthropic_key": true,
+    "nonroot_consumer": true,
+    "ordered_capabilities_cleared": true,
+    "publication_routes": true,
+    "registry_valid": true,
+    "rendered_capabilities_reset": true,
+    "rotating_key_remains_live_path": true,
+    "setup_keeps_namespace_capability": true,
+    "stronger_capabilities_rejected": true
+  },
+  "network": {
+    "driver": "bridge",
+    "internal": true,
+    "name": "atrium-harness-n06-4e66b8541eada254-net"
+  },
+  "podman": {
+    "architecture": "arm64",
+    "os": "linux",
+    "server_version": "5.7.1"
+  },
+  "readiness": {
+    "litellm": "authenticated /v1/models HTTP 200",
+    "postgres": "pg_isready",
+    "provider": "authenticated observer HTTP 200"
+  },
+  "resources": [
+    {
+      "id": "d4029885bb745514f17a819723eb451ed3202cd4435792aff9ab7984f9d1dd11",
+      "name": "atrium-harness-n06-4e66b8541eada254-version",
+      "role": "version",
+      "status": "created"
+    },
+    {
+      "id": "7b46e4cfd574055bf0c65766fe2751e5718f6d1d14402bbde19d79e535a16955",
+      "name": "atrium-harness-n06-4e66b8541eada254-postgres",
+      "role": "postgres",
+      "status": "created"
+    },
+    {
+      "id": "8ab35afd8a4983f5a3daa319640337b391360e3e74d60074dea9bec5b693339d",
+      "name": "atrium-harness-n06-4e66b8541eada254-provider",
+      "role": "provider",
+      "status": "created"
+    },
+    {
+      "id": "16f752580013a836510e7e52fe58eed5db5768bb6effd9cd62383289104d5931",
+      "name": "atrium-harness-n06-4e66b8541eada254-family-provider",
+      "role": "family-provider",
+      "status": "created"
+    },
+    {
+      "id": "72baac83b41f014354b3b8436d261e3e90c37d842a0f4ad6903ed39c4aee81ed",
+      "name": "atrium-harness-n06-4e66b8541eada254-upstreams",
+      "role": "upstreams",
+      "status": "created"
+    },
+    {
+      "id": "f4252552e0c7c33d7cee9e46f7c51e1df6c3e3d06777d0a8b19a3d2f19d28211",
+      "name": "atrium-harness-n06-4e66b8541eada254-litellm",
+      "role": "litellm",
+      "status": "created"
+    },
+    {
+      "id": "75ded918550bef69b74835f57f5637ae91555d1a2d6b6c2d9f3b0b34516f309f",
+      "name": "atrium-harness-n06-4e66b8541eada254-whiskey",
+      "role": "whiskey",
+      "status": "created"
+    }
+  ],
+  "run_id": "n06-4e66b8541eada254",
+  "runtime_boot": {
+    "consumer": {
+      "capabilities": "0000000000000000",
+      "capability_sets": {
+        "CapAmb": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapInh": "0000000000000000",
+        "CapPrm": "0000000000000000"
+      },
+      "direct_anthropic_model_present": false,
+      "direct_anthropic_present": false,
+      "no_new_privileges": "1",
+      "node": "v26.8.1",
+      "pid": 8,
+      "ready": true,
+      "uid": 11001
+    },
+    "egress": {
+      "granularity": "destination IPv4 address and TCP port",
+      "installed": true,
+      "netns": "net:[4026533147]",
+      "rules_sha256": "c3b2af1b34829e01e4c3db14c1bf0c8f42d0fc94cba582ce9f3a0df6a44dc894",
+      "table": "atrium_whiskey",
+      "uid": 11001
+    },
+    "ready": true
+  },
+  "scope": {
+    "actual_helper": "compiled W03 callAnthropic and native image adapters",
+    "admission_hook": false,
+    "egress": "UID-scoped nftables in exact invocation-owned network namespace",
+    "granularity": "IPv4 destination address + TCP port; not hostname or image-only enforcement",
+    "native_only": false,
+    "network_claim": "Actual nftables UID/address/port enforcement in an invocation-owned namespace; not global N03 topology proof.",
+    "no_paid_calls": "Internal container network; only non-actuating provider fixture configured.",
+    "output_cache": false,
+    "owned_controller": true,
+    "production_reference_policy": "unresolved; arbitrary public reference/push endpoints need owner-approved policy",
+    "protocols": [
+      "POST /v1/messages via actual adopted W03 helper"
+    ],
+    "provider_exceptions": "OpenAI/Gemini/OpenRouter remain direct",
+    "registry": "N04 isolated registry with N06 isolated overlays; one generated policy",
+    "synthetic_domains": [
+      "personal:ryan",
+      "family:holt"
+    ],
+    "workers": 1
+  },
+  "source": {
+    "atrium_revision": "1d620cd30f27f2b5849533fb2a9bdb5016385f69",
+    "commit": "5f8b3ebcd7cd0a28d5ad3822b0f0889466322810",
+    "compiled_runtime": {
+      "archive_sha256": "532ad6874f63dbde4d55f455e35b523617b4c7569284fdfa22d739dd5e456661",
+      "compiled": {
+        "server/assets/index.js": {
+          "algorithm": "sha256",
+          "digest": "f99e52a91b5ec7fd9ad03c6f870bae93eee9ec775b3cacad676903d9a004fc31"
+        },
+        "server/db/client.js": {
+          "algorithm": "sha256",
+          "digest": "e07e60fa0a77212133c6b24596c8caf525ddf73f852f91c71cb6a20675d1ef2b"
+        },
+        "server/db/migrate-hq-persona-doctrine.js": {
+          "algorithm": "sha256",
+          "digest": "5dd166a0a60e8ca92c68e42ffaa0406f925caf48bf08fdd98dcdbeef3fbc9dc6"
+        },
+        "server/db/migrate-intel-lore.js": {
+          "algorithm": "sha256",
+          "digest": "ab7f81d9e332cd4875cff16e602b75fc5a333a31bc6adc7df0c1a7cbf026b8d5"
+        },
+        "server/db/migrate-menu-to-attendees.js": {
+          "algorithm": "sha256",
+          "digest": "2b05671978372aa301c69ae80e17d45855406c6cfec57254cdf7762127b28a6b"
+        },
+        "server/db/migrate-ops-phase2.js": {
+          "algorithm": "sha256",
+          "digest": "45fc71eceabe48ff5db35ab82d2dc94b068bc2e7a5e536bfe36fdc40cb8b97f7"
+        },
+        "server/db/schema.js": {
+          "algorithm": "sha256",
+          "digest": "c31771dac68674adc066189719af6e317ed37c9910d853fea9dfcbba1d3afd17"
+        },
+        "server/db/seed-bob-pairings.js": {
+          "algorithm": "sha256",
+          "digest": "f1178a5c3b454117ed56aa299d09dba051426f615cb27dc6864e8118cc586d92"
+        },
+        "server/db/seed-doctrine-verdicts.js": {
+          "algorithm": "sha256",
+          "digest": "897dfed495e8a82428972ad3287c8c1b0bc7f9dc076a4f4b353391cf3537861d"
+        },
+        "server/db/seed-episodes-bob.js": {
+          "algorithm": "sha256",
+          "digest": "b69ecfce267d4de43b1e0824de66114b079a5b995405439f6619366d29cea841"
+        },
+        "server/db/seed.js": {
+          "algorithm": "sha256",
+          "digest": "a3f3415fcdbc367c259fad28798dae8d15baf2cd3cd446822173ae46092be920"
+        },
+        "server/index.js": {
+          "algorithm": "sha256",
+          "digest": "b3abf1c6aec664b10606e51635d9251ed70f65aae3c5a7d02f155f6dba78cd76"
+        },
+        "server/integrations/partiful-firebase.js": {
+          "algorithm": "sha256",
+          "digest": "4e86ca98213d7e51c50d0049010609e9b0ba2c7552f1f3fd6b34d6b48d114ad0"
+        },
+        "server/lib/ai-failure-capture.js": {
+          "algorithm": "sha256",
+          "digest": "3a04e8e2d69185261f16af31e66c9db558ad78752534a9ed5262fc78570d7b82"
+        },
+        "server/lib/ai-semaphore.js": {
+          "algorithm": "sha256",
+          "digest": "4ba16e1e7c366af973357aca479c0b37cb8c9f25d00d585dbbcf7418f9d8fda3"
+        },
+        "server/lib/anthropic.js": {
+          "algorithm": "sha256",
+          "digest": "993dca8e991412d470063d41e429dc4a32ad1405d80595045a696f952a872221"
+        },
+        "server/lib/atrium-auth.js": {
+          "algorithm": "sha256",
+          "digest": "942d3c8e2baed18c255f45164ec312ca651492422effc020cf34c1d24e0a9cb0"
+        },
+        "server/lib/atrium-deny-store.js": {
+          "algorithm": "sha256",
+          "digest": "fdd1275338e1c5816c782b22dac8373f9d35efa2cd115523626ce696697eb064"
+        },
+        "server/lib/atrium-deny.js": {
+          "algorithm": "sha256",
+          "digest": "ae35ae125606fd5bbf336938ca7da1c09da1d6564804be8604df809b34e95444"
+        },
+        "server/lib/atrium-fetch.js": {
+          "algorithm": "sha256",
+          "digest": "33a6e0350f1e139e160c605e497c77ae1ae4f0f5192d1c1133dcd5a8e89ffc92"
+        },
+        "server/lib/atrium-mcp-policy.js": {
+          "algorithm": "sha256",
+          "digest": "c3e34933bbcae16e50c852817101fa6b1c4c0723c530f682b2e27f12020dec15"
+        },
+        "server/lib/atrium-model.js": {
+          "algorithm": "sha256",
+          "digest": "de56acb4f38a0d5a8b1c3829f2d868e1fb49094b88a5550698d568d4bd4b6b88"
+        },
+        "server/lib/auth.js": {
+          "algorithm": "sha256",
+          "digest": "031395989c26223eed01bd9d035a001b955561679e997d337ce14d1a3b5c2c21"
+        },
+        "server/lib/board-backdrop.js": {
+          "algorithm": "sha256",
+          "digest": "16f0a6c82e25fb199eeb74e04746301e577daa6c64a9c73b2fee60432f5a099d"
+        },
+        "server/lib/briefing-asset-bounds.js": {
+          "algorithm": "sha256",
+          "digest": "e60728729a38bc6b25c53f60b0343f560829ed180714cee7ec1d522831f97a6a"
+        },
+        "server/lib/briefing-asset.js": {
+          "algorithm": "sha256",
+          "digest": "42aa5facc1de5d2f39197cd67e3453efadbbc69bbb75401e6ddf4ef88f41e389"
+        },
+        "server/lib/briefing-backdrop.js": {
+          "algorithm": "sha256",
+          "digest": "e564bd089d4f3fbeed3a8abdd6c8fab4fa3e74e1b74ea4831f676c40fa4a2455"
+        },
+        "server/lib/briefing-output-schema.js": {
+          "algorithm": "sha256",
+          "digest": "8f796caa4acfd16a389164585ca15dd20110b4f8591837fc878dd0b5bf9af2a8"
+        },
+        "server/lib/briefing-partial.js": {
+          "algorithm": "sha256",
+          "digest": "11024e78eb5fa06469483e1f4ec1ecbd97b51be7d37094ed1912673c805b6191"
+        },
+        "server/lib/briefing-schema-sketch.js": {
+          "algorithm": "sha256",
+          "digest": "056b3658f4d61b80d2e107987583fd2358a3c014046201ede78e53423890ccb1"
+        },
+        "server/lib/cooklang.js": {
+          "algorithm": "sha256",
+          "digest": "77dbbd26d4d5abb6031c84adbb1b322f0c2bb32115a42b4e3010a939bf2374be"
+        },
+        "server/lib/crew-invites.js": {
+          "algorithm": "sha256",
+          "digest": "1612a8d6db87b8a85abb8b8b211cdba191b3fa1f31f73c7f015c5fbb67915935"
+        },
+        "server/lib/dietary-coverage.js": {
+          "algorithm": "sha256",
+          "digest": "d1411a4c8e4532d9a82550cdc29f9058bf456b8914273820af89707313d538e3"
+        },
+        "server/lib/dispatch-history.js": {
+          "algorithm": "sha256",
+          "digest": "93adbd8b54f3d5e1422ad8dfba182220ed349ddc2c7870a1ca78b4cad5722ad1"
+        },
+        "server/lib/guest-telemetry.js": {
+          "algorithm": "sha256",
+          "digest": "d72ece327a7761dbf1e176bd92a24873287a567981fb85aab6ca9ed702d3f534"
+        },
+        "server/lib/host-nudge.js": {
+          "algorithm": "sha256",
+          "digest": "31d1c35c5da03a5fb5eda4226fbeef1fe0c8f82048e26aa746d1f18d8be6e6a7"
+        },
+        "server/lib/hq-persona-doctrine-default.js": {
+          "algorithm": "sha256",
+          "digest": "5b171e7b9f99c9e11113d0ecce97ba1d6579a16ae394516e56d529659ae2fea7"
+        },
+        "server/lib/hq-persona-doctrine.js": {
+          "algorithm": "sha256",
+          "digest": "69b749ec354a1315af73b10b49f098c83e78a0d128dfec14bdd854b24da1c26a"
+        },
+        "server/lib/hq-prompt.js": {
+          "algorithm": "sha256",
+          "digest": "7eaa370c2754f1af04ee012ede2a477e0bfe999f7110085ea1bbf9b896c9ad07"
+        },
+        "server/lib/image-gen.js": {
+          "algorithm": "sha256",
+          "digest": "30939b49bb4d40ae0725c3edbc92b8fa67a80605c18c620cb3210d4b3ae30376"
+        },
+        "server/lib/image-scrub.js": {
+          "algorithm": "sha256",
+          "digest": "8023752d9cb0b98315accedf393d8a02b03a245d65c6d3c97e54041caf54a212"
+        },
+        "server/lib/invite-email.js": {
+          "algorithm": "sha256",
+          "digest": "7c20ee1ce1fdea395e260d5cef7e2d07e03b85fcf60d6a55b5ce73809e93286a"
+        },
+        "server/lib/invite-policy.js": {
+          "algorithm": "sha256",
+          "digest": "e1b97c77df35e16b198f9303d2f762ebcf3b4b5910f1d665fc3e2bf287cbed81"
+        },
+        "server/lib/mailer.js": {
+          "algorithm": "sha256",
+          "digest": "4d8c7053548bb8186958e420c74cad72e93db66a1b0db5f5de617a9e3d0eb309"
+        },
+        "server/lib/mask-email.js": {
+          "algorithm": "sha256",
+          "digest": "11e6e1b712b806319ea4699f417336965c2929adf949b1389fea6e3daeb541a2"
+        },
+        "server/lib/mcp-skills.js": {
+          "algorithm": "sha256",
+          "digest": "afa1ab9258052d9078c29496e353937a298792001f7b955ff21b092b8fce47d3"
+        },
+        "server/lib/notify.js": {
+          "algorithm": "sha256",
+          "digest": "59c8d0cb12d48ffd111199787ff9c86ab86afe9ce118814686652b1acd247724"
+        },
+        "server/lib/oauth-metadata.js": {
+          "algorithm": "sha256",
+          "digest": "6511f37010fc1c7720f6b007e593349d99417d40033d5cff0e659c1957253693"
+        },
+        "server/lib/oidc.js": {
+          "algorithm": "sha256",
+          "digest": "6e09c7127fecb2882ebdfdc1e0a06d4f479ceedbf4befcd3f3724227681d1ecb"
+        },
+        "server/lib/op-capabilities.js": {
+          "algorithm": "sha256",
+          "digest": "a16b7c3b36945d09ca777012f0f654a09c26a56d50ef415eeb7e89cc59c81a56"
+        },
+        "server/lib/op-derivations.js": {
+          "algorithm": "sha256",
+          "digest": "42d9074290f5ad99eeb844f69288b5f82d797972a2c076db2173e538e1729685"
+        },
+        "server/lib/op-lifecycle.js": {
+          "algorithm": "sha256",
+          "digest": "d504e5af8a85b2775d60af4913566d9d0adca05fe9e6bd0ba49adaf2c783af4b"
+        },
+        "server/lib/op-projections.js": {
+          "algorithm": "sha256",
+          "digest": "919bcf68bcca6860aaff1212b77a6fe12bbf39103415c3ce376f3a2c337d90f2"
+        },
+        "server/lib/op-readiness.js": {
+          "algorithm": "sha256",
+          "digest": "5c91610a8150b1bb5f469c5fdf83ebe3065e670f21f502dda6c120f2d054b621"
+        },
+        "server/lib/op-write-policy.js": {
+          "algorithm": "sha256",
+          "digest": "653e24596fab17e1bfa51179eb69b944460df9ad4ce2806b1d2f851374380076"
+        },
+        "server/lib/outbox.js": {
+          "algorithm": "sha256",
+          "digest": "f57df6c3780a8402e480859b00ddec8dbabfc12d030ffe012f28a405e0182009"
+        },
+        "server/lib/partiful-activity.js": {
+          "algorithm": "sha256",
+          "digest": "6cb9c92b034bc505aea8d6de48faf4955b3d4f16f2f4db0ed286b38057e6c4b4"
+        },
+        "server/lib/partiful-blast.js": {
+          "algorithm": "sha256",
+          "digest": "703cd36f506142a8c9073f1af01468558fbf03afce798feeefd4579f8ed8e60c"
+        },
+        "server/lib/partiful-event-fields.js": {
+          "algorithm": "sha256",
+          "digest": "610f5f52826d904c32ba9e78db3528e09c796e4ed7fb805cc8cd84b798ca485c"
+        },
+        "server/lib/partiful-gate-services.js": {
+          "algorithm": "sha256",
+          "digest": "3ed7e495373037a89121ef0eae84f642177888455c8b580745fd6e0dbfcc98bf"
+        },
+        "server/lib/partiful-gate.js": {
+          "algorithm": "sha256",
+          "digest": "2ce9c4cabaf62b1a5b7c52f105629b9ab6ef877c9385245d4ca4cca1e22903a7"
+        },
+        "server/lib/partiful-host-rsvp.js": {
+          "algorithm": "sha256",
+          "digest": "e5444499e3606cdc10522f1b283b66a625706fed7c0de0bb332aae03f9908fdb"
+        },
+        "server/lib/partiful-reconcile.js": {
+          "algorithm": "sha256",
+          "digest": "1387d32994ac004a2e897839883ead93e2c17cef516b8bd409a891d005bbf774"
+        },
+        "server/lib/partiful-rsvp-sync.js": {
+          "algorithm": "sha256",
+          "digest": "69c93e9a5c0e47048928adb56f2d3e40a761f09c0c1e8ed8882a4de38064a5e5"
+        },
+        "server/lib/partiful-sync-alerts.js": {
+          "algorithm": "sha256",
+          "digest": "5d5d932b7cb7ff4a818d6c1184d738c4e9fe786f0c51df133b1f104176b9e573"
+        },
+        "server/lib/partiful.js": {
+          "algorithm": "sha256",
+          "digest": "099ec9c9be0dec98e9e1686c7150af620f0b01c6af14b134e03adb871e6819c8"
+        },
+        "server/lib/plex.js": {
+          "algorithm": "sha256",
+          "digest": "d24b41a341a5382e46db37b7ecc5166bf0677a26428eeb69392d87c16a3856e0"
+        },
+        "server/lib/pocketid-admin.js": {
+          "algorithm": "sha256",
+          "digest": "378e54f37e8c528150043e6a6418c79336f0426d27fb9463cbeac8b762ecf143"
+        },
+        "server/lib/public-claim.js": {
+          "algorithm": "sha256",
+          "digest": "a01fec2be44c7bf1748a2c93bef63eb05f21ae2544bcc05d8637336f57860700"
+        },
+        "server/lib/public-token.js": {
+          "algorithm": "sha256",
+          "digest": "0de5fc9e1d1b330edde5decb1f1f55f833a582b63310a6751c6822b8a778ffc8"
+        },
+        "server/lib/read-projection.js": {
+          "algorithm": "sha256",
+          "digest": "f9ea3bf6dd2c62c724e8cc81c94e3f52405dce0c3c0469bd294f883292f70f33"
+        },
+        "server/lib/redact-url.js": {
+          "algorithm": "sha256",
+          "digest": "ff887582c7ebb5b631d6f41e2720bedfdf280855206aec1df2bb2e59c221237f"
+        },
+        "server/lib/resource-server.js": {
+          "algorithm": "sha256",
+          "digest": "812c3fd6e2e237435a1d3fe8fea904ee87eda33ed8c8a8d610cdb2377665a3bf"
+        },
+        "server/lib/retry.js": {
+          "algorithm": "sha256",
+          "digest": "068d2cf021a967c5c04288df7a316f5b9357b9a802e668262bb0e78c3979843a"
+        },
+        "server/lib/safe-fetch.js": {
+          "algorithm": "sha256",
+          "digest": "cb4f5f26c951bad7b14884eb36a6bd0ca3f755d1062bd269d19042ea8a22d18f"
+        },
+        "server/lib/screening-readiness.js": {
+          "algorithm": "sha256",
+          "digest": "ba52f8b295a2eeec4331ac22e7e6d35dc3b2a715db0189d644bcb775d9dbd9d5"
+        },
+        "server/lib/service.js": {
+          "algorithm": "sha256",
+          "digest": "06238f031e9d94a000766de06253d6e2017391c3bf6c3451120ca7559ca902b8"
+        },
+        "server/lib/session.js": {
+          "algorithm": "sha256",
+          "digest": "60a1c3eaf3e9cdc9a826345259fbee33ef5a74a5e31c643170b2a60b3e4e5946"
+        },
+        "server/lib/text-similarity.js": {
+          "algorithm": "sha256",
+          "digest": "618c77115941c40f3ea802a4f4b29aca7832f646f7426358d4bb78c4ed15dc7d"
+        },
+        "server/lib/theater-control-zones.js": {
+          "algorithm": "sha256",
+          "digest": "4b9a301a1dfaacc97de2508e2d43ff4561f837a24aa643617da5f98f0884181e"
+        },
+        "server/lib/theater-locations.js": {
+          "algorithm": "sha256",
+          "digest": "6f190d527cbd3b600d70cd731ebcb87aa20015fd83c2b012144c937ca280332f"
+        },
+        "server/lib/theater-map.js": {
+          "algorithm": "sha256",
+          "digest": "4147a3ae007b67bd31b21043fcce488533a907d7ec6a038f221c42d7cccd6970"
+        },
+        "server/lib/token-crypto.js": {
+          "algorithm": "sha256",
+          "digest": "4ef74bac1c9be9b34416a582f084cd18686fb3ca6694ea542a519c01d56a2fc6"
+        },
+        "server/lib/types.js": {
+          "algorithm": "sha256",
+          "digest": "17b1c9ddff5e3c35bb555e1afc77463d39835504ddae7695a38ddd5d54ebfee6"
+        },
+        "server/lib/uid.js": {
+          "algorithm": "sha256",
+          "digest": "1b7fa7c9a059c60ab7cacff98090cbc1e1476d34874eb05faf48ad2773e3bc2a"
+        },
+        "server/lib/version.js": {
+          "algorithm": "sha256",
+          "digest": "6c9a3fe5a136dc9a23f9f8d301d730e6dbd12a0912fb533bbb1ce4489b5f6ebf"
+        },
+        "server/lib/web-push.js": {
+          "algorithm": "sha256",
+          "digest": "9e09f5ab91afb1a9a9d0b07ca90bca8c2a16eab2cf3c984402b805242481adb9"
+        },
+        "server/lib/wordlist-bip39-en.js": {
+          "algorithm": "sha256",
+          "digest": "ef3aaa07029477f426b00be17ebc330a272f4f6bdaa6f2443f55e890f5b77d96"
+        },
+        "server/lib/zod-issues.js": {
+          "algorithm": "sha256",
+          "digest": "078970f91ae7d09a1852715f6d6a49e4c318da97a1f2c58ebb073e593f8e6604"
+        },
+        "server/routes/apk.js": {
+          "algorithm": "sha256",
+          "digest": "fba4cda116208aaca9ffc65ff5512b9bd786fe68409b46f474b56695ae8c0312"
+        },
+        "server/routes/atrium-mcp.js": {
+          "algorithm": "sha256",
+          "digest": "7be9618047207cf0bc2f00069a62edadbd72e2f358d426fbfe354c6efe387c9b"
+        },
+        "server/routes/auth.js": {
+          "algorithm": "sha256",
+          "digest": "d30915f2f5f4422783d64f1f81475578ffe32f4ede4d5be9aa4d913a052c9ca1"
+        },
+        "server/routes/board-backdrops.js": {
+          "algorithm": "sha256",
+          "digest": "8f2c73e0ebe97f20c9a8248c77377939233430d6db9b43406322228762cb1b58"
+        },
+        "server/routes/briefing-assets.js": {
+          "algorithm": "sha256",
+          "digest": "e7c0268734b9cdd91962843ec5b1cf8761abcd4d15d601ced1c3f39149954978"
+        },
+        "server/routes/briefing-backdrops.js": {
+          "algorithm": "sha256",
+          "digest": "b40f6e7a234b4ac614fde4a1187ca5defb2324f0020175ff951b326573f3d42b"
+        },
+        "server/routes/briefing.js": {
+          "algorithm": "sha256",
+          "digest": "9c2c51582c0205ab549bfd88e45afa09e9ab9fdf6d09a4e80a6eb292a18a4b1e"
+        },
+        "server/routes/dispatches.js": {
+          "algorithm": "sha256",
+          "digest": "0927ca7afdec7a02cb54788c849baeb9bdcb10e0372016a34966cb6ac0bb5dc4"
+        },
+        "server/routes/doctrine.js": {
+          "algorithm": "sha256",
+          "digest": "2bccd8e7f74250fea2d0a58f6f0492ebed9c76bad024a90b9cee1ac8ac5c65eb"
+        },
+        "server/routes/draft-dispatch.js": {
+          "algorithm": "sha256",
+          "digest": "8a8f7a3d5c62268c2466ea1e78bb8242d935e6e306c70d5b61635b4a02abe3c0"
+        },
+        "server/routes/episodes.js": {
+          "algorithm": "sha256",
+          "digest": "09f817c8ac8f34cc35186311a911341cb7a1ae5d31dcda8d1bd507c7a2650fb6"
+        },
+        "server/routes/export.js": {
+          "algorithm": "sha256",
+          "digest": "f50a8e056a24873560ad769002b5084a310031598de423a2ef567036ad1b5025"
+        },
+        "server/routes/harvest-comment-lore.js": {
+          "algorithm": "sha256",
+          "digest": "a15163d27efc46098a4c6f7f71cefda384f522900f9f1e7f601ed399723dff48"
+        },
+        "server/routes/harvest-lore.js": {
+          "algorithm": "sha256",
+          "digest": "43b69ae1bc66b13801a37a4804a8ed1a171dd6cf6eab9a6089287b46df2e3150"
+        },
+        "server/routes/hub.js": {
+          "algorithm": "sha256",
+          "digest": "a16a9d13abbd0f917bab49f5b495187fb464f5f042e4047a85e2be13d72ab687"
+        },
+        "server/routes/intel.js": {
+          "algorithm": "sha256",
+          "digest": "cad8d781f421ce6c25db322b8a124db8b11432761e2521fab7246917a9bf9dec"
+        },
+        "server/routes/join.js": {
+          "algorithm": "sha256",
+          "digest": "8c333582e39a30961343852e82399f2b2af2db42c33e04a8d678b6a41abf3deb"
+        },
+        "server/routes/mcp.js": {
+          "algorithm": "sha256",
+          "digest": "24262cf2007aebddfc64340ab85b681dcfeddd627fd772ec6cf29dce33961cdc"
+        },
+        "server/routes/me-hub.js": {
+          "algorithm": "sha256",
+          "digest": "eab6548c51dce99e04dd6f601bdedeb4d921c943fba2044c2df4e0e84a51ee5e"
+        },
+        "server/routes/me-notify.js": {
+          "algorithm": "sha256",
+          "digest": "48d11f5dfcba32ad1f994aa4bcd3a2b2b455ea95d38d9c6abfdb20c6332a89cf"
+        },
+        "server/routes/me-partiful.js": {
+          "algorithm": "sha256",
+          "digest": "33c95e7c6c194fee1c0d623e096f3fccf73df07ffd2c7d66201dabe00552901d"
+        },
+        "server/routes/me-tokens.js": {
+          "algorithm": "sha256",
+          "digest": "9d3d2708b391a4eb30deb090158a58bb41598cae3f2d150e40bcc5e1ecfd70ab"
+        },
+        "server/routes/oauth.js": {
+          "algorithm": "sha256",
+          "digest": "9f330d083dd8113a40de61e52c8a1f82269f0607dd391232f835d824bc736c7e"
+        },
+        "server/routes/op-covers.js": {
+          "algorithm": "sha256",
+          "digest": "c7f718919fdf65c1d1a89705f455e46ca86d3867f2c3e960f8a42dbde5baee29"
+        },
+        "server/routes/op-photos.js": {
+          "algorithm": "sha256",
+          "digest": "01c24acaac4a6f6f86efba46590a0a0108cf925d1f80ab02e248a3127410a51b"
+        },
+        "server/routes/ops.js": {
+          "algorithm": "sha256",
+          "digest": "4b1a22b0ad24bfbb10899f6f062430acebc9ac26777d75c01818dd51571aef54"
+        },
+        "server/routes/outbox.js": {
+          "algorithm": "sha256",
+          "digest": "e6173b020d9422820061612772dc1f0ac9285dfa7d3f029ea19134ffc96a0076"
+        },
+        "server/routes/pairings.js": {
+          "algorithm": "sha256",
+          "digest": "2275e83b95769d465ec154639ba0bac45652b052cbfd8bec14a3a7a35ef0ad09"
+        },
+        "server/routes/partiful-event.js": {
+          "algorithm": "sha256",
+          "digest": "63a576125942abd02db61f02c4ab2a444ab306fd7fb8551a5937407f2f9e43ab"
+        },
+        "server/routes/partiful-gate.js": {
+          "algorithm": "sha256",
+          "digest": "ce421adb205f841b53bddcbbbdb9b2e35fa5623c3fc85801137673926304a6ea"
+        },
+        "server/routes/partiful.js": {
+          "algorithm": "sha256",
+          "digest": "ea7e6f02e9d34cab3c47f65967fcfeb431627d5d6ceeb61e0d0f652111d5d6ad"
+        },
+        "server/routes/polish-aar.js": {
+          "algorithm": "sha256",
+          "digest": "60d88678d182d8445c68438e70f5a9f28326ff9bb06402e817eb6b85f6d687c8"
+        },
+        "server/routes/polish-notes.js": {
+          "algorithm": "sha256",
+          "digest": "94f11cc4ae6220994f05b3fabaff98669c4f8e51527d8a0a349ef00273aa0487"
+        },
+        "server/routes/polish-personnel.js": {
+          "algorithm": "sha256",
+          "digest": "6f85b98cae180382275b03897791c0af3d8cbb3821b8839e669ffd9ee951bb59"
+        },
+        "server/routes/prep-brief.js": {
+          "algorithm": "sha256",
+          "digest": "6eed2aa983accafa80ffc574a489bd4ed8b2a9e2bc9ef4a23e9b23b65601e292"
+        },
+        "server/routes/present.js": {
+          "algorithm": "sha256",
+          "digest": "d3850d0b7f48a5a60bd0f59ae75adbb4ab37c8264ace276bf0f6ecf32d03c8c8"
+        },
+        "server/routes/public-op.js": {
+          "algorithm": "sha256",
+          "digest": "b9c9152c033afa9c279104885c0c3a6d5c149d09e3a0fe1958813b985691043c"
+        },
+        "server/routes/roster-access.js": {
+          "algorithm": "sha256",
+          "digest": "75f4cbd6e97fb70014cbc754608ea6c987b2b4abe9e1c165927d79d1bcfebb38"
+        },
+        "server/routes/roster-inspect.js": {
+          "algorithm": "sha256",
+          "digest": "2347b66b7517e52b87f50d72799a67c965c0474a5e67b932d2d14688e65312d7"
+        },
+        "server/routes/roster-invite.js": {
+          "algorithm": "sha256",
+          "digest": "5a0e9ec2d0284cc035e346accc8e5f1bd4c8b88ce8bcd937cbdd0cc3bfbe34c4"
+        },
+        "server/routes/status.js": {
+          "algorithm": "sha256",
+          "digest": "2bb3a21f46567adb3c67baa97544be3ca870925a428d59b2e7b22368005a7fbc"
+        },
+        "server/routes/suggest-mess.js": {
+          "algorithm": "sha256",
+          "digest": "14af0af8391764cc3dc408d1d00f258395d7721e4dcacfe6decaf02e6a1a2832"
+        },
+        "server/routes/suggest-rank.js": {
+          "algorithm": "sha256",
+          "digest": "39859fe59f9aa0f965c7e4d85342addd687ec3470803b8a96fbd202a78108dbf"
+        },
+        "server/routes/tagged.js": {
+          "algorithm": "sha256",
+          "digest": "f47569c43fc232e0394afb75a9976d5eff2d742e952e887c952edbcf48e65897"
+        },
+        "server/test-setup.js": {
+          "algorithm": "sha256",
+          "digest": "55bd9f280da6f0f7810b91596d7d16672f4da113e375a6cae4f201b4f24afa7c"
+        }
+      },
+      "packages": [
+        {
+          "name": "@atrium/credential-profiles",
+          "path": "node_modules/@atrium/credential-profiles",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/vendor/atrium-profiles",
+          "version": "0.1.0"
+        },
+        {
+          "name": "@fastify/cookie",
+          "path": "node_modules/@fastify/cookie",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/cookie",
+          "version": "11.0.2"
+        },
+        {
+          "name": "cookie",
+          "path": "node_modules/@fastify/cookie/node_modules/cookie",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/cookie/node_modules/cookie",
+          "version": "1.1.1"
+        },
+        {
+          "name": "fastify-plugin",
+          "path": "node_modules/fastify-plugin",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fastify-plugin",
+          "version": "5.1.0"
+        },
+        {
+          "name": "@fastify/cors",
+          "path": "node_modules/@fastify/cors",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/cors",
+          "version": "10.1.0"
+        },
+        {
+          "name": "mnemonist",
+          "path": "node_modules/mnemonist",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/mnemonist",
+          "version": "0.40.0"
+        },
+        {
+          "name": "obliterator",
+          "path": "node_modules/obliterator",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/obliterator",
+          "version": "2.0.5"
+        },
+        {
+          "name": "@fastify/static",
+          "path": "node_modules/@fastify/static",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/static",
+          "version": "9.1.3"
+        },
+        {
+          "name": "@fastify/accept-negotiator",
+          "path": "node_modules/@fastify/accept-negotiator",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/accept-negotiator",
+          "version": "2.0.1"
+        },
+        {
+          "name": "@fastify/send",
+          "path": "node_modules/@fastify/send",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/send",
+          "version": "4.1.0"
+        },
+        {
+          "name": "@lukeed/ms",
+          "path": "node_modules/@lukeed/ms",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@lukeed/ms",
+          "version": "2.0.2"
+        },
+        {
+          "name": "escape-html",
+          "path": "node_modules/escape-html",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/escape-html",
+          "version": "1.0.3"
+        },
+        {
+          "name": "fast-decode-uri-component",
+          "path": "node_modules/fast-decode-uri-component",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fast-decode-uri-component",
+          "version": "1.0.1"
+        },
+        {
+          "name": "http-errors",
+          "path": "node_modules/http-errors",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/http-errors",
+          "version": "2.0.1"
+        },
+        {
+          "name": "depd",
+          "path": "node_modules/depd",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/depd",
+          "version": "2.0.0"
+        },
+        {
+          "name": "inherits",
+          "path": "node_modules/inherits",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/inherits",
+          "version": "2.0.4"
+        },
+        {
+          "name": "setprototypeof",
+          "path": "node_modules/setprototypeof",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/setprototypeof",
+          "version": "1.2.0"
+        },
+        {
+          "name": "statuses",
+          "path": "node_modules/statuses",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/statuses",
+          "version": "2.0.2"
+        },
+        {
+          "name": "toidentifier",
+          "path": "node_modules/toidentifier",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/toidentifier",
+          "version": "1.0.1"
+        },
+        {
+          "name": "mime",
+          "path": "node_modules/mime",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/mime",
+          "version": "3.0.0"
+        },
+        {
+          "name": "content-disposition",
+          "path": "node_modules/content-disposition",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/content-disposition",
+          "version": "1.1.0"
+        },
+        {
+          "name": "fastq",
+          "path": "node_modules/fastq",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fastq",
+          "version": "1.20.1"
+        },
+        {
+          "name": "reusify",
+          "path": "node_modules/reusify",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/reusify",
+          "version": "1.1.0"
+        },
+        {
+          "name": "glob",
+          "path": "node_modules/glob",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/glob",
+          "version": "13.0.6"
+        },
+        {
+          "name": "minimatch",
+          "path": "node_modules/glob/node_modules/minimatch",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/glob/node_modules/minimatch",
+          "version": "10.2.5"
+        },
+        {
+          "name": "brace-expansion",
+          "path": "node_modules/glob/node_modules/brace-expansion",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/glob/node_modules/brace-expansion",
+          "version": "5.0.6"
+        },
+        {
+          "name": "balanced-match",
+          "path": "node_modules/glob/node_modules/balanced-match",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/glob/node_modules/balanced-match",
+          "version": "4.0.4"
+        },
+        {
+          "name": "minipass",
+          "path": "node_modules/minipass",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/minipass",
+          "version": "7.1.3"
+        },
+        {
+          "name": "path-scurry",
+          "path": "node_modules/path-scurry",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/path-scurry",
+          "version": "2.0.2"
+        },
+        {
+          "name": "lru-cache",
+          "path": "node_modules/path-scurry/node_modules/lru-cache",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/path-scurry/node_modules/lru-cache",
+          "version": "11.3.6"
+        },
+        {
+          "name": "@grafana/faro-web-sdk",
+          "path": "node_modules/@grafana/faro-web-sdk",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@grafana/faro-web-sdk",
+          "version": "2.11.0"
+        },
+        {
+          "name": "@grafana/faro-core",
+          "path": "node_modules/@grafana/faro-core",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@grafana/faro-core",
+          "version": "2.11.0"
+        },
+        {
+          "name": "@opentelemetry/api",
+          "path": "node_modules/@opentelemetry/api",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/api",
+          "version": "1.9.1"
+        },
+        {
+          "name": "@opentelemetry/otlp-transformer",
+          "path": "node_modules/@opentelemetry/otlp-transformer",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/otlp-transformer",
+          "version": "0.221.0"
+        },
+        {
+          "name": "@opentelemetry/api-logs",
+          "path": "node_modules/@opentelemetry/api-logs",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/api-logs",
+          "version": "0.221.0"
+        },
+        {
+          "name": "@opentelemetry/core",
+          "path": "node_modules/@opentelemetry/core",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/core",
+          "version": "2.10.0"
+        },
+        {
+          "name": "@opentelemetry/semantic-conventions",
+          "path": "node_modules/@opentelemetry/semantic-conventions",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/semantic-conventions",
+          "version": "1.43.0"
+        },
+        {
+          "name": "@opentelemetry/resources",
+          "path": "node_modules/@opentelemetry/resources",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/resources",
+          "version": "2.10.0"
+        },
+        {
+          "name": "@opentelemetry/sdk-logs",
+          "path": "node_modules/@opentelemetry/sdk-logs",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/sdk-logs",
+          "version": "0.221.0"
+        },
+        {
+          "name": "@opentelemetry/sdk-metrics",
+          "path": "node_modules/@opentelemetry/sdk-metrics",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/sdk-metrics",
+          "version": "2.10.0"
+        },
+        {
+          "name": "@opentelemetry/sdk-trace",
+          "path": "node_modules/@opentelemetry/sdk-trace",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@opentelemetry/sdk-trace",
+          "version": "2.10.0"
+        },
+        {
+          "name": "ua-parser-js",
+          "path": "node_modules/ua-parser-js",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ua-parser-js",
+          "version": "1.0.41"
+        },
+        {
+          "name": "web-vitals",
+          "path": "node_modules/web-vitals",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/web-vitals",
+          "version": "6.2.1"
+        },
+        {
+          "name": "@modelcontextprotocol/sdk",
+          "path": "node_modules/@modelcontextprotocol/sdk",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@modelcontextprotocol/sdk",
+          "version": "1.29.0"
+        },
+        {
+          "name": "@hono/node-server",
+          "path": "node_modules/@hono/node-server",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@hono/node-server",
+          "version": "1.19.14"
+        },
+        {
+          "name": "ajv",
+          "path": "node_modules/ajv",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ajv",
+          "version": "8.20.0"
+        },
+        {
+          "name": "fast-deep-equal",
+          "path": "node_modules/fast-deep-equal",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fast-deep-equal",
+          "version": "3.1.3"
+        },
+        {
+          "name": "fast-uri",
+          "path": "node_modules/fast-uri",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fast-uri",
+          "version": "3.1.2"
+        },
+        {
+          "name": "json-schema-traverse",
+          "path": "node_modules/json-schema-traverse",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/json-schema-traverse",
+          "version": "1.0.0"
+        },
+        {
+          "name": "require-from-string",
+          "path": "node_modules/require-from-string",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/require-from-string",
+          "version": "2.0.2"
+        },
+        {
+          "name": "ajv-formats",
+          "path": "node_modules/ajv-formats",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ajv-formats",
+          "version": "3.0.1"
+        },
+        {
+          "name": "content-type",
+          "path": "node_modules/content-type",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/content-type",
+          "version": "1.0.5"
+        },
+        {
+          "name": "cors",
+          "path": "node_modules/cors",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/cors",
+          "version": "2.8.6"
+        },
+        {
+          "name": "object-assign",
+          "path": "node_modules/object-assign",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/object-assign",
+          "version": "4.1.1"
+        },
+        {
+          "name": "vary",
+          "path": "node_modules/vary",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/vary",
+          "version": "1.1.2"
+        },
+        {
+          "name": "cross-spawn",
+          "path": "node_modules/cross-spawn",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/cross-spawn",
+          "version": "7.0.6"
+        },
+        {
+          "name": "path-key",
+          "path": "node_modules/path-key",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/path-key",
+          "version": "3.1.1"
+        },
+        {
+          "name": "shebang-command",
+          "path": "node_modules/shebang-command",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/shebang-command",
+          "version": "2.0.0"
+        },
+        {
+          "name": "shebang-regex",
+          "path": "node_modules/shebang-regex",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/shebang-regex",
+          "version": "3.0.0"
+        },
+        {
+          "name": "which",
+          "path": "node_modules/which",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/which",
+          "version": "2.0.2"
+        },
+        {
+          "name": "isexe",
+          "path": "node_modules/isexe",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/isexe",
+          "version": "2.0.0"
+        },
+        {
+          "name": "eventsource",
+          "path": "node_modules/eventsource",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/eventsource",
+          "version": "3.0.7"
+        },
+        {
+          "name": "eventsource-parser",
+          "path": "node_modules/eventsource-parser",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/eventsource-parser",
+          "version": "3.0.8"
+        },
+        {
+          "name": "express",
+          "path": "node_modules/express",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/express",
+          "version": "5.2.1"
+        },
+        {
+          "name": "accepts",
+          "path": "node_modules/accepts",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/accepts",
+          "version": "2.0.0"
+        },
+        {
+          "name": "mime-types",
+          "path": "node_modules/mime-types",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/mime-types",
+          "version": "3.0.2"
+        },
+        {
+          "name": "mime-db",
+          "path": "node_modules/mime-db",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/mime-db",
+          "version": "1.54.0"
+        },
+        {
+          "name": "negotiator",
+          "path": "node_modules/negotiator",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/negotiator",
+          "version": "1.0.0"
+        },
+        {
+          "name": "body-parser",
+          "path": "node_modules/body-parser",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/body-parser",
+          "version": "2.2.2"
+        },
+        {
+          "name": "bytes",
+          "path": "node_modules/bytes",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/bytes",
+          "version": "3.1.2"
+        },
+        {
+          "name": "debug",
+          "path": "node_modules/debug",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/debug",
+          "version": "4.4.3"
+        },
+        {
+          "name": "ms",
+          "path": "node_modules/ms",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ms",
+          "version": "2.1.3"
+        },
+        {
+          "name": "iconv-lite",
+          "path": "node_modules/iconv-lite",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/iconv-lite",
+          "version": "0.7.2"
+        },
+        {
+          "name": "safer-buffer",
+          "path": "node_modules/safer-buffer",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/safer-buffer",
+          "version": "2.1.2"
+        },
+        {
+          "name": "on-finished",
+          "path": "node_modules/on-finished",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/on-finished",
+          "version": "2.4.1"
+        },
+        {
+          "name": "ee-first",
+          "path": "node_modules/ee-first",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ee-first",
+          "version": "1.1.1"
+        },
+        {
+          "name": "qs",
+          "path": "node_modules/qs",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/qs",
+          "version": "6.15.1"
+        },
+        {
+          "name": "side-channel",
+          "path": "node_modules/side-channel",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/side-channel",
+          "version": "1.1.0"
+        },
+        {
+          "name": "es-errors",
+          "path": "node_modules/es-errors",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/es-errors",
+          "version": "1.3.0"
+        },
+        {
+          "name": "object-inspect",
+          "path": "node_modules/object-inspect",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/object-inspect",
+          "version": "1.13.4"
+        },
+        {
+          "name": "side-channel-list",
+          "path": "node_modules/side-channel-list",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/side-channel-list",
+          "version": "1.0.1"
+        },
+        {
+          "name": "side-channel-map",
+          "path": "node_modules/side-channel-map",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/side-channel-map",
+          "version": "1.0.1"
+        },
+        {
+          "name": "call-bound",
+          "path": "node_modules/call-bound",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/call-bound",
+          "version": "1.0.4"
+        },
+        {
+          "name": "call-bind-apply-helpers",
+          "path": "node_modules/call-bind-apply-helpers",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/call-bind-apply-helpers",
+          "version": "1.0.2"
+        },
+        {
+          "name": "function-bind",
+          "path": "node_modules/function-bind",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/function-bind",
+          "version": "1.1.2"
+        },
+        {
+          "name": "get-intrinsic",
+          "path": "node_modules/get-intrinsic",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/get-intrinsic",
+          "version": "1.3.0"
+        },
+        {
+          "name": "es-define-property",
+          "path": "node_modules/es-define-property",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/es-define-property",
+          "version": "1.0.1"
+        },
+        {
+          "name": "es-object-atoms",
+          "path": "node_modules/es-object-atoms",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/es-object-atoms",
+          "version": "1.1.1"
+        },
+        {
+          "name": "get-proto",
+          "path": "node_modules/get-proto",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/get-proto",
+          "version": "1.0.1"
+        },
+        {
+          "name": "dunder-proto",
+          "path": "node_modules/dunder-proto",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/dunder-proto",
+          "version": "1.0.1"
+        },
+        {
+          "name": "gopd",
+          "path": "node_modules/gopd",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/gopd",
+          "version": "1.2.0"
+        },
+        {
+          "name": "has-symbols",
+          "path": "node_modules/has-symbols",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/has-symbols",
+          "version": "1.1.0"
+        },
+        {
+          "name": "hasown",
+          "path": "node_modules/hasown",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/hasown",
+          "version": "2.0.3"
+        },
+        {
+          "name": "math-intrinsics",
+          "path": "node_modules/math-intrinsics",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/math-intrinsics",
+          "version": "1.1.0"
+        },
+        {
+          "name": "side-channel-weakmap",
+          "path": "node_modules/side-channel-weakmap",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/side-channel-weakmap",
+          "version": "1.0.2"
+        },
+        {
+          "name": "raw-body",
+          "path": "node_modules/raw-body",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/raw-body",
+          "version": "3.0.2"
+        },
+        {
+          "name": "unpipe",
+          "path": "node_modules/unpipe",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/unpipe",
+          "version": "1.0.0"
+        },
+        {
+          "name": "type-is",
+          "path": "node_modules/type-is",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/type-is",
+          "version": "2.1.0"
+        },
+        {
+          "name": "content-type",
+          "path": "node_modules/type-is/node_modules/content-type",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/type-is/node_modules/content-type",
+          "version": "2.0.0"
+        },
+        {
+          "name": "media-typer",
+          "path": "node_modules/media-typer",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/media-typer",
+          "version": "1.1.0"
+        },
+        {
+          "name": "cookie",
+          "path": "node_modules/cookie",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/cookie",
+          "version": "0.7.2"
+        },
+        {
+          "name": "cookie-signature",
+          "path": "node_modules/cookie-signature",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/cookie-signature",
+          "version": "1.2.2"
+        },
+        {
+          "name": "encodeurl",
+          "path": "node_modules/encodeurl",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/encodeurl",
+          "version": "2.0.0"
+        },
+        {
+          "name": "etag",
+          "path": "node_modules/etag",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/etag",
+          "version": "1.8.1"
+        },
+        {
+          "name": "finalhandler",
+          "path": "node_modules/finalhandler",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/finalhandler",
+          "version": "2.1.1"
+        },
+        {
+          "name": "parseurl",
+          "path": "node_modules/parseurl",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/parseurl",
+          "version": "1.3.3"
+        },
+        {
+          "name": "fresh",
+          "path": "node_modules/fresh",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fresh",
+          "version": "2.0.0"
+        },
+        {
+          "name": "merge-descriptors",
+          "path": "node_modules/merge-descriptors",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/merge-descriptors",
+          "version": "2.0.0"
+        },
+        {
+          "name": "once",
+          "path": "node_modules/once",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/once",
+          "version": "1.4.0"
+        },
+        {
+          "name": "wrappy",
+          "path": "node_modules/wrappy",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/wrappy",
+          "version": "1.0.2"
+        },
+        {
+          "name": "proxy-addr",
+          "path": "node_modules/proxy-addr",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/proxy-addr",
+          "version": "2.0.7"
+        },
+        {
+          "name": "forwarded",
+          "path": "node_modules/forwarded",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/forwarded",
+          "version": "0.2.0"
+        },
+        {
+          "name": "ipaddr.js",
+          "path": "node_modules/proxy-addr/node_modules/ipaddr.js",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/proxy-addr/node_modules/ipaddr.js",
+          "version": "1.9.1"
+        },
+        {
+          "name": "range-parser",
+          "path": "node_modules/range-parser",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/range-parser",
+          "version": "1.2.1"
+        },
+        {
+          "name": "router",
+          "path": "node_modules/router",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/router",
+          "version": "2.2.0"
+        },
+        {
+          "name": "is-promise",
+          "path": "node_modules/is-promise",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/is-promise",
+          "version": "4.0.0"
+        },
+        {
+          "name": "path-to-regexp",
+          "path": "node_modules/path-to-regexp",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/path-to-regexp",
+          "version": "8.4.2"
+        },
+        {
+          "name": "send",
+          "path": "node_modules/send",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/send",
+          "version": "1.2.1"
+        },
+        {
+          "name": "serve-static",
+          "path": "node_modules/serve-static",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/serve-static",
+          "version": "2.2.1"
+        },
+        {
+          "name": "express-rate-limit",
+          "path": "node_modules/express-rate-limit",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/express-rate-limit",
+          "version": "8.5.1"
+        },
+        {
+          "name": "ip-address",
+          "path": "node_modules/ip-address",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ip-address",
+          "version": "10.2.0"
+        },
+        {
+          "name": "hono",
+          "path": "node_modules/hono",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/hono",
+          "version": "4.12.18"
+        },
+        {
+          "name": "jose",
+          "path": "node_modules/jose",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/jose",
+          "version": "6.2.3"
+        },
+        {
+          "name": "json-schema-typed",
+          "path": "node_modules/json-schema-typed",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/json-schema-typed",
+          "version": "8.0.2"
+        },
+        {
+          "name": "pkce-challenge",
+          "path": "node_modules/pkce-challenge",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/pkce-challenge",
+          "version": "5.0.1"
+        },
+        {
+          "name": "zod",
+          "path": "node_modules/zod",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/zod",
+          "version": "3.25.76"
+        },
+        {
+          "name": "zod-to-json-schema",
+          "path": "node_modules/zod-to-json-schema",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/zod-to-json-schema",
+          "version": "3.25.2"
+        },
+        {
+          "name": "@platformatic/prom-client",
+          "path": "node_modules/@platformatic/prom-client",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@platformatic/prom-client",
+          "version": "1.0.0"
+        },
+        {
+          "name": "better-sqlite3",
+          "path": "node_modules/better-sqlite3",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/better-sqlite3",
+          "version": "12.10.0"
+        },
+        {
+          "name": "bindings",
+          "path": "node_modules/bindings",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/bindings",
+          "version": "1.5.0"
+        },
+        {
+          "name": "file-uri-to-path",
+          "path": "node_modules/file-uri-to-path",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/file-uri-to-path",
+          "version": "1.0.0"
+        },
+        {
+          "name": "prebuild-install",
+          "path": "node_modules/prebuild-install",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/prebuild-install",
+          "version": "7.1.3"
+        },
+        {
+          "name": "detect-libc",
+          "path": "node_modules/detect-libc",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/detect-libc",
+          "version": "2.1.2"
+        },
+        {
+          "name": "expand-template",
+          "path": "node_modules/expand-template",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/expand-template",
+          "version": "2.0.3"
+        },
+        {
+          "name": "github-from-package",
+          "path": "node_modules/github-from-package",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/github-from-package",
+          "version": "0.0.0"
+        },
+        {
+          "name": "minimist",
+          "path": "node_modules/minimist",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/minimist",
+          "version": "1.2.8"
+        },
+        {
+          "name": "mkdirp-classic",
+          "path": "node_modules/mkdirp-classic",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/mkdirp-classic",
+          "version": "0.5.3"
+        },
+        {
+          "name": "napi-build-utils",
+          "path": "node_modules/napi-build-utils",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/napi-build-utils",
+          "version": "2.0.0"
+        },
+        {
+          "name": "node-abi",
+          "path": "node_modules/node-abi",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/node-abi",
+          "version": "3.92.0"
+        },
+        {
+          "name": "semver",
+          "path": "node_modules/node-abi/node_modules/semver",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/node-abi/node_modules/semver",
+          "version": "7.8.0"
+        },
+        {
+          "name": "pump",
+          "path": "node_modules/pump",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/pump",
+          "version": "3.0.4"
+        },
+        {
+          "name": "end-of-stream",
+          "path": "node_modules/end-of-stream",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/end-of-stream",
+          "version": "1.4.5"
+        },
+        {
+          "name": "rc",
+          "path": "node_modules/rc",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/rc",
+          "version": "1.2.8"
+        },
+        {
+          "name": "deep-extend",
+          "path": "node_modules/deep-extend",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/deep-extend",
+          "version": "0.6.0"
+        },
+        {
+          "name": "ini",
+          "path": "node_modules/ini",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ini",
+          "version": "1.3.8"
+        },
+        {
+          "name": "strip-json-comments",
+          "path": "node_modules/rc/node_modules/strip-json-comments",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/rc/node_modules/strip-json-comments",
+          "version": "2.0.1"
+        },
+        {
+          "name": "simple-get",
+          "path": "node_modules/simple-get",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/simple-get",
+          "version": "4.0.1"
+        },
+        {
+          "name": "decompress-response",
+          "path": "node_modules/decompress-response",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/decompress-response",
+          "version": "6.0.0"
+        },
+        {
+          "name": "mimic-response",
+          "path": "node_modules/mimic-response",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/mimic-response",
+          "version": "3.1.0"
+        },
+        {
+          "name": "simple-concat",
+          "path": "node_modules/simple-concat",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/simple-concat",
+          "version": "1.0.1"
+        },
+        {
+          "name": "tar-fs",
+          "path": "node_modules/tar-fs",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/tar-fs",
+          "version": "2.1.4"
+        },
+        {
+          "name": "chownr",
+          "path": "node_modules/chownr",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/chownr",
+          "version": "1.1.4"
+        },
+        {
+          "name": "tar-stream",
+          "path": "node_modules/tar-stream",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/tar-stream",
+          "version": "2.2.0"
+        },
+        {
+          "name": "bl",
+          "path": "node_modules/bl",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/bl",
+          "version": "4.1.0"
+        },
+        {
+          "name": "buffer",
+          "path": "node_modules/buffer",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/buffer",
+          "version": "5.7.1"
+        },
+        {
+          "name": "base64-js",
+          "path": "node_modules/base64-js",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/base64-js",
+          "version": "1.5.1"
+        },
+        {
+          "name": "ieee754",
+          "path": "node_modules/ieee754",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ieee754",
+          "version": "1.2.1"
+        },
+        {
+          "name": "readable-stream",
+          "path": "node_modules/readable-stream",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/readable-stream",
+          "version": "3.6.2"
+        },
+        {
+          "name": "string_decoder",
+          "path": "node_modules/string_decoder",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/string_decoder",
+          "version": "1.3.0"
+        },
+        {
+          "name": "safe-buffer",
+          "path": "node_modules/safe-buffer",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/safe-buffer",
+          "version": "5.2.1"
+        },
+        {
+          "name": "util-deprecate",
+          "path": "node_modules/util-deprecate",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/util-deprecate",
+          "version": "1.0.2"
+        },
+        {
+          "name": "fs-constants",
+          "path": "node_modules/fs-constants",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fs-constants",
+          "version": "1.0.0"
+        },
+        {
+          "name": "tunnel-agent",
+          "path": "node_modules/tunnel-agent",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/tunnel-agent",
+          "version": "0.6.0"
+        },
+        {
+          "name": "d3-geo",
+          "path": "node_modules/d3-geo",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/d3-geo",
+          "version": "3.1.1"
+        },
+        {
+          "name": "d3-array",
+          "path": "node_modules/d3-array",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/d3-array",
+          "version": "3.2.4"
+        },
+        {
+          "name": "internmap",
+          "path": "node_modules/internmap",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/internmap",
+          "version": "2.0.3"
+        },
+        {
+          "name": "drizzle-orm",
+          "path": "node_modules/drizzle-orm",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/drizzle-orm",
+          "version": "0.45.2"
+        },
+        {
+          "name": "fastify",
+          "path": "node_modules/fastify",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fastify",
+          "version": "5.8.5"
+        },
+        {
+          "name": "@fastify/ajv-compiler",
+          "path": "node_modules/@fastify/ajv-compiler",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/ajv-compiler",
+          "version": "4.0.5"
+        },
+        {
+          "name": "@fastify/error",
+          "path": "node_modules/@fastify/error",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/error",
+          "version": "4.2.0"
+        },
+        {
+          "name": "@fastify/fast-json-stringify-compiler",
+          "path": "node_modules/@fastify/fast-json-stringify-compiler",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/fast-json-stringify-compiler",
+          "version": "5.0.3"
+        },
+        {
+          "name": "fast-json-stringify",
+          "path": "node_modules/fast-json-stringify",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fast-json-stringify",
+          "version": "6.4.0"
+        },
+        {
+          "name": "@fastify/merge-json-schemas",
+          "path": "node_modules/@fastify/merge-json-schemas",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/merge-json-schemas",
+          "version": "0.2.1"
+        },
+        {
+          "name": "dequal",
+          "path": "node_modules/dequal",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/dequal",
+          "version": "2.0.3"
+        },
+        {
+          "name": "json-schema-ref-resolver",
+          "path": "node_modules/json-schema-ref-resolver",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/json-schema-ref-resolver",
+          "version": "3.0.0"
+        },
+        {
+          "name": "rfdc",
+          "path": "node_modules/rfdc",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/rfdc",
+          "version": "1.4.1"
+        },
+        {
+          "name": "@fastify/proxy-addr",
+          "path": "node_modules/@fastify/proxy-addr",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/proxy-addr",
+          "version": "5.1.0"
+        },
+        {
+          "name": "@fastify/forwarded",
+          "path": "node_modules/@fastify/forwarded",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@fastify/forwarded",
+          "version": "3.0.1"
+        },
+        {
+          "name": "ipaddr.js",
+          "path": "node_modules/ipaddr.js",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ipaddr.js",
+          "version": "2.4.0"
+        },
+        {
+          "name": "abstract-logging",
+          "path": "node_modules/abstract-logging",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/abstract-logging",
+          "version": "2.0.1"
+        },
+        {
+          "name": "avvio",
+          "path": "node_modules/avvio",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/avvio",
+          "version": "9.2.0"
+        },
+        {
+          "name": "find-my-way",
+          "path": "node_modules/find-my-way",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/find-my-way",
+          "version": "9.6.0"
+        },
+        {
+          "name": "fast-querystring",
+          "path": "node_modules/fast-querystring",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fast-querystring",
+          "version": "1.1.2"
+        },
+        {
+          "name": "safe-regex2",
+          "path": "node_modules/safe-regex2",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/safe-regex2",
+          "version": "5.1.1"
+        },
+        {
+          "name": "ret",
+          "path": "node_modules/ret",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ret",
+          "version": "0.5.0"
+        },
+        {
+          "name": "light-my-request",
+          "path": "node_modules/light-my-request",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/light-my-request",
+          "version": "6.6.0"
+        },
+        {
+          "name": "cookie",
+          "path": "node_modules/light-my-request/node_modules/cookie",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/light-my-request/node_modules/cookie",
+          "version": "1.1.1"
+        },
+        {
+          "name": "process-warning",
+          "path": "node_modules/light-my-request/node_modules/process-warning",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/light-my-request/node_modules/process-warning",
+          "version": "4.0.1"
+        },
+        {
+          "name": "set-cookie-parser",
+          "path": "node_modules/set-cookie-parser",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/set-cookie-parser",
+          "version": "2.7.2"
+        },
+        {
+          "name": "pino",
+          "path": "node_modules/pino",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/pino",
+          "version": "10.3.1"
+        },
+        {
+          "name": "atomic-sleep",
+          "path": "node_modules/atomic-sleep",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/atomic-sleep",
+          "version": "1.0.0"
+        },
+        {
+          "name": "on-exit-leak-free",
+          "path": "node_modules/on-exit-leak-free",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/on-exit-leak-free",
+          "version": "2.1.2"
+        },
+        {
+          "name": "pino-abstract-transport",
+          "path": "node_modules/pino-abstract-transport",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/pino-abstract-transport",
+          "version": "3.0.0"
+        },
+        {
+          "name": "split2",
+          "path": "node_modules/split2",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/split2",
+          "version": "4.2.0"
+        },
+        {
+          "name": "pino-std-serializers",
+          "path": "node_modules/pino-std-serializers",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/pino-std-serializers",
+          "version": "7.1.0"
+        },
+        {
+          "name": "process-warning",
+          "path": "node_modules/process-warning",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/process-warning",
+          "version": "5.0.0"
+        },
+        {
+          "name": "quick-format-unescaped",
+          "path": "node_modules/quick-format-unescaped",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/quick-format-unescaped",
+          "version": "4.0.4"
+        },
+        {
+          "name": "real-require",
+          "path": "node_modules/real-require",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/real-require",
+          "version": "0.2.0"
+        },
+        {
+          "name": "safe-stable-stringify",
+          "path": "node_modules/safe-stable-stringify",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/safe-stable-stringify",
+          "version": "2.5.0"
+        },
+        {
+          "name": "@pinojs/redact",
+          "path": "node_modules/@pinojs/redact",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@pinojs/redact",
+          "version": "0.4.0"
+        },
+        {
+          "name": "sonic-boom",
+          "path": "node_modules/sonic-boom",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/sonic-boom",
+          "version": "4.2.1"
+        },
+        {
+          "name": "thread-stream",
+          "path": "node_modules/thread-stream",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/thread-stream",
+          "version": "4.1.0"
+        },
+        {
+          "name": "real-require",
+          "path": "node_modules/thread-stream/node_modules/real-require",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/thread-stream/node_modules/real-require",
+          "version": "1.0.0"
+        },
+        {
+          "name": "secure-json-parse",
+          "path": "node_modules/secure-json-parse",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/secure-json-parse",
+          "version": "4.1.0"
+        },
+        {
+          "name": "semver",
+          "path": "node_modules/fastify/node_modules/semver",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fastify/node_modules/semver",
+          "version": "7.8.0"
+        },
+        {
+          "name": "toad-cache",
+          "path": "node_modules/toad-cache",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/toad-cache",
+          "version": "3.7.0"
+        },
+        {
+          "name": "fastify-metrics",
+          "path": "node_modules/fastify-metrics",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fastify-metrics",
+          "version": "13.2.1"
+        },
+        {
+          "name": "fastify-plugin",
+          "path": "node_modules/fastify-metrics/node_modules/fastify-plugin",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/fastify-metrics/node_modules/fastify-plugin",
+          "version": "6.0.0"
+        },
+        {
+          "name": "prom-client",
+          "path": "node_modules/prom-client",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/prom-client",
+          "version": "15.1.3"
+        },
+        {
+          "name": "tdigest",
+          "path": "node_modules/tdigest",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/tdigest",
+          "version": "0.1.3"
+        },
+        {
+          "name": "bintrees",
+          "path": "node_modules/bintrees",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/bintrees",
+          "version": "1.0.2"
+        },
+        {
+          "name": "node-cron",
+          "path": "node_modules/node-cron",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/node-cron",
+          "version": "4.2.1"
+        },
+        {
+          "name": "node-ical",
+          "path": "node_modules/node-ical",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/node-ical",
+          "version": "0.26.1"
+        },
+        {
+          "name": "rrule-temporal",
+          "path": "node_modules/rrule-temporal",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/rrule-temporal",
+          "version": "1.5.3"
+        },
+        {
+          "name": "@js-temporal/polyfill",
+          "path": "node_modules/@js-temporal/polyfill",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/@js-temporal/polyfill",
+          "version": "0.5.1"
+        },
+        {
+          "name": "jsbi",
+          "path": "node_modules/jsbi",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/jsbi",
+          "version": "4.3.2"
+        },
+        {
+          "name": "temporal-polyfill",
+          "path": "node_modules/temporal-polyfill",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/temporal-polyfill",
+          "version": "0.3.2"
+        },
+        {
+          "name": "temporal-spec",
+          "path": "node_modules/temporal-spec",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/temporal-spec",
+          "version": "0.3.1"
+        },
+        {
+          "name": "openid-client",
+          "path": "node_modules/openid-client",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/openid-client",
+          "version": "6.8.4"
+        },
+        {
+          "name": "oauth4webapi",
+          "path": "node_modules/oauth4webapi",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/oauth4webapi",
+          "version": "3.8.6"
+        },
+        {
+          "name": "react",
+          "path": "node_modules/react",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/react",
+          "version": "18.3.1"
+        },
+        {
+          "name": "loose-envify",
+          "path": "node_modules/loose-envify",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/loose-envify",
+          "version": "1.4.0"
+        },
+        {
+          "name": "js-tokens",
+          "path": "node_modules/js-tokens",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/js-tokens",
+          "version": "4.0.0"
+        },
+        {
+          "name": "react-dom",
+          "path": "node_modules/react-dom",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/react-dom",
+          "version": "18.3.1"
+        },
+        {
+          "name": "scheduler",
+          "path": "node_modules/scheduler",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/scheduler",
+          "version": "0.23.2"
+        },
+        {
+          "name": "swr",
+          "path": "node_modules/swr",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/swr",
+          "version": "2.4.1"
+        },
+        {
+          "name": "use-sync-external-store",
+          "path": "node_modules/use-sync-external-store",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/use-sync-external-store",
+          "version": "1.6.0"
+        },
+        {
+          "name": "topojson-client",
+          "path": "node_modules/topojson-client",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/topojson-client",
+          "version": "3.1.0"
+        },
+        {
+          "name": "commander",
+          "path": "node_modules/commander",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/commander",
+          "version": "2.20.3"
+        },
+        {
+          "name": "web-push",
+          "path": "node_modules/web-push",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/web-push",
+          "version": "3.6.7"
+        },
+        {
+          "name": "asn1.js",
+          "path": "node_modules/asn1.js",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/asn1.js",
+          "version": "5.4.1"
+        },
+        {
+          "name": "bn.js",
+          "path": "node_modules/bn.js",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/bn.js",
+          "version": "4.12.5"
+        },
+        {
+          "name": "minimalistic-assert",
+          "path": "node_modules/minimalistic-assert",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/minimalistic-assert",
+          "version": "1.0.1"
+        },
+        {
+          "name": "http_ece",
+          "path": "node_modules/http_ece",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/http_ece",
+          "version": "1.2.0"
+        },
+        {
+          "name": "https-proxy-agent",
+          "path": "node_modules/https-proxy-agent",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/https-proxy-agent",
+          "version": "7.0.6"
+        },
+        {
+          "name": "agent-base",
+          "path": "node_modules/agent-base",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/agent-base",
+          "version": "7.1.4"
+        },
+        {
+          "name": "jws",
+          "path": "node_modules/jws",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/jws",
+          "version": "4.0.1"
+        },
+        {
+          "name": "jwa",
+          "path": "node_modules/jwa",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/jwa",
+          "version": "2.0.1"
+        },
+        {
+          "name": "buffer-equal-constant-time",
+          "path": "node_modules/buffer-equal-constant-time",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/buffer-equal-constant-time",
+          "version": "1.0.1"
+        },
+        {
+          "name": "ecdsa-sig-formatter",
+          "path": "node_modules/ecdsa-sig-formatter",
+          "source": "/Users/ryan/src/whiskey-atrium-w03/node_modules/ecdsa-sig-formatter",
+          "version": "1.0.11"
+        }
+      ]
+    },
+    "consumer_commit": "de552ef2d27d8948c4d966d0aef0217e0f899f98",
+    "consumer_implementation": "c26e318c8c67d8051bf58f369d4b69dbaf998538",
+    "dirty": false,
+    "files": {
+      "pkgs/atrium-litellm-controller/atrium_litellm/__init__.py": {
+        "algorithm": "sha256",
+        "digest": "6422aa4ed5218b2ddca448388f8f139b60d5cc436dbe28fd833b115c96ec4132"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/associations.py": {
+        "algorithm": "sha256",
+        "digest": "cb45e1358b8559b4b844a5f2e48efc1c5ab9ad58dea403b9835ac158b9357f4a"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/cli.py": {
+        "algorithm": "sha256",
+        "digest": "d187b3c34dcf36725654d2a54dff3879fd4c5dacf97306ea3f901073a37e353b"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/controller.py": {
+        "algorithm": "sha256",
+        "digest": "f39fa530d611e1b147d258edce3d7820471c47503f8da4e0d34e67657637e673"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/desired.py": {
+        "algorithm": "sha256",
+        "digest": "432a73d426e04fbc606f9554d2532f81dd9d33fa0afb4be22e0c5d55f3f2faea"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/errors.py": {
+        "algorithm": "sha256",
+        "digest": "b7f3314e73073787e9c6b6970feaff8cd84d7b03774ec67caa99334baedbdf31"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/files.py": {
+        "algorithm": "sha256",
+        "digest": "419957a7a7d7f4572068df955acf6eabc49cbf57d945052f58f9205b8be9f77f"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/ledger.py": {
+        "algorithm": "sha256",
+        "digest": "2be3d282cbc4818d0d81be2a0322cb5cd57a1fa1c827e51927fe3a3f14e6766e"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/native.py": {
+        "algorithm": "sha256",
+        "digest": "9a0fa1b235b5a54324af4f5757c45781f9adb1730ed03ed8e94ceebf53f1ab47"
+      },
+      "pkgs/atrium-litellm-controller/atrium_litellm/rotation.py": {
+        "algorithm": "sha256",
+        "digest": "c817e33e7220b37fa48b6f80488b3751ec17ba6c2ab07e3aa323991f636c8e87"
+      },
+      "pkgs/atrium-litellm-controller/default.nix": {
+        "algorithm": "sha256",
+        "digest": "ec60cee1fe32f98ea350b1b14d6a0ff0acbe7925799700d28acf653261e75458"
+      },
+      "tests/atrium_n06/build_runtime.py": {
+        "algorithm": "sha256",
+        "digest": "f7bf5661f8af760bc47cbd89dc9f566eccc0dd7e9f22709693d4b735e592ccaf"
+      },
+      "tests/atrium_n06/consumer.mjs": {
+        "algorithm": "sha256",
+        "digest": "7d70a4ac8a6aacbd6aeef078329c06d9d4c49a4bbcea38f4291c8901f4093ffd"
+      },
+      "tests/atrium_n06/egress.py": {
+        "algorithm": "sha256",
+        "digest": "ec2871a103bc00820f80c1da63fc1801a093b4676af9297205f07acc9a186912"
+      },
+      "tests/atrium_n06/evaluate.nix": {
+        "algorithm": "sha256",
+        "digest": "99b66a72032f3920e72965fc529254ecd7901a625a10bcb70bf16578542d68d8"
+      },
+      "tests/atrium_n06/fixture.nix": {
+        "algorithm": "sha256",
+        "digest": "eacc335263f42c97e6b3048a8c3ad583228c93f1d5c922aaf30252215688c617"
+      },
+      "tests/atrium_n06/module.nix": {
+        "algorithm": "sha256",
+        "digest": "6e6f6a64a54298d271853a2931dd2a9c88e25166e67135bf16cc97522b12cdff"
+      },
+      "tests/atrium_n06/native_runner.py": {
+        "algorithm": "sha256",
+        "digest": "7b6be112290f6061e226df73477f190c3d16874ca036d500743196bc30a4d907"
+      },
+      "tests/atrium_n06/runtime.py": {
+        "algorithm": "sha256",
+        "digest": "9a0d12c2c4192fc53e4c013c2da1d06f8de87c8062d3181f1c67c7de8e519a71"
+      },
+      "tests/atrium_n06/test_egress.py": {
+        "algorithm": "sha256",
+        "digest": "3060cf27bbe8e6a52884a7f465bba068b3454ecc37a9fd9b49e5b0aa5018bd05"
+      },
+      "tests/atrium_n06/upstreams.py": {
+        "algorithm": "sha256",
+        "digest": "69be57e13e271281a91ed9847e1246b0a61f6db4752c897b83a1d881cfd0526e"
+      }
+    },
+    "harness": {
+      "__init__.py": "0d79d014efb12c7fb1730ed22a46a4a80591314535b51a1e3f5c9162c81058eb",
+      "common.py": "5cb4f6ad40beb1856cbfb972423eff7f20f5be825abbe3f6523aded7fde70c1d",
+      "containers.py": "cb973acebfdc7fa7e2dc527672173832d307c671e3f9c0bab50891ee245cf0fe",
+      "litellm_native.py": "8afec40cb5da9dd1d0006ad3ab382f2b1bccb3a5f6ddd0f3beca4065767a15b1",
+      "pins.json": "4ade35fe39f624ce4d999251834edcd6a6cc5e5afe3dcb9188f98b220706e32b",
+      "provider.py": "a859f8a1b3fff458f9b98722bf7bda3fce61784b00fc098507828de2c42c9067"
+    },
+    "linux_tools": {
+      "closure": [
+        "/nix/store/05glmxmymgb1nz9d19v2rwym88y5fggy-attr-2.5.2",
+        "/nix/store/0xy3q0dn9q5jdbvclg3v4jf2gvymz29g-xz-5.8.3",
+        "/nix/store/10b15q74rns0vjjlklhi22cj2cpixl5i-xgcc-14.3.0-libgcc",
+        "/nix/store/11p6i0s0j0g6j397zdi4nibb73kr1kg5-util-linux-2.41.4-lastlog",
+        "/nix/store/231qhnz3g6avhzpsdf32jxq98i6zf55c-gcc-14.3.0-libgcc",
+        "/nix/store/2dcc3jm1kqaxnljkd6jfj1528saa8c33-audit-4.1.4-lib",
+        "/nix/store/2n9rh56c3yfi9q3fsm4d7mvp78ss80gh-nftables-1.1.5",
+        "/nix/store/2r7h6l4im2azi7fvgr356hcz4akfwvxb-ncurses-6.5",
+        "/nix/store/3dcjsbjlx8qrb65wpyr90akz4a08463r-openssl-3.6.2",
+        "/nix/store/48aygc06y715hvdy0zfm3d2fdrd27bg8-libbsd-0.12.2",
+        "/nix/store/49q99qmarss474l4q4jac80jkx9dqjh2-sqlite-3.50.4",
+        "/nix/store/5f3338d5pvhl04iqyq4bj6idg9j81dsa-libnftnl-1.3.0",
+        "/nix/store/5fi8krisv1cz5il2hy4gc8s328wp55r6-libssh2-1.11.1",
+        "/nix/store/5w1vhbpybdxd7v4ymrah7qmlb19km0x8-libpsl-0.21.5",
+        "/nix/store/5yz05ghyjfx58ikhwczvg54dfyrjny57-acl-2.3.2",
+        "/nix/store/5zq11bibj72nvrhlx9fm0xl0xhxd6388-zlib-1.3.2",
+        "/nix/store/67i1l26gsj17ci0q0wbrlsdjm0a1wpgc-zstd-1.5.7",
+        "/nix/store/6d63z5mhyj80pgpw5m17mybyh0v0vv6i-brotli-1.1.0-lib",
+        "/nix/store/6j1qsxi3y9p5akvwrbnj5iy34zgvqkkq-bzip2-1.0.8",
+        "/nix/store/6rd091g9sd5qrwrbw340gd9k18lxkdhf-elfutils-0.194",
+        "/nix/store/8b6mw0wyy2nndl3ij9ka4b6xm7sbxjy4-gmp-with-cxx-6.3.0",
+        "/nix/store/8djl6vpsx8da66w930qrm8r75lgwh301-util-linux-minimal-2.41.4-login",
+        "/nix/store/8gyr0kg5rz4ayqyv7hr9q3ibqd859fx5-libmnl-1.0.5",
+        "/nix/store/8k4mm25c9rw8mx360ji141j2ppxjc4il-tcb-1.2",
+        "/nix/store/a61v9jd1n9inscd2i6i6n7k5ii1sx9i6-util-linux-2.41.4-mount",
+        "/nix/store/aghhswamvavdmcvqh5yv4djyaq9fwhbq-iptables-1.8.11-lib",
+        "/nix/store/apz0s1jrkf1ck1gnp1ybmina3a3r1dcb-libcap-ng-0.8.5",
+        "/nix/store/aqwyk4kyhafp23wpj6xr803wrgz4r2yl-nghttp3-1.15.0",
+        "/nix/store/ayhf717wa481kixkk630pfc1gs99pbgc-keyutils-1.6.3-lib",
+        "/nix/store/bqj1q1hbsr73l5hhajmy8ywww13i2icg-libedit-20251016-3.1",
+        "/nix/store/dlhrmv8531bcpf0c8rhpy76xmb0prvhb-glibc-2.40-224-bin",
+        "/nix/store/dvcr8qbh2vl7fdp2cpdsdpk7zqsmi94v-linux-pam-1.7.1",
+        "/nix/store/fv7fvr8gdpyahcm7kl82k3gywlhd1ciq-util-linux-2.41.4-swap",
+        "/nix/store/fzk7p8phccf77x34d8rdxr7jjxb37vsy-libbpf-1.6.2",
+        "/nix/store/gvkgbvky6w04jck3f4mpzkywghr7j5x5-util-linux-2.41.4-bin",
+        "/nix/store/gzvjyz30gwgdi640klpgkbc04h3rj7nw-libunistring-1.4.1",
+        "/nix/store/i98ljyr1ikdsfn0bi2rdpmk4v4wcz1v2-jansson-2.14.1",
+        "/nix/store/ih3slzssnd1gmlk5fwc4xv7fwrsr8dgb-db-4.8.30",
+        "/nix/store/j9f5z5mz1x53hbqgymkkczjh7jpw8jj3-libxcrypt-4.5.2",
+        "/nix/store/jjjpj4p9bz505ac1c747f2j5z3xw170p-glibc-2.40-224",
+        "/nix/store/kgkl28v60pyadzjhqdr54rsy42k7s41m-ngtcp2-1.22.1",
+        "/nix/store/kjb8r9sp3zpdcmyxm3g0h06wy2mpylad-curl-8.20.0",
+        "/nix/store/kw0snq2wk6203yw3183ka8vrrr1969pc-libmd-1.1.0",
+        "/nix/store/nja3jimv61blss0mfgjqa68rfiwfxv39-coreutils-9.8",
+        "/nix/store/p3bp7rn9nm89kpghhrly36jhcbi3z9wy-gmp-with-cxx-6.3.0",
+        "/nix/store/p6y1q1cialf9jqybmfi9zn0x1pxlkplp-util-linux-2.41.4-lib",
+        "/nix/store/p7xb6lnnhdzc5v0azrxy5s687dslf8n1-db-5.3.28",
+        "/nix/store/p8wl2hbi2axsx72jdwsr9z3rd5g37lk4-nghttp2-1.68.1-lib",
+        "/nix/store/pa0w9zyphwmy4cnx99qz31cpi9cbwfrc-libnetfilter_conntrack-1.1.0",
+        "/nix/store/pqh23dkxrvf0v2kfqkvg39sr9w9nrwnn-iproute2-6.17.0",
+        "/nix/store/prwrc3r0qnfndn81dg12xwafh6cjv4v4-util-linux-2.41.4-login",
+        "/nix/store/pwbycjkrcpqr3d3ad66xaag5jb6fr952-publicsuffix-list-0-unstable-2026-01-25",
+        "/nix/store/r296cf2gaqs0hd8yknpd7ch1l6cbpcyf-shadow-4.18.0",
+        "/nix/store/wpcdkfjprxa8cs5bg9zcmcrm3a94rkpi-libnfnetlink-1.0.2",
+        "/nix/store/wy2m78k1xivz0rmikwwcwvn2g7dpvsyy-libcap-2.77-lib",
+        "/nix/store/x03dxqva88ax4w45hyms977zv3f8a8i9-gcc-14.3.0-lib",
+        "/nix/store/x6r2lmxw3q4d004jfj5xkmzyp8ysfi2l-krb5-1.22.1-lib",
+        "/nix/store/y7zsw8kw78066v6cjxd0iq375n2q3hmw-systemd-minimal-libs-258.7",
+        "/nix/store/z8wh951g93db4dgb2z5gb7r2724dslkv-json-c-0.18",
+        "/nix/store/z9z1xi0mrjjiy7vkb5q8wz80zykkg72i-libidn2-2.3.8"
+      ],
+      "roots": [
+        "/nix/store/2n9rh56c3yfi9q3fsm4d7mvp78ss80gh-nftables-1.1.5",
+        "/nix/store/pqh23dkxrvf0v2kfqkvg39sr9w9nrwnn-iproute2-6.17.0",
+        "/nix/store/gvkgbvky6w04jck3f4mpzkywghr7j5x5-util-linux-2.41.4-bin"
+      ],
+      "sha256": "a88aef6625fb1785cfe1d4d9568c7fb67baf3ffb4f445aca5c93864ca1363eb0"
+    },
+    "nixpkgs_revision": "3497aa5c9457a9d88d71fa93a4a8368816fbeeba",
+    "owner_spec_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "registry_sha256": "f8afeae1acc55992469ff35769d67616dd1b3c388fc5c15213699fccbb8a3101",
+    "sqlite_addon_sha256": "2a76bef5586c21c1ba9e4f21c7a0adf4727cae061a1ed7b8872f5aec9fd191ff",
+    "whiskey_files": {
+      "package-lock.json": {
+        "algorithm": "sha256",
+        "digest": "daed03557649e5259a6eb9267f37dff6e3a7f1d3e9ad9e7ac6abad3e0fac2958"
+      },
+      "package.json": {
+        "algorithm": "sha256",
+        "digest": "f31245a2d621e3604b12d2c1814880ad1d8dad2a1c47447c812249e19b56583a"
+      },
+      "scripts/atrium-w03/provider.py": {
+        "algorithm": "sha256",
+        "digest": "95d0522f31a9e917d82eef7ff5996aba52db10ef356267ded1c8983ea95bd887"
+      },
+      "server/integrations/partiful-firebase.ts": {
+        "algorithm": "sha256",
+        "digest": "dd0d6ac38018e4c309154584c2207926130fc1b75cb5d1010ec13bd692e5366b"
+      },
+      "server/lib/anthropic.ts": {
+        "algorithm": "sha256",
+        "digest": "20169377de8f34ca81a15f76576813c6892e353d45cbf4226dcd219b567956ea"
+      },
+      "server/lib/atrium-model.ts": {
+        "algorithm": "sha256",
+        "digest": "3364cbdcad62099f59466806052375990a60dfcba63c812be6f9ef02008553a7"
+      },
+      "server/lib/image-gen.ts": {
+        "algorithm": "sha256",
+        "digest": "462bb72f22eb7a151079b7c4fe503b56d07fb631683402ae99265ac30d1dfc81"
+      },
+      "server/lib/oidc.ts": {
+        "algorithm": "sha256",
+        "digest": "0a13ba295b8bf9efc8ed220de56d6b7bb49a40cb41d697946150a3165ae82b07"
+      },
+      "server/lib/plex.ts": {
+        "algorithm": "sha256",
+        "digest": "cb14c9b0690e7cb1e5282c5000ff00ccc81da2a1ce16e8aad207d9cd94f64f72"
+      },
+      "server/lib/safe-fetch.ts": {
+        "algorithm": "sha256",
+        "digest": "2a21628a3c2d898b3011977d5ef89a959ee2ac607439118c04477ac79c4da6a8"
+      }
+    }
+  },
+  "status": "partial",
+  "ticket": "ATR-N06",
+  "upstream_counts": [
+    {
+      "authorized": true,
+      "host": "litellm.atrium.invalid",
+      "method": "POST",
+      "path": "/v1/messages"
+    },
+    {
+      "authorized": true,
+      "host": "litellm.atrium.invalid",
+      "method": "POST",
+      "path": "/v1/messages"
+    },
+    {
+      "authorized": true,
+      "host": "api.anthropic.com",
+      "method": "GET",
+      "path": "/v1/messages"
+    },
+    {
+      "authorized": true,
+      "host": "api.openai.com",
+      "method": "POST",
+      "path": "/v1/images/generations"
+    },
+    {
+      "authorized": true,
+      "host": "generativelanguage.googleapis.com",
+      "method": "POST",
+      "path": "/v1beta/models/gemini-3.1-flash-image:generateContent"
+    },
+    {
+      "authorized": true,
+      "host": "openrouter.ai",
+      "method": "POST",
+      "path": "/api/v1/chat/completions"
+    },
+    {
+      "authorized": true,
+      "host": "identity.atrium.invalid",
+      "method": "GET",
+      "path": "/.well-known/openid-configuration"
+    },
+    {
+      "authorized": true,
+      "host": "securetoken.googleapis.com",
+      "method": "POST",
+      "path": "/v1/token"
+    },
+    {
+      "authorized": true,
+      "host": "api.partiful.com",
+      "method": "POST",
+      "path": "/getEventComments"
+    },
+    {
+      "authorized": true,
+      "host": "plex.atrium.invalid",
+      "method": "GET",
+      "path": "/identity"
+    },
+    {
+      "authorized": true,
+      "host": "media.atrium.invalid",
+      "method": "GET",
+      "path": "/reference.png"
+    },
+    {
+      "authorized": true,
+      "host": "media.atrium.invalid",
+      "method": "GET",
+      "path": "/reference.png"
+    },
+    {
+      "authorized": true,
+      "host": "api.openai.com",
+      "method": "POST",
+      "path": "/v1/images/edits"
+    },
+    {
+      "authorized": true,
+      "host": "cohost-undeclared.atrium.invalid",
+      "method": "GET",
+      "path": "/"
+    },
+    {
+      "authorized": true,
+      "host": "api.openai.com",
+      "method": "POST",
+      "path": "/v1/chat/completions"
+    }
+  ]
+}
