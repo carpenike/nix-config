@@ -251,3 +251,38 @@ def test_post_auth_observations_require_fixture_authorization(fixture_provider):
     assert client.post("/_probe/auth", headers=inference, json=body).status_code == 401
     assert client.post("/_probe/auth", headers=observer, json=body).status_code == 200
     assert client.get("/_probe/state", headers=observer).json()["auth_events"] == [body]
+
+
+def test_unkeyed_provenance_observations_never_accept_key_or_claim_values(
+    fixture_provider,
+):
+    client, inference, observer = fixture_provider
+    body = {
+        "pid": 123,
+        "context_type": "UserAPIKeyAuth",
+        "native_request_route": "/routes",
+        "status": 200,
+        "transport": "http",
+        "via_virtual_key": False,
+        "token_present": False,
+        "jwt_claims_present": False,
+        "admission_initialized": False,
+        "native_premium": False,
+        "native_jwt_enabled": True,
+        "native_public_models": False,
+    }
+    path = "/_probe/no-key-auth"
+    assert client.post(path, json=body).status_code == 401
+    assert client.post(path, headers=inference, json=body).status_code == 401
+    assert client.post(path, headers=observer, json=body).status_code == 200
+    for unexpected in (
+        {"key_sha256": "a" * 64},
+        {"jwt_claims": {"sub": "not-recorded"}},
+    ):
+        assert (
+            client.post(path, headers=observer, json=body | unexpected).status_code
+            == 400
+        )
+    assert client.get("/_probe/state", headers=observer).json()["no_key_events"] == [
+        {"kind": path, **body}
+    ]

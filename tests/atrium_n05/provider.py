@@ -23,6 +23,7 @@ def handler(inference_key, observer_key):
     clocks = []
     auth_events, installations = [], []
     control_events = []
+    no_key_events = []
     bootstrap_errors = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -95,6 +96,7 @@ def handler(inference_key, observer_key):
                             "events": events,
                             "auth_events": auth_events,
                             "control_events": control_events,
+                            "no_key_events": no_key_events,
                             "installations": installations,
                             "bootstrap_errors": bootstrap_errors,
                         },
@@ -178,6 +180,38 @@ def handler(inference_key, observer_key):
                             raise ValueError()
                         with lock:
                             control_events.append({"kind": self.path, **data})
+                        self.reply(200, {"recorded": True})
+                        return
+                    if self.path in ("/_probe/no-key-auth", "/_probe/no-key-call"):
+                        flags = {
+                            "via_virtual_key",
+                            "token_present",
+                            "jwt_claims_present",
+                            "admission_initialized",
+                            "native_premium",
+                            "native_jwt_enabled",
+                            "native_public_models",
+                        }
+                        fields = (
+                            {"pid", "context_type", "status", "native_request_route"}
+                            | flags
+                            | (
+                                {"transport"}
+                                if self.path == "/_probe/no-key-auth"
+                                else {"call_type", "has_proxy_server_request"}
+                            )
+                        )
+                        if (
+                            set(data) != fields
+                            or data["context_type"] != "UserAPIKeyAuth"
+                            or type(data["pid"]) is not int
+                            or type(data["status"]) is not int
+                            or not isinstance(data["native_request_route"], str)
+                            or any(type(data[name]) is not bool for name in flags)
+                        ):
+                            raise ValueError()
+                        with lock:
+                            no_key_events.append({"kind": self.path, **data})
                         self.reply(200, {"recorded": True})
                         return
                     if not isinstance(data, dict) or not re.fullmatch(

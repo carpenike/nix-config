@@ -177,7 +177,10 @@ class Fixture:
         atomic_private_write(
             ROOT / "admission-settings.json", admission.model_dump_json().encode()
         )
-        AdmissionState(admission).initialize()
+        self.admission_settings = admission
+        self.deferred_admission = inputs.get("defer_admission_initialization", False)
+        if not self.deferred_admission:
+            AdmissionState(admission).initialize()
         self.app = create_app(
             self.settings, native_revoker=NativeKeyRevoker(self.revocation)
         )
@@ -410,6 +413,18 @@ class Fixture:
         action = body["action"]
         if action == "mint":
             return self.mint(body["kind"], body.get("native_seconds", 180))
+        if action == "initialize_admission":
+            if not self.deferred_admission:
+                raise ValueError("fixture_admission_not_deferred")
+            AdmissionState(self.admission_settings).initialize()
+            self.deferred_admission = False
+            return {"initialized": True}
+        if action == "admission_initialized":
+            return {
+                "initialized": (ROOT / "admission-state/admission-state.json").exists()
+            }
+        if action == "native_jwt_fixture":
+            return {"jwt": self.token("fixture-admin")}
         if action == "context_source":
             root = Path(importlib.util.find_spec("litellm").origin).parent
             names = (

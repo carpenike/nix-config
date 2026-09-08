@@ -289,6 +289,43 @@ All three runs verified exact component wheel bytes and cleaned their own
 resources. These receipts do not claim unexecuted manual-auth, legacy WebSocket,
 network, or cross-adapter gate coverage.
 
+### Native public/non-virtual identity compatibility
+
+`--native-public-only` is a bounded opt-in regression lane for native authentication
+results that intentionally carry no virtual-key hash:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .artifacts/n05-venv/bin/python \
+  tests/atrium_n05/actual_native.py --harness /path/to/atrium-r06 \
+  --spec /path/to/current-owner-spec.md --native-public-only \
+  --evidence tests/atrium_n05/results/n05-native-public-NEW.json
+```
+
+It retains a TCP connection to each real worker and begins with **uninitialized
+Atrium admission history**. Native anonymous `GET /routes` must return its real
+route catalog without initializing the adapter. The native additional-public
+`/v1/models` predicate is exercised with its actual premium gate intact. Protected
+anonymous inference and JWTs refused by the native license gate must never reach
+post-auth admission or a provider.
+
+After explicit fixture initialization, an owned opaque key must still perform
+permitted inference and be refused for token counting despite forged body labels.
+Removing its protected producer must deny the managed request, while native
+public discovery remains available; producer recovery preserves real legacy token
+counting. No key/hash or JWT claim contents are recorded for no-key identities:
+the authenticated observer accepts only bounded provenance flags.
+
+`test_native_legacy.py` uses actual SDK identity types and native predicates to
+test ordinary JWT/admin-JWT shapes, mapped-key exclusions, missing hashes, public
+scope/path mismatches, and disabled/mixed auth modes. These are **not licensed JWT
+HTTP permit evidence**. The HTTP lane reports the native feature availability
+instead of bypassing premium or signature validation.
+
+The [initial diagnostic](results/n05-native-public-initial.json) already returned
+native `GET /routes` 200 with no adapter initialization or provider effects, but
+its fixture expected a bare list. Pinned native source returns `{"routes":[...]}`;
+the observer was corrected without changing native authentication or routing.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or

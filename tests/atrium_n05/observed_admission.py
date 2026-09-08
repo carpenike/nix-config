@@ -69,6 +69,28 @@ class ObservedAdmission(OwnedAdmission):
                 if route == "/_probe/auth"
                 else "/_probe/control-call"
             )
+        elif native_id is None:
+            from litellm.proxy import proxy_server
+            from litellm.proxy.auth.auth_utils import route_in_additonal_public_routes
+
+            del payload["key_sha256"]
+            payload.update(
+                via_virtual_key=getattr(identity, "via_virtual_key", None) is True,
+                token_present=getattr(identity, "token", None) is not None,
+                jwt_claims_present=bool(getattr(identity, "jwt_claims", None)),
+                admission_initialized=self.engine is not None,
+                native_premium=proxy_server.premium_user is True,
+                native_jwt_enabled=proxy_server.general_settings.get("enable_jwt_auth")
+                is True,
+                native_public_models=bool(
+                    route_in_additonal_public_routes("/v1/models")
+                ),
+            )
+            route = (
+                "/_probe/no-key-auth"
+                if route == "/_probe/auth"
+                else "/_probe/no-key-call"
+            )
         async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
             response = await client.post(
                 os.environ["N05_OBSERVER_URL"] + route,

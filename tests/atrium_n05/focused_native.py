@@ -18,6 +18,7 @@ TESTS = (
     "test_admission.py",
     "test_request_context.py",
     "test_bootstrap.py",
+    "test_native_legacy.py",
     "test_probe.py",
     "test_artifacts.py",
 )

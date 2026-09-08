@@ -66,8 +66,11 @@ def main():
     selection.add_argument("--context-only", action="store_true")
     selection.add_argument("--post-auth-only", action="store_true")
     selection.add_argument("--post-auth-review-only", action="store_true")
+    selection.add_argument("--native-public-only", action="store_true")
     args = parser.parse_args()
-    post_auth = args.post_auth_only or args.post_auth_review_only
+    post_auth = (
+        args.post_auth_only or args.post_auth_review_only or args.native_public_only
+    )
     review = args.review_only or args.post_auth_review_only
     native, harness_hashes = load_harness(args.harness)
     from harness.common import EvidenceWriter, HarnessError, require
@@ -84,7 +87,9 @@ def main():
         "run_id": "n05-adapter-" + secrets.token_hex(8),
         "status": "running",
         "full_n05": "incomplete",
-        "selected_protocol": "post-native-auth-review"
+        "selected_protocol": "native-public"
+        if args.native_public_only
+        else "post-native-auth-review"
         if args.post_auth_review_only
         else "review-faults"
         if review
@@ -131,6 +136,8 @@ def main():
         result["command"].append("--post-auth-only")
     if args.post_auth_review_only:
         result["command"].append("--post-auth-review-only")
+    if args.native_public_only:
+        result["command"].append("--native-public-only")
     writer = EvidenceWriter(output, result)
     try:
         wheels, result["source"]["wheel_sha256"] = verified_wheels(
@@ -141,6 +148,15 @@ def main():
         writer.publish()
         return 2
     state = {}
+    if args.native_public_only:
+        original_wait_http = native.wait_http
+
+        def wait_public(client, path, headers, **kwargs):
+            if path == "/v1/models":
+                path, headers = "/routes", {}
+            return original_wait_http(client, path, headers, **kwargs)
+
+        native.wait_http = wait_public
     original_boot = native.LITELLM_BOOT
     native.LITELLM_BOOT = (
         original_boot.replace('"--num_workers", "1"', '"--num_workers", "2"')
@@ -204,8 +220,12 @@ def main():
                 data["fixture_inputs"] = {
                     "master": data["environment"]["LITELLM_MASTER_KEY"],
                     "fixture_control": state["fixture_token"],
+                    "defer_admission_initialization": args.native_public_only,
                     "initial_feed_mode": "live"
-                    if args.context_only or review or args.protocol_only
+                    if args.context_only
+                    or review
+                    or args.protocol_only
+                    or args.native_public_only
                     else "missing",
                     "policy": json.loads(
                         git(
@@ -302,6 +322,11 @@ def main():
                 "callbacks": ["admission_loader.admission"],
             }
         )
+        if args.native_public_only:
+            config["general_settings"].update(
+                public_routes=["/v1/models"],
+                enable_jwt_auth=True,
+            )
         return config
 
     def exercise(
@@ -422,6 +447,20 @@ def main():
                 run_protocols(
                     client,
                     observer,
+                    observer_headers,
+                    action,
+                    evidence,
+                    run_id,
+                    checkpoint,
+                )
+                return
+            if args.native_public_only:
+                from public_auth_cases import run_public_auth
+
+                run_public_auth(
+                    client,
+                    observer,
+                    control,
                     observer_headers,
                     action,
                     evidence,
@@ -673,6 +712,7 @@ def main():
             )
             or result.get("request_context_gate") == "incomplete"
             or result.get("post_native_auth_gate") == "incomplete"
+            or result.get("native_public_gate") == "incomplete"
             else "passed"
         )
     except HarnessError as error:

@@ -79,6 +79,31 @@ Final integration requires
 existing callback and protected settings. This is not a production activation
 instruction or a whole-ticket completion claim.
 
+### Native public and non-virtual JWT provenance
+
+The post-native boundary preserves a native-approved public request before opening
+Atrium state. It requires the native empty-key identity shape, no virtual-key/token
+or `cc.*` ownership markers, the native public role, and agreement between the
+authenticated route and actual ASGI path. It reuses the pinned public-route and
+`_route_requires_auth_despite_public` predicates, including their native licensing
+rules. Public discovery does not initialize Atrium history. A public wildcard does
+not create unauthenticated inference access; model-list GET/HEAD discovery is
+distinguished from native model APIs.
+
+Ordinary native JWT identities remain native only when JWT auth is configured and
+licensed, verified claims are present on the returned native identity, no
+virtual-key/hash/token or managed-key markers are present, and a competing custom
+or OAuth auth mode is not selected. Native roles do not establish Atrium principal
+identity or administrator freshness eligibility. Mapped JWT keys and unresolved
+virtual identities continue through protected ownership lookup, failing closed
+when their native hash is missing. These checks never inspect caller labels for
+authentication provenance.
+
+This preserves the credential-scoped guarantee, not context isolation. The original
+native authentication remains awaited and its returned identity is not rewritten.
+Licensed JWT HTTP permit coverage is distinct from SDK-shaped provenance tests;
+an unavailable native license is never bypassed to manufacture a permit.
+
 ### Existing pre-call engine
 
 Producer high-water marks and complete owned-identity history survive workers

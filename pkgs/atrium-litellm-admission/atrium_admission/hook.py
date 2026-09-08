@@ -51,6 +51,75 @@ def _native_key_hash(identity):
     return sha256(master_key.encode()).hexdigest()
 
 
+def _native_unkeyed(identity):
+    from litellm.proxy._types import UserAPIKeyAuth
+
+    metadata = getattr(identity, "metadata", None)
+    return (
+        isinstance(identity, UserAPIKeyAuth)
+        and getattr(identity, "api_key", None) is None
+        and getattr(identity, "token", None) is None
+        and getattr(identity, "via_virtual_key", None) is False
+        and (metadata is None or isinstance(metadata, dict))
+        and not any(str(name).startswith("cc.") for name in metadata or {})
+    )
+
+
+def _native_public(identity, connection):
+    from litellm.proxy._types import LiteLLMRoutes, LitellmUserRoles
+    from litellm.proxy.auth.auth_utils import (
+        get_request_route,
+        normalize_request_route,
+        route_in_additonal_public_routes,
+    )
+    from litellm.proxy.auth.route_checks import RouteChecks
+    from litellm.proxy.auth.user_api_key_auth import _route_requires_auth_despite_public
+    from litellm.proxy.proxy_server import general_settings
+
+    if (
+        not _native_unkeyed(identity)
+        or getattr(identity, "jwt_claims", None) is not None
+        or identity.user_role != LitellmUserRoles.INTERNAL_USER_VIEW_ONLY
+        or connection.scope.get("type") != "http"
+        or not isinstance(connection.scope.get("path"), str)
+    ):
+        return False
+    route = get_request_route(connection)
+    if not route.startswith("/") or normalize_request_route(route) != getattr(
+        identity, "request_route", None
+    ):
+        return False
+    # Discovery can be native-public; a public wildcard must not create an
+    # unauthenticated inference path through the owned gateway.
+    if RouteChecks.is_llm_api_route(route) and not (
+        route in ("/models", "/v1/models")
+        and connection.scope.get("method") in ("GET", "HEAD")
+    ):
+        return False
+    return not _route_requires_auth_despite_public(route, general_settings) and (
+        route in LiteLLMRoutes.public_routes.value
+        or route_in_additonal_public_routes(current_route=route)
+    )
+
+
+def _native_non_virtual_jwt(identity):
+    from litellm.proxy import proxy_server
+
+    settings = proxy_server.general_settings
+    return (
+        _native_unkeyed(identity)
+        and isinstance(getattr(identity, "jwt_claims", None), dict)
+        and bool(identity.jwt_claims)
+        and isinstance(getattr(identity, "request_route", None), str)
+        and isinstance(settings, dict)
+        and settings.get("enable_jwt_auth") is True
+        and proxy_server.premium_user is True
+        and proxy_server.user_custom_auth is None
+        and settings.get("enable_oauth2_auth") is not True
+        and settings.get("enable_oauth2_proxy_auth") is not True
+    )
+
+
 class OwnedAdmission(CustomLogger):
     def __init__(self):
         super().__init__(turn_off_message_logging=True)
@@ -76,6 +145,10 @@ class OwnedAdmission(CustomLogger):
         return engine
 
     async def _admit(self, user_api_key_dict, model, path):
+        if _native_non_virtual_jwt(user_api_key_dict):
+            # Native JWT policy already ran. This is not Atrium principal
+            # mapping or its administrator freshness exception.
+            return "native-non-virtual-jwt"
         observed = int(time.time())
         try:
             engine = await run_in_threadpool(self._observed_engine, observed)
@@ -98,6 +171,8 @@ class OwnedAdmission(CustomLogger):
     async def async_post_native_auth(self, user_api_key_dict, connection):
         from litellm.proxy.common_utils.http_parsing_utils import _read_request_body
 
+        if _native_public(user_api_key_dict, connection):
+            return "native-public"
         route = getattr(user_api_key_dict, "request_route", None)
         model, path = None, None
         if (
