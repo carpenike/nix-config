@@ -122,3 +122,37 @@ The first full attempt reached namespace setup but the consumer exited before
 testing: restrictive umask made its code and delivery directories inaccessible.
 Explicit read/traverse modes were corrected; signing/control directories remain
 private. The failed receipt is retained, not represented as gate evidence.
+
+## Clean native evidence
+
+The [final receipt](../../tests/atrium_n06/results/n06-egress-17de47c2.json) binds
+**14 passing bounded cases** to clean source
+`17de47c2e3b8a61d9340313db6ea3d4593f154cd`, actual W03 source
+`c26e318c8c67d8051bf58f369d4b69dbaf998538`, Atrium
+`1d620cd30f27f2b5849533fb2a9bdb5016385f69`, and the owner spec's recorded SHA-256.
+The existing checks also pass **10 policy tests and 9 Nix assertions**.
+
+* **T4 portion:** the real native gateway's direct backend is reachable from the
+  setup UID but refused to Whiskey UID 11001; the kernel rejection counter
+  increases. The actual adopted helper succeeds through the TLS proxy.
+* **T16 portion:** actual W03 text returns 200 from `/v1/messages`, with precisely
+  one authenticated native provider call to `/v1/responses`, model
+  `fixture-personal`, and zero foreign-provider calls. Missing publication yields
+  503 without fallback; recovery succeeds. The live direct-Anthropic canary is
+  refused with a second measured kernel rejection.
+* **T16 required permits exercised:** actual OpenAI/Gemini/OpenRouter image
+  adapters, OIDC discovery, Partiful refresh/read, Plex identity, SSRF-safe
+  reference fetch and OpenAI reference edit all work through the selected
+  restrictions. The unexecuted integration portions remain listed above.
+* **T22 portion:** the actual N04 parser refuses `foreign_alias_backend`, paired
+  with the configured valid alias reaching only its declared synthetic account.
+
+The same Node process (PID 8) uses UID 11001, zero effective capabilities and
+`NoNewPrivileges=1`; neither direct Anthropic environment variable is present.
+The different-host/same-address and non-image/provider-address permits explicitly
+demonstrate the enforcement limits rather than pretending they are denials.
+
+Every owned container and
+`atrium-harness-n06-76e9c77578dc074e-net` was removed. The pre-existing
+`ambit-db` container `a914bf6c7045` remained running unchanged. Images and the
+shared VM were not removed. Full N06/phase-1 completion is **not** claimed.

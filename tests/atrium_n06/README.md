@@ -18,3 +18,11 @@ the Nix store.
 policy gates are outstanding. A passing bounded matrix must not be promoted into
 hostname isolation, image-only enforcement, full household integration, or a
 production cutover claim.
+
+The [clean final receipt](results/n06-egress-17de47c2.json) records 14 passing
+bounded cases, including authenticated provider account/model observations and
+per-denial kernel counter increments. The earlier
+[clean functional receipt](results/n06-egress-fec78464.json) is retained; its
+inherited N07 scope labels were corrected in the final runner. The
+[bootstrap diagnostic](results/n06-egress-bootstrap-diagnostic.json) is a failed
+startup attempt, not acceptance evidence.
