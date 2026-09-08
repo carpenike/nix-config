@@ -270,18 +270,21 @@ def main():
             "python",
             ["-B", "-c", ""],
             memory="256m",
+            port=8000,
             options=("--network-alias", "family.models.atrium.invalid"),
         )
+        state["family_observer"] = secrets.token_urlsafe(32)
         resources.start(
             family,
             json.dumps(
                 {
                     "inference": state["provider_keys"]["family-model"],
-                    "observer": secrets.token_urlsafe(32),
+                    "observer": state["family_observer"],
                 }
             ),
         )
         resources.wait_running(family)
+        state["family_endpoint"] = resources.endpoint(family, 8000)
         hosts = sorted(
             {
                 host
@@ -431,6 +434,10 @@ except Exception as error:
         )
         evidence["scope"].update(
             {
+                "native_only": False,
+                "owned_controller": True,
+                "protocols": ["POST /v1/messages via actual adopted W03 helper"],
+                "network_claim": "Actual nftables UID/address/port enforcement in an invocation-owned namespace; not global N03 topology proof.",
                 "actual_helper": "compiled W03 callAnthropic and native image adapters",
                 "egress": "UID-scoped nftables in exact invocation-owned network namespace",
                 "granularity": "IPv4 destination address + TCP port; not hostname or image-only enforcement",
@@ -474,8 +481,40 @@ except Exception as error:
 
                 def text(row):
                     start = len(counts())
+                    before_model = observer.get(
+                        "/_fixture/counts", headers=observer_headers
+                    ).json()
                     row["permit"] = process.call("text")
                     row["destinations"] = counts()[start:]
+                    after_model = observer.get(
+                        "/_fixture/counts", headers=observer_headers
+                    ).json()
+                    row["native_provider"] = {
+                        "requests": after_model["received"] - before_model["received"],
+                        "models": after_model["models"][len(before_model["models"]) :],
+                        "paths": after_model["paths"][len(before_model["paths"]) :],
+                        "credential_matches": after_model["credential_matches"][
+                            len(before_model["credential_matches"]) :
+                        ],
+                    }
+                    family_counts = httpx.get(
+                        state["family_endpoint"] + "/_fixture/counts",
+                        headers={"Authorization": "Bearer " + state["family_observer"]},
+                        trust_env=False,
+                        timeout=10,
+                    ).json()
+                    row["foreign_provider_requests"] = family_counts["received"]
+                    require(
+                        row["native_provider"]
+                        == {
+                            "requests": 1,
+                            "models": ["fixture-personal"],
+                            "paths": ["/v1/responses"],
+                            "credential_matches": [True],
+                        }
+                        and row["foreign_provider_requests"] == 0,
+                        "wrong_native_model_account",
+                    )
                     require(
                         row["permit"].get("status") == 200
                         and row["permit"].get("text") == "fixture-ok",
@@ -525,9 +564,25 @@ except Exception as error:
                         "deny_target_not_live",
                     )
                     start = len(counts())
+
+                    def rejected_packets():
+                        rules = process.call("rules")["rules"]["nftables"]
+                        return sum(
+                            expression["counter"]["packets"]
+                            for entry in rules
+                            if "rule" in entry
+                            and any("reject" in part for part in entry["rule"]["expr"])
+                            for expression in entry["rule"]["expr"]
+                            if "counter" in expression
+                        )
+
+                    before_reject = rejected_packets()
                     row["deny"] = process.call("fetch", url=url)
+                    row["kernel_rejected_packets"] = rejected_packets() - before_reject
                     require(
-                        row["deny"].get("ok") is False and len(counts()) == start,
+                        row["deny"].get("ok") is False
+                        and len(counts()) == start
+                        and row["kernel_rejected_packets"] > 0,
                         "namespace_egress_not_denied",
                     )
 
