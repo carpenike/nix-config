@@ -169,3 +169,30 @@ Every owned container and
 `atrium-harness-n06-76e9c77578dc074e-net` was removed. The pre-existing
 `ambit-db` container `a914bf6c7045` remained running unchanged. Images and the
 shared VM were not removed. Full N06/phase-1 completion is **not** claimed.
+
+### Capability-composition regression closure
+
+The [post-fix receipt](../../tests/atrium_n06/results/n06-egress-66d72010.json)
+binds **15 passing native cases and 16 passing Nix checks** to clean source
+`66d72010e918dfa8a03bf4871da5d5dac5b92de6`. The capability fix itself is
+`5f8b3ebcd7cd0a28d5ad3822b0f0889466322810`. The existing 10 policy tests pass.
+
+Pre-fix composition reproduced retained capabilities in ordinary and ordered
+privileged service definitions. Post-fix composition clears those definitions,
+emits explicit empty systemd resets, and rejects forced/higher-priority privilege
+retention. The separate namespace setup unit still has its required `NET_ADMIN`.
+
+The actual UID-11001 consumer reports zero inheritable, permitted, effective,
+bounding and ambient capabilities. Its `nft delete table` attempt executes and
+returns status 1; the table remains, and all original paired egress cases pass.
+The [preceding diagnostic](../../tests/atrium_n06/results/n06-egress-5f8b3ebc.json)
+is retained: it already showed zero capabilities and 14 working egress cases,
+but the new deletion probe initially stopped at inaccessible public tool
+directories. Only those invocation-owned container directories were made
+traversable; credential/control permissions were not widened.
+
+Cleanup removed all exact owned resources and
+`atrium-harness-n06-a6f1542252fb5305-net`, retaining `ambit-db` unchanged.
+Enforcement remains IPv4 **address + TCP port**, not hostname or modality
+isolation. The previously documented unexecuted permits and owner decisions
+remain full-gate limits.

@@ -26,3 +26,9 @@ per-denial kernel counter increments. The earlier
 inherited N07 scope labels were corrected in the final runner. The
 [bootstrap diagnostic](results/n06-egress-bootstrap-diagnostic.json) is a failed
 startup attempt, not acceptance evidence.
+
+The [capability-composition follow-up](results/n06-egress-66d72010.json) records
+15 native cases and 16 Nix checks at clean source `66d72010`. All five Linux
+capability sets are zero, the actual consumer cannot remove the nftables table,
+and the existing permit/deny matrix still passes. Earlier receipts are retained;
+this does not promote the remaining full N06 gates.
