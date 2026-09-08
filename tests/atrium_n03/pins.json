@@ -3,6 +3,15 @@
   "atrium": "5f919f085ca0e77664b72d13e96ceeb0680688e4",
   "native": "338cbbdb990a5751d199f276c5d65b07730cd97d",
   "consumer": "273cf414cac75276492ee849bb3ea257ce47f8de",
+  "native_runtime_extra": {
+    "python": "3.13",
+    "platform": "aarch64-unknown-linux-gnu",
+    "packages": {
+      "authlib": "1.8.0",
+      "asyncpg": "0.31.0",
+      "joserfc": "1.7.5"
+    }
+  },
   "sqlite_addon": {
     "version": "12.10.0",
     "node_abi": 127,
