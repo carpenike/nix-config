@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,10 +12,14 @@ sys.path.insert(0, str(ROOT / "pkgs/atrium-litellm-controller"))
 
 @pytest.fixture(scope="session")
 def generated():
+    if path := os.environ.get("ATRIUM_N04_GENERATED_FIXTURE"):
+        return json.loads(Path(path).read_bytes())
     output = subprocess.run(
         [
             "nix",
             "eval",
+            "--builders",
+            "",
             "--offline",
             "--no-write-lock-file",
             "--option",

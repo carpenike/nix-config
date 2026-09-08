@@ -7,7 +7,13 @@ from pathlib import Path
 from .associations import AssociationSource
 from .desired import Desired
 from .errors import ControllerError, require
-from .files import atomic_json, digest, read_bytes
+from .files import (
+    atomic_json,
+    atomic_publication_json,
+    digest,
+    read_bytes,
+    validate_publication,
+)
 from .ledger import Ledger
 from .native import (
     EMPTY_OBJECT_PERMISSIONS,
@@ -50,6 +56,7 @@ class Controller:
         service_delivery: dict | None = None,
         service_association_snapshot: Path | None = None,
         bindings_snapshot: Path | None = None,
+        publication_reader_gid: int | None = None,
     ):
         self.desired = desired
         self.ledger = ledger
@@ -64,12 +71,40 @@ class Controller:
         self.bindings_snapshot = (
             bindings_snapshot or ledger.path / "native-bindings.json"
         )
+        self.publication_reader_gid = publication_reader_gid
+        if publication_reader_gid is not None:
+            private_paths = [ledger.path.resolve()]
+            private_paths.extend(
+                Path(value["runtime_path"]).parent.resolve()
+                for value in desired.document["service_credentials"].values()
+            )
+            private_paths.extend(
+                Path(value["service"]["runtime_key_path"]).parent.resolve()
+                for value in desired.document["model_templates"].values()
+                if value.get("service") is not None
+            )
+            for path in (self.bindings_snapshot, self.service_association_snapshot):
+                require(
+                    all(
+                        not path.parent.resolve().is_relative_to(private)
+                        and not private.is_relative_to(path.parent.resolve())
+                        for private in private_paths
+                    ),
+                    "publication_directory_overlaps_custody",
+                )
+                validate_publication(path, publication_reader_gid)
+
+    def _publish_snapshot(self, path: Path, document: dict) -> None:
+        if self.publication_reader_gid is None:
+            atomic_json(path, document)
+        else:
+            atomic_publication_json(path, document, self.publication_reader_gid)
 
     def publish_bindings(self, now: int) -> None:
         require(
             self.ledger._locked and not self.ledger.dry_run, "ledger_write_forbidden"
         )
-        atomic_json(
+        self._publish_snapshot(
             self.bindings_snapshot,
             {
                 "schema_version": 1,
@@ -127,7 +162,7 @@ class Controller:
             for row in self.ledger.state["keys"].values()
             if row["source"] == "controller"
         ]
-        atomic_json(
+        self._publish_snapshot(
             self.service_association_snapshot,
             {
                 "schema_version": 1,

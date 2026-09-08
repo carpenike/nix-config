@@ -115,6 +115,75 @@ def read_json(path: Path, *, uid: int | None = None, secret: bool = False) -> di
     return decode(read_bytes(path, uid=uid, secret=secret))
 
 
+@contextmanager
+def publication_directory(path: Path, group: int):
+    require(
+        path.is_absolute()
+        and ".." not in path.parts
+        and type(group) is int
+        and 0 <= group < 2**32 - 1
+        and group in {os.getegid(), *os.getgroups()},
+        "invalid_publication_group",
+    )
+    with directory(path, secret=True) as parent:
+        info = os.fstat(parent)
+        require(
+            info.st_uid == os.geteuid()
+            and info.st_gid == group
+            and stat.S_IMODE(info.st_mode) == 0o2750,
+            "untrusted_publication_directory",
+        )
+        yield parent
+
+
+def _publication_existing(parent: int, name: str, group: int) -> bytes | None:
+    try:
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            dir_fd=parent,
+        )
+    except FileNotFoundError:
+        return None
+    with os.fdopen(descriptor, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        require(
+            stat.S_ISREG(before.st_mode)
+            and before.st_nlink == 1
+            and before.st_uid == os.geteuid()
+            and before.st_gid == group
+            and stat.S_IMODE(before.st_mode) == 0o640
+            and before.st_size <= MAX_DOCUMENT,
+            "untrusted_publication_file",
+        )
+        body = stream.read(MAX_DOCUMENT + 1)
+        after = os.fstat(stream.fileno())
+        require(
+            len(body) <= MAX_DOCUMENT
+            and (before.st_ino, before.st_size, before.st_mtime_ns)
+            == (after.st_ino, after.st_size, after.st_mtime_ns),
+            "publication_changed_during_read",
+        )
+    decode(body)
+    return body
+
+
+def validate_publication(path: Path, group: int) -> None:
+    try:
+        with publication_directory(path.parent, group) as parent:
+            _publication_existing(parent, path.name, group)
+    except OSError:
+        raise ControllerError("protected_publication_unavailable") from None
+
+
+def atomic_publication_json(path: Path, value: dict, group: int) -> None:
+    require(
+        value.get("kind") in {"atrium.litellm-bindings", "atrium.litellm-associations"},
+        "invalid_publication_kind",
+    )
+    atomic_json(path, value, secret=True, mode=0o640, group=group, publication=True)
+
+
 def atomic_json(
     path: Path,
     value: dict,
@@ -122,25 +191,85 @@ def atomic_json(
     secret: bool = False,
     mode: int = 0o600,
     group: int | None = None,
+    publication: bool = False,
 ) -> None:
     require(mode in (0o600, 0o640), "unsafe_publication_mode")
     payload = canonical(value) + b"\n"
-    with directory(path.parent, secret=secret) as parent:
+    if publication:
+        require(
+            mode == 0o640 and len(payload) <= MAX_DOCUMENT, "invalid_publication_mode"
+        )
+    opened = (
+        publication_directory(path.parent, group)
+        if publication
+        else directory(path.parent, secret=secret)
+    )
+    with opened as parent:
+        previous = (
+            _publication_existing(parent, path.name, group) if publication else None
+        )
+        if publication and previous == payload:
+            return
         staged = "." + path.name + "." + secrets.token_hex(12) + ".next"
         try:
             fd = os.open(
                 staged,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                mode,
+                0o600 if publication else mode,
                 dir_fd=parent,
             )
             with os.fdopen(fd, "wb") as stream:
-                os.fchmod(stream.fileno(), mode)
-                if group is not None:
-                    os.fchown(stream.fileno(), -1, group)
+                if not publication:
+                    os.fchmod(stream.fileno(), mode)
+                    if group is not None:
+                        os.fchown(stream.fileno(), -1, group)
                 stream.write(payload)
                 stream.flush()
+                if publication:
+                    os.fchown(stream.fileno(), -1, group)
+                    os.fchmod(stream.fileno(), mode)
+                    staged_info = os.fstat(stream.fileno())
+                    require(
+                        stat.S_ISREG(staged_info.st_mode)
+                        and staged_info.st_nlink == 1
+                        and staged_info.st_uid == os.geteuid()
+                        and staged_info.st_gid == group
+                        and stat.S_IMODE(staged_info.st_mode) == 0o640,
+                        "publication_staging_changed",
+                    )
                 os.fsync(stream.fileno())
+            if publication:
+                with publication_directory(path.parent, group) as current:
+                    require(
+                        (os.fstat(parent).st_dev, os.fstat(parent).st_ino)
+                        == (os.fstat(current).st_dev, os.fstat(current).st_ino),
+                        "publication_directory_changed",
+                    )
+                require(
+                    _publication_existing(parent, path.name, group) == previous,
+                    "publication_changed_during_write",
+                )
+                current = os.stat(staged, dir_fd=parent, follow_symlinks=False)
+                require(
+                    (
+                        staged_info.st_dev,
+                        staged_info.st_ino,
+                        staged_info.st_size,
+                        staged_info.st_mtime_ns,
+                    )
+                    == (
+                        current.st_dev,
+                        current.st_ino,
+                        current.st_size,
+                        current.st_mtime_ns,
+                    )
+                    and current.st_nlink == 1
+                    and stat.S_ISREG(current.st_mode)
+                    and current.st_uid == os.geteuid()
+                    and current.st_gid == group
+                    and stat.S_IMODE(current.st_mode) == 0o640,
+                    "publication_staging_changed",
+                )
             os.replace(staged, path.name, src_dir_fd=parent, dst_dir_fd=parent)
             os.fsync(parent)
         except OSError:

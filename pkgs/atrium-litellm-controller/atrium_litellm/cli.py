@@ -8,7 +8,7 @@ from .associations import ProtectedSnapshotSource, fields
 from .controller import Controller
 from .desired import Desired
 from .errors import ControllerError, require
-from .files import decode, read_bytes
+from .files import decode, read_bytes, validate_publication
 from .ledger import Ledger
 from .native import Native
 
@@ -42,7 +42,12 @@ def main() -> int:
                 "service_delivery",
                 "service_association_snapshot",
                 "bindings_snapshot",
-            },
+            }
+            | (
+                {"publication_reader_gid"}
+                if "publication_reader_gid" in config
+                else set()
+            ),
             "invalid_controller_configuration",
         )
         require(
@@ -54,6 +59,20 @@ def main() -> int:
             config["installation"],
             config["issuer"],
         )
+        reader_gid = config.get("publication_reader_gid")
+        if reader_gid is not None:
+            for name in ("bindings_snapshot", "service_association_snapshot"):
+                path = Path(config[name])
+                custody = Path(config["ownership_directory"]).resolve()
+                require(
+                    not path.parent.resolve().is_relative_to(custody)
+                    and not custody.is_relative_to(path.parent.resolve())
+                    and not Path(config["management_key_file"])
+                    .resolve()
+                    .is_relative_to(path.parent.resolve()),
+                    "publication_directory_overlaps_custody",
+                )
+                validate_publication(path, reader_gid)
         source = ProtectedSnapshotSource(
             Path(config["association_snapshot"]),
             config["installation"],
@@ -97,6 +116,7 @@ def main() -> int:
                     config["service_association_snapshot"]
                 ),
                 bindings_snapshot=Path(config["bindings_snapshot"]),
+                publication_reader_gid=reader_gid,
             ).run(dry_run=args.dry_run, rotate=not args.no_rotate)
         print(json.dumps(report, sort_keys=True))
         return 0
