@@ -326,6 +326,32 @@ native `GET /routes` 200 with no adapter initialization or provider effects, but
 its fixture expected a bare list. Pinned native source returns `{"routes":[...]}`;
 the observer was corrected without changing native authentication or routing.
 
+Clean source `3999d9f74d062f037f5ca84a2e4f301b4385ec58` is bound by:
+
+* [Focused SDK receipt](results/n05-native-public-focused-3999d9f7.json):
+  **118 tests pass**, including public/JWT provenance, mapped/unknown-key
+  negatives, and the existing admission regressions.
+* [Native public receipt](results/n05-native-public-3999d9f7.json):
+  **six groups pass** over retained connections to workers **229/230**. Native
+  `/routes` returns 200 before admission initialization and while the owned
+  producer is unavailable. Anonymous protected inference remains native 401.
+  Owned inference succeeds, owned token counting is 403, and a missing managed
+  producer yields 503 with no provider effects. Producer recovery permits actual
+  legacy token counting again.
+
+Native premium was **false**: the configured additional-public `/v1/models`
+request remained native 401, and a synthetic JWT remained native 403 before the
+post-auth boundary. These are native entitlement refusals, **not** JWT signature
+or additional-public HTTP permit proof. Such permit shapes are SDK-unit coverage
+only until the real feature is available; no premium gate was altered.
+
+No no-key observer event contains a credential hash/key or JWT claim values.
+Both runs report clean sources, verified wheel bytes, and exact resource cleanup.
+The native network `atrium-harness-n05-adapter-5872c6ac02dc12a5-net` was removed;
+`ambit-db` (`a914bf6c7045`) remained running unchanged. The completed master-alias,
+service revocation, protocol-cache, and clock tranches were not reworked.
+Startup remains opt-in and full N05 retains its previously declared gaps.
+
 ## Historical placement probe
 
 This is an isolated, **unimported test probe**, not N05 implementation or
