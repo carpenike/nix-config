@@ -1,0 +1,102 @@
+{
+  "ticket": "ATR-N03",
+  "source": {
+    "commit": "a03c68e4717f5cf082d016c43ec7f5e9fe975a3a",
+    "dirty": false
+  },
+  "status": "passed",
+  "command": [
+    "nix",
+    "build",
+    "--builders",
+    "",
+    "--no-link",
+    "--no-write-lock-file",
+    "--json",
+    ".#checks.aarch64-darwin.atrium-n03-units",
+    ".#checks.aarch64-darwin.atrium-n03-caddy",
+    ".#checks.aarch64-darwin.atrium-registry-values",
+    ".#checks.aarch64-darwin.atrium-n04-units",
+    ".#checks.aarch64-darwin.atrium-n05-units",
+    ".#checks.aarch64-darwin.atrium-n05-package",
+    ".#checks.aarch64-darwin.atrium-n05-python"
+  ],
+  "outputs": [
+    {
+      "drvPath": "/nix/store/mny5n884992nsypynxqpf09i99ybl9cw-atrium-n03-isolated-units.json.drv",
+      "outputs": {
+        "out": "/nix/store/0lmgi1mkk7ah09ii73xvzhqi0rr49s1b-atrium-n03-isolated-units.json"
+      }
+    },
+    {
+      "drvPath": "/nix/store/ljgci26l83hh3shwlv40x05b6n5vfmz3-atrium-n03-caddy-syntax.drv",
+      "outputs": {
+        "out": "/nix/store/3w20pf15p4xngjl4hn48kbk9v1i64qjk-atrium-n03-caddy-syntax"
+      }
+    },
+    {
+      "drvPath": "/nix/store/f18hj7naaj9x191mp2wgghr3xp7f6m9l-atrium-registry-values-v2.json.drv",
+      "outputs": {
+        "out": "/nix/store/m4yh5wxm3g090vp4xwvpddri0pz1331h-atrium-registry-values-v2.json"
+      }
+    },
+    {
+      "drvPath": "/nix/store/jvjq7ap21f1xs5dbpsb6drbrmy284dj1-atrium-n04-unit-checks.json.drv",
+      "outputs": {
+        "out": "/nix/store/m9m5jll16cp78jvy3q9nq39vrn55mrg2-atrium-n04-unit-checks.json"
+      }
+    },
+    {
+      "drvPath": "/nix/store/gficshz321lik3kqrb24lk79s7hf5969-atrium-n05-unit-checks.json.drv",
+      "outputs": {
+        "out": "/nix/store/93w0f0n2daamkkkr1yp4dwm4brxxwxa4-atrium-n05-unit-checks.json"
+      }
+    },
+    {
+      "drvPath": "/nix/store/zsfhglk59xirxxg6dbxa2q0kwda37r7q-python3.12-atrium-litellm-admission-0.1.0.drv",
+      "outputs": {
+        "out": "/nix/store/sjb4c4d44pxlqlrv45lilhp8w2ccbl40-python3.12-atrium-litellm-admission-0.1.0"
+      }
+    },
+    {
+      "drvPath": "/nix/store/7pgqmhigk51dhzp8jijn80xwv18lnqgq-atrium-n05-python-checks.drv",
+      "outputs": {
+        "out": "/nix/store/7n6liyvms2qqfdvk85h6q73dr5i1410a-atrium-n05-python-checks"
+      }
+    }
+  ],
+  "scope": "Isolated unit/Caddy/registry and impacted N04/N05 package checks; no host deployment or Forge build",
+  "unit_checks": {
+    "c8_adopted": false,
+    "check_count": 20,
+    "checks": {
+      "accepted-pins": true,
+      "actual-device-cli": true,
+      "actual-packages": true,
+      "empty-consumer-capabilities": true,
+      "isolated-host": true,
+      "model-gap-is-closed-not-placeholder": true,
+      "namespace-for-every-consumer": true,
+      "native-loopback-only": true,
+      "native-peer-not-proxy-assertion": true,
+      "no-direct-anthropic-fallback": true,
+      "no-live-backup-notification-jobs": true,
+      "no-live-mcp-subsystems": true,
+      "no-public-host-firewall": true,
+      "operations-use-repo-conventions": true,
+      "public-policy-generated-once": true,
+      "rotating-model-path-not-credential-snapshot": true,
+      "tls-preserving-registration-entry": true,
+      "unchanged-native-origin": true,
+      "valid-module-assertions": true,
+      "whiskey-loopback-only": true
+    },
+    "kind": "atrium.n03-isolated-unit-evaluation",
+    "model_plane_ready": false,
+    "runtime_gate_evidence": false
+  },
+  "admission_pytest": {
+    "passed": 59,
+    "skipped": 3
+  }
+}

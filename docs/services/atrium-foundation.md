@@ -6,6 +6,34 @@ provision production identities, decrypt live secrets, or change host/VM trust,
 DNS, routes or firewall rules. The guarantee remains credential-scoped access
 and accident prevention, not conversation/context isolation.
 
+## Source-bound bounded result
+
+Implementation source: `a03c68e4717f5cf082d016c43ec7f5e9fe975a3a`.
+The [clean native receipt](../../tests/atrium_n03/results/n03-clean-a03c68e4.json)
+records **13 passing paired groups** across T1/T4/T8/T15/T20/T26 portions and
+**two explicitly blocked integration rows**. The overall result remains
+`partial`, not a completed N03 or phase-1 gate.
+
+The actual C1 run waits 310.105 seconds without clock mutation. Healthy native
+device denial propagated in 12.342 seconds and Whiskey companion denial in
+20.546 seconds. Native MCP refused ordinary stale-feed use, verified eligible
+admin use produced a durable alert, Whiskey's known-denied companion remained
+refused, and recovery restored permitted use.
+
+[Clean Nix/package evidence](../../tests/atrium_n03/results/n03-clean-static-a03c68e4.json)
+records 20 isolated unit assertions, actual Caddy adaptation, impacted
+registry/N04/N05 checks and **59 admission pytest passes / three native-SDK
+module skips**. These skips are not reclassified as native gateway execution.
+Existing scoped formatting, linting, YAML and staged secret checks passed.
+
+The final foundation and client containers
+`5fe0dd9ef7167775aa688652b29511bf2085ba0a84d563b5b371961b012058a2`
+and `87fb24e2654dd33081aed9912e46700d5914f173463dbecb635411edaeed8932`,
+plus network `atrium-harness-n03-e025f54182bdfac9-net`, were removed by their
+recorded ownership lifecycle. Running `a914bf6c7045` (`ambit-db`) was unchanged.
+All application/client processes ran non-root with zero capabilities and
+`NoNewPrivs`. Earlier diagnostic receipts are retained unchanged.
+
 ## Accepted source boundary
 
 * Atrium `87e1ecaea98688ea079707083413f7b2f6ba1a70`: actual N02 module,
@@ -52,6 +80,10 @@ address/host/scheme at the trusted boundary. Native `Authorization` and
 metadata and intentional legacy routes are not wrapped in blanket SSO.
 Whiskey's existing private `/metrics` route stays closed at the public vhost.
 Missing C8-dependent current policy stays fail-closed.
+The native SDK's host guard remains enabled: Caddy uses the canonical loopback
+Host upstream while preserving the public forwarded host and verifying the
+configured public TLS server name. This is routing, not native identity
+masquerading; real resolver mTLS still terminates at Home MCP.
 
 Whiskey reuses N06's UID-scoped nftables implementation in the exact owned
 namespace. Its enforcement is **IPv4 destination address plus TCP port**, not

@@ -1,0 +1,233 @@
+{
+  "bootstrap": {
+    "missing": "authlib",
+    "ready": false
+  },
+  "c8_adopted": false,
+  "cleanup": {
+    "images_removed": false,
+    "remaining_owned_resources": [],
+    "shared_vm_and_preexisting_resources_modified": false,
+    "status": "passed"
+  },
+  "commands": [
+    {
+      "argv": [
+        "podman",
+        "system",
+        "connection",
+        "list",
+        "--format=json"
+      ],
+      "duration_ms": 64,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 116,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "info",
+        "--format",
+        "json"
+      ],
+      "duration_ms": 98,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "image",
+        "inspect",
+        "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+      ],
+      "duration_ms": 66,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n03-713bfe35b34a65ed-foundation",
+        "--label",
+        "atrium.harness.run=n03-713bfe35b34a65ed",
+        "--network",
+        "none",
+        "--memory",
+        "2048m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--tmpfs",
+        "/run/atrium-n03:rw,nosuid,nodev,size=256m,mode=0755",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\"\"\"Invocation-owned foundation supervisor; service logic remains in accepted packages.\"\"\"\n\nimport base64\nimport json\nimport os\nimport subprocess\nimport sys\nimport tarfile\nimport traceback\nfrom pathlib import Path\nfrom zipfile import ZipFile\nimport io\n\nROOT = Path(\"/run/atrium-n03\")\n\n\ndef reply(value):\n    print(json.dumps(value), flush=True)\n\n\ndef main():\n    data = json.loads(sys.stdin.readline())\n    ROOT.mkdir(mode=0o755, exist_ok=True)\n    for name, contents in data[\"archives\"].items():\n        with ZipFile(io.BytesIO(base64.b64decode(contents))) as archive:\n            archive.extractall(ROOT / name)\n    with tarfile.open(\"/opt/n03-tools.tar.gz\") as archive:\n        for member in archive:\n            if not member.name.startswith(\"nix/store/\") or \"..\" in Path(member.name).parts:\n                raise ValueError(\"tool_archive_path_refused\")\n        archive.extractall(\"/\", filter=\"fully_trusted\")\n    probe = \"\"\"\nimport json\ntry:\n import homelab_mcp.app\n print(json.dumps({\"ready\":True}))\nexcept ModuleNotFoundError as error:\n print(json.dumps({\"ready\":False,\"missing\":error.name}))\n\"\"\"\n    env = os.environ | {\n        \"PYTHONPATH\": str(ROOT / \"native-python\"),\n        \"PYTHONDONTWRITEBYTECODE\": \"1\",\n    }\n    checked = subprocess.run([sys.executable, \"-B\", \"-c\", probe], env=env, capture_output=True, text=True)\n    reply(json.loads(checked.stdout))\n    for line in sys.stdin:\n        command = json.loads(line)\n        if command[\"action\"] == \"stop\":\n            return\n        reply({\"error\": \"bootstrap_only\"})\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except Exception as error:\n        frame = traceback.extract_tb(error.__traceback__)[-1]\n        reply({\"ready\": False, \"code\": type(error).__name__, \"file\": Path(frame.filename).name, \"line\": frame.lineno})\n        raise SystemExit(1) from None\n"
+      ],
+      "duration_ms": 69,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n03/.artifacts/n03-linux-tools.tar.gz",
+        "104a37844252876f0e7682e45900e7bf65b5fefb72ec783466b59ff2c6412d71:/opt/n03-tools.tar.gz"
+      ],
+      "duration_ms": 851,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "104a37844252876f0e7682e45900e7bf65b5fefb72ec783466b59ff2c6412d71"
+      ],
+      "duration_ms": 5278,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 60,
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ],
+  "engine": {
+    "connection": "podman-machine-default",
+    "loopback": true,
+    "transport": "local-vm"
+  },
+  "foreign_resources_unchanged": true,
+  "full_n03": "incomplete",
+  "image": {
+    "architecture": "arm64",
+    "image_id": "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+    "os": "linux",
+    "repo_digests": [
+      "ghcr.io/berriai/litellm@sha256:2d0f10790c6d9a72f240465ebe755987c40bdd0795cba9f57cbebc7ddc6e5c6f",
+      "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+    ],
+    "requested": "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+  },
+  "resources": [
+    {
+      "id": "104a37844252876f0e7682e45900e7bf65b5fefb72ec783466b59ff2c6412d71",
+      "name": "atrium-harness-n03-713bfe35b34a65ed-foundation",
+      "role": "foundation",
+      "status": "created"
+    }
+  ],
+  "run_id": "n03-713bfe35b34a65ed",
+  "source": {
+    "commit": "f8cfa5c7aa173755dd7a81e9b8367ad389e508a8",
+    "dirty": true,
+    "inputs": {
+      "atrium": {
+        "path": "/nix/store/08qkbww46ccnx107krpy26zb081s96kr-source",
+        "rev": "87e1ecaea98688ea079707083413f7b2f6ba1a70"
+      },
+      "homelab-mcp": {
+        "path": "/nix/store/fcygr8346ws3bab8xr6hxhbqc4cwxhsg-source",
+        "rev": "34652871465482627d645e3ea7caea7248547925"
+      },
+      "whiskey-whiskey-whiskey": {
+        "path": "/nix/store/5wlk5ap0646mzws502rwkr9qf6nw1050-source",
+        "rev": "273cf414cac75276492ee849bb3ea257ce47f8de"
+      }
+    },
+    "native_shared_lock": {
+      "algorithm": "sha256",
+      "digest": "164eb98bf79ffb014f07ea00d0ef6e9235fdd9567146b8fa1613b3b3360b6fdf"
+    },
+    "native_shared_pin": "d59c09233bd8cdd6ff6ce89b423d9d0862fc2fca",
+    "owner_spec_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "wheels": {
+      "atrium_profiles-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "47a19df2b02b9c9ebc837233b80ad104f348d0833be085a1b088ed51479501af"
+      },
+      "atrium_resolver-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "d3785b0ba1303df7ac8d3cbda1427924bad00729a52642c256398ceec69ea743"
+      },
+      "atrium_sidecar-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "72a8bfeef87d941c35a5536f2156b30400186298129cd28709c76ac4aadd80a2"
+      },
+      "homelab_mcp-0.25.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "195fa2ae75f43487b10ce34b667420d4de115c90e6d239e9eea4d6310a112ac8"
+      },
+      "native/atrium_profiles-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "26bceeb61a7829a923933c5cd0bfe5c97aabdc55d71f20a42542613592e98099"
+      },
+      "native/atrium_resolver-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "865af77dd611f4e41c5f621ba846b78b74723e602ed901af2e07c22846103b1d"
+      },
+      "nix/certifi/__init__.py": {
+        "algorithm": "sha256",
+        "digest": "76f34351d017a7e873a1871fd3d3d7ccb9872253dfca968140f169e5eb035f2a"
+      },
+      "nix/certifi/__main__.py": {
+        "algorithm": "sha256",
+        "digest": "c410688fdd394d45812d118034e71fee88ba7beddd30fe1c1281bd3b232cd758"
+      },
+      "nix/certifi/core.py": {
+        "algorithm": "sha256",
+        "digest": "d768210fca137c2c0fbf653e8283ce46e45b518f62bb936c36710177ad9e6a02"
+      }
+    }
+  },
+  "status": "blocked",
+  "ticket": "ATR-N03"
+}

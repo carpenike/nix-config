@@ -1,0 +1,324 @@
+{
+  "bootstrap": {
+    "namespace": "net:[4026532494]",
+    "ready": true
+  },
+  "c8_adopted": false,
+  "cleanup": {
+    "images_removed": false,
+    "remaining_owned_resources": [],
+    "shared_vm_and_preexisting_resources_modified": false,
+    "status": "passed"
+  },
+  "commands": [
+    {
+      "argv": [
+        "podman",
+        "system",
+        "connection",
+        "list",
+        "--format=json"
+      ],
+      "duration_ms": 53,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 119,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "info",
+        "--format",
+        "json"
+      ],
+      "duration_ms": 102,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "image",
+        "inspect",
+        "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+      ],
+      "duration_ms": 61,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "create",
+        "--internal",
+        "--label",
+        "atrium.harness.run=n03-70aac97309f56080",
+        "atrium-harness-n03-70aac97309f56080-net"
+      ],
+      "duration_ms": 60,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "inspect",
+        "atrium-harness-n03-70aac97309f56080-net"
+      ],
+      "duration_ms": 66,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "create",
+        "--interactive",
+        "--name",
+        "atrium-harness-n03-70aac97309f56080-foundation",
+        "--label",
+        "atrium.harness.run=n03-70aac97309f56080",
+        "--network",
+        "atrium-harness-n03-70aac97309f56080-net",
+        "--memory",
+        "3072m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "256",
+        "--log-driver",
+        "none",
+        "--entrypoint",
+        "python",
+        "--tmpfs",
+        "/run/atrium-n03:rw,nosuid,nodev,size=512m,mode=0755",
+        "--tmpfs",
+        "/var/lib:rw,nosuid,nodev,size=256m,mode=0755",
+        "--tmpfs",
+        "/run/credentials:rw,nosuid,nodev,size=32m,mode=0755",
+        "--cap-add",
+        "NET_ADMIN",
+        "--add-host",
+        "identity.atrium.invalid:198.19.3.2",
+        "--add-host",
+        "litellm.atrium.invalid:198.19.3.2",
+        "--add-host",
+        "home-mcp.atrium.invalid:127.0.0.2",
+        "--add-host",
+        "registration.atrium.invalid:198.19.3.2",
+        "--add-host",
+        "atrium.atrium.invalid:198.19.3.2",
+        "--add-host",
+        "whiskey.atrium.invalid:198.19.3.2",
+        "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+        "-B",
+        "-c",
+        "\"\"\"Invocation-owned foundation supervisor; service logic remains in accepted packages.\"\"\"\n\nimport base64\nimport json\nimport os\nimport re\nimport subprocess\nimport sys\nimport tarfile\nimport time\nimport traceback\nfrom pathlib import Path\nfrom zipfile import ZipFile\nimport io\n\nROOT = Path(\"/run/atrium-n03\")\n\n\ndef reply(value):\n    print(json.dumps(value), flush=True)\n\n\ndef start(uid, command, environment, tools):\n    env = {\n        \"PATH\": \"/usr/local/bin:/usr/bin:/bin\",\n        \"HOME\": \"/run/atrium-n03\",\n        \"PYTHONDONTWRITEBYTECODE\": \"1\",\n        \"LITELLM_LOCAL_MODEL_COST_MAP\": \"True\",\n        \"LITELLM_TELEMETRY\": \"False\",\n        \"DO_NOT_TRACK\": \"1\",\n        **environment,\n    }\n    return subprocess.Popen([\n        tools[\"setpriv\"], \"--reuid\", str(uid), \"--regid\", str(uid), \"--clear-groups\",\n        \"--bounding-set=-all\", \"--inh-caps=-all\", \"--ambient-caps=-all\", \"--no-new-privs\",\n        *command,\n    ], env=env, cwd=ROOT, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)\n\n\ndef stop(processes):\n    for process in reversed(processes):\n        if process.poll() is None:\n            process.terminate()\n    for process in reversed(processes):\n        try:\n            process.wait(timeout=15)\n        except subprocess.TimeoutExpired:\n            process.kill()\n            process.wait(timeout=5)\n        process.stderr.close()\n\n\ndef foundation(data):\n    sys.path[:0] = [str(ROOT / \"resolver-python\"), str(ROOT / \"native-python\"), str(ROOT / \"fixture\")]\n    from prepare import provision\n    import jwt\n    import ssl\n    import httpx\n\n    f, tools = data[\"fixture\"], data[\"tools\"]\n    subprocess.run([tools[\"ip\"], \"address\", \"add\", f[\"frontAddress\"] + \"/32\", \"dev\", \"lo\"], check=True, capture_output=True)\n    for name in (\"whiskey\",):\n        with tarfile.open(\"/opt/n03-\" + name + \".tar.gz\") as archive:\n            archive.extractall(ROOT / name, filter=\"data\")\n    with tarfile.open(\"/opt/n03-sqlite.tar.gz\") as archive:\n        archive.extractall(ROOT / \"whiskey/node_modules/better-sqlite3\", filter=\"data\")\n    config = provision(f)\n    (ROOT / \"Caddyfile\").write_text(data[\"caddy\"])\n    (ROOT / \"Caddyfile\").chmod(0o644)\n    roles = f[\"ids\"]\n    resolver_uid = roles[\"atrium-resolver-fixture\"][\"uid\"]\n    native_uid = roles[\"atrium-mcp-fixture\"][\"uid\"]\n    consumer_uid = roles[\"atrium-consumer-fixture\"][\"uid\"]\n    processes = []\n    roles_by_pid = {}\n\n    def launch(role, uid, command, environment):\n        process = start(uid, command, environment, tools)\n        processes.append(process)\n        roles_by_pid[process.pid] = role\n        return process\n\n    def running():\n        for process in processes:\n            if process.poll() is not None:\n                output = process.stderr.read().decode(errors=\"replace\")\n                # Expose only a fixed final exception class, never configuration or HTTP payloads.\n                lines = [line for line in output.splitlines() if line.startswith((\"ModuleNotFoundError:\", \"ValueError:\", \"PermissionError:\", \"Error:\"))]\n                locations = re.findall(r'File \"([^\"]+)\", line ([0-9]+)', output)\n                return {\n                    \"ready\": False, \"code\": \"service_exited\", \"role\": roles_by_pid[process.pid],\n                    \"exit\": process.returncode,\n                    \"diagnostic_kind\": lines[-1].split(\":\", 1)[0] if lines else \"unavailable\",\n                    \"location\": {\"file\": Path(locations[-1][0]).name, \"line\": int(locations[-1][1])} if locations else None,\n                    \"failure_tags\": [name for name, text in {\n                        \"permission\": \"permission denied\", \"missing_file\": \"no such file\",\n                        \"address\": \"cannot assign requested address\", \"configuration\": \"loading initial config\",\n                        \"native_configuration\": \"resolver_configuration_or_state_rejected\",\n                    }.items() if text in output.lower()],\n                }\n        return None\n\n    tls = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)\n    tls.load_verify_locations(cadata=config[\"public\"][\"front-ca\"])\n    native_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)\n    native_tls.load_verify_locations(cadata=config[\"native_ca\"])\n    try:\n        launch(\"fixture\", roles[\"atrium-identity-fixture\"][\"uid\"], [sys.executable, \"-B\", str(ROOT / \"fixture/fixture_services.py\")], {})\n        launch(\"caddy\", roles[\"atrium-caddy-fixture\"][\"uid\"], [tools[\"caddy\"], \"run\", \"--config\", str(ROOT / \"Caddyfile\"), \"--adapter\", \"caddyfile\"], {\n            \"XDG_DATA_HOME\": \"/var/lib/caddy\", \"XDG_CONFIG_HOME\": \"/var/lib/caddy\",\n        })\n        resolver_env = {\n            \"PYTHONPATH\": str(ROOT / \"resolver-python\"),\n            \"NIX_SSL_CERT_FILE\": \"/run/credentials/atrium-resolver.service/front-ca\",\n        }\n        launch(\"resolver\", resolver_uid, [sys.executable, \"-B\", \"-m\", \"atrium_resolver.cli\", \"--config\", \"/etc/atrium/n03/resolver.json\", \"serve\", \"--port\", \"18765\"], resolver_env)\n        launch(\"registration\", resolver_uid, [sys.executable, \"-B\", \"-m\", \"atrium_resolver.cli\", \"--config\", \"/etc/atrium/n03/registration.json\", \"serve-devices\", \"--port\", \"18766\"], resolver_env)\n        launch(\"tcp-entry\", roles[\"atrium-forwarder-fixture\"][\"uid\"], [\n            tools[\"socat\"], f\"TCP4-LISTEN:{f['registrationPort']},bind={f['frontAddress']},reuseaddr,fork\", \"TCP4:127.0.0.1:18766\",\n        ], {})\n        with httpx.Client(verify=tls, trust_env=False, timeout=2) as client:\n            deadline = time.monotonic() + 30\n            while time.monotonic() < deadline:\n                if failure := running():\n                    reply(failure)\n                    return\n                try:\n                    if client.get(f[\"endpoints\"][\"resolver\"] + \"/healthz\").status_code == 200:\n                        break\n                except httpx.HTTPError:\n                    pass\n                time.sleep(0.2)\n            else:\n                raise ValueError(\"resolver_start_timeout\")\n        launch(\"native\", native_uid, [sys.executable, \"-B\", str(ROOT / \"fixture/native_service.py\")], {\n            **config[\"native_environment\"],\n            \"PYTHONPATH\": str(ROOT / \"native-python\"),\n            \"NIX_SSL_CERT_FILE\": \"/run/credentials/homelab-mcp.service/front-ca\",\n        })\n        # The live W03 key path remains empty/closed pending the documented producer interface.\n        delivery = ROOT / \"delivery\"\n        delivery.mkdir(mode=0o750)\n        os.chown(delivery, roles[\"atrium-reconciler-fixture\"][\"uid\"], consumer_uid)\n        ack = ROOT / \"acknowledgements/whiskey\"\n        ack.mkdir(mode=0o750, parents=True)\n        os.chown(ack, consumer_uid, roles[\"atrium-reconciler-fixture\"][\"uid\"])\n        (ROOT / \"egress.json\").write_text(json.dumps(f[\"egress\"]))\n        (ROOT / \"bindings.json\").write_text(json.dumps({name: [f[\"frontAddress\"]] for name in f[\"egress\"][\"destinations\"]}))\n        subprocess.run([\n            sys.executable, \"-B\", str(ROOT / \"fixture/egress.py\"), \"--policy\", str(ROOT / \"egress.json\"),\n            \"--bindings\", str(ROOT / \"bindings.json\"), \"--expected-netns\", os.readlink(\"/proc/self/ns/net\"),\n            \"--nft\", tools[\"nft\"],\n        ], capture_output=True, check=True)\n        seed = start(consumer_uid, [tools[\"node\"], str(ROOT / \"fixture/whiskey_seed.mjs\")], config[\"whiskey_environment\"], tools)\n        try:\n            if seed.wait(timeout=30) != 0:\n                raise ValueError(\"whiskey_seed_failed\")\n        finally:\n            seed.stderr.close()\n        launch(\"whiskey\", consumer_uid, [tools[\"node\"], str(ROOT / \"whiskey/dist/server/index.js\")], config[\"whiskey_environment\"])\n        with httpx.Client(verify=tls, trust_env=False, timeout=3) as client, httpx.Client(\n            verify=native_tls, trust_env=False, timeout=3,\n        ) as native_health:\n            deadline = time.monotonic() + 45\n            while time.monotonic() < deadline:\n                if failure := running():\n                    reply(failure)\n                    return\n                try:\n                    if native_health.get(f[\"endpoints\"][\"native\"] + \"/healthz\").status_code == 200 and client.get(f[\"endpoints\"][\"whiskey\"] + \"/api/status\").status_code in (200, 401, 403):\n                        break\n                except httpx.HTTPError:\n                    pass\n                time.sleep(0.3)\n            else:\n                raise ValueError(\"native_start_timeout\")\n        def identity_token(principal):\n            row = f[\"generated\"][\"resolver\"][\"principals\"][principal]\n            now = int(time.time())\n            return jwt.encode({\n                \"iss\": f[\"endpoints\"][\"identity\"], \"aud\": \"atrium-isolated-fixture\",\n                \"sub\": row[\"bindings\"][0][\"subject\"], \"jti\": __import__(\"secrets\").token_hex(16),\n                \"client_id\": \"n03-fixture\", \"iat\": now, \"exp\": now + 1200,\n                \"groups\": row[\"groups\"],\n            }, config[\"identity_key\"], algorithm=\"RS256\", headers={\"typ\": \"at+jwt\", \"kid\": \"n03-identity\"})\n        reply({\"ready\": True, \"namespace\": os.readlink(\"/proc/self/ns/net\"), \"public\": config[\"public\"]})\n        for line in sys.stdin:\n            command = json.loads(line)\n            if command[\"action\"] == \"stop\":\n                return\n            if command[\"action\"] == \"identity\":\n                reply({\"token\": identity_token(command[\"principal\"])})\n            elif command[\"action\"] == \"effects\":\n                path = Path(\"/var/lib/atrium-n03-fixture/counts.json\")\n                resource = Path(f[\"state\"][\"native\"]) / \"resource-count.json\"\n                reply({\"read\": json.loads(path.read_text())[\"read\"] if path.exists() else 0, \"resource\": json.loads(resource.read_text()) if resource.exists() else 0})\n            else:\n                reply({\"error\": \"unknown_fixture_action\"})\n    finally:\n        stop(processes)\n\n\ndef main():\n    data = json.loads(sys.stdin.readline())\n    ROOT.mkdir(mode=0o755, exist_ok=True)\n    for name, contents in data[\"archives\"].items():\n        with ZipFile(io.BytesIO(base64.b64decode(contents))) as archive:\n            archive.extractall(ROOT / name)\n    with tarfile.open(\"/opt/n03-tools.tar.gz\") as archive:\n        for member in archive:\n            if not member.name.startswith(\"nix/store/\") or \"..\" in Path(member.name).parts:\n                raise ValueError(\"tool_archive_path_refused\")\n        archive.extractall(\"/\", filter=\"fully_trusted\")\n    probe = \"\"\"\nimport json\ntry:\n import homelab_mcp.app\n print(json.dumps({\"ready\":True}))\nexcept ModuleNotFoundError as error:\n print(json.dumps({\"ready\":False,\"missing\":error.name}))\n\"\"\"\n    env = os.environ | {\n        \"PYTHONPATH\": str(ROOT / \"native-python\"),\n        \"PYTHONDONTWRITEBYTECODE\": \"1\",\n    }\n    checked = subprocess.run([sys.executable, \"-B\", \"-c\", probe], env=env, capture_output=True, text=True)\n    imported = json.loads(checked.stdout)\n    if imported.get(\"ready\") and data.get(\"fixture\") is not None:\n        foundation(data)\n        return\n    reply(imported)\n    for line in sys.stdin:\n        command = json.loads(line)\n        if command[\"action\"] == \"stop\":\n            return\n        reply({\"error\": \"bootstrap_only\"})\n\n\nif __name__ == \"__main__\":\n    try:\n        main()\n    except Exception as error:\n        frame = traceback.extract_tb(error.__traceback__)[-1]\n        known = {\"resolver_start_timeout\", \"native_start_timeout\", \"whiskey_seed_failed\", \"tool_archive_path_refused\"}\n        reply({\"ready\": False, \"code\": str(error) if str(error) in known else type(error).__name__, \"file\": Path(frame.filename).name, \"line\": frame.lineno})\n        raise SystemExit(1) from None\n"
+      ],
+      "duration_ms": 83,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n03/.artifacts/n03-linux-tools.tar.gz",
+        "367d2a1b4f818d2df35e1bfa45b6d06805c9434252236b955613be2851f17f58:/opt/n03-tools.tar.gz"
+      ],
+      "duration_ms": 974,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n03/.artifacts/n03-whiskey.tar.gz",
+        "367d2a1b4f818d2df35e1bfa45b6d06805c9434252236b955613be2851f17f58:/opt/n03-whiskey.tar.gz"
+      ],
+      "duration_ms": 549,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "cp",
+        "/Users/ryan/src/atrium-n03/.artifacts/n03-sqlite-addon.tar.gz",
+        "367d2a1b4f818d2df35e1bfa45b6d06805c9434252236b955613be2851f17f58:/opt/n03-sqlite.tar.gz"
+      ],
+      "duration_ms": 141,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "rm",
+        "--force",
+        "--time",
+        "5",
+        "367d2a1b4f818d2df35e1bfa45b6d06805c9434252236b955613be2851f17f58"
+      ],
+      "duration_ms": 167,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "network",
+        "rm",
+        "atrium-harness-n03-70aac97309f56080-net"
+      ],
+      "duration_ms": 73,
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "argv": [
+        "podman",
+        "--connection",
+        "podman-machine-default",
+        "ps",
+        "--all",
+        "--format",
+        "{{.ID}}|{{.Names}}|{{.State}}"
+      ],
+      "duration_ms": 57,
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ],
+  "engine": {
+    "connection": "podman-machine-default",
+    "loopback": true,
+    "transport": "local-vm"
+  },
+  "foreign_resources_unchanged": true,
+  "full_n03": "incomplete",
+  "image": {
+    "architecture": "arm64",
+    "image_id": "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+    "os": "linux",
+    "repo_digests": [
+      "ghcr.io/berriai/litellm@sha256:2d0f10790c6d9a72f240465ebe755987c40bdd0795cba9f57cbebc7ddc6e5c6f",
+      "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+    ],
+    "requested": "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c"
+  },
+  "network": {
+    "driver": "bridge",
+    "internal": true,
+    "name": "atrium-harness-n03-70aac97309f56080-net"
+  },
+  "resources": [
+    {
+      "id": "367d2a1b4f818d2df35e1bfa45b6d06805c9434252236b955613be2851f17f58",
+      "name": "atrium-harness-n03-70aac97309f56080-foundation",
+      "role": "foundation",
+      "status": "created"
+    }
+  ],
+  "run_id": "n03-70aac97309f56080",
+  "source": {
+    "commit": "f8cfa5c7aa173755dd7a81e9b8367ad389e508a8",
+    "dirty": true,
+    "inputs": {
+      "atrium": {
+        "path": "/nix/store/08qkbww46ccnx107krpy26zb081s96kr-source",
+        "rev": "87e1ecaea98688ea079707083413f7b2f6ba1a70"
+      },
+      "homelab-mcp": {
+        "path": "/nix/store/fcygr8346ws3bab8xr6hxhbqc4cwxhsg-source",
+        "rev": "34652871465482627d645e3ea7caea7248547925"
+      },
+      "whiskey-whiskey-whiskey": {
+        "path": "/nix/store/5wlk5ap0646mzws502rwkr9qf6nw1050-source",
+        "rev": "273cf414cac75276492ee849bb3ea257ce47f8de"
+      }
+    },
+    "native_shared_lock": {
+      "algorithm": "sha256",
+      "digest": "164eb98bf79ffb014f07ea00d0ef6e9235fdd9567146b8fa1613b3b3360b6fdf"
+    },
+    "native_shared_pin": "d59c09233bd8cdd6ff6ce89b423d9d0862fc2fca",
+    "owner_spec_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "wheels": {
+      "atrium_profiles-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "47a19df2b02b9c9ebc837233b80ad104f348d0833be085a1b088ed51479501af"
+      },
+      "atrium_resolver-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "d3785b0ba1303df7ac8d3cbda1427924bad00729a52642c256398ceec69ea743"
+      },
+      "atrium_sidecar-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "72a8bfeef87d941c35a5536f2156b30400186298129cd28709c76ac4aadd80a2"
+      },
+      "homelab_mcp-0.25.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "195fa2ae75f43487b10ce34b667420d4de115c90e6d239e9eea4d6310a112ac8"
+      },
+      "native/atrium_profiles-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "26bceeb61a7829a923933c5cd0bfe5c97aabdc55d71f20a42542613592e98099"
+      },
+      "native/atrium_resolver-0.1.0-py3-none-any.whl": {
+        "algorithm": "sha256",
+        "digest": "865af77dd611f4e41c5f621ba846b78b74723e602ed901af2e07c22846103b1d"
+      },
+      "nix/certifi/__init__.py": {
+        "algorithm": "sha256",
+        "digest": "76f34351d017a7e873a1871fd3d3d7ccb9872253dfca968140f169e5eb035f2a"
+      },
+      "nix/certifi/__main__.py": {
+        "algorithm": "sha256",
+        "digest": "c410688fdd394d45812d118034e71fee88ba7beddd30fe1c1281bd3b232cd758"
+      },
+      "nix/certifi/core.py": {
+        "algorithm": "sha256",
+        "digest": "d768210fca137c2c0fbf653e8283ce46e45b518f62bb936c36710177ad9e6a02"
+      }
+    }
+  },
+  "status": "bootstrap-passed",
+  "ticket": "ATR-N03"
+}

@@ -5,6 +5,12 @@ Whiskey W01/W02 and S01 over real socket/TLS boundaries. It reuses the accepted
 N07 `Resources` lifecycle and the existing N06 UID/address/port implementation.
 It is **not full N03/N07 or phase-1 completion**.
 
+Clean source `a03c68e4717f5cf082d016c43ec7f5e9fe975a3a` executes
+[13 paired groups with two declared blockers](results/n03-clean-a03c68e4.json).
+[Nix/package evidence](results/n03-clean-static-a03c68e4.json) records the
+isolated checks separately. Historical diagnostic results are not overwritten
+or promoted to clean-source proof.
+
 Read [the service/network runbook](../../docs/services/atrium-foundation.md).
 The public URLs and private destinations preserve R05's same-origin contract:
 external clients reach Caddy, while the resolver reaches the native TLS peer.
