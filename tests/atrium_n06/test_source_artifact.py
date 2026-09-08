@@ -6,6 +6,7 @@ import pytest
 from source_artifact import (
     ARCHIVE_SHA256,
     REVISION,
+    fingerprint,
     materialize,
     sha256,
     source_hashes,
@@ -17,7 +18,7 @@ def test_existing_source_must_match_and_environment_is_not_a_source_input(tmp_pa
     files = {"server/lib/client.ts": b"export const fixture = true;"}
     materialize(files, tmp_path)
     assert source_hashes(files) == {
-        "server/lib/client.ts": sha256(files["server/lib/client.ts"])
+        "server/lib/client.ts": fingerprint(files["server/lib/client.ts"])
     }
     (tmp_path / "server/lib/client.ts").write_text("changed")
     with pytest.raises(RuntimeError, match="whiskey_materialized_source_changed"):
@@ -37,7 +38,7 @@ def test_compiled_bundle_hash_and_member_hashes_must_both_match(tmp_path):
         "source_archive_sha256": ARCHIVE_SHA256,
         "source_sha256": source_hashes(files),
         "archive_sha256": sha256(body),
-        "members_sha256": {"server/lib/client.js": sha256(b"x")},
+        "members_sha256": {"server/lib/client.js": fingerprint(b"x")},
         "compiled": {
             "server/lib/client.js": {"algorithm": "sha256", "digest": sha256(b"x")}
         },

@@ -11,9 +11,9 @@ from pathlib import Path
 from source_artifact import (
     ARCHIVE_SHA256,
     REVISION,
+    fingerprint,
     immutable_source,
     materialize,
-    sha256,
     source_hashes,
 )
 
@@ -102,7 +102,7 @@ def main():
     }
     with tarfile.open(archive) as bundle:
         receipt["members_sha256"] = {
-            member.name: sha256(bundle.extractfile(member).read())
+            member.name: fingerprint(bundle.extractfile(member).read())
             for member in bundle.getmembers()
             if member.isfile()
         }

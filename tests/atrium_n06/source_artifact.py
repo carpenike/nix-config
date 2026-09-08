@@ -15,6 +15,10 @@ def sha256(body):
     return hashlib.sha256(body).hexdigest()
 
 
+def fingerprint(body):
+    return {"algorithm": "sha256", "digest": sha256(body)}
+
+
 def immutable_source(repository):
     result = subprocess.run(
         ["git", "-C", str(repository), "archive", "--format=tar", REVISION],
@@ -54,7 +58,7 @@ def materialize(files, destination):
 
 def source_hashes(files):
     return {
-        name: sha256(body)
+        name: fingerprint(body)
         for name, body in files.items()
         if name.startswith(("server/", "vendor/"))
         or name in ("package.json", "package-lock.json", "tsconfig.server.json")
@@ -76,10 +80,10 @@ def verify_runtime(directory, files):
     with tarfile.open(fileobj=io.BytesIO(body)) as archive:
         for member in archive.getmembers():
             if member.isfile():
-                actual[member.name] = sha256(archive.extractfile(member).read())
+                actual[member.name] = fingerprint(archive.extractfile(member).read())
     if actual != receipt["members_sha256"]:
         raise RuntimeError("whiskey_runtime_members_changed")
     for name, expected in receipt["compiled"].items():
-        if actual.get(name) != expected["digest"]:
+        if actual.get(name) != expected:
             raise RuntimeError("whiskey_compiled_source_changed")
     return receipt
