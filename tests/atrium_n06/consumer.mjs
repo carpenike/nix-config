@@ -12,6 +12,7 @@ const { generateImageBytes, fetchReferenceImage } = await import('./runtime/serv
 const { getConfiguration } = await import('./runtime/server/lib/oidc.js');
 const { PartifulFirebaseClient } = await import('./runtime/server/integrations/partiful-firebase.js');
 const { getPlexMachineId } = await import('./runtime/server/lib/plex.js');
+const { feature, featureActions } = await import('./feature_consumer.mjs');
 
 const reply = (body) => process.stdout.write(JSON.stringify({ pid: process.pid, uid: process.getuid(), ...body }) + '\n');
 const processStatus = readFileSync('/proc/self/status', 'utf8');
@@ -32,7 +33,9 @@ for await (const line of input) {
   const command = JSON.parse(line);
   if (command.action === 'stop') break;
   try {
-    if (command.action === 'attempt-filter-removal') {
+    if (featureActions.has(command.action)) {
+      reply(await feature(command));
+    } else if (command.action === 'attempt-filter-removal') {
       const result = spawnSync(process.env.ATRIUM_N06_NFT, ['delete', 'table', 'inet', 'atrium_whiskey'], { stdio: 'ignore' });
       reply({ attempted: true, exit_code: result.status, error_code: result.error?.code ?? null });
     } else if (command.action === 'text') {

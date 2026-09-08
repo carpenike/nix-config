@@ -1,21 +1,38 @@
 """Actual W03/N04/native gateway under invocation-owned N06 namespace enforcement."""
 
 import argparse
+import base64
 import hashlib
+import importlib
 import json
 import logging
 import secrets
 import select
 import subprocess
 import sys
+import tarfile
+from collections import Counter
 from pathlib import Path
 
 import httpx
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from source_artifact import (
+    ARCHIVE_SHA256,
+    REVISION,
+    immutable_source,
+    verify_runtime,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "tests/atrium_n05"))
-from supervisor import git, inventory, load_harness  # noqa: E402
+supervisor = importlib.import_module("supervisor")
+git, inventory, load_harness = (
+    supervisor.git,
+    supervisor.inventory,
+    supervisor.load_harness,
+)
 
 MEDIA = "198.20.0.10"
 CANARY = "203.0.113.77"
@@ -74,6 +91,7 @@ def main():
     parser.add_argument("--whiskey", type=Path, required=True)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--prepare-only", action="store_true")
     args = parser.parse_args()
     native, harness_hashes = load_harness(args.harness)
     from harness.common import EvidenceWriter, require
@@ -84,6 +102,7 @@ def main():
         and not args.evidence.exists(),
         "new_n06_evidence_path_required",
     )
+    archived_whiskey = immutable_source(args.whiskey)
     whiskey_files = (
         "server/lib/anthropic.ts",
         "server/lib/atrium-model.ts",
@@ -92,18 +111,19 @@ def main():
         "server/lib/oidc.ts",
         "server/integrations/partiful-firebase.ts",
         "server/lib/plex.ts",
+        "server/lib/partiful.ts",
+        "server/lib/resource-server.ts",
+        "server/lib/pocketid-admin.ts",
+        "server/lib/cooklang.ts",
+        "server/lib/mailer.ts",
+        "server/lib/web-push.ts",
         "package.json",
         "package-lock.json",
         "scripts/atrium-w03/provider.py",
     )
-    for name in whiskey_files:
-        require(
-            git(
-                args.whiskey, "show", "c26e318c8c67d8051bf58f369d4b69dbaf998538:" + name
-            )
-            == (args.whiskey / name).read_bytes(),
-            "whiskey_immutable_source_mismatch",
-        )
+    compiled_runtime = verify_runtime(
+        ROOT / ".artifacts/n06-whiskey-runtime", archived_whiskey
+    )
     tools = json.loads((ROOT / ".artifacts/n06-linux-tools.json").read_text())
     tool_archive = ROOT / ".artifacts/n06-linux-tools.tar.gz"
     consumer_archive = ROOT / ".artifacts/n06-whiskey-runtime/whiskey.tar.gz"
@@ -172,14 +192,13 @@ def main():
         "source": {
             "commit": git(ROOT, "rev-parse", "HEAD").decode().strip(),
             "dirty": bool(git(ROOT, "status", "--porcelain").strip()),
-            "consumer_commit": git(args.whiskey, "rev-parse", "HEAD").decode().strip(),
-            "consumer_implementation": "c26e318c8c67d8051bf58f369d4b69dbaf998538",
+            "consumer_commit": REVISION,
+            "consumer_implementation": REVISION,
+            "consumer_archive_sha256": ARCHIVE_SHA256,
             "whiskey_files": {
                 name: {
                     "algorithm": "sha256",
-                    "digest": hashlib.sha256(
-                        (args.whiskey / name).read_bytes()
-                    ).hexdigest(),
+                    "digest": hashlib.sha256(archived_whiskey[name]).hexdigest(),
                 }
                 for name in whiskey_files
             },
@@ -191,9 +210,7 @@ def main():
                 "nixpkgs"
             ]["locked"]["rev"],
             "harness": harness_hashes,
-            "compiled_runtime": json.loads(
-                (ROOT / ".artifacts/n06-whiskey-runtime/build.json").read_text()
-            ),
+            "compiled_runtime": compiled_runtime,
             "linux_tools": tools,
             "sqlite_addon_sha256": SQLITE_DIGEST,
             "registry_sha256": hashlib.sha256(
@@ -210,6 +227,23 @@ def main():
             },
         },
     }
+    if args.prepare_only:
+        result.update(
+            status="prepared", native_execution=False, bounded_n06_gate="unexecuted"
+        )
+        EvidenceWriter(args.evidence, result)
+        print(
+            json.dumps(
+                {
+                    "ticket": "ATR-N06",
+                    "status": "prepared",
+                    "native_execution": False,
+                    "evidence": str(args.evidence),
+                }
+            )
+        )
+        return 0
+    require(not result["source"]["dirty"], "clean_n06_source_required")
     writer = EvidenceWriter(args.evidence, result)
     state = {}
     credentials = {
@@ -221,8 +255,42 @@ def main():
             "partiful-refresh",
             "partiful-api",
             "plex",
+            "calendar",
+            "pocketid-admin",
+            "signup-token",
+            "mailgun",
         )
     }
+    vapid = ec.generate_private_key(ec.SECP256R1())
+    credentials["vapid-public"] = (
+        base64.urlsafe_b64encode(
+            vapid.public_key().public_bytes(
+                serialization.Encoding.X962,
+                serialization.PublicFormat.UncompressedPoint,
+            )
+        )
+        .decode()
+        .rstrip("=")
+    )
+    credentials["vapid-private"] = (
+        base64.urlsafe_b64encode(
+            vapid.private_numbers().private_value.to_bytes(32, "big")
+        )
+        .decode()
+        .rstrip("=")
+    )
+    with tarfile.open(consumer_archive) as archive:
+        wire_library = {
+            member.name.removeprefix("node_modules/http_ece/"): archive.extractfile(
+                member
+            )
+            .read()
+            .decode()
+            for member in archive.getmembers()
+            if member.isfile()
+            and member.name.startswith("node_modules/http_ece/")
+            and Path(member.name).suffix in (".js", ".json")
+        }
     upstream_observer = secrets.token_urlsafe(32)
     ip_tool = tools["roots"][1] + "/bin/ip"
     nft_tool = tools["roots"][0] + "/bin/nft"
@@ -246,7 +314,7 @@ def main():
                 arguments = [
                     "-B",
                     "-c",
-                    (args.whiskey / "scripts/atrium-w03/provider.py").read_text(),
+                    archived_whiskey["scripts/atrium-w03/provider.py"].decode(),
                 ]
             return super().create(role, image, entrypoint, arguments, **options)
 
@@ -350,6 +418,9 @@ def main():
                     "media_address": MEDIA,
                     "canary_address": CANARY,
                     "ip": ip_tool,
+                    "feature_source": (HERE / "required_features.py").read_text(),
+                    "push_wire": (HERE / "push_wire.mjs").read_text(),
+                    "wire_library": wire_library,
                 }
             ),
         )
@@ -359,6 +430,7 @@ def main():
             headers = {"Authorization": "Bearer " + upstream_observer}
             native.wait_http(client, "/state", headers, seconds=45)
             state["ca"] = client.get("/ca", headers=headers).text
+            state["feature_inputs"] = client.get("/bootstrap", headers=headers).json()
         state.update(
             upstreams=upstreams,
             observer_endpoint=endpoint,
@@ -374,7 +446,7 @@ def main():
 import json,pathlib,sys,traceback
 try:
  exec(compile(SOURCE,"runtime.py","exec"))
-except Exception as error:
+except Exception as error:  # noqa: BLE001 - redacted fixture boundary
  frame=traceback.extract_tb(error.__traceback__)[-1]
  print(json.dumps({"ready":False,"code":getattr(error,"code",type(error).__name__),"file":pathlib.Path(frame.filename).name,"line":frame.lineno}),flush=True)
 """
@@ -435,6 +507,8 @@ except Exception as error:
                 "credentials": credentials,
                 "ca": state["ca"],
                 "consumer": (HERE / "consumer.mjs").read_text(),
+                "feature_consumer": (HERE / "feature_consumer.mjs").read_text(),
+                "feature_inputs": state["feature_inputs"],
                 "media_address": MEDIA,
                 "canary_address": CANARY,
                 "upstream_address": state["upstream_address"],
@@ -469,12 +543,13 @@ except Exception as error:
                 "owned_controller": True,
                 "protocols": ["POST /v1/messages via actual adopted W03 helper"],
                 "network_claim": "Actual nftables UID/address/port enforcement in an invocation-owned namespace; not global N03 topology proof.",
-                "actual_helper": "compiled W03 callAnthropic and native image adapters",
+                "actual_helper": "immutable compiled W03 text/image and required native non-model clients",
                 "egress": "UID-scoped nftables in exact invocation-owned network namespace",
                 "granularity": "IPv4 destination address + TCP port; not hostname or image-only enforcement",
                 "registry": "N04 isolated registry with N06 isolated overlays; one generated policy",
                 "provider_exceptions": "OpenAI/Gemini/OpenRouter remain direct",
-                "production_reference_policy": "unresolved; arbitrary public reference/push endpoints need owner-approved policy",
+                "production_reference_policy": "separate adoption policy; bounded synthetic destinations explicitly configured here",
+                "required_nonmodel_scope": "actual helper/client and native wire validation, not full browser/identity workflows",
                 "admission_hook": False,
             }
         )
@@ -492,7 +567,7 @@ except Exception as error:
                 try:
                     operation(row)
                     row["status"] = "passed"
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001 - redacted fixture result boundary
                     row.update(
                         status="blocked",
                         error=getattr(
@@ -651,7 +726,7 @@ except Exception as error:
                 )
                 for provider in ("openai", "gemini", "openrouter"):
 
-                    def image(row):
+                    def image(row, provider=provider):
                         start = len(counts())
                         row["permit"] = process.call("image", provider=provider)
                         row["destinations"] = counts()[start:]
@@ -672,9 +747,286 @@ except Exception as error:
                 for action in ("identity", "partiful", "plex"):
                     case(
                         "T16-non-model-" + action,
-                        lambda row: (
+                        lambda row, action=action: (
                             row.update(permit=process.call(action)),
                             require(row["permit"].get("ok"), "non_model_not_permitted"),
+                        ),
+                    )
+
+                def feature_pair(
+                    row, action, expected_effects, required_fields, denials
+                ):
+                    start = len(counts())
+                    row["permit"] = process.call(action)
+                    row["permit_destinations"] = counts()[start:]
+                    require(
+                        row["permit"].get("ok") is True
+                        and all(
+                            row["permit"].get(field) is True
+                            for field in required_fields
+                        )
+                        and row["permit"]["pid"] == boot["consumer"]["pid"]
+                        and row["permit"]["uid"] == 11001,
+                        "required_native_feature_not_permitted",
+                    )
+                    effects = [
+                        event.get("effect") for event in row["permit_destinations"]
+                    ]
+                    require(
+                        all(effect in effects for effect in expected_effects),
+                        "required_native_feature_effect_missing",
+                    )
+                    row["permit_effect_counts"] = dict(
+                        Counter(effect for effect in effects if effect)
+                    )
+                    limits = {
+                        "calendar-sync": {"calendar-read": (1, 1)},
+                        "firestore-guests": {
+                            "firestore-guest-page": (2, 2),
+                            "firestore-event-read": (1, 1),
+                        },
+                        "firestore-schedule": {"firestore-schedule-write": (1, 1)},
+                        "partiful-upload": {"partiful-image-upload": (1, 1)},
+                        "external-issuer": {"issuer-jwks": (1, 1)},
+                        "pocketid-admin": {
+                            "admin-signup-mint": (1, 1),
+                            "admin-signup-delete": (1, 1),
+                        },
+                        "recipe": {
+                            "recipe-index-read": (1, 1),
+                            "recipe-document-read": (1, 2),
+                        },
+                        "mail": {"fixture-mail-accepted": (1, 1)},
+                        "push": {"fixture-push-accepted": (1, 1)},
+                    }[action]
+                    require(
+                        all(
+                            low <= row["permit_effect_counts"].get(effect, 0) <= high
+                            for effect, (low, high) in limits.items()
+                        ),
+                        "required_native_feature_effect_count",
+                    )
+                    if action == "calendar-sync":
+                        require(
+                            row["permit"]["feed_events"] == 2
+                            and row["permit"]["field_changes"] == 2
+                            and row["permit"]["suggestions"] == 1,
+                            "calendar_sync_reconciliation_not_exercised",
+                        )
+                    if action == "firestore-guests":
+                        require(
+                            row["permit"]["count"] == 2,
+                            "firestore_pagination_not_exercised",
+                        )
+                    row["denials"] = []
+                    for label, arguments, prohibited_effects in denials:
+                        start = len(counts())
+                        outcome = process.call(action, **arguments)
+                        observed = counts()[start:]
+                        require(
+                            outcome.get("ok") is False,
+                            "required_native_feature_deny_failed",
+                        )
+                        require(
+                            not any(
+                                event.get("effect") in prohibited_effects
+                                for event in observed
+                            ),
+                            "denied_native_feature_had_effect",
+                        )
+                        if action == "calendar-sync":
+                            require(
+                                outcome.get("schedule_unchanged") is True
+                                and outcome.get("persisted_result_matches") is True,
+                                "calendar_failure_changed_operation",
+                            )
+                        row["denials"].append(
+                            {
+                                "case": label,
+                                "outcome": outcome,
+                                "destinations": observed,
+                                "prohibited_effects": sorted(prohibited_effects),
+                                "prohibited_effect_count": 0,
+                            }
+                        )
+                    start = len(counts())
+                    row["recovery"] = process.call(action)
+                    row["recovery_destinations"] = counts()[start:]
+                    require(
+                        row["recovery"].get("ok") is True,
+                        "required_native_feature_recovery_failed",
+                    )
+
+                required_features = [
+                    (
+                        "calendar-sync",
+                        {"calendar-read"},
+                        [
+                            "schedule_matches",
+                            "protected_fields_unchanged",
+                            "persisted_result_matches",
+                        ],
+                        [
+                            (
+                                "invalid-feed-credential",
+                                {"badCredential": True},
+                                {"calendar-read"},
+                            )
+                        ],
+                    ),
+                    (
+                        "firestore-guests",
+                        {"firestore-guest-page", "firestore-event-read"},
+                        ["going"],
+                        [
+                            (
+                                "invalid-refresh",
+                                {"badCredential": True},
+                                {"firestore-guest-page", "firestore-event-read"},
+                            ),
+                            (
+                                "foreign-event",
+                                {"foreignEvent": True},
+                                {"firestore-guest-page", "firestore-event-read"},
+                            ),
+                        ],
+                    ),
+                    (
+                        "firestore-schedule",
+                        {"firestore-event-read", "firestore-schedule-write"},
+                        ["duration_preserved"],
+                        [
+                            (
+                                "invalid-refresh",
+                                {"badCredential": True},
+                                {"firestore-schedule-write"},
+                            ),
+                            (
+                                "foreign-event",
+                                {"foreignEvent": True},
+                                {"firestore-schedule-write"},
+                            ),
+                        ],
+                    ),
+                    (
+                        "partiful-upload",
+                        {"partiful-image-upload"},
+                        ["valid_upload"],
+                        [
+                            (
+                                "invalid-refresh",
+                                {"badCredential": True},
+                                {"partiful-image-upload"},
+                            )
+                        ],
+                    ),
+                    (
+                        "external-issuer",
+                        {"issuer-jwks"},
+                        ["exact_identity"],
+                        [
+                            (name, {"variant": name}, set())
+                            for name in (
+                                "wrong-audience",
+                                "wrong-issuer",
+                                "missing-scope",
+                                "expired",
+                                "tampered",
+                            )
+                        ],
+                    ),
+                    (
+                        "pocketid-admin",
+                        {
+                            "admin-group-read",
+                            "admin-signup-mint",
+                            "admin-signup-delete",
+                        },
+                        [
+                            "secret_received_in_memory",
+                            "deleted",
+                            "repeat_delete_idempotent",
+                        ],
+                        [
+                            (
+                                "invalid-admin-key",
+                                {"badCredential": True},
+                                {"admin-signup-mint", "admin-signup-delete"},
+                            ),
+                            (
+                                "invalid-lifetime",
+                                {"invalidTtl": True},
+                                {"admin-signup-mint"},
+                            ),
+                            (
+                                "ungranted-group",
+                                {"foreignGroup": True},
+                                {"admin-signup-mint"},
+                            ),
+                        ],
+                    ),
+                    (
+                        "recipe",
+                        {"recipe-index-read", "recipe-document-read"},
+                        ["parsed_native_shape"],
+                        [
+                            (
+                                "unknown-reference",
+                                {"unknownRef": True},
+                                {"recipe-document-read"},
+                            )
+                        ],
+                    ),
+                    (
+                        "mail",
+                        {"fixture-mail-accepted"},
+                        ["native_receipt"],
+                        [
+                            (
+                                "invalid-mail-key",
+                                {"badCredential": True},
+                                {"fixture-mail-accepted"},
+                            ),
+                            (
+                                "invalid-recipient",
+                                {"badRecipient": True},
+                                {"fixture-mail-accepted"},
+                            ),
+                        ],
+                    ),
+                    (
+                        "push",
+                        {"fixture-push-accepted"},
+                        ["configured", "foreign_delete_refused", "owner_preserved"],
+                        [
+                            (
+                                "invalid-subscription-auth",
+                                {"badCredential": True},
+                                {"fixture-push-accepted"},
+                            )
+                        ],
+                    ),
+                ]
+                for (
+                    action,
+                    expected_effects,
+                    required_fields,
+                    denials,
+                ) in required_features:
+                    case(
+                        "T16-required-" + action,
+                        lambda row,
+                        action=action,
+                        expected_effects=expected_effects,
+                        required_fields=required_fields,
+                        denials=denials: (
+                            feature_pair(
+                                row,
+                                action,
+                                expected_effects,
+                                required_fields,
+                                denials,
+                            )
                         ),
                     )
                 case(
@@ -758,12 +1110,20 @@ except Exception as error:
         result["status"] = (
             "passed" if result.get("bounded_n06_gate") == "passed" else "partial"
         )
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - preserve exact cleanup and redact failures
         result.update(
             status="failed", error=getattr(error, "code", type(error).__name__)
         )
     finally:
         logging.disable(logging.NOTSET)
+        result["source_unchanged"] = result["source"]["commit"] == git(
+            ROOT, "rev-parse", "HEAD"
+        ).decode().strip() and all(
+            hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == value["digest"]
+            for name, value in result["source"]["files"].items()
+        )
+        if not result["source_unchanged"]:
+            result.update(status="failed", error="n06_source_changed_during_run")
         writer.publish()
     print(
         json.dumps(

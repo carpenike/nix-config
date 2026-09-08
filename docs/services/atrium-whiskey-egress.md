@@ -196,3 +196,13 @@ Cleanup removed all exact owned resources and
 Enforcement remains IPv4 **address + TCP port**, not hostname or modality
 isolation. The previously documented unexecuted permits and owner decisions
 remain full-gate limits.
+
+### Required feature-preservation follow-up
+
+The [owned required-permit extension](../../tests/atrium_n06/README.md#required-non-model-permit-extension)
+prepares the remaining real client/helper paths against finite synthetic
+services. It does not change the accepted egress granularity, service UID,
+capabilities, live model-key/ack handling, immutable Whiskey source, or
+production allowlists. New permit assertions require their own clean native
+receipt; host contract/crypto/Nix checks and prepared archives do not upgrade
+the historical 15-case proof into evidence for unexecuted features.

@@ -83,10 +83,16 @@ def main():
     )
     partiful.chmod(0o640)
     os.chown(partiful, 0, UID)
+    features = ROOT / "credentials/features.json"
+    features.write_text(json.dumps(data.pop("feature_inputs")))
+    features.chmod(0o640)
+    os.chown(features, 0, UID)
     (ROOT / "ca.pem").write_text(data["ca"])
     (ROOT / "ca.pem").chmod(0o644)
     (ROOT / "consumer.mjs").write_text(data["consumer"])
     (ROOT / "consumer.mjs").chmod(0o644)
+    (ROOT / "feature_consumer.mjs").write_text(data["feature_consumer"])
+    (ROOT / "feature_consumer.mjs").chmod(0o644)
     for path in runtime.rglob("*"):
         if not path.is_symlink():
             path.chmod(0o755 if path.is_dir() or os.access(path, os.X_OK) else 0o644)
@@ -189,6 +195,22 @@ def main():
         "PLEX_BASE_URL": "https://plex.atrium.invalid",
         "PLEX_TOKEN": credentials["plex"],
         "WWW_PUBLIC_BASE_ORIGIN": "https://whiskey.atrium.invalid",
+        "PARTIFUL_CALENDAR_URL": "https://calendar.atrium.invalid/calendar.ics?token="
+        + credentials["calendar"],
+        "PARTIFUL_TIMEZONE": "UTC",
+        "WWW_EXTERNAL_AS_ISSUER": "https://identity.atrium.invalid",
+        "WWW_EXTERNAL_AS_RESOURCE": "https://whiskey.atrium.invalid/api/mcp",
+        "WWW_EXTERNAL_AS_REQUIRED_SCOPE": "n06-read",
+        "WWW_POCKETID_API_URL": "https://identity.atrium.invalid/api",
+        "WWW_POCKETID_API_KEY": credentials["pocketid-admin"],
+        "COOKLANG_BASE_URL": "https://cooklang.atrium.invalid",
+        "WWW_MAILGUN_API_BASE": "https://mail.atrium.invalid",
+        "WWW_MAILGUN_API_KEY": credentials["mailgun"],
+        "WWW_MAILGUN_DOMAIN": "fixture.atrium.invalid",
+        "WWW_MAIL_FROM": "N06 Fixture <sender@fixture.atrium.invalid>",
+        "WWW_VAPID_PUBLIC_KEY": credentials["vapid-public"],
+        "WWW_VAPID_PRIVATE_KEY": credentials["vapid-private"],
+        "WWW_VAPID_SUBJECT": "mailto:fixture@example.invalid",
         "ATRIUM_N06_NFT": data["nft"],
     }
     consumer = subprocess.Popen(
@@ -299,7 +321,7 @@ def main():
                     consumer.stdin.write(json.dumps(request) + "\n")
                     consumer.stdin.flush()
                     reply(receive())
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - never export native exception details
                 reply(
                     {"ok": False, "code": getattr(error, "code", type(error).__name__)}
                 )

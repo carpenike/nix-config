@@ -8,19 +8,32 @@ import subprocess
 import tarfile
 from pathlib import Path
 
+from source_artifact import (
+    ARCHIVE_SHA256,
+    REVISION,
+    immutable_source,
+    materialize,
+    sha256,
+    source_hashes,
+)
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--whiskey", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    root = args.whiskey.resolve()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    files = immutable_source(args.whiskey)
+    root = materialize(files, output.parent / "whiskey-source")
+    compiler = root / "node_modules/typescript/bin/tsc"
+    if not compiler.is_file():
+        raise RuntimeError("existing_runtime_dependency_missing")
     subprocess.run(
         [
             "node",
-            str(root / "node_modules/typescript/bin/tsc"),
+            str(compiler),
             "-p",
             str(root / "tsconfig.server.json"),
             "--outDir",
@@ -74,6 +87,9 @@ def main():
         member.size = len(body)
         bundle.addfile(member, io.BytesIO(body))
     receipt = {
+        "source_revision": REVISION,
+        "source_archive_sha256": ARCHIVE_SHA256,
+        "source_sha256": source_hashes(files),
         "packages": list(packages.values()),
         "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
         "compiled": {
@@ -84,6 +100,15 @@ def main():
             for path in sorted((output / "server").rglob("*.js"))
         },
     }
+    with tarfile.open(archive) as bundle:
+        receipt["members_sha256"] = {
+            member.name: sha256(bundle.extractfile(member).read())
+            for member in bundle.getmembers()
+            if member.isfile()
+        }
+    for name, body in files.items():
+        if (root / name).read_bytes() != body:
+            raise RuntimeError("whiskey_source_changed_during_build")
     (output / "build.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(
         json.dumps({"packages": len(packages), "archive_bytes": archive.stat().st_size})
