@@ -28,6 +28,14 @@ hashes and actual imported module origins; accepted adapter package bytes and al
 prior receipts are unchanged. Native services and the27-group run remain
 unexecuted pending a new explicit authorization.
 
+The later authorized integrated run stopped before paired cases: first at the
+product supervisor's missing default CA bundle, then at native gateway startup.
+Both clean-source failures are preserved in the product driver evidence. The
+bounded N03 delta only forwards model startup failures through its existing
+redacted service diagnostic. Non-model startup, source guards and disabled host
+activation remain unchanged; the product driver preserves the pinned image's
+console PATH instead of weakening identity or package boundaries.
+
 Initial source `7c89709e438beaba6fd485075138c50c7b2daa50` has a
 [historical source-only receipt](../../tests/atrium_n03/results/n03-model-preparation-7c89709e.json):
 60 Nix assertions, two Caddy adaptations and six configuration tests passed.

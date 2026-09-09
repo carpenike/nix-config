@@ -153,6 +153,8 @@ def foundation(data):
                     if line.startswith(
                         (
                             "ModuleNotFoundError:",
+                            "ImportError:",
+                            "FileNotFoundError:",
                             "ValueError:",
                             "PermissionError:",
                             "Error:",
@@ -182,6 +184,8 @@ def foundation(data):
                             "address": "cannot assign requested address",
                             "configuration": "loading initial config",
                             "native_configuration": "resolver_configuration_or_state_rejected",
+                            "native_entrypoint": "litellm: not found",
+                            "read_only": "read-only file system",
                         }.items()
                         if text in output.lower()
                     ],
@@ -305,7 +309,9 @@ def foundation(data):
             else:
                 raise ValueError("resolver_start_timeout")
         if model_runtime is not None:
-            model_runtime.start_services()
+            if failure := model_runtime.start_services(running):
+                reply(failure)
+                return
         native_command = [sys.executable, "-B", str(ROOT / "fixture/native_service.py")]
         native_environment = {
             **config["native_environment"],

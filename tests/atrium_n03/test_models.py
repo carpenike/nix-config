@@ -80,6 +80,29 @@ def test_supervisor_import_order_keeps_model_packages_actor_private(prepared, tm
     )
 
 
+def test_sanitized_launcher_retains_only_explicit_image_path_override(
+    prepared, monkeypatch
+):
+    runtime = importlib.import_module("runtime")
+    launches = []
+    monkeypatch.setattr(
+        runtime.subprocess,
+        "Popen",
+        lambda command, **options: launches.append((command, options)),
+    )
+    tools = {"setpriv": "/nix/store/source-only-setpriv/bin/setpriv"}
+    runtime.start(65437, ["native-entrypoint"], {}, tools)
+    image_path = "/app/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+    runtime.start(
+        65437, ["native-entrypoint"], {"PATH": image_path}, tools, groups=(65439,)
+    )
+    assert launches[0][1]["env"]["PATH"] == "/usr/local/bin:/usr/bin:/bin"
+    assert launches[1][1]["env"]["PATH"] == image_path
+    assert launches[1][1]["cwd"] == runtime.ROOT
+    assert "--no-new-privs" in launches[1][0]
+    assert "--bounding-set=-all" in launches[1][0]
+
+
 @pytest.fixture
 def runtime_settings(prepared, tmp_path):
     directory = tmp_path / "gateway-config"
