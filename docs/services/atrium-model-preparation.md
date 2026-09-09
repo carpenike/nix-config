@@ -6,6 +6,13 @@ proof, native fixture, production activation or completed T-case is claimed.
 The accepted [C8/JTI handoff](../../tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json)
 and all older receipts remain historical and unchanged.
 
+Preparation source `7c89709e438beaba6fd485075138c50c7b2daa50` has a
+[clean source-only receipt](../../tests/atrium_n03/results/n03-model-preparation-7c89709e.json):
+60 Nix assertions, two Caddy adaptations and six configuration tests pass.
+The receipt retains both explicit producer-field compatibility blockers and
+all seven unexecuted native groups; it verifies all 22 baseline receipts
+unchanged. It is not a native model or cross-UID execution receipt.
+
 `modelPlaneReady` is false, `models.acceptedPublisherPins` is null, the gateway,
 controller/timer, admission activation and input-copy unit are disabled, and
 the public model origin still returns 503. A Nix assertion prevents accidental
