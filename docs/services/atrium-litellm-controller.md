@@ -262,8 +262,9 @@ Missing or different metadata after that budget still raises
 after its initial exact readback; a failed final check prevents publication and
 existing-key mutations without erasing already verified ownership. Only
 credentials actually created in this run qualify for convergence retries.
-Preexisting owned credentials must be present and exact in every observed
-snapshot or fail immediately, even while a new credential is still missing.
+During that final check, preexisting owned credentials must be present and exact
+in every observed snapshot or fail immediately, even while a new credential is
+still missing.
 The wait neither repeats the POST nor accepts masked credential values as
 ownership evidence. Native cache settings,
 poll intervals, roles, model ceilings and alias guards are unchanged.
