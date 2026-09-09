@@ -131,7 +131,7 @@
 
     # ATR-N05: shared profiles/resolver for isolated admission; no live service is enabled.
     atrium = {
-      url = "github:carpenike/atrium/648048ee609002f8b8c5af6d0d6b8c6cb97fc6cb";
+      url = "github:carpenike/atrium/df1fa179059b45b3d435e92e5f08fcf2720d821c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

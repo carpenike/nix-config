@@ -85,9 +85,9 @@ Python/project files were checked against the accepted source; all68 historical
 JSON results were compared with their original Git blobs and app canonical
 destinations. Twelve reused an existing canonical copy and56 were imported once.
 
-The pinned [Atrium source648048ee](https://github.com/carpenike/atrium/tree/648048ee609002f8b8c5af6d0d6b8c6cb97fc6cb)
+The pinned [Atrium sourcedf1fa179](https://github.com/carpenike/atrium/tree/df1fa179059b45b3d435e92e5f08fcf2720d821c)
 exports the consumed packages and modules. Its
-[`harness/evidence/nix-config-imports.json`](https://github.com/carpenike/atrium/blob/648048ee609002f8b8c5af6d0d6b8c6cb97fc6cb/harness/evidence/nix-config-imports.json)
+[`harness/evidence/nix-config-imports.json`](https://github.com/carpenike/atrium/blob/df1fa179059b45b3d435e92e5f08fcf2720d821c/harness/evidence/nix-config-imports.json)
 records every original
 repository/commit/path/SHA and canonical app path. The verified manifest SHA-256
 is `bfc78448b3ac497d2a06d18af2cf399f5e65039ea4e03e4757877638e9d3b088`.
@@ -95,6 +95,11 @@ Original runtime, runbooks, tests and receipts remain in immutable
 [nix-config source4e5994a](https://github.com/carpenike/nix-config/tree/4e5994afe48d6dbe13a0bd21fbf30bf9ff42b6ab).
 The final deployment pin is immutable; earlier working-tree override evaluations
 were provisional checks only, not the source selected by this deployment.
+
+The app's [relocation handoff](https://github.com/carpenike/atrium/blob/df1fa179059b45b3d435e92e5f08fcf2720d821c/harness/evidence/ATR-N07-app-owned-handoff.json)
+records fresh, source-bound producer/UID, controller, model, admission and egress
+evidence, including exact cleanup and explicit unsupported-protocol limits.
+Those product results are referenced, not copied into this deployment repo.
 
 The earlier failed N03 cohorts and22-of-27 result remain historical. This
 ownership correction neither promotes them nor authorizes another native run.
