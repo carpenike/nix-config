@@ -71,7 +71,7 @@ jobs:
 
       # Pinned to v12 (2025-07-15) for supply-chain hygiene; bump deliberately.
       - name: Run flake freshness policy
-        uses: DeterminateSystems/flake-checker-action@v13
+        uses: DeterminateSystems/flake-checker-action@v14
         with:
           nixpkgs-keys: nixpkgs,nixpkgs-unstable
 
