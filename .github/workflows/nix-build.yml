@@ -114,9 +114,7 @@ jobs:
               - 'flake.nix'
               - 'flake.lock'
               - 'pkgs/default.nix'
-              - 'pkgs/atrium-litellm-controller/**'
               - 'pkgs/atrium-litellm-admission/**'
-              - 'tests/atrium_n04/**'
               - 'tests/atrium_n05/**'
               - '.github/workflows/nix-build.yml'
             global:
@@ -227,11 +225,9 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
-      - name: Build isolated controller and admission packages and checks
+      - name: Build isolated admission package and checks
         run: |
           nix build --no-link --builders '' \
-            .#packages.x86_64-linux.atrium-litellm-controller \
-            .#checks.x86_64-linux.atrium-n04-units \
             .#checks.x86_64-linux.atrium-n05-package \
             .#checks.x86_64-linux.atrium-n05-python \
             .#checks.x86_64-linux.atrium-n05-units
