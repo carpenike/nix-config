@@ -157,6 +157,31 @@ def connection(endpoint):
     )
 
 
+def management_identity(endpoint, master, control, control_routes, operations):
+    from atrium_litellm.errors import require
+    from atrium_litellm.native import Native
+
+    # Native.key deliberately refuses inspection of its own management key.
+    bootstrap = Native(endpoint, master, operations=operations)
+    info = bootstrap.key(hashlib.sha256(control.encode()).hexdigest())
+    require(
+        sorted(info.get("allowed_routes", [])) == control_routes,
+        "native_control_routes_mismatch",
+    )
+    require(
+        info.get("user_id") == "n03-controller-control",
+        "native_control_identity_mismatch",
+    )
+    return {
+        "native_user_id": "n03-controller-control",
+        "verified_role": "proxy_admin",
+        "key_type": "default",
+        "routes": control_routes,
+        "master_used_for_control_verification": True,
+        "master_used_for_credential_readback": False,
+    }
+
+
 def exercise(endpoint, master, workers, result, checkpoint):
     from atrium_litellm.controller import Controller
     from atrium_litellm.native import CONTROL_ROUTES, Native
@@ -196,22 +221,9 @@ def exercise(endpoint, master, workers, result, checkpoint):
         endpoint, control, operations=result.setdefault("native_client_operations", [])
     )
     native.inspect_gateway()
-    info = native.key(hashlib.sha256(control.encode()).hexdigest())
-    require(
-        sorted(info.get("allowed_routes", [])) == control_routes,
-        "native_control_routes_mismatch",
+    result["management"] = management_identity(
+        endpoint, master, control, control_routes, result["native_client_operations"]
     )
-    require(
-        info.get("user_id") == "n03-controller-control",
-        "native_control_identity_mismatch",
-    )
-    result["management"] = {
-        "native_user_id": "n03-controller-control",
-        "verified_role": "proxy_admin",
-        "key_type": "default",
-        "routes": control_routes,
-        "master_used_for_readback": False,
-    }
     headers = {"Authorization": "Bearer " + control, "Connection": "keep-alive"}
     pool = {}
     try:

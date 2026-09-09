@@ -16,7 +16,11 @@ Both use empty initial models, native database storage, local response caching
 and no Redis, as in the relevant N03 model setup. Native `proxy_admin` identity
 `n03-controller-control` receives a distinct `default` control credential with
 the actual N04 route set plus `/key/delete`, matching the N03 provisioner.
-Master credentials are used only for native user/control-key bootstrap.
+Master credentials are used only for native user/control-key bootstrap and
+verification of that control key. All credential creation/readback observations
+use the verified scoped management key. The controller's `Native.key` helper
+intentionally refuses self-inspection, so bootstrap verification uses the
+separate bootstrap identity rather than weakening that guard.
 
 After readiness and worker discovery, exactly one synthetic `cc.*` credential
 is created per topology. Immediate and three-second paced reads use the same
