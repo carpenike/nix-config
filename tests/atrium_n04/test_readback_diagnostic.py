@@ -4,12 +4,16 @@ import hashlib
 import json
 import re
 import secrets
+import stat
+import subprocess
+import sys
 
 import pytest
 
 from atrium_litellm.errors import ControllerError
 from atrium_litellm.native import Native
 from readback_diagnostic import (
+    BOOT,
     PUBLIC_NATIVE_REVISION,
     ROOT,
     classify,
@@ -17,6 +21,45 @@ from readback_diagnostic import (
     management_identity,
 )
 from readback_observer import ObservedResponses, PID_HEADER
+
+
+def test_native_boot_uses_private_config_reopenable_by_spawned_workers(tmp_path):
+    wrapper = """
+import io,json,os,sys
+boot=sys.stdin.read()
+root=sys.argv[1]
+sys.argv=["-c",root]
+sys.stdin=io.StringIO(json.dumps({"observer":"", "environment":{},
+ "config":{"model_list":[]}, "workers":2}))
+os.execv=lambda executable,arguments: print(json.dumps(arguments))
+exec(compile(boot,"native-readback-bootstrap","exec"))
+"""
+    prepared = subprocess.run(
+        [sys.executable, "-I", "-c", wrapper, str(tmp_path)],
+        input=BOOT,
+        text=True,
+        capture_output=True,
+        check=True,
+        timeout=10,
+    )
+    arguments = json.loads(prepared.stdout)
+    path = tmp_path / "gateway.json"
+    assert arguments[arguments.index("--config") + 1] == str(path)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    reopened = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import json,sys; assert json.load(open(sys.argv[1])) == {'model_list': []}",
+            str(path),
+        ],
+        close_fds=True,
+        capture_output=True,
+        check=True,
+        timeout=10,
+    )
+    assert reopened.returncode == 0
 
 
 def test_native_source_pins_retain_explicit_sha256_fingerprints():

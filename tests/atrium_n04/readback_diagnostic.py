@@ -17,17 +17,19 @@ RUNTIME = "/run/atrium-n04-readback"
 PUBLIC_NATIVE_REVISION = "10f4033437df30b91b5dbf2b64711d0a8683fc52"
 BOOT = """
 import json,os,pathlib,sys
-root=pathlib.Path("/run/atrium-n04-readback")
+root=pathlib.Path(sys.argv[1])
+os.umask(0o077)
 data=json.loads(sys.stdin.readline())
 (root/"readback_observer.py").write_text(data.pop("observer"))
 os.environ.update(data["environment"])
 os.environ["PYTHONPATH"]=str(root)
 os.environ["TMPDIR"]=str(root)
 os.environ["LITELLM_WORKER_STARTUP_HOOKS"]="readback_observer:install"
-fd=os.memfd_create("readback-config",0)
-os.write(fd,json.dumps(data["config"]).encode())
+# Spawned workers reopen the config; a process-local descriptor is not sufficient.
+config=root/"gateway.json"
+with config.open("x") as output: json.dump(data["config"],output)
 os.execv("/app/docker/prod_entrypoint.sh",["docker/prod_entrypoint.sh","--config",
- "/proc/self/fd/"+str(fd),"--host","0.0.0.0","--port","4000","--num_workers",str(data["workers"])])
+ str(config),"--host","0.0.0.0","--port","4000","--num_workers",str(data["workers"])])
 """
 PROBE = """
 import hashlib,importlib.metadata,json,os,pathlib
@@ -510,7 +512,7 @@ def main():
                 "gateway",
                 image["image_id"],
                 "python",
-                ["-B", "-c", BOOT],
+                ["-B", "-c", BOOT, RUNTIME],
                 memory="3072m",
                 cpus="2",
                 port=4000,

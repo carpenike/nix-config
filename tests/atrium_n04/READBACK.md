@@ -22,6 +22,10 @@ use the verified scoped management key. The controller's `Native.key` helper
 intentionally refuses self-inspection, so bootstrap verification uses the
 separate bootstrap identity rather than weakening that guard.
 
+The native config is a private `0600` file inside the invocation tmpfs, as in
+the N03 topology. Multiple spawned workers must be able to reopen its path;
+the single-worker harness's process-local `/proc/self/fd` config is not used.
+
 After readiness and worker discovery, exactly one synthetic `cc.*` credential
 is created per topology. Immediate and three-second paced reads use the same
 worker-affine connections. The budget is two observed native reload periods
