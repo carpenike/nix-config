@@ -1,4 +1,4 @@
-# ATR-N03 — source-only model assembly preparation
+# ATR-N03 — accepted-pin model source candidate
 
 This is a **disabled, unimported isolated host definition**, stacked on foundation
 `60faba29f84bc4a0c1a226828c7a0217a3760bb7`. No new model permit, kernel/UID
@@ -33,11 +33,14 @@ asserted public transport for both logical bindings and rejection of original
 or replacement binding mismatches before inference. All 24 prior receipts
 remain unchanged; this is not native/model execution evidence.
 
-`modelPlaneReady` is false, `models.acceptedPublisherPins` is null, the gateway,
-controller/timer, admission activation and input-copy unit are disabled, and
-the public model origin still returns 503. A Nix assertion prevents accidental
-activation. Changing that boundary requires later source review and explicit
-authorization; this preparation does not reserve or query a fixture lease.
+By default `modelPlaneReady` is false and the gateway/controller/timer/admission
+and input-copy units remain disabled; the public model origin returns503.
+`models.acceptedPublisherPins` is computed from exact accepted revisions,
+complete covered source hashes and committed canonical proof files in
+`publishers.nix`, not a bare readiness flag. Explicit
+`services.atriumN03Models.enable` selects the enabled isolated configuration.
+Source review and separate native authorization are still required; preparation
+does not reserve or query a fixture lease.
 
 ## Prepared files and contracts
 
@@ -184,27 +187,34 @@ bounded native-revocation failure and actual hook evidence. Neither healthy
 deletion nor an early native rejection establishes that fallback. No fallback
 fault or native revocation is executed in this source-only correction.
 
-## Exact blockers before native execution
+## Accepted inputs and remaining execution prerequisites
 
-Pins remain Atrium `5f919f085ca0e77664b72d13e96ceeb0680688e4`,
+Runtime Atrium is accepted `7e63e81ff8118c8a34799e20e51a8783d31a5a3e`,
 MCP `338cbbdb990a5751d199f276c5d65b07730cd97d`, and Whiskey
-`273cf414cac75276492ee849bb3ea257ce47f8de`. No unreviewed publisher branch was
-merged, cherry-picked, copied or vendored.
+`273cf414cac75276492ee849bb3ea257ce47f8de` stay unchanged. N04 entered through a
+normal merge of exact accepted head
+`ca0c0de92c2a70eae412706ccf3f68f3bcdc9b0b`, preserving both histories. No
+moving-main merge or vendored producer implementation was used.
 
-1. That accepted Atrium `LiteLLMSettings` rejects `publication_directory` and
-   `publication_reader_gid` as extra fields.
-2. This foundation's actual N04 CLI rejects `publication_reader_gid`.
-   Source tests assert those **blocked compatibility results**; they do not
-   strip fields or call a substitute controller.
-3. Parent must supply accepted exact publisher commits after the corrected
-   complete-collection Linux/UID and model anchor is accepted. Earlier receipts
-   or selected subsets cannot substitute for it.
-4. A later reviewed native assignment must compose the existing N07
-   database/provider/resource lifecycle with this host, explicit real
-   R01/R06/N04/N05 initialization, authenticated readiness and the prepared
-   pairs. Existing immutable image/wheel/source/compiled guards stay mandatory.
-   The native runner is not automatically extended or authorized by these
-   preparation helpers.
+1. Real accepted R06 settings and the N04 CLI now accept the documented
+   publication fields. Source tests also reject invalid/unknown inputs.
+2. The corrected complete131 UID collection and committed nine-group model proof
+   are verified with the actual publication validators. Current covered source,
+   runtime and fixture maps must match the accepted catalog.
+3. General orchestration lives in the product's `harness.n03_models`,
+   `n03_model_runtime`, `n03_actor`, `n03_text.mjs` and `n03_model_cases`.
+   It reuses N07 resources/database/providers and these N03 native fixtures,
+   not replacement authentication or a general harness in nix-config.
+4. Run the product driver with exact clean committed assembly input and the
+   current owner spec. Its default is source/artifact preparation only.
+   `--execute-native` requires a new explicit authorization and coordinated
+   fixture ownership. The product's `harness/N03-MODELS.md` documents the sequence.
+
+The runtime Atrium pin does not point back to the new product driver, and the
+driver takes an exact N03 source revision independently: there is no source-pin
+cycle. Adapters use immutable accepted exports/verified payloads; fixture runtime
+bytes come from exact committed git blobs. Existing guards remain mandatory and
+source changes during execution invalidate evidence.
 
 The seven groups cover public model/target/backend refusal, actual R07 denial,
 missing ownership, cross-UID atomic replacements/private custody, W03
@@ -232,8 +242,7 @@ caller. A counterfactual file-owner metadata case exercises the real comparison;
 it is not a UID switch or completed distinct-UID proof. Helper ordering/refusal
 tests use explicitly scripted transport responses, not native authentication.
 
-The source tests do not start adapters, initialize admission state, obtain model
-credentials, switch identities or query a lease. Two tests still assert the
-known unsupported producer fields; their success is not compatibility. All
-seven actual topology groups remain unexecuted pending the accepted pins,
-source review and separately authorized native assembly.
+The source tests do not start adapters, obtain model credentials, switch identities
+or query a lease. Accepted producer parsing and invalid-input checks replace the
+old expected-incompatibility tests. All seven actual topology groups remain
+unexecuted pending source review and separately authorized native assembly.

@@ -31,6 +31,7 @@ def native_key_probe(fixture: dict, digest: str) -> dict:
         "observer_uid": os.geteuid(),
         "present": record is not None,
         "expires_at": None if record is None else native_expiry(record["expires"]),
+        "blocked": None if record is None else record.get("blocked") is True,
     }
 
 
@@ -73,15 +74,23 @@ def gateway_probe(fixture: dict) -> dict:
 
     snapshots = []
     for producer in settings.producers:
+        before = producer.path.stat()
         generation, issued_at, _, records = read_producer(
             producer, settings, policy, int(time.time())
         )
+        after = producer.path.stat()
+        if (before.st_ino, before.st_mtime_ns) != (after.st_ino, after.st_mtime_ns):
+            raise RuntimeError("publication_changed_during_probe")
         snapshots.append(
             {
                 "producer": producer.id,
                 "generation": generation,
                 "issued_at": issued_at,
                 "records": len(records),
+                "inode": after.st_ino,
+                "owner_uid": after.st_uid,
+                "group_gid": after.st_gid,
+                "mode": oct(after.st_mode & 0o7777),
             }
         )
         try:

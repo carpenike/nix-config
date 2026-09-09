@@ -20,7 +20,16 @@ def reply(value):
     print(json.dumps(value), flush=True)
 
 
-def start(uid, command, environment, tools):
+def start(
+    uid,
+    command,
+    environment,
+    tools,
+    *,
+    groups=(),
+    interactive=False,
+    working_directory=None,
+):
     env = {
         "PATH": "/usr/local/bin:/usr/bin:/bin",
         "HOME": "/run/atrium-n03",
@@ -37,7 +46,11 @@ def start(uid, command, environment, tools):
             str(uid),
             "--regid",
             str(uid),
-            "--clear-groups",
+            *(
+                ["--groups", ",".join(map(str, groups))]
+                if groups
+                else ["--clear-groups"]
+            ),
             "--bounding-set=-all",
             "--inh-caps=-all",
             "--ambient-caps=-all",
@@ -45,9 +58,9 @@ def start(uid, command, environment, tools):
             *command,
         ],
         env=env,
-        cwd=ROOT,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
+        cwd=ROOT if working_directory is None else working_directory,
+        stdin=subprocess.PIPE if interactive else subprocess.DEVNULL,
+        stdout=subprocess.PIPE if interactive else subprocess.DEVNULL,
         stderr=subprocess.PIPE,
     )
 
@@ -100,9 +113,27 @@ def foundation(data):
     policy_stopped = False
     native_process = None
     policy_process = None
+    model_runtime = None
 
-    def launch(role, uid, command, environment):
-        process = start(uid, command, environment, tools)
+    def launch(
+        role,
+        uid,
+        command,
+        environment,
+        *,
+        groups=(),
+        interactive=False,
+        working_directory=None,
+    ):
+        process = start(
+            uid,
+            command,
+            environment,
+            tools,
+            groups=groups,
+            interactive=interactive,
+            working_directory=working_directory,
+        )
         processes.append(process)
         roles_by_pid[process.pid] = role
         return process
@@ -157,6 +188,15 @@ def foundation(data):
     tls.load_verify_locations(cadata=config["public"]["front-ca"])
     native_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     native_tls.load_verify_locations(cadata=config["native_ca"])
+    if f["modelPlaneReady"]:
+        if "models" not in data:
+            raise ValueError("verified_model_runtime_inputs_required")
+        from n03_model_runtime import ModelRuntime
+
+        model_runtime = ModelRuntime(f, config, data["models"], tools, launch)
+        model_runtime.prepare()
+    elif "models" in data:
+        raise ValueError("model_runtime_requires_explicit_opt_in")
     try:
         launch(
             "fixture",
@@ -199,6 +239,9 @@ def foundation(data):
                 "18765",
             ],
             resolver_env,
+            groups=()
+            if model_runtime is None
+            else (f["models"]["metadataGroup"]["gid"],),
         )
         launch(
             "registration",
@@ -257,6 +300,8 @@ def foundation(data):
                 time.sleep(0.2)
             else:
                 raise ValueError("resolver_start_timeout")
+        if model_runtime is not None:
+            model_runtime.start_services()
         native_command = [sys.executable, "-B", str(ROOT / "fixture/native_service.py")]
         native_environment = {
             **config["native_environment"],
@@ -271,11 +316,21 @@ def foundation(data):
         )
         # The live W03 key path remains empty/closed pending the documented producer interface.
         delivery = ROOT / "delivery"
-        delivery.mkdir(mode=0o750)
+        delivery.mkdir(
+            mode=0o2750 if model_runtime is not None else 0o750, exist_ok=True
+        )
         os.chown(delivery, roles["atrium-reconciler-fixture"]["uid"], consumer_uid)
+        if model_runtime is not None:
+            delivery.chmod(0o2750)
         ack = ROOT / "acknowledgements/whiskey"
-        ack.mkdir(mode=0o750, parents=True)
-        os.chown(ack, consumer_uid, roles["atrium-reconciler-fixture"]["uid"])
+        ack.mkdir(mode=0o750, parents=True, exist_ok=True)
+        os.chown(
+            ack,
+            consumer_uid,
+            consumer_uid
+            if model_runtime is not None
+            else roles["atrium-reconciler-fixture"]["uid"],
+        )
         (ROOT / "egress.json").write_text(json.dumps(f["egress"]))
         (ROOT / "bindings.json").write_text(
             json.dumps(
@@ -341,6 +396,8 @@ def foundation(data):
                 time.sleep(0.3)
             else:
                 raise ValueError("native_start_timeout")
+        if model_runtime is not None:
+            model_runtime.start_text(config["whiskey_environment"])
 
         def identity_token(principal, *, lifetime=1200, claims=None):
             row = f["generated"]["resolver"]["principals"][principal]
@@ -383,13 +440,18 @@ def foundation(data):
                     "client_certificate_sha256": config["policy_fingerprint"],
                     "native_client_uid": native_uid,
                 },
+                "models": None if model_runtime is None else model_runtime.ready,
             }
         )
         for line in sys.stdin:
             command = json.loads(line)
             if command["action"] == "stop":
                 return
-            if command["action"] == "identity":
+            if command["action"] == "model":
+                if model_runtime is None:
+                    raise ValueError("model_runtime_not_enabled")
+                reply(model_runtime.handle(command["request"]))
+            elif command["action"] == "identity":
                 reply(
                     {
                         "token": identity_token(
@@ -672,6 +734,8 @@ def foundation(data):
             else:
                 reply({"error": "unknown_fixture_action"})
     finally:
+        if model_runtime is not None:
+            model_runtime.close()
         stop(processes)
 
 

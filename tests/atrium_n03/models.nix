@@ -1,4 +1,4 @@
-{ lib, ids, runtime, state, registry, generated, endpoints }:
+{ lib, ids, runtime, state, registry, generated, endpoints, publishers }:
 let
   installation = "atrium-n03-isolated";
   port = 14000;
@@ -35,14 +35,15 @@ let
 in
 {
   inherit installation port metadataGroup deliveryGroup roles exports private policyPath admissionSettingsPath;
-  acceptedPublisherPins = null;
+  acceptedPublisherPins = publishers;
   publicationFileMode = "0640";
   inputFileMode = "0640";
   admissionSettingsFileMode = "0600";
-  activation = "disabled; accepted publisher pins, source review and native authorization required";
+  activation = "disabled by default; explicit isolated opt-in, source review and native authorization required";
   backend = "http://127.0.0.1:${toString port}";
   issuer = endpoints.models;
   inferenceEndpoint = "${endpoints.models}/v1/chat/completions";
+  gatewayWorkingDirectory = "/app";
   publisherDirectories = [
     { path = exports.resolver; owner = roles.resolver.name; group = metadataGroup.name; mode = "2750"; }
     { path = exports.controller; owner = roles.controller.name; group = metadataGroup.name; mode = "2750"; }

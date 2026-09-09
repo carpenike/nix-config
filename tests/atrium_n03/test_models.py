@@ -1,6 +1,5 @@
 """Source-only configuration checks; these do not create state or call native APIs."""
 
-import ast
 import copy
 import hashlib
 import importlib
@@ -122,39 +121,66 @@ def test_actual_runtime_loader_refuses_unsafe_settings(
         cli.load_settings(path)
 
 
-def test_current_r06_fields_are_an_explicit_pin_blocker(prepared):
+def test_accepted_r06_publication_settings_parse_and_reject_invalid_inputs(prepared):
     from pydantic import ValidationError
 
     settings_type = importlib.import_module("atrium_resolver.config").Settings
     settings_type.model_validate_json(json.dumps(prepared["resolver"]))
     candidate = {**prepared["resolver"], "litellm": prepared["models"]["resolver"]}
-    with pytest.raises(ValidationError) as failure:
-        settings_type.model_validate_json(json.dumps(candidate))
-    assert {
-        (tuple(error["loc"]), error["type"]) for error in failure.value.errors()
-    } == {
-        (("litellm", "publication_directory"), "extra_forbidden"),
-        (("litellm", "publication_reader_gid"), "extra_forbidden"),
-    }
+    parsed = settings_type.model_validate_json(json.dumps(candidate))
+    assert (
+        parsed.litellm.publication_reader_gid
+        == prepared["models"]["metadataGroup"]["gid"]
+    )
+    assert parsed.litellm.publication_directory == Path(
+        prepared["models"]["exports"]["resolver"]
+    )
+    for fields in (
+        {"publication_reader_gid": -1},
+        {"publication_reader_gid": None},
+        {"publication_directory": candidate["litellm"]["runtime_directory"]},
+        {"publication_directory": "/nix/store/not-runtime"},
+        {"unknown_publication_input": True},
+    ):
+        invalid = {**candidate, "litellm": {**candidate["litellm"], **fields}}
+        with pytest.raises(ValidationError):
+            settings_type.model_validate_json(json.dumps(invalid))
 
 
-def test_current_n04_field_is_an_explicit_pin_blocker(prepared):
-    source = ROOT / "pkgs/atrium-litellm-controller/atrium_litellm/cli.py"
-    calls = [
-        node
-        for node in ast.walk(ast.parse(source.read_text()))
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "fields"
-    ]
-    assert len(calls) == 1
-    allowed = ast.literal_eval(calls[0].args[1])
-    candidate = prepared["models"]["controller"]
-    assert set(candidate) - allowed == {"publication_reader_gid"}
-    associations = importlib.import_module("atrium_litellm.associations")
+def test_actual_n04_cli_accepts_fields_and_rejects_unknown_input(
+    prepared, tmp_path, monkeypatch, capsys
+):
+    cli = importlib.import_module("atrium_litellm.cli")
+    candidate = copy.deepcopy(prepared["models"]["controller"])
+    path = tmp_path / "controller.json"
+    path.write_text(json.dumps(candidate))
+    monkeypatch.setattr(sys, "argv", ["controller", "init", "--config", str(path)])
+
+    class ParsedConfiguration(Exception):
+        pass
+
+    def stop_before_state(*args):
+        assert args == (
+            Path(candidate["ownership_directory"]),
+            candidate["installation"],
+            candidate["issuer"],
+        )
+        raise ParsedConfiguration()
+
+    # Exercise the accepted CLI parser; do not initialize state or native clients here.
+    monkeypatch.setattr(cli, "Ledger", stop_before_state)
+    with pytest.raises(ParsedConfiguration):
+        cli.main()
+    path.write_text(json.dumps({**candidate, "unknown_publication_input": True}))
+    assert cli.main() == 1
+    assert (
+        json.loads(capsys.readouterr().err)["code"]
+        == "invalid_controller_configuration"
+    )
     error_type = importlib.import_module("atrium_litellm.errors").ControllerError
-    with pytest.raises(error_type, match="invalid_controller_configuration"):
-        associations.fields(candidate, allowed, "invalid_controller_configuration")
+    files = importlib.import_module("atrium_litellm.files")
+    with pytest.raises(error_type, match="invalid_publication_group"):
+        files.validate_publication(tmp_path / "snapshot.json", -1)
 
 
 def test_actual_desired_parser_accepts_generated_model_policy(prepared):
@@ -295,10 +321,10 @@ class ScriptedRecoveryTransport:
 
 @pytest.fixture
 def recovery_control_flow(prepared):
-    # In-memory preconditions for scripted transport, not activation or accepted pins.
+    # In-memory opt-in for scripted transport, not runtime activation.
     fixture = copy.deepcopy(prepared)
     fixture["modelPlaneReady"] = True
-    fixture["models"]["acceptedPublisherPins"] = {"source_test_only": True}
+    assert fixture["models"]["acceptedPublisherPins"]["verified"]
     return fixture
 
 

@@ -5,15 +5,17 @@ Whiskey W01/W02 and S01 over real socket/TLS boundaries. It reuses the accepted
 N07 `Resources` lifecycle and the existing N06 UID/address/port implementation.
 It is **not full N03/N07 or phase-1 completion**.
 
-## Source-only model preparation
+## Accepted-pin model source candidate
 
-The model assembly preparation in this branch is documented in
+The accepted-pin model assembly candidate in this branch is documented in
 [the model wiring guide](../../docs/services/atrium-model-preparation.md).
 It adds disabled service/configuration declarations, existing-reader references,
 bounded HTTP/probe helpers and a seven-group **unexecuted** topology catalog.
 It does not activate a gateway, acquire/query a fixture lease, or supply any new
-model permit. Accepted exact publisher pins and a later reviewed/authorized
-native assignment are still required. The receipts below remain historical
+model permit. Accepted publisher bytes and complete proof anchors are now
+verified. General split-service execution is owned by the product's
+`harness.n03_models` driver; a later reviewed/authorized native assignment is
+still required. The receipts below remain historical
 source-bound evidence, not proof of this new model preparation.
 
 ## Accepted native C8/JTI evidence
@@ -45,7 +47,7 @@ listener, not a proxy-header assertion.
 repository's real alert helper and records health/coherent-backup/recovery
 references, without enabling external jobs, notifications or SSH.
 
-This wiring slice advances Atrium to accepted `5f919f08` and MCP to `338cbbdb`;
+This wiring slice advances Atrium to accepted `7e63e81f`; MCP stays `338cbbdb`;
 Whiskey remains `273cf41`. `pins.json` identifies the
 matching Node22/Linux SQLite addon. The native image is the N07-pinned LiteLLM
 1.99.1 image **as a Python runtime only**; this bounded lane does not start a

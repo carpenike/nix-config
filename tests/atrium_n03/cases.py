@@ -816,20 +816,21 @@ def execute(f, foundation, client, foundation_address, rows, checkpoint):
     )
     record("real-native-feed-recovery", ["T20"], [200], [503])
 
-    unavailable = call(
-        "POST",
-        f["endpoints"]["resolver"] + "/v1/manifests",
-        auth(admin),
-        {"domain": "personal:ryan", "include_models": True},
-    )
-    assert unavailable["status"] == 503
-    assert call("GET", f["endpoints"]["models"] + "/v1/models")["status"] == 503
-    rows.append(
-        {
-            "case": "model-plane-explicitly-blocked",
-            "status": "blocked",
-            "reason": f["modelPlaneBlocker"],
-            "observed": [503, 503],
-        }
-    )
+    if not f["modelPlaneReady"]:
+        unavailable = call(
+            "POST",
+            f["endpoints"]["resolver"] + "/v1/manifests",
+            auth(admin),
+            {"domain": "personal:ryan", "include_models": True},
+        )
+        assert unavailable["status"] == 503
+        assert call("GET", f["endpoints"]["models"] + "/v1/models")["status"] == 503
+        rows.append(
+            {
+                "case": "model-plane-explicitly-blocked",
+                "status": "blocked",
+                "reason": f["modelPlaneBlocker"],
+                "observed": [503, 503],
+            }
+        )
     return rows

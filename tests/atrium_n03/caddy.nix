@@ -105,7 +105,7 @@ in
         }
       }
     '' else ''
-      respond "Isolated model plane unavailable: accepted publisher pins and authorization pending." 503
+      respond "Isolated model plane disabled: explicit native opt-in required." 503
     ''}
   }
 ''

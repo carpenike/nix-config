@@ -1,6 +1,9 @@
 { inputs, config, lib, pkgs, ... }:
 let
-  f = import ./fixture.nix { inherit inputs; };
+  f = import ./fixture.nix {
+    inherit inputs;
+    enableModels = config.services.atriumN03Models.enable;
+  };
   resolverPackage = inputs.atrium.packages.${pkgs.system}.resolver;
   credentialNames = [
     "device-ca"
@@ -55,8 +58,8 @@ in
       message = "N03 requires the exact accepted adapter and C8 implementation pins.";
     }
     {
-      assertion = !f.modelPlaneReady && !config.services.atrium.runtime.reconciler.enable;
-      message = "The distinct-UID live model-publication interface is not yet available.";
+      assertion = f.modelPlaneReady == config.services.atrium.runtime.reconciler.enable;
+      message = "The isolated model plane and its real controller must be enabled coherently.";
     }
   ];
 

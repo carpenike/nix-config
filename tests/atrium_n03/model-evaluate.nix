@@ -8,19 +8,38 @@ let
     specialArgs = { inherit inputs; };
     modules = [ ./host.nix ];
   }).config;
+  enabled = (lib.nixosSystem {
+    inherit system;
+    specialArgs = { inherit inputs; };
+    modules = [ ./host.nix { services.atriumN03Models.enable = true; } ];
+  }).config;
+  activeFixture = import ./fixture.nix { inherit inputs; enableModels = true; };
   gateway = c.virtualisation.oci-containers.containers.atrium-n03-models;
   includes = name: lib.elem m.metadataGroup.name c.users.users.${name}.extraGroups;
   liveCaddy = import ./caddy.nix { fixture = f; };
   previewCaddy = import ./caddy.nix { fixture = f // { modelPlaneReady = true; }; };
   cases = builtins.fromJSON (builtins.readFile ./model-cases.json);
   checks = {
-    disabled-until-accepted-pins = !f.modelPlaneReady && m.acceptedPublisherPins == null
+    disabled-without-explicit-opt-in = !f.modelPlaneReady && m.acceptedPublisherPins.verified
       && !c.services.atrium.runtime.reconciler.enable
       && !c.services.atriumLitellmAdmission.enable
       && !c.systemd.services.podman-atrium-n03-models.enable
       && !c.systemd.services.atrium-n03-model-inputs.enable
       && !c.systemd.services.atrium-n03-admission-settings.enable
       && !c.systemd.timers.atrium-reconciler.enable && !gateway.autoStart;
+    accepted-publisher-inputs = m.acceptedPublisherPins.atrium == inputs.atrium.rev
+      && m.acceptedPublisherPins.controller == "ca0c0de92c2a70eae412706ccf3f68f3bcdc9b0b";
+    explicit-opt-in-enables-real-model-actors = activeFixture.modelPlaneReady
+      && activeFixture.resolver.litellm == m.resolver
+      && enabled.services.atrium.runtime.reconciler.enable
+      && enabled.services.atriumLitellmAdmission.enable
+      && enabled.systemd.services.podman-atrium-n03-models.enable
+      && enabled.systemd.services.atrium-n03-admission-settings.enable
+      && enabled.systemd.services.atrium-n03-model-inputs.enable
+      && enabled.systemd.timers.atrium-reconciler.enable
+      && enabled.virtualisation.oci-containers.containers.atrium-n03-models.autoStart;
+    native-policy-and-registration-keep-no-model-custody = activeFixture.nativePolicy.litellm == null
+      && activeFixture.registration.litellm == null;
     unchanged-resolver-default = f.resolver.litellm == null
       && !lib.hasInfix "model-resolver" (lib.concatStringsSep " " c.services.atrium.runtime.resolver.arguments);
     distinct-publisher-and-consumer-uids = builtins.length
@@ -73,6 +92,7 @@ let
       && m.admission.poll_seconds <= 20 && m.admission.fetch_timeout_seconds <= 5;
     actual-pinned-image-startup = gateway.image == f.versions.litellm
       && gateway.entrypoint == "/app/docker/prod_entrypoint.sh"
+      && gateway.workdir == m.gatewayWorkingDirectory
       && gateway.cmd == m.gatewayCommand;
     nonroot-capability-free-gateway = gateway.user == "${toString m.roles.gateway.uid}:${toString m.roles.gateway.gid}"
       && lib.elem "--cap-drop=ALL" gateway.extraOptions
@@ -132,14 +152,14 @@ let
       && m.delivery.group_id == m.controller.service_delivery.whiskey-service.consumer_gid;
     bounded-fixture-rotation = m.delivery.rotation_interval_seconds == 2
       && m.delivery.overlap_seconds == 5;
-    model-route-blocked-by-default = lib.hasInfix "authorization pending" liveCaddy
+    model-route-blocked-by-default = lib.hasInfix "explicit native opt-in required" liveCaddy
       && !(lib.hasInfix m.backend liveCaddy);
     future-route-keeps-native-auth = lib.hasInfix "reverse_proxy ${m.backend}" previewCaddy
       && lib.hasInfix "import native_headers" previewCaddy
       && !(lib.hasInfix "header_up -Authorization" previewCaddy);
     all-new-cases-unexecuted = !cases.runtime_gate_evidence
       && lib.all (row: row.status == "unexecuted") cases.cases;
-    valid-module-assertions = lib.all (item: item.assertion) c.assertions;
+    valid-module-assertions = lib.all (item: item.assertion) (c.assertions ++ enabled.assertions);
   };
 in
 assert lib.assertMsg (lib.all (value: value) (builtins.attrValues checks))
@@ -150,7 +170,9 @@ assert lib.assertMsg (lib.all (value: value) (builtins.attrValues checks))
   source_only = true;
   runtime_gate_evidence = false;
   model_plane_ready = false;
-  accepted_publisher_pins = null;
+  accepted_publisher_pins = {
+    inherit (m.acceptedPublisherPins) verified atrium controller catalog uidReceipt modelReceipt;
+  };
   check_count = builtins.length (builtins.attrNames checks);
   unexecuted_native_groups = builtins.length cases.cases;
 }

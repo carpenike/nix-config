@@ -135,7 +135,7 @@ def main():
                 "W01/W02",
                 "S01",
             ],
-            "model_plane": "blocked: protected non-secret publication sharing is not implemented",
+            "model_plane": "disabled in the baseline lane; use the product N07 split-model driver after explicit authorization",
             "native_jti_deny": "accepted R07 native-JTI classifier; real R05 permit/deny/recovery required in this run",
             "retained_native_policy": "accepted private C8 transport wired; actual native OAuth/current-policy pairs required in this run",
             "full_phase1": False,

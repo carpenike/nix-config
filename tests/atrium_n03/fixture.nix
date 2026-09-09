@@ -1,4 +1,4 @@
-{ inputs }:
+{ inputs, enableModels ? false }:
 let
   inherit (inputs) atrium;
   inherit (inputs.nixpkgs) lib;
@@ -69,6 +69,10 @@ let
       "personal.models.atrium.invalid"
       "family.models.atrium.invalid"
     ];
+    modelBackends = {
+      personal-text.model = "openai/fixture-personal";
+      family-child.model = "openai/fixture-family";
+    };
     modelTemplates.whiskey-service = {
       routes = [ "/v1/messages" ];
       maxLifetimeSeconds = 600;
@@ -88,6 +92,7 @@ let
       base.providerExceptions;
   };
   generated = atrium.lib.render registry;
+  publishers = import ./publishers.nix { inherit inputs; };
   state = {
     resolver = "/var/lib/atrium-resolver";
     native = "/var/lib/homelab-mcp";
@@ -156,18 +161,23 @@ in
 {
   inherit registry generated runtime port frontAddress names endpoints state ids nativePolicyPort nativePolicyEndpoint;
   namespacePath = "/run/atrium-n03/netns";
-  modelPlaneReady = false;
-  modelPlaneBlocker = "accepted-publisher-pins-and-native-authorization-pending";
+  modelPlaneReady = enableModels && publishers.verified;
+  modelPlaneBlocker = "explicit-native-opt-in-and-authorization-required";
   models = import ./models.nix {
-    inherit lib ids runtime state registry generated endpoints;
+    inherit lib ids runtime state registry generated endpoints publishers;
   };
   versions = {
-    atrium = "5f919f085ca0e77664b72d13e96ceeb0680688e4";
+    atrium = "7e63e81ff8118c8a34799e20e51a8783d31a5a3e";
     native = "338cbbdb990a5751d199f276c5d65b07730cd97d";
     consumer = "273cf414cac75276492ee849bb3ea257ce47f8de";
     litellm = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";
   };
-  resolver = resolverConfig "atrium-resolver";
+  resolver = (resolverConfig "atrium-resolver") // {
+    litellm =
+      if enableModels then (import ./models.nix {
+        inherit lib ids runtime state registry generated endpoints publishers;
+      }).resolver else null;
+  };
   registration = resolverConfig "atrium-device-registration";
   nativePolicy = nativePolicyConfig;
   registrationPort = 19443;
