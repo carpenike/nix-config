@@ -23,6 +23,7 @@
       "permit": "Original and replacement credentials are separately obtained through real R03/R06 references for the same owner. After clearing the R07 credential deny, only a fresh delivery supplies recovery.",
       "deny": "The actual private NativeKeyClient.info probe must observe healthy native retirement before a native-auth 401 is counted. The old key remains absent/refused after feed removal and fresh recovery; no association rewrite, maintenance pause or resurrection.",
       "denial_layer": "native-authentication-after-observed-native-retirement",
+      "transport": "All model requests use the configured public inference endpoint, not the separately validated family/personal logical credential binding.",
       "live_n05_hook_coverage": false,
       "helpers": ["tests/atrium_n03/model_cases.py", "tests/atrium_n03/model_probe.py"]
     },

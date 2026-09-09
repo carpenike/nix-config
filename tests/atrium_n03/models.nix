@@ -42,6 +42,7 @@ in
   activation = "disabled; accepted publisher pins, source review and native authorization required";
   backend = "http://127.0.0.1:${toString port}";
   issuer = endpoints.models;
+  inferenceEndpoint = "${endpoints.models}/v1/chat/completions";
   publisherDirectories = [
     { path = exports.resolver; owner = roles.resolver.name; group = metadataGroup.name; mode = "2750"; }
     { path = exports.controller; owner = roles.controller.name; group = metadataGroup.name; mode = "2750"; }

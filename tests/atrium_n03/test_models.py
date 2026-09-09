@@ -177,7 +177,14 @@ def test_case_catalog_is_unexecuted_and_reuses_existing_helpers():
 class ScriptedRecoveryTransport:
     """Request-order test data only; no native authentication or network is exercised."""
 
-    def __init__(self, fixture, *, retired_status=401, reuse_original=False):
+    def __init__(
+        self,
+        fixture,
+        *,
+        retired_status=401,
+        reuse_original=False,
+        instance_id="family-models",
+    ):
         self.fixture = fixture
         self.retired_status = retired_status
         self.reuse_original = reuse_original
@@ -186,10 +193,23 @@ class ScriptedRecoveryTransport:
         self.retired = False
         self.effects = 0
         self.events = []
+        self.inference_urls = []
+        self.mismatched_binding_at = None
         self.expiry = int(time.time()) + 600
         self.original = "unit-original-response-value"
         self.fresh = "unit-fresh-response-value"
-        self.instance = fixture["generated"]["resolver"]["instances"]["family-models"]
+        self.instance_id = instance_id
+        self.instance = fixture["generated"]["resolver"]["instances"][instance_id]
+        self.inference_endpoint = (
+            fixture["endpoints"]["models"] + "/v1/chat/completions"
+        )
+        binding_path = {
+            "family-models": "/family",
+            "personal-models": "/personal",
+        }[instance_id]
+        assert self.instance["target"] == fixture["endpoints"]["models"] + binding_path
+        assert self.instance["target"] != self.inference_endpoint
+        assert fixture["models"]["inferenceEndpoint"] == self.inference_endpoint
 
     def call(self, action, **fields):
         assert action == "request"
@@ -220,8 +240,16 @@ class ScriptedRecoveryTransport:
             assert fields["body"]["auth_ref"] == f"unit-auth-{self.fetches}"
             assert fields["body"]["instance_ref"] == f"unit-instance-{self.fetches}"
             self.events.append("redeem")
+            binding_instance = self.instance_id
+            if self.fetches == self.mismatched_binding_at:
+                binding_instance = {
+                    "family-models": "personal-models",
+                    "personal-models": "family-models",
+                }[self.instance_id]
             body = {
-                "target": self.instance["target"],
+                "target": self.fixture["generated"]["resolver"]["instances"][
+                    binding_instance
+                ]["target"],
                 "credential": {
                     "profile": "litellm-key",
                     "token": self.original
@@ -241,7 +269,8 @@ class ScriptedRecoveryTransport:
             self.events.append("deny-added" if self.denied else "deny-removed")
             body = {}
         else:
-            assert url == self.instance["target"]
+            assert url == self.inference_endpoint
+            self.inference_urls.append(url)
             original = bearer == "Bearer " + self.original
             assert original or bearer == "Bearer " + self.fresh
             if original and self.retired:
@@ -279,7 +308,7 @@ def run_scripted_recovery(fixture, transport, observation=None):
         fixture,
         transport,
         "unit-owner-identity",
-        "family-models",
+        transport.instance_id,
         "unit-model",
         "unit-deny-administrator",
         lambda: {"effects": transport.effects},
@@ -287,10 +316,13 @@ def run_scripted_recovery(fixture, transport, observation=None):
     )
 
 
+@pytest.mark.parametrize("instance_id", ["family-models", "personal-models"])
 def test_healthy_recovery_fetches_fresh_reference_and_retains_old_refusal(
-    recovery_control_flow,
+    recovery_control_flow, instance_id
 ):
-    transport = ScriptedRecoveryTransport(recovery_control_flow)
+    transport = ScriptedRecoveryTransport(
+        recovery_control_flow, instance_id=instance_id
+    )
     result = run_scripted_recovery(recovery_control_flow, transport)
     assert transport.events == [
         "manifest",
@@ -305,10 +337,28 @@ def test_healthy_recovery_fetches_fresh_reference_and_retains_old_refusal(
         "old-refusal",
     ]
     assert transport.effects == 2
+    assert transport.inference_urls == [transport.inference_endpoint] * 4
     assert result["denials"] == [401, 401]
     assert result["recovery"] == "fresh-r03-r06-delivery"
     assert result["original_key_still_denied"]
     assert result["live_n05_hook_coverage"] is False
+
+
+@pytest.mark.parametrize("instance_id", ["family-models", "personal-models"])
+@pytest.mark.parametrize("delivery_number", [1, 2])
+def test_mismatched_logical_binding_is_refused_before_inference(
+    recovery_control_flow, instance_id, delivery_number
+):
+    transport = ScriptedRecoveryTransport(
+        recovery_control_flow, instance_id=instance_id
+    )
+    transport.mismatched_binding_at = delivery_number
+    with pytest.raises(AssertionError, match="model_delivery_target_mismatch"):
+        run_scripted_recovery(recovery_control_flow, transport)
+    assert "fresh-permit" not in transport.events
+    assert transport.inference_urls == [transport.inference_endpoint] * (
+        0 if delivery_number == 1 else 2
+    )
 
 
 @pytest.mark.parametrize("status", [200, 403, 503])

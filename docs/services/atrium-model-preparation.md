@@ -21,6 +21,11 @@ Corrected source `bbcdc986855d15b181cf0e353de9bf1be28cb13a` has a separate
 receipts unchanged. Its real current-caller loader tests and scripted helper
 control-flow tests are explicitly not native or distinct-UID gate evidence.
 
+The `bbcdc986` receipt is also historical for routing: its scripted transport
+shared the helper's incorrect assumption that a logical target was an HTTP
+endpoint. The routing delta separately checks family/personal logical bindings
+against a configured public inference endpoint; prior receipts are not edited.
+
 `modelPlaneReady` is false, `models.acceptedPublisherPins` is null, the gateway,
 controller/timer, admission activation and input-copy unit are disabled, and
 the public model origin still returns 503. A Nix assertion prevents accidental
@@ -101,6 +106,15 @@ R06 retains the exact registry model origin
 `Settings.litellm.publication_directory` and `publication_reader_gid` name only
 the resolver export. N04 reads `associations.json` with publisher UID `65432`;
 R06 reads the controller's live `native-bindings.json` with UID `65430`.
+
+Logical credential bindings and HTTP transport are distinct. R03/R06 returns
+the generated `/family` or `/personal` binding, which is retained and validated
+as `ModelDelivery.logical_target`. Neither is an inference URL. The explicit
+fixture `models.inferenceEndpoint` is
+`https://litellm.atrium.invalid:18443/v1/chat/completions`, supported by both
+client templates. Every initial permit, retired-key refusal and fresh-key
+recovery request uses that configured endpoint. No target suffix is stripped or
+replaced; Caddy and R03/R06 binding semantics are unchanged.
 
 N04's existing separate transport endpoint is `http://127.0.0.1:14000`; its
 issuer remains the public origin. `publication_reader_gid`, `bindings_snapshot`

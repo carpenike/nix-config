@@ -59,6 +59,12 @@ let
     public-issuer-preserved = m.resolver.endpoint == f.generated.resolver.deployments.litellm.endpoint
       && m.controller.issuer == m.admission.issuer && m.admission.issuer == m.resolver.endpoint
       && m.admission.issuer == f.whiskeyModel.issuer;
+    inference-transport-separate-from-logical-bindings =
+      m.inferenceEndpoint == "${f.endpoints.models}/v1/chat/completions"
+      && lib.all (id: f.generated.resolver.instances.${id}.target != m.inferenceEndpoint)
+        [ "family-models" "personal-models" ]
+      && lib.all (id: lib.elem "/v1/chat/completions" f.generated.resolver.model_templates.${id}.routes)
+        [ "family-child" "personal-client" ];
     actual-post-auth-and-callback = gateway.environment.LITELLM_WORKER_STARTUP_HOOKS == "atrium_admission.bootstrap:install"
       && m.gateway.litellm_settings.callbacks == [ "atrium_admission.hook.admission" ];
     authoritative-feed-inputs = m.admission.deny_issuer == f.resolver.signing.issuer

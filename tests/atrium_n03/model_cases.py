@@ -20,7 +20,7 @@ NativeObservation = Callable[[str], Mapping[str, Any]]
 @dataclass(frozen=True)
 class ModelDelivery:
     token: str = field(repr=False)
-    target: str
+    logical_target: str
     expires_at: int
 
 
@@ -37,12 +37,12 @@ def require_native_assignment(fixture: dict[str, Any]) -> None:
 
 
 def inference(
-    client: Client, endpoint: str, key: str, model: str, *, target: str | None = None
+    client: Client, inference_endpoint: str, key: str, model: str
 ) -> dict[str, Any]:
     return client.call(
         "request",
         method="POST",
-        url=target or endpoint + "/v1/chat/completions",
+        url=inference_endpoint,
         headers={"Authorization": "Bearer " + key},
         body={
             "model": model,
@@ -66,9 +66,10 @@ def public_pairs(
     """The caller supplies a real R03/R06 delivery and actual N07 provider observer."""
     require_native_assignment(fixture)
     assert permitted_model != foreign_model
-    endpoint = fixture["endpoints"]["models"]
+    native_issuer = fixture["endpoints"]["models"]
+    inference_endpoint = fixture["models"]["inferenceEndpoint"]
     before = observe()
-    permitted = inference(client, endpoint, key, permitted_model)
+    permitted = inference(client, inference_endpoint, key, permitted_model)
     assert permitted["status"] == 200, "model_permit_required"
     assert json.loads(permitted["body"])["choices"][0]["message"]["content"]
     after = observe()
@@ -82,7 +83,7 @@ def public_pairs(
         if account != expected_account
     ), "permit_reached_another_provider_account"
     before = observe()
-    rejected = inference(client, endpoint, key, foreign_model)
+    rejected = inference(client, inference_endpoint, key, foreign_model)
     assert rejected["status"] in (401, 403), "wrong_model_was_not_refused"
     wrong_target = client.call(
         "request",
@@ -95,7 +96,7 @@ def public_pairs(
     management = client.call(
         "request",
         method="POST",
-        url=endpoint + "/key/generate",
+        url=native_issuer + "/key/generate",
         headers={"Authorization": "Bearer " + key},
         body={"models": [permitted_model]},
     )
@@ -155,12 +156,11 @@ def model_delivery(
     delivered = json.loads(response["body"])
     credential = delivered["credential"]
     assert credential["profile"] == "litellm-key", "native_model_profile_required"
-    assert delivered["target"] == instance["target"], "model_delivery_target_mismatch"
+    logical_target = delivered["target"]
+    assert logical_target == instance["target"], "model_delivery_target_mismatch"
     assert isinstance(credential["token"], str) and credential["token"]
     assert type(credential["expires_at"]) is int
-    return ModelDelivery(
-        credential["token"], delivered["target"], credential["expires_at"]
-    )
+    return ModelDelivery(credential["token"], logical_target, credential["expires_at"])
 
 
 def known_deny_pair(
@@ -174,7 +174,8 @@ def known_deny_pair(
     native_observe: NativeObservation,
 ) -> dict[str, Any]:
     require_native_assignment(fixture)
-    endpoint = fixture["endpoints"]["models"]
+    native_issuer = fixture["endpoints"]["models"]
+    inference_endpoint = fixture["models"]["inferenceEndpoint"]
     original = model_delivery(fixture, client, owner_identity, instance_id)
     digest = hashlib.sha256(original.token.encode()).hexdigest()
     identifier = "sha256:" + digest
@@ -183,7 +184,7 @@ def known_deny_pair(
         state = native_observe(digest)
         assert (
             state["kind"] == "native-key-info"
-            and state["issuer"] == endpoint
+            and state["issuer"] == native_issuer
             and state["native_key_id"] == digest
             and state["observer_uid"] == fixture["models"]["roles"]["resolver"]["uid"]
             and type(state["present"]) is bool
@@ -195,12 +196,7 @@ def known_deny_pair(
     native_expiry = initial["expires_at"]
     assert native_expiry > time.time() + 65, "retirement_probe_must_not_be_expiry"
     assert original.expires_at > time.time() + 65, "fresh_delivery_required"
-    assert (
-        inference(client, endpoint, original.token, model, target=original.target)[
-            "status"
-        ]
-        == 200
-    )
+    assert inference(client, inference_endpoint, original.token, model)["status"] == 200
 
     def publish(method: str) -> None:
         response = client.call(
@@ -208,7 +204,11 @@ def known_deny_pair(
             method=method,
             url=fixture["endpoints"]["resolver"] + "/v1/denies",
             headers={"Authorization": "Bearer " + administrator},
-            body={"kind": "credential", "issuer": endpoint, "identifier": identifier},
+            body={
+                "kind": "credential",
+                "issuer": native_issuer,
+                "identifier": identifier,
+            },
         )
         assert response["status"] == 200, "real_model_deny_administration_required"
 
@@ -226,9 +226,7 @@ def known_deny_pair(
             "expired_key_is_not_retirement_evidence"
         )
         before = observe()
-        response = inference(
-            client, endpoint, original.token, model, target=original.target
-        )
+        response = inference(client, inference_endpoint, original.token, model)
         assert response["status"] == 401, "native_auth_refusal_not_observed"
         assert observe() == before, "retired_native_key_reached_provider"
 
@@ -240,11 +238,10 @@ def known_deny_pair(
         publish("DELETE")
     fresh = model_delivery(fixture, client, owner_identity, instance_id)
     assert fresh.token != original.token, "fresh_recovery_credential_required"
-    assert fresh.target == original.target, "recovery_target_changed"
-    assert (
-        inference(client, endpoint, fresh.token, model, target=fresh.target)["status"]
-        == 200
-    ), "fresh_r03_r06_recovery_permit_required"
+    assert fresh.logical_target == original.logical_target, "recovery_binding_changed"
+    assert inference(client, inference_endpoint, fresh.token, model)["status"] == 200, (
+        "fresh_r03_r06_recovery_permit_required"
+    )
     retired_key_refusal()
     return {
         "case": "real-model-key-r07-native-retirement-and-fresh-recovery",
