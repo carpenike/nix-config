@@ -1,0 +1,77 @@
+{
+  "ticket": "ATR-N04",
+  "status": "bounded-native-readback-permit-and-deny-passed",
+  "source_commit": "b3f66bc1c4b428e6a4c25f706af1bc850fea7277",
+  "runtime_method": "atrium_litellm.native.Native.wait_for_credential",
+  "native_package": "1.99.1",
+  "native_poll_seconds": 30,
+  "native_startup_phase": "Pinned scheduler offsets default interval jobs by less than one additional period",
+  "maximum_readback_seconds": 65,
+  "maximum_read_frequency_per_second": 2,
+  "semantics": {
+    "credential_mutation_posts_per_topology": 1,
+    "exact_metadata_equality_required": true,
+    "late_matching_response_cannot_succeed": true,
+    "each_read_capped_by_remaining_and_existing_transport_timeout": true,
+    "auth_transport_and_schema_errors_propagate": true,
+    "ownership_remains_pending_until_exact_readback": true,
+    "native_auth_cache_poll_or_roles_changed": false,
+    "inference_requested": false
+  },
+  "actual_native": [
+    {
+      "workers": 1,
+      "reader_pid": 1,
+      "positive_elapsed_ms": 4,
+      "permanent_metadata_mismatch_refused": true,
+      "negative_elapsed_ms": 65002
+    },
+    {
+      "workers": 2,
+      "writer_pid": 223,
+      "reader_pid": 224,
+      "reader_initially_missing": true,
+      "positive_elapsed_ms": 31116,
+      "permanent_metadata_mismatch_refused": true,
+      "negative_elapsed_ms": 65005
+    }
+  ],
+  "source_validation": {
+    "focused_tests_passed": 75,
+    "native_transport_test_seam": "Real HTTP requests are kept on the observed worker connection; native authentication and response bodies are unchanged",
+    "unit_scope": "Includes exact/missing/stale/deadline/auth/schema/no-repeat-POST ownership tests; not substituted for native proof"
+  },
+  "receipts": [
+    {
+      "path": "tests/atrium_n04/results/readback-convergence-b3f66bc1.json",
+      "sha256": "36934d2e0b852ab83951948b9af38268b85a04eacdbdfb67c99699c1893ae216"
+    },
+    {
+      "path": "tests/atrium_n04/results/readback-fix-cleanup-b3f66bc1.json",
+      "sha256": "444bf3c4d4ac41015887a716a8c754e5529778cd9d7abdaf7a06914d95502597"
+    }
+  ],
+  "preserved_diagnostics": [
+    "tests/atrium_n04/results/readback-11152856-first.json",
+    "tests/atrium_n04/results/readback-04bc9faf.json",
+    "tests/atrium_n04/results/readback-2c594588.json",
+    "tests/atrium_n04/results/readback-convergence-bd3cc790.json",
+    "tests/atrium_n04/results/readback-schedule-580bb710.json",
+    "tests/atrium_n04/results/readback-schedule-7a13524d.json"
+  ],
+  "cleanup": {
+    "exact_containers_absent": 24,
+    "exact_networks_absent": 12,
+    "all_twelve_topology_inventories_and_final_inventory_equal": true,
+    "inventory_classes": ["containers", "networks", "volumes", "images"],
+    "ambit_db_unchanged": true,
+    "parent_qualified_lease_rows_deleted": 1,
+    "lease_rows_after_release": 0
+  },
+  "limits": [
+    "Not full N04 reconciliation, N03/N07 startup/model/protocol/worker-cache or production acceptance",
+    "A successful exact readback does not itself prove simultaneous freshness on every worker",
+    "The original N03 failure lacks a per-request worker observation and is not retrospectively relabeled",
+    "65 seconds covers the pinned default poll and startup phase; other native scheduling policies require revalidation and exhaustion remains fail closed"
+  ]
+}

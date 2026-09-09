@@ -133,3 +133,16 @@ Its observations are recorded separately so the deliberate expected-value
 mismatch is not called native metadata corruption. This mode requires its
 own clean source and native receipt; the earlier observation-only receipt
 does not prove the corrected controller.
+
+The [corrected client receipt](results/readback-convergence-b3f66bc1.json) at
+source `b3f66bc1c4b428e6a4c25f706af1bc850fea7277` passed both topologies.
+The actual client returned in 4 ms on one worker and 31.116 seconds on the
+initially missing non-writer in the two-worker topology. Permanent wrong
+metadata was refused after 65.002 and 65.005 seconds, respectively, with one
+credential POST per topology and no inference.
+
+The [handoff](results/readback-convergence-handoff.json) and
+[all-attempt cleanup](results/readback-fix-cleanup-b3f66bc1.json) retain the
+failed shorter-budget and observer-bootstrap attempts. All 24 exact containers
+and 12 invocation networks are absent, and every captured container, network,
+volume and image inventory matches the final independent check.

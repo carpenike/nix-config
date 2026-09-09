@@ -257,6 +257,15 @@ Missing or different metadata after that budget still raises
 infrastructure actions do not proceed. The wait neither repeats the POST nor
 accepts masked credential values as ownership evidence. Native cache settings,
 poll intervals, roles, model ceilings and alias guards are unchanged.
+Successful readback is not a claim of synchronous cache invalidation on every
+worker; request-path admission and the full multi-worker gate remain separate.
+
+The [corrected native readback proof](../../tests/atrium_n04/results/readback-convergence-handoff.json)
+executes the real client method on a worker-affine HTTP connection. The initially
+missing two-worker readback converged in 31.116 seconds, and deliberately wrong
+metadata still failed at the 65-second budget. No additional credential POST or
+inference was used. This is the readback-client boundary, not full N03 startup
+or model-operation proof.
 
 ## Acknowledged runtime service publication
 
