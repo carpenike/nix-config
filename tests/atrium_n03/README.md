@@ -32,6 +32,13 @@ binds app-owned runtime/fixture sources and committed canonical UID/model
 anchors; no Nix package-availability flag substitutes for that qualification.
 MCP and Whiskey implementations stay in their native repositories.
 
+The [source-only compatibility checkpoint](https://github.com/carpenike/atrium/blob/e5053dad17a5e604d3128286341806a2c7efb2ed/harness/evidence/ATR-N03-N07-app-layout-handoff.json)
+binds app source `e1b7f65` and deployment source `0ac5ec6c`.
+Handoff SHA-256:
+`dd14c898938233c636138519ed1b31e9a1db1eec2e93de99d4584816b59df6cd`.
+It records clean preparation,123 app/fixture source tests,64 deployment
+assertions and two Caddy modes—not a native run. The receipt remains app-only.
+
 ## Immutable history
 
 Existing `results/` files are historical and remain byte-identical. They include
