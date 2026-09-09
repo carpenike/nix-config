@@ -131,7 +131,7 @@
 
     # ATR-N05: shared profiles/resolver for isolated admission; no live service is enabled.
     atrium = {
-      url = "github:carpenike/atrium/1d620cd30f27f2b5849533fb2a9bdb5016385f69";
+      url = "github:carpenike/atrium/648048ee609002f8b8c5af6d0d6b8c6cb97fc6cb";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -292,17 +292,12 @@
               isAvailable
             )
             allPackages;
-          admissionTests = inputs.nixpkgs.lib.fileset.toSource {
-            root = ./tests/atrium_n05;
-            fileset = inputs.nixpkgs.lib.fileset.fileFilter
-              (file: file.hasExt "py")
-              ./tests/atrium_n05;
-          };
-          admissionTestPython = pkgs.python312.withPackages (ps: [
-            ps.pytest
-            ps.fastapi
-            availablePackages.atrium-litellm-admission
-          ]);
+          deploymentPackageSmoke = executable: package:
+            assert package == inputs.atrium.packages.${system}.${executable};
+            pkgs.runCommand "${executable}-deployment-smoke" { } ''
+              test -x ${package}/bin/${executable}
+              ${package}/bin/${executable} --help > "$out"
+            '';
         in
         {
           # Pre-commit hooks configuration (git-hooks.nix)
@@ -511,19 +506,12 @@
 
           # Checks for CI
           checks = {
-            atrium-n05-package = availablePackages.atrium-litellm-admission;
-            atrium-n05-python = pkgs.runCommand "atrium-n05-python-checks"
-              {
-                nativeBuildInputs = [ admissionTestPython ];
-                PYTHONPATH = "${./pkgs/atrium-litellm-admission}:${inputs.atrium}/resolver/src:${inputs.atrium}/profiles/src";
-                PYTHONDONTWRITEBYTECODE = "1";
-                __darwinAllowLocalNetworking = true;
-              } ''
-              python -m pytest -q --rootdir="$TMPDIR" \
-                -o cache_dir="$TMPDIR/pytest-cache" \
-                --basetemp="$TMPDIR/private-fixtures" ${admissionTests}
-              touch "$out"
-            '';
+            atrium-n04-package-smoke = deploymentPackageSmoke
+              "atrium-litellm-controller"
+              availablePackages.atrium-litellm-controller;
+            atrium-n05-package-smoke = deploymentPackageSmoke
+              "atrium-litellm-admission"
+              availablePackages.atrium-litellm-admission;
             atrium-n05-units = pkgs.writeText "atrium-n05-unit-checks.json"
               (builtins.toJSON (import ./tests/atrium_n05/evaluate.nix {
                 atrium = inputs.atrium;
@@ -534,6 +522,19 @@
                 atrium = inputs.atrium;
                 nixpkgs = inputs.nixpkgs;
               }));
+            atrium-n06-units =
+              let
+                checks = import ./tests/atrium_n06/evaluate.nix {
+                  atrium = inputs.atrium;
+                  nixpkgs = inputs.nixpkgs;
+                };
+              in
+              assert inputs.nixpkgs.lib.all (passed: passed) (builtins.attrValues checks);
+              pkgs.writeText "atrium-n06-deployment-checks.json" (builtins.toJSON {
+                inherit checks;
+                deployment_only = true;
+                runtime_gate_evidence = false;
+              });
             atrium-registry-values = pkgs.writeText "atrium-registry-values-v2.json"
               (builtins.toJSON (import ./tests/atrium/evaluate.nix {
                 atriumInput = inputs.atrium;

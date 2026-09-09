@@ -7,6 +7,7 @@ let
   };
   cfg = host.config;
   service = cfg.systemd.services.atrium-reconciler;
+  package = atrium.packages.x86_64-linux.atrium-litellm-controller;
   checks = {
     assertions = nixpkgs.lib.all (assertion: assertion.assertion) cfg.assertions;
     isolated = cfg.networking.hostName == "atrium-n04-fixture";
@@ -14,7 +15,8 @@ let
     noResolver = !cfg.services.atrium.runtime.resolver.enable;
     noImplicitInitialization = service.preStart == ""
       && builtins.head cfg.services.atrium.runtime.reconciler.arguments == "reconcile";
-    nativeController = nixpkgs.lib.hasInfix "atrium-litellm-controller" service.serviceConfig.ExecStart
+    appPackage = cfg.services.atrium.runtime.reconciler.package == package;
+    nativeController = nixpkgs.lib.hasPrefix "${package}/bin/atrium-litellm-controller" service.serviceConfig.ExecStart
       && nixpkgs.lib.hasInfix "reconcile" service.serviceConfig.ExecStart;
     persistentOwnership = service.serviceConfig.StateDirectory == "atrium-reconciler"
       && !service.serviceConfig.DynamicUser;
@@ -28,5 +30,6 @@ in
 assert nixpkgs.lib.all (passed: passed) (builtins.attrValues checks);
 {
   inherit checks;
+  deployment_only = true;
   runtime_gate_evidence = false;
 }

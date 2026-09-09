@@ -4,7 +4,7 @@ let
   controllerIds = ids.atrium-reconciler-fixture;
   consumerIds = ids.atrium-consumer-fixture;
   fixture = import ../../../tests/atrium_n04/fixture.nix { inherit atrium; };
-  package = pkgs.callPackage ../../../pkgs/atrium-litellm-controller { };
+  package = atrium.packages.${pkgs.stdenv.hostPlatform.system}.atrium-litellm-controller;
   controllerConfig = pkgs.writeText "atrium-n04-isolated-controller.json" (builtins.toJSON {
     schema_version = 1;
     environment = "isolated";
