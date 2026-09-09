@@ -1,0 +1,428 @@
+{
+  "checks": {
+    "model_preparation_assertions": {
+      "accepted_publisher_pins": null,
+      "check_count": 32,
+      "checks": {
+        "actual-pinned-image-startup": true,
+        "actual-post-auth-and-callback": true,
+        "all-new-cases-unexecuted": true,
+        "authoritative-feed-inputs": true,
+        "bounded-fixture-rotation": true,
+        "controller-publication-fields": true,
+        "current-regular-policy-reference": true,
+        "disabled-until-accepted-pins": true,
+        "distinct-publisher-and-consumer-uids": true,
+        "exact-reader-publisher-uids": true,
+        "future-route-keeps-native-auth": true,
+        "gateway-read-only-metadata": true,
+        "model-route-blocked-by-default": true,
+        "namespace-and-backend-loopback": true,
+        "no-gateway-or-resolver-token-membership": true,
+        "no-implicit-admission-initialization": true,
+        "no-publisher-private-or-token-mounts": true,
+        "nonroot-capability-free-gateway": true,
+        "private-state-not-exported": true,
+        "protected-input-copy-modes": true,
+        "public-issuer-preserved": true,
+        "publisher-and-reader-membership": true,
+        "readers-use-live-exports": true,
+        "real-w03-live-delivery": true,
+        "resolver-publication-fields": true,
+        "secret-references-not-values": true,
+        "separate-metadata-token-groups": true,
+        "settings-owned-by-actual-loader-caller": true,
+        "two-separate-publisher-directories": true,
+        "unchanged-resolver-default": true,
+        "valid-module-assertions": true,
+        "whiskey-not-metadata-reader": true
+      },
+      "kind": "atrium.n03-model-source-preparation",
+      "model_plane_ready": false,
+      "runtime_gate_evidence": false,
+      "source_only": true,
+      "unexecuted_native_groups": 7
+    },
+    "native_unit_assertions": {
+      "c8_adopted": true,
+      "check_count": 29,
+      "checks": {
+        "accepted-pins": true,
+        "actual-device-cli": true,
+        "actual-native-policy-cli": true,
+        "actual-native-policy-client": true,
+        "actual-packages": true,
+        "distinct-policy-peer-credentials": true,
+        "empty-consumer-capabilities": true,
+        "explicit-policy-service-bindings": true,
+        "isolated-host": true,
+        "model-gap-is-closed-not-placeholder": true,
+        "namespace-for-every-consumer": true,
+        "native-loopback-only": true,
+        "native-peer-not-proxy-assertion": true,
+        "no-direct-anthropic-fallback": true,
+        "no-live-backup-notification-jobs": true,
+        "no-live-mcp-subsystems": true,
+        "no-native-resolver-database-sharing": true,
+        "no-public-host-firewall": true,
+        "operations-use-repo-conventions": true,
+        "policy-service-needs-no-broker-device-secrets": true,
+        "private-native-policy-loopback": true,
+        "private-policy-is-not-public-proxy": true,
+        "public-policy-generated-once": true,
+        "resolver-owned-policy-state": true,
+        "rotating-model-path-not-credential-snapshot": true,
+        "tls-preserving-registration-entry": true,
+        "unchanged-native-origin": true,
+        "valid-module-assertions": true,
+        "whiskey-loopback-only": true
+      },
+      "kind": "atrium.n03-isolated-unit-evaluation",
+      "model_plane_ready": false,
+      "runtime_gate_evidence": false
+    },
+    "scoped_lint": [
+      "Ruff check/format",
+      "nixpkgs-fmt",
+      "Statix",
+      "Deadnix",
+      "staged redacted Gitleaks"
+    ],
+    "source_regressions": {
+      "counterfactual_owner_metadata": "Tests the actual owner comparison without a kernel UID switch",
+      "native_distinct_uid_or_gate_proof": false,
+      "passed": 17,
+      "result": ".................                                                        [100%]\n17 passed in 1.31s",
+      "scope": "Real current-caller runtime settings-file loading plus source helper control-flow tests",
+      "scripted_transport": "Tests ordering, fresh reference/key use and refusal attribution only; it does not emulate or exercise native authorization"
+    }
+  },
+  "cleanup": {
+    "live_host_or_vm_identity_network_trust_changes": false,
+    "model_provider_calls_executed": false,
+    "native_or_vm_fixture_executed": false,
+    "other_worktrees_modified": false,
+    "resource_lease_queried_or_claimed": false,
+    "retained_public_artifacts": ".artifacts",
+    "source_unit_runtime_files": "non-secret config fixtures only in existing Nix test runtime; cleaned by build lifecycle"
+  },
+  "corrections": {
+    "healthy_recovery": {
+      "counted_denial": "native-authentication401 only after observed retirement; old key remains refused after clearing feed and fresh recovery",
+      "issuance": "original and fresh replacement through real R03 manifests and R06 one-use redemption for the same owner",
+      "live_n05_hook_coverage_claimed": false,
+      "required_observation": "private resolver-UID NativeKeyClient.info confirms presence then native absence before expiry",
+      "same_key_fallback": "not implemented or inferred; requires a separate observed native-revocation-failure fixture"
+    },
+    "settings": {
+      "actual_loader": "atrium_admission.cli.load_settings with caller-UID read_document",
+      "directory_mode": "0700",
+      "file_mode": "0600",
+      "live_publications_reowned": false,
+      "policy_and_public_ca": "root-owned0640 retained",
+      "runtime_path": "/var/lib/atrium-model-gateway/config/admission.json",
+      "static_writer": "gateway UID65437, no ownership-changing capability"
+    }
+  },
+  "full_n03_or_phase1_complete": false,
+  "historical_receipts_unchanged": {
+    "tests/atrium_n03/results/n03-c8-native-35c8a030.json": {
+      "algorithm": "sha256",
+      "digest": "ea6786a0916c497aa4fb8b4698b219e0dfd73acb87f4dc0df5533e398e1338af"
+    },
+    "tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json": {
+      "algorithm": "sha256",
+      "digest": "49076a32cb01eb2c578681613ad847aae5ea5c774996ed12e12f8a3b15f21dc2"
+    },
+    "tests/atrium_n03/results/n03-c8-native-6fac02ef.json": {
+      "algorithm": "sha256",
+      "digest": "8390d280ad54bc5117cdc719137756b08bc7c6e0163cc0dfb64243c1a87f9872"
+    },
+    "tests/atrium_n03/results/n03-c8-native-738f0a6e-first.json": {
+      "algorithm": "sha256",
+      "digest": "e7716d66cf91d7d5166ae157b0ddc0ce0eef2c817ea27efed09810733231f423"
+    },
+    "tests/atrium_n03/results/n03-caddy-native-network-discovery.json": {
+      "algorithm": "sha256",
+      "digest": "8d77cc3500d7b508b57148731eac2ed1174cf562c4701f1001a8777abf8c90c1"
+    },
+    "tests/atrium_n03/results/n03-caddy-native-network-first.json": {
+      "algorithm": "sha256",
+      "digest": "6d6d99440848fd299890737176acc377f168947ab158c242a284b1f0d623ee63"
+    },
+    "tests/atrium_n03/results/n03-caddy-native-source-scopes.json": {
+      "algorithm": "sha256",
+      "digest": "cfaeef0e984a7dfbc6833f7acc26c08ba1627c5d7aa6abe0e7b0b2f56166472d"
+    },
+    "tests/atrium_n03/results/n03-clean-a03c68e4.json": {
+      "algorithm": "sha256",
+      "digest": "418eb3fec9f550fd1c1cba920dfdb59d721e92c067fb8cd99976682561f07d72"
+    },
+    "tests/atrium_n03/results/n03-clean-static-a03c68e4.json": {
+      "algorithm": "sha256",
+      "digest": "4ab62563fe442a8e634fd01138c4eb82db7aa185ef21e9aa0b8166a08492c8dd"
+    },
+    "tests/atrium_n03/results/n03-deny-device-outage-integration.json": {
+      "algorithm": "sha256",
+      "digest": "778e6541c61fd393bbe5bf6aecc8e845a9d55a99e667d85c6c1c1ebbfc194d49"
+    },
+    "tests/atrium_n03/results/n03-final-source-privileges.json": {
+      "algorithm": "sha256",
+      "digest": "02f54c3e2ee955cf0e4d783f0c0967f9f1654b4bb03f29c989be93231f3a2b72"
+    },
+    "tests/atrium_n03/results/n03-foundation-bootstrap-auth-configured.json": {
+      "algorithm": "sha256",
+      "digest": "ac6a61fb6f42f1a075d6832ea5aab2dd28357ccd7a37964ce27637010c3d11a8"
+    },
+    "tests/atrium_n03/results/n03-foundation-bootstrap-first.json": {
+      "algorithm": "sha256",
+      "digest": "b3e1222bfd9eb368369133d739db68e240b25c2c6bba98ac67c4f362d589c0aa"
+    },
+    "tests/atrium_n03/results/n03-foundation-bootstrap-located.json": {
+      "algorithm": "sha256",
+      "digest": "c4c0c982591da2dce2d797b81e1dfc2968732c71cd56b3b65121e1d7e5cd5f9e"
+    },
+    "tests/atrium_n03/results/n03-foundation-bootstrap-trust-paired.json": {
+      "algorithm": "sha256",
+      "digest": "a82843d5ae5b5539e40501af8010bd143083cd352e98e072460057647fc4d9d0"
+    },
+    "tests/atrium_n03/results/n03-model-preparation-7c89709e.json": {
+      "algorithm": "sha256",
+      "digest": "3ead43a9ec8a82425f335e0d573e855e04526698d1bbe90a4d16985b8a27095d"
+    },
+    "tests/atrium_n03/results/n03-native-host-contract.json": {
+      "algorithm": "sha256",
+      "digest": "d21ff31f932b88f75e9b496d8c55aee417966384c29523750f9b81febb905c70"
+    },
+    "tests/atrium_n03/results/n03-native-import-probe.json": {
+      "algorithm": "sha256",
+      "digest": "1c3dc221612b45366c222518a18478ada161174eb017325825ae2f151f825806"
+    },
+    "tests/atrium_n03/results/n03-native-import-ready.json": {
+      "algorithm": "sha256",
+      "digest": "f3c153265f95b0a59c251088c6f66d8819f363f3a921f5e246e9c91a55e27dac"
+    },
+    "tests/atrium_n03/results/n03-native-transport-status.json": {
+      "algorithm": "sha256",
+      "digest": "52cf30c529add7ad27d84e877d11687d5383fd0d5f99d7c64109ef4033c0ddf5"
+    },
+    "tests/atrium_n03/results/n03-owned-namespace-fault-probe.json": {
+      "algorithm": "sha256",
+      "digest": "f04981aa36450a1e02862428c908583ed79b40cf5206be68745201f95cbcd214"
+    },
+    "tests/atrium_n03/results/n03-real-clock-outage-pairs.json": {
+      "algorithm": "sha256",
+      "digest": "e96807d08ee02d46bfd66a04aed2d766a0b863aba9bc0efc436c71d7d36e4c37"
+    },
+    "tests/atrium_n03/results/n03-real-outage-admin-known-deny.json": {
+      "algorithm": "sha256",
+      "digest": "3cd00a1648fc7c6f7e8fdd6072c17b78c275f10002b599f303eea6403fc2688d"
+    }
+  },
+  "native_cases": [
+    {
+      "case": "model-public-permit-wrong-model-target-and-direct-backend",
+      "deny": "The same key cannot use another model/target, manage keys, or connect directly to the live backend; denied provider counters remain unchanged.",
+      "gates": [
+        "T1",
+        "T4",
+        "T26"
+      ],
+      "helpers": [
+        "tests/atrium_n03/model_cases.py",
+        "tests/atrium_n03/client.py"
+      ],
+      "permit": "Real R03/R06 delivery reaches the configured model through Caddy and the actual post-auth N05 gate; the intended synthetic provider observes success.",
+      "status": "unexecuted"
+    },
+    {
+      "case": "real-model-key-r07-native-retirement-and-fresh-recovery",
+      "denial_layer": "native-authentication-after-observed-native-retirement",
+      "deny": "The actual private NativeKeyClient.info probe must observe healthy native retirement before a native-auth 401 is counted. The old key remains absent/refused after feed removal and fresh recovery; no association rewrite, maintenance pause or resurrection.",
+      "gates": [
+        "T15",
+        "T26"
+      ],
+      "helpers": [
+        "tests/atrium_n03/model_cases.py",
+        "tests/atrium_n03/model_probe.py"
+      ],
+      "live_n05_hook_coverage": false,
+      "permit": "Original and replacement credentials are separately obtained through real R03/R06 references for the same owner. After clearing the R07 credential deny, only a fresh delivery supplies recovery.",
+      "status": "unexecuted"
+    },
+    {
+      "case": "missing-live-ownership-producer-refusal",
+      "deny": "An invocation-owned missing/corrupt export cannot turn a managed key into legacy; restoration recovers without renewed snapshot age.",
+      "gates": [
+        "T20",
+        "T26"
+      ],
+      "helpers": [
+        "tests/atrium_n05/post_auth_cases.py",
+        "pkgs/atrium-litellm-admission/atrium_admission/producers.py"
+      ],
+      "permit": "Both complete, current real publishers are readable by the actual gateway and allow the authorized request.",
+      "status": "unexecuted"
+    },
+    {
+      "case": "distinct-publisher-live-replacement-and-custody",
+      "deny": "Readers cannot write snapshots or traverse publisher signing/state/escrow or the separate token-delivery directory. Confirm private paths exist from their owner before counting refusal.",
+      "gates": [
+        "T26"
+      ],
+      "helpers": [
+        "tests/atrium_n03/model_probe.py",
+        "pkgs/atrium-litellm-controller/atrium_litellm/associations.py",
+        "pkgs/atrium-litellm-admission/atrium_admission/producers.py"
+      ],
+      "permit": "Real R06 issuance/maintenance and N04 reconciliation replace each publisher-owned export; actual N04/R06/N05 readers retain access through the metadata group.",
+      "status": "unexecuted"
+    },
+    {
+      "case": "w03-live-key-replacement-and-success-bound-ack",
+      "deny": "Old/forged acknowledgement and unreadable/missing delivery cannot acknowledge the replacement or trigger a direct-provider fallback.",
+      "gates": [
+        "T29"
+      ],
+      "helpers": [
+        "tests/atrium_n06/consumer.mjs",
+        "pkgs/atrium-litellm-controller/atrium_litellm/rotation.py"
+      ],
+      "permit": "The same actual W03 helper PID reads a new real N04 publication, infers through the gateway, then writes its matching acknowledgement.",
+      "status": "unexecuted"
+    },
+    {
+      "case": "service-overlap-retirement-and-separated-metadata-group",
+      "deny": "The retired key stops working after the real deadline; metadata-only readers cannot read either raw key or management credentials.",
+      "gates": [
+        "T29",
+        "T30"
+      ],
+      "helpers": [
+        "tests/atrium_n04/native_cases.py",
+        "tests/atrium_n06/consumer.mjs",
+        "tests/atrium_n03/model_probe.py"
+      ],
+      "permit": "Actual old/new service keys work during acknowledgement-bound overlap; controller and W03 retain only their documented delivery/ack access.",
+      "status": "unexecuted"
+    },
+    {
+      "case": "model-known-deny-and-admin-freshness-limits",
+      "deny": "Known denies, missing ownership, expiry, service identities and native roles do not gain a freshness-based authorization bypass.",
+      "fallback_requirement": "Same-key recovery/live N05-hook coverage requires a separate explicitly observed bounded native-revocation-failure fixture. Healthy deletion and an unexplained 401/403 are not hook coverage.",
+      "gates": [
+        "T15",
+        "T20",
+        "T24"
+      ],
+      "helpers": [
+        "tests/atrium_n05/post_auth_cases.py",
+        "pkgs/atrium-litellm-admission/atrium_admission/engine.py"
+      ],
+      "permit": "The actual R07 feed permits current eligible model use; only verified human admin eligibility may use the documented freshness exception with a durable alert.",
+      "status": "unexecuted"
+    }
+  ],
+  "new_native_gate_results": [],
+  "nix_outputs": [
+    {
+      "content_cache_may_be_reused": true,
+      "derivation": "/nix/store/ngspax8gqhr6bgy439zhfczcli6qkqfw-atrium-n03-isolated-units.json.drv",
+      "path": "/nix/store/m0r7wfwd11jyi0q5bscl2ddrm1kr4mq7-atrium-n03-isolated-units.json",
+      "sha256": "05a7c82f23802d5f76a24a1aa6718a5f8f8a7b44562cd872854d1696f4dfed61"
+    },
+    {
+      "content_cache_may_be_reused": true,
+      "derivation": "/nix/store/zfq0l0a57rjqfc24iq8cm5zhzqmdyl1r-atrium-n03-model-preparation.json.drv",
+      "path": "/nix/store/61ylisfd72qjwxm5wx6hbrw5abskbwai-atrium-n03-model-preparation.json",
+      "sha256": "05a5cd1965a5c9d5a6c117714227ba1378bbe99a041495515effc4a742d2b607"
+    },
+    {
+      "content_cache_may_be_reused": true,
+      "derivation": "/nix/store/34acv4j6iw32hbli6jwvkzxjnk0mnkhl-atrium-n03-model-source-python.drv",
+      "path": "/nix/store/593fgwhv4s5wbfvjqg460nnr5mqwh7li-atrium-n03-model-source-python",
+      "sha256": "8e7b8ccb0a53e9531cd9ef1724ec40bfc9f2fe385d0120cddc0533af3e73833b"
+    }
+  ],
+  "preserved_source_scopes": [
+    "flake.nix",
+    "flake.lock",
+    ".github",
+    "lib",
+    "pkgs",
+    "tests/atrium_n03/artifacts.py",
+    "tests/atrium_n03/native_runner.py",
+    "tests/atrium_n03/runtime.py",
+    "tests/atrium_n03/prepare.py",
+    "tests/atrium_n03/cases.py",
+    "tests/atrium_n03/caddy.nix",
+    "tests/atrium_n03/host.nix",
+    "tests/atrium_n05",
+    "tests/atrium_n06"
+  ],
+  "remaining": [
+    "accepted exact publisher pins/complete anchor still pending; R06 publication_directory/publication_reader_gid and N04 publication_reader_gid still rejected by current code",
+    "parent delta re-review and later explicit native authorization",
+    "actual distinct-UID settings delivery and split-service native model pairs",
+    "separate observed revocation-failure/live-hook fallback proof if needed",
+    "full model/stream/worker/browser/N03/N07/adoption gates"
+  ],
+  "run_id": "n03-model-review-bbcdc986",
+  "source": {
+    "clean_at_start": true,
+    "commit": "bbcdc986855d15b181cf0e353de9bf1be28cb13a",
+    "files": {
+      "docs/services/atrium-model-preparation.md": {
+        "algorithm": "sha256",
+        "digest": "5cc9157313824225689e06670055b78ea5b428fd4d51b44a282829caa0ae9dcb"
+      },
+      "tests/atrium_n03/model-cases.json": {
+        "algorithm": "sha256",
+        "digest": "7f02b5cd86c177822e22f4c34dc4bcc685cc4f564306b62b87b3ff0e4251e04a"
+      },
+      "tests/atrium_n03/model-evaluate.nix": {
+        "algorithm": "sha256",
+        "digest": "10f9e5c06150b291526708171da522af5ee258402705423a632f64d568e6c6fc"
+      },
+      "tests/atrium_n03/model-host.nix": {
+        "algorithm": "sha256",
+        "digest": "da8d47dcc66185b2420da8101a3636dbe12f17e74e78518f766f97037f253a77"
+      },
+      "tests/atrium_n03/model_cases.py": {
+        "algorithm": "sha256",
+        "digest": "b0a89ac6d8646daf881459cdbc2cbde9cb1f43160ad23fa7525bd2704dd9a6f1"
+      },
+      "tests/atrium_n03/model_probe.py": {
+        "algorithm": "sha256",
+        "digest": "4eb249a3d9c533140443193628141a73fc478a76f776817e105dfe4c854f6607"
+      },
+      "tests/atrium_n03/models.nix": {
+        "algorithm": "sha256",
+        "digest": "1ca048cfb0a350fff6117125c60fb4ad54c1379fb2baaa9ea5beb60d890ae0b6"
+      },
+      "tests/atrium_n03/test_models.py": {
+        "algorithm": "sha256",
+        "digest": "df63905496389f64ce8fbeb3e0f5e97998c0f7c784e6bf10de6eac554be5d02f"
+      }
+    },
+    "inputs": {
+      "atrium": {
+        "path": "/nix/store/m7rpjjpwnyqy40vfmgvp3vcjqkfgcx07-source",
+        "rev": "5f919f085ca0e77664b72d13e96ceeb0680688e4"
+      },
+      "homelab-mcp": {
+        "path": "/nix/store/6q9m525vwsw1y1yhrx8s2db1ryzfn333-source",
+        "rev": "338cbbdb990a5751d199f276c5d65b07730cd97d"
+      },
+      "whiskey-whiskey-whiskey": {
+        "path": "/nix/store/5wlk5ap0646mzws502rwkr9qf6nw1050-source",
+        "rev": "273cf414cac75276492ee849bb3ea257ce47f8de"
+      }
+    },
+    "owner_spec_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "reviewed_preparation_head": "65b0d1f1410cf9ae9f3c0da33ff6a7a815b84f8a"
+  },
+  "status": "corrected-source-preparation-runtime-blocked",
+  "ticket": "ATR-N03"
+}

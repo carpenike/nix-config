@@ -15,6 +15,12 @@ unchanged. Review subsequently found settings-owner and same-key-recovery gaps
 not covered by those checks. That receipt is preserved, not promoted as evidence
 of the corrected loader/recovery paths or native/cross-UID behavior.
 
+Corrected source `bbcdc986855d15b181cf0e353de9bf1be28cb13a` has a separate
+[clean correction receipt](../../tests/atrium_n03/results/n03-model-review-bbcdc986.json):
+61 Nix assertions and 17 focused source regressions pass, with all 23 prior
+receipts unchanged. Its real current-caller loader tests and scripted helper
+control-flow tests are explicitly not native or distinct-UID gate evidence.
+
 `modelPlaneReady` is false, `models.acceptedPublisherPins` is null, the gateway,
 controller/timer, admission activation and input-copy unit are disabled, and
 the public model origin still returns 503. A Nix assertion prevents accidental
