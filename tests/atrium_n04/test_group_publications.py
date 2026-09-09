@@ -5,6 +5,8 @@ import stat
 import json
 import sys
 import time
+from contextlib import nullcontext
+from pathlib import Path
 
 import pytest
 
@@ -142,16 +144,78 @@ def test_directory_sync_failure_surfaces_uncertain_durability(destination, monke
     path, gid = destination
     atomic_publication_json(path, value(1), gid)
     original = os.fsync
+    replace = os.replace
+    directory_syncs = 0
+    replacements = 0
+    broken = True
+    snapshot = {**value(2), "generated_at": 123, "expires_at": 423}
 
     def fail_directory(descriptor):
+        nonlocal directory_syncs
         if stat.S_ISDIR(os.fstat(descriptor).st_mode):
-            raise OSError("synthetic_uncertain_durability")
+            directory_syncs += 1
+            if broken:
+                raise OSError("synthetic_uncertain_durability")
         return original(descriptor)
 
+    def observed_replace(*args, **kwargs):
+        nonlocal replacements
+        replacements += 1
+        return replace(*args, **kwargs)
+
     monkeypatch.setattr(os, "fsync", fail_directory)
-    with pytest.raises(ControllerError):
-        atomic_publication_json(path, value(2), gid)
-    assert read_json(path) == value(2)
+    monkeypatch.setattr(os, "replace", observed_replace)
+    with pytest.raises(ControllerError, match="atomic_publication_failed"):
+        atomic_publication_json(path, snapshot, gid)
+    visible = path.stat()
+    assert read_json(path) == snapshot and directory_syncs == replacements == 1
+    with pytest.raises(ControllerError, match="atomic_publication_failed"):
+        atomic_publication_json(path, snapshot, gid)
+    assert directory_syncs == 2 and replacements == 1
+    broken = False
+    atomic_publication_json(path, snapshot, gid)
+    assert directory_syncs == 3 and replacements == 1
+    assert read_json(path) == snapshot
+    assert (path.stat().st_ino, path.stat().st_mtime_ns) == (
+        visible.st_ino,
+        visible.st_mtime_ns,
+    )
+
+
+def test_identical_retry_requires_directory_sync_without_rewriting(monkeypatch):
+    from atrium_litellm import files
+
+    parent = 71
+    snapshot = {**value(2), "generated_at": 123, "expires_at": 423}
+    payload = files.canonical(snapshot) + b"\n"
+    monkeypatch.setattr(
+        files, "publication_directory", lambda *_args: nullcontext(parent)
+    )
+    monkeypatch.setattr(files, "_publication_existing", lambda *_args: payload)
+    calls = []
+    broken = True
+
+    def sync(descriptor):
+        assert descriptor == parent
+        calls.append(descriptor)
+        if broken:
+            raise OSError("synthetic_uncertain_durability")
+
+    def no_rewrite(*_args, **_kwargs):
+        pytest.fail("Identical publication attempted a replacement")
+
+    monkeypatch.setattr(os, "fsync", sync)
+    monkeypatch.setattr(os, "replace", no_rewrite)
+    with pytest.raises(ControllerError, match="atomic_publication_failed"):
+        atomic_publication_json(
+            Path("/run/nonsecret/native-bindings.json"), snapshot, os.getegid()
+        )
+    assert calls == [parent]
+    broken = False
+    atomic_publication_json(
+        Path("/run/nonsecret/native-bindings.json"), snapshot, os.getegid()
+    )
+    assert calls == [parent, parent]
 
 
 @pytest.mark.parametrize("group", [None, "current", True, -1, "untrusted-group"])

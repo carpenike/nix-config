@@ -209,6 +209,11 @@ def atomic_json(
             _publication_existing(parent, path.name, group) if publication else None
         )
         if publication and previous == payload:
+            # A prior replacement may be visible without confirmed directory durability.
+            try:
+                os.fsync(parent)
+            except OSError:
+                raise ControllerError("atomic_publication_failed") from None
             return
         staged = "." + path.name + "." + secrets.token_hex(12) + ".next"
         try:

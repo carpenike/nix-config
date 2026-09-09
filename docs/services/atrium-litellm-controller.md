@@ -182,6 +182,9 @@ replacement is descriptor-relative and the directory is fsynced. Unchanged
 bytes are not rewritten. Pre-switch failures retain the working output;
 post-switch directory-fsync failures surface uncertain durability instead of
 claiming success. No error renews timestamps or changes authority/history.
+An identical retry must still sync the validated parent directory before
+reporting success. A continuing sync failure remains an error; recovery does not
+rewrite the snapshot or renew its bytes, generation, timestamps or freshness.
 
 N03 can provision distinct publisher-owned `2750` directories and a dedicated
 read group, then configure the existing R06/N05 readers with actual publisher
