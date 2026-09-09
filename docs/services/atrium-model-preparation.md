@@ -37,6 +37,12 @@ a claim derived from those component budgets.
 This tranche performs no native, Podman or lease operations. The old22/27
 result and every prior failure remain tied to their original source revisions.
 
+The [source-only integration handoff](../../tests/atrium_n03/results/ATR-N03-N07-readback-integration-handoff.json)
+binds clean N03 source `ee02444a` and N07 source `d4c8236`. Actual prepare-only
+passed with real materialized module origins and zero native requests.
+All189 focused tests,65 Nix assertions and the exact161-case collection check
+passed. Parent review and a newly authorized integrated run remain required.
+
 ## Previous integrated native result — historical
 
 The [integrated blocked handoff](../../tests/atrium_n03/results/ATR-N03-N07-model-native-blocked-handoff.json)

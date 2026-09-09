@@ -1,0 +1,189 @@
+{
+  "kind": "atrium.n03-n07-readback-source-integration",
+  "tickets": ["ATR-N03", "ATR-N07"],
+  "status": "prepared-for-source-review",
+  "runtime_gate_evidence": false,
+  "full_ticket_or_phase1_complete": false,
+  "sources": {
+    "assembly": {
+      "repository": "carpenike/nix-config",
+      "branch": "atr/N03-model-assembly",
+      "frozen_before": "4342091b935001d17b1e81c3aa86c0b0de197d29",
+      "normal_merge": "49ebdf2565c70b828cb5b4f183986b8b817b2fb2",
+      "merge_parents": [
+        "4342091b935001d17b1e81c3aa86c0b0de197d29",
+        "4e5994afe48d6dbe13a0bd21fbf30bf9ff42b6ab"
+      ],
+      "source": "ee02444a14e362f13b502216cd111cdca6e5e0a9",
+      "draft_pr": "https://github.com/carpenike/nix-config/pull/1057",
+      "base": "atr/N03-isolated-foundation"
+    },
+    "driver": {
+      "repository": "carpenike/atrium",
+      "branch": "atr/N07-model-assembly",
+      "frozen_before": "116b27b2675954986f649797fa03d4dd6260399c",
+      "normal_merge": "de22b62ef3e4e8bfb9e0125844fdbb41f3d341d3",
+      "merge_parents": [
+        "116b27b2675954986f649797fa03d4dd6260399c",
+        "7e8355d99efd4e94cf3dade1533e647a77ee7402"
+      ],
+      "source": "d4c823654f56da2fa2772980029e07f38c841a24",
+      "draft_pr": "https://github.com/carpenike/atrium/pull/23",
+      "base": "main"
+    },
+    "owner_spec": {
+      "algorithm": "sha256",
+      "digest": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+      "modified": false
+    }
+  },
+  "accepted_inputs": {
+    "atrium": "7e8355d99efd4e94cf3dade1533e647a77ee7402",
+    "controller_and_evidence": "4e5994afe48d6dbe13a0bd21fbf30bf9ff42b6ab",
+    "controller_runtime": "e96bb72a530e3593414b0ae863b230eb087ac9e1",
+    "controller_core_fix": "f308e649805c40c8add154d097aaa82a2f6da7e8",
+    "mcp_unchanged": "338cbbdb990a5751d199f276c5d65b07730cd97d",
+    "consumer": {
+      "repository": "carpenike/whiskey-whiskey-whiskey",
+      "revision": "273cf414cac75276492ee849bb3ea257ce47f8de",
+      "changed": false
+    },
+    "changed_flake_lock_nodes": ["atrium"],
+    "controller_and_admission_source_bytes_equal_accepted_main": true,
+    "accepted_n06_source_bytes_equal_accepted_main": true,
+    "accepted_product_runtime_and_publication_guards_modified": false
+  },
+  "accepted_publication_graph": {
+    "catalog": {
+      "path": "harness/publications-suite.json",
+      "sha256": "686ed67e0c279a0fd6c72c915e90ad3677c5fe6b0aaef6a81ed82f28016af585",
+      "selectors": 6,
+      "exact_cases": 161,
+      "previous_cases_retained": 131,
+      "new_readback_and_caller_cases": 30
+    },
+    "uid": {
+      "path": "harness/evidence/ATR-R06-N04-readback-uid-c169fb0-e96bb72.json",
+      "sha256": "6f90117a0be1c5a41defe70af66cb581637b27e52f0066d04e46345eeef37101"
+    },
+    "model": {
+      "path": "harness/evidence/ATR-R06-N04-readback-models-68ec15c-95a14e9.json",
+      "sha256": "109459a871a68b10e80b2a259ac5a9af21a726ae9d8694aa9780fdc4df06cc5c",
+      "exact_committed_uid_anchor_link_verified": true,
+      "limits": "Accepted nine-group prerequisite only: one worker, non-streaming, no output cache or live N05 hook; combined producer actor and separate reader. Not split N03 or full-gate proof."
+    },
+    "handoff": {
+      "path": "harness/evidence/ATR-R06-N04-readback-publications-handoff.json",
+      "sha256": "5477ae5e936994bf2832d0ba402bf43fe3bdf9261226bdae8d6493df43553633"
+    },
+    "cleanup": {
+      "path": "harness/evidence/ATR-R06-N04-readback-publications-cleanup.json",
+      "sha256": "70c175eab89e0822b817c43fa109870b3e78cdb1dc7da2a7f48cc5a8fbb0b924",
+      "interpretation": "Committed accepted prerequisite cleanup; no new lease or resource observation is inferred by this source-only tranche."
+    },
+    "exact_accepted_commit_and_current_commit_bytes_required": true,
+    "complete_collection_current_source_runtime_fixture_and_ownership_guards_retained": true,
+    "historical_or_incomplete_anchor_substitution_refused": true
+  },
+  "integration_delta": {
+    "assembly": [
+      "flake.nix",
+      "flake.lock",
+      "tests/atrium_n03/pins.json",
+      "tests/atrium_n03/fixture.nix",
+      "tests/atrium_n03/publishers.nix",
+      "tests/atrium_n03/model-evaluate.nix",
+      "docs/services/atrium-model-preparation.md"
+    ],
+    "driver": [
+      "harness/n03_sources.py",
+      "harness/n03_models.py",
+      "harness/n03_actor.py",
+      "harness/n03_model_runtime.py",
+      "harness/n03_import_check.py",
+      "harness/tests/test_n03_models.py",
+      "harness/N03-MODELS.md"
+    ],
+    "summary": [
+      "Advance only the intended Atrium input and exact proof references after normal accepted-main merges.",
+      "Bind the new handoff schema, all fixed document digests, complete161-case catalog, current source maps, model-to-UID linkage and prerequisite cleanup.",
+      "Preload the real committed N05 supervisor and accepted N06 source_artifact/runner chain in preparation and native dispatch; no N06 runner or resource method is executed during preparation.",
+      "Add an isolated real materialized host-import regression and report/check actual readback caller budgets without changing timeout values.",
+      "Preserve default-off activation, native/C8/JTI behavior, actual module origins, strict CA and settings ownership, distinct logical target/transport, and fresh real delivery after native retirement."
+    ],
+    "normal_merge_note": "Accepted main also brings already-accepted N06 changes and ordinary package/documentation updates. They are normal merge content, not manual edits to those scopes.",
+    "fingerprint_locations_in_prepared_receipt": [
+      "source.assembly_files",
+      "source.driver_files",
+      "source.model_runtime_files",
+      "source.host_imports.modules",
+      "source.publishers.publication_source_maps",
+      "source.supervisor_import_regression"
+    ]
+  },
+  "readback_caller_budget": {
+    "readback_seconds": 65.0,
+    "controller_cli_seconds": 90,
+    "host_process_response_seconds": 90,
+    "actor_response_seconds": 100,
+    "timeout_values_changed": false,
+    "readback_deadline": "The actual accepted Controller.run shares the original first successful POST deadline across all new credentials and mandatory final exact snapshot; not a separate65-second allowance per credential.",
+    "source_budget_comparison_passed": true,
+    "end_to_end_native_timing_executed": false,
+    "limitation": "Component budget compatibility is not a whole-bootstrap timing or27-group runtime guarantee. That remains for the separately authorized integrated run."
+  },
+  "readiness": {
+    "prepared_receipt": {
+      "path": "harness/evidence/n03-readback-prepared-d4c8236-ee02444a.json",
+      "sha256": "fb6d09e2bf1117400fa88a7021e4cd00d8eea267fabb0532d8719920528736f3",
+      "status": "prepared",
+      "native_requests": 0,
+      "native_processes_started": 0
+    },
+    "source_check_receipt": {
+      "path": "harness/evidence/n03-readback-source-checks-d4c8236-ee02444a.json",
+      "sha256": "6c58ae678519c0ccdf497731e7625b74b1a25c4e847949979f52b2127b853c45",
+      "focused_tests_passed": 189,
+      "pytest_version": "9.1.1",
+      "nix_assertions_passed": 65,
+      "canonical_collection_cases": 161,
+      "canonical_collection_is_test_execution": false
+    },
+    "materialized_regressions": [
+      "Existing supervisor old-import failure/new verified actor path, with unchanged resolver/native package origins.",
+      "Existing missing-default-CA failure, explicit trusted context reuse and invalid-CA refusal.",
+      "New actual accepted N06 runner missing source_artifact import reproduced; corrected committed support chain imported with immutable member hashes and no Process construction.",
+      "Actual accepted controller module reports65 seconds, compared with unchanged90/90/100 caller limits."
+    ],
+    "artifact_reuse": "Existing artifact verifier accepts wheels and runtime artifacts against the new immutable Atrium input. Compiled tools/Whiskey artifacts exactly equal the frozen preparation; no rebuild or dependency changes to deployed runtime.",
+    "host_environment_correction": "The first canonical check correctly refused Nix pytest8.4.2 versus required9.1.1. The existing frozen resolver environment was restored only after that observed mismatch; the accepted catalog and selectors were not changed."
+  },
+  "scope_and_cleanup": {
+    "native_execution": false,
+    "podman_operations": 0,
+    "fixture_lease_operations": 0,
+    "model_or_provider_requests": 0,
+    "new_native_groups_passed": 0,
+    "fresh_integrated_groups_unexecuted": 27,
+    "model_activation_disabled_by_default": true,
+    "owned_validation_directories_removed": 2,
+    "public_build_artifacts_and_locked_host_environment_retained": true,
+    "parent_or_other_worktrees_modified": false,
+    "production_or_phase3_scope": false
+  },
+  "preserved_history": {
+    "frozen_product_evidence_files_byte_identical": 80,
+    "frozen_n03_evidence_files_byte_identical": 37,
+    "all_five_previous_native_attempts_preserved": true,
+    "earlier22_of27_transferred_to_new_sources": false,
+    "previous_native_failures_or_cleanup_receipts_relabelled": false
+  },
+  "source_integration_blockers": [],
+  "remaining_requirements": [
+    "Parent source review of these new exact candidate heads.",
+    "A new explicit authorization and owned lease before any integrated native execution.",
+    "A fresh complete27-group run, including all original C8/JTI controls and seven model groups; no previous pass transfer.",
+    "Actual split-service ownership/custody, W03 key/ack/rotation, live N05 fallback/C1 and end-to-end timing remain unexecuted on this source."
+  ],
+  "proposed_amendment": null
+}

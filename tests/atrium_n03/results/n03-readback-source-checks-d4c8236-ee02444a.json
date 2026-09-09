@@ -1,0 +1,160 @@
+{
+  "artifacts": {
+    "compiled_artifacts_identical_to_frozen_preparation": true,
+    "dependency_or_compiled_runtime_rebuilds": 0,
+    "existing_verifier_passed": true,
+    "reused_native_version": "1.99.1"
+  },
+  "canonical_collection": {
+    "cases": 161,
+    "catalog_sha256": "686ed67e0c279a0fd6c72c915e90ad3677c5fe6b0aaef6a81ed82f28016af585",
+    "command": "python -B -m harness.publications_suite --controller OWNED_N03 --check",
+    "initial_environment_refusal": {
+      "catalog_modified": false,
+      "code": "canonical_publication_collection_drift",
+      "required_locked_pytest": "9.1.1",
+      "resolved_by": "Restoring the existing frozen resolver dependency environment after the observed required-version mismatch.",
+      "selected_pytest": "8.4.2"
+    },
+    "selectors": 6,
+    "test_execution": false
+  },
+  "fixture_lease_operations": 0,
+  "formatter": {
+    "builders": "",
+    "files": 4,
+    "reformatted": 0,
+    "tool": "existing nix fmt wrapper"
+  },
+  "kind": "source-integration-checks",
+  "model_or_provider_requests": 0,
+  "native_processes_started": 0,
+  "nix_evaluation": {
+    "foundation": {
+      "c8_adopted": true,
+      "check_count": 29,
+      "checks": {
+        "accepted-pins": true,
+        "actual-device-cli": true,
+        "actual-native-policy-cli": true,
+        "actual-native-policy-client": true,
+        "actual-packages": true,
+        "distinct-policy-peer-credentials": true,
+        "empty-consumer-capabilities": true,
+        "explicit-policy-service-bindings": true,
+        "isolated-host": true,
+        "model-gap-is-closed-not-placeholder": true,
+        "namespace-for-every-consumer": true,
+        "native-loopback-only": true,
+        "native-peer-not-proxy-assertion": true,
+        "no-direct-anthropic-fallback": true,
+        "no-live-backup-notification-jobs": true,
+        "no-live-mcp-subsystems": true,
+        "no-native-resolver-database-sharing": true,
+        "no-public-host-firewall": true,
+        "operations-use-repo-conventions": true,
+        "policy-service-needs-no-broker-device-secrets": true,
+        "private-native-policy-loopback": true,
+        "private-policy-is-not-public-proxy": true,
+        "public-policy-generated-once": true,
+        "resolver-owned-policy-state": true,
+        "rotating-model-path-not-credential-snapshot": true,
+        "tls-preserving-registration-entry": true,
+        "unchanged-native-origin": true,
+        "valid-module-assertions": true,
+        "whiskey-loopback-only": true
+      },
+      "kind": "atrium.n03-isolated-unit-evaluation",
+      "model_plane_ready": false,
+      "runtime_gate_evidence": false
+    },
+    "models": {
+      "accepted_publisher_pins": {
+        "atrium": "7e8355d99efd4e94cf3dade1533e647a77ee7402",
+        "catalog": {
+          "algorithm": "sha256",
+          "digest": "686ed67e0c279a0fd6c72c915e90ad3677c5fe6b0aaef6a81ed82f28016af585"
+        },
+        "controller": "4e5994afe48d6dbe13a0bd21fbf30bf9ff42b6ab",
+        "modelReceipt": {
+          "algorithm": "sha256",
+          "digest": "109459a871a68b10e80b2a259ac5a9af21a726ae9d8694aa9780fdc4df06cc5c"
+        },
+        "uidReceipt": {
+          "algorithm": "sha256",
+          "digest": "6f90117a0be1c5a41defe70af66cb581637b27e52f0066d04e46345eeef37101"
+        },
+        "verified": true
+      },
+      "check_count": 36,
+      "checks": {
+        "accepted-publisher-inputs": true,
+        "actual-pinned-image-startup": true,
+        "actual-post-auth-and-callback": true,
+        "all-new-cases-unexecuted": true,
+        "authoritative-feed-inputs": true,
+        "bounded-fixture-rotation": true,
+        "controller-publication-fields": true,
+        "current-regular-policy-reference": true,
+        "disabled-without-explicit-opt-in": true,
+        "distinct-publisher-and-consumer-uids": true,
+        "exact-reader-publisher-uids": true,
+        "explicit-opt-in-enables-real-model-actors": true,
+        "future-route-keeps-native-auth": true,
+        "gateway-read-only-metadata": true,
+        "inference-transport-separate-from-logical-bindings": true,
+        "model-route-blocked-by-default": true,
+        "namespace-and-backend-loopback": true,
+        "native-policy-and-registration-keep-no-model-custody": true,
+        "no-gateway-or-resolver-token-membership": true,
+        "no-implicit-admission-initialization": true,
+        "no-publisher-private-or-token-mounts": true,
+        "nonroot-capability-free-gateway": true,
+        "private-state-not-exported": true,
+        "protected-input-copy-modes": true,
+        "public-issuer-preserved": true,
+        "publisher-and-reader-membership": true,
+        "readers-use-live-exports": true,
+        "real-w03-live-delivery": true,
+        "resolver-publication-fields": true,
+        "secret-references-not-values": true,
+        "separate-metadata-token-groups": true,
+        "settings-owned-by-actual-loader-caller": true,
+        "two-separate-publisher-directories": true,
+        "unchanged-resolver-default": true,
+        "valid-module-assertions": true,
+        "whiskey-not-metadata-reader": true
+      },
+      "kind": "atrium.n03-model-source-preparation",
+      "model_plane_ready": false,
+      "runtime_gate_evidence": false,
+      "source_only": true,
+      "unexecuted_native_groups": 7
+    }
+  },
+  "podman_operations": 0,
+  "pytest": {
+    "environment": "existing frozen resolver/uv.lock",
+    "native_or_distinct_uid_gate_claim": false,
+    "passed": 189,
+    "selectors": {
+      "assembly": [
+        "tests/atrium_n03/test_models.py",
+        "tests/atrium_n04/test_credential_readback.py",
+        "tests/atrium_n04/test_controller.py"
+      ],
+      "product": [
+        "harness/tests/test_n03_models.py",
+        "harness/tests/test_publications_models.py"
+      ]
+    },
+    "version": "9.1.1"
+  },
+  "runtime_gate_evidence": false,
+  "source": {
+    "assembly": "ee02444a14e362f13b502216cd111cdca6e5e0a9",
+    "driver": "d4c823654f56da2fa2772980029e07f38c841a24"
+  },
+  "status": "passed",
+  "ticket": "ATR-N03/ATR-N07"
+}
