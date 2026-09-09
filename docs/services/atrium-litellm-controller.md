@@ -234,15 +234,20 @@ not a version. Routing is read from `GET /router/settings.current_values`.
 
 Pinned 1.99.1 keeps a worker-local credential list. A successful credential POST
 can be visible immediately to its writer while another worker's
-`GET /credentials` returns HTTP 200 without that row until the default
-30-second refresh. The [isolated readback diagnostic](../../tests/atrium_n04/READBACK.md)
+`GET /credentials` returns HTTP 200 without that row until its refresh.
+The [isolated readback diagnostic](../../tests/atrium_n04/READBACK.md)
 observed exact convergence at 30.035 seconds without changing native polling,
 authentication or credential metadata.
 
+The nominal interval is 30 seconds, but the pinned scheduler phase-shifts the
+first refresh by less than one additional period. A recorded worker still had
+42.299 seconds until its first refresh; the interval alone is not a maximum
+initial wait.
+
 After its single credential POST, the controller requires exact metadata
-readback within a 35-second convergence budget (one native refresh period plus
-five seconds). It retries only GET reads, at most twice per second. Each read
-uses the smaller of the remaining budget and the existing native transport
+readback within a 65-second convergence budget (two default native refresh
+periods plus five seconds). It retries only GET reads, at most twice per second.
+Each read uses the smaller of the remaining budget and the existing native transport
 timeout; a response arriving after the budget cannot establish success.
 Authentication, transport and malformed-response errors still propagate rather
 than becoming a successful or empty readback.

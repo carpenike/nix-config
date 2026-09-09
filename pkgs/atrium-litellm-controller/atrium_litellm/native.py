@@ -38,8 +38,8 @@ SAFE_ROUTER = {
     "context_window_fallbacks": [],
     "content_policy_fallbacks": [],
 }
-# Pinned 1.99.1 refreshes worker-local credentials every 30 seconds.
-CREDENTIAL_READBACK_SECONDS = 35.0
+# Pinned 1.99.1 adds up to one period of startup phase to its 30-second refresh.
+CREDENTIAL_READBACK_SECONDS = 65.0
 CREDENTIAL_READBACK_INTERVAL_SECONDS = 0.5
 KEY_ROUTER = {
     "num_retries": 0,

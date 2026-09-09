@@ -100,6 +100,22 @@ or different metadata as success, change native cache/poll behavior, or weaken
 authentication. The observation-only diagnostic above predates that correction
 and is not evidence that the corrected controller has executed.
 
+### Initial native scheduler phase
+
+The nominal 30-second interval is not a maximum initial convergence time.
+The pinned native `scheduled_job_stagger.py` offsets each worker's interval
+trigger by less than one period. The [scheduled-refresh observation](results/readback-schedule-7a13524d.json)
+recorded a worker with 42.299 seconds remaining before its first refresh,
+despite the unchanged 30-second setting. Another worker's row appeared after
+its observed scheduled refresh, without a refresh error or metadata change.
+
+The [35-second candidate failure](results/readback-convergence-bd3cc790.json)
+is preserved: single-worker success and permanent-mismatch refusal worked, but
+the pinned non-writer remained missing past that budget. The controller budget
+is therefore 65 seconds for the default pinned schedule: one interval, up to
+one additional startup phase, and five seconds of slack. Native scheduling and
+cache settings are not changed, and exhaustion still refuses the operation.
+
 ## Bounded-controller verification mode
 
 After reviewing the controller's convergence correction, the same source-bound

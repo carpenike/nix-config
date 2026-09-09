@@ -40,7 +40,8 @@ import litellm
 from litellm.constants import PROXY_CONFIG_RELOAD_INTERVAL_SECONDS
 root=pathlib.Path(litellm.__file__).parent
 paths=["proxy/credential_endpoints/endpoints.py","litellm_core_utils/credential_accessor.py",
- "proxy/proxy_server.py","repositories/credentials_repository.py","proxy/common_utils/config_sync_pubsub.py"]
+ "proxy/proxy_server.py","repositories/credentials_repository.py","proxy/common_utils/config_sync_pubsub.py",
+ "proxy/common_utils/scheduled_job_stagger.py"]
 print(json.dumps({"version":importlib.metadata.version("litellm"),
  "default_reload_seconds":PROXY_CONFIG_RELOAD_INTERVAL_SECONDS,
  "files":{name:{"algorithm":"sha256","digest":hashlib.sha256((root/name).read_bytes()).hexdigest()} for name in paths}}))

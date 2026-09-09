@@ -111,7 +111,7 @@ def test_native_source_pins_retain_explicit_sha256_fingerprints():
     )
     assert pins["revision"] == PUBLIC_NATIVE_REVISION
     assert pins["package_version"] == "1.99.1"
-    assert len(pins["files"]) == 5
+    assert len(pins["files"]) == 6
     for value in pins["files"].values():
         assert value["algorithm"] == "sha256"
         assert re.fullmatch("[0-9a-f]{64}", value["digest"])

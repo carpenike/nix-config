@@ -66,7 +66,7 @@ def test_missing_and_stale_worker_values_require_exact_convergence(
 
     monkeypatch.setattr(native, "credentials", credentials)
     native.wait_for_credential("cc.fixture", expected)
-    assert timeouts == [35.0, 34.5, 34.0]
+    assert timeouts == [65.0, 64.5, 64.0]
     assert clock.sleeps == [0.5, 0.5]
 
 
@@ -84,7 +84,9 @@ def test_missing_or_different_metadata_still_fails_at_deadline(
     with pytest.raises(ControllerError, match="native_credential_not_applied"):
         native.wait_for_credential("cc.fixture", {"cc.account": "fixture"})
     assert clock.now == native_module.CREDENTIAL_READBACK_SECONDS
-    assert all(0 < timeout <= 35 for timeout in calls)
+    assert all(
+        0 < timeout <= native_module.CREDENTIAL_READBACK_SECONDS for timeout in calls
+    )
 
 
 def test_matching_response_after_deadline_cannot_report_success(
