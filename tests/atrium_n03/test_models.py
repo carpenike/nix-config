@@ -68,6 +68,18 @@ def test_default_gate_precedes_any_native_action(prepared):
         probe.native_key_probe(prepared, "")
 
 
+def test_supervisor_import_order_keeps_model_packages_actor_private(prepared, tmp_path):
+    runtime = importlib.import_module("runtime")
+    assert runtime.supervisor_import_paths(tmp_path) == [
+        str(tmp_path / "resolver-python"),
+        str(tmp_path / "native-python"),
+        str(tmp_path / "fixture"),
+    ]
+    assert str(tmp_path / "model-python") not in runtime.supervisor_import_paths(
+        tmp_path
+    )
+
+
 @pytest.fixture
 def runtime_settings(prepared, tmp_path):
     directory = tmp_path / "gateway-config"

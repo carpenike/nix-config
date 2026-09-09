@@ -13,6 +13,13 @@ command passed with complete verified artifacts and zero native execution.
 It records65 Nix assertions,24 N03 source tests and62 product/anchor guard tests.
 The first artifact-selection failure and prior preparation captures are retained.
 
+Those receipts remain historical after the supervisor-import review correction:
+controller packages stay actor-private, and controller bootstrap data now comes
+through that verified actor. Default preparation materializes the real payload
+layout and checks actual imports in isolated Python processes, rather than
+relying on a full host venv. It reproduces the earlier failure and verifies the
+corrected parent boundary without native requests or module shadowing.
+
 Initial source `7c89709e438beaba6fd485075138c50c7b2daa50` has a
 [historical source-only receipt](../../tests/atrium_n03/results/n03-model-preparation-7c89709e.json):
 60 Nix assertions, two Caddy adaptations and six configuration tests passed.

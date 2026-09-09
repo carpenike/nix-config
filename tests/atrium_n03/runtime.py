@@ -16,6 +16,14 @@ import io
 ROOT = Path("/run/atrium-n03")
 
 
+def supervisor_import_paths(root):
+    return [
+        str(root / "resolver-python"),
+        str(root / "native-python"),
+        str(root / "fixture"),
+    ]
+
+
 def reply(value):
     print(json.dumps(value), flush=True)
 
@@ -79,11 +87,7 @@ def stop(processes):
 
 
 def foundation(data):
-    sys.path[:0] = [
-        str(ROOT / "resolver-python"),
-        str(ROOT / "native-python"),
-        str(ROOT / "fixture"),
-    ]
+    sys.path[:0] = supervisor_import_paths(ROOT)
     from prepare import provision
     import jwt
     import ssl
