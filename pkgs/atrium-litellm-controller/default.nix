@@ -5,7 +5,7 @@ python3Packages.buildPythonApplication {
   pyproject = true;
   src = lib.cleanSource ./.;
   build-system = [ python3Packages.hatchling ];
-  pythonImportsCheck = [ "atrium_litellm.controller" "atrium_litellm.rotation" ];
+  pythonImportsCheck = [ "atrium_litellm.controller" "atrium_litellm.rotation" "atrium_litellm.files" ];
   meta = {
     description = "Isolated Atrium owned LiteLLM reconciliation and acknowledged key rotation";
     mainProgram = "atrium-litellm-controller";

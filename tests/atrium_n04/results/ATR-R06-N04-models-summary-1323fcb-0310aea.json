@@ -1,0 +1,97 @@
+{
+  "case_ids": [
+    "r06-native.per-fetch-preparation-and-one-use-delivery",
+    "r06-native.model-and-target-ceilings",
+    "r06-native.native-admin-human-with-inference-only-key",
+    "r06-native.current-grant-and-burst-ceilings",
+    "r06-native.new-runtime-key-survives-reconciliation",
+    "r06-native.abandoned-reference-cleaned-without-resolver-traffic",
+    "r06-native.snapshot-capacity-preserves-cleanup-and-recovery",
+    "r06-native.native-expiry-not-metadata-only",
+    "r06-native.removed-template-denied-and-unowned-key-preserved"
+  ],
+  "controller_packages": [
+    {
+      "drvPath": "/nix/store/92wk979a5aqafl20ljyf1zhnlh9z63c8-atrium-litellm-controller-0.1.0.drv",
+      "outputs": {
+        "out": "/nix/store/35wlplm7xcjl5p5x9mnrsrjq8qndp20n-atrium-litellm-controller-0.1.0"
+      }
+    },
+    {
+      "drvPath": "/nix/store/jvjq7ap21f1xs5dbpsb6drbrmy284dj1-atrium-n04-unit-checks.json.drv",
+      "outputs": {
+        "out": "/nix/store/m9m5jll16cp78jvy3q9nq39vrn55mrg2-atrium-n04-unit-checks.json"
+      }
+    }
+  ],
+  "denied_inference_provider_requests": 0,
+  "exact_removed_containers": [
+    "e58663d0821f489f13a4e9665a9a0f445c2cbb2f915cffaadd611140aea83b0d",
+    "0d5b5c873aece63861e88e254cde46b454f098dd033608e16effe7624edf58b7",
+    "c1f21b84488282ab1a995fb91ce736b2a1b70c346f319072283dc25375565ed5",
+    "977cc00e734569c3d4c329a503fd392d1ec18e3af0cfcccd4a2bf30afac3adcd",
+    "4aeee8a4beac6f5c6e5d840afacd5ad11332a0e662dd318c9a70d14d4d460a8e"
+  ],
+  "exact_removed_network": "atrium-harness-publication-models-a02b97f726f7d3f6-net",
+  "foreign_resources": [
+    "a914bf6c7045|ambit-db|running"
+  ],
+  "host_tests": {
+    "passed": 5
+  },
+  "lease_released": true,
+  "metadata_current_policy_denials": 1,
+  "metadata_custody_denials": true,
+  "metadata_permits": 8,
+  "metadata_reader_uid": 62103,
+  "native_fixture_combined_actor_uid": 62101,
+  "native_inference_denials": 7,
+  "native_inference_permits": 13,
+  "native_management_denials": 7,
+  "native_receipt": {
+    "file": "ATR-R06-N04-models-1323fcb-0310aea.json",
+    "sha256": "b9e42fbe4ea1297e148378fd31b585e4091c7ec07d88ff5e1a7e4cf9529ff468"
+  },
+  "reader_gid": 62201,
+  "resolver_denials": 6,
+  "resolver_package": [
+    {
+      "drvPath": "/nix/store/6i827yxbqvs8gpj5vbmg2zqgnxpf2q0m-atrium-resolver-0.1.0.drv",
+      "outputs": {
+        "out": "/nix/store/wp2wjs4x682jlya630z1l44c93jirfp1-atrium-resolver-0.1.0"
+      }
+    }
+  ],
+  "runtime_anchor": {
+    "fingerprint": {
+      "algorithm": "sha256",
+      "digest": "245f9ed54228a3dd9830190d6954d4f3ed9ff0684c251bc4edca3ab3f6f5b44e"
+    },
+    "producer_sources": {
+      "controller": {
+        "commit": "66b28e2d4b6f394cf52e0739364feaa1ab8d268a",
+        "dirty": false
+      },
+      "resolver": {
+        "commit": "8017473f04a0657e6b86abd659540d7715dda4a6",
+        "dirty": false
+      }
+    },
+    "receipt": "ATR-R06-N04-publications-8017473-66b28e2.json",
+    "runtime_bytes_unchanged": true
+  },
+  "runtime_bytes_unchanged": true,
+  "scope": "Combined-driver native compatibility and separate metadata reader; distinct producer UIDs remain earlier proof; no split N03/live hook/full-gate claim",
+  "source": {
+    "controller": {
+      "commit": "0310aea2469c02d3ec5dd85d101fc44bc9d4dc2c",
+      "dirty": false
+    },
+    "resolver": {
+      "commit": "1323fcb4b0bec7c4fc2f65e30e9bdcbd1d96b500",
+      "dirty": false
+    }
+  },
+  "source_unchanged": true,
+  "status": "passed"
+}

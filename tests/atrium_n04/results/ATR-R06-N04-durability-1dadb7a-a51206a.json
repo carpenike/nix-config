@@ -1,0 +1,177 @@
+{
+  "baseline": {
+    "kind": "actual-function-in-memory-durability-baseline",
+    "observations": [
+      {
+        "component": "R06",
+        "directory_fsync_attempts": 0,
+        "identical_retry_reported_success": true,
+        "replacements": 0,
+        "runtime_fingerprint": {
+          "algorithm": "sha256",
+          "digest": "66c882a91b85555138976db32e6994b13c82b28ccb041321b39d2d979d56e42a"
+        }
+      },
+      {
+        "component": "N04",
+        "directory_fsync_attempts": 0,
+        "identical_retry_reported_success": true,
+        "replacements": 0,
+        "runtime_fingerprint": {
+          "algorithm": "sha256",
+          "digest": "c0888f110ff00a28ceba2f1000570762fe4156a39ef06b082f18a7aabadb3dcb"
+        }
+      }
+    ],
+    "podman_or_vm_calls": false,
+    "scope": "Equal existing bytes model the visible state after the separately covered post-replace sync failure; directory/read dependencies are in-memory unit fixtures, not OS/native proof",
+    "source": {
+      "controller": "3e6eb15b6bf7746dd4b01f49bad3f8fa1227e168",
+      "resolver": "7675a333c489ee54439bd9affad5c17aca0825e1"
+    }
+  },
+  "boundaries": {
+    "amendment_proposed": false,
+    "full_gate_claim": false,
+    "lease_claimed": false,
+    "legacy_private_helper_changed": false,
+    "podman_or_vm_calls": false,
+    "production_changes": false,
+    "service_token_delivery_changed": false
+  },
+  "kind": "identical-retry-durability-host-validation",
+  "linux_filesystem_regression": "Both existing directory-sync tests now cover post-replace failure, identical still-failing retry, and recovery with one total replacement and unchanged inode/mtime/bytes/freshness; execution only claimed by actual supported host/native results",
+  "native_revalidation": {
+    "historical_receipts_are_not_corrected_runtime_proof": true,
+    "status": "required-not-executed",
+    "steps": [
+      "After N03 exact cleanup/release AND new parent authorization, run corrected distinct-UID publication cohort with no skips",
+      "Commit its clean successful receipt matching both corrected writer fingerprints",
+      "Run corrected native model cohort against that exact new --split-uid-receipt"
+    ]
+  },
+  "portable_regressions": {
+    "observations": [
+      {
+        "component": "R06",
+        "continuing_failure": {
+          "directory_fsync_attempts": 1,
+          "replacements": 0,
+          "surfaced_error": "Protected publication unavailable"
+        },
+        "identical_payload_preserved": true,
+        "recovery": {
+          "additional_directory_fsync_attempts": 1,
+          "replacements": 0,
+          "success": true
+        },
+        "runtime_fingerprint": {
+          "algorithm": "sha256",
+          "digest": "38b19d969953fd5c672c90ff951c0a9fbee1aea4ae06c8ce8329ab7f5576835e"
+        }
+      },
+      {
+        "component": "N04",
+        "continuing_failure": {
+          "directory_fsync_attempts": 1,
+          "replacements": 0,
+          "surfaced_error": "atomic_publication_failed"
+        },
+        "identical_payload_preserved": true,
+        "recovery": {
+          "additional_directory_fsync_attempts": 1,
+          "replacements": 0,
+          "success": true
+        },
+        "runtime_fingerprint": {
+          "algorithm": "sha256",
+          "digest": "b83a28357c6aea21519c94b64e54b4ff200a1f2fe2baec053cc8b06bcac8c54a"
+        }
+      }
+    ],
+    "passed": 2,
+    "scope": "Actual helper functions with in-memory directory/read and fsync fault dependencies; not OS/native proof",
+    "selectors": [
+      "resolver/tests/test_publications.py::test_identical_retry_requires_directory_sync_without_rewriting",
+      "/Users/ryan/src/atrium-n04-publications/tests/atrium_n04/test_group_publications.py::test_identical_retry_requires_directory_sync_without_rewriting"
+    ]
+  },
+  "runtime_change_scope": {
+    "controller": [
+      "pkgs/atrium-litellm-controller/atrium_litellm/files.py"
+    ],
+    "resolver": [
+      "resolver/src/atrium_resolver/publications.py"
+    ]
+  },
+  "source": {
+    "controller": {
+      "commit": "a51206a4325f81a8955d7e0070b47ea76e6f569e",
+      "dirty": false
+    },
+    "resolver": {
+      "commit": "1dadb7a892995bc7becaed87dc304de076ed952f",
+      "dirty": false
+    }
+  },
+  "source_unchanged": true,
+  "status": "passed",
+  "targeted_packages": {
+    "controller": {
+      "command": [
+        "nix",
+        "build",
+        "--builders",
+        "",
+        "--no-link",
+        "--no-write-lock-file",
+        "--json",
+        ".#atrium-litellm-controller",
+        ".#checks.aarch64-darwin.atrium-n04-units"
+      ],
+      "outputs": [
+        {
+          "drvPath": "/nix/store/8y30qrr27hm6pc87r8f49ccclc42gqdy-atrium-litellm-controller-0.1.0.drv",
+          "outputs": {
+            "out": "/nix/store/35fk0dihma0a4g27b24b0pq8ji926f4f-atrium-litellm-controller-0.1.0"
+          }
+        },
+        {
+          "drvPath": "/nix/store/jvjq7ap21f1xs5dbpsb6drbrmy284dj1-atrium-n04-unit-checks.json.drv",
+          "outputs": {
+            "out": "/nix/store/m9m5jll16cp78jvy3q9nq39vrn55mrg2-atrium-n04-unit-checks.json"
+          }
+        }
+      ],
+      "status": "passed"
+    },
+    "resolver": {
+      "command": [
+        "nix",
+        "build",
+        "--builders",
+        "",
+        "--no-link",
+        "--no-write-lock-file",
+        "--impure",
+        "--json",
+        "--expr",
+        "let f = builtins.getFlake (toString ./.); in f.checks.aarch64-darwin.resolver.overridePythonAttrs (_: { pytestFlagsArray = [ \"tests/test_publications.py\" \"-q\" \"--tb=short\" ]; })"
+      ],
+      "counts": {
+        "passed": 15,
+        "skipped": 16
+      },
+      "outputs": [
+        {
+          "drvPath": "/nix/store/vih0wd86fgp7x2k8hq5b8gsd22yg1az9-atrium-resolver-0.1.0.drv",
+          "outputs": {
+            "out": "/nix/store/g83zdzy640f7dhraw0mnh0ljvs4c2n4d-atrium-resolver-0.1.0"
+          }
+        }
+      ],
+      "skip_scope": "Existing build-filesystem setgid limitations; complete filesystem regression is in Linux host CI"
+    }
+  },
+  "ticket": "ATR-R06/ATR-N04"
+}

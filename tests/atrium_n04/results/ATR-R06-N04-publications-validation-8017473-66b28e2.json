@@ -1,0 +1,106 @@
+{
+  "cleanup_audit": {
+    "all_absent": true,
+    "foreign_resources_at_cleanup": [
+      "a914bf6c7045|ambit-db|running"
+    ],
+    "lease_released": true,
+    "networks_created": false,
+    "owned_container_ids": [
+      "185ff2bd4657bee479f9b643ea395b0c4b0a032ee374c00ebd18a92aa871dcc5",
+      "442a5f5111f456da1d381ff9b424229583c769d36de7c5768c1f0c0dac486d88",
+      "485d5382b2705e5f4cf078a2bd932e5df0ff78a3becca065492c0441b64e624a",
+      "4b2fba17bb85afc31b82d603e83fd9f3da1bb0869877c993a0b81763c368cf77",
+      "51ed89fe222fb97a8bbf9013f46453151a868803d3437a8c4f6b61ceabc5bf9e",
+      "649c3fd015531eee500f140309a5e2d36894f03a96b2721ea60a45e4931a4292",
+      "7d6830bd0f84412e5f90d1b7dde54efd5678735d619f8dc84eef26f4e73fa696",
+      "92158f62c8f171c806b8f45a2b2e228de94eebb53e7efc2dc7a17925d2daf441",
+      "99c9e48f786ece44f848d2d5fc1160e68754ed50cbd73c2973fb24b2b8456edd",
+      "c13257417f367229507004d179a1a26d9c4afa68591d2079e4b87c6a8b291d5f",
+      "cb1ce6f4a572977a742887582f53c21e1a213d309b25456689f43090b277711b",
+      "e0f7647db8303bb3875c757d8d8d071b8189df1d4871a60bd5cd908e2c6a84ed"
+    ],
+    "verification": "Every exact ID returned 1 from podman container exists before owner-qualified lease release"
+  },
+  "darwin_preparation_failure": {
+    "gid": 350,
+    "observed_mode": "0750",
+    "requested_mode": "2750",
+    "resolution": "Explicit unit skip for this observed Darwin filesystem limitation; all Linux cases execute",
+    "uid": 351,
+    "writer_guard_unchanged": true
+  },
+  "kind": "source-bound-publication-validation",
+  "limits": [
+    "Publication and OS delivery, not native model key creation or inference",
+    "No N03/N07 whole-gate or C8 policy-backchannel claim",
+    "No production activation, root flake input change, host groups or shared network changes",
+    "No amendment proposed"
+  ],
+  "linux_publication_tests": {
+    "passed": 123,
+    "warnings": 1
+  },
+  "local_checks": [
+    {
+      "command": "nix build --builders '' --no-link --no-write-lock-file --json .#checks.aarch64-darwin.resolver",
+      "component": "resolver",
+      "exit_code": 0,
+      "outputs": [
+        {
+          "drvPath": "/nix/store/6i827yxbqvs8gpj5vbmg2zqgnxpf2q0m-atrium-resolver-0.1.0.drv",
+          "outputs": {
+            "out": "/nix/store/wp2wjs4x682jlya630z1l44c93jirfp1-atrium-resolver-0.1.0"
+          }
+        }
+      ],
+      "tests": {
+        "passed": 607,
+        "skip_reasons": {
+          "external_immutable_mcp_lane": 3,
+          "observed_darwin_setgid_clearing": 16
+        },
+        "skipped": 19
+      }
+    },
+    {
+      "command": "nix build --builders '' --no-link --no-write-lock-file --json .#atrium-litellm-controller .#checks.aarch64-darwin.atrium-n04-units",
+      "component": "controller",
+      "exit_code": 0,
+      "outputs": [
+        {
+          "drvPath": "/nix/store/92wk979a5aqafl20ljyf1zhnlh9z63c8-atrium-litellm-controller-0.1.0.drv",
+          "outputs": {
+            "out": "/nix/store/35wlplm7xcjl5p5x9mnrsrjq8qndp20n-atrium-litellm-controller-0.1.0"
+          }
+        },
+        {
+          "drvPath": "/nix/store/jvjq7ap21f1xs5dbpsb6drbrmy284dj1-atrium-n04-unit-checks.json.drv",
+          "outputs": {
+            "out": "/nix/store/m9m5jll16cp78jvy3q9nq39vrn55mrg2-atrium-n04-unit-checks.json"
+          }
+        }
+      ]
+    }
+  ],
+  "native_receipt": {
+    "file": "ATR-R06-N04-publications-8017473-66b28e2.json",
+    "sha256": "245f9ed54228a3dd9830190d6954d4f3ed9ff0684c251bc4edca3ab3f6f5b44e"
+  },
+  "owner_spec": {
+    "algorithm": "sha256",
+    "digest": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e"
+  },
+  "source": {
+    "controller": {
+      "commit": "66b28e2d4b6f394cf52e0739364feaa1ab8d268a",
+      "dirty": false
+    },
+    "resolver": {
+      "commit": "8017473f04a0657e6b86abd659540d7715dda4a6",
+      "dirty": false
+    }
+  },
+  "status": "passed",
+  "ticket": "ATR-R06/ATR-N04"
+}
