@@ -146,9 +146,65 @@ admin-outage entitlement. N05 keeps independent generation high-water marks for
 the two producers and never treats a missing producer as legacy. Retired service
 keys remain in history and export `state: revoked`.
 
-Default output files are private in the controller state directory. A future
-N03/N05 integration must provision narrowly scoped read-only access; this fixture
-does not grant an unimplemented admission process access or claim hook coverage.
+Default output files remain private in the controller state directory.
+
+### Opt-in protected reader group
+
+The CLI and `Controller` accept optional `publication_reader_gid`. Existing
+`bindings_snapshot` and `service_association_snapshot` select the two paths:
+
+```json
+{
+  "publication_reader_gid": 62201,
+  "bindings_snapshot": "/run/atrium-publications/controller/native-bindings.json",
+  "service_association_snapshot": "/run/atrium-publications/controller/service-associations.json"
+}
+```
+
+The GID is illustrative, not a production assignment. The publisher must belong
+to it. Each output directory must already be publisher-owned with exact reader
+GID and mode `2750`, outside checkouts/store and separate from ownership,
+provider-credential and live service-token custody. The CLI also rejects overlap
+with its management credential. Missing/unsafe directories and invalid
+owner/group/mode/link/JSON state fail closed before replacement; configuration
+does not silently create or relax a directory.
+
+Only these non-secret snapshots use the new guarded publication mode. Existing
+private journal writes and service-token delivery, acknowledgement and overlap
+semantics retain their original helpers/defaults. In particular, a metadata
+reader group is **not** the service-token consumer group. No raw token enters a
+metadata publication, and the group gains no state/key access or write access.
+
+Publication reuses the existing atomic JSON helper with an explicit guarded
+mode: staging is `0600` until the full object is written, then gets its actual
+publisher GID/`0640` mode and file fsync. The directory/old output are rechecked,
+replacement is descriptor-relative and the directory is fsynced. Unchanged
+bytes are not rewritten. Pre-switch failures retain the working output;
+post-switch directory-fsync failures surface uncertain durability instead of
+claiming success. No error renews timestamps or changes authority/history.
+An identical retry must still sync the validated parent directory before
+reporting success. A continuing sync failure remains an error; recovery does not
+rewrite the snapshot or renew its bytes, generation, timestamps or freshness.
+
+N03 can provision distinct publisher-owned `2750` directories and a dedicated
+read group, then configure the existing R06/N05 readers with actual publisher
+UIDs. There is no root/chown relay, shared signing UID or rotating credential
+snapshot. Omitting the new option preserves private `0600` output behavior.
+
+The cross-UID lane invokes real R06/N04 export APIs, actual N05
+`read_producer` and N04 `ProtectedSnapshotSource` under different unprivileged
+UIDs in a network-disabled container. Synthetic normalized producer state is
+input data; the lane does not claim native key creation or a complete model
+gateway/admission gate. Source/helper bytes, exact ownership, replacement/fault
+observations and cleanup are recorded separately from ordinary unit fixtures.
+The paired Atrium candidate's `harness/PUBLICATIONS.md` documents the N03
+configuration handoff, exact isolated UID/GID roles, clean-source runner and
+Darwin setgid test limitation. Neither repository activates N03 in this follow-up.
+Its `harness.publications_models` follow-up enables these exports in the existing
+real R06 native driver and checks their actual outputs from a separate metadata
+reader UID. `tests/atrium_n04/publication_models.py` is only the invocation-owned
+fixture worker; it neither changes the controller nor claims split N03 service
+or live inference-hook coverage.
 
 ## Actual pinned native API findings
 
