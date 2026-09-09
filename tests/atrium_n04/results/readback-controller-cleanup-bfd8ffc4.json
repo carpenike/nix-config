@@ -1,0 +1,67 @@
+{
+  "ticket": "ATR-N04",
+  "status": "independent-all-attempt-cleanup-passed",
+  "scope": "Both full-controller readback attempts only; prior diagnostic cleanups remain separate",
+  "source_commit": "bfd8ffc4b8f15c2e1ae7d942ed2d968ddb5bac17",
+  "receipts": [
+    {
+      "path": "tests/atrium_n04/results/readback-controller-f308e649.json",
+      "sha256": "1c0959c26d22f22ae2955fe88f74fdb79efc755ab048b16d67bad50a101ff545"
+    },
+    {
+      "path": "tests/atrium_n04/results/readback-controller-bfd8ffc4.json",
+      "sha256": "2e7012eb617c12d7e01e0a35cb8d5bcdc6fc0809540b06e089318f7542dd066a"
+    }
+  ],
+  "containers_absent": [
+    "23c0bf983562e754d755e191b7156634113bb9cb0af674f771fd91ee7f11d305",
+    "37fc274fc4077a7e812004f89574b722908fb28ddef366b0575a06ff8121169b",
+    "2aa49e94bca09a62846e90e2b36984823a4e087451df80a3e16f80e33175c6a9",
+    "a3967b989e2aa9d736a7bd4c077a6e7def0aa6e188f64c88b88bc5f5c7c28647",
+    "ff9b7ff04e827fcd5b1e1dbc03927a374e51fc7e3cae003285c7f3e6f920ebf7",
+    "a1371203de3abb668e657611998ca13be71f3908f2a50b60f12b6e759fde9a26",
+    "7f4047311ca892c130dd3d2f14e0cbd37beefb7bb73451b8e9675f05b60b0892",
+    "1e0f9751c81ff9276e93b0d1e162d55e799cb4760920f8aff7711d8f174a2a07"
+  ],
+  "networks_absent": [
+    "atrium-harness-credential-readback-f78c265dbd8f4c76-1-net",
+    "atrium-harness-credential-readback-f78c265dbd8f4c76-2-net",
+    "atrium-harness-credential-readback-a3f6cf908fa8e37e-1-net",
+    "atrium-harness-credential-readback-a3f6cf908fa8e37e-2-net"
+  ],
+  "runtime_directories_absent": [
+    "atrium-readback-controller-hzwbnqto",
+    "atrium-readback-controller-n2te9i88",
+    "atrium-readback-controller-h51kqy1q",
+    "atrium-readback-controller-z5vbq15p",
+    "atrium-readback-controller-sxhyjtdy",
+    "atrium-readback-controller-5au7yh6l",
+    "atrium-readback-controller-jabpoveg"
+  ],
+  "runtime_paths_resolved_from_each_receipt_and_required_to_have_exact_parent": true,
+  "all_four_topology_before_after_and_independent_inventories_equal": true,
+  "inventory_classes": ["containers", "networks", "volumes", "images"],
+  "final_inventory": {
+    "containers": ["a914bf6c7045|ambit-db|running"],
+    "networks": ["2f259bab93aa|podman", "689c0cc1e62d|ambit_default"],
+    "volumes": [
+      "3f078501773e2d8daa13452cbd578b86488e391580345ced66b6e00830b5d3f0",
+      "ambit_ambit-pgdata",
+      "www-shield-gradle"
+    ],
+    "images": [
+      "205e47325d8e243f3e848eed5848d1e786f687494d693a649ad7878aaccbcf2f",
+      "69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+      "75f5a96988cdf694a215073c3e9c001b706b371e2f94df3967f2efdec2787f6b",
+      "7d53af6e207cc15298bb7089584d88e3bb07cf1692651f3b7fc7aa3c765c3dee",
+      "7e7dbab8d3b431a20793a6d99cb5a6bc84e44914309917f1bf5589a7568cdefd",
+      "7fa13223b1568a013a6fdcde9cc269b551aeee88e827465ac3a5602997b1ac71",
+      "83fc7ce1224f5ed3885f6aaec0bb001c0bbb2a308e3250d7408804a720c72a32",
+      "88777d7cb0db2e0160fcf36277608f42920e517409316e2dbeafe6c844cb08ca",
+      "ab3fe4defd29ba6231229a4d41440ac8bde8218e85870e53876277faa24b35c4",
+      "f2abed24da21a4e59e9e0b13a033208d907f6b0d83f770ff24658995a9f99879"
+    ]
+  },
+  "ambit_db_unchanged": true,
+  "lease_release_follows_verification": true
+}

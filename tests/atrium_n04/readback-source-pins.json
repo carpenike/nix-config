@@ -1,0 +1,31 @@
+{
+  "default_reload_seconds": 30,
+  "files": {
+    "litellm_core_utils/credential_accessor.py": {
+      "algorithm": "sha256",
+      "digest": "bb5d965aab87b0fbf5ce7f6e1091e58c41e1e988b8c1f92f30350a092a09a784"
+    },
+    "proxy/common_utils/config_sync_pubsub.py": {
+      "algorithm": "sha256",
+      "digest": "67cfc8df15e4d13f02343e33f9779e1372cf5c004306275c4eb4e442518b9627"
+    },
+    "proxy/common_utils/scheduled_job_stagger.py": {
+      "algorithm": "sha256",
+      "digest": "fa3b3b9bfcd7ebd131ea2468cfc598c55fac721d445e83b0a48fc99c6ddac26b"
+    },
+    "proxy/credential_endpoints/endpoints.py": {
+      "algorithm": "sha256",
+      "digest": "531ae514d3836b547ae074a860ea8de481eaa5c6db41670664d248cfcc797b8d"
+    },
+    "proxy/proxy_server.py": {
+      "algorithm": "sha256",
+      "digest": "f63cd83c5c4459d84dbfbd350a460caf9e2907389f19d2c3090fe24ad937f47b"
+    },
+    "repositories/credentials_repository.py": {
+      "algorithm": "sha256",
+      "digest": "daef0f339c265b963d0418b1f830eb393ba8e0c15c1d7eabb9ff232df6564a60"
+    }
+  },
+  "package_version": "1.99.1",
+  "revision": "10f4033437df30b91b5dbf2b64711d0a8683fc52"
+}
