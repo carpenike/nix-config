@@ -5,7 +5,7 @@ let
   eval = isolated: extraModules: lib.nixosSystem {
     system = "aarch64-linux";
     modules = [
-      ./module.nix
+      atrium.nixosModules.whiskey-egress-fixture
       {
         system.stateVersion = "25.05";
         services.atriumWhiskeyEgressFixture = {
@@ -65,6 +65,8 @@ in
     (builtins.attrValues fixture.sourceRegistry.providerExceptions);
   publication_routes = fixture.litellm.model_templates.whiskey-service.routes == [ "/v1/messages" ];
   native_namespace_only = setup.serviceConfig.NetworkNamespacePath == "/run/atrium-n06/fixture/netns";
+  bindings_reference = lib.hasInfix "/run/atrium-n06/fixture/bindings.json" setup.serviceConfig.ExecStart;
+  namespace_identity_reference = lib.hasInfix "net:[12345]" setup.serviceConfig.ExecStart;
   nonroot_consumer = consumer.serviceConfig.User == "11001";
   cannot_change_filter = emptyCapabilities config && consumer.serviceConfig.NoNewPrivileges;
   inherited_capabilities_cleared = emptyCapabilities privileged;

@@ -1,11 +1,12 @@
 ---
-name: Atrium N04 controller
+name: Atrium controller deployment
 
 "on":
   pull_request:
     paths:
-      - pkgs/atrium-litellm-controller/**
-      - tests/atrium_n04/**
+      - hosts/forge/atrium/litellm-controller-isolated.nix
+      - tests/atrium_n04/*.nix
+      - tests/atrium/*.nix
       - .github/workflows/atrium-n04-controller.yml
       - pkgs/default.nix
       - flake.nix
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   controller:
-    name: N04 package and readback regressions (not native convergence)
+    name: N04 app-package consumption and isolated deployment
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -28,19 +29,8 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
-      - name: Build the controller and existing isolated unit checks
+      - name: Check the app CLI and isolated deployment wiring
         run: |
           nix build --builders '' --no-link --no-write-lock-file \
-            .#packages.x86_64-linux.atrium-litellm-controller \
+            .#checks.x86_64-linux.atrium-n04-package-smoke \
             .#checks.x86_64-linux.atrium-n04-units
-      - name: Run full-caller and probe regressions without native services
-        run: |
-          nix shell --builders '' --no-write-lock-file --impure --expr \
-            'let p = (builtins.getFlake (toString ./.)).inputs.nixpkgs.legacyPackages.${builtins.currentSystem}; in p.python3.withPackages (ps: [ ps.pytest ps.httpx ])' \
-            --command env -u PYTHONPATH -u PYTHONOPTIMIZE -u PYTHONINSPECT -u SSLKEYLOGFILE \
-            PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -p no:cacheprovider \
-            --basetemp="$RUNNER_TEMP/atrium-n04-pytest" \
-            tests/atrium_n04/test_credential_readback.py \
-            tests/atrium_n04/test_controller.py \
-            tests/atrium_n04/test_readback_diagnostic.py \
-            tests/atrium_n04/test_readback_controller.py

@@ -1,16 +1,11 @@
 { atrium, nixpkgs }:
 let
   inherit (nixpkgs) lib;
-  pkgs = import nixpkgs { system = "x86_64-linux"; };
-  package = pkgs.callPackage ../../pkgs/atrium-litellm-admission/package.nix {
-    python3Packages = pkgs.python312Packages;
-    atriumResolver = atrium.packages.x86_64-linux.resolver;
-    atriumProfiles = atrium.packages.x86_64-linux.credential-profiles;
-  };
+  package = atrium.packages.x86_64-linux.atrium-litellm-admission;
   evaluate = settings: (lib.nixosSystem {
     system = "x86_64-linux";
     modules = [
-      ./module.nix
+      atrium.nixosModules.litellm-admission
       {
         services.atriumLitellmAdmission = {
           inherit package;
@@ -35,6 +30,7 @@ let
     refusesStoreSettings = !(valid (enabledWith { settingsFile = "/nix/store/not-a-runtime-input"; }));
     refusesRelativeSettings = !(valid (enabledWith { settingsFile = "relative.json"; }));
     packageExport = lib.elem package enabled.environment.systemPackages;
+    appPackage = enabled.services.atriumLitellmAdmission.package == package;
     referenceOnly = enabled.environment.etc."atrium-n05-isolated-settings-path".text
       == "/run/atrium-n05-fixture/settings.json";
     disabledByDefault = !(disabled.environment.etc ? "atrium-n05-isolated-settings-path");
@@ -45,5 +41,6 @@ in
 assert lib.all (passed: passed) (builtins.attrValues checks);
 {
   inherit checks;
+  deployment_only = true;
   runtime_gate_evidence = false;
 }

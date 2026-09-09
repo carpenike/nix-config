@@ -115,8 +115,8 @@ jobs:
               - 'flake.nix'
               - 'flake.lock'
               - 'pkgs/default.nix'
-              - 'pkgs/atrium-litellm-admission/**'
-              - 'tests/atrium_n05/**'
+              - 'tests/atrium_n05/*.nix'
+              - 'tests/atrium/*.nix'
               - '.github/workflows/nix-build.yml'
             atrium_foundation:
               - 'flake.nix'
@@ -233,11 +233,10 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
-      - name: Build isolated admission package and checks
+      - name: Check app admission CLI consumption and isolated deployment
         run: |
-          nix build --no-link --builders '' \
-            .#checks.x86_64-linux.atrium-n05-package \
-            .#checks.x86_64-linux.atrium-n05-python \
+          nix build --no-link --no-write-lock-file --builders '' \
+            .#checks.x86_64-linux.atrium-n05-package-smoke \
             .#checks.x86_64-linux.atrium-n05-units
 
   atrium-foundation-checks:
@@ -433,7 +432,7 @@ jobs:
       - name: Check admission checks ran when needed
         if: ${{ needs.changes.outputs.atrium_admission_changed == 'true' && needs.atrium-admission-checks.result != 'success' }}
         run: |
-          echo "Admission files changed but their package and checks did not succeed"
+          echo "Admission deployment inputs changed but CLI consumption and wiring checks did not succeed"
           exit 1
       - name: Check isolated foundation checks ran when needed
         if: ${{ needs.changes.outputs.atrium_foundation_changed == 'true' && needs.atrium-foundation-checks.result != 'success' }}
@@ -443,7 +442,7 @@ jobs:
       - name: Report
         run: |
           if [[ "${{ needs.changes.outputs.atrium_admission_changed }}" == "true" ]]; then
-            echo "✅ Isolated admission package and checks passed"
+            echo "✅ App admission CLI consumption and isolated deployment checks passed"
           fi
           if [[ "${{ needs.changes.outputs.nix_changed }}" != "true" ]]; then
             echo "✅ All requested checks succeeded"
