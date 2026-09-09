@@ -141,12 +141,21 @@ def observed(response, expected_pid=None):
         "unexpected_native_redis",
     )
     require(int(poll) == 30, "pinned_native_poll_interval_changed")
-    return {
+    result = {
         "pid": int(pid),
         "status": response.status_code,
         "reload_seconds": int(poll),
         "redis": False,
     }
+    if "x-atrium-readback-refresh-runs" in response.headers:
+        result["native_refresh"] = {
+            "runs": int(response.headers["x-atrium-readback-refresh-runs"]),
+            "failed": int(response.headers["x-atrium-readback-refresh-failed"]),
+            "error_class": response.headers["x-atrium-readback-refresh-error"],
+            "next_ms": int(response.headers["x-atrium-readback-refresh-next-ms"]),
+            "store_models": response.headers["x-atrium-readback-store-models"] == "1",
+        }
+    return result
 
 
 def connection(endpoint):

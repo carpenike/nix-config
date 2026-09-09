@@ -2,6 +2,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import logging
 import re
 import secrets
 import stat
@@ -24,7 +25,26 @@ from readback_diagnostic import (
     configuration,
     management_identity,
 )
-from readback_observer import ObservedResponses, PID_HEADER
+from readback_observer import ObservedResponses, PID_HEADER, RefreshObservation
+
+
+def test_refresh_observer_retains_only_exception_class_not_error_values():
+    observer = RefreshObservation()
+    try:
+        raise ValueError("private diagnostic value")
+    except ValueError:
+        record = logging.LogRecord(
+            "native",
+            logging.ERROR,
+            __file__,
+            1,
+            "litellm.proxy_server.py::get_credentials() - Error getting credentials from DB - %s",
+            ("private diagnostic value",),
+            sys.exc_info(),
+        )
+        observer.emit(record)
+    assert observer.error_class == "ValueError"
+    assert "private diagnostic value" not in repr(observer.__dict__)
 
 
 def test_native_boot_uses_private_config_reopenable_by_spawned_workers(tmp_path):
