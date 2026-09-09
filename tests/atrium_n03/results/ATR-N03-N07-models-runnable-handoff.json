@@ -1,0 +1,131 @@
+{
+  "artifacts": {
+    "compiled_consumer_files": 287,
+    "image_entrypoint_inspection": {
+      "entrypoint": {
+        "gid": 0,
+        "layer": "sha256:3f66a1ae4d2cfcb75fe68388afccc640a300dd02119c507511670c1f177b2d4c",
+        "mode": "0o755",
+        "path": "app/docker/prod_entrypoint.sh",
+        "sha256": "91907472aba78760f670eea4b45384739a8967932a91a9dd9e585920628fc641",
+        "uid": 0
+      },
+      "native_execution": false,
+      "verified_layers": [
+        "sha256:6d5ffec181a842b3fc04081283ef396d9714ebf4441332d58b38eb117e10a1a0",
+        "sha256:31a7cb59f1820e923db8afae59671a36f03a127694bed20f9e400e95735c0283",
+        "sha256:3ae4c7035d25ce4be7a2299415e385470a8b2ec22e33deba2243fbcbbb99a295",
+        "sha256:da9c2301c7b73b7fe5a19028309deb344ca557b5f91bd283999b24c9acf4baaa",
+        "sha256:818dd062a5b99517fa179615e2c846b7c8a3fa5e38905b047ab4a5ab409b99b3",
+        "sha256:1b4f9bc5b23e025691fa86f2dbc6a43f89b92bdc3e165564c1e57363e68833cb",
+        "sha256:3f66a1ae4d2cfcb75fe68388afccc640a300dd02119c507511670c1f177b2d4c"
+      ]
+    },
+    "image_startup_metadata": {
+      "config_sha256": "sha256:69dff3ddc51c4cf4f799d1ddddaca304bf94cfe0f3b357d596de0670baa3b3d1",
+      "entrypoint": [
+        "docker/prod_entrypoint.sh"
+      ],
+      "environment_names": [
+        "PATH",
+        "SSL_CERT_FILE",
+        "PRISMA_BINARY_CACHE_DIR",
+        "PRISMA_CLI_PATH",
+        "PRISMA_CLI_QUERY_ENGINE_TYPE",
+        "PRISMA_OFFLINE_MODE"
+      ],
+      "native_execution": false,
+      "user": "root",
+      "working_directory": "/app"
+    },
+    "native_shared_pin": "356f323dd2ea7835717da463ba6b59dad340f24d",
+    "payloads": {
+      "fixture": {
+        "algorithm": "sha256",
+        "digest": "d52f5b294e87be22f1da8b82aa5b0cefc8afd540c7e112b83aed23da80f29ee9"
+      },
+      "model-python": {
+        "algorithm": "sha256",
+        "digest": "148a3bc1a286dfc78b674f8930c7d6dbbd090d34d55a33b0abf0af01356d2c99"
+      },
+      "native-python": {
+        "algorithm": "sha256",
+        "digest": "1fd6caace939801194d575ac2c72e2a5c6a12eb615f54f965bb8682dbe21b077"
+      },
+      "resolver-python": {
+        "algorithm": "sha256",
+        "digest": "b5dfeab38482efccad500ab1fe52aad8fe8f3e4f8a2093befebb7e849342f8ae"
+      }
+    },
+    "runtime_architecture": "arm64",
+    "tool_paths": 78
+  },
+  "checks": {
+    "actual_canonical_validators": "Complete corrected131 UID/collection/current-source and9group model anchors verified",
+    "n03_default_unit_assertions": 29,
+    "n03_opt_in_assertions": 36,
+    "n03_python_output": "........................                                                 [100%]\n24 passed in 1.53s",
+    "n03_source_tests": 24,
+    "product_source_and_anchor_guards": 62,
+    "source_lint": [
+      "Ruff",
+      "nixpkgs-fmt",
+      "Statix",
+      "Deadnix",
+      "Node syntax",
+      "staged redacted Gitleaks"
+    ]
+  },
+  "cleanup": {
+    "entrypoint_and_image_metadata_retained": true,
+    "lease_queries_or_claims": false,
+    "model_or_provider_calls": false,
+    "native_or_vm_calls": false,
+    "other_worktrees_modified": false,
+    "production_or_global_host_changes": false,
+    "public_build_artifacts_retained": "owned .artifacts directories for reproducible native input preparation",
+    "runtime_resources_created": [],
+    "verified_public_image_layer_scratch_removed": 7
+  },
+  "full_ticket_or_phase_complete": false,
+  "historical_prepared_capture": {
+    "observations_changed": false,
+    "original_capture_sha256": "91f7c20bcd36e34cf14c2fd791d5c3461d791ac8a45381248d18f8b83758afa8",
+    "path": "harness/evidence/n03-model-prepared-e96aeb3-7da1f9f1.json",
+    "published_sha256": "354030a21a68b31c0d7d6b4b8eb7f45b46eeb0a34b71951b6ab362150218eaef"
+  },
+  "kind": "runnable-source-candidate-handoff",
+  "prepared_receipt": {
+    "path": "harness/evidence/n03-model-prepared-d781a15-7da1f9f1.json",
+    "sha256": "0dee0d87ad1e84ce36882330ade564b76d0fd0c87465f629eb07920bdad1e635"
+  },
+  "preserved_n03_receipts": 25,
+  "remaining": [
+    "parent bounded source review",
+    "explicit final isolated native authorization/ownership",
+    "actual20+7 group run and source-bound native receipt",
+    "broader protocol/worker/cache/browser/adoption/full-gate work"
+  ],
+  "retained_failed_preflight": "harness/evidence/n03-model-preparation-blocked-319ed53-2c9e4e1a.json",
+  "runtime_plan": {
+    "additional_model_groups": 7,
+    "baseline_groups": 20,
+    "default_configuration": "disabled",
+    "executed_in_this_stage": 0,
+    "healthy_retirement": "observed native deletion then fresh R03/R06 recovery; old key remains refused",
+    "live_hook_fallback": "separate actual observed native-revocation failure, not inferred from native401",
+    "logical_target_vs_inference_transport": "preserved",
+    "native_opt_in": "--execute-native only after parent review/authorization and coordinated ownership",
+    "settings_owner_and_loader": "actual gateway UID/runtime loader; root policy/CA retained",
+    "source_pin_cycle": false
+  },
+  "source": {
+    "accepted_controller": "ca0c0de92c2a70eae412706ccf3f68f3bcdc9b0b",
+    "accepted_runtime_product": "7e63e81ff8118c8a34799e20e51a8783d31a5a3e",
+    "assembly": "7da1f9f1006bbef1e828f1045bd168215b1044d6",
+    "driver": "d781a15e44dc98c978dcd0f36f09747934891a4f",
+    "normal_controller_merge": "77d1154e2b2f6a59508333b8e73e91572a9fa665"
+  },
+  "status": "prepared-native-unexecuted",
+  "ticket": "ATR-N03/ATR-N07"
+}

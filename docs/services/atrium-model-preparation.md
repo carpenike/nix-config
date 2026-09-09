@@ -6,6 +6,13 @@ proof, native fixture, production activation or completed T-case is claimed.
 The accepted [C8/JTI handoff](../../tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json)
 and all older receipts remain historical and unchanged.
 
+The [accepted-input runnable-source handoff](../../tests/atrium_n03/results/ATR-N03-N07-models-runnable-handoff.json)
+binds N03 source `7da1f9f1006bbef1e828f1045bd168215b1044d6` and product driver
+`d781a15e44dc98c978dcd0f36f09747934891a4f`. The actual default preparation
+command passed with complete verified artifacts and zero native execution.
+It records65 Nix assertions,24 N03 source tests and62 product/anchor guard tests.
+The first artifact-selection failure and prior preparation captures are retained.
+
 Initial source `7c89709e438beaba6fd485075138c50c7b2daa50` has a
 [historical source-only receipt](../../tests/atrium_n03/results/n03-model-preparation-7c89709e.json):
 60 Nix assertions, two Caddy adaptations and six configuration tests passed.
