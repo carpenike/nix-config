@@ -6,14 +6,10 @@ let
   };
   m = f.models;
   jsonFile = name: value: pkgs.writeText name (builtins.toJSON value);
-  controllerPackage = pkgs.callPackage ../../pkgs/atrium-litellm-controller { };
+  controllerPackage = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system}.atrium-litellm-controller;
   resolverPackage = inputs.atrium.packages.${pkgs.system}.resolver;
   profilesPackage = inputs.atrium.packages.${pkgs.system}.credential-profiles;
-  admissionPackage = pkgs.callPackage ../../pkgs/atrium-litellm-admission/package.nix {
-    python3Packages = pkgs.python312Packages;
-    atriumResolver = resolverPackage;
-    atriumProfiles = profilesPackage;
-  };
+  admissionPackage = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system}.atrium-litellm-admission;
   controllerConfig = jsonFile "atrium-n03-model-controller.json" m.controller;
   admissionConfig = jsonFile "atrium-n03-model-admission.json" m.admission;
   gatewayConfig = jsonFile "atrium-n03-model-gateway.json" m.gateway;
@@ -27,13 +23,13 @@ let
   };
 in
 {
-  imports = [ ../atrium_n05/module.nix ];
+  imports = [ inputs.atrium.nixosModules.litellm-admission ];
   options.services.atriumN03Models.enable = lib.mkEnableOption "explicitly opted-in isolated N03 model assembly";
   config = {
     assertions = [
       {
-        assertion = !f.modelPlaneReady || m.acceptedPublisherPins.verified;
-        message = "N03 model activation requires verified accepted publisher sources and proof anchors.";
+        assertion = !f.modelPlaneReady || m.application.available;
+        message = "N03 model activation requires the selected app package/module exports; canonical qualification belongs to the app preflight.";
       }
       {
         assertion = lib.unique (map (role: role.uid) (builtins.attrValues m.roles))

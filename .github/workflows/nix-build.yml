@@ -255,8 +255,7 @@ jobs:
             .#checks.x86_64-linux.atrium-n03-units \
             .#checks.x86_64-linux.atrium-n03-caddy \
             .#checks.x86_64-linux.atrium-n03-model-preparation \
-            .#checks.x86_64-linux.atrium-n03-model-caddy-preview \
-            .#checks.x86_64-linux.atrium-n03-model-python
+            .#checks.x86_64-linux.atrium-n03-model-caddy-preview
 
   nix-build:
     needs: changes

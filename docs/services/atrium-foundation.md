@@ -9,13 +9,14 @@ and accident prevention, not conversation/context isolation.
 ## Source-only model assembly preparation
 
 The [model preparation guide](atrium-model-preparation.md) describes the separate
-disabled host/configuration slice stacked on the accepted C8/JTI foundation.
-It prepares actual R06/N04 publication paths, N05 startup/readers and W03 live
-delivery without advancing producer pins or activating a gateway. Seven new
-topology groups remain **unexecuted**. The accepted C8/JTI receipts below are
-preserved; they do not become model or new kernel-boundary proof.
+disabled host/configuration slice and current app-owned compatibility boundary.
+Reusable acceptance helpers now live in app `harness/n03_fixture`; this
+repository retains host values, package selection, Caddy and unit checks.
+Canonical source/evidence validation and all new acceptance results are app-owned.
+No native execution is authorized by the ownership adaptation. The historical
+C8/JTI receipts below are preserved and do not become new model/kernel proof.
 
-## Current C8 wiring slice
+## Historical C8 wiring slice
 
 The stacked `atr/N03-native-policy-wiring` slice consumes accepted Atrium
 `5f919f085ca0e77664b72d13e96ceeb0680688e4` and Home MCP
@@ -107,7 +108,7 @@ recorded ownership lifecycle. Running `a914bf6c7045` (`ambit-db`) was unchanged.
 All application/client processes ran non-root with zero capabilities and
 `NoNewPrivs`. Earlier diagnostic receipts are retained unchanged.
 
-## Accepted source boundary
+## Historical accepted source boundary
 
 * Atrium `5f919f085ca0e77664b72d13e96ceeb0680688e4`: accepted N02,
   R01–R08, R04 profiles, S01–S03 and the accepted C8 policy transport.
@@ -116,8 +117,9 @@ All application/client processes ran non-root with zero capabilities and
 * Whiskey `273cf414cac75276492ee849bb3ea257ce47f8de`: native W01–W03.
 * LiteLLM remains **1.99.1**, manifest
   `sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c`.
-* N04/N05/N06 come from this nix-config source, not a replacement controller,
-  verifier or fake admission hook.
+* In this historical receipt, N04/N05/N06 came from nix-config. Their current
+  runtime and reusable behavior helpers are app-owned; no old proof is
+  transferred merely because that source was relocated.
 
 Only the Atrium and Home MCP root inputs advance in this slice; Whiskey's lock
 entry is unchanged. C8 was explicitly accepted through Atrium PR14 and its

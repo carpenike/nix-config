@@ -277,7 +277,7 @@ in
         ExecStart = pkgs.writeShellScript "atrium-n03-whiskey-egress" ''
           set -eu
           expected=$(${pkgs.coreutils}/bin/cat ${f.runtime}/namespace.identity)
-          exec ${pkgs.python3}/bin/python ${../atrium_n06/egress.py} \
+          exec ${pkgs.python3}/bin/python ${inputs.atrium}/tests/atrium_n06/egress.py \
             --policy ${jsonFile "atrium-n03-egress.json" f.egress} \
             --bindings ${f.runtime}/egress-bindings.json \
             --expected-netns "$expected" --nft ${pkgs.nftables}/bin/nft

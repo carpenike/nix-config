@@ -92,7 +92,7 @@ let
       base.providerExceptions;
   };
   generated = atrium.lib.render registry;
-  publishers = import ./publishers.nix { inherit inputs; };
+  application = import ./application.nix { inherit inputs; };
   state = {
     resolver = "/var/lib/atrium-resolver";
     native = "/var/lib/homelab-mcp";
@@ -161,13 +161,13 @@ in
 {
   inherit registry generated runtime port frontAddress names endpoints state ids nativePolicyPort nativePolicyEndpoint;
   namespacePath = "/run/atrium-n03/netns";
-  modelPlaneReady = enableModels && publishers.verified;
+  modelPlaneReady = enableModels && application.available;
   modelPlaneBlocker = "explicit-native-opt-in-and-authorization-required";
   models = import ./models.nix {
-    inherit lib ids runtime state registry generated endpoints publishers;
+    inherit lib ids runtime state registry generated endpoints application;
   };
   versions = {
-    atrium = "7e8355d99efd4e94cf3dade1533e647a77ee7402";
+    atrium = application.revision;
     native = "338cbbdb990a5751d199f276c5d65b07730cd97d";
     consumer = "273cf414cac75276492ee849bb3ea257ce47f8de";
     litellm = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";
@@ -175,7 +175,7 @@ in
   resolver = (resolverConfig "atrium-resolver") // {
     litellm =
       if enableModels then (import ./models.nix {
-        inherit lib ids runtime state registry generated endpoints publishers;
+        inherit lib ids runtime state registry generated endpoints application;
       }).resolver else null;
   };
   registration = resolverConfig "atrium-device-registration";

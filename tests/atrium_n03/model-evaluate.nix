@@ -18,19 +18,18 @@ let
   includes = name: lib.elem m.metadataGroup.name c.users.users.${name}.extraGroups;
   liveCaddy = import ./caddy.nix { fixture = f; };
   previewCaddy = import ./caddy.nix { fixture = f // { modelPlaneReady = true; }; };
-  cases = builtins.fromJSON (builtins.readFile ./model-cases.json);
   checks = {
-    disabled-without-explicit-opt-in = !f.modelPlaneReady && m.acceptedPublisherPins.verified
+    disabled-without-explicit-opt-in = !f.modelPlaneReady && m.application.available
       && !c.services.atrium.runtime.reconciler.enable
       && !c.services.atriumLitellmAdmission.enable
       && !c.systemd.services.podman-atrium-n03-models.enable
       && !c.systemd.services.atrium-n03-model-inputs.enable
       && !c.systemd.services.atrium-n03-admission-settings.enable
       && !c.systemd.timers.atrium-reconciler.enable && !gateway.autoStart;
-    accepted-publisher-inputs = m.acceptedPublisherPins.atrium == inputs.atrium.rev
-      && m.acceptedPublisherPins.controller == "4e5994afe48d6dbe13a0bd21fbf30bf9ff42b6ab"
-      && m.acceptedPublisherPins.controllerRuntime == "e96bb72a530e3593414b0ae863b230eb087ac9e1"
-      && m.acceptedPublisherPins.producerCaseCount == 161;
+    app-package-consumption = m.application.revision == inputs.atrium.rev
+      && m.application.repository == "carpenike/atrium"
+      && c.services.atrium.runtime.reconciler.package == inputs.atrium.packages.${system}.atrium-litellm-controller
+      && c.services.atriumLitellmAdmission.package == inputs.atrium.packages.${system}.atrium-litellm-admission;
     explicit-opt-in-enables-real-model-actors = activeFixture.modelPlaneReady
       && activeFixture.resolver.litellm == m.resolver
       && enabled.services.atrium.runtime.reconciler.enable
@@ -159,8 +158,6 @@ let
     future-route-keeps-native-auth = lib.hasInfix "reverse_proxy ${m.backend}" previewCaddy
       && lib.hasInfix "import native_headers" previewCaddy
       && !(lib.hasInfix "header_up -Authorization" previewCaddy);
-    all-new-cases-unexecuted = !cases.runtime_gate_evidence
-      && lib.all (row: row.status == "unexecuted") cases.cases;
     valid-module-assertions = lib.all (item: item.assertion) (c.assertions ++ enabled.assertions);
   };
 in
@@ -168,13 +165,10 @@ assert lib.assertMsg (lib.all (value: value) (builtins.attrValues checks))
   ("N03 model preparation failed: " + builtins.toJSON (lib.filterAttrs (_: value: !value) checks));
 {
   inherit checks;
-  kind = "atrium.n03-model-source-preparation";
+  kind = "atrium.n03-model-deployment";
   source_only = true;
   runtime_gate_evidence = false;
   model_plane_ready = false;
-  accepted_publisher_pins = {
-    inherit (m.acceptedPublisherPins) verified atrium controller catalog uidReceipt modelReceipt;
-  };
+  app_input = m.application;
   check_count = builtins.length (builtins.attrNames checks);
-  unexecuted_native_groups = builtins.length cases.cases;
 }

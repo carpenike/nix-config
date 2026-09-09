@@ -1,4 +1,4 @@
-{ lib, ids, runtime, state, registry, generated, endpoints, publishers }:
+{ lib, ids, runtime, state, registry, generated, endpoints, application }:
 let
   installation = "atrium-n03-isolated";
   port = 14000;
@@ -35,7 +35,7 @@ let
 in
 {
   inherit installation port metadataGroup deliveryGroup roles exports private policyPath admissionSettingsPath;
-  acceptedPublisherPins = publishers;
+  inherit application;
   publicationFileMode = "0640";
   inputFileMode = "0640";
   admissionSettingsFileMode = "0600";
@@ -188,8 +188,8 @@ in
   artifacts = {
     resolverProfiles = "Actual flake exports; no producer code copied from unaccepted worktrees";
     nativeImage = "N07 pins.json LiteLLM1.99.1 manifest/platform/package checks";
-    modelWheels = "Existing tests/atrium_n05/supervisor.py verified_wheels; complete controller/admission/profile/resolver source comparison";
-    whiskey = "Existing tests/atrium_n03/artifacts.py and build_runtime.py immutable source/compiled member guards";
+    modelWheels = "App-owned tests/atrium_n05/supervisor.py and complete app runtime/fixture source comparison";
+    whiskey = "App-owned harness/n03_fixture artifact and build helpers; immutable source/compiled member guards";
     orchestration = "Existing N07 Resources/database/provider lifecycle; N03 adds host topology pairs, not a replacement harness";
   };
 }
