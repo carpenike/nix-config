@@ -20,6 +20,14 @@ layout and checks actual imports in isolated Python processes, rather than
 relying on a full host venv. It reproduces the earlier failure and verifies the
 corrected parent boundary without native requests or module shadowing.
 
+The [supervisor-import correction handoff](../../tests/atrium_n03/results/ATR-N03-N07-supervisor-import-handoff.json)
+records the clean preparation at N03 source
+`90059146e50bde7515ad3b9ddffbf1d8379b7fc3` and product source
+`87b36a4bba093306f552e299b39f42a9953b2b93`. It lists exact changed fixture/runtime
+hashes and actual imported module origins; accepted adapter package bytes and all
+prior receipts are unchanged. Native services and the27-group run remain
+unexecuted pending a new explicit authorization.
+
 Initial source `7c89709e438beaba6fd485075138c50c7b2daa50` has a
 [historical source-only receipt](../../tests/atrium_n03/results/n03-model-preparation-7c89709e.json):
 60 Nix assertions, two Caddy adaptations and six configuration tests passed.
