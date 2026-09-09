@@ -93,7 +93,8 @@ in
         (lib.filterAttrs (name: scope: name != "admin" && scope.status == "active")
           f.generated.resolver.catalogs.home-mcp-fixture.scopes));
       HOMELAB_MCP_GATUS_BASE_URL = "http://127.0.0.5:19101";
-      HOMELAB_MCP_FINANCES_REPO_URL = "";
+      HOMELAB_MCP_FINANCES_REPO_URL = "file://${f.state.native}/synthetic-finances-origin";
+      HOMELAB_MCP_FINANCES_REPO_PATH = "${f.state.native}/synthetic-finances";
       HOMELAB_MCP_TRUSTED_PROXY_IPS = "127.0.0.1";
     };
   };

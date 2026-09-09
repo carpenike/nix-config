@@ -326,6 +326,11 @@ def execute(f, foundation, client, foundation_address, rows, checkpoint):
         {"uri": references[0]},
     )
     assert resource["status"] == 200, "native_public_resource_not_permitted"
+    resource_body = payload(resource)
+    assert "error" not in resource_body, "native_public_resource_rpc_error"
+    assert [
+        item.get("text") for item in resource_body.get("result", {}).get("contents", [])
+    ] == ["Synthetic resource data"], "native_public_resource_contents_required"
     assert effects()["resource"] == before["resource"] + 1
     before = effects()
     denied_tool = rpc(
