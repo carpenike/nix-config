@@ -5,6 +5,13 @@ python3Packages.buildPythonApplication {
   pyproject = true;
   src = lib.cleanSource ./.;
   build-system = [ python3Packages.hatchling ];
+  nativeCheckInputs = [ python3Packages.pytestCheckHook ];
+  pytestFlagsArray = [
+    "--rootdir=."
+    "-p"
+    "no:cacheprovider"
+    ../../tests/atrium_n04/test_credential_readback.py
+  ];
   pythonImportsCheck = [ "atrium_litellm.controller" "atrium_litellm.rotation" "atrium_litellm.files" ];
   meta = {
     description = "Isolated Atrium owned LiteLLM reconciliation and acknowledged key rotation";
