@@ -523,6 +523,36 @@
                   fixture = import ./tests/atrium_n03/fixture.nix { inherit inputs; };
                 })} > "$out"
             '';
+            atrium-n03-model-preparation = pkgs.writeText "atrium-n03-model-preparation.json"
+              (builtins.toJSON (import ./tests/atrium_n03/model-evaluate.nix {
+                inherit inputs;
+                system = "x86_64-linux";
+              }));
+            atrium-n03-model-caddy-preview = pkgs.runCommand "atrium-n03-model-caddy-preview"
+              { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
+              caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-model-Caddyfile"
+                (import ./tests/atrium_n03/caddy.nix {
+                  fixture = (import ./tests/atrium_n03/fixture.nix { inherit inputs; }) // {
+                    modelPlaneReady = true;
+                  };
+                })} > "$out"
+            '';
+            atrium-n03-model-python = pkgs.runCommand "atrium-n03-model-source-python"
+              {
+                nativeBuildInputs = [ admissionTestPython ];
+                PYTHONDONTWRITEBYTECODE = "1";
+                ATRIUM_N03_PREPARED_CONFIG = pkgs.writeText "atrium-n03-model-public-fixture.json"
+                  (builtins.toJSON {
+                    fixture = import ./tests/atrium_n03/fixture.nix { inherit inputs; };
+                    atrium_source = toString inputs.atrium;
+                  });
+              } ''
+              mkdir -p pytest-runtime
+              export TMPDIR="$PWD/pytest-runtime"
+              python -m pytest -q --rootdir="$PWD" \
+                -o cache_dir=pytest-runtime/cache --basetemp=pytest-runtime/tests \
+                ${./.}/tests/atrium_n03/test_models.py > "$out"
+            '';
             atrium-n05-package = availablePackages.atrium-litellm-admission;
             atrium-n05-python = pkgs.runCommand "atrium-n05-python-checks"
               {

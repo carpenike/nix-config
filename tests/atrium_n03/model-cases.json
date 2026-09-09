@@ -1,0 +1,73 @@
+{
+  "kind": "atrium.n03-model-topology-preparation",
+  "runtime_gate_evidence": false,
+  "activation": "disabled",
+  "requires": [
+    "Parent-supplied accepted exact R06 and N04 publisher commits and complete source-bound anchor",
+    "Unchanged existing immutable adapter/image/wheel/compiled-runtime guards",
+    "Source review and explicit native authorization, followed by coordinated resource ownership"
+  ],
+  "cases": [
+    {
+      "case": "model-public-permit-wrong-model-target-and-direct-backend",
+      "status": "unexecuted",
+      "gates": ["T1", "T4", "T26"],
+      "permit": "Real R03/R06 delivery reaches the configured model through Caddy and the actual post-auth N05 gate; the intended synthetic provider observes success.",
+      "deny": "The same key cannot use another model/target, manage keys, or connect directly to the live backend; denied provider counters remain unchanged.",
+      "helpers": ["tests/atrium_n03/model_cases.py", "tests/atrium_n03/client.py"]
+    },
+    {
+      "case": "real-model-key-r07-known-deny-and-recovery",
+      "status": "unexecuted",
+      "gates": ["T15", "T26"],
+      "permit": "A genuinely R06-issued key permits before a real issuer-qualified R07 deny and after its removal.",
+      "deny": "Native authentication and N05 reject the known key before cached output or provider effects; no association/hash rewrite.",
+      "helpers": ["tests/atrium_n03/model_cases.py", "tests/atrium_n05/post_auth_cases.py"]
+    },
+    {
+      "case": "missing-live-ownership-producer-refusal",
+      "status": "unexecuted",
+      "gates": ["T20", "T26"],
+      "permit": "Both complete, current real publishers are readable by the actual gateway and allow the authorized request.",
+      "deny": "An invocation-owned missing/corrupt export cannot turn a managed key into legacy; restoration recovers without renewed snapshot age.",
+      "helpers": ["tests/atrium_n05/post_auth_cases.py", "pkgs/atrium-litellm-admission/atrium_admission/producers.py"]
+    },
+    {
+      "case": "distinct-publisher-live-replacement-and-custody",
+      "status": "unexecuted",
+      "gates": ["T26"],
+      "permit": "Real R06 issuance/maintenance and N04 reconciliation replace each publisher-owned export; actual N04/R06/N05 readers retain access through the metadata group.",
+      "deny": "Readers cannot write snapshots or traverse publisher signing/state/escrow or the separate token-delivery directory. Confirm private paths exist from their owner before counting refusal.",
+      "helpers": ["tests/atrium_n03/model_probe.py", "pkgs/atrium-litellm-controller/atrium_litellm/associations.py", "pkgs/atrium-litellm-admission/atrium_admission/producers.py"]
+    },
+    {
+      "case": "w03-live-key-replacement-and-success-bound-ack",
+      "status": "unexecuted",
+      "gates": ["T29"],
+      "permit": "The same actual W03 helper PID reads a new real N04 publication, infers through the gateway, then writes its matching acknowledgement.",
+      "deny": "Old/forged acknowledgement and unreadable/missing delivery cannot acknowledge the replacement or trigger a direct-provider fallback.",
+      "helpers": ["tests/atrium_n06/consumer.mjs", "pkgs/atrium-litellm-controller/atrium_litellm/rotation.py"]
+    },
+    {
+      "case": "service-overlap-retirement-and-separated-metadata-group",
+      "status": "unexecuted",
+      "gates": ["T29", "T30"],
+      "permit": "Actual old/new service keys work during acknowledgement-bound overlap; controller and W03 retain only their documented delivery/ack access.",
+      "deny": "The retired key stops working after the real deadline; metadata-only readers cannot read either raw key or management credentials.",
+      "helpers": ["tests/atrium_n04/native_cases.py", "tests/atrium_n06/consumer.mjs", "tests/atrium_n03/model_probe.py"]
+    },
+    {
+      "case": "model-known-deny-and-admin-freshness-limits",
+      "status": "unexecuted",
+      "gates": ["T15", "T20", "T24"],
+      "permit": "The actual R07 feed permits current eligible model use; only verified human admin eligibility may use the documented freshness exception with a durable alert.",
+      "deny": "Known denies, missing ownership, expiry, service identities and native roles do not gain a freshness-based authorization bypass.",
+      "helpers": ["tests/atrium_n05/post_auth_cases.py", "pkgs/atrium-litellm-admission/atrium_admission/engine.py"]
+    }
+  ],
+  "excluded": [
+    "Newly executed model permits or completed gates in this source-only tranche",
+    "Full protocol, stream, worker/cache, browser, N06 or N07 coverage",
+    "Production activation, live identities, paid models or household providers"
+  ]
+}

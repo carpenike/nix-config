@@ -33,6 +33,7 @@ let
 in
 {
   imports = [
+    ./model-host.nix
     inputs.atrium.nixosModules.atrium
     inputs.homelab-mcp.nixosModules.default
     inputs.whiskey-whiskey-whiskey.nixosModules.default

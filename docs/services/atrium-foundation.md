@@ -6,6 +6,15 @@ provision production identities, decrypt live secrets, or change host/VM trust,
 DNS, routes or firewall rules. The guarantee remains credential-scoped access
 and accident prevention, not conversation/context isolation.
 
+## Source-only model assembly preparation
+
+The [model preparation guide](atrium-model-preparation.md) describes the separate
+disabled host/configuration slice stacked on the accepted C8/JTI foundation.
+It prepares actual R06/N04 publication paths, N05 startup/readers and W03 live
+delivery without advancing producer pins or activating a gateway. Seven new
+topology groups remain **unexecuted**. The accepted C8/JTI receipts below are
+preserved; they do not become model or new kernel-boundary proof.
+
 ## Current C8 wiring slice
 
 The stacked `atr/N03-native-policy-wiring` slice consumes accepted Atrium

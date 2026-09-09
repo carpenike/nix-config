@@ -5,6 +5,19 @@ Whiskey W01/W02 and S01 over real socket/TLS boundaries. It reuses the accepted
 N07 `Resources` lifecycle and the existing N06 UID/address/port implementation.
 It is **not full N03/N07 or phase-1 completion**.
 
+## Source-only model preparation
+
+The model assembly preparation in this branch is documented in
+[the model wiring guide](../../docs/services/atrium-model-preparation.md).
+It adds disabled service/configuration declarations, existing-reader references,
+bounded HTTP/probe helpers and a seven-group **unexecuted** topology catalog.
+It does not activate a gateway, acquire/query a fixture lease, or supply any new
+model permit. Accepted exact publisher pins and a later reviewed/authorized
+native assignment are still required. The receipts below remain historical
+source-bound evidence, not proof of this new model preparation.
+
+## Accepted native C8/JTI evidence
+
 Clean source `6fac02ef3f93005556a58cfd66fe32c3ec2da38a` executes
 [20 paired groups with the model plane deliberately blocked](results/n03-c8-native-6fac02ef.json).
 The [bounded handoff](results/n03-c8-native-6fac02ef-handoff.json) records exact

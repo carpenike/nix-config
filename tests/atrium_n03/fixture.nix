@@ -11,6 +11,8 @@ let
     "atrium-identity-fixture"
     "atrium-client-fixture"
     "atrium-forwarder-fixture"
+    "atrium-model-gateway-fixture"
+    "atrium-model-metadata-fixture"
   ]
     (import ../../lib/service-uids.nix { });
   runtime = "/run/atrium-n03";
@@ -63,9 +65,18 @@ let
     serviceCredentials = lib.mapAttrs
       (name: _: { runtimePath = "${runtime}/provider-input/${name}"; })
       base.serviceCredentials;
+    providers.fixture-model.egressHosts = [
+      "personal.models.atrium.invalid"
+      "family.models.atrium.invalid"
+    ];
     modelTemplates.whiskey-service = {
       routes = [ "/v1/messages" ];
-      service.runtimeKeyPath = "${runtime}/delivery/whiskey-service.json";
+      maxLifetimeSeconds = 600;
+      service = {
+        runtimeKeyPath = "${runtime}/delivery/whiskey-service.json";
+        rotationIntervalSeconds = 2;
+        overlapSeconds = 5;
+      };
     };
     providerExceptions = lib.mapAttrs
       (_: _: {
@@ -146,7 +157,10 @@ in
   inherit registry generated runtime port frontAddress names endpoints state ids nativePolicyPort nativePolicyEndpoint;
   namespacePath = "/run/atrium-n03/netns";
   modelPlaneReady = false;
-  modelPlaneBlocker = "protected-live-publication-export-interface";
+  modelPlaneBlocker = "accepted-publisher-pins-and-native-authorization-pending";
+  models = import ./models.nix {
+    inherit lib ids runtime state registry generated endpoints;
+  };
   versions = {
     atrium = "5f919f085ca0e77664b72d13e96ceeb0680688e4";
     native = "338cbbdb990a5751d199f276c5d65b07730cd97d";

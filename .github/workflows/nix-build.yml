@@ -250,11 +250,14 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
-      - name: Validate only isolated foundation units and Caddy syntax
+      - name: Validate isolated foundation and source-only model preparation
         run: |
           nix build --no-link --builders '' \
             .#checks.x86_64-linux.atrium-n03-units \
-            .#checks.x86_64-linux.atrium-n03-caddy
+            .#checks.x86_64-linux.atrium-n03-caddy \
+            .#checks.x86_64-linux.atrium-n03-model-preparation \
+            .#checks.x86_64-linux.atrium-n03-model-caddy-preview \
+            .#checks.x86_64-linux.atrium-n03-model-python
 
   nix-build:
     needs: changes

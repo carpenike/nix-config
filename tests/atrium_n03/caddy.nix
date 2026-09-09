@@ -96,6 +96,16 @@ in
 
   ${f.endpoints.models} {
     import isolated_tls
-    respond "Isolated model plane unavailable: protected publication interface pending." 503
+    ${if f.modelPlaneReady then ''
+      reverse_proxy ${f.models.backend} {
+        import native_headers
+        transport http {
+          network_proxy none
+          compression off
+        }
+      }
+    '' else ''
+      respond "Isolated model plane unavailable: accepted publisher pins and authorization pending." 503
+    ''}
   }
 ''
