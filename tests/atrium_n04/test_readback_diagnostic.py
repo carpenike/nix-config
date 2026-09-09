@@ -9,6 +9,8 @@ import stat
 import subprocess
 import sys
 import time
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from urllib.request import Request
 
 import httpx
@@ -45,6 +47,23 @@ def test_refresh_observer_retains_only_exception_class_not_error_values():
         observer.emit(record)
     assert observer.error_class == "ValueError"
     assert "private diagnostic value" not in repr(observer.__dict__)
+
+
+def test_refresh_observation_waits_for_actual_scheduler_without_changing_jobs():
+    observer = RefreshObservation(event_mask=3)
+    assert observer.snapshot(None, True)["ready"] == 0
+    calls = []
+    job = SimpleNamespace()
+    scheduler = SimpleNamespace(
+        add_listener=lambda function, mask: calls.append((function, mask)),
+        get_job=lambda name: job if name == "get_credentials_job" else None,
+    )
+    assert observer.snapshot(scheduler, True)["ready"] == 0
+    job.next_run_time = datetime.now(timezone.utc) + timedelta(seconds=30)
+    snapshot = observer.snapshot(scheduler, True)
+    assert snapshot["ready"] == 1 and snapshot["store_models"] == 1
+    assert 0 < snapshot["next_ms"] <= 30000
+    assert len(calls) == 1 and calls[0][1] == 3
 
 
 def test_native_boot_uses_private_config_reopenable_by_spawned_workers(tmp_path):

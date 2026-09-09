@@ -154,6 +154,7 @@ def observed(response, expected_pid=None):
             "error_class": response.headers["x-atrium-readback-refresh-error"],
             "next_ms": int(response.headers["x-atrium-readback-refresh-next-ms"]),
             "store_models": response.headers["x-atrium-readback-store-models"] == "1",
+            "ready": response.headers["x-atrium-readback-refresh-ready"] == "1",
         }
     return result
 

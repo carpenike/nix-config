@@ -14,15 +14,37 @@ REFRESH_HEADERS = {
     "error_class": b"x-atrium-readback-refresh-error",
     "next_ms": b"x-atrium-readback-refresh-next-ms",
     "store_models": b"x-atrium-readback-store-models",
+    "ready": b"x-atrium-readback-refresh-ready",
 }
 
 
 class RefreshObservation(logging.Handler):
-    def __init__(self):
+    def __init__(self, event_mask=0):
         super().__init__()
         self.runs = 0
         self.failed = 0
         self.error_class = "none"
+        self.event_mask = event_mask
+        self.scheduler = None
+
+    def snapshot(self, scheduler, store_models):
+        if scheduler is not None and scheduler is not self.scheduler:
+            scheduler.add_listener(self.event, self.event_mask)
+            self.scheduler = scheduler
+        job = (
+            scheduler.get_job("get_credentials_job") if scheduler is not None else None
+        )
+        next_run = getattr(job, "next_run_time", None)
+        return {
+            "runs": self.runs,
+            "failed": self.failed,
+            "error_class": self.error_class,
+            "next_ms": round((next_run.timestamp() - time.time()) * 1000)
+            if next_run is not None
+            else -1,
+            "store_models": int(store_models is True),
+            "ready": int(next_run is not None),
+        }
 
     def event(self, event):
         if event.job_id == "get_credentials_job":
@@ -95,23 +117,13 @@ async def install():
         raise RuntimeError("native_observation_stack_missing")
     if isinstance(application.middleware_stack, ObservedResponses):
         raise RuntimeError("native_observation_already_installed")
-    refresh = RefreshObservation()
+    refresh = RefreshObservation(EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
     proxy_server.verbose_proxy_logger.addHandler(refresh)
-    proxy_server.scheduler.add_listener(
-        refresh.event, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR
-    )
 
     def refresh_state():
-        job = proxy_server.scheduler.get_job("get_credentials_job")
-        return {
-            "runs": refresh.runs,
-            "failed": refresh.failed,
-            "error_class": refresh.error_class,
-            "next_ms": round((job.next_run_time.timestamp() - time.time()) * 1000)
-            if job is not None
-            else -1,
-            "store_models": int(proxy_server.store_model_in_db is True),
-        }
+        return refresh.snapshot(
+            getattr(proxy_server, "scheduler", None), proxy_server.store_model_in_db
+        )
 
     application.middleware_stack = ObservedResponses(
         application.middleware_stack,
