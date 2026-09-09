@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import io
 import json
 import secrets
 import subprocess
@@ -9,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.error import HTTPError
 
 import httpx
 
@@ -128,7 +130,7 @@ def configuration():
 
 
 def observed(response, expected_pid=None):
-    from harness.common import require
+    from atrium_litellm.errors import require
 
     pid = response.headers.get("x-atrium-readback-pid", "")
     poll = response.headers.get("x-atrium-readback-poll", "")
@@ -184,9 +186,187 @@ def management_identity(endpoint, master, control, control_routes, operations):
     }
 
 
-def exercise(endpoint, master, workers, result, checkpoint):
+def readback(response, pid, writer_pid, credential_name, expected, started):
+    row = {
+        **observed(response, pid),
+        "writer": pid == writer_pid,
+        "elapsed_ms": round((time.monotonic() - started) * 1000),
+    }
+    if response.status_code != 200:
+        row["classification"] = "native-auth-or-route-refusal"
+    else:
+        row.update(classify(response.json(), credential_name, expected))
+    return row
+
+
+class WorkerReadResponse:
+    def __init__(self, response):
+        self.status = response.status_code
+        self.body = io.BytesIO(response.content)
+        self.response = response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.body.close()
+        self.response.close()
+
+    def read(self, limit):
+        return self.body.read(limit)
+
+
+class WorkerReadOpener:
+    """Route real Native GETs through the already-observed worker connection."""
+
+    def __init__(
+        self,
+        client,
+        pid,
+        writer_pid,
+        credential_name,
+        expected,
+        started,
+        rows,
+        checkpoint,
+    ):
+        self.client = client
+        self.pid = pid
+        self.writer_pid = writer_pid
+        self.credential_name = credential_name
+        self.expected = expected
+        self.started = started
+        self.rows = rows
+        self.checkpoint = checkpoint
+
+    def open(self, request, *, timeout):
+        from atrium_litellm.errors import require
+
+        require(
+            request.get_method() == "GET"
+            and request.full_url == str(self.client.base_url.join("/credentials")),
+            "readback_probe_transport_must_be_read_only",
+        )
+        response = self.client.get(
+            request.full_url, headers=dict(request.header_items()), timeout=timeout
+        )
+        self.rows.append(
+            readback(
+                response,
+                self.pid,
+                self.writer_pid,
+                self.credential_name,
+                self.expected,
+                self.started,
+            )
+        )
+        self.checkpoint()
+        if response.status_code != 200:
+            body = io.BytesIO(response.content)
+            status = response.status_code
+            headers = response.headers
+            response.close()
+            raise HTTPError(
+                request.full_url, status, "native read refused", headers, body
+            )
+        return WorkerReadResponse(response)
+
+
+def verify_convergence(
+    endpoint,
+    control,
+    pool,
+    writer_pid,
+    identifier,
+    expected,
+    started,
+    result,
+    checkpoint,
+):
+    from atrium_litellm.errors import ControllerError, require
+    from atrium_litellm.native import CREDENTIAL_READBACK_SECONDS, Native
+
+    headers = {"Authorization": "Bearer " + control}
+    for pid, client in pool.items():
+        response = client.get("/credentials", headers=headers)
+        result["readbacks"].append(
+            readback(response, pid, writer_pid, identifier, expected, started)
+        )
+        require(response.status_code == 200, "native_readback_refused")
+    checkpoint()
+    reader_pid = next((pid for pid in pool if pid != writer_pid), writer_pid)
+    reader = pool[reader_pid]
+    native = Native(
+        endpoint, control, operations=result.setdefault("convergence_operations", [])
+    )
+    native.opener = WorkerReadOpener(
+        reader,
+        reader_pid,
+        writer_pid,
+        identifier,
+        expected,
+        started,
+        result["readbacks"],
+        checkpoint,
+    )
+    wait_started = time.monotonic()
+    native.wait_for_credential(identifier, expected)
+    positive_elapsed = round((time.monotonic() - wait_started) * 1000)
+    require(result["readbacks"][-1]["metadata_equal"], "native_wait_did_not_converge")
+    result["all_workers_converged"] = True
+
+    wrong = {**expected, "cc.account": "unrequested-fixture-account"}
+    result["mismatch_readbacks"] = []
+    native.opener = WorkerReadOpener(
+        reader,
+        reader_pid,
+        writer_pid,
+        identifier,
+        wrong,
+        time.monotonic(),
+        result["mismatch_readbacks"],
+        checkpoint,
+    )
+    negative_started = time.monotonic()
+    try:
+        native.wait_for_credential(identifier, wrong)
+    except ControllerError as error:
+        require(
+            error.code == "native_credential_not_applied", "unexpected_readback_error"
+        )
+    else:
+        raise ControllerError("wrong_native_metadata_was_accepted")
+    negative_elapsed = round((time.monotonic() - negative_started) * 1000)
+    require(
+        result["mismatch_readbacks"]
+        and all(
+            row["row_present"] and not row["metadata_equal"]
+            for row in result["mismatch_readbacks"]
+        ),
+        "permanent_metadata_mismatch_not_observed",
+    )
+    result["convergence_validation"] = {
+        "actual_method": "atrium_litellm.native.Native.wait_for_credential",
+        "worker_pid": reader_pid,
+        "positive_elapsed_ms": positive_elapsed,
+        "permanent_mismatch_refused": True,
+        "negative_elapsed_ms": negative_elapsed,
+        "budget_seconds": CREDENTIAL_READBACK_SECONDS,
+        "post_count": result["creation"]["posts"],
+        "read_transport": "actual HTTP over the observed worker-affine connection",
+        "native_response_or_authentication_mocked": False,
+    }
+    checkpoint()
+
+
+def exercise(endpoint, master, workers, result, checkpoint, *, check_convergence=False):
     from atrium_litellm.controller import Controller
-    from atrium_litellm.native import CONTROL_ROUTES, Native
+    from atrium_litellm.native import (
+        CONTROL_ROUTES,
+        CREDENTIAL_READBACK_INTERVAL_SECONDS,
+        CREDENTIAL_READBACK_SECONDS,
+        Native,
+    )
     from harness.common import require
     from harness.litellm_native import wait_http
 
@@ -289,39 +469,50 @@ def exercise(endpoint, master, workers, result, checkpoint):
         budget = interval * 2 + 3
         result["timing_budget"] = {
             "native_reload_seconds": interval,
-            "poll_period_seconds": 3,
-            "deadline_seconds": budget,
+            "poll_period_seconds": CREDENTIAL_READBACK_INTERVAL_SECONDS
+            if check_convergence
+            else 3,
+            "deadline_seconds": CREDENTIAL_READBACK_SECONDS
+            if check_convergence
+            else budget,
             "native_poll_or_clock_modified": False,
         }
-        next_read = time.monotonic()
-        while True:
-            round_rows = []
-            for pid, client in pool.items():
-                response = client.get("/credentials", headers=headers)
-                row = {
-                    **observed(response, pid),
-                    "writer": pid == writer_pid,
-                    "elapsed_ms": round((time.monotonic() - started) * 1000),
-                }
-                if response.status_code != 200:
-                    row["classification"] = "native-auth-or-route-refusal"
-                else:
-                    row.update(classify(response.json(), identifier, expected))
-                result["readbacks"].append(row)
-                round_rows.append(row)
-            checkpoint()
-            require(
-                all(row["status"] == 200 for row in round_rows),
-                "native_readback_refused",
+        if check_convergence:
+            verify_convergence(
+                endpoint,
+                control,
+                pool,
+                writer_pid,
+                identifier,
+                expected,
+                started,
+                result,
+                checkpoint,
             )
-            if all(row["metadata_equal"] for row in round_rows):
-                result["all_workers_converged"] = True
-                break
-            if time.monotonic() - started >= budget:
-                result["all_workers_converged"] = False
-                break
-            next_read += 3
-            time.sleep(max(0, next_read - time.monotonic()))
+        else:
+            next_read = time.monotonic()
+            while True:
+                round_rows = []
+                for pid, client in pool.items():
+                    response = client.get("/credentials", headers=headers)
+                    row = readback(
+                        response, pid, writer_pid, identifier, expected, started
+                    )
+                    result["readbacks"].append(row)
+                    round_rows.append(row)
+                checkpoint()
+                require(
+                    all(row["status"] == 200 for row in round_rows),
+                    "native_readback_refused",
+                )
+                if all(row["metadata_equal"] for row in round_rows):
+                    result["all_workers_converged"] = True
+                    break
+                if time.monotonic() - started >= budget:
+                    result["all_workers_converged"] = False
+                    break
+                next_read += 3
+                time.sleep(max(0, next_read - time.monotonic()))
         first = result["readbacks"][:workers]
         result["outcome"] = {
             "writer_immediate_match": next(
@@ -348,6 +539,7 @@ def main():
     parser.add_argument("--harness", type=Path, required=True)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--verify-convergence", action="store_true")
     args = parser.parse_args()
     sys.path[:0] = [str(args.harness), str(ROOT / "pkgs/atrium-litellm-controller")]
     from harness.common import Blocked, EvidenceWriter, PINS, require
@@ -406,7 +598,12 @@ def main():
             "owner_spec": file_fingerprint(args.spec),
         },
         "topologies": [],
-        "scope": "Native credential create/readback only; no inference or controller guard changes",
+        "scope": "Actual bounded N04 credential readback; native endpoint/auth/cache unchanged, no inference"
+        if args.verify_convergence
+        else "Native credential create/readback only; no inference or native endpoint/auth/cache changes",
+        "mode": "verify-bounded-controller-readback"
+        if args.verify_convergence
+        else "observe-native-cache",
     }
     writer = EvidenceWriter(args.evidence, result)
 
@@ -549,7 +746,12 @@ def main():
                 "native_version_source_or_poll_mismatch",
             )
             exercise(
-                resources.endpoint(gateway, 4000), master, workers, row, writer.publish
+                resources.endpoint(gateway, 4000),
+                master,
+                workers,
+                row,
+                writer.publish,
+                check_convergence=args.verify_convergence,
             )
             row["status"] = "completed"
         except Exception as error:
@@ -580,7 +782,6 @@ def main():
                 row["inventories_equal"] and row["source_unchanged"],
                 "diagnostic_inventory_or_source_changed",
             )
-    result["status"] = "completed"
     result["lag_hypothesis_confirmed"] = (
         result["topologies"][0]["outcome"]["writer_immediate_match"]
         and result["topologies"][1]["outcome"]["writer_immediate_match"]
@@ -591,6 +792,11 @@ def main():
             for row in result["topologies"]
         )
     )
+    if args.verify_convergence and not result["lag_hypothesis_confirmed"]:
+        result.update(status="failed", error_code="native_worker_lag_not_exercised")
+        writer.publish()
+        raise Blocked("native_worker_lag_not_exercised")
+    result["status"] = "completed"
     writer.publish()
     print(
         json.dumps(

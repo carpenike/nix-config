@@ -7,15 +7,19 @@ import secrets
 import stat
 import subprocess
 import sys
+import time
+from urllib.request import Request
 
+import httpx
 import pytest
 
 from atrium_litellm.errors import ControllerError
-from atrium_litellm.native import Native
+from atrium_litellm.native import Native, NativeError
 from readback_diagnostic import (
     BOOT,
     PUBLIC_NATIVE_REVISION,
     ROOT,
+    WorkerReadOpener,
     classify,
     configuration,
     management_identity,
@@ -104,6 +108,83 @@ def test_control_key_verification_uses_bootstrap_not_its_own_identity(monkeypatc
     ]
     assert result["master_used_for_control_verification"]
     assert not result["master_used_for_credential_readback"]
+
+
+@pytest.mark.parametrize("status", [200, 403])
+def test_worker_transport_preserves_actual_native_read_and_refusal(status):
+    key = "sk-" + secrets.token_urlsafe(32)
+    expected = {"cc.account": "fixture"}
+    requests = []
+    rows = []
+
+    def respond(request):
+        requests.append(
+            (
+                request.method,
+                request.url.path,
+                request.headers["authorization"] == "Bearer " + key,
+            )
+        )
+        return httpx.Response(
+            status,
+            json={
+                "success": True,
+                "credentials": [
+                    {"credential_name": "cc.fixture", "credential_info": expected}
+                ],
+            },
+            headers={
+                "x-atrium-readback-pid": "123",
+                "x-atrium-readback-poll": "30",
+                "x-atrium-readback-redis": "0",
+            },
+        )
+
+    with httpx.Client(
+        base_url="http://gateway.atrium.invalid",
+        transport=httpx.MockTransport(respond),
+    ) as client:
+        native = Native(str(client.base_url), key)
+        native.opener = WorkerReadOpener(
+            client,
+            123,
+            123,
+            "cc.fixture",
+            expected,
+            time.monotonic(),
+            rows,
+            lambda: None,
+        )
+        if status == 200:
+            native.wait_for_credential("cc.fixture", expected)
+            assert rows[0]["metadata_equal"]
+        else:
+            with pytest.raises(NativeError) as refused:
+                native.wait_for_credential("cc.fixture", expected)
+            assert refused.value.status == 403
+            assert rows[0]["classification"] == "native-auth-or-route-refusal"
+    assert requests == [("GET", "/credentials", True)]
+    assert rows[0]["pid"] == 123
+
+
+def test_worker_read_transport_cannot_submit_a_mutation():
+    def unexpected(_request):
+        raise AssertionError("network must not be reached")
+
+    with httpx.Client(
+        base_url="http://gateway.atrium.invalid",
+        transport=httpx.MockTransport(unexpected),
+    ) as client:
+        opener = WorkerReadOpener(
+            client, 123, 123, "cc.fixture", {}, time.monotonic(), [], lambda: None
+        )
+        with pytest.raises(
+            ControllerError, match="readback_probe_transport_must_be_read_only"
+        ):
+            opener.open(
+                Request("http://gateway.atrium.invalid/credentials", method="POST"),
+                timeout=1,
+            )
 
 
 def test_native_comparison_distinguishes_missing_mismatched_and_exact_metadata():

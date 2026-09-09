@@ -1,8 +1,10 @@
 # ATR-N04 native credential readback diagnostic
 
-Test-only: no change to the accepted controller guard, credential endpoints,
-native authentication, cache, polling, production configuration or provider
-behavior. No inference/provider process is created or called.
+The observation mode is test-only: native credential endpoints, authentication,
+cache, polling and provider behavior remain unchanged. The branch also contains
+the bounded controller readback correction and its separate verification mode
+below; exact metadata equality is still required. No production configuration
+is changed, and no inference/provider process is created or called.
 
 The driver uses the existing accepted N07 `Resources`, pinned LiteLLM/Postgres
 images, database bootstrap and native readiness checks. Its worker-startup hook
@@ -91,8 +93,27 @@ attempts absent. Container, network, volume and image inventories match every
 before/after baseline and the final independent read; `ambit-db` is unchanged.
 The parent-owned fixture lease was released only after these checks.
 
-The next implementation decision is a bounded, read-only convergence check
-after successful creation/update, preserving exact metadata equality and
+The controller follow-up is a bounded, read-only convergence check after the
+single successful credential mutation, preserving exact metadata equality and
 fail-closed exhaustion. It must not repeat the mutating POST, accept missing
 or different metadata as success, change native cache/poll behavior, or weaken
-authentication. This diagnostic itself changes no controller runtime.
+authentication. The observation-only diagnostic above predates that correction
+and is not evidence that the corrected controller has executed.
+
+## Bounded-controller verification mode
+
+After reviewing the controller's convergence correction, the same source-bound
+runner can add `--verify-convergence`. It still creates one native credential
+per topology. The actual `Native.wait_for_credential` method reads through a
+test-only transport adapter that keeps the request on the observed worker
+connection; native HTTP responses, authentication, metadata and cache state
+are not mocked or rewritten.
+
+The two-worker permit must exercise an initially missing non-writer row and
+wait for exact metadata convergence. A separate call intentionally expects
+different metadata for the same existing credential and must exhaust the
+bounded wait with `native_credential_not_applied`, without another POST.
+Its observations are recorded separately so the deliberate expected-value
+mismatch is not called native metadata corruption. This mode requires its
+own clean source and native receipt; the earlier observation-only receipt
+does not prove the corrected controller.
