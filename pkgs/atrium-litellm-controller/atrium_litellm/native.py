@@ -298,16 +298,38 @@ class Native:
             records[row["credential_name"]] = row
         return records
 
-    def wait_for_credential(self, identity: str, expected: dict) -> None:
-        deadline = time.monotonic() + CREDENTIAL_READBACK_SECONDS
+    def wait_for_credential(
+        self, identity: str, expected: dict, *, deadline: float | None = None
+    ) -> float:
+        if deadline is None:
+            deadline = time.monotonic() + CREDENTIAL_READBACK_SECONDS
+        self.wait_for_credentials({identity: expected}, deadline=deadline)
+        return deadline
+
+    def wait_for_credentials(
+        self,
+        expected: dict[str, dict],
+        *,
+        deadline: float,
+        owned: dict[str, dict] | None = None,
+    ) -> dict[str, dict]:
         while True:
             remaining = deadline - time.monotonic()
             require(remaining > 0, "native_credential_not_applied")
-            record = self.credentials(timeout=remaining).get(identity)
+            records = self.credentials(timeout=remaining)
             remaining = deadline - time.monotonic()
             require(remaining > 0, "native_credential_not_applied")
-            if record is not None and record.get("credential_info") == expected:
-                return
+            for identity, info in (owned or {}).items():
+                require(identity in records, "owned_credential_missing")
+                require(
+                    records[identity].get("credential_info") == info,
+                    "native_account_binding_drift",
+                )
+            if all(
+                identity in records and records[identity].get("credential_info") == info
+                for identity, info in expected.items()
+            ):
+                return records
             time.sleep(min(CREDENTIAL_READBACK_INTERVAL_SECONDS, remaining))
 
     def team(self, identity: str) -> dict:

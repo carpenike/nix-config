@@ -70,6 +70,72 @@ def test_missing_and_stale_worker_values_require_exact_convergence(
     assert clock.sleeps == [0.5, 0.5]
 
 
+def test_readback_returns_snapshot_without_combining_different_workers(
+    native,
+    clock,
+    monkeypatch,
+):
+    expected = {"cc.first": {"cc.account": "one"}, "cc.second": {"cc.account": "two"}}
+    complete = {key: {"credential_info": info} for key, info in expected.items()}
+    responses = iter(
+        [
+            {"cc.first": complete["cc.first"]},
+            {"cc.second": complete["cc.second"]},
+            complete,
+        ]
+    )
+    monkeypatch.setattr(native, "credentials", lambda **_: next(responses))
+    actual = native.wait_for_credentials(expected, deadline=65.0)
+    assert actual is complete
+    assert clock.sleeps == [0.5, 0.5]
+
+
+def test_supplied_deadline_cannot_restart_the_readback_budget(
+    native, clock, monkeypatch
+):
+    clock.now = 64.0
+    timeouts = []
+
+    def credentials(*, timeout):
+        timeouts.append(timeout)
+        return {}
+
+    monkeypatch.setattr(native, "credentials", credentials)
+    with pytest.raises(ControllerError, match="native_credential_not_applied"):
+        native.wait_for_credential("cc.fixture", {}, deadline=65.0)
+    assert clock.now == 65.0 and timeouts == [1.0, 0.5]
+
+
+@pytest.mark.parametrize(
+    ("response", "error"),
+    [
+        ({}, "owned_credential_missing"),
+        ({"cc.owned": {"credential_info": {}}}, "native_account_binding_drift"),
+    ],
+)
+def test_owned_binding_failure_is_not_retried_while_waiting_for_a_new_credential(
+    native,
+    clock,
+    monkeypatch,
+    response,
+    error,
+):
+    calls = []
+
+    def credentials(*, timeout):
+        calls.append(timeout)
+        return response
+
+    monkeypatch.setattr(native, "credentials", credentials)
+    with pytest.raises(ControllerError, match=error):
+        native.wait_for_credentials(
+            {"cc.new": {"cc.account": "fixture"}},
+            deadline=65.0,
+            owned={"cc.owned": {"cc.account": "fixture"}},
+        )
+    assert calls == [65.0] and clock.sleeps == []
+
+
 @pytest.mark.parametrize("response", [{}, {"cc.fixture": {"credential_info": {}}}])
 def test_missing_or_different_metadata_still_fails_at_deadline(
     native, clock, monkeypatch, response

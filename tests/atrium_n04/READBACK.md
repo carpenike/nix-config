@@ -146,3 +146,47 @@ The [handoff](results/readback-convergence-handoff.json) and
 failed shorter-budget and observer-bootstrap attempts. All 24 exact containers
 and 12 invocation networks are absent, and every captured container, network,
 volume and image inventory matches the final independent check.
+
+## Full-controller verification mode
+
+The helper proof above does not cover `Controller.run`'s mandatory infrastructure
+re-read: an initial exact writer response can be followed by a missing row on
+another worker. The corrected caller preserves the first credential POST's
+absolute 65-second deadline across all new credentials and that final check.
+It requires one fresh snapshot with every new credential exact; previously
+owned credentials still fail immediately on absence or metadata drift.
+
+Use `--verify-controller --runtime PRIVATE_EXISTING_PARENT` instead of
+`--verify-convergence` to run the actual
+controller, `Desired` parser, private ownership ledger, protected association
+reader and publication APIs. This mode derives disjoint, infrastructure-only
+cases from the existing N02-generated fixture. No model templates are enabled,
+so it does not issue inference/service keys or claim their rotation. The
+generated input and all fixture/runtime sources are fingerprinted.
+The runtime parent must pass the real protected-directory guard, outside
+repositories and the Nix store, with no writable-by-others ancestor. `/tmp`
+is not a suitable private-state root; the guard is not relaxed for tests.
+
+Both one- and two-worker topologies execute a permit and an adverse twin.
+Each case allows exactly one controller credential POST. All control traffic
+uses the actual scoped management identity. A test-only HTTP transport keeps
+initial readback on the writer, then routes the mandatory credential re-read
+and its retries to the observed other worker. Native headers, request/response
+bodies, authentication, cache and scheduler behavior remain unchanged. Other
+infrastructure operations stay on the writer to isolate this credential race;
+this is not a claim about all native management-cache paths.
+
+The two-worker permit must observe writer-exact, post-create reader-missing,
+then reader-exact, and verify both actual controller publications. The adverse
+twin deletes only its own newly created native credential through the real
+native endpoint immediately before the mandatory re-read. This explicit fault
+uses the bootstrap identity, not expanded controller privileges. The caller
+must refuse permanent absence at the original deadline and publish neither
+bindings nor service associations. The elapsed observation allows one second
+of scheduling/measurement tolerance, not an extra authorization allowance.
+No POST is retried, native responses are not mocked, and no inference is called.
+
+Per-case private temporary directories are removed even on failure; the normal
+exact-container/network and before/after-inventory cleanup remains required.
+A source-bound `--verify-controller` receipt, not the historical helper result,
+is required before accepting the caller correction.

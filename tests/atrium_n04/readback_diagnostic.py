@@ -370,7 +370,17 @@ def verify_convergence(
     checkpoint()
 
 
-def exercise(endpoint, master, workers, result, checkpoint, *, check_convergence=False):
+def exercise(
+    endpoint,
+    master,
+    workers,
+    result,
+    checkpoint,
+    *,
+    check_convergence=False,
+    controller_desired=None,
+    controller_runtime=None,
+):
     from atrium_litellm.controller import Controller
     from atrium_litellm.native import (
         CONTROL_ROUTES,
@@ -437,6 +447,21 @@ def exercise(endpoint, master, workers, result, checkpoint, *, check_convergence
         require(len(pool) == workers, "native_workers_not_reached")
         result["worker_pids"] = sorted(pool)
         writer_pid = sorted(pool)[0]
+        if controller_desired is not None:
+            from readback_controller import verify_controller
+
+            verify_controller(
+                endpoint,
+                master,
+                control,
+                pool,
+                writer_pid,
+                controller_desired,
+                result,
+                checkpoint,
+                runtime_parent=controller_runtime,
+            )
+            return
         identifier = "cc.readback." + secrets.token_hex(12)
         logical = "cc.readback.provider"
         controller = object.__new__(Controller)
@@ -550,12 +575,22 @@ def main():
     parser.add_argument("--harness", type=Path, required=True)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
-    parser.add_argument("--verify-convergence", action="store_true")
+    parser.add_argument("--runtime", type=Path)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--verify-convergence", action="store_true")
+    modes.add_argument("--verify-controller", action="store_true")
     args = parser.parse_args()
     sys.path[:0] = [str(args.harness), str(ROOT / "pkgs/atrium-litellm-controller")]
     from harness.common import Blocked, EvidenceWriter, PINS, require
     from harness.containers import Resources
     from harness.litellm_native import POSTGRES_BOOT
+
+    if args.verify_controller:
+        from atrium_litellm.files import directory
+
+        require(args.runtime is not None, "private_controller_runtime_required")
+        with directory(args.runtime, secret=True):
+            pass
 
     def git(*arguments):
         return subprocess.run(
@@ -575,11 +610,18 @@ def main():
         ROOT / "tests/atrium_n04" / name
         for name in (
             "readback_diagnostic.py",
+            "readback_controller.py",
             "readback_observer.py",
             "test_readback_diagnostic.py",
+            "test_readback_controller.py",
+            "test_controller.py",
+            "test_credential_readback.py",
+            "native_runner.py",
+            "fixture.nix",
             "readback-source-pins.json",
         )
     ]
+    paths += [ROOT / "tests/atrium/registry.nix", ROOT / "flake.lock"]
     paths += list((ROOT / "pkgs/atrium-litellm-controller/atrium_litellm").glob("*.py"))
     identity = {str(path.relative_to(ROOT)): file_fingerprint(path) for path in paths}
     native_pins = json.loads(
@@ -609,14 +651,43 @@ def main():
             "owner_spec": file_fingerprint(args.spec),
         },
         "topologies": [],
-        "scope": "Actual bounded N04 credential readback; native endpoint/auth/cache unchanged, no inference"
+        "scope": "Actual full N04 Controller.run post-create verification, native permit/deletion-deny, no inference"
+        if args.verify_controller
+        else "Actual bounded N04 credential readback; native endpoint/auth/cache unchanged, no inference"
         if args.verify_convergence
         else "Native credential create/readback only; no inference or native endpoint/auth/cache changes",
-        "mode": "verify-bounded-controller-readback"
+        "mode": "verify-full-controller-readback"
+        if args.verify_controller
+        else "verify-bounded-controller-readback"
         if args.verify_convergence
         else "observe-native-cache",
     }
     writer = EvidenceWriter(args.evidence, result)
+    generated = None
+    if args.verify_controller:
+        from native_runner import command
+
+        generated = json.loads(
+            command(
+                [
+                    "nix",
+                    "eval",
+                    "--builders",
+                    "",
+                    "--offline",
+                    "--no-write-lock-file",
+                    "--option",
+                    "allow-import-from-derivation",
+                    "false",
+                    "--impure",
+                    "--json",
+                    "--expr",
+                    "(import ./tests/atrium_n04/fixture.nix { atrium = "
+                    "(builtins.getFlake (toString ./.)).inputs.atrium; }).litellm",
+                ]
+            )
+        )
+        result["source"]["generated_desired_state"] = fingerprint(generated)
 
     def inventory(resources):
         return {
@@ -763,6 +834,8 @@ def main():
                 row,
                 writer.publish,
                 check_convergence=args.verify_convergence,
+                controller_desired=generated,
+                controller_runtime=args.runtime,
             )
             row["status"] = "completed"
         except Exception as error:
@@ -793,6 +866,24 @@ def main():
                 row["inventories_equal"] and row["source_unchanged"],
                 "diagnostic_inventory_or_source_changed",
             )
+    if args.verify_controller:
+        require(
+            all(row["controller_readback_qualified"] for row in result["topologies"]),
+            "full_controller_readback_not_exercised",
+        )
+        result["status"] = "completed"
+        result["controller_readback_qualified"] = True
+        writer.publish()
+        print(
+            json.dumps(
+                {
+                    "status": result["status"],
+                    "controller_readback_qualified": True,
+                    "evidence": str(args.evidence),
+                }
+            )
+        )
+        return 0
     result["lag_hypothesis_confirmed"] = (
         result["topologies"][0]["outcome"]["writer_immediate_match"]
         and result["topologies"][1]["outcome"]["writer_immediate_match"]

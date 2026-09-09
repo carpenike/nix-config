@@ -1,10 +1,14 @@
 import copy
 import json
+import secrets
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from atrium_litellm import controller as controller_module
+from atrium_litellm import native as native_module
 from atrium_litellm.associations import ProtectedSnapshotSource, Snapshot
 from atrium_litellm.controller import Controller
 from atrium_litellm.desired import Desired
@@ -393,3 +397,228 @@ def test_fractional_native_expiry_cannot_exceed_ceiling(generated):
     }
     with pytest.raises(ControllerError, match="native_key_expiry_mismatch"):
         verify_key(info, assoc, ceiling, now=NOW)
+
+
+class ReconciliationNative(Native):
+    """Mutable native fixture; all controller planning and verification stay real."""
+
+    def __init__(self):
+        super().__init__(
+            "http://models.atrium.invalid", "sk-" + secrets.token_urlsafe(32)
+        )
+        self.credential_rows = {}
+        self.model_rows = {}
+        self.team_rows = {}
+        self.key_rows = {}
+        self.credential_reads = []
+        self.observe_credentials = lambda rows: rows
+
+    def call(self, method, path, body=None, *, query=None, timeout=None):
+        self.operations.append({"method": method, "path": path, "status": 200})
+        if method == "GET":
+            if path == "/health/readiness":
+                return {"status": "healthy"}
+            if path == "/openapi.json":
+                return {"info": {"version": "1.99.1"}}
+            if path == "/router/settings":
+                return {"current_values": SAFE_ROUTER}
+            if path == "/model/info":
+                return {"data": list(self.model_rows.values())}
+            if path == "/credentials":
+                self.credential_reads.append(timeout)
+                rows = self.observe_credentials(copy.deepcopy(self.credential_rows))
+                return {"success": True, "credentials": list(rows.values())}
+            if path == "/team/info":
+                return {
+                    "team_id": query["team_id"],
+                    "team_info": self.team_rows[query["team_id"]],
+                }
+            if path == "/key/info":
+                return {"key": query["key"], "info": self.key_rows[query["key"]]}
+        elif method == "POST":
+            if path == "/credentials":
+                self.credential_rows[body["credential_name"]] = {
+                    "credential_name": body["credential_name"],
+                    "credential_info": copy.deepcopy(body["credential_info"]),
+                }
+                return {"success": True}
+            if path == "/model/new":
+                self.model_rows[body["model_info"]["id"]] = copy.deepcopy(body)
+                return {}
+            if path == "/team/new":
+                self.team_rows[body["team_id"]] = copy.deepcopy(body)
+                return {}
+            if path == "/key/block":
+                self.key_rows[body["key"]]["blocked"] = True
+                return {}
+        raise AssertionError(f"Unexpected fixture operation: {method} {path}")
+
+
+@pytest.fixture
+def reconciling_controller(generated, ledger, tmp_path, monkeypatch):
+    clock = SimpleNamespace(now=0.0, sleeps=[])
+
+    def sleep(seconds):
+        clock.sleeps.append(seconds)
+        clock.now += seconds
+
+    timing = SimpleNamespace(monotonic=lambda: clock.now, sleep=sleep, time=lambda: NOW)
+    monkeypatch.setattr(native_module, "time", timing)
+    monkeypatch.setattr(controller_module, "time", timing)
+    document = copy.deepcopy(generated)
+    for table in ("teams", "aliases", "model_templates"):
+        document[table] = {
+            key: row
+            for key, row in document[table].items()
+            if row["domain"] == "personal:ryan"
+        }
+    desired = Desired.parse(document)
+    path = tmp_path / "snapshot.json"
+    atomic_json(path, snapshot())
+    native = ReconciliationNative()
+    controller = Controller(
+        desired,
+        ledger,
+        native,
+        ProtectedSnapshotSource(path, INSTALLATION, ISSUER, path.stat().st_uid),
+        transports(desired),
+        credential_reader=lambda *_: secrets.token_urlsafe(32),
+    )
+    return controller, native, clock
+
+
+def test_full_reconciliation_retries_new_credential_post_create_snapshot(
+    reconciling_controller,
+):
+    controller, native, clock = reconciling_controller
+
+    def observe(rows):
+        return {} if len(native.credential_reads) == 3 else rows
+
+    native.observe_credentials = observe
+    report = controller.run(rotate=False, now=NOW)
+    assert native.credential_reads == [None, 65.0, 65.0, 64.5]
+    assert clock.sleeps == [0.5]
+    assert [
+        op
+        for op in native.operations
+        if op["method"] == "POST" and op["path"] == "/credentials"
+    ] == [{"method": "POST", "path": "/credentials", "status": 200}]
+    assert report["adoptions"] == 0
+    assert controller.bindings_snapshot.is_file()
+    assert controller.service_association_snapshot.is_file()
+
+
+@pytest.mark.parametrize("observation", ["missing", "mismatch", "late-exact"])
+def test_post_create_failure_keeps_original_budget_and_stops_key_mutation(
+    reconciling_controller,
+    observation,
+):
+    controller, native, clock = reconciling_controller
+    with controller.ledger.locked():
+        controller.ledger.remember(parse(snapshot([record()])))
+    atomic_json(controller.associations.path, snapshot([], generation=2))
+    native.key_rows[KEY] = {"blocked": False}
+
+    def observe(rows):
+        count = len(native.credential_reads)
+        if count == 2:
+            clock.now = 64.0
+        elif count > 2:
+            if observation == "missing":
+                return {}
+            if observation == "mismatch":
+                for row in rows.values():
+                    row["credential_info"] = {"cc.account": "different"}
+            else:
+                clock.now = 65.0
+        return rows
+
+    native.observe_credentials = observe
+    with pytest.raises(ControllerError, match="native_credential_not_applied"):
+        controller.run(rotate=False, now=NOW)
+    assert clock.now == 65.0
+    assert native.credential_reads[:3] == [None, 65.0, 1.0]
+    assert native.key_rows[KEY]["blocked"] is False
+    assert not controller.bindings_snapshot.exists()
+    assert not controller.service_association_snapshot.exists()
+    assert all(op["path"] != "/key/block" for op in native.operations)
+    assert (
+        sum(
+            op["method"] == "POST" and op["path"] == "/credentials"
+            for op in native.operations
+        )
+        == 1
+    )
+
+
+def test_all_new_credentials_need_one_exact_snapshot_and_share_first_deadline(
+    reconciling_controller,
+    generated,
+):
+    controller, native, clock = reconciling_controller
+    controller.desired = Desired.parse(copy.deepcopy(generated))
+
+    def observe(rows):
+        count = len(native.credential_reads)
+        if count == 2:
+            clock.now = 60.0
+        if count in (3, 4, 5):
+            identity = list(rows)[0 if count == 4 else -1]
+            return {identity: rows[identity]}
+        return rows
+
+    native.observe_credentials = observe
+    controller.run(rotate=False, now=NOW)
+    assert len(native.credential_rows) == 2
+    assert native.credential_reads == [None, 65.0, 5.0, 5.0, 4.5, 4.0]
+    assert clock.sleeps == [0.5, 0.5]
+    assert clock.now == 61.0
+    assert (
+        sum(
+            op["method"] == "POST" and op["path"] == "/credentials"
+            for op in native.operations
+        )
+        == 2
+    )
+
+
+@pytest.mark.parametrize("stage", ["initial", "post-create"])
+@pytest.mark.parametrize(
+    ("observation", "error"),
+    [
+        ("missing", "owned_credential_missing"),
+        ("mismatch", "native_account_binding_drift"),
+    ],
+)
+def test_preexisting_owned_credential_failures_never_become_creation_lag(
+    reconciling_controller,
+    generated,
+    stage,
+    observation,
+    error,
+):
+    controller, native, clock = reconciling_controller
+    controller.run(rotate=False, now=NOW)
+    before = controller.bindings_snapshot.read_bytes()
+    owned = next(iter(native.credential_rows))
+    native.credential_reads.clear()
+    if stage == "post-create":
+        controller.desired = Desired.parse(copy.deepcopy(generated))
+
+    def observe(rows):
+        if stage == "initial" or len(native.credential_reads) == 3:
+            if observation == "missing":
+                rows.pop(owned)
+            else:
+                rows[owned]["credential_info"] = {"cc.account": "different"}
+            # Existing ownership must be checked even while a new row is missing.
+            rows = {key: row for key, row in rows.items() if key == owned}
+        return rows
+
+    native.observe_credentials = observe
+    with pytest.raises(ControllerError, match=error):
+        controller.run(rotate=False, now=NOW)
+    assert clock.sleeps == []
+    assert len(native.credential_reads) == (1 if stage == "initial" else 3)
+    assert controller.bindings_snapshot.read_bytes() == before

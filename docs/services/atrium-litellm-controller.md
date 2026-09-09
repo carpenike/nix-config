@@ -244,18 +244,28 @@ first refresh by less than one additional period. A recorded worker still had
 42.299 seconds until its first refresh; the interval alone is not a maximum
 initial wait.
 
-After its single credential POST, the controller requires exact metadata
-readback within a 65-second convergence budget (two default native refresh
-periods plus five seconds). It retries only GET reads, at most twice per second.
+After its first successful credential POST, the controller starts one 65-second
+convergence budget (two default native refresh periods plus five seconds).
+All credentials created in that reconciliation share its original absolute
+deadline, including their initial readbacks and the mandatory post-create
+infrastructure check. The latter consumes one freshly read snapshot in which
+every new credential matches exactly; it neither combines different workers'
+partial observations nor performs an unbounded extra read after verification.
+It retries only GET reads, at most twice per second.
 Each read uses the smaller of the remaining budget and the existing native transport
 timeout; a response arriving after the budget cannot establish success.
 Authentication, transport and malformed-response errors still propagate rather
 than becoming a successful or empty readback.
 
 Missing or different metadata after that budget still raises
-`native_credential_not_applied`; pending ownership is not promoted and later
-infrastructure actions do not proceed. The wait neither repeats the POST nor
-accepts masked credential values as ownership evidence. Native cache settings,
+`native_credential_not_applied`. Each pending credential becomes owned only
+after its initial exact readback; a failed final check prevents publication and
+existing-key mutations without erasing already verified ownership. Only
+credentials actually created in this run qualify for convergence retries.
+Preexisting owned credentials must be present and exact in every observed
+snapshot or fail immediately, even while a new credential is still missing.
+The wait neither repeats the POST nor accepts masked credential values as
+ownership evidence. Native cache settings,
 poll intervals, roles, model ceilings and alias guards are unchanged.
 Successful readback is not a claim of synchronous cache invalidation on every
 worker; request-path admission and the full multi-worker gate remain separate.
