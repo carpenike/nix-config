@@ -90,6 +90,21 @@ class ControllerReadbackOpener:
             timeout=timeout,
         )
         observation = observed(response, pid)
+        if credential_read and pid != self.writer_pid and response.status_code == 200:
+            heartbeat = self.pool[self.writer_pid].get(
+                "/health/readiness",
+                headers=dict(request.header_items()),
+                timeout=timeout,
+            )
+            self.result.setdefault("writer_keepalives", []).append(
+                observed(heartbeat, self.writer_pid)
+            )
+            require(
+                heartbeat.status_code == 200
+                and heartbeat.json().get("status") == "healthy",
+                "native_writer_keepalive_failed",
+            )
+            heartbeat.close()
         if method == "POST" and target.path == "/credentials":
             payload = json.loads(request.data)
             self.identifier = payload["credential_name"]
@@ -214,6 +229,7 @@ def verify_controller(
             try:
                 report = controller.run(rotate=False, now=now)
             except ControllerError as error:
+                case["status"] = "failed"
                 case["error_code"] = error.code
                 if not delete or error.code != "native_credential_not_applied":
                     raise

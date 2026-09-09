@@ -49,7 +49,9 @@ def test_controller_transport_preserves_requests_and_observed_worker_switch(
             present = False
         return httpx.Response(
             status if request.method == "GET" else 200,
-            json={"success": True, "credentials": [payload] if present else []},
+            json={"status": "healthy"}
+            if request.url.path == "/health/readiness"
+            else {"success": True, "credentials": [payload] if present else []},
             headers={
                 "x-atrium-readback-pid": str(pid),
                 "x-atrium-readback-poll": "30",
@@ -101,6 +103,7 @@ def test_controller_transport_preserves_requests_and_observed_worker_switch(
             (101, "GET", "/credentials"),
             *([(102, "DELETE", "/credentials/cc.fixture")] if delete else []),
             (102, "GET", "/credentials"),
+            *([(101, "GET", "/health/readiness")] if status == 200 else []),
         ]
 
 

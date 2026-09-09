@@ -175,6 +175,9 @@ and its retries to the observed other worker. Native headers, request/response
 bodies, authentication, cache and scheduler behavior remain unchanged. Other
 infrastructure operations stay on the writer to isolate this credential race;
 this is not a claim about all native management-cache paths.
+During reader polling, native readiness GETs keep the writer's connection from
+expiring at the server. They do not read credential metadata or contribute to
+ownership verification, and their actual PID/status observations are recorded.
 
 The two-worker permit must observe writer-exact, post-create reader-missing,
 then reader-exact, and verify both actual controller publications. The adverse
@@ -190,3 +193,11 @@ Per-case private temporary directories are removed even on failure; the normal
 exact-container/network and before/after-inventory cleanup remains required.
 A source-bound `--verify-controller` receipt, not the historical helper result,
 is required before accepting the caller correction.
+
+The [first caller attempt](results/readback-controller-f308e649.json) retains a
+one-worker permit and permanent-absence denial. In the two-worker topology,
+the mandatory credential read converged at 37.108 seconds, but the writer's
+idle connection had expired before the subsequent team check. The fixture's
+PID guard refused that reconnected request; no two-worker controller pass is
+claimed. The readiness keepalive above corrects only this test-transport
+lifecycle, not production routing or native credential/cache behavior.
