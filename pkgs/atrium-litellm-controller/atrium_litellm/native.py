@@ -38,6 +38,9 @@ SAFE_ROUTER = {
     "context_window_fallbacks": [],
     "content_policy_fallbacks": [],
 }
+# Pinned 1.99.1 refreshes worker-local credentials every 30 seconds.
+CREDENTIAL_READBACK_SECONDS = 35.0
+CREDENTIAL_READBACK_INTERVAL_SECONDS = 0.5
 KEY_ROUTER = {
     "num_retries": 0,
     "fallbacks": [],
@@ -209,8 +212,19 @@ class Native:
         body: dict | None = None,
         *,
         query: dict | None = None,
+        timeout: float | None = None,
     ) -> dict:
         require(path in CONTROL_ROUTES.get(method, set()), "controller_route_forbidden")
+        if timeout is not None:
+            require(
+                type(timeout) in (int, float)
+                and math.isfinite(timeout)
+                and timeout > 0,
+                "invalid_native_request_timeout",
+            )
+        request_timeout = (
+            self.timeout if timeout is None else min(self.timeout, timeout)
+        )
         target = self.endpoint + path + ("?" + parse.urlencode(query) if query else "")
         req = request.Request(
             target,
@@ -223,7 +237,7 @@ class Native:
         )
         status = 0
         try:
-            with self.opener.open(req, timeout=self.timeout) as response:
+            with self.opener.open(req, timeout=request_timeout) as response:
                 status = response.status
                 require(status == 200, "unexpected_native_status")
                 data = response.read(16 * 1024 * 1024 + 1)
@@ -266,8 +280,8 @@ class Native:
             )
         return result["data"]
 
-    def credentials(self) -> dict[str, dict]:
-        result = self.call("GET", "/credentials")
+    def credentials(self, *, timeout: float | None = None) -> dict[str, dict]:
+        result = self.call("GET", "/credentials", timeout=timeout)
         require(
             result.get("success") is True
             and isinstance(result.get("credentials"), list),
@@ -283,6 +297,18 @@ class Native:
             )
             records[row["credential_name"]] = row
         return records
+
+    def wait_for_credential(self, identity: str, expected: dict) -> None:
+        deadline = time.monotonic() + CREDENTIAL_READBACK_SECONDS
+        while True:
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, "native_credential_not_applied")
+            record = self.credentials(timeout=remaining).get(identity)
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, "native_credential_not_applied")
+            if record is not None and record.get("credential_info") == expected:
+                return
+            time.sleep(min(CREDENTIAL_READBACK_INTERVAL_SECONDS, remaining))
 
     def team(self, identity: str) -> dict:
         result = self.call("GET", "/team/info", query={"team_id": identity})

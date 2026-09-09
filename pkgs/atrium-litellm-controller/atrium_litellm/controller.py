@@ -537,13 +537,7 @@ class Controller:
                     "credential_info": row["expected"],
                 },
             )
-            require(
-                self.native.credentials()
-                .get(row["native_id"], {})
-                .get("credential_info")
-                == row["expected"],
-                "native_credential_not_applied",
-            )
+            self.native.wait_for_credential(row["native_id"], row["expected"])
         elif verb in ("create-alias", "update-alias"):
             expected = row.get("pending_expected", row["expected"])
             self.native.call(

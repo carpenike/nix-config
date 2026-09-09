@@ -230,6 +230,29 @@ not a version. Routing is read from `GET /router/settings.current_values`.
   the native human role and pairs each denial with inference success. A separate
   explicit-route controller key can manage objects but cannot infer.
 
+### Credential readback across workers
+
+Pinned 1.99.1 keeps a worker-local credential list. A successful credential POST
+can be visible immediately to its writer while another worker's
+`GET /credentials` returns HTTP 200 without that row until the default
+30-second refresh. The [isolated readback diagnostic](../../tests/atrium_n04/READBACK.md)
+observed exact convergence at 30.035 seconds without changing native polling,
+authentication or credential metadata.
+
+After its single credential POST, the controller requires exact metadata
+readback within a 35-second convergence budget (one native refresh period plus
+five seconds). It retries only GET reads, at most twice per second. Each read
+uses the smaller of the remaining budget and the existing native transport
+timeout; a response arriving after the budget cannot establish success.
+Authentication, transport and malformed-response errors still propagate rather
+than becoming a successful or empty readback.
+
+Missing or different metadata after that budget still raises
+`native_credential_not_applied`; pending ownership is not promoted and later
+infrastructure actions do not proceed. The wait neither repeats the POST nor
+accepts masked credential values as ownership evidence. Native cache settings,
+poll intervals, roles, model ceilings and alias guards are unchanged.
+
 ## Acknowledged runtime service publication
 
 `runtime_key_path` contains one atomically replaced **secret JSON** document:
