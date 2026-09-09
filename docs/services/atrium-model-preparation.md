@@ -26,6 +26,13 @@ shared the helper's incorrect assumption that a logical target was an HTTP
 endpoint. The routing delta separately checks family/personal logical bindings
 against a configured public inference endpoint; prior receipts are not edited.
 
+Routing source `9b2bd304cf5661b2c1f0e0e1d16bba03822d901a` has a
+[separate clean source receipt](../../tests/atrium_n03/results/n03-model-routing-9b2bd304.json):
+62 Nix assertions and 22 source regressions pass, including independently
+asserted public transport for both logical bindings and rejection of original
+or replacement binding mismatches before inference. All 24 prior receipts
+remain unchanged; this is not native/model execution evidence.
+
 `modelPlaneReady` is false, `models.acceptedPublisherPins` is null, the gateway,
 controller/timer, admission activation and input-copy unit are disabled, and
 the public model origin still returns 503. A Nix assertion prevents accidental
