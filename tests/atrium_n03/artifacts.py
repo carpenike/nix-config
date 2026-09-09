@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import subprocess
+from email.parser import BytesParser
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -119,9 +120,27 @@ def verified_payloads():
         resolver_files[relative] = native_files[relative] = path.read_bytes()
         fingerprints["nix/" + relative] = checksum(path.read_bytes())
     extra = ROOT / ".artifacts/n03-native-extra"
+    expected_extra = pins["native_runtime_extra"]["packages"]
+    allowed_extra = tuple(
+        prefix
+        for name, version in expected_extra.items()
+        for prefix in (name + "/", name + "-" + version + ".dist-info/")
+    )
+    for name, version in expected_extra.items():
+        metadata = extra / f"{name}-{version}.dist-info/METADATA"
+        if not metadata.is_file():
+            raise ValueError("declared_native_runtime_dependency_missing")
+        package = BytesParser().parsebytes(metadata.read_bytes())
+        if package["Name"].lower() != name or package["Version"] != version:
+            raise ValueError("native_runtime_dependency_version_mismatch")
     for path in extra.rglob("*") if extra.exists() else ():
+        if path.is_symlink():
+            raise ValueError("native_runtime_dependency_symlink")
         if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc":
-            native_files[str(path.relative_to(extra))] = path.read_bytes()
+            relative = str(path.relative_to(extra))
+            if not relative.startswith(allowed_extra) or relative in native_files:
+                raise ValueError("native_runtime_dependency_overrides_source")
+            native_files[relative] = path.read_bytes()
     fixtures = {
         str(path.relative_to(ROOT / "tests/atrium_n03")): path.read_bytes()
         for path in (ROOT / "tests/atrium_n03").iterdir()

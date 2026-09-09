@@ -92,7 +92,14 @@ def certificate(
 def material(fixture):
     result = {}
     authorities = {}
-    for name in ("front", "native", "resolver-client", "device"):
+    for name in (
+        "front",
+        "native",
+        "resolver-client",
+        "device",
+        "policy",
+        "policy-client",
+    ):
         private = key()
         cert = certificate("n03-" + name, private, ca=True)
         authorities[name] = private, cert
@@ -104,6 +111,9 @@ def material(fixture):
         ("server", "native", (fixture["names"]["native"], "127.0.0.1"), False),
         ("native-client", "resolver-client", (), True),
         ("wrong-native-client", "resolver-client", (), True),
+        ("policy-server", "policy", ("127.0.0.1",), False),
+        ("policy-client", "policy-client", (), True),
+        ("wrong-policy-client", "policy-client", (), True),
     ):
         private = key()
         signer, issuer = authorities[authority]

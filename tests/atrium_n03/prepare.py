@@ -66,6 +66,7 @@ def provision(f):
     for name, document in (
         ("resolver", f["resolver"]),
         ("registration", f["registration"]),
+        ("native-policy-template", f["nativePolicy"]),
         ("whiskey", f["whiskey"]),
         ("whiskey-model", f["whiskeyModel"]),
     ):
@@ -110,6 +111,26 @@ def provision(f):
     ]
     credentials("atrium-resolver", resolver_uid, resolver_keys, public)
     credentials("atrium-device-registration", resolver_uid, resolver_keys, public)
+    credentials(
+        "atrium-native-policy",
+        resolver_uid,
+        ["policy-server-cert", "policy-server-key", "policy-client-ca", "front-ca"],
+        public,
+    )
+    policy_configuration = json.loads(json.dumps(f["nativePolicy"]))
+    policy_leaf = x509.load_pem_x509_certificate(public["policy-client-cert"])
+    policy_fingerprint = hashlib.sha256(
+        policy_leaf.public_bytes(serialization.Encoding.DER)
+    ).hexdigest()
+    policy_configuration["native_policy"]["adapters"][0]["certificates"] = [
+        policy_fingerprint
+    ]
+    Settings.model_validate_json(json.dumps(policy_configuration))
+    write(
+        ROOT / "native-policy.json",
+        json.dumps(policy_configuration).encode(),
+        resolver_uid,
+    )
     native_uid = ids["atrium-mcp-fixture"]["uid"]
     credentials(
         "homelab-mcp",
@@ -120,6 +141,9 @@ def provision(f):
             "resolver-client-ca",
             "resolver-jwks",
             "front-ca",
+            "policy-ca",
+            "policy-client-cert",
+            "policy-client-key",
         ],
         public,
     )
@@ -251,6 +275,7 @@ def provision(f):
         "HOMELAB_MCP_ATRIUM_NATIVE": json.dumps(native_profile),
         "HOMELAB_MCP_ATRIUM_ISSUANCE": json.dumps(issuance),
         "HOMELAB_MCP_ATRIUM_DENY": json.dumps(f["native"]["deny"]),
+        "HOMELAB_MCP_ATRIUM_POLICY": json.dumps(f["native"]["policy"]),
         "HOMELAB_MCP_ATRIUM_VIEW_POLICY": "/etc/atrium/desired-state/resolver.json",
         "HOMELAB_MCP_RESTRICTED_SCOPES": json.dumps(
             {
@@ -271,7 +296,10 @@ def provision(f):
             }
         ),
         "HOMELAB_MCP_GATUS_BASE_URL": "http://127.0.0.5:19101",
-        "HOMELAB_MCP_FINANCES_REPO_URL": "",
+        "HOMELAB_MCP_FINANCES_REPO_URL": "file://"
+        + f["state"]["native"]
+        + "/synthetic-finances-origin",
+        "HOMELAB_MCP_FINANCES_REPO_PATH": f["state"]["native"] + "/synthetic-finances",
         "HOMELAB_MCP_FINANCES_REPO_TOKEN": "",
         "HOMELAB_MCP_LOG_LEVEL": "warning",
     }
@@ -306,6 +334,19 @@ def provision(f):
         "WWW_GATE_TOKEN_KEY": secrets.token_hex(32),
     }
     fixture_uid = ids["atrium-identity-fixture"]["uid"]
+    public["native-oidc-client"] = json.dumps(
+        {
+            "client_id": native_env["HOMELAB_MCP_POCKETID_CLIENT_ID"],
+            "client_secret": native_env["HOMELAB_MCP_POCKETID_CLIENT_SECRET"],
+            "redirect_uri": f["endpoints"]["native"] + "/oauth/callback",
+        }
+    ).encode()
+    credentials(
+        "atrium-n03-identity",
+        fixture_uid,
+        ["identity-key", "native-oidc-client"],
+        public,
+    )
     directory = private_directory(Path("/var/lib/atrium-n03-fixture"))
     assign(directory, fixture_uid)
     public_only = {
@@ -328,4 +369,15 @@ def provision(f):
                 "wrong-native-client-key",
             )
         },
+        "policy_client_material": {
+            name: public[name]
+            for name in (
+                "policy-client-cert",
+                "policy-client-key",
+                "wrong-policy-client-cert",
+                "wrong-policy-client-key",
+            )
+        },
+        "policy_fingerprint": policy_fingerprint,
+        "policy_ca": public["policy-ca"].decode(),
     }

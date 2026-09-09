@@ -9,6 +9,7 @@ let
   units = {
     atrium-resolver = "AtriumResolverFixture";
     atrium-device-registration = "AtriumRegistrationFixture";
+    atrium-native-policy = "AtriumNativePolicyFixture";
     homelab-mcp = "AtriumNativeFixture";
     whiskey-whiskey-whiskey = "AtriumWhiskeyFixture";
     caddy = "AtriumEntryFixture";
@@ -31,6 +32,12 @@ in
       { url = "${f.endpoints.whiskey}/api/status"; permitted_statuses = [ 200 401 403 ]; }
     ];
     authentication_and_freshness = "Separate actual permit/deny and signed-feed cases; liveness is not admission.";
+    private_native_policy = {
+      unit = "atrium-native-policy.service";
+      endpoint = f.nativePolicyEndpoint;
+      public_route = "explicit 404; never an unauthenticated health or identity assertion path";
+      verification = "Real native OAuth/current-access and mTLS refusal pairs";
+    };
   };
   backup = {
     execution = "owner-invoked coherent private snapshot; no scheduled or remote job";
@@ -46,9 +53,9 @@ in
     independent_operator_path = true;
     executed_ssh_or_host_rebuild = false;
     commands_are_references_only = [
-      "systemctl status atrium-resolver.service homelab-mcp.service whiskey-whiskey-whiskey.service"
-      "journalctl -u atrium-resolver -u homelab-mcp -u whiskey-whiskey-whiskey"
+      "systemctl status atrium-resolver.service atrium-native-policy.service homelab-mcp.service whiskey-whiskey-whiskey.service"
+      "journalctl -u atrium-resolver -u atrium-native-policy -u homelab-mcp -u whiskey-whiskey-whiskey"
     ];
-    prohibit = [ "delete-adoption-marker" "restore-older-deny-generation" "lower-clock-high-water" "share-signing-uid" "unrestricted-fallback" ];
+    prohibit = [ "delete-adoption-marker" "restore-older-deny-generation" "lower-clock-high-water" "share-resolver-uid-with-native-or-consumers" "unrestricted-fallback" ];
   };
 }

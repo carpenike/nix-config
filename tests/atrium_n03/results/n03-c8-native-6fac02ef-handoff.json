@@ -1,0 +1,721 @@
+{
+  "accepted_inputs": {
+    "atrium": {
+      "path": "/nix/store/m7rpjjpwnyqy40vfmgvp3vcjqkfgcx07-source",
+      "rev": "5f919f085ca0e77664b72d13e96ceeb0680688e4"
+    },
+    "homelab-mcp": {
+      "path": "/nix/store/6q9m525vwsw1y1yhrx8s2db1ryzfn333-source",
+      "rev": "338cbbdb990a5751d199f276c5d65b07730cd97d"
+    },
+    "whiskey-whiskey-whiskey": {
+      "path": "/nix/store/5wlk5ap0646mzws502rwkr9qf6nw1050-source",
+      "rev": "273cf414cac75276492ee849bb3ea257ce47f8de"
+    }
+  },
+  "cases": [
+    {
+      "case": "native-discovery-and-backend-socket-boundary",
+      "denial_effects_unchanged": null,
+      "denials": [
+        {
+          "backend_ports": [
+            18765,
+            18766,
+            18767,
+            13417,
+            18443
+          ]
+        }
+      ],
+      "gates": [
+        "T4"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "native-caddy-permit-missing-and-wrong-purpose",
+      "denial_effects_unchanged": true,
+      "denials": [
+        401,
+        401
+      ],
+      "gates": [
+        "T1",
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "cross-view-at-the-public-native-edge",
+      "denial_effects_unchanged": true,
+      "denials": [
+        401
+      ],
+      "gates": [
+        "T1",
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "foreign-principal-reference-cannot-mint",
+      "denial_effects_unchanged": null,
+      "denials": [
+        403
+      ],
+      "gates": [
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "public-issuance-and-forged-peer-labels",
+      "denial_effects_unchanged": null,
+      "denials": [
+        404,
+        404,
+        404
+      ],
+      "gates": [
+        "T4",
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "real-native-resolver-peer-refusal-and-recovery",
+      "denial_effects_unchanged": null,
+      "denials": [
+        503
+      ],
+      "gates": [
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "actual-public-native-oauth-c8-read-resource-and-scope-boundary",
+      "denial_effects_unchanged": true,
+      "denials": [
+        403,
+        401
+      ],
+      "gates": [
+        "T1",
+        "T7",
+        "T10",
+        "T26"
+      ],
+      "permits": [
+        200,
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "actual-native-current-policy-refresh-cannot-widen",
+      "denial_effects_unchanged": true,
+      "denials": [
+        400
+      ],
+      "gates": [
+        "T10",
+        "T18"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "private-native-policy-service-and-route-boundaries",
+      "denial_effects_unchanged": true,
+      "denials": [
+        404,
+        404,
+        404,
+        404,
+        404,
+        404,
+        0,
+        403,
+        403,
+        403,
+        403
+      ],
+      "gates": [
+        "T4",
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "actual-native-policy-client-mtls-refusal-and-recovery",
+      "denial_effects_unchanged": null,
+      "denials": [
+        400
+      ],
+      "gates": [
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "required-private-native-policy-outage-and-recovery",
+      "denial_effects_unchanged": true,
+      "denials": [
+        503
+      ],
+      "gates": [
+        "T20"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "actual-native-group-observation-bound-is-not-renewed",
+      "denial_effects_unchanged": true,
+      "denials": [
+        400
+      ],
+      "gates": [
+        "T10",
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "actual-sidecar-enrollment-and-tls-preserving-registration",
+      "denial_effects_unchanged": null,
+      "denials": [
+        "tls-peer-required",
+        404
+      ],
+      "gates": [
+        "T8",
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "real-device-proof-replay-and-native-device-denial",
+      "denial_effects_unchanged": true,
+      "denials": [
+        409,
+        403,
+        403
+      ],
+      "gates": [
+        "T15",
+        "T26"
+      ],
+      "healthy_propagation_seconds": 15.384,
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "real-companion-and-retained-native-whiskey-route",
+      "denial_effects_unchanged": null,
+      "denials": [
+        401
+      ],
+      "gates": [
+        "T1",
+        "T26"
+      ],
+      "permits": [
+        200,
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "real-r07-whiskey-known-deny-keeps-native-legacy",
+      "denial_effects_unchanged": true,
+      "denials": [
+        403
+      ],
+      "gates": [
+        "T15",
+        "T26"
+      ],
+      "healthy_propagation_seconds": 13.396,
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "actual-native-expiry-not-a-cache-or-proxy-exemption",
+      "denial_effects_unchanged": true,
+      "denials": [
+        401
+      ],
+      "gates": [
+        "T26"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "actual-r05-native-jti-r07-denial-and-recovery",
+      "denial_effects_unchanged": true,
+      "denials": [
+        403
+      ],
+      "gates": [
+        "T15",
+        "T26"
+      ],
+      "healthy_propagation_seconds": 18.545,
+      "permits": [
+        200,
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "real-feed-outage-mcp-refusal-whiskey-known-deny-and-admin-alert",
+      "denial_effects_unchanged": true,
+      "denials": [
+        503,
+        403
+      ],
+      "elapsed_outage_seconds": 310.098,
+      "gates": [
+        "T15",
+        "T20"
+      ],
+      "permits": [
+        200,
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "real-native-feed-recovery",
+      "denial_effects_unchanged": null,
+      "denials": [
+        503
+      ],
+      "gates": [
+        "T20"
+      ],
+      "permits": [
+        200
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "model-plane-explicitly-blocked",
+      "observed": [
+        503,
+        503
+      ],
+      "reason": "protected-live-publication-export-interface",
+      "status": "blocked"
+    }
+  ],
+  "full_n03_or_gate_completion": false,
+  "handoff_serialization_diagnostic": "Initial summary omitted required EvidenceWriter.run_id after successful cleanup checks and left a zero-byte reservation. A second attempt refused that existing path. Only the verified empty reservation was removed; no valid native receipt changed, and no services were rerun.",
+  "independent_cleanup": {
+    "all_three_before_after_inventories_equal": true,
+    "exact_resources": [
+      {
+        "exists_exit_code": 1,
+        "id": "15cd92402cafd9eee6222dface0a64b7dc4b16a8ebe6e8fb9b8236bf48c6588a",
+        "kind": "container",
+        "run_id": "n03-dfa8eb488d79536a",
+        "status": "absent"
+      },
+      {
+        "exists_exit_code": 1,
+        "kind": "network",
+        "name": "atrium-harness-n03-dfa8eb488d79536a-net",
+        "run_id": "n03-dfa8eb488d79536a",
+        "status": "absent"
+      },
+      {
+        "exists_exit_code": 1,
+        "id": "8bd079a3f8f37fbe87baa36cd6c0f8667e7920af6dca7788cf1cf136abd11006",
+        "kind": "container",
+        "run_id": "n03-3313fead62514075",
+        "status": "absent"
+      },
+      {
+        "exists_exit_code": 1,
+        "id": "d4aa88cecf4089ae5850750daac6679f75acc62185326da0b7e8985b8e081b58",
+        "kind": "container",
+        "run_id": "n03-3313fead62514075",
+        "status": "absent"
+      },
+      {
+        "exists_exit_code": 1,
+        "kind": "network",
+        "name": "atrium-harness-n03-3313fead62514075-net",
+        "run_id": "n03-3313fead62514075",
+        "status": "absent"
+      },
+      {
+        "exists_exit_code": 1,
+        "id": "c3a578f85b3fb00d7bee86a5239fc38fac094aec444848548996e87d5de6fc51",
+        "kind": "container",
+        "run_id": "n03-4f64ab16cc8f9cfe",
+        "status": "absent"
+      },
+      {
+        "exists_exit_code": 1,
+        "id": "01bd1a5aec039c8f1e43fc6dc9e2738e06887be8c22803408fef439482231120",
+        "kind": "container",
+        "run_id": "n03-4f64ab16cc8f9cfe",
+        "status": "absent"
+      },
+      {
+        "exists_exit_code": 1,
+        "kind": "network",
+        "name": "atrium-harness-n03-4f64ab16cc8f9cfe-net",
+        "run_id": "n03-4f64ab16cc8f9cfe",
+        "status": "absent"
+      }
+    ],
+    "foreign_inventory": [
+      "a914bf6c7045|ambit-db|running"
+    ],
+    "foreign_resources_changed": false,
+    "images_removed": false,
+    "lease": {
+      "owner_agent_id": "ab97911f-6463-4dc1-91e5-f0cc86f5c22f",
+      "owner_qualified_deleted_rows": 1,
+      "remaining_rows_at_release": 0,
+      "resource": "podman-native-fixtures",
+      "vm_calls_after_release": false
+    },
+    "status": "passed",
+    "verification": "Owner performed two post-run exact container/network exists checks and complete ps inventory comparisons while holding its lease. All absence commands returned 1 and inventory assertions passed before handoff serialization. This host-only summary records those observations without rerunning services or making VM calls after release."
+  },
+  "local_checks": [
+    "29 isolated unit assertions",
+    "actual Caddy adaptation",
+    "scoped Ruff check/format, nixpkgs-fmt, Statix, Deadnix",
+    "Python AST syntax and immutable accepted wheel/source/runtime-member verification"
+  ],
+  "native_receipt": {
+    "expected_exit_code": 2,
+    "path": "tests/atrium_n03/results/n03-c8-native-6fac02ef.json",
+    "sha256": "8390d280ad54bc5117cdc719137756b08bc7c6e0163cc0dfb64243c1a87f9872",
+    "status": "partial"
+  },
+  "native_shared_pin": "356f323dd2ea7835717da463ba6b59dad340f24d",
+  "owner_spec_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+  "paired_groups_passed": 20,
+  "process_and_private_tls": {
+    "bootstrap": {
+      "namespace": "net:[4026532494]",
+      "native_policy": {
+        "client_certificate_sha256": "9fef92a4984e499626be58a311eeaf7aa23afa501cb6140d6a22b4e2b3640b5b",
+        "endpoint": "https://127.0.0.1:18767/v1/native-policy",
+        "native_client_uid": 65434,
+        "state_shared_only_with_resolver": true,
+        "uid": 65432
+      },
+      "ready": true,
+      "services": {
+        "caddy": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65433\t65433\t65433\t65433",
+          "NoNewPrivs": "1",
+          "Uid": "65433\t65433\t65433\t65433"
+        },
+        "fixture": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65435\t65435\t65435\t65435",
+          "NoNewPrivs": "1",
+          "Uid": "65435\t65435\t65435\t65435"
+        },
+        "native": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65434\t65434\t65434\t65434",
+          "NoNewPrivs": "1",
+          "Uid": "65434\t65434\t65434\t65434"
+        },
+        "native-policy": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65432\t65432\t65432\t65432",
+          "NoNewPrivs": "1",
+          "Uid": "65432\t65432\t65432\t65432"
+        },
+        "registration": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65432\t65432\t65432\t65432",
+          "NoNewPrivs": "1",
+          "Uid": "65432\t65432\t65432\t65432"
+        },
+        "resolver": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65432\t65432\t65432\t65432",
+          "NoNewPrivs": "1",
+          "Uid": "65432\t65432\t65432\t65432"
+        },
+        "tcp-entry": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65438\t65438\t65438\t65438",
+          "NoNewPrivs": "1",
+          "Uid": "65438\t65438\t65438\t65438"
+        },
+        "whiskey": {
+          "CapAmb": "0000000000000000",
+          "CapBnd": "0000000000000000",
+          "CapEff": "0000000000000000",
+          "CapInh": "0000000000000000",
+          "CapPrm": "0000000000000000",
+          "Gid": "65431\t65431\t65431\t65431",
+          "NoNewPrivs": "1",
+          "Uid": "65431\t65431\t65431\t65431"
+        }
+      }
+    },
+    "client": {
+      "namespace": "net:[4026532839]",
+      "privileges": {
+        "CapAmb": "0000000000000000",
+        "CapBnd": "0000000000000000",
+        "CapEff": "0000000000000000",
+        "CapInh": "0000000000000000",
+        "CapPrm": "0000000000000000",
+        "NoNewPrivs": "1"
+      },
+      "ready": true,
+      "uid": 65436
+    }
+  },
+  "reported_denial_observations": 38,
+  "reported_permit_status_observations": 24,
+  "retained_failures": [
+    {
+      "path": "tests/atrium_n03/results/n03-c8-native-738f0a6e-first.json",
+      "sha256": "e7716d66cf91d7d5166ae157b0ddc0ce0eef2c817ea27efed09810733231f423",
+      "source_commit": "738f0a6e442f7acf341cfa056ea214a75957cede",
+      "status": "blocked"
+    },
+    {
+      "path": "tests/atrium_n03/results/n03-c8-native-35c8a030.json",
+      "sha256": "ea6786a0916c497aa4fb8b4698b219e0dfd73acb87f4dc0df5533e398e1338af",
+      "source_commit": "35c8a03028f064ba390fbbed0a2c0a8afb3dc013",
+      "status": "failed"
+    }
+  ],
+  "run_id": "n03-c8-handoff-6fac02ef",
+  "scope": "Isolated native C8/current-policy and R05/R07 native-JTI network integration; retained controls; model plane deliberately disabled",
+  "source_ci": {
+    "headRefOid": "6fac02ef3f93005556a58cfd66fe32c3ec2da38a",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:06:49Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285222274",
+        "name": "changes",
+        "startedAt": "2026-09-09T00:06:43Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:07:31Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584223/job/102285221998",
+        "name": "Lint",
+        "startedAt": "2026-09-09T00:06:44Z",
+        "status": "COMPLETED",
+        "workflowName": "Lint"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:08:18Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249447",
+        "name": "flake-check",
+        "startedAt": "2026-09-09T00:06:51Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:15:27Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249404",
+        "name": "atrium-admission-checks",
+        "startedAt": "2026-09-09T00:06:51Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:07:28Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249398",
+        "name": "atrium-foundation-checks",
+        "startedAt": "2026-09-09T00:06:51Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:08:31Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249542",
+        "name": "nix-build (rydev, ubuntu-24.04-arm)",
+        "startedAt": "2026-09-09T00:06:53Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:09:17Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249511",
+        "name": "nix-build (nixos-bootstrap, ubuntu-latest)",
+        "startedAt": "2026-09-09T00:07:27Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:08:30Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249525",
+        "name": "nix-build (nixpi, ubuntu-24.04-arm)",
+        "startedAt": "2026-09-09T00:06:53Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:09:53Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249533",
+        "name": "nix-build (nas-0, ubuntu-latest)",
+        "startedAt": "2026-09-09T00:06:51Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:09:51Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249553",
+        "name": "nix-build (nas-1, ubuntu-latest)",
+        "startedAt": "2026-09-09T00:06:51Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:12:11Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249463",
+        "name": "nix-build-heavy (forge)",
+        "startedAt": "2026-09-09T00:06:53Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:09:12Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102285249462",
+        "name": "nix-build-heavy (luna)",
+        "startedAt": "2026-09-09T00:06:51Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-09-09T00:15:32Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/carpenike/nix-config/actions/runs/34293584225/job/102287201639",
+        "name": "Nix Build Successful",
+        "startedAt": "2026-09-09T00:15:30Z",
+        "status": "COMPLETED",
+        "workflowName": "Build Nix systems"
+      }
+    ]
+  },
+  "source_clean_at_start": true,
+  "source_commit": "6fac02ef3f93005556a58cfd66fe32c3ec2da38a",
+  "source_unchanged_during_run": true,
+  "ticket": "ATR-N03",
+  "unexecuted_or_excluded": [
+    "model publication/inference integration in this split N03 lane",
+    "full public C8/T28 migration and administrator matrix",
+    "final-SDK transport-crossing-expiry regression here (accepted adapter proof retained upstream)",
+    "all native streaming/browser-origin/local-network-permission modes",
+    "N06 full feature proof in this N03 lane",
+    "backup execution, production activation or phase promotion"
+  ]
+}
