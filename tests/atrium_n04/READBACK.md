@@ -59,3 +59,40 @@ missing other-worker row, no observed true metadata mismatch, and eventual
 exact convergence. A mismatch/refusal or failure to converge is retained as a
 different outcome, never relabeled as applied. This does not authorize a retry
 policy change or establish complete N03/N07 gates.
+
+## Confirmed native failure mode
+
+Clean diagnostic source: `2c594588a97bfc9dca6ead27620a6e794de8a22e`.
+The [complete receipt](results/readback-2c594588.json) confirms worker-local
+read-after-write lag on the pinned native package with the scoped N03
+management identity, local cache and default 30-second polling.
+
+| Topology | Initial observation after the single credential POST | Convergence |
+|---|---|---|
+| One worker, PID 1 | Exact metadata match at 18 ms | Immediate |
+| Two workers, writer PID 223 | Exact metadata match at 33 ms | Immediate on writer |
+| Same two-worker run, reader PID 224 | HTTP 200 but credential row absent at 31 ms; actual equality guard rejects | Exact metadata match at 30,035 ms |
+
+Both credential POSTs returned success. No present-but-different metadata was
+observed, and no inference was requested. Metadata values and raw credentials
+were not exported. This confirms a failure mechanism that produces the N04
+guard's error; the original N03 failure receipt did not record a worker or row
+presence and cannot retrospectively prove which worker handled that request.
+
+The earlier [bootstrap identity failure](results/readback-11152856-first.json)
+and [two-worker config failure](results/readback-04bc9faf.json) remain unchanged.
+The first stopped before credential creation because `Native.key` correctly
+refused self-inspection. The second retained a successful one-worker result
+but no two-worker readback result. Neither is counted as the confirming run.
+
+The [independent cleanup receipt](results/readback-cleanup-2c594588.json)
+verifies all ten exact containers and five invocation networks from the three
+attempts absent. Container, network, volume and image inventories match every
+before/after baseline and the final independent read; `ambit-db` is unchanged.
+The parent-owned fixture lease was released only after these checks.
+
+The next implementation decision is a bounded, read-only convergence check
+after successful creation/update, preserving exact metadata equality and
+fail-closed exhaustion. It must not repeat the mutating POST, accept missing
+or different metadata as success, change native cache/poll behavior, or weaken
+authentication. This diagnostic itself changes no controller runtime.
