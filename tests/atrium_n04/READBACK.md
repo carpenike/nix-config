@@ -201,3 +201,18 @@ idle connection had expired before the subsequent team check. The fixture's
 PID guard refused that reconnected request; no two-worker controller pass is
 claimed. The readiness keepalive above corrects only this test-transport
 lifecycle, not production routing or native credential/cache behavior.
+
+The [corrected full-caller receipt](results/readback-controller-bfd8ffc4.json)
+at `bfd8ffc4b8f15c2e1ae7d942ed2d968ddb5bac17` passed both paired topologies.
+The one-worker caller completed and published in 142 ms after creation.
+The two-worker caller observed the exact writer, then a missing reader, and
+completed both publications after 45.417 seconds. Native deletion before the
+mandatory check caused refusal without publication after 65.002 and 65.008
+seconds. Each case sent one credential POST; no inference was called.
+
+The [caller handoff](results/readback-controller-handoff.json) separates this
+boundary from complete N04/N03/N07 acceptance. The
+[independent all-attempt cleanup](results/readback-controller-cleanup-bfd8ffc4.json)
+confirms eight exact containers, four networks and seven private runtime
+directories absent, with every before/after and final inventory equal.
+The first attempt is preserved, not relabeled or transferred to the new source.

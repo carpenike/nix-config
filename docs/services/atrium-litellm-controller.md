@@ -277,6 +277,15 @@ metadata still failed at the 65-second budget. No additional credential POST or
 inference was used. This is the readback-client boundary, not full N03 startup
 or model-operation proof.
 
+The later [full-caller proof](../../tests/atrium_n04/results/readback-controller-handoff.json)
+executes `Controller.run`, including the mandatory post-create infrastructure
+check and real publications. An exact writer response followed by a missing
+reader converged in 45.417 seconds on two workers. Deleting only the newly
+created native fixture credential before that final check caused refusal at
+the original budget with no publications on both topologies. Other native
+control operations stay on the writer in this test transport; this does not
+establish full N03 startup or every management-cache path.
+
 ## Acknowledged runtime service publication
 
 `runtime_key_path` contains one atomically replaced **secret JSON** document:
