@@ -6,12 +6,14 @@ proof, native fixture, production activation or completed T-case is claimed.
 The accepted [C8/JTI handoff](../../tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json)
 and all older receipts remain historical and unchanged.
 
-Preparation source `7c89709e438beaba6fd485075138c50c7b2daa50` has a
-[clean source-only receipt](../../tests/atrium_n03/results/n03-model-preparation-7c89709e.json):
-60 Nix assertions, two Caddy adaptations and six configuration tests pass.
+Initial source `7c89709e438beaba6fd485075138c50c7b2daa50` has a
+[historical source-only receipt](../../tests/atrium_n03/results/n03-model-preparation-7c89709e.json):
+60 Nix assertions, two Caddy adaptations and six configuration tests passed.
 The receipt retains both explicit producer-field compatibility blockers and
 all seven unexecuted native groups; it verifies all 22 baseline receipts
-unchanged. It is not a native model or cross-UID execution receipt.
+unchanged. Review subsequently found settings-owner and same-key-recovery gaps
+not covered by those checks. That receipt is preserved, not promoted as evidence
+of the corrected loader/recovery paths or native/cross-UID behavior.
 
 `modelPlaneReady` is false, `models.acceptedPublisherPins` is null, the gateway,
 controller/timer, admission activation and input-copy unit are disabled, and
@@ -34,7 +36,8 @@ authorization; this preparation does not reserve or query a fixture lease.
   pairs requiring actual R03/R06 delivery, an intended-account provider observer,
   the existing external client and real R07 administration.
 * [`model_probe.py`](../../tests/atrium_n03/model_probe.py): a later gateway-UID
-  reader/custody probe using actual N05/R06 protected readers. It distinguishes
+  settings/reader/custody probe using the actual N05 CLI loader and protected
+  readers, plus a resolver-UID `NativeKeyClient.info` observation. It distinguishes
   permission refusal from an unmounted path and requires an owner-side existence
   counterpart; missing setup cannot masquerade as a permission proof.
 
@@ -70,11 +73,20 @@ group `65431`) and `0640` files. Acknowledgements use Whiskey-owned
 `/run/atrium-n03/acknowledgements/whiskey` (`0750`, group `65431`), not the
 publication group. Metadata membership reveals no service or management key.
 
-N05's current policy/settings and public CA are copied from non-secret N02/configuration
-outputs into regular root-owned runtime files, group `65439`, mode `0640`, under
-a `0750` input directory. This is **static configuration delivery**, not a relay
-of live producer snapshots. The real reader rejects Nix-store paths, symlinks and
-world-readable files; type validation alone does not prove this boundary.
+N05's current policy and public CA remain root-owned `0640` runtime files, group
+`65439`, under the `0750` input directory. Its **settings** are different:
+`atrium-n03-admission-settings` runs as the gateway UID and copies the static
+configuration to `/var/lib/atrium-model-gateway/config/admission.json`, mode
+`0600`, in its own `0700` directory. It needs no ownership-changing capability.
+The gateway depends on both static-copy units.
+
+This is **static configuration delivery**, not a relay or re-ownership of live
+R06/N04 publications. The accepted `atrium_admission.cli.load_settings` requires
+a runtime settings file to be owned by its actual caller, using R06's real
+protected reader. Root-owned `0640` readability is not sufficient. The gateway
+probe loads `ATRIUM_ADMISSION_SETTINGS` through that same entrypoint instead of
+reconstructing `Settings` from fixture JSON; it does not use the Nix-store
+shortcut. Policy keeps its separately configured root publisher UID.
 
 ## Actual service/configuration path
 
@@ -112,7 +124,7 @@ provider inputs, service tokens and acknowledgements are not mounted. Native
 stdout/stderr and container logging are suppressed; N05's actual private durable
 alerts/history remain authoritative operational evidence.
 
-`ATRIUM_ADMISSION_SETTINGS` points to regular runtime settings. N05 reads R06's
+`ATRIUM_ADMISSION_SETTINGS` points to the gateway-owned runtime settings. N05 reads R06's
 rich `admission-associations.json` and N04's service snapshot as independent,
 complete producers with exact publisher UIDs. It uses the actual R07
 issuer/feed/JWKS, 20-second polling and a five-second fetch bound. Per-service
@@ -123,6 +135,27 @@ Neither an environment value nor `LoadCredential` snapshots its rotating token.
 The isolated template reuses N04/N06's bounded timings: 600-second lifetime,
 two-second rotation and five-second acknowledged overlap. These are fixture
 settings, not new production policy or evidence that rotation ran.
+
+## Healthy revocation is not same-key recovery
+
+The healthy helper now obtains both original and replacement model credentials
+through actual `/v1/manifests` and `/v1/credentials/redeem` requests for the same
+owner. It never mints with the deny administrator, returns a fixture/control
+key, fabricates associations, or pauses maintenance.
+
+Before the deny it requires a matching private `NativeKeyClient.info` presence
+observation and enough native/delivered lifetime to rule out ordinary expiry.
+After real R07 administration, it waits for observed native absence and requires
+native-auth **401** with unchanged provider effects. An unrelated observation,
+unexplained 403/503, or lack of healthy deletion cannot pass that lane. Removing
+the feed deny is followed by a **fresh** manifest and one-use R06 delivery;
+the original key must remain absent and refused even after recovery.
+
+This records native retirement, **not live N05-hook coverage**. Same-key recovery
+is appropriate only in a separate fallback lane with explicitly observed,
+bounded native-revocation failure and actual hook evidence. Neither healthy
+deletion nor an early native rejection establishes that fallback. No fallback
+fault or native revocation is executed in this source-only correction.
 
 ## Exact blockers before native execution
 
@@ -165,9 +198,15 @@ nix build --builders '' --no-write-lock-file --no-link \
   .#checks.aarch64-darwin.atrium-n03-model-python
 ```
 
-CI uses corresponding `x86_64-linux` checks. These evaluate the preserved native
-invariants, candidate wiring and Caddy syntax, and run six configuration tests
-using the existing Python environment. Two tests assert unsupported producer
-fields; their success is not producer compatibility. No selected test initializes
-credentials/state, starts a native fixture, queries a lease, or executes a
-gateway probe/HTTP helper past its disabled gate.
+CI uses corresponding `x86_64-linux` checks. The focused correction runs the
+existing native-unit, model-preparation and model-Python checks; Caddy source is
+unchanged. Runtime-loader regressions use real files owned by the current test
+caller. A counterfactual file-owner metadata case exercises the real comparison;
+it is not a UID switch or completed distinct-UID proof. Helper ordering/refusal
+tests use explicitly scripted transport responses, not native authentication.
+
+The source tests do not start adapters, initialize admission state, obtain model
+credentials, switch identities or query a lease. Two tests still assert the
+known unsupported producer fields; their success is not compatibility. All
+seven actual topology groups remain unexecuted pending the accepted pins,
+source review and separately authorized native assembly.

@@ -4,6 +4,7 @@ import hashlib
 import json
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -13,6 +14,14 @@ class Client(Protocol):
 
 
 Counts = Callable[[], Mapping[str, Any]]
+NativeObservation = Callable[[str], Mapping[str, Any]]
+
+
+@dataclass(frozen=True)
+class ModelDelivery:
+    token: str = field(repr=False)
+    target: str
+    expires_at: int
 
 
 def require_native_assignment(fixture: dict[str, Any]) -> None:
@@ -27,11 +36,13 @@ def require_native_assignment(fixture: dict[str, Any]) -> None:
         raise RuntimeError("model_preparation_has_no_native_authorization")
 
 
-def inference(client: Client, endpoint: str, key: str, model: str) -> dict[str, Any]:
+def inference(
+    client: Client, endpoint: str, key: str, model: str, *, target: str | None = None
+) -> dict[str, Any]:
     return client.call(
         "request",
         method="POST",
-        url=endpoint + "/v1/chat/completions",
+        url=target or endpoint + "/v1/chat/completions",
         headers={"Authorization": "Bearer " + key},
         body={
             "model": model,
@@ -102,18 +113,94 @@ def public_pairs(
     }
 
 
+def model_delivery(
+    fixture: dict[str, Any],
+    client: Client,
+    owner_identity: str,
+    instance_id: str,
+) -> ModelDelivery:
+    """Use the public R03 references and real R06 one-use delivery, never a control key."""
+    require_native_assignment(fixture)
+    instance = fixture["generated"]["resolver"]["instances"][instance_id]
+    assert instance["adapter"] == "litellm", "model_instance_required"
+    headers = {"Authorization": "Bearer " + owner_identity}
+    manifest = client.call(
+        "request",
+        method="POST",
+        url=fixture["endpoints"]["resolver"] + "/v1/manifests",
+        headers=headers,
+        body={"domain": instance["domain"], "include_models": True},
+    )
+    assert manifest["status"] == 200, "real_model_manifest_required"
+    selected = [
+        entry
+        for entry in json.loads(manifest["body"])["manifest"]["instances"]
+        if entry["display_name"] == instance["display_name"]
+    ]
+    assert len(selected) == 1, "unique_model_reference_required"
+    entry = selected[0]
+    assert entry["credential_state"] == "prepared", "real_r06_preparation_required"
+    response = client.call(
+        "request",
+        method="POST",
+        url=fixture["endpoints"]["resolver"] + "/v1/credentials/redeem",
+        headers=headers,
+        body={
+            "domain": instance["domain"],
+            "instance_ref": entry["instance_ref"],
+            "auth_ref": entry["auth_ref"],
+        },
+    )
+    assert response["status"] == 200, "real_r06_delivery_required"
+    delivered = json.loads(response["body"])
+    credential = delivered["credential"]
+    assert credential["profile"] == "litellm-key", "native_model_profile_required"
+    assert delivered["target"] == instance["target"], "model_delivery_target_mismatch"
+    assert isinstance(credential["token"], str) and credential["token"]
+    assert type(credential["expires_at"]) is int
+    return ModelDelivery(
+        credential["token"], delivered["target"], credential["expires_at"]
+    )
+
+
 def known_deny_pair(
     fixture: dict[str, Any],
     client: Client,
-    key: str,
+    owner_identity: str,
+    instance_id: str,
     model: str,
     administrator: str,
     observe: Counts,
+    native_observe: NativeObservation,
 ) -> dict[str, Any]:
     require_native_assignment(fixture)
     endpoint = fixture["endpoints"]["models"]
-    assert inference(client, endpoint, key, model)["status"] == 200
-    identifier = "sha256:" + hashlib.sha256(key.encode()).hexdigest()
+    original = model_delivery(fixture, client, owner_identity, instance_id)
+    digest = hashlib.sha256(original.token.encode()).hexdigest()
+    identifier = "sha256:" + digest
+
+    def native_state() -> Mapping[str, Any]:
+        state = native_observe(digest)
+        assert (
+            state["kind"] == "native-key-info"
+            and state["issuer"] == endpoint
+            and state["native_key_id"] == digest
+            and state["observer_uid"] == fixture["models"]["roles"]["resolver"]["uid"]
+            and type(state["present"]) is bool
+        ), "matching_private_native_observation_required"
+        return state
+
+    initial = native_state()
+    assert initial["present"], "native_key_presence_required_before_deny"
+    native_expiry = initial["expires_at"]
+    assert native_expiry > time.time() + 65, "retirement_probe_must_not_be_expiry"
+    assert original.expires_at > time.time() + 65, "fresh_delivery_required"
+    assert (
+        inference(client, endpoint, original.token, model, target=original.target)[
+            "status"
+        ]
+        == 200
+    )
 
     def publish(method: str) -> None:
         response = client.call(
@@ -125,29 +212,49 @@ def known_deny_pair(
         )
         assert response["status"] == 200, "real_model_deny_administration_required"
 
-    def wait(expected: int) -> float:
+    def wait_for_retirement() -> float:
         started = time.monotonic()
         while time.monotonic() - started < 60:
-            response = inference(client, endpoint, key, model)
-            if response["status"] == expected:
+            if not native_state()["present"]:
                 return round(time.monotonic() - started, 3)
             time.sleep(1)
-        raise AssertionError("model_deny_or_recovery_deadline_missed")
+        raise AssertionError("healthy_native_retirement_not_observed")
+
+    def retired_key_refusal() -> None:
+        assert not native_state()["present"], "retired_native_key_reappeared"
+        assert time.time() < min(native_expiry, original.expires_at), (
+            "expired_key_is_not_retirement_evidence"
+        )
+        before = observe()
+        response = inference(
+            client, endpoint, original.token, model, target=original.target
+        )
+        assert response["status"] == 401, "native_auth_refusal_not_observed"
+        assert observe() == before, "retired_native_key_reached_provider"
 
     publish("POST")
     try:
-        propagation = wait(403)
-        before = observe()
-        assert inference(client, endpoint, key, model)["status"] == 403
-        assert observe() == before, "known_denied_model_reached_provider"
+        retirement = wait_for_retirement()
+        retired_key_refusal()
     finally:
         publish("DELETE")
-    wait(200)
+    fresh = model_delivery(fixture, client, owner_identity, instance_id)
+    assert fresh.token != original.token, "fresh_recovery_credential_required"
+    assert fresh.target == original.target, "recovery_target_changed"
+    assert (
+        inference(client, endpoint, fresh.token, model, target=fresh.target)["status"]
+        == 200
+    ), "fresh_r03_r06_recovery_permit_required"
+    retired_key_refusal()
     return {
-        "case": "real-model-key-r07-known-deny-and-recovery",
+        "case": "real-model-key-r07-native-retirement-and-fresh-recovery",
         "status": "passed",
         "permits": [200, 200],
-        "denials": [403],
+        "denials": [401, 401],
         "denial_effects_unchanged": True,
-        "healthy_propagation_seconds": propagation,
+        "denial_layer": "native-authentication-after-observed-native-retirement",
+        "live_n05_hook_coverage": False,
+        "recovery": "fresh-r03-r06-delivery",
+        "original_key_still_denied": True,
+        "healthy_native_retirement_seconds": retirement,
     }

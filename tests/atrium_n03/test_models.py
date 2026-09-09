@@ -1,11 +1,15 @@
 """Source-only configuration checks; these do not create state or call native APIs."""
 
 import ast
+import copy
+import hashlib
 import importlib
 import json
 import os
+import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -57,23 +61,65 @@ def test_default_gate_precedes_any_native_action(prepared):
     with pytest.raises(RuntimeError, match="no_native_authorization"):
         cases.public_pairs(prepared, None, "", "", "", None, "", "")
     with pytest.raises(RuntimeError, match="no_native_authorization"):
-        cases.known_deny_pair(prepared, None, "", "", "", None)
+        cases.known_deny_pair(prepared, None, "", "", "", "", None, None)
     probe = importlib.import_module("model_probe")
     with pytest.raises(RuntimeError, match="no_native_authorization"):
         probe.gateway_probe(prepared)
+    with pytest.raises(RuntimeError, match="no_native_authorization"):
+        probe.native_key_probe(prepared, "")
 
 
-def test_actual_admission_settings_accept_live_export_references(prepared):
-    settings_type = importlib.import_module("atrium_admission.models").Settings
-    settings = settings_type.model_validate_json(
-        json.dumps(prepared["models"]["admission"])
-    )
+@pytest.fixture
+def runtime_settings(prepared, tmp_path):
+    directory = tmp_path / "gateway-config"
+    directory.mkdir(mode=0o700)
+    path = directory / "admission.json"
+    path.write_text(json.dumps(prepared["models"]["admission"]))
+    path.chmod(0o600)
+    assert not path.resolve().is_relative_to("/nix/store")
+    assert path.stat().st_uid == os.geteuid()
+    return path
+
+
+def test_actual_admission_runtime_loader_accepts_current_caller(runtime_settings):
+    load_settings = importlib.import_module("atrium_admission.cli").load_settings
+    settings = load_settings(runtime_settings)
     assert {producer.publisher_uid for producer in settings.producers} == {65430, 65432}
     assert len(settings.producers) == 2
     assert all(
         "atrium-n03-publications" in str(producer.path)
         for producer in settings.producers
     )
+
+
+@pytest.mark.parametrize("fault", ["other-owner-metadata", "world-readable", "symlink"])
+def test_actual_runtime_loader_refuses_unsafe_settings(
+    runtime_settings, monkeypatch, fault
+):
+    cli = importlib.import_module("atrium_admission.cli")
+    error_type = importlib.import_module("atrium_resolver.state").StateError
+    path = runtime_settings
+    if fault == "other-owner-metadata":
+        # Counterfactual metadata tests the real comparison, not a kernel UID switch.
+        real_fstat = os.fstat
+        identity = runtime_settings.stat()
+
+        def other_owner(descriptor):
+            actual = real_fstat(descriptor)
+            if (actual.st_dev, actual.st_ino) != (identity.st_dev, identity.st_ino):
+                return actual
+            fields = list(actual)
+            fields[stat.ST_UID] = os.geteuid() + 1
+            return os.stat_result(fields)
+
+        monkeypatch.setattr(os, "fstat", other_owner)
+    elif fault == "world-readable":
+        path.chmod(0o644)
+    else:
+        path = runtime_settings.with_name("linked-settings.json")
+        path.symlink_to(runtime_settings)
+    with pytest.raises(error_type):
+        cli.load_settings(path)
 
 
 def test_current_r06_fields_are_an_explicit_pin_blocker(prepared):
@@ -126,3 +172,194 @@ def test_case_catalog_is_unexecuted_and_reuses_existing_helpers():
         assert row["status"] == "unexecuted"
         assert row["permit"] and row["deny"]
         assert all((ROOT / helper).is_file() for helper in row["helpers"])
+
+
+class ScriptedRecoveryTransport:
+    """Request-order test data only; no native authentication or network is exercised."""
+
+    def __init__(self, fixture, *, retired_status=401, reuse_original=False):
+        self.fixture = fixture
+        self.retired_status = retired_status
+        self.reuse_original = reuse_original
+        self.fetches = 0
+        self.denied = False
+        self.retired = False
+        self.effects = 0
+        self.events = []
+        self.expiry = int(time.time()) + 600
+        self.original = "unit-original-response-value"
+        self.fresh = "unit-fresh-response-value"
+        self.instance = fixture["generated"]["resolver"]["instances"]["family-models"]
+
+    def call(self, action, **fields):
+        assert action == "request"
+        method, url = fields["method"], fields["url"]
+        bearer = fields["headers"]["Authorization"]
+        if url.endswith("/v1/manifests"):
+            assert bearer == "Bearer unit-owner-identity"
+            self.fetches += 1
+            self.events.append("manifest")
+            assert fields["body"] == {
+                "domain": self.instance["domain"],
+                "include_models": True,
+            }
+            body = {
+                "manifest": {
+                    "instances": [
+                        {
+                            "display_name": self.instance["display_name"],
+                            "credential_state": "prepared",
+                            "instance_ref": f"unit-instance-{self.fetches}",
+                            "auth_ref": f"unit-auth-{self.fetches}",
+                        }
+                    ]
+                }
+            }
+        elif url.endswith("/v1/credentials/redeem"):
+            assert bearer == "Bearer unit-owner-identity"
+            assert fields["body"]["auth_ref"] == f"unit-auth-{self.fetches}"
+            assert fields["body"]["instance_ref"] == f"unit-instance-{self.fetches}"
+            self.events.append("redeem")
+            body = {
+                "target": self.instance["target"],
+                "credential": {
+                    "profile": "litellm-key",
+                    "token": self.original
+                    if self.fetches == 1 or self.reuse_original
+                    else self.fresh,
+                    "expires_at": self.expiry,
+                },
+            }
+        elif url.endswith("/v1/denies"):
+            assert bearer == "Bearer unit-deny-administrator"
+            assert fields["body"]["identifier"] == (
+                "sha256:" + hashlib.sha256(self.original.encode()).hexdigest()
+            )
+            self.denied = method == "POST"
+            if self.denied:
+                self.retired = True
+            self.events.append("deny-added" if self.denied else "deny-removed")
+            body = {}
+        else:
+            assert url == self.instance["target"]
+            original = bearer == "Bearer " + self.original
+            assert original or bearer == "Bearer " + self.fresh
+            if original and self.retired:
+                self.events.append("old-refusal")
+                return {"status": self.retired_status, "body": "{}"}
+            self.effects += 1
+            self.events.append("old-permit" if original else "fresh-permit")
+            body = {"choices": [{"message": {"content": "unit-response"}}]}
+        return {"status": 200, "body": json.dumps(body)}
+
+    def observation(self, digest):
+        assert digest == hashlib.sha256(self.original.encode()).hexdigest()
+        return {
+            "kind": "native-key-info",
+            "issuer": self.fixture["endpoints"]["models"],
+            "native_key_id": digest,
+            "observer_uid": self.fixture["models"]["roles"]["resolver"]["uid"],
+            "present": not self.retired,
+            "expires_at": self.expiry if not self.retired else None,
+        }
+
+
+@pytest.fixture
+def recovery_control_flow(prepared):
+    # In-memory preconditions for scripted transport, not activation or accepted pins.
+    fixture = copy.deepcopy(prepared)
+    fixture["modelPlaneReady"] = True
+    fixture["models"]["acceptedPublisherPins"] = {"source_test_only": True}
+    return fixture
+
+
+def run_scripted_recovery(fixture, transport, observation=None):
+    cases = importlib.import_module("model_cases")
+    return cases.known_deny_pair(
+        fixture,
+        transport,
+        "unit-owner-identity",
+        "family-models",
+        "unit-model",
+        "unit-deny-administrator",
+        lambda: {"effects": transport.effects},
+        observation or transport.observation,
+    )
+
+
+def test_healthy_recovery_fetches_fresh_reference_and_retains_old_refusal(
+    recovery_control_flow,
+):
+    transport = ScriptedRecoveryTransport(recovery_control_flow)
+    result = run_scripted_recovery(recovery_control_flow, transport)
+    assert transport.events == [
+        "manifest",
+        "redeem",
+        "old-permit",
+        "deny-added",
+        "old-refusal",
+        "deny-removed",
+        "manifest",
+        "redeem",
+        "fresh-permit",
+        "old-refusal",
+    ]
+    assert transport.effects == 2
+    assert result["denials"] == [401, 401]
+    assert result["recovery"] == "fresh-r03-r06-delivery"
+    assert result["original_key_still_denied"]
+    assert result["live_n05_hook_coverage"] is False
+
+
+@pytest.mark.parametrize("status", [200, 403, 503])
+def test_retirement_does_not_broaden_or_attribute_other_statuses(
+    recovery_control_flow, status
+):
+    transport = ScriptedRecoveryTransport(recovery_control_flow, retired_status=status)
+    with pytest.raises(AssertionError, match="native_auth_refusal_not_observed"):
+        run_scripted_recovery(recovery_control_flow, transport)
+    assert transport.fetches == 1
+    assert transport.events[-1] == "deny-removed"
+
+
+def test_recovery_refuses_a_reused_original_credential(recovery_control_flow):
+    transport = ScriptedRecoveryTransport(recovery_control_flow, reuse_original=True)
+    with pytest.raises(AssertionError, match="fresh_recovery_credential_required"):
+        run_scripted_recovery(recovery_control_flow, transport)
+    assert "fresh-permit" not in transport.events
+
+
+def test_unrelated_native_observation_cannot_classify_denial(recovery_control_flow):
+    transport = ScriptedRecoveryTransport(recovery_control_flow)
+
+    def wrong_observation(digest):
+        return {**transport.observation(digest), "native_key_id": "unrelated"}
+
+    with pytest.raises(AssertionError, match="matching_private_native_observation"):
+        run_scripted_recovery(recovery_control_flow, transport, wrong_observation)
+    assert "deny-added" not in transport.events
+
+
+def test_expiry_cannot_substitute_for_healthy_retirement(recovery_control_flow):
+    transport = ScriptedRecoveryTransport(recovery_control_flow)
+    transport.expiry = int(time.time()) + 1
+    with pytest.raises(AssertionError, match="retirement_probe_must_not_be_expiry"):
+        run_scripted_recovery(recovery_control_flow, transport)
+    assert "deny-added" not in transport.events
+
+
+def test_failed_native_readback_does_not_become_same_key_recovery(
+    recovery_control_flow,
+):
+    transport = ScriptedRecoveryTransport(recovery_control_flow)
+
+    def failed_readback(digest):
+        if transport.denied:
+            raise RuntimeError("source-test-native-readback-unavailable")
+        return transport.observation(digest)
+
+    with pytest.raises(RuntimeError, match="native-readback-unavailable"):
+        run_scripted_recovery(recovery_control_flow, transport, failed_readback)
+    assert transport.fetches == 1
+    assert transport.events[-1] == "deny-removed"
+    assert "fresh-permit" not in transport.events

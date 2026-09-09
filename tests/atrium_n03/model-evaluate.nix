@@ -19,6 +19,7 @@ let
       && !c.services.atriumLitellmAdmission.enable
       && !c.systemd.services.podman-atrium-n03-models.enable
       && !c.systemd.services.atrium-n03-model-inputs.enable
+      && !c.systemd.services.atrium-n03-admission-settings.enable
       && !c.systemd.timers.atrium-reconciler.enable && !gateway.autoStart;
     unchanged-resolver-default = f.resolver.litellm == null
       && !lib.hasInfix "model-resolver" (lib.concatStringsSep " " c.services.atrium.runtime.resolver.arguments);
@@ -105,7 +106,20 @@ let
       && lib.hasInfix "${f.runtime}-input/front-ca ${f.runtime}/model-inputs/front-ca"
       c.systemd.services.atrium-n03-model-inputs.script
       && gateway.environment.NIX_SSL_CERT_FILE == "${f.runtime}/model-inputs/front-ca"
+      && c.systemd.services.atrium-n03-model-inputs.serviceConfig.User == "root"
+      && !(lib.hasInfix m.admissionSettingsPath c.systemd.services.atrium-n03-model-inputs.script)
       && c.systemd.services.atrium-n03-model-inputs.serviceConfig.SupplementaryGroups == [ m.metadataGroup.name ];
+    settings-owned-by-actual-loader-caller = m.admissionSettingsFileMode == "0600"
+      && m.admissionSettingsPath == "${m.private.gateway}/config/admission.json"
+      && gateway.environment.ATRIUM_ADMISSION_SETTINGS == m.admissionSettingsPath
+      && c.services.atriumLitellmAdmission.settingsFile == m.admissionSettingsPath
+      && c.systemd.services.atrium-n03-admission-settings.serviceConfig.User == m.roles.gateway.name
+      && c.systemd.services.atrium-n03-admission-settings.serviceConfig.Group == m.roles.gateway.name
+      && c.systemd.services.atrium-n03-admission-settings.serviceConfig.CapabilityBoundingSet == [ "" ]
+      && lib.elem "d ${m.private.gateway}/config 0700 ${m.roles.gateway.name} ${m.roles.gateway.name} -" c.systemd.tmpfiles.rules
+      && lib.hasInfix "install -m 0600" c.systemd.services.atrium-n03-admission-settings.script
+      && lib.hasInfix m.admissionSettingsPath c.systemd.services.atrium-n03-admission-settings.script
+      && lib.elem "atrium-n03-admission-settings.service" c.systemd.services.podman-atrium-n03-models.requires;
     real-w03-live-delivery = m.delivery.key_path == f.whiskeyModel.key_path
       && m.delivery.acknowledgement_path == f.whiskeyModel.acknowledgement_path
       && m.delivery.key_owner_uid == f.whiskeyModel.key_owner_uid

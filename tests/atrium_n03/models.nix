@@ -26,7 +26,7 @@ let
     gateway = "/var/lib/atrium-model-gateway";
   };
   policyPath = "${runtime}/model-inputs/policy.json";
-  admissionSettingsPath = "${runtime}/model-inputs/admission.json";
+  admissionSettingsPath = "${private.gateway}/config/admission.json";
   acknowledgementPath = "${runtime}/acknowledgements/whiskey/key.json";
   providers = {
     "personal:ryan" = "http://personal.models.atrium.invalid:8000/v1";
@@ -38,6 +38,7 @@ in
   acceptedPublisherPins = null;
   publicationFileMode = "0640";
   inputFileMode = "0640";
+  admissionSettingsFileMode = "0600";
   activation = "disabled; accepted publisher pins, source review and native authorization required";
   backend = "http://127.0.0.1:${toString port}";
   issuer = endpoints.models;
@@ -178,7 +179,7 @@ in
     "Provision only synthetic N07 database/providers and private runtime controls; validate the pinned image and complete immutable payloads before resource startup"
     "Explicitly initialize R01/signing and subordinate grants, then start real R06 as the resolver UID to publish its complete empty/current exports"
     "Explicitly initialize the real N04 Ledger and publish_service_associations under the controller UID; never fabricate an empty ownership document"
-    "Copy only current non-secret N02 policy and admission settings to regular root-owned runtime files; initialize N05 history explicitly under the gateway UID"
+    "Copy static policy/CA as root and static admission settings as the gateway UID; load the actual runtime settings before explicit N05 history initialization"
     "Start the pinned native gateway with actual post-auth bootstrap plus callback; readiness requires native authenticated HTTP, not process liveness"
     "Run actual N04 reconcile under the controller UID, then obtain client keys through real R03/R06 and exercise W03's live key/ack/overlap lifecycle"
   ];

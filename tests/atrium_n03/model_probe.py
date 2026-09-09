@@ -6,11 +6,39 @@ import os
 from pathlib import Path
 
 
+def native_key_probe(fixture: dict, digest: str) -> dict:
+    """Read native existence through the real R06 control client; never revoke here."""
+    from model_cases import require_native_assignment
+
+    require_native_assignment(fixture)
+    from atrium_resolver.litellm_native import NativeKeyClient, native_expiry
+
+    models = fixture["models"]
+    if os.geteuid() != models["roles"]["resolver"]["uid"] or os.geteuid() == 0:
+        raise RuntimeError("actual_resolver_probe_uid_required")
+    configuration = models["resolver"]
+    client = NativeKeyClient(
+        configuration["endpoint"], Path(configuration["controller_key_file"])
+    )
+    try:
+        record = client.info(digest)
+    finally:
+        client.close()
+    return {
+        "kind": "native-key-info",
+        "issuer": configuration["endpoint"],
+        "native_key_id": digest,
+        "observer_uid": os.geteuid(),
+        "present": record is not None,
+        "expires_at": None if record is None else native_expiry(record["expires"]),
+    }
+
+
 def gateway_probe(fixture: dict) -> dict:
     from model_cases import require_native_assignment
 
     require_native_assignment(fixture)
-    from atrium_admission.models import Settings
+    from atrium_admission.cli import load_settings
     from atrium_admission.producers import read_producer
     from atrium_admission.state import protected_document
     from atrium_resolver.policy_schema import PolicyDocument
@@ -32,7 +60,10 @@ def gateway_probe(fixture: dict) -> dict:
         "gid"
     ] in {*os.getgroups(), os.getegid()}:
         raise RuntimeError("gateway_publication_groups_not_separate")
-    settings = Settings.model_validate_json(json.dumps(models["admission"]))
+    settings_path = Path(os.environ["ATRIUM_ADMISSION_SETTINGS"])
+    if settings_path != Path(models["admissionSettingsPath"]):
+        raise RuntimeError("gateway_settings_runtime_path_mismatch")
+    settings = load_settings(settings_path)
     policy = PolicyDocument.model_validate_json(
         json.dumps(
             protected_document(settings.policy_path, settings.policy_publisher_uid)
@@ -90,6 +121,8 @@ def gateway_probe(fixture: dict) -> dict:
     return {
         "uid": os.geteuid(),
         "pid": os.getpid(),
+        "settings_loader": "atrium_admission.cli.load_settings",
+        "settings_path": str(settings_path),
         "snapshots": snapshots,
         "reader_writes_refused": True,
         "private_custody": custody,

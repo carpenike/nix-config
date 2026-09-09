@@ -17,12 +17,14 @@
       "helpers": ["tests/atrium_n03/model_cases.py", "tests/atrium_n03/client.py"]
     },
     {
-      "case": "real-model-key-r07-known-deny-and-recovery",
+      "case": "real-model-key-r07-native-retirement-and-fresh-recovery",
       "status": "unexecuted",
       "gates": ["T15", "T26"],
-      "permit": "A genuinely R06-issued key permits before a real issuer-qualified R07 deny and after its removal.",
-      "deny": "Native authentication and N05 reject the known key before cached output or provider effects; no association/hash rewrite.",
-      "helpers": ["tests/atrium_n03/model_cases.py", "tests/atrium_n05/post_auth_cases.py"]
+      "permit": "Original and replacement credentials are separately obtained through real R03/R06 references for the same owner. After clearing the R07 credential deny, only a fresh delivery supplies recovery.",
+      "deny": "The actual private NativeKeyClient.info probe must observe healthy native retirement before a native-auth 401 is counted. The old key remains absent/refused after feed removal and fresh recovery; no association rewrite, maintenance pause or resurrection.",
+      "denial_layer": "native-authentication-after-observed-native-retirement",
+      "live_n05_hook_coverage": false,
+      "helpers": ["tests/atrium_n03/model_cases.py", "tests/atrium_n03/model_probe.py"]
     },
     {
       "case": "missing-live-ownership-producer-refusal",
@@ -62,6 +64,7 @@
       "gates": ["T15", "T20", "T24"],
       "permit": "The actual R07 feed permits current eligible model use; only verified human admin eligibility may use the documented freshness exception with a durable alert.",
       "deny": "Known denies, missing ownership, expiry, service identities and native roles do not gain a freshness-based authorization bypass.",
+      "fallback_requirement": "Same-key recovery/live N05-hook coverage requires a separate explicitly observed bounded native-revocation-failure fixture. Healthy deletion and an unexplained 401/403 are not hook coverage.",
       "helpers": ["tests/atrium_n05/post_auth_cases.py", "pkgs/atrium-litellm-admission/atrium_admission/engine.py"]
     }
   ],

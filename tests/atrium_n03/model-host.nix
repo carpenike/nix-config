@@ -88,6 +88,7 @@ in
     "d ${m.private.resolver} 0700 ${m.roles.resolver.name} ${m.roles.resolver.name} -"
     "d ${m.private.controller} 0700 ${m.roles.controller.name} ${m.roles.controller.name} -"
     "d ${m.private.gateway} 0700 ${m.roles.gateway.name} ${m.roles.gateway.name} -"
+    "d ${m.private.gateway}/config 0700 ${m.roles.gateway.name} ${m.roles.gateway.name} -"
     "d ${m.private.gateway}/scratch 0700 ${m.roles.gateway.name} ${m.roles.gateway.name} -"
     "d ${m.admission.runtime_directory} 0700 ${m.roles.gateway.name} ${m.roles.gateway.name} -"
     "d ${f.runtime}/delivery 2750 ${m.roles.controller.name} ${m.deliveryGroup.name} -"
@@ -107,11 +108,10 @@ in
   systemd.services = {
     atrium-n03-model-inputs = {
       enable = f.modelPlaneReady;
-      description = "Install only generated non-secret model configuration as regular runtime files";
+      description = "Install only root-owned static model policy and public CA";
       script = ''
         set -eu
         ${pkgs.coreutils}/bin/install -m ${m.inputFileMode} -g ${m.metadataGroup.name} ${policy} ${m.policyPath}
-        ${pkgs.coreutils}/bin/install -m ${m.inputFileMode} -g ${m.metadataGroup.name} ${admissionConfig} ${m.admissionSettingsPath}
         ${pkgs.coreutils}/bin/install -m ${m.inputFileMode} -g ${m.metadataGroup.name} ${f.runtime}-input/front-ca ${f.runtime}/model-inputs/front-ca
       '';
       serviceConfig = {
@@ -119,6 +119,24 @@ in
         RemainAfterExit = true;
         User = "root";
         SupplementaryGroups = [ m.metadataGroup.name ];
+        NoNewPrivileges = true;
+        CapabilityBoundingSet = [ "" ];
+        AmbientCapabilities = [ "" ];
+      };
+    };
+    atrium-n03-admission-settings = {
+      enable = f.modelPlaneReady;
+      description = "Deliver static admission settings as their actual gateway reader";
+      script = ''
+        set -eu
+        ${pkgs.coreutils}/bin/install -m ${m.admissionSettingsFileMode} ${admissionConfig} ${m.admissionSettingsPath}
+      '';
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        User = m.roles.gateway.name;
+        Group = m.roles.gateway.name;
+        UMask = "0077";
         NoNewPrivileges = true;
         CapabilityBoundingSet = [ "" ];
         AmbientCapabilities = [ "" ];
@@ -154,8 +172,8 @@ in
     };
     podman-atrium-n03-models = {
       enable = f.modelPlaneReady;
-      requires = [ "atrium-n03-network.service" "atrium-n03-model-inputs.service" ];
-      after = [ "atrium-n03-network.service" "atrium-n03-model-inputs.service" ];
+      requires = [ "atrium-n03-network.service" "atrium-n03-model-inputs.service" "atrium-n03-admission-settings.service" ];
+      after = [ "atrium-n03-network.service" "atrium-n03-model-inputs.service" "atrium-n03-admission-settings.service" ];
       unitConfig.ConditionPathExists = "${m.admission.runtime_directory}/initialized";
       serviceConfig = {
         StandardOutput = "null";
