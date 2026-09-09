@@ -230,6 +230,63 @@ not a version. Routing is read from `GET /router/settings.current_values`.
   the native human role and pairs each denial with inference success. A separate
   explicit-route controller key can manage objects but cannot infer.
 
+### Credential readback across workers
+
+Pinned 1.99.1 keeps a worker-local credential list. A successful credential POST
+can be visible immediately to its writer while another worker's
+`GET /credentials` returns HTTP 200 without that row until its refresh.
+The [isolated readback diagnostic](../../tests/atrium_n04/READBACK.md)
+observed exact convergence at 30.035 seconds without changing native polling,
+authentication or credential metadata.
+
+The nominal interval is 30 seconds, but the pinned scheduler phase-shifts the
+first refresh by less than one additional period. A recorded worker still had
+42.299 seconds until its first refresh; the interval alone is not a maximum
+initial wait.
+
+After its first successful credential POST, the controller starts one 65-second
+convergence budget (two default native refresh periods plus five seconds).
+All credentials created in that reconciliation share its original absolute
+deadline, including their initial readbacks and the mandatory post-create
+infrastructure check. The latter consumes one freshly read snapshot in which
+every new credential matches exactly; it neither combines different workers'
+partial observations nor performs an unbounded extra read after verification.
+It retries only GET reads, at most twice per second.
+Each read uses the smaller of the remaining budget and the existing native transport
+timeout; a response arriving after the budget cannot establish success.
+Authentication, transport and malformed-response errors still propagate rather
+than becoming a successful or empty readback.
+
+Missing or different metadata after that budget still raises
+`native_credential_not_applied`. Each pending credential becomes owned only
+after its initial exact readback; a failed final check prevents publication and
+existing-key mutations without erasing already verified ownership. Only
+credentials actually created in this run qualify for convergence retries.
+During that final check, preexisting owned credentials must be present and exact
+in every observed snapshot or fail immediately, even while a new credential is
+still missing.
+The wait neither repeats the POST nor accepts masked credential values as
+ownership evidence. Native cache settings,
+poll intervals, roles, model ceilings and alias guards are unchanged.
+Successful readback is not a claim of synchronous cache invalidation on every
+worker; request-path admission and the full multi-worker gate remain separate.
+
+The [corrected native readback proof](../../tests/atrium_n04/results/readback-convergence-handoff.json)
+executes the real client method on a worker-affine HTTP connection. The initially
+missing two-worker readback converged in 31.116 seconds, and deliberately wrong
+metadata still failed at the 65-second budget. No additional credential POST or
+inference was used. This is the readback-client boundary, not full N03 startup
+or model-operation proof.
+
+The later [full-caller proof](../../tests/atrium_n04/results/readback-controller-handoff.json)
+executes `Controller.run`, including the mandatory post-create infrastructure
+check and real publications. An exact writer response followed by a missing
+reader converged in 45.417 seconds on two workers. Deleting only the newly
+created native fixture credential before that final check caused refusal at
+the original budget with no publications on both topologies. Other native
+control operations stay on the writer in this test transport; this does not
+establish full N03 startup or every management-cache path.
+
 ## Acknowledged runtime service publication
 
 `runtime_key_path` contains one atomically replaced **secret JSON** document:

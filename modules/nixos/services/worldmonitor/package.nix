@@ -25,7 +25,7 @@
 buildNpmPackage rec {
   pname = "worldmonitor";
   # renovate: depName=koala73/worldmonitor datasource=github-releases
-  version = "2.5.23";
+  version = "2.10.0";
 
   src = fetchFromGitHub {
     owner = "koala73";

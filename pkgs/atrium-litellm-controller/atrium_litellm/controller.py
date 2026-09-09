@@ -242,10 +242,35 @@ class Controller:
             "unsupported_alias_routing",
         )
 
-    def _infrastructure_plan(self, state: dict) -> list[dict]:
+    def _infrastructure_plan(
+        self, state: dict, *, created_credentials: dict[str, float] | None = None
+    ) -> list[dict]:
         actions = []
         observed_models = self.native.models()
-        observed_credentials = self.native.credentials()
+        if created_credentials:
+            referenced = {
+                self.desired.document["model_backends"][backend]["credential"]
+                for alias in self.desired.aliases.values()
+                for backend in alias["backends"]
+            }
+            observed_credentials = self.native.wait_for_credentials(
+                {
+                    state["credentials"][logical]["native_id"]: self._credential_info(
+                        logical
+                    )
+                    for logical in created_credentials
+                },
+                deadline=min(created_credentials.values()),
+                owned={
+                    state["credentials"][logical]["native_id"]: self._credential_info(
+                        logical
+                    )
+                    for logical in referenced - created_credentials.keys()
+                    if state["credentials"][logical]["status"] == "owned"
+                },
+            )
+        else:
+            observed_credentials = self.native.credentials()
         for alias_id, alias in self.desired.aliases.items():
             for backend_id in alias["backends"]:
                 backend = self.desired.document["model_backends"][backend_id]
@@ -511,7 +536,10 @@ class Controller:
             )
         return actions
 
-    def _apply_infrastructure(self, action: dict) -> None:
+    def _apply_infrastructure(
+        self, action: dict, *, credential_deadline: float | None = None
+    ) -> float | None:
+        readback_deadline = None
         verb, logical, row = (
             action["action"],
             action["logical"],
@@ -522,6 +550,10 @@ class Controller:
         self.ledger.state[table][logical] = row
         self.ledger.save()
         if verb == "create-credential":
+            require(
+                credential_deadline is None or time.monotonic() < credential_deadline,
+                "native_credential_not_applied",
+            )
             declaration = self.desired.document["service_credentials"][logical]
             secret = self.credential_reader(logical, declaration)
             require(
@@ -537,12 +569,8 @@ class Controller:
                     "credential_info": row["expected"],
                 },
             )
-            require(
-                self.native.credentials()
-                .get(row["native_id"], {})
-                .get("credential_info")
-                == row["expected"],
-                "native_credential_not_applied",
+            readback_deadline = self.native.wait_for_credential(
+                row["native_id"], row["expected"], deadline=credential_deadline
             )
         elif verb in ("create-alias", "update-alias"):
             expected = row.get("pending_expected", row["expected"])
@@ -593,6 +621,7 @@ class Controller:
         row["status"] = "owned"
         self.ledger.state[table][logical] = row
         self.ledger.save()
+        return readback_deadline
 
     def _apply_key(self, action: dict, now: int) -> None:
         verb, key = action["action"], action["logical"]
@@ -652,10 +681,19 @@ class Controller:
                 report["service_rotation"] = "not-executed"
                 return report
             self.ledger.remember(snapshot)
+            created_credentials = {}
             for action in infrastructure:
-                self._apply_infrastructure(action)
+                deadline = self._apply_infrastructure(
+                    action,
+                    credential_deadline=min(created_credentials.values(), default=None),
+                )
+                if deadline is not None:
+                    created_credentials[action["logical"]] = deadline
             # Re-read all bindings after creation and before touching any existing key.
-            self._infrastructure_plan(copy.deepcopy(self.ledger.state))
+            self._infrastructure_plan(
+                copy.deepcopy(self.ledger.state),
+                created_credentials=created_credentials,
+            )
             for action in keys:
                 self._apply_key(action, now)
             self.publish_bindings(now)

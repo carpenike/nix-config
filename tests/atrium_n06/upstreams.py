@@ -9,12 +9,12 @@ import ssl
 import struct
 import subprocess
 import sys
-import threading
 import tarfile
+import threading
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import jwt
@@ -90,6 +90,36 @@ def main():
         key,
         algorithm="RS256",
     )
+    (root / "required_features.py").write_text(inputs["feature_source"])
+    (root / "push_wire.mjs").write_text(inputs["push_wire"])
+    for name, contents in inputs["wire_library"].items():
+        path = root / "node_modules/http_ece" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents)
+    sys.path.insert(0, str(root))
+    from required_features import RequiredFeatures
+
+    def decrypt_push(body, private_key, auth):
+        result = subprocess.run(
+            ["/usr/bin/node", str(root / "push_wire.mjs")],
+            input=json.dumps(
+                {
+                    "body": base64.b64encode(body).decode(),
+                    "private_key": base64.b64encode(private_key).decode(),
+                    "auth": base64.b64encode(auth).decode(),
+                }
+            ),
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        parsed = json.loads(result.stdout)
+        if result.returncode or not parsed.get("ok"):
+            raise ValueError("fixture_push_decryption_failed")
+        return parsed["body"]
+
+    features = RequiredFeatures(inputs["credentials"], key, token, png, decrypt_push)
     lock = threading.Lock()
     events = []
 
@@ -111,6 +141,12 @@ def main():
         def do_POST(self):
             self.handle_request()
 
+        def do_PATCH(self):
+            self.handle_request()
+
+        def do_DELETE(self):
+            self.handle_request()
+
         def handle_request(self):
             path = urlsplit(self.path).path
             host = self.headers.get("Host", "").split(":")[0]
@@ -129,6 +165,8 @@ def main():
                         (root / "certificate.pem").read_bytes(),
                         "application/x-pem-file",
                     )
+                elif path == "/bootstrap":
+                    self.reply(200, features.private_bootstrap())
                 else:
                     self.reply(404, {})
                 return
@@ -138,6 +176,27 @@ def main():
                 return
             body = self.rfile.read(length) if length else b""
             credentials = inputs["credentials"]
+            feature = features.handle(host, self.command, self.path, self.headers, body)
+            if feature is not None:
+                with lock:
+                    events.append(
+                        {
+                            "host": host,
+                            "path": path,
+                            "method": self.command,
+                            "authorized": not feature["observed"].get(
+                                "credential_refused", False
+                            )
+                            and not feature["observed"].get(
+                                "credential_or_payload_refused", False
+                            ),
+                            "status": feature["status"],
+                            "effect": feature["effect"],
+                            **feature["observed"],
+                        }
+                    )
+                self.reply(feature["status"], feature["body"], feature["content_type"])
+                return
             expected = {
                 "api.openai.com": ("Authorization", "Bearer " + credentials["openai"]),
                 "generativelanguage.googleapis.com": (
@@ -155,7 +214,19 @@ def main():
                 self.headers.get(expected[0], ""), expected[1]
             )
             if host == "securetoken.googleapis.com":
-                authorized = credentials["partiful-refresh"].encode() in body
+                fields = parse_qs(body.decode())
+                authorized = (
+                    self.command == "POST"
+                    and path == "/v1/token"
+                    and parse_qs(urlsplit(self.path).query).get("key")
+                    == [credentials["partiful-api"]]
+                    and self.headers.get("Referer") == "https://partiful.com/"
+                    and fields
+                    == {
+                        "grant_type": ["refresh_token"],
+                        "refresh_token": [credentials["partiful-refresh"]],
+                    }
+                )
             with lock:
                 events.append(
                     {

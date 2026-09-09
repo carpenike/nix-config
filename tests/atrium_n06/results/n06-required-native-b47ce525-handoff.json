@@ -1,0 +1,187 @@
+{
+  "ticket": "ATR-N06",
+  "scope": "C7 required-feature preservation through the existing native helper and isolated UID/address/TCP-port boundary",
+  "recorded_at": "2026-09-08T22:42:14.002420+00:00",
+  "status": "bounded-native-passed",
+  "full_n06_t16_n03_n07": "not claimed",
+  "source": {
+    "base": "f8cfa5c7aa173755dd7a81e9b8367ad389e508a8",
+    "preparation": "ee4cda039bdb043452ebb1fd99e03da2541807d6",
+    "initial_native": "80cffd3f6838ce7acf28ab5ff85a98103d2f8df4",
+    "corrected_native": "b47ce5258da163189350a8891e0ba3ba117c2b57",
+    "corrected_start_clean": true,
+    "corrected_source_unchanged_during_run": true,
+    "accepted_boundary_files_unchanged": [
+      "tests/atrium_n06/egress.py",
+      "tests/atrium_n06/module.nix",
+      "tests/atrium_n06/fixture.nix",
+      "tests/atrium_n06/evaluate.nix"
+    ],
+    "consumer_source": {
+      "name": "Whiskey",
+      "revision": "273cf414cac75276492ee849bb3ea257ce47f8de",
+      "archive_fingerprint": {
+        "algorithm": "sha256",
+        "digest": "86c19abf73fb825bbbb1cd032272fa4af97ea9dddacb413aab0f4cbc932785a5"
+      },
+      "verified_archive_members": 9383,
+      "verified_compiled_members": 134,
+      "modified": false
+    },
+    "atrium_flake_input": "1d620cd30f27f2b5849533fb2a9bdb5016385f69",
+    "nixpkgs": "3497aa5c9457a9d88d71fa93a4a8368816fbeeba",
+    "shared_harness": "5eb22c6e5e0e9308f9b177471775ac71d8ae5ed8",
+    "owner_spec_fingerprint": {
+      "algorithm": "sha256",
+      "digest": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e"
+    }
+  },
+  "evidence": [
+    {
+      "path": "tests/atrium_n06/results/n06-required-native-80cffd3f.json",
+      "status": "partial",
+      "passing_groups": 23,
+      "total_groups": 24,
+      "fingerprint": {
+        "algorithm": "sha256",
+        "digest": "817465c2f2ba39d8be5aa1a45559b31f98666e2056ef2f989b70ebd03353aca9"
+      },
+      "diagnostic": "T16-required-push: SQLITE_CONSTRAINT_FOREIGNKEY before any destination; synthetic fixture owner omitted",
+      "preserved_unchanged": true
+    },
+    {
+      "path": "tests/atrium_n06/results/n06-required-native-b47ce525.json",
+      "status": "passed",
+      "passing_groups": 24,
+      "total_groups": 24,
+      "fingerprint": {
+        "algorithm": "sha256",
+        "digest": "7bd97cb0f786414559ef82167927d95e3c523897a03e04a37e3f2235818d537d"
+      }
+    }
+  ],
+  "repair": {
+    "path": "tests/atrium_n06/feature_consumer.mjs",
+    "description": "Provision only the missing synthetic crew owner with existing getUserBySub/upsertUserOnLogin before native subscription insertion",
+    "schema_auth_transport_or_policy_override": false,
+    "login_or_new_user_authority_proof": false
+  },
+  "native_results": {
+    "retained_control_groups": 15,
+    "required_feature_groups": 9,
+    "required_feature_permits": 9,
+    "required_feature_explicit_denials": 18,
+    "required_feature_recoveries": 9,
+    "prohibited_effects_on_explicit_denials": 0,
+    "feature_cases": [
+      "T16-required-calendar-sync",
+      "T16-required-firestore-guests",
+      "T16-required-firestore-schedule",
+      "T16-required-partiful-upload",
+      "T16-required-external-issuer",
+      "T16-required-pocketid-admin",
+      "T16-required-recipe",
+      "T16-required-mail",
+      "T16-required-push"
+    ],
+    "same_consumer_pid": 8,
+    "same_consumer_uid": 11001,
+    "all_five_capability_sets_zero": true,
+    "no_new_privileges": true,
+    "direct_anthropic_rejected_packets": 1,
+    "direct_native_backend_rejected_packets": 1,
+    "consumer_filter_removal_refused": true,
+    "push_vapid_verified": true,
+    "push_encrypted_payload_verified": true,
+    "push_foreign_owner_delete_refused": true,
+    "push_bad_auth_status": 400,
+    "push_recovery_status": 201,
+    "actual_mail_push_or_upload_delivery": false,
+    "denial_accounting": "Per-case prohibited effects are zero; allowed validation reads and native calendar error-log persistence are recorded, not represented as absent"
+  },
+  "environment": {
+    "host_os": "Darwin",
+    "host_architecture": "arm64",
+    "engine_connection": "podman-machine-default",
+    "engine_transport": "existing local shared VM",
+    "podman_server_version": "5.7.1",
+    "consumer_node": "v26.8.1",
+    "litellm_requested": "ghcr.io/berriai/litellm@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c",
+    "litellm_verified_package_version": "1.99.1",
+    "litellm_python_version": "3.13.15",
+    "litellm_architecture": "arm64",
+    "postgres": "16.15",
+    "network": "invocation-owned internal bridge and UID-scoped namespace",
+    "granularity": "IPv4 destination address plus TCP port, not hostname or image-only enforcement",
+    "credential_storage": "execution-only private container runtime storage, never source/store/evidence",
+    "production_access": false
+  },
+  "commands": [
+    {
+      "command": ".artifacts/n06-python/bin/python tests/atrium_n06/native_runner.py --harness /Users/ryan/src/atrium --whiskey /Users/ryan/src/whiskey-atrium-w03 --spec /Users/ryan/src/atrium/docs/atrium-spec-v1.0.md --evidence tests/atrium_n06/results/n06-required-native-80cffd3f.json",
+      "source": "80cffd3f6838ce7acf28ab5ff85a98103d2f8df4",
+      "exit_code": 2,
+      "result": "23 of 24 groups passed; push pre-wire fixture foreign-key failure retained"
+    },
+    {
+      "command": "node --check tests/atrium_n06/feature_consumer.mjs",
+      "exit_code": 0
+    },
+    {
+      "command": ".artifacts/n06-python/bin/python -m pytest -q -p no:cacheprovider tests/atrium_n06/test_egress.py tests/atrium_n06/test_source_artifact.py tests/atrium_n06/test_required_features.py --assert=plain --tb=short --basetemp=.artifacts/pytest-state/n06-required",
+      "exit_code": 0,
+      "result": "20 passed; host checks are not native gate evidence"
+    },
+    {
+      "command": ".artifacts/n06-python/bin/python tests/atrium_n06/native_runner.py --harness /Users/ryan/src/atrium --whiskey /Users/ryan/src/whiskey-atrium-w03 --spec /Users/ryan/src/atrium/docs/atrium-spec-v1.0.md --evidence tests/atrium_n06/results/n06-required-native-b47ce525.json",
+      "source": "b47ce5258da163189350a8891e0ba3ba117c2b57",
+      "exit_code": 0,
+      "result": "24 native groups and 16 isolated Nix assertions passed; exact internal commands recorded in native receipt"
+    }
+  ],
+  "cleanup": {
+    "both_runs_exact_ids_rechecked": true,
+    "exact_containers_absent": 14,
+    "exact_networks_absent": [
+      "atrium-harness-n06-c7592145cad9b2a5-net",
+      "atrium-harness-n06-843e650d2e0eb995-net"
+    ],
+    "container_identifiers": [
+      "181d651c3f06160f3f7f68e74c07328c7e7ab6e66337ecbeaebaba86a16cbf02",
+      "9ee694addc01b492e6ad1e4dc14db37a5733e6ed15584b896e8a3eb602d4f347",
+      "c40d60e13d54a4cc107b7597dde18dcaf552e86d11e06cac65b4718975ef032f",
+      "0ef202f65156f89ab9f97d438df5bbb6306eadf823b2df9660a8c207c6c37354",
+      "ae716dc2cfb052d0af2919110ad3ba6a2656a8448188500e4a702139b4e40f7c",
+      "ca7102e98a5c3ffd21fb936999f0435c3eea377ac5dfa4d7a359e52e1a7ef3b5",
+      "9410d67115cea528eb58a611e550bad294bb58fcb1c014b48f040090b7b7f91b",
+      "345fbd7e87b763b8e02842838d9cfe5d260abd9fe0c67529c18fbaed6fe662dc",
+      "54c2555ed180a5a44ec258465d49c6ddb5610139a9b1738db1d0f140a5cd0df2",
+      "fbdcf82b2755a0e5da8d34e6353442e1b9d27033cc73d55c6182a2f5c9b9d476",
+      "bed4b37586140d1dbda33e1b8696547a51814b3ec687d151162d298d018119f8",
+      "0019145bb6e67e7f20f06acad67b75e789f98f4dd008f95a45d7af92a62877dc",
+      "209276d1aecf428f542298911f4dc3847bece1b707f3cac51bc4f94ef25bfbf5",
+      "97fae42d8c25c86186dfd5251a666b70f17084bf414265077d816b9f3723bb69"
+    ],
+    "foreign_before_after_equal": true,
+    "foreign_live_recheck_equal": true,
+    "preexisting_ambit_identifier": "a914bf6c7045a1a4523f6e7d19ac468b5fd6d4e8d434394d7c658e2eb654d8f2",
+    "preexisting_ambit_state": "running unchanged",
+    "images_or_shared_vm_removed": false,
+    "release": {
+      "resource": "podman-native-fixtures",
+      "owner_agent_id": "32a7f4a3-2734-4a01-816e-ca24a0e3bb28",
+      "owner_qualified_rows_deleted": 1,
+      "lease_rows_after_release": 0,
+      "subsequent_vm_use": false
+    }
+  },
+  "remaining_scope": [
+    "Selected helper/wire proof only; not full browser login, invitation or push-permission workflows",
+    "N03 ingress/network assembly and full T16/N03/N07 promotion remain separate",
+    "No N05 admission-hook, output-cache or multi-worker claim from this cohort",
+    "Production dynamic-origin/account/endpoint selection is a later adoption decision, not a blocker to this bounded proof",
+    "No new UI, production Entra prerequisite, contract amendment, source-adapter patch or production activation"
+  ],
+  "required_followup": "Owner post-execution review and scoped CI before any acceptance/merge decision; no new native tranche assigned",
+  "pull_request": "https://github.com/carpenike/nix-config/pull/1053"
+}
