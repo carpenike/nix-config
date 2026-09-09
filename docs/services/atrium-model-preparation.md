@@ -1,10 +1,36 @@
 # ATR-N03 — accepted-pin model source candidate
 
 This is a **disabled, unimported isolated host definition**, stacked on foundation
-`60faba29f84bc4a0c1a226828c7a0217a3760bb7`. No new model permit, kernel/UID
-proof, native fixture, production activation or completed T-case is claimed.
+`60faba29f84bc4a0c1a226828c7a0217a3760bb7`. The integrated native tranche is
+**blocked**, not a production activation or completed T-case.
 The accepted [C8/JTI handoff](../../tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json)
 and all older receipts remain historical and unchanged.
+
+The [integrated blocked handoff](../../tests/atrium_n03/results/ATR-N03-N07-model-native-blocked-handoff.json)
+preserves all five authorized clean-source attempts. Product source `44af5af` /
+N03 `82cf7862` passed20 retained pairs plus two model pairs, with unchanged denied
+provider effects. The remaining five model groups did not complete; those passes
+are not transferred to later source revisions.
+
+Latest product runtime `18032c1` / N03 `82cf7862` reached real two-worker native
+readiness but the accepted N04 CLI returned `native_credential_not_applied`.
+Its exact credential metadata read-back comparison remains intact. The cause is
+unproven and requires parent/N04/native-owner disposition; native retries stopped.
+No accepted adapter, publisher pin, worker count or permission was changed.
+
+All21 exact container IDs and five invocation network names are independently
+absent; `ambit-db` is unchanged and the owner-qualified lease is released.
+Whole-cohort foreign **container** equality is recorded. Network/volume/image
+equality covers final independent verification only because their pre-cohort
+inventories were not recorded by the existing runner. No stronger claim is made.
+Further native work requires a new explicit authorization.
+
+Final clean prepare-only passed with unchanged runtime bytes and actual
+materialized import/CA checks. The source checks passed72 product tests,26 N03
+tests and65 Nix assertions. Both PRs remain drafts; model activation stays
+disabled by default and no full27-group, N03/N07 or phase1 gate is claimed.
+
+## Preparation history
 
 The [accepted-input runnable-source handoff](../../tests/atrium_n03/results/ATR-N03-N07-models-runnable-handoff.json)
 binds N03 source `7da1f9f1006bbef1e828f1045bd168215b1044d6` and product driver
@@ -25,8 +51,8 @@ records the clean preparation at N03 source
 `90059146e50bde7515ad3b9ddffbf1d8379b7fc3` and product source
 `87b36a4bba093306f552e299b39f42a9953b2b93`. It lists exact changed fixture/runtime
 hashes and actual imported module origins; accepted adapter package bytes and all
-prior receipts are unchanged. Native services and the27-group run remain
-unexecuted pending a new explicit authorization.
+prior receipts are unchanged. At that checkpoint, native services and the27-group
+run were unexecuted pending a new explicit authorization.
 
 The later authorized integrated run stopped before paired cases: first at the
 product supervisor's missing default CA bundle, then at native gateway startup.
