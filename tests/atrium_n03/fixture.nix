@@ -167,7 +167,7 @@ in
     inherit lib ids runtime state registry generated endpoints publishers;
   };
   versions = {
-    atrium = "7e63e81ff8118c8a34799e20e51a8783d31a5a3e";
+    atrium = "7e8355d99efd4e94cf3dade1533e647a77ee7402";
     native = "338cbbdb990a5751d199f276c5d65b07730cd97d";
     consumer = "273cf414cac75276492ee849bb3ea257ce47f8de";
     litellm = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";

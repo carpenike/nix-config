@@ -28,7 +28,9 @@ let
       && !c.systemd.services.atrium-n03-admission-settings.enable
       && !c.systemd.timers.atrium-reconciler.enable && !gateway.autoStart;
     accepted-publisher-inputs = m.acceptedPublisherPins.atrium == inputs.atrium.rev
-      && m.acceptedPublisherPins.controller == "ca0c0de92c2a70eae412706ccf3f68f3bcdc9b0b";
+      && m.acceptedPublisherPins.controller == "4e5994afe48d6dbe13a0bd21fbf30bf9ff42b6ab"
+      && m.acceptedPublisherPins.controllerRuntime == "e96bb72a530e3593414b0ae863b230eb087ac9e1"
+      && m.acceptedPublisherPins.producerCaseCount == 161;
     explicit-opt-in-enables-real-model-actors = activeFixture.modelPlaneReady
       && activeFixture.resolver.litellm == m.resolver
       && enabled.services.atrium.runtime.reconciler.enable

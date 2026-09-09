@@ -131,7 +131,7 @@
 
     # ATR-N03: accepted foundation packages for isolated wiring; no live service is enabled.
     atrium = {
-      url = "github:carpenike/atrium/7e63e81ff8118c8a34799e20e51a8783d31a5a3e";
+      url = "github:carpenike/atrium/7e8355d99efd4e94cf3dade1533e647a77ee7402";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

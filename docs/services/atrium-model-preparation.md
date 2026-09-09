@@ -1,10 +1,43 @@
 # ATR-N03 — accepted-pin model source candidate
 
 This is a **disabled, unimported isolated host definition**, stacked on foundation
-`60faba29f84bc4a0c1a226828c7a0217a3760bb7`. The integrated native tranche is
-**blocked**, not a production activation or completed T-case.
+`60faba29f84bc4a0c1a226828c7a0217a3760bb7`. Accepted readback inputs are integrated
+for **source preparation only**, not production activation or a completed T-case.
 The accepted [C8/JTI handoff](../../tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json)
 and all older receipts remain historical and unchanged.
+
+## Accepted readback integration — no native authorization
+
+Normal merges retain accepted controller/evidence main
+`4e5994afe48d6dbe13a0bd21fbf30bf9ff42b6ab` and product main
+`7e8355d99efd4e94cf3dade1533e647a77ee7402`. Only the Atrium flake input and its
+fixture/pin assertions advance. MCP338cbbdb and Whiskey273cf414 remain pinned.
+Accepted N04/N06 files arrive through the normal merge and are not manually
+modified by this integration.
+
+`publishers.nix` now binds the exact161-case/six-file catalog, readback UID
+anchor and compatible model proof, their immutable handoff/cleanup records,
+and the model receipt's exact committed UID reference. Complete producer
+source maps and every permit/deny receipt check remain mandatory. The
+one-worker combined-producer model anchor is not promoted into split N03,
+live N05, W03 rotation or full-gate proof.
+
+The product driver preloads the real committed N06 `source_artifact` support
+before importing its existing host `Process`; preparation and an isolated
+materialized regression check that actual dependency chain without starting
+any process. Existing supervisor/actor package-origin, CA, static-settings
+ownership, logical-target/transport and fresh-key recovery corrections remain.
+
+The accepted N04 fix shares one65-second readback deadline across all new
+credentials and final verification. Existing90-second CLI/host-response and
+100-second actor-response limits are unchanged and checked by source preflight.
+Whole-bootstrap timing remains part of the later authorized native run, not
+a claim derived from those component budgets.
+
+This tranche performs no native, Podman or lease operations. The old22/27
+result and every prior failure remain tied to their original source revisions.
+
+## Previous integrated native result — historical
 
 The [integrated blocked handoff](../../tests/atrium_n03/results/ATR-N03-N07-model-native-blocked-handoff.json)
 preserves all five authorized clean-source attempts. Product source `44af5af` /
@@ -12,11 +45,12 @@ N03 `82cf7862` passed20 retained pairs plus two model pairs, with unchanged deni
 provider effects. The remaining five model groups did not complete; those passes
 are not transferred to later source revisions.
 
-Latest product runtime `18032c1` / N03 `82cf7862` reached real two-worker native
+The previous product runtime `18032c1` / N03 `82cf7862` reached real two-worker native
 readiness but the accepted N04 CLI returned `native_credential_not_applied`.
-Its exact credential metadata read-back comparison remains intact. The cause is
-unproven and requires parent/N04/native-owner disposition; native retries stopped.
-No accepted adapter, publisher pin, worker count or permission was changed.
+Its exact credential metadata read-back comparison remained intact. The cause
+was unproven at that checkpoint; the parent subsequently confirmed worker-local
+visibility and accepted the bounded fix above. The old receipt is not rewritten
+or treated as a pass on the new sources.
 
 All21 exact container IDs and five invocation network names are independently
 absent; `ambit-db` is unchanged and the owner-qualified lease is released.
