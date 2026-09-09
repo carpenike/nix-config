@@ -74,7 +74,11 @@ that an unbuilt Linux service closure ran.
    Native contract files must pass the native build's immutable checks.
 3. Build `runtime-tools.nix` with `--builders ''`; record the tool, Node and
    certifi output JSON at `.artifacts/n03-{tools,node,certifi}-build.json`.
-   `build_runtime.py` bundles the actual compiled app and full tool closures.
+   When building all seven outputs together, retain `n03-build-all.json` and the
+   `runtime-tools.nix` name-to-`drvPath` map as `n03-tool-derivations.json`.
+   `build_runtime.py` selects by exact derivation identity, never JSON list order,
+   and bundles the actual compiled app and full tool closures. Missing tools or
+   the real Nix-patched certifi modules are errors, not empty payloads.
    Fetch only the addon in `pins.json` and verify its SHA-256.
 4. The pinned runtime lacks `authlib`, `asyncpg` and `joserfc`; after its actual
    import failure, these declared native dependencies were restored into

@@ -200,6 +200,36 @@ def test_case_catalog_is_unexecuted_and_reuses_existing_helpers():
         assert all((ROOT / helper).is_file() for helper in row["helpers"])
 
 
+def test_certificate_runtime_cannot_be_empty_or_unpatched(prepared, tmp_path):
+    artifacts = importlib.import_module("artifacts")
+    with pytest.raises(ValueError, match="declared_nix_certificate_runtime_missing"):
+        artifacts.runtime_certificate_files(tmp_path)
+    directory = tmp_path / "lib/python3.12/site-packages/certifi"
+    directory.mkdir(parents=True)
+    (directory / "__init__.py").write_text("")
+    (directory / "core.py").write_text("def where(): return 'unpatched'\\n")
+    with pytest.raises(ValueError, match="declared_nix_certificate_runtime_missing"):
+        artifacts.runtime_certificate_files(tmp_path)
+
+
+def test_runtime_tool_outputs_are_selected_by_derivation_not_order(prepared):
+    build = importlib.import_module("build_runtime")
+    names = ("caddy", "socat", "nftables", "iproute2", "privilege", "node", "certifi")
+    identities = {name: f"/nix/store/source-{name}.drv" for name in names}
+    rows = [
+        {"drvPath": identities[name], "outputs": {"out": f"/nix/store/source-{name}"}}
+        for name in reversed(names)
+    ]
+    selected = build.selected_tool_outputs(rows, identities)
+    assert selected["node"][0]["drvPath"] == identities["node"]
+    assert selected["certifi"][0]["drvPath"] == identities["certifi"]
+    assert selected["tools"][0]["drvPath"] == identities["caddy"]
+    with pytest.raises(ValueError, match="runtime_tool_derivation_set_mismatch"):
+        build.selected_tool_outputs(rows[:-1], identities)
+    with pytest.raises(ValueError, match="runtime_tool_derivation_set_mismatch"):
+        build.selected_tool_outputs(rows + [rows[0]], identities)
+
+
 class ScriptedRecoveryTransport:
     """Request-order test data only; no native authentication or network is exercised."""
 

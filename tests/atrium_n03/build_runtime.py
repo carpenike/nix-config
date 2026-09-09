@@ -14,7 +14,33 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def selected_tool_outputs(rows, identities):
+    by_derivation = {row["drvPath"]: row for row in rows}
+    if len(by_derivation) != len(rows) or set(by_derivation) != set(
+        identities.values()
+    ):
+        raise ValueError("runtime_tool_derivation_set_mismatch")
+    return {
+        kind: [by_derivation[identities[name]] for name in names]
+        for kind, names in (
+            ("tools", ("caddy", "socat", "nftables", "iproute2", "privilege")),
+            ("node", ("node",)),
+            ("certifi", ("certifi",)),
+        )
+    }
+
+
 def main():
+    build_output = ARTIFACTS / "n03-build-all.json"
+    derivations = ARTIFACTS / "n03-tool-derivations.json"
+    if build_output.exists() or derivations.exists():
+        selected = selected_tool_outputs(
+            json.loads(build_output.read_text()), json.loads(derivations.read_text())
+        )
+        for kind, rows in selected.items():
+            (ARTIFACTS / f"n03-{kind}-build.json").write_text(
+                json.dumps(rows, indent=2) + "\n"
+            )
     inputs = json.loads((ARTIFACTS / "n03-inputs.json").read_text())
     pins = json.loads((ROOT / "tests/atrium_n03/pins.json").read_text())
     whiskey = ARTIFACTS / "source/whiskey"
@@ -42,6 +68,9 @@ def main():
             if name != "man"
         }
     )
+    for binary in ("caddy", "socat", "nft", "ip", "setpriv", "node"):
+        if not any((Path(root) / "bin" / binary).is_file() for root in roots):
+            raise ValueError("declared_runtime_tool_missing_" + binary)
     closure = json.loads(
         subprocess.run(
             ["nix", "path-info", "--builders", "", "--recursive", "--json", *roots],

@@ -32,6 +32,18 @@ def wheel_files(path):
         }
 
 
+def runtime_certificate_files(directory):
+    files = {
+        "certifi/" + path.name: path.read_bytes()
+        for path in (directory / "lib/python3.12/site-packages/certifi").glob("*.py")
+    }
+    if not {"certifi/__init__.py", "certifi/core.py"} <= files.keys() or (
+        b"NIX_SSL_CERT_FILE" not in files["certifi/core.py"]
+    ):
+        raise ValueError("declared_nix_certificate_runtime_missing")
+    return files
+
+
 def verified_payloads():
     inputs = json.loads((ROOT / ".artifacts/n03-inputs.json").read_text())
     actual = json.loads(
@@ -115,10 +127,9 @@ def verified_payloads():
             "outputs"
         ]["out"]
     )
-    for path in (certifi / "lib/python3.12/site-packages/certifi").glob("*.py"):
-        relative = "certifi/" + path.name
-        resolver_files[relative] = native_files[relative] = path.read_bytes()
-        fingerprints["nix/" + relative] = checksum(path.read_bytes())
+    for relative, body in runtime_certificate_files(certifi).items():
+        resolver_files[relative] = native_files[relative] = body
+        fingerprints["nix/" + relative] = checksum(body)
     extra = ROOT / ".artifacts/n03-native-extra"
     expected_extra = pins["native_runtime_extra"]["packages"]
     allowed_extra = tuple(
