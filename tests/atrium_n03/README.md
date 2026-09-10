@@ -4,6 +4,14 @@ This directory owns host values, version selection, unit/namespace composition,
 Caddy configuration and deployment checks. It does not own Python/MJS
 acceptance helpers or a second product test suite.
 
+The current immutable app input is
+`df39edf4e783222700e658951088b0651f65d02a`. Its
+[N04 alias-convergence handoff](https://github.com/carpenike/atrium/blob/df39edf4e783222700e658951088b0651f65d02a/harness/evidence/ATR-N04-alias-handoff.json)
+qualifies the corrected runtime with217 producer cases, distinct-UID
+publication proof and nine native model groups. The N03 app preflight pins
+those exact new documents and cleanup/release results; old161-case anchors
+cannot qualify this runtime. No N03 result is promoted by changing the pin.
+
 ## Retained deployment files
 
 * `fixture.nix`, `models.nix`, `pins.json`: synthetic host values, service and
