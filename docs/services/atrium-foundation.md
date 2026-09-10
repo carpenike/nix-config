@@ -46,7 +46,7 @@ native public OAuth/current-policy path to prove scoped reads and resources
 without inventing a catalog or broadening a child's operation rights.
 
 Clean source `6fac02ef3f93005556a58cfd66fe32c3ec2da38a` now executes
-[20 passing paired groups](../../tests/atrium_n03/results/n03-c8-native-6fac02ef.json)
+[20 passing paired groups](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-c8-native-6fac02ef.json)
 and one deliberately blocked model row. The result remains `partial`/exit 2,
 not full N03/N07 or complete T-gate evidence.
 
@@ -61,7 +61,7 @@ unchanged; adverse issuance probes also preserve native/policy grant counts.
 
 The source passes 29 isolated unit assertions, real Caddy adaptation, scoped
 formatting/lint, immutable wheel/source checks and exact-source CI. The
-[redacted handoff](../../tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json)
+[redacted handoff](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-c8-native-6fac02ef-handoff.json)
 ties pins, process/PKI boundaries and cleanup to the native receipt. C1 outage
 aging took 310.098 real seconds; native-JTI denial propagated in 18.545 seconds.
 
@@ -72,8 +72,8 @@ with only `a914bf6c7045` (`ambit-db`) running, and only N03's lease row was
 released. Future fixture use still needs explicit coordination and a new
 owner-qualified claim.
 
-The clean [738f0a6e import failure](../../tests/atrium_n03/results/n03-c8-native-738f0a6e-first.json)
-and [35c8a030 resource-fixture failure](../../tests/atrium_n03/results/n03-c8-native-35c8a030.json)
+The clean [738f0a6e import failure](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-c8-native-738f0a6e-first.json)
+and [35c8a030 resource-fixture failure](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-c8-native-35c8a030.json)
 remain intact. Declared native runtime dependencies were restored after the
 actual missing-package failure. An empty fixture repository URL then prevented
 the real native resource guard from reaching synthetic data; the correction
@@ -83,7 +83,7 @@ as well as HTTP status and provider effects. No adapter/auth code changed.
 ## Historical source-bound bounded result
 
 Implementation source: `a03c68e4717f5cf082d016c43ec7f5e9fe975a3a`.
-The [clean native receipt](../../tests/atrium_n03/results/n03-clean-a03c68e4.json)
+The [clean native receipt](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-clean-a03c68e4.json)
 records **13 passing paired groups** across T1/T4/T8/T15/T20/T26 portions and
 **two explicitly blocked integration rows**. The overall result remains
 `partial`, not a completed N03 or phase-1 gate.
@@ -94,7 +94,7 @@ device denial propagated in 12.342 seconds and Whiskey companion denial in
 admin use produced a durable alert, Whiskey's known-denied companion remained
 refused, and recovery restored permitted use.
 
-[Clean Nix/package evidence](../../tests/atrium_n03/results/n03-clean-static-a03c68e4.json)
+[Clean Nix/package evidence](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-clean-static-a03c68e4.json)
 records 20 isolated unit assertions, actual Caddy adaptation, impacted
 registry/N04/N05 checks and **59 admission pytest passes / three native-SDK
 module skips**. These skips are not reclassified as native gateway execution.

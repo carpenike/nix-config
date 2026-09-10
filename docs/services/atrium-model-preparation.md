@@ -45,8 +45,10 @@ compatibility tranche performs no native, Podman or lease operation.
 
 ## Historical evidence
 
-The [earlier source integration](../../tests/atrium_n03/results/ATR-N03-N07-readback-integration-handoff.json),
-[five failed/partial model attempts](../../tests/atrium_n03/results/ATR-N03-N07-model-native-blocked-handoff.json)
-and [C8/JTI handoff](../../tests/atrium_n03/results/n03-c8-native-6fac02ef-handoff.json)
-remain unchanged. The prior22/27 is not relabeled or transferred. New receipts
-are written only in app `harness/evidence`, not duplicated here.
+The [earlier source integration](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/ATR-N03-N07-readback-integration-handoff.json),
+[five failed/partial model attempts](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/ATR-N03-N07-model-native-blocked-handoff.json)
+and [C8/JTI handoff](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-c8-native-6fac02ef-handoff.json)
+remain byte-identical in the app, with original path/commit/hash mappings in its
+[N03 import manifest](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config-n03-imports.json).
+The prior22/27 is not relabeled or transferred. Historical and new receipts are
+app-owned; deployment documentation keeps immutable links, not duplicate bodies.

@@ -64,10 +64,14 @@ unchanged. Only this immutable pointer is added here, never a new result body.
 
 ## Immutable history
 
-Existing `results/` files are historical and remain byte-identical. They include
-the [bounded C8/JTI result](results/n03-c8-native-6fac02ef.json) and
-[earlier model integration failures](results/ATR-N03-N07-model-native-blocked-handoff.json).
-Neither those results nor the earlier22/27 transfer to the new app layout.
+The40 historical `results/` files are now canonical app evidence, not deployment
+files. Their [import manifest](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config-n03-imports.json)
+maps every original path at nix-config `6a00a483` to byte-identical app content:
+15 existing copies reused and25 imported once. Manifest SHA-256:
+`6041b360130b0f785d2bd9ab8590167762556135089facdf25a1474038075a8a`.
+This includes the [bounded C8/JTI result](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/nix-config/atrium_n03/n03-c8-native-6fac02ef.json)
+and [earlier model integration failures](https://github.com/carpenike/atrium/blob/7c7685622f30b9c0369e51f04713a45c57387d15/harness/evidence/ATR-N03-N07-model-native-blocked-handoff.json).
+No historical outcome or source claim is upgraded by relocation.
 Original helper source remains available at immutable nix-config
 `a7c94cf479aafe1b5528f42aeb53f87f87e4f455`.
 
