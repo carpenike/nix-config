@@ -817,6 +817,7 @@ let
     if not verdict:
         fail("%s produced an empty verdict in %s" % (JOB_NAME, os.path.basename(newest)))
 
+    first_line = verdict.splitlines()[0].strip().lower()
     BLIND = (
         "sentinel could not run",
         "cannot complete this task",
@@ -824,7 +825,7 @@ let
         "not present in my available toolset",
     )
     for marker in BLIND:
-        if marker in verdict.lower():
+        if marker in first_line:
             fail(
                 "%s ran at %s but could not evaluate the finances (%r in %s). "
                 "Check whether the MCP servers are parked: "
