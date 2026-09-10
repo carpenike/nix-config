@@ -16,7 +16,7 @@
 #     │ │   4. PocketID 302s back to /oauth/callback                  │
 #     │ │   5. homelab-mcp 302s to Claude w/ a one-shot auth code     │
 #     │ │   6. Claude POSTs /oauth/token (PKCE verifier)              │
-#     │ │   7. homelab-mcp mints a 24h RS256 JWT                      │
+#     │ │   7. homelab-mcp mints a 15-minute RS256 JWT                │
 #     │ └─────────────────────────────────────────────────────────────┘
 #     ▼
 #   Cloudflare Tunnel → forge → Caddy (mcp.holthome.net)
@@ -154,11 +154,10 @@ in
           HOMELAB_MCP_AMAZON_ACCOUNT_LAST4 = builtins.toJSON {
             "Chase Amazon" = "4772";
           };
-          # Shrink issued bearer-token lifetime from the 24h default to 4h.
-          # Refresh tokens (30d, rotated on every use) mean this does not
-          # force interactive re-login — it only shortens the window a
-          # leaked access token stays valid.
-          HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS = 4 * 60 * 60;
+          # The selected MCP package enforces a 15-minute maximum at startup.
+          # Refresh-token rotation remains unchanged; this does not enable
+          # Atrium native-profile adoption or migrate stored grants.
+          HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS = 15 * 60;
           # Server-side dispatch boundary for Hermes. Its local include list
           # mirrors this for UX, but this middleware allowlist is authoritative.
           # Hermes v0.19 requests every advertised OAuth scope, so both local

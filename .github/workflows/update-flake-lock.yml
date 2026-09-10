@@ -41,7 +41,7 @@ jobs:
             access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
 
       - name: Update flake.lock
-        uses: DeterminateSystems/update-flake-lock@v28
+        uses: DeterminateSystems/update-flake-lock@v29
         id: update
         with:
           token: ${{ steps.app-token.outputs.token }}
