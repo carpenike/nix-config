@@ -39,6 +39,29 @@ Handoff SHA-256:
 It records clean preparation,123 app/fixture source tests,64 deployment
 assertions and two Caddy modes—not a native run. The receipt remains app-only.
 
+## Resumed isolated proof — blocked
+
+The [app-owned resumed handoff](https://github.com/carpenike/atrium/blob/6e4ce15db1bd4e0144f452608b9b41eb91718a79/harness/evidence/ATR-N03-N07-resumed-native-handoff.json)
+binds app driver `1e53ab9b322ff837876c0eca9cc57361fff14094` and deployment
+`966c634ec60006d3008b7be5ec0d2ec0a7a0ea88`.
+Handoff SHA-256:
+`4bfb902deeed309b8ee15ea8198c64aefbc425e53de1b4cd54506642b59f786f`.
+
+Four clean-source native attempts completed22,24,26 and26 of27 groups.
+The final key-info transport/outage group remains incomplete; no full N03/N07,
+N05/N06 or Phase1 completion is claimed. All failures and exact-source maps
+remain in the app. Independent cleanup proves20 containers/four network IDs
+and names absent, all four inventories baseline-equal and `ambit-db` unchanged;
+the owner-qualified fixture lease is released. No further native run is
+authorized by this checkpoint.
+
+Deployment revalidation passed64 assertions, both Caddy modes and the actual
+selected MCP Settings check. App source checks passed94 focused cases and the
+68-case CI selector; the unchanged canonical catalog collected exactly161.
+Accepted main, the owner's WorldMonitor repair and MCP deployment check are
+normally merged; primary nixpkgs/MCP/Whiskey and isolated LiteLLM1.99.1 pins are
+unchanged. Only this immutable pointer is added here, never a new result body.
+
 ## Immutable history
 
 Existing `results/` files are historical and remain byte-identical. They include
