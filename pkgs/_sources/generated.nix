@@ -19,15 +19,15 @@
   };
   cooklang-federation = {
     pname = "cooklang-federation";
-    version = "3b899ac7957b199f419ff5134287eeb1636dbe4e";
+    version = "1cdc3a0ee1816d81851d1393bfad1e6cc49531de";
     src = fetchFromGitHub {
       owner = "cooklang";
       repo = "federation";
-      rev = "3b899ac7957b199f419ff5134287eeb1636dbe4e";
+      rev = "1cdc3a0ee1816d81851d1393bfad1e6cc49531de";
       fetchSubmodules = false;
-      sha256 = "sha256-RXfxjdJ0eJdMVUv+rMg8YOFiegrkux3SVlDNNgvEOUk=";
+      sha256 = "sha256-XRhfmC1B60RROPq8jdf5qHS+b16aLvWZjSoLKIombvw=";
     };
-    date = "2026-08-05";
+    date = "2026-09-09";
   };
   shcopy = {
     pname = "shcopy";
@@ -70,9 +70,9 @@
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v6.7.1";
+      rev = "v6.8.0";
       fetchSubmodules = false;
-      sha256 = "sha256-dnMDPREzXm6Tp5hbk100iCGJDlDqu1S36Dn7fH8eRuY=";
+      sha256 = "sha256-76DSiMrtbe8xAl35bk3lF8Xj1qxAUvLliKnM+5iKgAI=";
     };
   };
 }
