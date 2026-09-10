@@ -511,6 +511,11 @@
 
           # Checks for CI
           checks = {
+            homelab-mcp-deployment = import ./tests/homelab-mcp-deployment.nix {
+              inherit pkgs;
+              package = inputs.homelab-mcp.packages.${system}.default;
+              lifetimeSeconds = inputs.self.nixosConfigurations.forge.config.services.homelab-mcp.settings.HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS;
+            };
             atrium-n05-package = availablePackages.atrium-litellm-admission;
             atrium-n05-python = pkgs.runCommand "atrium-n05-python-checks"
               {

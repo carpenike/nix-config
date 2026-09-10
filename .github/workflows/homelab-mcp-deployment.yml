@@ -1,0 +1,32 @@
+---
+name: Homelab MCP deployment settings
+
+"on":
+  pull_request:
+    paths:
+      - hosts/forge/services/homelab-mcp.nix
+      - tests/homelab-mcp-deployment.nix
+      - flake.nix
+      - flake.lock
+      - .github/workflows/homelab-mcp-deployment.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homelab-mcp-deployment-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  settings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+      - name: Validate Forge settings against the selected app package
+        run: |
+          nix build --builders '' --no-link --no-write-lock-file \
+            .#checks.x86_64-linux.homelab-mcp-deployment
