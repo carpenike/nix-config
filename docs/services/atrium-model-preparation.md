@@ -1,10 +1,12 @@
 # N03 model deployment compatibility
 
-This remains a default-off, isolated host definition, not a newly executed
-native gate or production deployment. App candidate
-`df1fa179059b45b3d435e92e5f08fcf2720d821c` and deployment candidate
-`e5c1e5c619900413d7410219af4d00ce5b1d19b5` are normal-merged into the held
-integration branches. MCP338cbbdb, Whiskey273cf414 and nixpkgs pins are unchanged.
+This remains a default-off, isolated host definition, not a production
+deployment. The runtime input is immutable Atrium
+`df39edf4e783222700e658951088b0651f65d02a`; MCP338cbbdb, Whiskey273cf414 and
+nixpkgs pins remain unchanged. The separate
+[app-owned integrated cohort](https://github.com/carpenike/atrium/blob/0ff841bc633978a9691b0b9fbda02de155c91bf7/harness/evidence/ATR-N03-N07-integrated-handoff.json)
+passes27 groups on app driver `11b7008` and this deployment's runtime source
+`47c9a8f8`, without promoting a full Phase2 gate or activating services here.
 
 ## Repository boundary
 
@@ -27,7 +29,7 @@ explicitly and loads its own committed helper bytes. Native M*/W* code remains
 in its own repository.
 
 The app preflight—not a bare Nix readiness flag—requires the exact app-only
-161-case catalog, complete current-source/runtime/fixture maps, committed final
+217-case catalog, complete current-source/runtime/fixture maps, committed final
 UID/model anchors, immutable artifacts and real materialized module origins
 before resource creation. Both product/controller identities must name the app.
 Mixed Nix implementation identity or historical anchors are refused.
@@ -39,9 +41,11 @@ source-only fixture tests consume explicit public host-generated JSON. Neither
 is native acceptance. Existing65-second controller readback and90/100-second
 caller budgets remain unchanged; end-to-end timing is still a runtime gate.
 
-The parent app proof and its stated `/messages` limitations do not complete
-this held N03 integration. A fresh authorized27-group run is required. This
-compatibility tranche performs no native, Podman or lease operation.
+The27-group result is source-bound and includes real permits, denials and
+recovery; it does not convert unavailable `/messages` modes or other independent
+browser/adoption gates into completed work. Native execution and exact cleanup
+are app-owned. Deployment checks themselves perform no native, Podman or lease
+operation.
 
 ## Historical evidence
 

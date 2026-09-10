@@ -6,10 +6,14 @@ provision production identities, decrypt live secrets, or change host/VM trust,
 DNS, routes or firewall rules. The guarantee remains credential-scoped access
 and accident prevention, not conversation/context isolation.
 
-## Source-only model assembly preparation
+## App-owned model assembly
 
 The [model preparation guide](atrium-model-preparation.md) describes the separate
-disabled host/configuration slice and current app-owned compatibility boundary.
+disabled host/configuration slice, current app-owned compatibility boundary and
+the completed bounded27-group native cohort. Its
+[source-bound handoff](https://github.com/carpenike/atrium/blob/0ff841bc633978a9691b0b9fbda02de155c91bf7/harness/evidence/ATR-N03-N07-integrated-handoff.json)
+records exact permits/denials, recovery and cleanup; it is not production
+activation or the full Phase2 promotion matrix.
 Reusable acceptance helpers now live in app `harness/n03_fixture`; this
 repository retains host values, package selection, Caddy and unit checks.
 Canonical source/evidence validation and all new acceptance results are app-owned.

@@ -47,7 +47,27 @@ Handoff SHA-256:
 It records clean preparation,123 app/fixture source tests,64 deployment
 assertions and two Caddy modes—not a native run. The receipt remains app-only.
 
-## Resumed isolated proof — blocked
+## Completed bounded integrated cohort
+
+The [app-owned integrated handoff](https://github.com/carpenike/atrium/blob/0ff841bc633978a9691b0b9fbda02de155c91bf7/harness/evidence/ATR-N03-N07-integrated-handoff.json)
+binds app source `11b7008a8b2fea5d401d6add9d5322f7d3767c2d` and deployment
+`47c9a8f8b2b689c3d4e548b1c8d897e24ad46a51` to all27 passing native groups:
+20 baseline and seven integrated model groups. Handoff SHA-256:
+`f7a2b474a53f8eaab5dd79d2a23bcf9fa6914bb749fbd2ca84c265dff7894810`.
+
+The final group includes310.566 seconds of actual feed outage, three native403
+refusals, eligible-admin200 with alert, same-key recovery, precise/published
+expiry verification and actual issuer/key-specific retry cancellation.
+Independent cleanup rechecks all54 containers and11 network IDs/names across
+11 preserved attempts; all original inventories and the Ambit process are
+unchanged, and the qualified lease is released.
+
+This is the bounded incremental integration cohort, not full Phase1/N07 or the
+Phase2 promotion matrix. No production activation is performed. This repository
+contains immutable links only; the result bodies and their history stay in the
+app. The runtime pin remains `df39edf4`, separate from the test-driver revision.
+
+## Historical resumed checkpoint — blocked
 
 The [app-owned resumed handoff](https://github.com/carpenike/atrium/blob/6e4ce15db1bd4e0144f452608b9b41eb91718a79/harness/evidence/ATR-N03-N07-resumed-native-handoff.json)
 binds app driver `1e53ab9b322ff837876c0eca9cc57361fff14094` and deployment
@@ -56,7 +76,7 @@ Handoff SHA-256:
 `4bfb902deeed309b8ee15ea8198c64aefbc425e53de1b4cd54506642b59f786f`.
 
 Four clean-source native attempts completed22,24,26 and26 of27 groups.
-The final key-info transport/outage group remains incomplete; no full N03/N07,
+That checkpoint's final key-info transport/outage group remained incomplete; no full N03/N07,
 N05/N06 or Phase1 completion is claimed. All failures and exact-source maps
 remain in the app. Independent cleanup proves20 containers/four network IDs
 and names absent, all four inventories baseline-equal and `ambit-db` unchanged;
