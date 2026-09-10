@@ -85,8 +85,8 @@ Python/project files were checked against the accepted source; all68 historical
 JSON results were compared with their original Git blobs and app canonical
 destinations. Twelve reused an existing canonical copy and56 were imported once.
 
-The pinned [Atrium sourcedf1fa179](https://github.com/carpenike/atrium/tree/df1fa179059b45b3d435e92e5f08fcf2720d821c)
-exports the consumed packages and modules. Its
+The original relocation [Atrium sourcedf1fa179](https://github.com/carpenike/atrium/tree/df1fa179059b45b3d435e92e5f08fcf2720d821c)
+established the consumed package and module interfaces. Its
 [`harness/evidence/nix-config-imports.json`](https://github.com/carpenike/atrium/blob/df1fa179059b45b3d435e92e5f08fcf2720d821c/harness/evidence/nix-config-imports.json)
 records every original
 repository/commit/path/SHA and canonical app path. The verified manifest SHA-256
@@ -103,3 +103,11 @@ Those product results are referenced, not copied into this deployment repo.
 
 The earlier failed N03 cohorts and22-of-27 result remain historical. This
 ownership correction neither promotes them nor authorizes another native run.
+
+The current input advances only Atrium to immutable
+`df39edf4e783222700e658951088b0651f65d02a`, containing the accepted
+[native alias-convergence correction and current publication qualification](https://github.com/carpenike/atrium/blob/df39edf4e783222700e658951088b0651f65d02a/harness/evidence/ATR-N04-alias-handoff.json).
+All other lock inputs and host policy values are unchanged by that update.
+Its217-case/UID/model evidence supersedes the old controller qualification,
+not the historical receipts themselves. N03's integrated acceptance and any
+production activation remain separate gates.

@@ -129,9 +129,9 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N05: shared profiles/resolver for isolated admission; no live service is enabled.
+    # ATR-N03: accepted foundation packages for isolated wiring; no live service is enabled.
     atrium = {
-      url = "github:carpenike/atrium/df1fa179059b45b3d435e92e5f08fcf2720d821c";
+      url = "github:carpenike/atrium/df39edf4e783222700e658951088b0651f65d02a";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -193,7 +193,7 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      url = "github:carpenike/mcp";
+      url = "github:carpenike/mcp/338cbbdb990a5751d199f276c5d65b07730cd97d";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -506,6 +506,32 @@
 
           # Checks for CI
           checks = {
+            atrium-n03-units = pkgs.writeText "atrium-n03-isolated-units.json"
+              (builtins.toJSON (import ./tests/atrium_n03/evaluate.nix {
+                inherit inputs;
+                system = "x86_64-linux";
+              }));
+            atrium-n03-caddy = pkgs.runCommand "atrium-n03-caddy-syntax"
+              { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
+              caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-Caddyfile"
+                (import ./tests/atrium_n03/caddy.nix {
+                  fixture = import ./tests/atrium_n03/fixture.nix { inherit inputs; };
+                })} > "$out"
+            '';
+            atrium-n03-model-preparation = pkgs.writeText "atrium-n03-model-preparation.json"
+              (builtins.toJSON (import ./tests/atrium_n03/model-evaluate.nix {
+                inherit inputs;
+                system = "x86_64-linux";
+              }));
+            atrium-n03-model-caddy-preview = pkgs.runCommand "atrium-n03-model-caddy-preview"
+              { nativeBuildInputs = [ inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.caddy ]; } ''
+              caddy adapt --adapter caddyfile --config ${pkgs.writeText "atrium-n03-model-Caddyfile"
+                (import ./tests/atrium_n03/caddy.nix {
+                  fixture = (import ./tests/atrium_n03/fixture.nix { inherit inputs; }) // {
+                    modelPlaneReady = true;
+                  };
+                })} > "$out"
+            '';
             homelab-mcp-deployment = import ./tests/homelab-mcp-deployment.nix {
               inherit pkgs;
               package = inputs.homelab-mcp.packages.${system}.default;

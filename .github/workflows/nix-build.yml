@@ -89,6 +89,7 @@ jobs:
       nix_changed: ${{ steps.filter.outputs.nix }}
       lock_changed: ${{ steps.filter.outputs.lock }}
       atrium_admission_changed: ${{ steps.filter.outputs.atrium_admission }}
+      atrium_foundation_changed: ${{ steps.filter.outputs.atrium_foundation }}
     steps:
       - uses: actions/checkout@v7
 
@@ -116,6 +117,13 @@ jobs:
               - 'pkgs/default.nix'
               - 'tests/atrium_n05/*.nix'
               - 'tests/atrium/*.nix'
+              - '.github/workflows/nix-build.yml'
+            atrium_foundation:
+              - 'flake.nix'
+              - 'flake.lock'
+              - 'lib/service-uids.nix'
+              - 'lib/host-defaults.nix'
+              - 'tests/atrium_n03/**'
               - '.github/workflows/nix-build.yml'
             global:
               - 'flake.nix'
@@ -230,6 +238,24 @@ jobs:
           nix build --no-link --no-write-lock-file --builders '' \
             .#checks.x86_64-linux.atrium-n05-package-smoke \
             .#checks.x86_64-linux.atrium-n05-units
+
+  atrium-foundation-checks:
+    needs: changes
+    if: ${{ needs.changes.outputs.atrium_foundation_changed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/determinate-nix-action@v3
+        with:
+          extra-conf: |
+            access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
+      - name: Validate isolated foundation and source-only model preparation
+        run: |
+          nix build --no-link --builders '' \
+            .#checks.x86_64-linux.atrium-n03-units \
+            .#checks.x86_64-linux.atrium-n03-caddy \
+            .#checks.x86_64-linux.atrium-n03-model-preparation \
+            .#checks.x86_64-linux.atrium-n03-model-caddy-preview
 
   nix-build:
     needs: changes
@@ -388,6 +414,7 @@ jobs:
       - nix-build
       - nix-build-heavy
       - atrium-admission-checks
+      - atrium-foundation-checks
     name: Nix Build Successful
     runs-on: ubuntu-latest
     steps:
@@ -405,6 +432,11 @@ jobs:
         if: ${{ needs.changes.outputs.atrium_admission_changed == 'true' && needs.atrium-admission-checks.result != 'success' }}
         run: |
           echo "Admission deployment inputs changed but CLI consumption and wiring checks did not succeed"
+          exit 1
+      - name: Check isolated foundation checks ran when needed
+        if: ${{ needs.changes.outputs.atrium_foundation_changed == 'true' && needs.atrium-foundation-checks.result != 'success' }}
+        run: |
+          echo "Isolated foundation files changed but their checks did not succeed"
           exit 1
       - name: Report
         run: |
