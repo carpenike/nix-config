@@ -506,6 +506,11 @@
 
           # Checks for CI
           checks = {
+            homelab-mcp-deployment = import ./tests/homelab-mcp-deployment.nix {
+              inherit pkgs;
+              package = inputs.homelab-mcp.packages.${system}.default;
+              lifetimeSeconds = inputs.self.nixosConfigurations.forge.config.services.homelab-mcp.settings.HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS;
+            };
             atrium-n04-package-smoke = deploymentPackageSmoke
               "atrium-litellm-controller"
               availablePackages.atrium-litellm-controller;
