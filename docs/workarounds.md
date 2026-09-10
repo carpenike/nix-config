@@ -76,6 +76,20 @@ as everything else in this file.
 
 ## Package Overrides (overlays/default.nix)
 
+### WorldMonitor - v2.10.0 Nix Build Compatibility
+
+| Field | Value |
+| --- | --- |
+| **Added** | 2026-09-09 |
+| **Location** | `modules/nixos/services/worldmonitor/package.nix` |
+| **Affects** | WorldMonitor 2.10.0 builds for Forge |
+| **Reason** | The Renovate update from 2.5.23 changed only `version`, leaving both fixed-output hashes stale. After correcting them, nested `sharp` 0.34.5 required `node-gyp` as an importable module, and the root `postinstall` attempted an offline `npm ci` for the unshipped `blog-site` using dependencies absent from the root npm cache. |
+| **Workaround** | Use the verified 2.10.0 source and npm dependency hashes, expose nixpkgs `node-gyp` through `NODE_PATH`, and delete only the root `postinstall` during `postPatch`. Dependency lifecycle scripts remain enabled, so both Sharp versions compile normally. |
+| **Validation** | `task nix:build-nixos host=forge` built WorldMonitor, its Vite/PWA assets, Caddy configuration, systemd units, and the complete Forge closure at `/nix/store/c30xca6w2582m72pnkfmm5l0jix63nj1-nixos-system-forge-25.11.20260630.b6018f8`. |
+| **Check** | On each WorldMonitor update, recalculate both hashes and test removing `NODE_PATH` and `postPatch`. Remove each workaround when nested Sharp declares `node-gyp` itself and upstream no longer installs `blog-site` from the root lifecycle hook. |
+| **Upstream** | [WorldMonitor v2.10.0 package.json](https://github.com/koala73/worldmonitor/blob/v2.10.0/package.json), [Sharp source-build requirements](https://sharp.pixelplumbing.com/install#building-from-source) |
+| **Impact** | Without the fixes, the Forge closure fails first on stale fixed-output hashes, then on Sharp's missing `node-gyp`, or finally on the sandboxed nested blog install. |
+
 ### copyparty - Security Release Pin
 
 | Field | Value |

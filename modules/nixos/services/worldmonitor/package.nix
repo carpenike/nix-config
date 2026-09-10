@@ -16,6 +16,7 @@
 , fetchFromGitHub
 , buildNpmPackage
 , nodejs_22
+, node-gyp
 , pkg-config
 , vips
 , python3
@@ -31,18 +32,33 @@ buildNpmPackage rec {
     owner = "koala73";
     repo = "worldmonitor";
     rev = "v${version}";
-    hash = "sha256-sa0Zev1vwowv2iSHNxmhkqhwwtTadihPD8ZqxXVtLj8=";
+    hash = "sha256-QPOc2tc9pdRZuSQ1biaaoZv0xjO7TkZJGRzEBrlmazw=";
   };
 
-  npmDepsHash = "sha256-nTu76cvJvyDL1meFefq/5+7sJ35L7jlDrWaC0Hx4ZbM=";
+  npmDepsHash = "sha256-L+/4AoMem5RQawU9c5YJLKp5BPeulIaZzy0U9xC46Ko=";
 
   nodejs = nodejs_22;
+  NODE_PATH = "${node-gyp}/lib/node_modules";
+
+  # WORKAROUND (2026-09-09): The root postinstall runs a second npm install
+  # for blog-site, which this package neither builds nor installs.
+  # Affects: WorldMonitor v2.10.0 Nix builds
+  # Upstream: https://github.com/koala73/worldmonitor/blob/v2.10.0/package.json
+  # Check: Remove when upstream no longer installs blog-site from postinstall.
+  postPatch = ''
+    ${nodejs_22}/bin/node -e '
+      const fs = require("node:fs");
+      const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+      delete packageJson.scripts.postinstall;
+      fs.writeFileSync("package.json", JSON.stringify(packageJson, null, 2) + "\n");
+    '
+  '';
 
   # sharp (transitive dep via @xenova/transformers) needs:
   #   - pkg-config to detect system libvips (skips download)
   #   - vips (libvips) as the native image library
   #   - python3 for node-gyp to compile the C++ binding
-  nativeBuildInputs = [ nodejs_22 pkg-config python3 makeWrapper ];
+  nativeBuildInputs = [ nodejs_22 node-gyp pkg-config python3 makeWrapper ];
   buildInputs = [ vips ];
 
   # The repo has TypeScript strict-mode errors that are non-fatal for the build

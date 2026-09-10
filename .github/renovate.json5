@@ -52,6 +52,9 @@
         'github-releases',
         'github-tags',
       ],
+      // Regex managers update version text but cannot recalculate Nix source
+      // or dependency hashes. Require a human to refresh and build them.
+      automerge: false,
       pinDigests: false,
       semanticCommits: 'enabled',
       commitMessagePrefix: 'feat(deps):',
