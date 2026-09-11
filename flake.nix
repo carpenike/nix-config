@@ -129,9 +129,10 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N03: accepted foundation packages for isolated wiring; no live service is enabled.
+    # ATR-N03: accepted foundation and current-state recovery packages.
+    # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/df39edf4e783222700e658951088b0651f65d02a";
+      url = "github:carpenike/atrium/0700af39a7bf805c148eb362cecab0f8cef4eb21";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -506,6 +507,10 @@
 
           # Checks for CI
           checks = {
+            atrium-forge-preparation = pkgs.writeText "atrium-forge-preparation.json"
+              (builtins.toJSON (import ./tests/atrium_n03/forge-evaluate.nix {
+                inherit inputs;
+              }));
             atrium-n03-units = pkgs.writeText "atrium-n03-isolated-units.json"
               (builtins.toJSON (import ./tests/atrium_n03/evaluate.nix {
                 inherit inputs;
