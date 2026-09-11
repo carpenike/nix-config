@@ -4,7 +4,11 @@ name: Atrium controller deployment
 "on":
   pull_request:
     paths:
+      - hosts/forge/default.nix
+      - hosts/forge/services/atrium.nix
       - hosts/forge/atrium/litellm-controller-isolated.nix
+      - tests/atrium_n03/forge-evaluate.nix
+      - tests/atrium_n03/pins.json
       - tests/atrium_n04/*.nix
       - tests/atrium/*.nix
       - .github/workflows/atrium-n04-controller.yml
@@ -21,7 +25,7 @@ concurrency:
 
 jobs:
   controller:
-    name: N04 app-package consumption and isolated deployment
+    name: N03 Forge preparation and N04 package consumption
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,8 +33,9 @@ jobs:
         with:
           extra-conf: |
             access-tokens = github.com=${{ secrets.NIX_FLAKE_INPUTS_PAT }}
-      - name: Check the app CLI and isolated deployment wiring
+      - name: Check the app CLI, Forge preparation and isolated wiring
         run: |
           nix build --builders '' --no-link --no-write-lock-file \
+            .#checks.x86_64-linux.atrium-forge-preparation \
             .#checks.x86_64-linux.atrium-n04-package-smoke \
             .#checks.x86_64-linux.atrium-n04-units

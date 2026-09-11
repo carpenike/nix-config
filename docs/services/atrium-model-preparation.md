@@ -1,12 +1,50 @@
 # N03 model deployment compatibility
 
-This remains a default-off, isolated host definition, not a production
-deployment. The runtime input is immutable Atrium
-`df39edf4e783222700e658951088b0651f65d02a`; MCP338cbbdb, Whiskey273cf414 and
-nixpkgs pins remain unchanged. The separate
+The N03 compatibility fixture remains default-off and isolated. Forge's
+separate package installation is described below. The selected app input is immutable Atrium
+`0700af39a7bf805c148eb362cecab0f8cef4eb21`; MCP338cbbdb and Whiskey273cf414
+remain unchanged. This advances the application input to the accepted
+current-state recovery work while retaining the owner's other flake updates.
+Package/module selection is not a claim that Forge's live services now use
+the isolated fixture or that a different live gateway version is qualified.
+
+The app's [completed model/Whiskey recovery handoff](https://github.com/carpenike/atrium/blob/a17853656eb8023f0fcbecdcc6c63d645e033fec/harness/evidence/ATR-N07-model-whiskey-current-recovery-handoff.json)
+records five actual native recovery groups at driver `3c55226`, with its
+explicit core-runtime/deployment inputs and preserved history. The separate
 [app-owned integrated cohort](https://github.com/carpenike/atrium/blob/0ff841bc633978a9691b0b9fbda02de155c91bf7/harness/evidence/ATR-N03-N07-integrated-handoff.json)
 passes27 groups on app driver `11b7008` and this deployment's runtime source
 `47c9a8f8`, without promoting a full Phase2 gate or activating services here.
+
+## Forge package installation
+
+[`hosts/forge/services/atrium.nix`](../../hosts/forge/services/atrium.nix)
+imports the selected app's NixOS module and installs its actual
+`atrium-resolver` and `atrium-litellm-controller` commands into Forge's system
+generation. It selects the same packages for the optional runtime units.
+Installing them does not initialize a database or signing identity, enroll
+anyone, adopt native credentials, publish a registry, or start a listener.
+The resolver, reconciler and its timer remain disabled.
+
+The selected app still rejects non-isolated desired-state documents. Actual
+runtime activation therefore also needs app-owned deployment-mode support and
+real registry/trust/ownership values, not a relabeled synthetic fixture.
+Forge's existing LiteLLM configuration selects `v1.100.1`; the linked native
+Atrium evidence qualifies `v1.99.1`. This change does not downgrade the gateway
+or claim that the different version is qualified.
+
+`atrium-forge-preparation` evaluates the actual Forge configuration for package
+selection and default-off runtime, policy and credential boundaries. It is a
+deployment composition check, not a native permit/deny receipt.
+
+Build Forge using the repository's remote build path:
+
+```sh
+task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
+```
+
+This builds on Forge without activating the generation. `naf` uses the
+repository's guarded deployment wrapper for activation; it has not been run
+as part of this package preparation.
 
 ## Repository boundary
 
