@@ -49,82 +49,76 @@ let
   # Configuration File Generation
   # =============================================================================
 
-  # Helper to generate library YAML with proper indentation
-  mkLibraryYaml = name: libraryConfig: ''
-      ${name}:
-        remove_overlays: ${if libraryConfig.removeOverlays then "true" else "false"}
-    ${lib.optionalString (libraryConfig.collectionFiles != []) ''    collection_files:
-    ${lib.concatMapStrings (cf: "      - ${mkFileReference cf}\n") libraryConfig.collectionFiles}''}
-    ${lib.optionalString (libraryConfig.overlayFiles != []) ''    overlay_files:
-    ${lib.concatMapStrings (of: "      - ${mkFileReference of}\n") libraryConfig.overlayFiles}''}
-    ${lib.optionalString (libraryConfig.metadataFiles != []) ''    metadata_files:
-    ${lib.concatMapStrings (mf: "      - ${mkFileReference mf}\n") libraryConfig.metadataFiles}''}
-    ${lib.optionalString (libraryConfig.operations != null) (mkOperationsYaml libraryConfig.operations)}
-  '';
+  mkLibraryConfig = _: libraryConfig: {
+    remove_overlays = libraryConfig.removeOverlays;
+  }
+  // lib.optionalAttrs (libraryConfig.collectionFiles != [ ]) {
+    collection_files = map mkFileReference libraryConfig.collectionFiles;
+  }
+  // lib.optionalAttrs (libraryConfig.overlayFiles != [ ]) {
+    overlay_files = map mkFileReference libraryConfig.overlayFiles;
+  }
+  // lib.optionalAttrs (libraryConfig.metadataFiles != [ ]) {
+    metadata_files = map mkFileReference libraryConfig.metadataFiles;
+  }
+  // lib.optionalAttrs (libraryConfig.operations != null) {
+    operations = mkOperationsConfig libraryConfig.operations;
+  };
 
-  # Helper to convert file references to YAML
-  mkFileReference = ref:
-    if ref.type == "default" then
-      "default: ${ref.name}${mkTemplateVarsYaml ref.templateVariables}"
-    else if ref.type == "file" then
-      "file: ${ref.path}"
-    else if ref.type == "url" then
-      "url: ${ref.url}"
-    else if ref.type == "repo" then
-      "repo: ${ref.name}"
-    else
-      throw "Unknown file reference type: ${ref.type}";
+  mkFileReference = ref: {
+    ${ref.type} =
+      if ref.type == "file" then ref.path
+      else if ref.type == "url" then ref.url
+      else ref.name;
+  } // lib.optionalAttrs (ref.templateVariables != { }) {
+    template_variables = ref.templateVariables;
+  };
 
-  # Helper to format template variables
-  mkTemplateVarsYaml = vars:
-    if vars == { } then ""
-    else "\n          template_variables:\n${lib.concatStrings (lib.mapAttrsToList (k: v: "            ${k}: ${builtins.toString v}\n") vars)}";
+  mkOperationsConfig = ops: lib.filterAttrs (_: value: value != null)
+    {
+      mass_genre_update = ops.massGenreUpdate;
+      mass_audience_rating_update = ops.massAudienceRatingUpdate;
+      mass_critic_rating_update = ops.massCriticRatingUpdate;
+      mass_content_rating_update = ops.massContentRatingUpdate;
+      mass_originally_available_update = ops.massOriginallyAvailableUpdate;
+    } // lib.optionalAttrs ops.splitDuplicates {
+    split_duplicates = true;
+  } // lib.optionalAttrs ops.radarrAddAll {
+    radarr_add_all = true;
+  } // lib.optionalAttrs ops.sonarrAddAll {
+    sonarr_add_all = true;
+  };
 
-  # Helper to generate operations YAML
-  mkOperationsYaml = ops: ''
-        operations:
-    ${lib.optionalString (ops.massGenreUpdate != null) "        mass_genre_update: ${ops.massGenreUpdate}\n"}
-    ${lib.optionalString (ops.massAudienceRatingUpdate != null) "        mass_audience_rating_update: ${ops.massAudienceRatingUpdate}\n"}
-    ${lib.optionalString (ops.massCriticRatingUpdate != null) "        mass_critic_rating_update: ${ops.massCriticRatingUpdate}\n"}
-    ${lib.optionalString (ops.massContentRatingUpdate != null) "        mass_content_rating_update: ${ops.massContentRatingUpdate}\n"}
-    ${lib.optionalString (ops.massOriginallyAvailableUpdate != null) "        mass_originally_available_update: ${ops.massOriginallyAvailableUpdate}\n"}
-    ${lib.optionalString ops.splitDuplicates "        split_duplicates: true\n"}
-    ${lib.optionalString ops.radarrAddAll "        radarr_add_all: true\n"}
-    ${lib.optionalString ops.sonarrAddAll "        sonarr_add_all: true\n"}
-  '';
-
-  # Helper to generate settings YAML
-  mkSettingsYaml = settings: ''
-      settings:
-        cache: ${if settings.cache then "true" else "false"}
-        cache_expiration: ${toString settings.cacheExpiration}
-    ${lib.optionalString (settings.assetDirectory != null) "  asset_directory: ${settings.assetDirectory}\n"}
-        asset_folders: ${if settings.assetFolders then "true" else "false"}
-        create_asset_folders: ${if settings.createAssetFolders then "true" else "false"}
-        prioritize_assets: ${if settings.prioritizeAssets then "true" else "false"}
-        dimensional_asset_rename: ${if settings.dimensionalAssetRename then "true" else "false"}
-        download_url_assets: ${if settings.downloadUrlAssets then "true" else "false"}
-        show_missing_season_assets: ${if settings.showMissingSeasonAssets then "true" else "false"}
-        show_missing_episode_assets: ${if settings.showMissingEpisodeAssets then "true" else "false"}
-        sync_mode: ${settings.syncMode}
-        minimum_items: ${toString settings.minimumItems}
-        default_collection_order: ${settings.defaultCollectionOrder}
-        delete_below_minimum: ${if settings.deleteBelowMinimum then "true" else "false"}
-        delete_not_scheduled: ${if settings.deleteNotScheduled then "true" else "false"}
-        run_again_delay: ${toString settings.runAgainDelay}
-        missing_only_released: ${if settings.missingOnlyReleased then "true" else "false"}
-        show_unmanaged: ${if settings.showUnmanaged then "true" else "false"}
-        show_unconfigured: ${if settings.showUnconfigured then "true" else "false"}
-        show_filtered: ${if settings.showFiltered then "true" else "false"}
-        show_options: ${if settings.showOptions then "true" else "false"}
-        show_missing: ${if settings.showMissing then "true" else "false"}
-        show_missing_assets: ${if settings.showMissingAssets then "true" else "false"}
-        save_report: ${if settings.saveReport then "true" else "false"}
-        tvdb_language: ${settings.tvdbLanguage}
-        item_refresh_delay: ${toString settings.itemRefreshDelay}
-        run_order:
-    ${lib.concatMapStrings (step: "      - ${step}\n") settings.runOrder}
-  '';
+  mkSettingsConfig = settings: {
+    cache = settings.cache;
+    cache_expiration = settings.cacheExpiration;
+    asset_folders = settings.assetFolders;
+    create_asset_folders = settings.createAssetFolders;
+    prioritize_assets = settings.prioritizeAssets;
+    dimensional_asset_rename = settings.dimensionalAssetRename;
+    download_url_assets = settings.downloadUrlAssets;
+    show_missing_season_assets = settings.showMissingSeasonAssets;
+    show_missing_episode_assets = settings.showMissingEpisodeAssets;
+    sync_mode = settings.syncMode;
+    minimum_items = settings.minimumItems;
+    default_collection_order = settings.defaultCollectionOrder;
+    delete_below_minimum = settings.deleteBelowMinimum;
+    delete_not_scheduled = settings.deleteNotScheduled;
+    run_again_delay = settings.runAgainDelay;
+    missing_only_released = settings.missingOnlyReleased;
+    show_unmanaged = settings.showUnmanaged;
+    show_unconfigured = settings.showUnconfigured;
+    show_filtered = settings.showFiltered;
+    show_options = settings.showOptions;
+    show_missing = settings.showMissing;
+    show_missing_assets = settings.showMissingAssets;
+    save_report = settings.saveReport;
+    tvdb_language = settings.tvdbLanguage;
+    item_refresh_delay = settings.itemRefreshDelay;
+    run_order = settings.runOrder;
+  } // lib.optionalAttrs (settings.assetDirectory != null) {
+    asset_directory = settings.assetDirectory;
+  };
 
   # Generate full config.yml content
   configYaml = pkgs.writeText "kometa-config.yml" ''
@@ -133,8 +127,8 @@ let
 
     # Plex server configuration
     plex:
-      url: !env_var KOMETA_PLEX_URL
-      token: !env_var KOMETA_PLEX_TOKEN
+      url: "<<plexurl>>"
+      token: "<<plextoken>>"
       timeout: ${toString cfg.plex.timeout}
       db_cache: ${if cfg.plex.dbCache then "true" else "false"}
       clean_bundles: ${if cfg.plex.cleanBundles then "true" else "false"}
@@ -143,45 +137,43 @@ let
 
     # TMDb configuration (required)
     tmdb:
-      apikey: !env_var KOMETA_TMDB_API_KEY
-      language: ${cfg.tmdb.language}
-      region: ${cfg.tmdb.region}
+      apikey: "<<tmdbapikey>>"
+      language: ${builtins.toJSON cfg.tmdb.language}
+      region: ${builtins.toJSON cfg.tmdb.region}
       cache_expiration: ${toString cfg.tmdb.cacheExpiration}
 
     ${lib.optionalString cfg.trakt.enable ''
     # Trakt configuration
     trakt:
-      client_id: !env_var KOMETA_TRAKT_CLIENT_ID
-      client_secret: !env_var KOMETA_TRAKT_CLIENT_SECRET
+      client_id: "<<traktclientid>>"
+      client_secret: "<<traktclientsecret>>"
       pin:
     ''}
 
     ${lib.optionalString cfg.mdblist.enable ''
     # MdbList configuration
     mdblist:
-      apikey: !env_var KOMETA_MDBLIST_API_KEY
+      apikey: "<<mdblistapikey>>"
       cache_expiration: ${toString cfg.mdblist.cacheExpiration}
     ''}
 
     ${lib.optionalString cfg.omdb.enable ''
     # OMDb configuration
     omdb:
-      apikey: !env_var KOMETA_OMDB_API_KEY
+      apikey: "<<omdbapikey>>"
       cache_expiration: ${toString cfg.omdb.cacheExpiration}
     ''}
 
     # Library configurations
-    libraries:
-    ${lib.concatStrings (lib.mapAttrsToList mkLibraryYaml cfg.libraries)}
+    libraries: ${builtins.toJSON (lib.mapAttrs mkLibraryConfig cfg.libraries)}
 
-    ${lib.optionalString (cfg.playlistFiles != []) ''
+    ${lib.optionalString (cfg.playlistFiles != [ ]) ''
     # Playlist files
-    playlist_files:
-    ${lib.concatMapStrings (pf: "  - ${mkFileReference pf}\n") cfg.playlistFiles}
+    playlist_files: ${builtins.toJSON (map mkFileReference cfg.playlistFiles)}
     ''}
 
     # Global settings
-    ${mkSettingsYaml cfg.settings}
+    settings: ${builtins.toJSON (mkSettingsConfig cfg.settings)}
   '';
 
   # =============================================================================
@@ -825,6 +817,8 @@ in
       # Systemd Service
       # =============================================================================
 
+      system.build.kometaConfig = configYaml;
+
       systemd.services.kometa-sync = lib.mkMerge [
         {
           description = "Kometa Plex Metadata Manager Sync";
@@ -865,6 +859,8 @@ in
               in
               pkgs.writeShellScript "kometa-sync.sh" ''
                 set -euo pipefail
+
+                ${pkgs.yq-go}/bin/yq eval '.' ${configYaml} >/dev/null
 
                 # Copy generated config to data directory
                 cp ${configYaml} ${cfg.dataDir}/config.yml

@@ -20,6 +20,11 @@ in
         podmanNetwork = forgeDefaults.podmanNetwork;
         healthcheck.enable = true;
 
+        resources = {
+          memory = "1G";
+          memoryReservation = "512M";
+        };
+
         # Ensure Seerr starts after its dependencies to prevent connection errors during startup
         dependsOn = [ "sonarr" "radarr" ];
 

@@ -2116,11 +2116,11 @@ in
           # Used for Plex, TMDb, and Trakt API credentials
           "kometa-env" = {
             content = lib.concatStringsSep "\n" (lib.filter (x: x != "") [
-              "KOMETA_PLEX_URL=http://plex:32400"
-              "KOMETA_PLEX_TOKEN=${config.sops.placeholder."plex/token"}"
-              "KOMETA_TMDB_API_KEY=${config.sops.placeholder."tmdb/api-key"}"
-              "KOMETA_TRAKT_CLIENT_ID=${config.sops.placeholder."trakt/client-id"}"
-              "KOMETA_TRAKT_CLIENT_SECRET=${config.sops.placeholder."trakt/client-secret"}"
+              "KOMETA_PLEXURL=http://plex:32400"
+              "KOMETA_PLEXTOKEN=${config.sops.placeholder."plex/token"}"
+              "KOMETA_TMDBAPIKEY=${config.sops.placeholder."tmdb/api-key"}"
+              "KOMETA_TRAKTCLIENTID=${config.sops.placeholder."trakt/client-id"}"
+              "KOMETA_TRAKTCLIENTSECRET=${config.sops.placeholder."trakt/client-secret"}"
             ]);
             mode = "0400"; # root-only readable
             owner = "root";
