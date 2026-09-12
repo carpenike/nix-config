@@ -4,6 +4,7 @@ let
   c = inputs.self.nixosConfigurations.forge.config;
   packages = inputs.atrium.packages.${c.nixpkgs.hostPlatform.system};
   pins = builtins.fromJSON (builtins.readFile ./pins.json);
+  identity = import ../../hosts/forge/atrium/identity.nix { inherit lib; };
   checks = {
     accepted-application-pin = inputs.atrium.rev == pins.atrium;
     resolver-installed = lib.elem packages.resolver c.environment.systemPackages;
@@ -12,6 +13,15 @@ let
       c.services.atrium.runtime.resolver.package == packages.resolver
       && c.services.atrium.runtime.reconciler.package == packages.atrium-litellm-controller;
     actual-controller-executable = c.services.atrium.runtime.reconciler.executable == "atrium-litellm-controller";
+    explicit-identity-bootstrap-installed =
+      builtins.fromJSON (builtins.readFile c.environment.etc."atrium/bootstrap/identity.json".source)
+      == identity.bootstrap;
+    explicit-bootstrap-authority =
+      builtins.fromJSON c.environment.etc."atrium/bootstrap/resolver.json".text
+      == identity.settings
+      && identity.settings.authorities == [ identity.authority ]
+      && !identity.settings.isolated_harness
+      && identity.registry.principals.ryan.groups == [ ];
     no-implicit-registry = !c.services.atrium.enable && c.services.atrium.registry == null;
     no-policy-publication = c.services.atrium.generated == { }
       && !(c.environment.etc ? "atrium/desired-state/registry.json");

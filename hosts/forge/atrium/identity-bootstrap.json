@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "principals": [
+    {
+      "id": "ryan",
+      "display_name": "Ryan",
+      "kind": "human",
+      "roles": ["admin", "adult"]
+    }
+  ],
+  "identities": [
+    {
+      "authority": "pocketid",
+      "subject": "9853582c-b3fe-4e47-8cd9-56174ecba18e",
+      "principal": "ryan"
+    }
+  ]
+}

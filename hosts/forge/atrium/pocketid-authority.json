@@ -1,0 +1,8 @@
+{
+  "id": "pocketid",
+  "issuer": "https://id.holthome.net",
+  "audience": "https://atrium.holthome.net/resolver",
+  "jwks_uri": "https://id.holthome.net/.well-known/jwks.json",
+  "algorithms": ["RS256"],
+  "max_token_lifetime_seconds": 3600
+}
