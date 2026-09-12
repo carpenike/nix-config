@@ -6,6 +6,11 @@ wiring. Atrium owns controller/admission runtime, behavior/security/rotation and
 version-compatibility tests, native helpers, orchestration and canonical evidence.
 Home MCP and Whiskey implementations remain in their respective repositories.
 
+The [Forge runtime foundation](atrium-forge-runtime.md) adds concrete protected
+listeners, private custody, explicit bootstrap units and health/backup wiring.
+It remains fail-closed on missing reviewed policy/native/model inputs and does
+not activate or silently adopt production state.
+
 ## Package and helper contract
 
 The Atrium input must provide:
@@ -42,7 +47,10 @@ The following Nix checks test consumption and host wiring, not product behavior:
 * `atrium-n06-units` checks namespace/path selection and service composition,
   including explicit capability resets and rejected stronger overrides.
 
-Ordinary host configuration builds remain unchanged. Building an app package may
+The Forge foundation is covered by `atrium-forge-preparation`,
+`atrium-forge-caddy`, and `atrium-identity-bootstrap`. These distinguish missing
+policy/adoption from readiness and preserve retained native services.
+Building an app package may
 run tests defined by that app's own package expression; nix-config does not copy
 or invoke a parallel controller/admission/product pytest suite.
 

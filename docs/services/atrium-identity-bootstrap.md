@@ -41,20 +41,24 @@ Forge's package module installs:
 /etc/atrium/bootstrap/resolver.json
 ```
 
-The settings use `/var/lib/atrium-resolver`, verified HTTPS authority trust,
-and `isolated_harness = false`. They contain no signing configuration or
-permission policy: this is identity initialization, not a permissive resolver.
-The registry, resolver and reconciler remain disabled.
+The original settings use `/var/lib/atrium-resolver`, verified HTTPS authority
+trust, and `isolated_harness = false`. They contain no signing configuration or
+permission policy: this remains the identity-only input.
+The [Forge runtime foundation](atrium-forge-runtime.md) now installs explicit
+identity/signing/TLS initializer units, protected listener units and private
+custody. Its complete registry and native/model adoption remain blocked on the
+reviewed inputs documented there; missing policy fails listener startup.
 
-Once the intended resolver service identity and runtime custody are configured,
-the operator path, run as that state owner, is:
+For the foundation's new first-use installation, use the explicit
+`atrium-initialize.service` operator unit documented in the runtime guide.
+The original identity-only CLI, run as the state owner, remains:
 
 ```sh
 atrium-resolver --config /etc/atrium/bootstrap/resolver.json \
   bootstrap --enrollment /etc/atrium/bootstrap/identity.json
 ```
 
-Do not run a second bootstrap to update an existing installation. The actual
+Do not run both initialization paths or a second bootstrap to update an existing installation. The actual
 resolver rejects a populated store and unknown authorities. Deployment tests
 execute the real packaged command against temporary private state, prove the
 valid first initialization, and require repeated/foreign-authority refusals.

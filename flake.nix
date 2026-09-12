@@ -132,7 +132,7 @@
     # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/b06f153f5e219bfff30ed10d9acbbadea33b4b6a";
+      url = "github:carpenike/atrium/279bcfc186d7de674678fe41c344edf2147f341c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -515,6 +515,44 @@
               (builtins.toJSON (import ./tests/atrium_n03/forge-evaluate.nix {
                 inherit inputs;
               }));
+            atrium-forge-caddy = pkgs.runCommand "atrium-forge-caddy-syntax"
+              { nativeBuildInputs = [ pkgs.caddy ]; }
+              (
+                let
+                  runtime = import ./hosts/forge/atrium/runtime.nix { inherit (pkgs) lib; };
+                  entry = import ./hosts/forge/atrium/entry.nix { inherit runtime; };
+                  hosts = inputs.self.nixosConfigurations.forge.config.modules.services.caddy.virtualHosts;
+                  native = hosts.homelab-mcp;
+                  whiskey = hosts.whiskeywhiskeywhiskey;
+                  caddyfile = pkgs.writeText "atrium-forge-entry-Caddyfile" ''
+                    {
+                      admin off
+                      auto_https off
+                    }
+                    http://127.0.0.1:18445 {
+                      ${entry.extraConfig}
+                      reverse_proxy ${entry.backend.host}:${toString entry.backend.port} {
+                        ${entry.reverseProxyBlock}
+                      }
+                    }
+                    http://127.0.0.1:18446 {
+                      ${native.extraConfig}
+                      reverse_proxy ${native.backend.host}:${toString native.backend.port} {
+                        ${native.reverseProxyBlock}
+                      }
+                    }
+                    http://127.0.0.1:18447 {
+                      ${whiskey.extraConfig}
+                      reverse_proxy ${whiskey.backend.host}:${toString whiskey.backend.port} {
+                        ${whiskey.reverseProxyBlock}
+                      }
+                    }
+                  '';
+                in
+                ''
+                  caddy adapt --adapter caddyfile --config ${caddyfile} > "$out"
+                ''
+              );
             atrium-n03-units = pkgs.writeText "atrium-n03-isolated-units.json"
               (builtins.toJSON (import ./tests/atrium_n03/evaluate.nix {
                 inherit inputs;

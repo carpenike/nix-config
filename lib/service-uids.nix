@@ -47,6 +47,25 @@
 { ... }:
 
 {
+  atrium-resolver = {
+    uid = 1060;
+    gid = 1060;
+    description = "Forge Atrium resolver, identity, signing and deny-state custody";
+    extraGroups = [ ];
+  };
+  atrium-trust = {
+    uid = 1061;
+    gid = 1061;
+    description = "Forge Atrium explicit TLS authority provisioning";
+    extraGroups = [ ];
+  };
+  atrium-registration = {
+    uid = 1062;
+    gid = 1062;
+    description = "Forge Atrium registration TLS-byte forwarding only";
+    extraGroups = [ ];
+  };
+
   # Reserved only for the opt-in ATR-N04 isolated host; no live host imports it.
   atrium-reconciler-fixture = {
     uid = 65430;
