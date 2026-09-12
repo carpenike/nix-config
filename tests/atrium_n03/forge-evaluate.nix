@@ -80,6 +80,10 @@ let
         runtime.resolver.policy_path
       ])
       [ "atrium-resolver" "atrium-device-registration" ];
+    empty-state-is-not-bootstrap = lib.all
+      (name: units.${name}.unitConfig.AssertFileNotEmpty
+        == units.${name}.unitConfig.AssertPathExists)
+      [ "atrium-resolver" "atrium-device-registration" ];
     initialization-is-manual = units.atrium-initialize.wantedBy == [ ]
       && units.atrium-trust-initialize.wantedBy == [ ]
       && !lib.elem "atrium-initialize.service" units.atrium-resolver.requires

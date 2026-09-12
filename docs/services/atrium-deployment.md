@@ -112,10 +112,10 @@ Those product results are referenced, not copied into this deployment repo.
 The earlier failed N03 cohorts and22-of-27 result remain historical. This
 ownership correction neither promotes them nor authorizes another native run.
 
-The current input advances only Atrium to immutable
+The earlier alias-convergence slice advanced only Atrium to immutable
 `df39edf4e783222700e658951088b0651f65d02a`, containing the accepted
 [native alias-convergence correction and current publication qualification](https://github.com/carpenike/atrium/blob/df39edf4e783222700e658951088b0651f65d02a/harness/evidence/ATR-N04-alias-handoff.json).
-All other lock inputs and host policy values are unchanged by that update.
+All other lock inputs and host policy values were unchanged by that update.
 Its217-case/UID/model evidence supersedes the old controller qualification,
 not the historical receipts themselves. N03's integrated acceptance and any
 production activation remain separate gates.

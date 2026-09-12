@@ -140,7 +140,8 @@ ordinary native source catalog—not the synthetic M03 catalog. Its bounded
 explicit ceilings, not seeded grants or a migration decision.
 
 Both listener units require the initialized identity receipt, existing SQLite
-state, and `/var/lib/atrium-policy/resolver.json` **before** startup. The app
+state, and `/var/lib/atrium-policy/resolver.json` to be present and nonempty
+**before** startup. The app
 then validates the complete policy and signing/TLS state. Missing material
 fails the unit; no successful empty service is substituted. Until a reviewed
 complete N02 policy can be generated and installed with root provenance, these

@@ -61,6 +61,11 @@ let
         "${runtime.paths.resolver}/resolver.sqlite3"
         runtime.resolver.policy_path
       ];
+      AssertFileNotEmpty = [
+        "${runtime.paths.resolver}/foundation.initialized"
+        "${runtime.paths.resolver}/resolver.sqlite3"
+        runtime.resolver.policy_path
+      ];
     };
     serviceConfig = (privateState "atrium-resolver") // {
       ExecStart = "${resolver} --config /etc/atrium/runtime/${unit}.json ${command} --port ${toString port}";
