@@ -2,13 +2,14 @@
 
 The N03 compatibility fixture remains default-off and isolated. Forge's
 separate package installation is described below. The selected app inputs are
-immutable Atrium `4431882c72f11aa386d072b345ba619311222ca5` and Home MCP
+immutable Atrium `b06f153f5e219bfff30ed10d9acbbadea33b4b6a` and Home MCP
 `23de14d586c668e1662294ff1f2a8d5da265cf24`; Whiskey273cf414 is unchanged.
-These merges retain the exact reviewed application and native companion trees,
-including explicit production metadata and the sidecar inode-recovery fix.
+The Atrium merge retains the exact reviewed `24ef385` tree, including explicit
+1.100.1 compatibility, production metadata and the sidecar inode-recovery fix.
+The accepted native companion tree is unchanged.
 Other owner-selected flake inputs remain unchanged.
-Package/module selection is not a claim that Forge's live services now use
-the isolated fixture or that a different live gateway version is qualified.
+Package selection does not activate Forge's Atrium runtime or install the
+isolated fixture into live services. Version qualification is recorded below.
 
 The app's [completed model/Whiskey recovery handoff](https://github.com/carpenike/atrium/blob/a17853656eb8023f0fcbecdcc6c63d645e033fec/harness/evidence/ATR-N07-model-whiskey-current-recovery-handoff.json)
 records five actual native recovery groups at driver `3c55226`, with its
@@ -35,13 +36,18 @@ seed grants or turn on the resolver.
 The selected app now supports explicitly configured production metadata, with
 real paired adapter evidence linked below. Runtime activation still requires
 actual registry/trust/ownership values, not a relabeled synthetic fixture.
-Forge's existing LiteLLM configuration selects `v1.100.1`; the linked native
-Atrium evidence qualifies `v1.99.1`. This change does not downgrade the gateway
-or claim that the different version is qualified.
+Forge explicitly selects `services.atrium.litellmVersion = "v1.100.1"`,
+matching its existing gateway image and the newly qualified app target below.
+This does not install the admission hook into the running gateway or enable
+reconciliation. Future resolver broker and admission settings must select the
+same version explicitly; an unknown or mismatched version fails closed.
 
 `atrium-forge-preparation` evaluates the actual Forge configuration for package
-selection and default-off runtime, policy and credential boundaries. It is a
-deployment composition check, not a native permit/deny receipt.
+selection, the exact qualified gateway image, version-aware desired-state
+generation and default-off runtime, policy and credential boundaries. The
+generator check uses the existing isolated registry, not live registry
+publication. It is a deployment composition check, not a native permit/deny
+receipt. Changes to Forge's LiteLLM image also trigger this check in CI.
 
 Build Forge using the repository's remote build path:
 
@@ -52,6 +58,29 @@ task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
 This builds on Forge without activating the generation. `naf` uses the
 repository's guarded deployment wrapper for activation; it has not been run
 as part of this package preparation.
+
+## Qualified LiteLLM 1.100.1
+
+The [app-owned version handoff](https://github.com/carpenike/atrium/blob/24ef385c7204f6e39bf44ed143b6f9586af181a5/harness/evidence/ATR-N05-11001-integration-handoff.json)
+binds the actual controller, admission, protocol, worker, cache and streaming
+permit/deny runs to manifest
+`sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf`.
+All 16 enabled protocol modes passed both-worker warm-cache denial and recovery.
+Unversioned `/messages` remains unavailable (404), not a successful permit.
+
+The final correlated follow-through passed seven phases and 24 requests after
+correcting fixture readiness: both native worker catalogues must be visible
+within the original 65-second budget before client keys or periodic work.
+No product authorization, fallback or timing predicate was weakened. The older
+underdiagnosed observation remains unclassified; it is not retroactively
+explained by the later correction.
+
+Native execution was Linux ARM64. Read-only Forge inspection confirmed
+1.100.1/x86_64 and equality of all 20 inspected native auth/router/cache/stream
+source files; this is not an additional AMD64 native run. Historical 1.99.1
+defaults, fixtures and receipts remain unchanged and are not counted as 1.100.1
+evidence. This version selection neither downgrades Forge nor adopts its
+existing keys, teams or aliases.
 
 ## Qualified production metadata
 

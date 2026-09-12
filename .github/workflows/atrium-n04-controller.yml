@@ -6,6 +6,7 @@ name: Atrium controller deployment
     paths:
       - hosts/forge/default.nix
       - hosts/forge/services/atrium.nix
+      - hosts/forge/services/litellm.nix
       - hosts/forge/atrium/identity.nix
       - hosts/forge/atrium/identity-bootstrap.json
       - hosts/forge/atrium/pocketid-authority.json
