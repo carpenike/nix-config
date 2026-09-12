@@ -176,6 +176,10 @@ introduced.
 
 ## Health, recovery and evidence
 
+The [source-bound deployment receipt](evidence/atrium-forge-runtime.json)
+records the exact built system, check artifacts, source-specific CI, retained
+skips/warnings and unexecuted native cases.
+
 Service-down/restart-churn alerts cover the resolver, device listener and
 registration entry. A separate hourly TLS status unit alerts on missing,
 invalid or expired custody. Gatus probes the public `/healthz` route. That is
