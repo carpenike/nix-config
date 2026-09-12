@@ -16,6 +16,8 @@ in
     "atrium/bootstrap/resolver.json".text = builtins.toJSON identity.settings;
   };
 
+  services.atrium.litellmVersion = "v1.100.1";
+
   # Package installation does not bootstrap identity, publish policy, or start units.
   services.atrium.runtime = {
     resolver.package = packages.resolver;

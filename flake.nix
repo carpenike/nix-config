@@ -129,10 +129,10 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N03: qualified production-metadata and current-state recovery packages.
+    # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/4431882c72f11aa386d072b345ba619311222ca5";
+      url = "github:carpenike/atrium/b06f153f5e219bfff30ed10d9acbbadea33b4b6a";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

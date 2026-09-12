@@ -5,8 +5,22 @@ let
   packages = inputs.atrium.packages.${c.nixpkgs.hostPlatform.system};
   pins = builtins.fromJSON (builtins.readFile ./pins.json);
   identity = import ../../hosts/forge/atrium/identity.nix { inherit lib; };
+  gateway = builtins.fromJSON (builtins.readFile
+    (inputs.atrium + "/harness/version-candidates/litellm-1.100.1.json"));
+  gatewayDocuments = inputs.atrium.lib.renderForGateway {
+    registry = import ../atrium/registry.nix { atrium = inputs.atrium; };
+    nativeVersion = c.services.atrium.litellmVersion;
+  };
   checks = {
     accepted-application-pin = inputs.atrium.rev == pins.atrium;
+    explicit-gateway-version =
+      gateway.kind == "atrium.litellm-version-candidate"
+      && gateway.native_version == "v1.100.1"
+      && c.services.atrium.litellmVersion == gateway.native_version;
+    qualified-gateway-image = c.modules.services.litellm.image
+      == builtins.replaceStrings [ "@" ] [ ":${gateway.native_version}@" ] gateway.image;
+    version-aware-desired-state =
+      gatewayDocuments.litellm.native_version == c.services.atrium.litellmVersion;
     resolver-installed = lib.elem packages.resolver c.environment.systemPackages;
     controller-installed = lib.elem packages.atrium-litellm-controller c.environment.systemPackages;
     actual-component-packages =
