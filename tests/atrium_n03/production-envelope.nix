@@ -28,23 +28,29 @@ let
     authorities = lib.mapAttrs (_: value: value // { kind = "pocket-id"; }) base.registry.authorities;
     catalogs = base.registry.catalogs // {
       home-mcp-fixture = base.registry.catalogs.home-mcp-fixture // {
-        source = if scopeState == "live" then
-          candidateNative + "/tests/fixtures/atrium_m03_catalog.generated.json"
-        else builtins.toFile "atrium-n02-retired-source-catalog.json" (builtins.toJSON retiredCatalog);
+        source =
+          if scopeState == "live" then
+            candidateNative + "/tests/fixtures/atrium_m03_catalog.generated.json"
+          else builtins.toFile "atrium-n02-retired-source-catalog.json" (builtins.toJSON retiredCatalog);
       };
     };
-    instances = lib.mapAttrs (_: value:
-      if scopeState == "retired" && value.deployment == "home-mcp"
-      then withoutRetiredScope value else value) base.registry.instances;
-    routeTemplates = lib.mapAttrs (_: value:
-      if scopeState == "retired" && base.registry.instances.${value.instance}.deployment == "home-mcp"
-      then withoutRetiredScope value else value) base.registry.routeTemplates;
+    instances = lib.mapAttrs
+      (_: value:
+        if scopeState == "retired" && value.deployment == "home-mcp"
+        then withoutRetiredScope value else value)
+      base.registry.instances;
+    routeTemplates = lib.mapAttrs
+      (_: value:
+        if scopeState == "retired" && base.registry.instances.${value.instance}.deployment == "home-mcp"
+        then withoutRetiredScope value else value)
+      base.registry.routeTemplates;
   };
   generated = candidateRuntime.lib.render registry;
   application = {
-    available = lib.all (system: lib.all
-      (name: builtins.hasAttr name candidateRuntime.packages.${system})
-      [ "resolver" "sidecar" "atrium-litellm-controller" "atrium-litellm-admission" ])
+    available = lib.all
+      (system: lib.all
+        (name: builtins.hasAttr name candidateRuntime.packages.${system})
+        [ "resolver" "sidecar" "atrium-litellm-controller" "atrium-litellm-admission" ])
       [ "x86_64-linux" "aarch64-linux" ];
     revision = candidateRuntime.rev;
     repository = "carpenike/atrium";
@@ -67,9 +73,11 @@ let
       inherit installation;
       environment = "production";
       endpoint = endpoints.models;
-      backend_transports = lib.mapAttrs (_: backend: {
-        api_base = "${providerEndpoints.${backend.domain}}/v1";
-      }) registry.modelBackends;
+      backend_transports = lib.mapAttrs
+        (_: backend: {
+          api_base = "${providerEndpoints.${backend.domain}}/v1";
+        })
+        registry.modelBackends;
     };
     admission = { inherit installation; environment = "production"; isolated = false; };
     actorEnvironment.SSL_CERT_FILE = "${base.runtime}/model-inputs/front-ca";
