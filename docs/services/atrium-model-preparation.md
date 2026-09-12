@@ -1,10 +1,12 @@
 # N03 model deployment compatibility
 
 The N03 compatibility fixture remains default-off and isolated. Forge's
-separate package installation is described below. The selected app input is immutable Atrium
-`0700af39a7bf805c148eb362cecab0f8cef4eb21`; MCP338cbbdb and Whiskey273cf414
-remain unchanged. This advances the application input to the accepted
-current-state recovery work while retaining the owner's other flake updates.
+separate package installation is described below. The selected app inputs are
+immutable Atrium `4431882c72f11aa386d072b345ba619311222ca5` and Home MCP
+`23de14d586c668e1662294ff1f2a8d5da265cf24`; Whiskey273cf414 is unchanged.
+These merges retain the exact reviewed application and native companion trees,
+including explicit production metadata and the sidecar inode-recovery fix.
+Other owner-selected flake inputs remain unchanged.
 Package/module selection is not a claim that Forge's live services now use
 the isolated fixture or that a different live gateway version is qualified.
 
@@ -25,9 +27,9 @@ Installing them does not initialize a database or signing identity, enroll
 anyone, adopt native credentials, publish a registry, or start a listener.
 The resolver, reconciler and its timer remain disabled.
 
-The selected app still rejects non-isolated desired-state documents. Actual
-runtime activation therefore also needs app-owned deployment-mode support and
-real registry/trust/ownership values, not a relabeled synthetic fixture.
+The selected app now supports explicitly configured production metadata, with
+real paired adapter evidence linked below. Runtime activation still requires
+actual registry/trust/ownership values, not a relabeled synthetic fixture.
 Forge's existing LiteLLM configuration selects `v1.100.1`; the linked native
 Atrium evidence qualifies `v1.99.1`. This change does not downgrade the gateway
 or claim that the different version is qualified.
@@ -45,6 +47,28 @@ task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
 This builds on Forge without activating the generation. `naf` uses the
 repository's guarded deployment wrapper for activation; it has not been run
 as part of this package preparation.
+
+## Qualified production metadata
+
+The [app-owned integration handoff](https://github.com/carpenike/atrium/blob/1c5553362c3f3f8cde1faa2228da87ef408b5fb9/harness/evidence/ATR-N02-deployment-mode-integration.json)
+keeps two separately executed native cohorts distinct:
+
+- Seven fresh model/controller/admission/MCP groups at driver `dac6655`,
+  runtime `a119f96`, native MCP `f961dc1` and fixture `5ccba5a9`, covering
+  T5/T6/T7/T9/T11/T22 and actual producer/policy refusal-recovery pairs.
+- Fixed-source installed sidecar runs at `3457131`: 72 production and 72
+  independently executed default-isolated cases, including the approved
+  recovery correction, with complete phase accounting and private cleanup.
+
+Application PR36's final reviewed tree `bc36afd` is identical to merge4431882;
+native PR77's `f961dc1` tree is identical to merge23de14d. The receipts retain
+their actual executed revisions. These results qualify the deployment-metadata
+extension, not a different gateway image, a new full-platform gate or live
+adoption.
+
+The optional `production-envelope.nix` fixture still requires its explicit,
+immutable candidate inputs. It is not imported by Forge's live service module,
+and its historical source guards are not changed by advancing host package pins.
 
 ## Repository boundary
 

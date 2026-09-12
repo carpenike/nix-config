@@ -2,6 +2,7 @@
 let
   inherit (inputs) atrium;
   inherit (inputs.nixpkgs) lib;
+  pins = builtins.fromJSON (builtins.readFile ./pins.json);
   ids = lib.getAttrs [
     "atrium-reconciler-fixture"
     "atrium-consumer-fixture"
@@ -168,8 +169,7 @@ in
   };
   versions = {
     atrium = application.revision;
-    native = "338cbbdb990a5751d199f276c5d65b07730cd97d";
-    consumer = "273cf414cac75276492ee849bb3ea257ce47f8de";
+    inherit (pins) native consumer;
     litellm = "ghcr.io/berriai/litellm:v1.99.1@sha256:a53a7d3ffebede1925bd3ee8a21e4a7b9b63e2e68ec883af136edcccb6eeb82c";
   };
   resolver = (resolverConfig "atrium-resolver") // {

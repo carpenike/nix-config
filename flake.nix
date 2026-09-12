@@ -129,10 +129,10 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N03: accepted foundation and current-state recovery packages.
+    # ATR-N03: qualified production-metadata and current-state recovery packages.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/0700af39a7bf805c148eb362cecab0f8cef4eb21";
+      url = "github:carpenike/atrium/4431882c72f11aa386d072b345ba619311222ca5";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -194,7 +194,7 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      url = "github:carpenike/mcp/338cbbdb990a5751d199f276c5d65b07730cd97d";
+      url = "github:carpenike/mcp/23de14d586c668e1662294ff1f2a8d5da265cf24";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
