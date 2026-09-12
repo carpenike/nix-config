@@ -1,6 +1,7 @@
-{ inputs, pkgs, ... }:
+{ inputs, pkgs, lib, ... }:
 let
   packages = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system};
+  identity = import ../atrium/identity.nix { inherit lib; };
 in
 {
   imports = [ inputs.atrium.nixosModules.atrium ];
@@ -9,6 +10,11 @@ in
     packages.resolver
     packages.atrium-litellm-controller
   ];
+
+  environment.etc = {
+    "atrium/bootstrap/identity.json".source = ../atrium/identity-bootstrap.json;
+    "atrium/bootstrap/resolver.json".text = builtins.toJSON identity.settings;
+  };
 
   # Package installation does not bootstrap identity, publish policy, or start units.
   services.atrium.runtime = {

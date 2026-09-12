@@ -6,8 +6,12 @@ name: Atrium controller deployment
     paths:
       - hosts/forge/default.nix
       - hosts/forge/services/atrium.nix
+      - hosts/forge/atrium/identity.nix
+      - hosts/forge/atrium/identity-bootstrap.json
+      - hosts/forge/atrium/pocketid-authority.json
       - hosts/forge/atrium/litellm-controller-isolated.nix
       - tests/atrium_n03/forge-evaluate.nix
+      - tests/atrium_n03/identity-bootstrap.nix
       - tests/atrium_n03/pins.json
       - tests/atrium_n04/*.nix
       - tests/atrium/*.nix
@@ -36,6 +40,8 @@ jobs:
       - name: Check the app CLI, Forge preparation and isolated wiring
         run: |
           nix build --builders '' --no-link --no-write-lock-file \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-identity-bootstrap \
             .#checks.x86_64-linux.atrium-forge-preparation \
             .#checks.x86_64-linux.atrium-n04-package-smoke \
             .#checks.x86_64-linux.atrium-n04-units

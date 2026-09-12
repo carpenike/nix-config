@@ -27,6 +27,11 @@ Installing them does not initialize a database or signing identity, enroll
 anyone, adopt native credentials, publish a registry, or start a listener.
 The resolver, reconciler and its timer remain disabled.
 
+The [owner identity bootstrap](atrium-identity-bootstrap.md) now derives its
+native subject from Pocket ID's real management API and installs explicit
+non-secret operator inputs. It does not initialize live state, create a client,
+seed grants or turn on the resolver.
+
 The selected app now supports explicitly configured production metadata, with
 real paired adapter evidence linked below. Runtime activation still requires
 actual registry/trust/ownership values, not a relabeled synthetic fixture.

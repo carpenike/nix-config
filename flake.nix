@@ -507,6 +507,10 @@
 
           # Checks for CI
           checks = {
+            atrium-identity-bootstrap = import ./tests/atrium_n03/identity-bootstrap.nix {
+              inherit pkgs;
+              resolverPackage = inputs.atrium.packages.${system}.resolver;
+            };
             atrium-forge-preparation = pkgs.writeText "atrium-forge-preparation.json"
               (builtins.toJSON (import ./tests/atrium_n03/forge-evaluate.nix {
                 inherit inputs;
