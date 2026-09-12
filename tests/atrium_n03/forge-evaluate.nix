@@ -169,7 +169,8 @@ let
     resolver-and-ca-custody-private =
       c.modules.storage.datasets.services.atrium-resolver.mode == "0700"
       && c.modules.storage.datasets.services.atrium-trust.mode == "0700"
-      && c.modules.storage.datasets.services.atrium-policy.owner == "root";
+      && c.modules.storage.datasets.services.atrium-policy.owner == "root"
+      && c.modules.storage.datasets.services.atrium-policy.rootOwnedReason != null;
     encrypted-backup-tiers = lib.all
       (name: c.modules.services.backup.restic.jobs.${name}.enable
         && c.modules.services.backup.restic.jobs.${name}.useSnapshots

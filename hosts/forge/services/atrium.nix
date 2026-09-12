@@ -256,6 +256,10 @@ in
           mountpoint = "/var/lib/${name}";
           inherit (state) owner mode;
           group = state.owner;
+          rootOwnedReason =
+            if state.owner == "root"
+            then "Static authorization policy has root provenance; runtime services must not rewrite their own permission ceiling."
+            else null;
           recordsize = "16K";
           compression = "zstd";
           properties = {
