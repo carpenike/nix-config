@@ -109,5 +109,8 @@ base // {
     candidate_runtime = candidateRuntime.rev;
     candidate_native = candidateNative.rev;
     accepted_pins_modified = false;
+    mutable_mismatch_policy = (candidateRuntime.lib.render (registry // {
+      environment = "isolated";
+    })).resolver;
   };
 }
