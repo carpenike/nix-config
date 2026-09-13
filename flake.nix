@@ -194,9 +194,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Explicit provisional read-catalog candidate; final C9 vendor/native
-      # qualification is supplied separately before any native adoption.
-      url = "github:carpenike/mcp/ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93";
+      # Final app806-vendored candidate: native execution 8ff9ee2, followed
+      # only by the source-bound evidence update at ec1e796. No activation.
+      url = "github:carpenike/mcp/ec1e796d1ae8bca9d8d16a11f00aebc22b5ba4e7";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

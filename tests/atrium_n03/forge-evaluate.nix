@@ -25,6 +25,8 @@ let
   };
   units = c.systemd.services;
   nativeCatalog = builtins.fromJSON (builtins.readFile base.catalogs.home-mcp.source);
+  nativeVendor = builtins.fromJSON (builtins.readFile
+    (inputs.homelab-mcp + "/vendor/atrium-artifacts.lock.json"));
   stateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
   modelAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
     modules = [{ services.atriumForge.adoption.models = true; }];
@@ -36,6 +38,8 @@ let
     selected-application-pin = inputs.atrium.rev == pins.atrium;
     selected-native-pins = inputs.homelab-mcp.rev == pins.native
       && inputs.whiskey-whiskey-whiskey.rev == pins.consumer;
+    native-vendor-matches-app = nativeVendor.revision == inputs.atrium.rev
+      && nativeVendor.repository == "https://github.com/carpenike/atrium";
     explicit-gateway-version = gateway.kind == "atrium.litellm-version-candidate"
       && gateway.native_version == "v1.100.1"
       && c.services.atrium.litellmVersion == gateway.native_version;
