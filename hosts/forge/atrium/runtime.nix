@@ -205,6 +205,29 @@ in
       audience = identity.authority.audience;
       enrollment_path = "/etc/atrium/bootstrap/identity.json";
       initialized_by_build = false;
+      group_evidence = {
+        status = "blocked-pending-c10";
+        dependency = "Owner acceptance and qualified implementation of separately verified signed group evidence.";
+        provider_version = "Pocket ID 2.14";
+        resource_access_jwt_contains_groups = false;
+        signed_id_token_contains_groups = true;
+        signed_id_token_has_access_token_hash_binding = true;
+        userinfo_has_signed_source_lifetime = false;
+        missing_groups = "deny";
+        principal_acl_fallback = false;
+        unsigned_userinfo_fallback = false;
+        identity_carrier_change = false;
+        provenance = {
+          reported_by = "parent";
+          network_pr = 37;
+          network_revision = "4ed8810";
+          native_measurement_source = "f17c887";
+          completed_measurements = 11;
+          expected_blocked_exit_status = 2;
+          cleanup_complete = true;
+          reproduced_by_this_deployment = false;
+        };
+      };
     };
     home_mcp = {
       enabled = adoption.native;

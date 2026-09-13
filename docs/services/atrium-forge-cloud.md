@@ -209,9 +209,11 @@ units use actual package interfaces:
 
 1. `atrium-initialize` and `atrium-trust-initialize`: owner/service enrollment,
    signing, and separate TLS custody. Neither repeats or runs on boot.
-2. `atrium-seed-policy`: ordinary grants only. Establish fresh verified group
-   evidence through the real Pocket ID flow; the seed cannot manufacture it.
-   `atrium-select-opus` is a separate optional adult action.
+2. `atrium-seed-policy`: ordinary grants only; the seed cannot manufacture group
+   evidence. Group-dependent use stays blocked until C10 is accepted and its
+   verified carrier is implemented and qualified. Requesting `openid groups`
+   alone does not fix the resource access JWT. `atrium-select-opus` remains a
+   separate optional adult action, subject to the same group ceiling.
 3. `atrium-model-resolver-initialize`: publish from real initialized resolver
    state. `atrium-model-controller-initialize`: initialize the actual ledger
    and its real initial service publication. `atrium-model-admission-initialize`:
@@ -250,10 +252,45 @@ explicit operator work.
 
 ## Validation and remaining integration
 
+### R01 group-carrier dependency — C10 not accepted
+
+On 2026-09-13 the parent reported verified Pocket ID2.14 measurements from
+network-config PR37 at `4ed8810`, native measurement source `f17c887`:
+11 completed measurements, the expected blocked exit status2, and complete
+cleanup. This deployment branch did not rerun those probes, read their raw
+tokens or modify the identity provider. These references are measurement
+provenance, **not replacement Atrium or Home MCP deployment pins**.
+
+The resource access JWT contains no groups, including when requesting
+`openid groups`. The separately signed ID token contains group names and
+an `at_hash` binding to the exact access token. Userinfo contains live but
+unsigned group data without source `iat`/`exp`.
+
+The current access-token group carrier therefore cannot supply the required
+fresh verified membership. Identity authentication or a green health endpoint
+does not establish wing eligibility. **Missing group evidence continues to
+refuse group-dependent access.**
+
+The parent is proposing C10 for separately verified signed group evidence.
+That contract must be accepted, implemented and qualified before this
+integration can be adopted. Do not reinterpret ID tokens as access bearers,
+use unsigned userinfo as a fallback, seed observations, or add direct human
+principal ACLs to make access succeed. All human instances, route templates
+and client-model templates retain their exact group-only ceilings; the
+cloud-schema check asserts them. No auth/group fallback is implemented here.
+
+This is a runtime authorization/acceptance dependency, not a local-model or
+raw-secret build prerequisite. `/etc/atrium/runtime/adoption.json` reports it
+explicitly as operational metadata; it does not configure a new authentication
+mechanism. Other reference-based cloud/runtime wiring remains in place.
+
+### Build and native-source dependencies
+
 Focused checks use the existing Nix runner with
 `--option allow-import-from-derivation false`: identity bootstrap, cloud schema/
-real certificate binding refusals, N03 fixture composition, Caddy syntax and
-protection coverage. They are not new native T-cases.
+real certificate binding refusals and group-only ACL preservation, N03 fixture
+composition, Caddy syntax and protection coverage. They are not new native
+T-cases or evidence of C10 integration.
 
 Complete policy validation and the remote build require the parent's final
 immutable C9 runtime and native MCP revision/catalog. This branch currently

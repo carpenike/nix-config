@@ -18,6 +18,19 @@ let
   ]);
   data = {
     inherit bootstrap;
+    authority_token_types = lib.mapAttrs (_: authority: authority.tokenType) registry.authorities;
+    instance_acls = lib.mapAttrs
+      (_: instance: {
+        inherit (instance) domain acl;
+      })
+      registry.instances;
+    human_template_acls = lib.mapAttrs
+      (_: template: {
+        inherit (template) domain acl;
+      })
+      (registry.routeTemplates
+        // lib.filterAttrs (_: template: template.credentialKind == "client") registry.modelTemplates);
+    group_evidence = runtime.adoption.identity.group_evidence;
     resolver = runtime.resolver // { litellm = models.resolver; };
     admission = models.admission;
     controller = models.controller;
@@ -69,6 +82,26 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert opus.grants[0].request.models == ("cc.personal.ryan.opus",)
     assert data["controller"]["association_publisher_uid"] != admission.producers[1].publisher_uid
     assert hasattr(Controller, "publish_service_associations") and hasattr(Ledger, "initialize")
+
+    human_ids = {p.id for p in enrollment.principals if p.kind == "human"}
+    required_groups = {
+        "personal:ryan": ["atrium-personal-ryan"],
+        "family:holt": ["atrium-family"],
+    }
+    for instance in data["instance_acls"].values():
+        assert not human_ids.intersection(instance["acl"]["principals"]), "human principal ACL bypass"
+        assert instance["acl"]["groups"] == required_groups[instance["domain"]]
+    for template in data["human_template_acls"].values():
+        assert template["acl"]["principals"] == [], "human template bypasses group evidence"
+        assert template["acl"]["groups"] == required_groups[template["domain"]]
+    assert set(data["authority_token_types"].values()) == {"access_token"}
+    assert settings.group_authority == "pocketid"
+    assert data["group_evidence"]["status"] == "blocked-pending-c10"
+    assert data["group_evidence"]["missing_groups"] == "deny"
+    assert not data["group_evidence"]["principal_acl_fallback"]
+    assert not data["group_evidence"]["unsigned_userinfo_fallback"]
+    assert not data["group_evidence"]["identity_carrier_change"]
+    assert not data["group_evidence"]["provenance"]["reproduced_by_this_deployment"]
 
     root = Path.cwd() / "binding-check"
     root.mkdir(mode=0o700)
@@ -124,6 +157,10 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "kind": "atrium.forge-cloud-schema", "status": "passed",
         "real_runtime_schema_parsers": True, "certificate_derived_bindings": True,
         "wrong_certificate_refused": True, "wrong_native_target_refused": True,
+        "all_human_acls_remain_group_only": True,
+        "identity_carrier_remains_access_token": True,
+        "group_carrier_integration": "blocked-pending-c10",
+        "native_group_measurements_reproduced": False,
         "runtime_gate_evidence": False, "live_operations": False,
     }))
     PY
