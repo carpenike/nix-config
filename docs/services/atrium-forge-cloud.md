@@ -7,10 +7,11 @@ retained in [atrium-forge-runtime.json](evidence/atrium-forge-runtime.json).
 The [source-bound cloud receipt](evidence/atrium-forge-cloud.json) records the
 implementation commit, exact artifacts, owner-data preservation and blocked checks.
 The later [host-review receipt](evidence/atrium-forge-host-review.json) records
-the independently verified container-health correction and prepared R05
-canonical-identity/private-transport fix. Its final schema/build validation is
-pending the parent-supplied immutable app feature pin; historical build receipts
-are not activation evidence for those corrected paths.
+the independently verified container-health correction and R05
+canonical-identity/private-transport fix. App806 now supplies the exact
+additive interface and its strict adopted-config schema checks pass. The
+review receipt records the corrected full-build result separately; historical
+build receipts are not activation evidence for those corrected paths.
 
 C9 was accepted by Ryan and merged in Atrium PR40 at
 `21a4df41ccdc52eb2282387816b3e164c1e32c3c`. The locked specification remains
@@ -151,9 +152,10 @@ R05's configured `endpoint` remains the canonical issuance URL above.
 The additive `transport_endpoint` selects only the actual private mTLS
 connection. It cannot change the response issuer, resource target, audience,
 verification keys or native authorization. Redirect, TLS and identity
-fallbacks are not introduced. This host shape is prepared for the parent-owned
-app feature; final schema validation and a new full build await that feature's
-immutable app pin. The currently recorded `rq34…` artifact predates this fix
+fallbacks are not introduced. The host consumes the parent-owned feature at
+`806ae19e853ae5614523430f5fc2397786fd9839`. Strict schema checks verify the
+canonical endpoint/derived issuer and the separately resolved private request
+endpoint. The historical `rq34…` artifact predates this fix
 and remains build-only historical evidence, not activation qualification.
 
 At explicit native cutover, `/mcp` becomes the declared Personal read target;
@@ -320,7 +322,7 @@ The current explicit candidates are:
 
 | Component | Immutable revision | Qualification boundary |
 | --- | --- | --- |
-| Atrium PR43 | `6930938bbc145eab6020844f7e972aaa9a0cab2a` | Corrected C9 core candidate, not a full native C9 gate |
+| Atrium PR43 | `806ae19e853ae5614523430f5fc2397786fd9839` | Corrected C9 core plus canonical/private R05 transport, not a full native C9 gate |
 | Whiskey PR95 | `472f877952a363321c76ce580ce41dd0810e08b8` | Supplied canonical profile refresh |
 | MCP PR78 | `ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93` | Explicit **provisional** source-catalog/build candidate; final C9 vendor/native qualification forthcoming |
 
@@ -349,14 +351,23 @@ cases remain separately attributed evidence rather than new deployment
 T-cases. Corrected sidecar qualification is now parent-confirmed at 90/90 in
 both modes; resolver package qualification also passed 863 cases.
 
+App806 adds only the exact R05 endpoint/transport separation used by this host.
+The parent reports 39 configuration/context/real-TLS transport/issuance cases
+passing. Only the exchange network URL changes; issuer, signed audience and
+native JWT target are never rewritten. Model, R04, child/device and emergency
+runtime code remains identical to `6930938`, so its existing qualification
+stays source-bound rather than requiring an evidence-only model repin.
+
 Model/runtime qualification is complete on the same `6930938` runtime:
 native execution `c56aa0ac3603b1a2278dca0a6fb9327813219dba`, with the separate
 stacked PR44 report at `1c032d5d84f48eb550c9fdbbee22df6f46d80a6b`. The parent
 confirmed all 20 real LiteLLM1.100.1 model groups: 38 permits, 15 no-effect
 inference denies, 8 R06 refusals and 4 controller refusals, plus 107 host cases.
 These counts are separate categories, not additive claims of new deployment
-T-cases. Model/runtime source is unchanged versus `6930938`, so no new pin,
-configuration or build is needed. PR43's later `87d42ca` is evidence-only.
+T-cases. Model/runtime source outside R05 transport is unchanged versus
+`6930938`, so no additional model configuration or qualification is needed.
+PR43's `87d42ca` is evidence-only; app806 is the separate runtime update
+required for R05 transport.
 
 Whiskey's documentation/evidence revision
 `e3aba82bbf2634d59190c511230cab2d37afe6a1` records 132 properly classified cases:
@@ -367,8 +378,8 @@ runtime pin change or a full C9 deployment gate.
 
 The provisional MCP revision still documents its older qualified vendor source;
 it is not represented as the final C9 native artifact. The parent is refreshing
-that vendor from `6930938` and will supply the resulting immutable revision and
-qualification. Do not follow its mutable worktree, manufacture scopes, swap in
+the coordinated C9/vendor/native artifact and will supply its immutable
+revision and qualification. Do not follow its mutable worktree, manufacture scopes, swap in
 the synthetic M03 catalog or infer per-human dataset ownership. The parent’s
 app/profile/native test counts are separate evidence, not tests rerun or native
 T-cases claimed by this deployment branch.
@@ -378,8 +389,9 @@ global tasks or more model/sidecar runtime work.
 Private app/MCP CI remains independently subject to the account startup
 restriction; this branch does not rerun it or alter billing, settings or checks.
 
-At deployment commit `c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4`, the full remote
-Taskfile build passed and produced:
+Before the host-review corrections, deployment commit
+`c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4` passed the full remote Taskfile build
+and produced this retained historical artifact:
 
 ```text
 /nix/store/rq34rsn29nmdw9svpk15rgmp67ss5520-nixos-system-forge-25.11.20260630.b6018f8
@@ -394,6 +406,23 @@ receipt. No full Linux closure was built on the Mac. Final MCP vendor/native
 qualification and C10 acceptance/implementation remain explicit activation
 dependencies, together with the documented native data-ownership and operator
 adoption prerequisites.
+
+After the host review, deployment commit
+`a87db00352fb639ea13e53bad89125404c1dc86b` passed the strict app806
+canonical/private R05 schema, nine focused checks (including 32 adoption
+assertions and both real generated health commands), and the full remote
+Taskfile build:
+
+```text
+/nix/store/zi8146m4lgav66bqhrqg2gp5mpi0wcrz-nixos-system-forge-25.11.20260630.b6018f8
+```
+
+The corrected artifact and six generated policy files were verified in Forge's
+Nix store. Its resolver package phase passed 877 cases with 19 skipped. The
+separate host-review receipt preserves the original receipts and records this
+correction's exact artifacts. These results are still build/schema/command
+evidence, not live activation, health-network proof or final native routed
+broker qualification.
 
 Full Forge compilation uses only:
 

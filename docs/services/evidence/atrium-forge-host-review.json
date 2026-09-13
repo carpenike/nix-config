@@ -2,6 +2,8 @@
   "schema_version": 1,
   "kind": "atrium.forge-host-review-follow-up",
   "branch": "atr/N03-c9-cloud",
+  "implementation_commit": "a87db00352fb639ea13e53bad89125404c1dc86b",
+  "status": "corrections-schema-and-remote-build-passed",
   "historical_receipt": "docs/services/evidence/atrium-forge-cloud.json",
   "historical_build": {
     "implementation_commit": "c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4",
@@ -37,7 +39,7 @@
   },
   "r05": {
     "preparation_commit": "3e04d1a7874184b0749272ae891a99d47b9562f9",
-    "status": "prepared-awaiting-parent-immutable-app-pin",
+    "status": "canonical-private-transport-schema-and-build-passed",
     "defect": "Deriving canonical issuer from the loopback endpoint mismatches registry identity before TLS.",
     "endpoint": "https://mcp.holthome.net/cc/issue",
     "transport_endpoint": "https://127.0.0.1:9200/cc/issue",
@@ -48,9 +50,47 @@
     "declaration_evaluation": "passed",
     "declaration_derivation": "/nix/store/rii76df8yxawll2cnhmznak0hy8ckj1f-atrium-forge-adoption-wiring.json.drv",
     "strict_adopted_broker_schema_assertions_added": true,
-    "final_app_schema_execution": "not run; existing app pin does not contain additive transport_endpoint support",
-    "final_full_forge_build": "not run; awaits parent-supplied immutable app feature revision",
-    "current_app_revision": "6930938bbc145eab6020844f7e972aaa9a0cab2a"
+    "final_app_schema_execution": "passed with actual adopted broker Settings and derived canonical issuer",
+    "final_full_forge_build": "passed-build-only",
+    "current_app_revision": "806ae19e853ae5614523430f5fc2397786fd9839",
+    "resolved_request_endpoint": "https://127.0.0.1:9200/cc/issue",
+    "parent_reported_config_context_tls_issuance_tests": 39,
+    "native_routed_broker_qualification": "parent-owned, awaits final MCP; not claimed executed by this deployment"
+  },
+  "final_validation": {
+    "implementation_commit": "a87db00352fb639ea13e53bad89125404c1dc86b",
+    "app_revision": "806ae19e853ae5614523430f5fc2397786fd9839",
+    "provisional_native_revision": "ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
+    "focused_platform": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "checks": [
+      {"name": "atrium-forge-preparation", "status": "passed", "assertions": 54, "artifact": "/nix/store/rxw56cl5znyjfkfamviyyk8ppchgx531-atrium-forge-preparation.json"},
+      {"name": "atrium-forge-adoption-wiring", "status": "passed", "assertions": 32, "artifact": "/nix/store/g3qskg1ganfwkqf294jrfgllvlbpqsrp-atrium-forge-adoption-wiring.json"},
+      {"name": "atrium-forge-cloud-schema", "status": "passed", "artifact": "/nix/store/p9l9hdcpwl89ip31qfrm8bgd0i3x1d2w-atrium-forge-cloud-schema"},
+      {"name": "atrium-identity-bootstrap", "status": "passed", "artifact": "/nix/store/w627iiaibjicixb7igz90vzi545wq54j-atrium-pocketid-bootstrap"},
+      {"name": "atrium-n03-units", "status": "passed", "artifact": "/nix/store/m0r7wfwd11jyi0q5bscl2ddrm1kr4mq7-atrium-n03-isolated-units.json"},
+      {"name": "atrium-n03-model-preparation", "status": "passed", "artifact": "/nix/store/z5fj8wkcarhchj04j3ihvn2zk5vgxmmg-atrium-n03-model-preparation.json"},
+      {"name": "atrium-forge-caddy", "status": "passed", "artifact": "/nix/store/rigwy1w53bj71n3cxkrzrqkicaj8ax23-atrium-forge-caddy-syntax"},
+      {"name": "atrium-forge-adopted-caddy", "status": "passed", "artifact": "/nix/store/ify71x4802iyspr3vl92b0ycc0z0h5q7-atrium-forge-adopted-caddy-syntax"},
+      {"name": "protection-manifest", "status": "passed", "artifact": "/nix/store/mfxddgc2ywr9ifqha17670qnc152bvp6-protection-manifest-check"}
+    ],
+    "backup_guard": {
+      "status": "evaluation-passed-no-linux-build-on-mac",
+      "derivation": "/nix/store/nqycnyfnfjnrf7778k83230fjk0pzf0l-deployment-backup-guard-check.drv"
+    },
+    "remote_build": {
+      "command": "task -d /Users/ryan/src/nix-config-c9-cloud nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+      "status": "passed-build-only",
+      "exit_status": 0,
+      "artifact": "/nix/store/zi8146m4lgav66bqhrqg2gp5mpi0wcrz-nixos-system-forge-25.11.20260630.b6018f8",
+      "derivation": "/nix/store/yirf9c5jflxyak9lyb5vsrmd1wbw4775-nixos-system-forge-25.11.20260630.b6018f8.drv",
+      "remote_store_and_six_policy_files_verified": true,
+      "resolver_package_tests": {"passed": 877, "skipped": 19, "duration_seconds": 505.55},
+      "activation": false
+    },
+    "normal_commit_hooks": "passed without bypasses",
+    "new_native_gate_claims": false
   },
   "preserved": {
     "original_build_receipts": true,
@@ -63,5 +103,5 @@
     "local_full_linux_closure_build": false,
     "new_agents_or_peer_messages": false
   },
-  "next_step": "Consume the parent's immutable transport_endpoint app revision, run the strict adopted broker schema and focused checks, then use only the existing remote Forge Taskfile for final build verification."
+  "next_step": "Parent integrates final immutable MCP/vendor and native routed-broker qualification. C10 remains unaccepted; retain missing-group denial, operator provisioning/adoption requirements and native dataset-ownership limits. No host-review correction build dependency remains."
 }
