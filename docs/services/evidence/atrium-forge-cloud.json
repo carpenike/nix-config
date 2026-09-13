@@ -2,16 +2,18 @@
   "schema_version": 1,
   "kind": "atrium.forge-cloud-deployment-evidence",
   "branch": "atr/N03-c9-cloud",
-  "implementation_commit": "0f1abcc18a4c6e16012b75031542d34c03b3b840",
+  "implementation_commit": "95f8a58479cc8ec61998e863d134761c7c20b7d9",
   "base_implementation_commit": "c7271513cc48b22b2908325a8e4a64e20bdee135",
   "base_commit": "b47cee4dff8d55afc6b111399477ad366c3d0edb",
-  "status": "implemented-build-input-and-group-contract-blocked",
+  "status": "built-provisional-native-candidate-awaiting-native-c9-and-c10",
   "live_operations": false,
   "new_native_gate_evidence": false,
   "proposed_amendments": [],
   "external_contract_dependencies": {
     "C10": {
       "status": "proposed-not-accepted",
+      "proposal_pr": 42,
+      "proposal_revision": "c3089ff",
       "owner": "parent",
       "scope": "separately verified signed group evidence",
       "blocks": [
@@ -40,13 +42,26 @@
     "deployment_inputs_changed_to_measurement_references": false
   },
   "inputs": {
-    "atrium": "840e0777505febefe5a9296ae621451aac70172a",
-    "native": "23de14d586c668e1662294ff1f2a8d5da265cf24",
-    "consumer_revision": "273cf414cac75276492ee849bb3ea257ce47f8de",
+    "atrium": "212be361e2ecabe1e4f85c3127589ffe23be17e4",
+    "native": "ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
     "litellm_version": "v1.100.1",
     "litellm_manifest": "a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf",
     "specification_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
     "accepted_c9_merge": "21a4df41ccdc52eb2282387816b3e164c1e32c3c"
+  },
+  "input_qualification": {
+    "atrium": "supplied immutable C9 implementation candidate, PR43; no full native C9 gate claimed",
+    "native": "explicit provisional source-catalog/build candidate, PR78; final vendor refresh from 212be36 and native C9 qualification still forthcoming",
+    "consumer": "supplied canonical profile refresh, PR95; shared profile source fbb1775",
+    "parent_reported_tests": {
+      "atrium_profiles": 116,
+      "atrium_resolver_schema_emergency": 125,
+      "atrium_controller_selector": 25,
+      "consumer_native_profile": 42,
+      "consumer_typecheck": "passed",
+      "reproduced_by_this_deployment": false
+    }
   },
   "registry": {
     "authoritative_source": "hosts/forge/atrium/registry.nix",
@@ -67,6 +82,17 @@
     "human_principals": ["ryan"],
     "group_observations_seeded": false,
     "real_child_accounts_created": false,
+    "native_catalog": {
+      "source_revision": "scope_definitions.py:sha256:82acf5c9f4e4ae551754465d07eb8465d88c96658f08ce4ae71141337a6842d9",
+      "profiles": {
+        "atrium-personal-read": {"tools": 20, "resources": 0, "permissions": ["read"]},
+        "atrium-family-read": {"tools": 9, "resources": 0, "permissions": ["read"]}
+      },
+      "scope_names_imply_per_human_dataset_ownership": false,
+      "personal_data_eligibility": "Ryan only, through atrium-personal-ryan; no child or Family assignment",
+      "per_human_native_data_partitioning_claimed": false,
+      "complete_tool_catalog_copied_into_nix_config": false
+    },
     "managed_aliases": {
       "cc.personal.ryan.sonnet": "anthropic/claude-sonnet-5",
       "cc.personal.ryan.opus": "anthropic/claude-opus-5",
@@ -101,14 +127,14 @@
     {
       "name": "atrium-forge-cloud-schema",
       "status": "passed",
-      "artifact": "/nix/store/jkdy1k5hryi96svhysvrvggs3ga7dgbv-atrium-forge-cloud-schema",
+      "artifact": "/nix/store/rqjsx89ppx6zb0r51chx2fz98g1mk444-atrium-forge-cloud-schema",
       "scope": "real app schema parsers and certificate binding permit/refusal cases; all human instance/template ACLs remain group-only and identity carrier remains access_token",
       "c10_acceptance_or_native_group_integration_claimed": false
     },
     {
       "name": "atrium-identity-bootstrap",
       "status": "passed",
-      "artifact": "/nix/store/d23x7g26s0a03f4frkywqmvnx71dakan-atrium-pocketid-bootstrap",
+      "artifact": "/nix/store/3n2hhnhg2riz9lghyz36qmdiqa6m20y0-atrium-pocketid-bootstrap",
       "scope": "actual isolated owner bootstrap, repeat/foreign-authority refusal, no group observations"
     },
     {
@@ -121,12 +147,18 @@
       "name": "atrium-n03-model-preparation",
       "status": "passed",
       "assertions": 35,
-      "artifact": "/nix/store/xxbhgkfx97hrg202zgfmm7w21vvaw40x-atrium-n03-model-preparation.json"
+      "artifact": "/nix/store/dfvqa0s31qphvljhz7hr4n9a2nbhss8p-atrium-n03-model-preparation.json"
     },
     {
       "name": "atrium-forge-caddy",
       "status": "passed",
       "artifact": "/nix/store/rigwy1w53bj71n3cxkrzrqkicaj8ax23-atrium-forge-caddy-syntax"
+    },
+    {
+      "name": "atrium-forge-adopted-caddy",
+      "status": "passed",
+      "artifact": "/nix/store/ify71x4802iyspr3vl92b0ycc0z0h5q7-atrium-forge-adopted-caddy-syntax",
+      "scope": "actual Caddy adapter parses conditional direct-native TLS configuration without reading credentials"
     },
     {
       "name": "protection-manifest",
@@ -140,13 +172,16 @@
     },
     {
       "name": "atrium-forge-preparation",
-      "status": "blocked",
-      "reason": "pinned native catalog lacks atrium-personal-read and atrium-family-read"
+      "status": "passed",
+      "assertions": 54,
+      "artifact": "/nix/store/rxw56cl5znyjfkfamviyyk8ppchgx531-atrium-forge-preparation.json"
     },
     {
       "name": "atrium-forge-adoption-wiring",
-      "status": "blocked",
-      "reason": "restart-trigger validation requires the same complete policy and missing native read exports"
+      "status": "passed",
+      "assertions": 25,
+      "artifact": "/nix/store/ar4n79v30jkh5dwzij66xpi580jj9gnk-atrium-forge-adoption-wiring.json",
+      "scope": "configuration-only with explicitly synthetic egress bindings, not deployed native authorization"
     }
   ],
   "check_execution": {
@@ -171,22 +206,32 @@
     "warnings": [
       "Existing Nix system/stdenv.hostPlatform.system deprecation warnings",
       "Garnix DNS/cache availability warning; Nix used its other configured caches",
-      "Concurrent Nix evaluation-cache busy messages were explicitly reported as ignored"
+      "Concurrent Nix evaluation-cache busy messages were explicitly reported as ignored",
+      "Admission package lacks meta.mainProgram; the generated atrium-litellm-admission entrypoint was verified executable in the remote built closure"
     ]
   },
   "remote_build": {
     "command": "task -d /Users/ryan/src/nix-config-c9-cloud nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
-    "status": "blocked-at-registry-validation-before-remote-compilation",
-    "task_exit_status": 201,
-    "errors": [
-      "Instance family-home-read: missing, unknown, retired, or inappropriate scope allowlist.",
-      "Instance personal-data-read: missing, unknown, retired, or inappropriate scope allowlist."
-    ],
-    "new_artifact": null,
+    "status": "passed-build-only",
+    "implementation_commit": "95f8a58479cc8ec61998e863d134761c7c20b7d9",
+    "task_exit_status": 0,
+    "errors": [],
+    "new_artifact": "/nix/store/vkki3526n20rfiaifsnz1jrjmqp5qym4-nixos-system-forge-25.11.20260630.b6018f8",
+    "derivation": "/nix/store/r9hfjlq9ns8lk4xj39qbckxy1k4fv9zv-nixos-system-forge-25.11.20260630.b6018f8.drv",
+    "remote_artifact_verified": true,
+    "generated_policy_files_verified_in_built_artifact": ["registry", "resolver", "home-mcp", "litellm", "whiskey", "sidecar"],
+    "admission_entrypoint_verified": true,
+    "activation": false,
+    "full_linux_closure_built_on_mac": false,
+    "provisional_native_candidate": true,
     "prior_verified_base_generation": "xw0awhzw7qlkmv62j9d8m4lxhx29mydp",
     "prior_generation_is_not_this_candidate": true,
-    "retried_for_c10_metadata_follow_up": false,
-    "follow_up_reason": "native catalog input is unchanged; C10 is a separate runtime authorization dependency"
+    "historical_blocked_attempt": {
+      "native_revision": "23de14d586c668e1662294ff1f2a8d5da265cf24",
+      "task_exit_status": 201,
+      "reason": "read-only source catalog exports were absent",
+      "resolved_by_explicit_supplied_catalog_candidate": true
+    }
   },
   "protection": {
     "classified_datasets": 55,
@@ -201,13 +246,15 @@
   "tickets": {
     "ATR-N02": {
       "scope": "complete cloud-first concrete Nix registry, explicit owner/group/grant declarations",
+      "build_status": "passed",
       "new_native_t_cases_passed": [],
-      "blocked": "final native read-only source catalog and C9 runtime qualification"
+      "blocked": "native C9 qualification and C10 group-backed authorization acceptance, not Nix rendering"
     },
     "ATR-N03": {
       "scope": "resolver/device/native-policy/issuance, protected transports, custody, bootstrap and recovery",
+      "build_status": "full remote Forge build and focused composition checks passed",
       "new_native_t_cases_passed": [],
-      "blocked": "complete-policy/opt-in composition and remote build await immutable source inputs; group-dependent runtime authorization separately awaits C10 acceptance and qualification"
+      "blocked": "final MCP vendor/native C9 qualification and C10 acceptance/implementation; no activation or new native T-cases"
     },
     "ATR-N04": {
       "scope": "real owned controller and live resolver/controller/service-key publication wiring",
@@ -231,10 +278,10 @@
     }
   },
   "required_follow_up_inputs": [
-    "Final immutable Atrium runtime revision containing the accepted C9 policy/emergency implementation.",
     "Owner acceptance of proposed C10, then immutable implementation/vendor inputs and real acceptance evidence for the separately verified signed group carrier; no fallback before acceptance.",
-    "Explicit immutable MCP revision with source-derived atrium-personal-read and atrium-family-read in tests/fixtures/atrium_catalog.generated.json, preserving legacy writable exports and matching the parent's vendor qualification.",
-    "Any explicitly required accompanying immutable consumer/vendor update; Whiskey stays on the supplied baseline otherwise."
+    "Final immutable MCP artifact with refreshed app/vendor source and native C9 qualification; ab9ff6a remains the explicitly supplied provisional build/catalog candidate until then.",
+    "Parent-coordinated full native C9 paired acceptance evidence; the supplied component test counts are not a full native gate.",
+    "Any explicitly required accompanying immutable consumer/vendor update; the supplied 472f877 candidate remains otherwise unchanged."
   ],
   "operator_prerequisites": [
     "Separate Pocket ID client/resource authorization and explicit Ryan membership in atrium-personal-ryan and atrium-family; membership alone cannot fix the current carrier and no observations are fabricated.",

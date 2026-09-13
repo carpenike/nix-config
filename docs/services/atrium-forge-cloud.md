@@ -57,6 +57,14 @@ protected-file contract. Runtime services cannot rewrite either ceiling.
   information uses `atrium-family-read`. Both must be source-classified
   read-only exports. Existing writable `admin`, `advisor` and `hermes` maps
   retain their original definitions and are not assigned to Family.
+  The selected exports contain 20 Personal tools and 9 Family tools, with
+  zero resources in each. The Personal set covers bounded purchase, Fidelity
+  and Paperless reads; it excludes `finances_*`/`finances://` paths whose
+  transitive helpers can sync, refresh git state or write caches.
+  These native datasets are not selected or row-filtered by Atrium principal.
+  The current view is authorized only for Ryan's existing configured data;
+  neither this scope name nor a Personal wing label makes it suitable for
+  every human or child. See the pinned MCP `docs/ATR-M03-READONLY.md`.
 * Whiskey's companion permits only `read` and `write`, still intersected with
   native rights per operation. It grants no `host` projection. No
   infrastructure administration, shell, generic filesystem or household-control
@@ -271,7 +279,8 @@ fresh verified membership. Identity authentication or a green health endpoint
 does not establish wing eligibility. **Missing group evidence continues to
 refuse group-dependent access.**
 
-The parent is proposing C10 for separately verified signed group evidence.
+The parent is proposing C10 (Atrium PR42, proposal `c3089ff`) for separately
+verified signed group evidence.
 That contract must be accepted, implemented and qualified before this
 integration can be adopted. Do not reinterpret ID tokens as access bearers,
 use unsigned userinfo as a fallback, seed observations, or add direct human
@@ -292,16 +301,41 @@ real certificate binding refusals and group-only ACL preservation, N03 fixture
 composition, Caddy syntax and protection coverage. They are not new native
 T-cases or evidence of C10 integration.
 
-Complete policy validation and the remote build require the parent's final
-immutable C9 runtime and native MCP revision/catalog. This branch currently
-pins the explicitly supplied combined bootstrap/C9 source
-`840e0777505febefe5a9296ae621451aac70172a`; that is not a claim of final C9
-runtime qualification. The baseline MCP pin
-`23de14d586c668e1662294ff1f2a8d5da265cf24` lacks `atrium-personal-read` and
-`atrium-family-read`; the real registry validator correctly refuses it.
-Do not manufacture those scopes, swap in the synthetic M03 catalog or
-relax validation. Whiskey remains at `273cf414cac75276492ee849bb3ea257ce47f8de`
-until an explicit update is supplied.
+The current explicit candidates are:
+
+| Component | Immutable revision | Qualification boundary |
+| --- | --- | --- |
+| Atrium PR43 | `212be361e2ecabe1e4f85c3127589ffe23be17e4` | Accepted C9 implementation candidate, not a full native C9 gate |
+| Whiskey PR95 | `472f877952a363321c76ce580ce41dd0810e08b8` | Supplied canonical profile refresh |
+| MCP PR78 | `ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93` | Explicit **provisional** source-catalog/build candidate; final C9 vendor/native qualification forthcoming |
+
+The previously missing read-catalog exports are now present. Complete policy
+composition (54 assertions), conditional adoption wiring (25), and both
+retained/adopted Caddy syntax checks pass without weakening the validator.
+The adopted gateway now uses an explicit `publishPort = false` setting: an
+empty list could not override the module's forced bridge mapping at the same
+priority. Legacy bridge publication remains unchanged when not adopted.
+
+The provisional MCP revision still documents its older qualified vendor source;
+it is not represented as the final C9 native artifact. The parent is refreshing
+that vendor from `212be36` and will supply the resulting immutable revision and
+qualification. Do not follow its mutable worktree, manufacture scopes, swap in
+the synthetic M03 catalog or infer per-human dataset ownership. The parent’s
+app/profile/native test counts are separate evidence, not tests rerun or native
+T-cases claimed by this deployment branch.
+
+At deployment commit `95f8a58479cc8ec61998e863d134761c7c20b7d9`, the full remote
+Taskfile build passed and produced:
+
+```text
+/nix/store/vkki3526n20rfiaifsnz1jrjmqp5qym4-nixos-system-forge-25.11.20260630.b6018f8
+```
+
+The system artifact, its derivation, all six generated policy files and the
+admission executable were verified in Forge's Nix store without activation.
+Nine focused checks passed; exact paths and boundaries are in the source-bound
+receipt. No full Linux closure was built on the Mac. Native C9 qualification
+and C10 acceptance/implementation remain explicit activation dependencies.
 
 Full Forge compilation uses only:
 
