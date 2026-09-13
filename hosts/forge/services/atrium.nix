@@ -1,14 +1,10 @@
 { config, inputs, pkgs, lib, mylib, ... }:
 let
-  packages = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system};
-  identity = import ../atrium/identity.nix { inherit lib; };
-  runtime = import ../atrium/runtime.nix {
-    inherit lib;
-    policyPath =
-      if config.services.atrium.enable
-      then "/etc/atrium/desired-state/resolver.json"
-      else "/var/lib/atrium-policy/resolver.json";
+  composition = import ../atrium/configuration.nix {
+    inherit config inputs pkgs lib mylib;
   };
+  inherit (composition) packages runtime registry bootstrap models;
+  identity = runtime.identity;
   ids = mylib.serviceUids;
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   enabled = config.services.atriumForge.enable;
@@ -55,7 +51,10 @@ let
     wants = [ "network-online.target" ];
     requires = [ "zfs-service-datasets.service" "firewall.service" ];
     after = [ "zfs-service-datasets.service" "network-online.target" "firewall.service" ];
-    restartTriggers = [ config.environment.etc."atrium/runtime/${unit}.json".source ];
+    restartTriggers = [
+      config.environment.etc."atrium/runtime/${unit}.json".source
+      config.services.atrium.generated.resolver
+    ];
     unitConfig = {
       RequiresMountsFor = [ runtime.paths.resolver runtime.paths.trust runtime.paths.policy ];
       AssertPathExists = [
@@ -71,7 +70,11 @@ let
     };
     serviceConfig = (privateState "atrium-resolver") // {
       ExecStart = "${resolver} --config /etc/atrium/runtime/${unit}.json ${command} --port ${toString port}";
-      LoadCredential = loadCredentials runtime.deviceCredentials;
+      LoadCredential = loadCredentials (runtime.deviceCredentials
+        // lib.optionalAttrs (unit == "atrium-resolver" && config.services.atriumForge.adoption.native)
+        runtime.brokerCredentials
+        // lib.optionalAttrs (unit == "atrium-resolver" && config.services.atriumForge.adoption.models)
+        models.resolverCredentials);
       ReadOnlyPaths = [ runtime.paths.policy ];
       Restart = "on-failure";
       RestartSec = "10s";
@@ -87,17 +90,31 @@ let
     atrium-resolver = { owner = "atrium-resolver"; mode = "0700"; };
     atrium-trust = { owner = "atrium-trust"; mode = "0700"; };
     atrium-policy = { owner = "root"; mode = "0755"; };
+    atrium-reconciler = { owner = "atrium-reconciler"; mode = "0700"; };
+    atrium-model-gateway = { owner = "atrium-model-gateway"; mode = "0700"; };
   };
 in
 {
-  imports = [ inputs.atrium.nixosModules.atrium ];
-  options.services.atriumForge.enable =
-    lib.mkEnableOption "Forge's Atrium foundation custody and protected entrypoints";
+  imports = [
+    inputs.atrium.nixosModules.atrium
+    ./atrium-models.nix
+    ./atrium-adapters.nix
+  ];
+  options.services.atriumForge = {
+    enable = lib.mkEnableOption "Forge's Atrium foundation custody and protected entrypoints";
+    adoption = {
+      models = lib.mkEnableOption "explicit new cc.* reconciliation and shared-gateway admission";
+      native = lib.mkEnableOption "explicit Home MCP native-profile and selected-refresh cutover";
+      whiskey = lib.mkEnableOption "explicit Whiskey companion-route adoption";
+      whiskeyText = lib.mkEnableOption "explicit Whiskey text-key and reviewed egress adoption";
+    };
+  };
 
   config = lib.mkMerge [
     {
       services.atriumForge.enable = lib.mkDefault true;
-      services.atrium.enable = lib.mkDefault (enabled && config.services.atrium.registry != null);
+      services.atrium.enable = lib.mkDefault enabled;
+      services.atrium.registry = registry;
       services.atrium.litellmVersion = "v1.100.1";
       services.atrium.runtime = {
         resolver.package = packages.resolver;
@@ -106,10 +123,6 @@ in
           executable = "atrium-litellm-controller";
         };
       };
-      # The full registry cannot be published until provider-account/alias ownership
-      # is supplied. Its validator is not weakened to manufacture a model-free one.
-      # A supplied complete registry uses the app generator; without one, the
-      # explicit external policy path remains a fatal startup prerequisite.
     }
     (lib.mkIf enabled {
       assertions = [
@@ -124,8 +137,8 @@ in
           message = "Forge owns these runtime units; do not enable duplicate generic app runtime units.";
         }
         {
-          assertion = config.services.atrium.registry == null
-            || config.services.atrium.registry.environment == "production";
+          assertion = config.services.atrium.enable
+            && config.services.atrium.registry.environment == "production";
           message = "Forge must never publish an isolated or synthetic registry as production policy.";
         }
         {
@@ -139,12 +152,13 @@ in
         packages.atrium-litellm-controller
       ];
       environment.etc = {
-        "atrium/bootstrap/identity.json".source = ../atrium/identity-bootstrap.json;
+        "atrium/bootstrap/identity.json".text = json bootstrap.enrollment;
         "atrium/bootstrap/resolver.json".text = json identity.settings;
         "atrium/bootstrap/foundation.json".text = json runtime.bootstrap;
         "atrium/bootstrap/tls-plan.json".text = json runtime.tlsPlan;
-        "atrium/bootstrap/registry-base.json".text = json
-          (import ../atrium/registry-base.nix { inherit lib; homelabMcp = inputs.homelab-mcp; });
+        "atrium/bootstrap/groups.json".text = json bootstrap.groups;
+        "atrium/bootstrap/ordinary-grants.json".text = json bootstrap.ordinary;
+        "atrium/bootstrap/opus-selection.json".text = json bootstrap.opus;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;
         "atrium/runtime/adoption.json".text = json runtime.adoption;
@@ -181,6 +195,30 @@ in
           serviceConfig = (privateState "atrium-resolver") // {
             Type = "oneshot";
             PrivateNetwork = true;
+          };
+        };
+        atrium-seed-policy = (mounted [ runtime.paths.resolver ]) // {
+          description = "Explicit Atrium ordinary grants without seeding group observations";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          serviceConfig = (privateState "atrium-resolver") // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json seed-policy --grants /etc/atrium/bootstrap/ordinary-grants.json";
+          };
+        };
+        atrium-select-opus = (mounted [ runtime.paths.resolver ]) // {
+          description = "Explicit adult Opus selection, separate from ordinary Sonnet grants";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          serviceConfig = (privateState "atrium-resolver") // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json seed-policy --append --grants /etc/atrium/bootstrap/opus-selection.json";
           };
         };
         atrium-trust-initialize = (mounted [ runtime.paths.trust ]) // {

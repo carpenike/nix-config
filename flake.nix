@@ -132,7 +132,7 @@
     # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/279bcfc186d7de674678fe41c344edf2147f341c";
+      url = "github:carpenike/atrium/840e0777505febefe5a9296ae621451aac70172a";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -515,6 +515,11 @@
               (builtins.toJSON (import ./tests/atrium_n03/forge-evaluate.nix {
                 inherit inputs;
               }));
+            atrium-forge-cloud-schema = import ./tests/atrium_n03/cloud-schema.nix {
+              inherit inputs pkgs;
+            };
+            atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
+              (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
             atrium-forge-caddy = pkgs.runCommand "atrium-forge-caddy-syntax"
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (
@@ -826,7 +831,10 @@
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 signalApi = manifest.datasets."tank/services/signal-api";
-                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" ];
+                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
+                atriumAdapterStateNames =
+                  pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "homelab-mcp"
+                    ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "whiskeywhiskeywhiskey";
                 failClosedUnits = {
                   actual = "actual";
                   apprise = "podman-apprise";
@@ -912,10 +920,11 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              # 2026-09-12: three new Atrium authorization/trust datasets are critical.
-              assert manifest.summary.classified == 53;
+              # Atrium's identity/TLS/policy and model ownership/admission stores
+              # are all critical, with individually checked protection coverage.
+              assert manifest.summary.classified == 55 + builtins.length atriumAdapterStateNames;
               assert manifest.summary.byClass == {
-                critical = 13;
+                critical = 15 + builtins.length atriumAdapterStateNames;
                 ephemeral = 21;
                 # 15 since 2026-08-17: lading gained a declared dataset. It
                 # had been running on the impermanence-rolled-back root with
@@ -1025,7 +1034,7 @@
                     && dataset.missingRequiredTiers == [ ]
                     && !dataset.policy.allowEmptyBootstrap
                     && !dataset.coverage.automatedRestore)
-                atriumStateNames;
+                (atriumStateNames ++ atriumAdapterStateNames);
               assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "ephemeral"
@@ -1061,14 +1070,18 @@
                   forge.modules.services.backup._internal.allJobs;
                 snapshotMetricsScript = forge.systemd.services.zfs-snapshot-metrics.script;
                 pgBackRestMetricsScript = forge.systemd.services.pgbackrest-metrics.script;
-                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" ];
+                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
+                atriumAdapterJobs =
+                  pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.native) "atrium-native-security-offsite"
+                    ++ pkgs.lib.optional (forge.services.atriumForge.enable && forge.services.atriumForge.adoption.whiskey) "atrium-whiskey-security-offsite";
                 atriumTimers = pkgs.lib.concatMap
                   (name: [
                     "restic-backup-${name}.timer"
                     "restic-backup-${name}-offsite.timer"
                     "syncoid-tank-services-${name}.timer"
                   ])
-                  atriumStateNames;
+                  atriumStateNames
+                ++ map (name: "restic-backup-${name}.timer") atriumAdapterJobs;
                 requiredAlerts = [
                   "deployment-backup-guard-abandoned"
                   "deployment-backup-guard-monitoring-stale"
@@ -1113,7 +1126,10 @@
                 # (restic-backup-service-<name>.timer) and a replicated dataset
                 # (syncoid-tank-services-<name>.timer).
                 # 2026-09-12: each Atrium dataset adds replication and two encrypted backups.
-              assert builtins.length expectedTimers == 144;
+                # N04 ownership and N05 admission each add a protected dataset,
+                # replication timer and two encrypted backup jobs. Names and
+                # coverage are asserted below, independently of these totals.
+              assert builtins.length expectedTimers == 150 + builtins.length atriumAdapterJobs;
               assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
@@ -1121,12 +1137,16 @@
               assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
-              assert builtins.length (builtins.attrNames snapshotDatasets) == 63;
+              assert builtins.length (builtins.attrNames snapshotDatasets) == 65;
               assert builtins.all
                 (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
                 atriumStateNames;
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 69;
+              assert builtins.length (builtins.attrNames enabledResticJobs) == 73 + builtins.length atriumAdapterJobs;
+              assert builtins.all
+                (name: enabledResticJobs.${name}.repository == "r2-offsite"
+                  && enabledResticJobs.${name}.useSnapshots)
+                atriumAdapterJobs;
               assert builtins.all
                 (name: builtins.hasAttr name enabledResticJobs
                   && builtins.hasAttr "${name}-offsite" enabledResticJobs)

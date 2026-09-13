@@ -1,0 +1,130 @@
+{ inputs, pkgs }:
+let
+  inherit (pkgs) lib;
+  forge = inputs.self.nixosConfigurations.forge.config;
+  registry = forge.services.atrium.registry;
+  runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
+  models = import ../../hosts/forge/atrium/models.nix {
+    inherit lib runtime registry;
+    ids = import ../../lib/service-uids.nix { };
+  };
+  bootstrap = import ../../hosts/forge/atrium/bootstrap.nix { inherit lib registry; };
+  packages = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system};
+  python = pkgs.python312.withPackages (ps: map ps.toPythonModule [
+    packages.resolver
+    packages.credential-profiles
+    packages.atrium-litellm-controller
+    packages.atrium-litellm-admission
+  ]);
+  data = {
+    inherit bootstrap;
+    resolver = runtime.resolver // { litellm = models.resolver; };
+    admission = models.admission;
+    controller = models.controller;
+    native = runtime.native;
+    native_policy = runtime.nativePolicyTemplate;
+    renderer = ../../hosts/forge/atrium/runtime-bindings.py;
+  };
+in
+pkgs.runCommand "atrium-forge-cloud-schema"
+{
+  nativeBuildInputs = [ python ];
+  PYTHONDONTWRITEBYTECODE = "1";
+}
+  ''
+    python - <<'PY' > "$out"
+    import json
+    import os
+    import subprocess
+    import sys
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives.serialization import Encoding
+    from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+    from atrium_resolver.config import Bootstrap, Settings
+    from atrium_resolver.native_policy_config import NativePolicySettings
+    from atrium_resolver.policy import PolicySeed
+    from atrium_admission.models import Settings as AdmissionSettings
+    from atrium_litellm.controller import Controller
+    from atrium_litellm.ledger import Ledger
+
+    data = json.loads(${builtins.toJSON (builtins.toJSON data)})
+    settings = Settings.model_validate_json(json.dumps(data["resolver"]))
+    admission = AdmissionSettings.model_validate_json(json.dumps(data["admission"]))
+    enrollment = Bootstrap.model_validate_json(json.dumps(data["bootstrap"]["enrollment"]))
+    ordinary = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["ordinary"]))
+    opus = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["opus"]))
+    assert settings.isolated_harness is False
+    assert settings.litellm.native_version == admission.native_version == "v1.100.1"
+    assert admission.environment == "production" and not admission.isolated
+    assert [p.id for p in enrollment.principals if p.kind == "human"] == ["ryan"]
+    assert not data["bootstrap"]["groups"]["observations_seeded"]
+    assert len(ordinary.grants) == 5 and len(opus.grants) == 1
+    assert all(not grant.can_delegate for grant in ordinary.grants)
+    assert all(grant.request.models != ("cc.personal.ryan.opus",) for grant in ordinary.grants)
+    assert opus.grants[0].request.models == ("cc.personal.ryan.opus",)
+    assert data["controller"]["association_publisher_uid"] != admission.producers[1].publisher_uid
+    assert hasattr(Controller, "publish_service_associations") and hasattr(Ledger, "initialize")
+
+    root = Path.cwd() / "binding-check"
+    root.mkdir(mode=0o700)
+    output = root / "output"
+    output.mkdir(mode=0o700)
+    now = datetime.now(timezone.utc)
+    key = ed25519.Ed25519PrivateKey.generate()
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Atrium binding test")])
+    def certificate(usage):
+        return (x509.CertificateBuilder().subject_name(name).issuer_name(name)
+          .public_key(key.public_key()).serial_number(x509.random_serial_number())
+          .not_valid_before(now - timedelta(minutes=1)).not_valid_after(now + timedelta(hours=1))
+          .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+          .add_extension(x509.ExtendedKeyUsage([usage]), critical=True).sign(key, None))
+    client = certificate(ExtendedKeyUsageOID.CLIENT_AUTH)
+    (root / "client.pem").write_bytes(client.public_bytes(Encoding.PEM))
+    (root / "server.pem").write_bytes(certificate(ExtendedKeyUsageOID.SERVER_AUTH).public_bytes(Encoding.PEM))
+    (root / "policy.json").write_text(json.dumps(data["native_policy"]))
+    command = [
+        sys.executable, data["renderer"], "native-policy", "--template", str(root / "policy.json"),
+        "--client-certificate", str(root / "client.pem"), "--output", str(output / "policy.json"),
+    ]
+    permitted = subprocess.run(command, capture_output=True, timeout=30)
+    assert permitted.returncode == 0, "real public client certificate was refused"
+    actual = Settings.model_validate_json((output / "policy.json").read_bytes())
+    assert actual.native_policy.adapters[0].certificates == (client.fingerprint(hashes.SHA256()).hex(),)
+    before = (output / "policy.json").read_bytes()
+    wrong = command.copy()
+    wrong[wrong.index("--client-certificate") + 1] = str(root / "server.pem")
+    denied = subprocess.run(wrong, capture_output=True, timeout=30)
+    assert denied.returncode != 0 and (output / "policy.json").read_bytes() == before
+    assert b"PRIVATE KEY" not in permitted.stdout + permitted.stderr + denied.stdout + denied.stderr
+    assert os.stat(output / "policy.json").st_mode & 0o777 == 0o600
+
+    profile = {
+        "resource": data["native"]["resource"], "cutover_at": int(now.timestamp()),
+        "legacy_refresh_until": int(now.timestamp()) + 86400, "legacy_mappings": [],
+    }
+    (root / "profile.json").write_text(json.dumps(profile))
+    (root / "native.json").write_text(json.dumps(data["native"]))
+    command = [
+        sys.executable, data["renderer"], "native-environment", "--template", str(root / "native.json"),
+        "--profile", str(root / "profile.json"), "--client-certificate", str(root / "client.pem"),
+        "--output", str(output / "native.env"),
+    ]
+    assert subprocess.run(command, capture_output=True, timeout=30).returncode == 0
+    before = (output / "native.env").read_bytes()
+    profile["resource"] = dict(profile["resource"], target="https://wrong.atrium.invalid/mcp")
+    (root / "profile.json").write_text(json.dumps(profile))
+    assert subprocess.run(command, capture_output=True, timeout=30).returncode != 0
+    assert (output / "native.env").read_bytes() == before
+    print(json.dumps({
+        "kind": "atrium.forge-cloud-schema", "status": "passed",
+        "real_runtime_schema_parsers": True, "certificate_derived_bindings": True,
+        "wrong_certificate_refused": True, "wrong_native_target_refused": True,
+        "runtime_gate_evidence": False, "live_operations": False,
+    }))
+    PY
+  ''

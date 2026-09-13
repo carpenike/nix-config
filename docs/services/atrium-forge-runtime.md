@@ -1,5 +1,11 @@
 # ATR-N03 — Forge runtime foundation
 
+**Follow-up:** [Cloud-first registry and adapter wiring](atrium-forge-cloud.md)
+replaces the missing-policy stopgap below with complete Nix values and explicit
+conditional adoption. This page and its receipt describe the prior verified
+foundation; its old model-selection blockers are no longer current. Cloud-only
+rollout is approved, and no local-model prerequisite exists.
+
 This change builds a real, fail-closed foundation. It does **not** activate
 Forge, initialize production identity/trust, adopt native credentials or complete
 the N03 gate. `services.atriumForge.enable` owns the new host contributions.
