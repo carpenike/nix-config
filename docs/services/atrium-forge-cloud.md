@@ -12,6 +12,9 @@ canonical-identity/private-transport fix. App806 now supplies the exact
 additive interface and its strict adopted-config schema checks pass. The
 review receipt records the corrected full-build result separately; historical
 build receipts are not activation evidence for those corrected paths.
+The [final-input receipt](evidence/atrium-forge-final-inputs.json) records the
+final coordinated MCP/app source set and its deployment validation separately,
+without rewriting those historical receipts.
 
 C9 was accepted by Ryan and merged in Atrium PR40 at
 `21a4df41ccdc52eb2282387816b3e164c1e32c3c`. The locked specification remains
@@ -324,10 +327,10 @@ The current explicit candidates are:
 | --- | --- | --- |
 | Atrium PR43 | `806ae19e853ae5614523430f5fc2397786fd9839` | Corrected C9 core plus canonical/private R05 transport, not a full native C9 gate |
 | Whiskey PR95 | `472f877952a363321c76ce580ce41dd0810e08b8` | Supplied canonical profile refresh |
-| MCP PR78 | `ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93` | Explicit **provisional** source-catalog/build candidate; final C9 vendor/native qualification forthcoming |
+| MCP PR78 | `ec1e796d1ae8bca9d8d16a11f00aebc22b5ba4e7` | Final app806-vendored head; native execution source `8ff9ee2ff1889fe0cfba5c21a702f1a9f1323789`, followed only by evidence |
 
 The previously missing read-catalog exports are now present. Complete policy
-composition (54 assertions), conditional adoption wiring (25), and both
+composition (55 assertions), conditional adoption wiring (32), and both
 retained/adopted Caddy syntax checks pass without weakening the validator.
 The adopted gateway now uses an explicit `publishPort = false` setting: an
 empty list could not override the module's forced bridge mapping at the same
@@ -376,16 +379,22 @@ Whiskey's documentation/evidence revision
 native MCP cases. The initial 42 are included, not additive. This is not a
 runtime pin change or a full C9 deployment gate.
 
-The provisional MCP revision still documents its older qualified vendor source;
-it is not represented as the final C9 native artifact. The parent is refreshing
-the coordinated C9/vendor/native artifact and will supply its immutable
-revision and qualification. Do not follow its mutable worktree, manufacture scopes, swap in
-the synthetic M03 catalog or infer per-human dataset ownership. The parent’s
-app/profile/native test counts are separate evidence, not tests rerun or native
-T-cases claimed by this deployment branch.
-Final MCP is the only remaining app-consumer source/qualification dependency;
-this independent cloud wiring/build scope is complete and does not wait on
-global tasks or more model/sidecar runtime work.
+Final MCP vendors exact app806. The added host assertion checks its actual
+`vendor/atrium-artifacts.lock.json` revision against the app input, rather than
+trusting a label. Runtime code is unchanged between native execution source
+`8ff9ee2` and evidence head `ec1e796`. The parent reviewed the five small runtime
+files/provenance and reports 59 native cases plus five exact upstream R05 cases,
+including canonical/private TLS, wrong CA/hostname, no fallback, physical
+issuer/audience/target refusal and revoke-after-issue association/denial.
+Native B1 retains the original emergency grant ID in the existing private
+public-access/refresh bindings; no JWT wire change is introduced.
+
+The coordinated app-consumer dependency is now consumed. Do not follow mutable
+worktrees, manufacture scopes, swap in synthetic catalogs or infer per-human
+dataset ownership. Parent native/AS qualification and this branch's Nix,
+schema, smoke and build results remain distinct; AS conformance is being handled
+by the parent and was not executed here. This branch does not claim production
+activation or a new full gate by aggregating those different evidence layers.
 Private app/MCP CI remains independently subject to the account startup
 restriction; this branch does not rerun it or alter billing, settings or checks.
 
@@ -402,10 +411,10 @@ verified in Forge's Nix store without activation. The resolver package pytest
 phase passed 863 cases and skipped 19; this remains package-build evidence,
 not the parent's full native C9 qualification.
 Nine focused checks passed; exact paths and boundaries are in the source-bound
-receipt. No full Linux closure was built on the Mac. Final MCP vendor/native
-qualification and C10 acceptance/implementation remain explicit activation
-dependencies, together with the documented native data-ownership and operator
-adoption prerequisites.
+receipt. No full Linux closure was built on the Mac. C10 acceptance/
+implementation, separately coordinated AS/promotion work, and the documented
+native data-ownership/operator-adoption prerequisites remain activation
+boundaries.
 
 After the host review, deployment commit
 `a87db00352fb639ea13e53bad89125404c1dc86b` passed the strict app806
@@ -423,6 +432,20 @@ separate host-review receipt preserves the original receipts and records this
 correction's exact artifacts. These results are still build/schema/command
 evidence, not live activation, health-network proof or final native routed
 broker qualification.
+
+With final coordinated MCP input `ec1e796`, deployment commit
+`471e7e7407ad4ca95f6e901ca0903671bcf73e46` passed all nine focused checks and
+the full remote Forge Taskfile build:
+
+```text
+/nix/store/wp6blpsrpph0cxzhgw2sa4zsj3pxyhwz-nixos-system-forge-25.11.20260630.b6018f8
+```
+
+The final artifact, six policy documents and packaged native executable were
+verified in Forge's Nix store. Its exact source/vendor/catalog bindings and
+separately classified build/native evidence are in the final-input receipt.
+No historic artifact was replaced or relabeled, no activation occurred, and
+AS conformance was not executed by this deployment branch.
 
 Full Forge compilation uses only:
 
