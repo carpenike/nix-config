@@ -2,12 +2,43 @@
   "schema_version": 1,
   "kind": "atrium.forge-cloud-deployment-evidence",
   "branch": "atr/N03-c9-cloud",
-  "implementation_commit": "c7271513cc48b22b2908325a8e4a64e20bdee135",
+  "implementation_commit": "0f1abcc18a4c6e16012b75031542d34c03b3b840",
+  "base_implementation_commit": "c7271513cc48b22b2908325a8e4a64e20bdee135",
   "base_commit": "b47cee4dff8d55afc6b111399477ad366c3d0edb",
-  "status": "implemented-awaiting-final-immutable-inputs",
+  "status": "implemented-build-input-and-group-contract-blocked",
   "live_operations": false,
   "new_native_gate_evidence": false,
   "proposed_amendments": [],
+  "external_contract_dependencies": {
+    "C10": {
+      "status": "proposed-not-accepted",
+      "owner": "parent",
+      "scope": "separately verified signed group evidence",
+      "blocks": [
+        "group-dependent runtime authorization integration",
+        "native acceptance and promotion"
+      ],
+      "blocks_reference_based_nix_rendering": false,
+      "auth_or_group_fallback_added": false,
+      "human_acl_or_identity_carrier_broadened": false
+    }
+  },
+  "group_carrier_measurements": {
+    "reported_by": "parent",
+    "provider_version": "Pocket ID 2.14",
+    "network_pr": 37,
+    "network_revision": "4ed8810",
+    "native_measurement_source": "f17c887",
+    "completed_measurements": 11,
+    "expected_blocked_exit_status": 2,
+    "cleanup_complete": true,
+    "resource_access_jwt_groups": "absent, including scope=openid groups",
+    "signed_id_token": "group names present; at_hash binds the exact access token",
+    "userinfo": "live unsigned groups without source iat/exp",
+    "reproduced_by_this_deployment": false,
+    "raw_tokens_read_or_recorded_by_this_deployment": false,
+    "deployment_inputs_changed_to_measurement_references": false
+  },
   "inputs": {
     "atrium": "840e0777505febefe5a9296ae621451aac70172a",
     "native": "23de14d586c668e1662294ff1f2a8d5da265cf24",
@@ -70,8 +101,9 @@
     {
       "name": "atrium-forge-cloud-schema",
       "status": "passed",
-      "artifact": "/nix/store/fvfgjzhnga7jbr1bb6vsyw3zvz9nr3sn-atrium-forge-cloud-schema",
-      "scope": "real app schema parsers and runtime public-certificate binding permit/refusal cases"
+      "artifact": "/nix/store/jkdy1k5hryi96svhysvrvggs3ga7dgbv-atrium-forge-cloud-schema",
+      "scope": "real app schema parsers and certificate binding permit/refusal cases; all human instance/template ACLs remain group-only and identity carrier remains access_token",
+      "c10_acceptance_or_native_group_integration_claimed": false
     },
     {
       "name": "atrium-identity-bootstrap",
@@ -152,7 +184,9 @@
     ],
     "new_artifact": null,
     "prior_verified_base_generation": "xw0awhzw7qlkmv62j9d8m4lxhx29mydp",
-    "prior_generation_is_not_this_candidate": true
+    "prior_generation_is_not_this_candidate": true,
+    "retried_for_c10_metadata_follow_up": false,
+    "follow_up_reason": "native catalog input is unchanged; C10 is a separate runtime authorization dependency"
   },
   "protection": {
     "classified_datasets": 55,
@@ -173,7 +207,7 @@
     "ATR-N03": {
       "scope": "resolver/device/native-policy/issuance, protected transports, custody, bootstrap and recovery",
       "new_native_t_cases_passed": [],
-      "blocked": "complete-policy and opt-in composition checks plus full remote build await immutable source inputs"
+      "blocked": "complete-policy/opt-in composition and remote build await immutable source inputs; group-dependent runtime authorization separately awaits C10 acceptance and qualification"
     },
     "ATR-N04": {
       "scope": "real owned controller and live resolver/controller/service-key publication wiring",
@@ -189,15 +223,22 @@
       "scope": "conditional Whiskey text/image delivery and explicit address-level egress configuration",
       "new_native_t_cases_passed": [],
       "blocked": "reviewed hostname/address-only calendar/media/push/redirect inventory and native permit/deny execution"
+    },
+    "ATR-R01": {
+      "scope": "external group-carrier dependency; no authentication implementation is owned by this deployment branch",
+      "new_native_t_cases_passed": [],
+      "blocked": "C10 acceptance and qualified separately verified signed group evidence; retain missing-group refusal"
     }
   },
   "required_follow_up_inputs": [
-    "Final immutable Atrium runtime revision containing the accepted C9 policy/emergency implementation and verified fresh Pocket ID group evidence flow.",
+    "Final immutable Atrium runtime revision containing the accepted C9 policy/emergency implementation.",
+    "Owner acceptance of proposed C10, then immutable implementation/vendor inputs and real acceptance evidence for the separately verified signed group carrier; no fallback before acceptance.",
     "Explicit immutable MCP revision with source-derived atrium-personal-read and atrium-family-read in tests/fixtures/atrium_catalog.generated.json, preserving legacy writable exports and matching the parent's vendor qualification.",
     "Any explicitly required accompanying immutable consumer/vendor update; Whiskey stays on the supplied baseline otherwise."
   ],
   "operator_prerequisites": [
-    "Separate Pocket ID client/resource authorization and explicit Ryan membership in atrium-personal-ryan and atrium-family; no observations fabricated.",
+    "Separate Pocket ID client/resource authorization and explicit Ryan membership in atrium-personal-ryan and atrium-family; membership alone cannot fix the current carrier and no observations are fabricated.",
+    "Keep group-dependent use blocked until C10 is accepted and qualified; do not use ID tokens as access bearers, unsigned userinfo, seeded observations or direct human principal ACLs as substitutes.",
     "SOPS provisioning of distinct wing inference sources and separate resolver/controller management credentials.",
     "Manual identity, signing, TLS, group-bounded grant, real producer and admission-history initialization.",
     "Explicit native issuer/JWKS continuity, individual refresh mappings and bounded cutover approval.",
