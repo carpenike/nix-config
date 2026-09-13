@@ -5,7 +5,7 @@
   "implementation_commit": "c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4",
   "base_implementation_commit": "c7271513cc48b22b2908325a8e4a64e20bdee135",
   "base_commit": "b47cee4dff8d55afc6b111399477ad366c3d0edb",
-  "status": "built-provisional-native-candidate-awaiting-native-c9-and-c10",
+  "status": "independent-cloud-wiring-built-awaiting-final-mcp-and-c10",
   "live_operations": false,
   "new_native_gate_evidence": false,
   "proposed_amendments": [],
@@ -57,7 +57,14 @@
     "parent_reported_tests": {
       "atrium_resolver": 173,
       "atrium_targeted_real_local": 19,
-      "atrium_90_native_package_qualification": "underway in parent; not claimed passed here",
+      "atrium_sidecar_qualification": {
+        "passed": 90,
+        "total": 90,
+        "modes": "both, parent-confirmed",
+        "reproduced_by_this_deployment": false
+      },
+      "atrium_resolver_package": "863 cases passed, parent-confirmed and also observed in this branch's recorded remote package build",
+      "atrium_pr43_evidence_only_revision": "87d42ca",
       "consumer_evidence_revision": "e3aba82bbf2634d59190c511230cab2d37afe6a1",
       "consumer_total": 132,
       "consumer_layers": {
@@ -72,6 +79,25 @@
       "consumer_typecheck": "passed",
       "reproduced_by_this_deployment": false
     }
+  },
+  "model_runtime_qualification": {
+    "status": "qualified-parent-confirmed",
+    "runtime_revision": "6930938bbc145eab6020844f7e972aaa9a0cab2a",
+    "native_execution_revision": "c56aa0ac3603b1a2278dca0a6fb9327813219dba",
+    "report_pr": 44,
+    "report_revision": "1c032d5d84f48eb550c9fdbbee22df6f46d80a6b",
+    "model_runtime_source_diff_vs_runtime": "empty, parent-confirmed",
+    "native_version": "v1.100.1",
+    "model_groups_passed": 20,
+    "model_groups_total": 20,
+    "permits": 38,
+    "no_effect_inference_denies": 15,
+    "r06_refusals": 8,
+    "controller_refusals": 4,
+    "host_cases": 107,
+    "reproduced_by_this_deployment": false,
+    "runtime_pin_or_config_change_required": false,
+    "group_backed_production_adoption_implied": false
   },
   "registry": {
     "authoritative_source": "hosts/forge/atrium/registry.nix",
@@ -289,12 +315,14 @@
     "ATR-N04": {
       "scope": "real owned controller and live resolver/controller/service-key publication wiring",
       "new_native_t_cases_passed": [],
-      "blocked": "parent-coordinated real adapter acceptance and explicit operator activation"
+      "dependency_qualification": "parent-confirmed 20/20 real 1.100.1 model groups on unchanged corrected runtime source",
+      "blocked": "explicit operator provisioning/adoption and final integrated cohort, not model/runtime source qualification"
     },
     "ATR-N05": {
       "scope": "exact 1.100.1 admission/bootstrap package wiring and private durable history",
       "new_native_t_cases_passed": [],
-      "blocked": "parent-coordinated native protocol/worker/cache acceptance"
+      "dependency_qualification": "parent-confirmed real 1.100.1 model admission qualification at c56aa0a; no source/config change versus runtime 6930938",
+      "blocked": "explicit operator activation and final integrated cohort; C10 still blocks group-backed production use"
     },
     "ATR-N06": {
       "scope": "conditional Whiskey text/image delivery and explicit address-level egress configuration",
@@ -310,8 +338,7 @@
   "required_follow_up_inputs": [
     "Owner acceptance of proposed C10, then immutable implementation/vendor inputs and real acceptance evidence for the separately verified signed group carrier; no fallback before acceptance.",
     "Final immutable MCP artifact with refreshed app/vendor source and native C9 qualification; ab9ff6a remains the explicitly supplied provisional build/catalog candidate until then.",
-    "Parent-coordinated full native C9 paired acceptance evidence; the supplied component test counts are not a full native gate.",
-    "Any explicitly required accompanying immutable consumer/vendor update; the supplied 472f877 candidate remains otherwise unchanged."
+    "Final MCP native qualification and the combined promotion decision; no further app/model/sidecar runtime dependency is awaited for this independent build scope."
   ],
   "operator_prerequisites": [
     "Separate Pocket ID client/resource authorization and explicit Ryan membership in atrium-personal-ryan and atrium-family; membership alone cannot fix the current carrier and no observations are fabricated.",

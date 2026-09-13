@@ -320,8 +320,18 @@ The corrected app core addresses terminal emergency deny-removal resurrection,
 rollback after native issuance, and the device-required emergency activation/
 proof cycle. No registry or host-setting shape changed; the existing deployment
 checks pass unchanged. The parent's 173 resolver and 19 targeted real local
-cases, and its underway 90-native-case package qualification, remain separately
-attributed evidence rather than new deployment T-cases.
+cases remain separately attributed evidence rather than new deployment
+T-cases. Corrected sidecar qualification is now parent-confirmed at 90/90 in
+both modes; resolver package qualification also passed 863 cases.
+
+Model/runtime qualification is complete on the same `6930938` runtime:
+native execution `c56aa0ac3603b1a2278dca0a6fb9327813219dba`, with the separate
+stacked PR44 report at `1c032d5d84f48eb550c9fdbbee22df6f46d80a6b`. The parent
+confirmed all 20 real LiteLLM1.100.1 model groups: 38 permits, 15 no-effect
+inference denies, 8 R06 refusals and 4 controller refusals, plus 107 host cases.
+These counts are separate categories, not additive claims of new deployment
+T-cases. Model/runtime source is unchanged versus `6930938`, so no new pin,
+configuration or build is needed. PR43's later `87d42ca` is evidence-only.
 
 Whiskey's documentation/evidence revision
 `e3aba82bbf2634d59190c511230cab2d37afe6a1` records 132 properly classified cases:
@@ -337,6 +347,9 @@ qualification. Do not follow its mutable worktree, manufacture scopes, swap in
 the synthetic M03 catalog or infer per-human dataset ownership. The parent’s
 app/profile/native test counts are separate evidence, not tests rerun or native
 T-cases claimed by this deployment branch.
+Final MCP is the only remaining app-consumer source/qualification dependency;
+this independent cloud wiring/build scope is complete and does not wait on
+global tasks or more model/sidecar runtime work.
 Private app/MCP CI remains independently subject to the account startup
 restriction; this branch does not rerun it or alter billing, settings or checks.
 
@@ -352,8 +365,10 @@ verified in Forge's Nix store without activation. The resolver package pytest
 phase passed 863 cases and skipped 19; this remains package-build evidence,
 not the parent's full native C9 qualification.
 Nine focused checks passed; exact paths and boundaries are in the source-bound
-receipt. No full Linux closure was built on the Mac. Native C9 qualification
-and C10 acceptance/implementation remain explicit activation dependencies.
+receipt. No full Linux closure was built on the Mac. Final MCP vendor/native
+qualification and C10 acceptance/implementation remain explicit activation
+dependencies, together with the documented native data-ownership and operator
+adoption prerequisites.
 
 Full Forge compilation uses only:
 
