@@ -14,7 +14,8 @@ let
     resolver = "https://atrium.holthome.net";
     registration = "https://forge.holthome.net:19443";
     native = "https://mcp.holthome.net";
-    nativeIssue = "https://127.0.0.1:9200/cc/issue";
+    nativeIssue = "https://mcp.holthome.net/cc/issue";
+    nativeIssueTransport = "https://127.0.0.1:9200/cc/issue";
     nativePolicy = "https://127.0.0.1:18767/v1/native-policy";
     whiskey = "https://whiskeywhiskeywhiskey.org";
     models = "https://llm.holthome.net";
@@ -75,6 +76,7 @@ let
     home_mcp = if unit != "atrium-resolver" || !adoption.native then null else {
       deployments.home-mcp = {
         endpoint = endpoints.nativeIssue;
+        transport_endpoint = endpoints.nativeIssueTransport;
         ca_certificate_path = credential unit "native-ca";
         client_certificate_path = credential unit "native-client-cert";
         client_private_key_path = credential unit "native-client-key";
@@ -235,6 +237,7 @@ in
       issuer = endpoints.native;
       upstream_client_id = "mcp";
       issuance_endpoint = endpoints.nativeIssue;
+      issuance_transport_endpoint = endpoints.nativeIssueTransport;
       policy_endpoint = endpoints.nativePolicy;
       requirements = [
         "Final C9-compatible native vendor and real adapter qualification; a read-catalog build alone is not adoption evidence."

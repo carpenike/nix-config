@@ -6,6 +6,8 @@ let
   select = module: (forge.extendModules { modules = [ module ]; }).config;
   models = select { services.atriumForge.adoption.models = true; };
   native = select { services.atriumForge.adoption.native = true; };
+  nativeResolver = builtins.fromJSON native.environment.etc."atrium/runtime/atrium-resolver.json".text;
+  nativeBroker = nativeResolver.home_mcp.deployments.home-mcp;
   egress = builtins.fromJSON baseline.environment.etc."atrium/runtime/whiskey-egress.json".text;
   # These are test-only RFC5737 bindings. They are never host inventory or
   # deployed policy, and this check performs no network/native request.
@@ -110,6 +112,15 @@ let
     real-native-fingerprint-source = lib.hasInfix
       "--client-certificate /run/credentials/atrium-native-policy.service/policy-client-cert"
       native.systemd.services.atrium-native-policy.serviceConfig.ExecStartPre;
+    canonical-native-issuance-identity = nativeBroker.endpoint
+      == "https://mcp.holthome.net/cc/issue"
+      && native.services.atrium.registry.deployments.home-mcp.endpoint == "https://mcp.holthome.net";
+    separate-private-native-issuance-transport = nativeBroker.transport_endpoint
+      == "https://127.0.0.1:9200/cc/issue"
+      && nativeBroker.ca_certificate_path == "/run/credentials/atrium-resolver.service/native-ca"
+      && nativeBroker.client_certificate_path == "/run/credentials/atrium-resolver.service/native-client-cert"
+      && nativeBroker.client_private_key_path == "/run/credentials/atrium-resolver.service/native-client-key"
+      && nativeBroker.verification_keys_path == "/run/credentials/atrium-resolver.service/native-jwks";
     direct-native-tls = lib.hasInfix "serve-native-policy --port 18767"
       native.systemd.services.atrium-native-policy.serviceConfig.ExecStart
     && lib.hasInfix "tls_trust_pool file /run/credentials/caddy.service/atrium-native-ca"

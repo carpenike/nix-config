@@ -130,7 +130,8 @@ prerequisite, not a reason to weaken or externalize the Nix policy.
 | Identity resource | issuer `https://id.holthome.net`, audience `https://atrium.holthome.net/resolver` |
 | Device registration | LAN `https://forge.holthome.net:19443`, `10.20.0.30`, `enp8s0` |
 | Device TLS backend | `127.0.0.1:18766`, byte-forwarder UID1062 only; actual TLS terminates in resolver |
-| Native issuance | conditional direct TLS `https://127.0.0.1:9200/cc/issue`; actual resolver leaf required |
+| Native issuance identity | canonical `https://mcp.holthome.net/cc/issue`; issuer and signed audience remain canonical |
+| Native issuance transport | conditional direct mTLS `https://127.0.0.1:9200/cc/issue`; actual resolver leaf required |
 | Native current policy | conditional direct mTLS `https://127.0.0.1:18767/v1/native-policy`; native peer only |
 | Models | `https://llm.holthome.net`; adopted gateway binds `127.0.0.1:4100`, Caddy only |
 | Whiskey | `https://whiskeywhiskeywhiskey.org/cc/mcp`; retained native audience remains `/api/mcp` |
@@ -140,6 +141,15 @@ and strips claimed identity/certificate headers. Native authorization and the
 Whiskey companion header are retained. Native TLS trust uses real nominated
 public leaf certificates, checked for client purpose and validity; the runtime
 renderer computes their fingerprints. It does not invent certificate enrollment.
+
+R05's configured `endpoint` remains the canonical issuance URL above.
+The additive `transport_endpoint` selects only the actual private mTLS
+connection. It cannot change the response issuer, resource target, audience,
+verification keys or native authorization. Redirect, TLS and identity
+fallbacks are not introduced. This host shape is prepared for the parent-owned
+app feature; final schema validation and a new full build await that feature's
+immutable app pin. The currently recorded `rq34…` artifact predates this fix
+and remains build-only historical evidence, not activation qualification.
 
 At explicit native cutover, `/mcp` becomes the declared Personal read target;
 the Family read view is `/cc/views/family-read`. This is **not** an implicit

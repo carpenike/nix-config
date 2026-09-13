@@ -5,6 +5,9 @@ let
   adopted = (inputs.self.nixosConfigurations.forge.extendModules {
     modules = [{ services.atriumForge.adoption.models = true; }];
   }).config;
+  nativeAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
+    modules = [{ services.atriumForge.adoption.native = true; }];
+  }).config;
   healthCommand = config: prefix:
     let
       matches = lib.filter (lib.hasPrefix prefix)
@@ -48,6 +51,7 @@ let
         // lib.filterAttrs (_: template: template.credentialKind == "client") registry.modelTemplates);
     group_evidence = runtime.adoption.identity.group_evidence;
     resolver = runtime.resolver // { litellm = models.resolver; };
+    broker_resolver = builtins.fromJSON nativeAdopted.environment.etc."atrium/runtime/atrium-resolver.json".text;
     admission = models.admission;
     controller = models.controller;
     native = runtime.native;
@@ -87,6 +91,12 @@ pkgs.runCommand "atrium-forge-cloud-schema"
 
     data = json.loads(${builtins.toJSON (builtins.toJSON data)})
     settings = Settings.model_validate_json(json.dumps(data["resolver"]))
+    broker_settings = Settings.model_validate_json(json.dumps(data["broker_resolver"]))
+    broker = broker_settings.home_mcp.deployments["home-mcp"]
+    assert broker.endpoint == "https://mcp.holthome.net/cc/issue"
+    assert broker.issuer == "https://mcp.holthome.net"
+    assert broker.transport_endpoint == "https://127.0.0.1:9200/cc/issue"
+    assert broker.verification_keys_path == Path("/run/credentials/atrium-resolver.service/native-jwks")
     admission = AdmissionSettings.model_validate_json(json.dumps(data["admission"]))
     enrollment = Bootstrap.model_validate_json(json.dumps(data["bootstrap"]["enrollment"]))
     ordinary = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["ordinary"]))
@@ -208,6 +218,7 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "native_group_measurements_reproduced": False,
         "evaluated_container_health_commands_smoked": True,
         "health_network_boundary_exercised": False,
+        "canonical_native_issuer_and_private_transport_schema": True,
         "runtime_gate_evidence": False, "live_operations": False,
     }))
     PY
