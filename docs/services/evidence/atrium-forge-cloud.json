@@ -2,7 +2,7 @@
   "schema_version": 1,
   "kind": "atrium.forge-cloud-deployment-evidence",
   "branch": "atr/N03-c9-cloud",
-  "implementation_commit": "95f8a58479cc8ec61998e863d134761c7c20b7d9",
+  "implementation_commit": "c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4",
   "base_implementation_commit": "c7271513cc48b22b2908325a8e4a64e20bdee135",
   "base_commit": "b47cee4dff8d55afc6b111399477ad366c3d0edb",
   "status": "built-provisional-native-candidate-awaiting-native-c9-and-c10",
@@ -42,7 +42,7 @@
     "deployment_inputs_changed_to_measurement_references": false
   },
   "inputs": {
-    "atrium": "212be361e2ecabe1e4f85c3127589ffe23be17e4",
+    "atrium": "6930938bbc145eab6020844f7e972aaa9a0cab2a",
     "native": "ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93",
     "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
     "litellm_version": "v1.100.1",
@@ -51,14 +51,24 @@
     "accepted_c9_merge": "21a4df41ccdc52eb2282387816b3e164c1e32c3c"
   },
   "input_qualification": {
-    "atrium": "supplied immutable C9 implementation candidate, PR43; no full native C9 gate claimed",
-    "native": "explicit provisional source-catalog/build candidate, PR78; final vendor refresh from 212be36 and native C9 qualification still forthcoming",
+    "atrium": "supplied corrected C9 core, PR43; terminal emergency revocation, issuance rollback and device-proof/activation fixes; no host-input shape change or full native C9 gate claimed",
+    "native": "explicit provisional source-catalog/build candidate, PR78; final vendor refresh from 6930938 and native C9 qualification still forthcoming",
     "consumer": "supplied canonical profile refresh, PR95; shared profile source fbb1775",
     "parent_reported_tests": {
-      "atrium_profiles": 116,
-      "atrium_resolver_schema_emergency": 125,
-      "atrium_controller_selector": 25,
-      "consumer_native_profile": 42,
+      "atrium_resolver": 173,
+      "atrium_targeted_real_local": 19,
+      "atrium_90_native_package_qualification": "underway in parent; not claimed passed here",
+      "consumer_evidence_revision": "e3aba82bbf2634d59190c511230cab2d37afe6a1",
+      "consumer_total": 132,
+      "consumer_layers": {
+        "immutable_artifact": 1,
+        "native_identity_and_signed_companion_authentication": 41,
+        "deny_state_and_freshness": 10,
+        "operation_classification": 31,
+        "trusted_fixture_dispatch_not_jwt_authentication": 39,
+        "retained_native_mcp": 10
+      },
+      "consumer_initial_42_included_not_additive": true,
       "consumer_typecheck": "passed",
       "reproduced_by_this_deployment": false
     }
@@ -127,14 +137,14 @@
     {
       "name": "atrium-forge-cloud-schema",
       "status": "passed",
-      "artifact": "/nix/store/rqjsx89ppx6zb0r51chx2fz98g1mk444-atrium-forge-cloud-schema",
+      "artifact": "/nix/store/4cz9n086351kpywcidsrzr4f8qjgvm7k-atrium-forge-cloud-schema",
       "scope": "real app schema parsers and certificate binding permit/refusal cases; all human instance/template ACLs remain group-only and identity carrier remains access_token",
       "c10_acceptance_or_native_group_integration_claimed": false
     },
     {
       "name": "atrium-identity-bootstrap",
       "status": "passed",
-      "artifact": "/nix/store/3n2hhnhg2riz9lghyz36qmdiqa6m20y0-atrium-pocketid-bootstrap",
+      "artifact": "/nix/store/6dsf176qvmkhw0k9qnldggr2nknpnjv0-atrium-pocketid-bootstrap",
       "scope": "actual isolated owner bootstrap, repeat/foreign-authority refusal, no group observations"
     },
     {
@@ -147,7 +157,7 @@
       "name": "atrium-n03-model-preparation",
       "status": "passed",
       "assertions": 35,
-      "artifact": "/nix/store/dfvqa0s31qphvljhz7hr4n9a2nbhss8p-atrium-n03-model-preparation.json"
+      "artifact": "/nix/store/3qf6aabgxgv2kfgmq795yjyr2i22aang-atrium-n03-model-preparation.json"
     },
     {
       "name": "atrium-forge-caddy",
@@ -207,23 +217,36 @@
       "Existing Nix system/stdenv.hostPlatform.system deprecation warnings",
       "Garnix DNS/cache availability warning; Nix used its other configured caches",
       "Concurrent Nix evaluation-cache busy messages were explicitly reported as ignored",
-      "Admission package lacks meta.mainProgram; the generated atrium-litellm-admission entrypoint was verified executable in the remote built closure"
+      "Admission package lacks meta.mainProgram; the generated executable name is atrium-litellm-admission",
+      "Existing ZFS 2.3.7/2.4.2 fish-completion buildEnv collisions were explicitly ignored by Nix; unrelated configuration was not changed"
     ]
   },
   "remote_build": {
     "command": "task -d /Users/ryan/src/nix-config-c9-cloud nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
     "status": "passed-build-only",
-    "implementation_commit": "95f8a58479cc8ec61998e863d134761c7c20b7d9",
+    "implementation_commit": "c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4",
     "task_exit_status": 0,
     "errors": [],
-    "new_artifact": "/nix/store/vkki3526n20rfiaifsnz1jrjmqp5qym4-nixos-system-forge-25.11.20260630.b6018f8",
-    "derivation": "/nix/store/r9hfjlq9ns8lk4xj39qbckxy1k4fv9zv-nixos-system-forge-25.11.20260630.b6018f8.drv",
+    "new_artifact": "/nix/store/rq34rsn29nmdw9svpk15rgmp67ss5520-nixos-system-forge-25.11.20260630.b6018f8",
+    "derivation": "/nix/store/6j6cj50cy2br5nayijlcal4yrfjqspbh-nixos-system-forge-25.11.20260630.b6018f8.drv",
     "remote_artifact_verified": true,
     "generated_policy_files_verified_in_built_artifact": ["registry", "resolver", "home-mcp", "litellm", "whiskey", "sidecar"],
     "admission_entrypoint_verified": true,
     "activation": false,
     "full_linux_closure_built_on_mac": false,
     "provisional_native_candidate": true,
+    "resolver_package_check": {
+      "passed": 863,
+      "skipped": 19,
+      "duration_seconds": 505.31,
+      "scope": "actual package pytest phase during the remote build, not full native C9 acceptance"
+    },
+    "previous_c9_candidate_build": {
+      "implementation_commit": "95f8a58479cc8ec61998e863d134761c7c20b7d9",
+      "atrium_revision": "212be361e2ecabe1e4f85c3127589ffe23be17e4",
+      "artifact": "/nix/store/vkki3526n20rfiaifsnz1jrjmqp5qym4-nixos-system-forge-25.11.20260630.b6018f8",
+      "status": "passed-build-only-superseded-by-corrected-core"
+    },
     "prior_verified_base_generation": "xw0awhzw7qlkmv62j9d8m4lxhx29mydp",
     "prior_generation_is_not_this_candidate": true,
     "historical_blocked_attempt": {
@@ -232,6 +255,13 @@
       "reason": "read-only source catalog exports were absent",
       "resolved_by_explicit_supplied_catalog_candidate": true
     }
+  },
+  "private_ci": {
+    "status": "account-startup-restriction-reported-by-parent",
+    "consumer_reported_run": 34767102506,
+    "consumer_executed_steps": 0,
+    "rerun_or_billing_settings_check_bypass": false,
+    "native_acceptance_not_inferred_from_ci": true
   },
   "protection": {
     "classified_datasets": 55,

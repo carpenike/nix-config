@@ -305,7 +305,7 @@ The current explicit candidates are:
 
 | Component | Immutable revision | Qualification boundary |
 | --- | --- | --- |
-| Atrium PR43 | `212be361e2ecabe1e4f85c3127589ffe23be17e4` | Accepted C9 implementation candidate, not a full native C9 gate |
+| Atrium PR43 | `6930938bbc145eab6020844f7e972aaa9a0cab2a` | Corrected C9 core candidate, not a full native C9 gate |
 | Whiskey PR95 | `472f877952a363321c76ce580ce41dd0810e08b8` | Supplied canonical profile refresh |
 | MCP PR78 | `ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93` | Explicit **provisional** source-catalog/build candidate; final C9 vendor/native qualification forthcoming |
 
@@ -316,23 +316,41 @@ The adopted gateway now uses an explicit `publishPort = false` setting: an
 empty list could not override the module's forced bridge mapping at the same
 priority. Legacy bridge publication remains unchanged when not adopted.
 
+The corrected app core addresses terminal emergency deny-removal resurrection,
+rollback after native issuance, and the device-required emergency activation/
+proof cycle. No registry or host-setting shape changed; the existing deployment
+checks pass unchanged. The parent's 173 resolver and 19 targeted real local
+cases, and its underway 90-native-case package qualification, remain separately
+attributed evidence rather than new deployment T-cases.
+
+Whiskey's documentation/evidence revision
+`e3aba82bbf2634d59190c511230cab2d37afe6a1` records 132 properly classified cases:
+1 artifact, 41 native-identity/companion authentication, 10 deny state/freshness,
+31 operation classification, 39 trusted-fixture dispatch, and 10 retained
+native MCP cases. The initial 42 are included, not additive. This is not a
+runtime pin change or a full C9 deployment gate.
+
 The provisional MCP revision still documents its older qualified vendor source;
 it is not represented as the final C9 native artifact. The parent is refreshing
-that vendor from `212be36` and will supply the resulting immutable revision and
+that vendor from `6930938` and will supply the resulting immutable revision and
 qualification. Do not follow its mutable worktree, manufacture scopes, swap in
 the synthetic M03 catalog or infer per-human dataset ownership. The parent’s
 app/profile/native test counts are separate evidence, not tests rerun or native
 T-cases claimed by this deployment branch.
+Private app/MCP CI remains independently subject to the account startup
+restriction; this branch does not rerun it or alter billing, settings or checks.
 
-At deployment commit `95f8a58479cc8ec61998e863d134761c7c20b7d9`, the full remote
+At deployment commit `c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4`, the full remote
 Taskfile build passed and produced:
 
 ```text
-/nix/store/vkki3526n20rfiaifsnz1jrjmqp5qym4-nixos-system-forge-25.11.20260630.b6018f8
+/nix/store/rq34rsn29nmdw9svpk15rgmp67ss5520-nixos-system-forge-25.11.20260630.b6018f8
 ```
 
-The system artifact, its derivation, all six generated policy files and the
-admission executable were verified in Forge's Nix store without activation.
+The system artifact, its derivation and all six generated policy files were
+verified in Forge's Nix store without activation. The resolver package pytest
+phase passed 863 cases and skipped 19; this remains package-build evidence,
+not the parent's full native C9 qualification.
 Nine focused checks passed; exact paths and boundaries are in the source-bound
 receipt. No full Linux closure was built on the Mac. Native C9 qualification
 and C10 acceptance/implementation remain explicit activation dependencies.
