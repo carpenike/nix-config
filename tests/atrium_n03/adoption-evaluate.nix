@@ -28,6 +28,10 @@ let
   };
   gateway = models.virtualisation.oci-containers.containers.litellm;
   controller = models.systemd.services.atrium-reconciler;
+  expectedHealth = url: "python3 -c " + lib.escapeShellArg
+    ''import sys, urllib.request; sys.exit(0 if urllib.request.urlopen(${builtins.toJSON url}, timeout=5).status == 200 else 1)'';
+  healthArguments = prefix: options: lib.filter (lib.hasPrefix prefix) options;
+  legacyOptions = baseline.virtualisation.oci-containers.containers.litellm.extraOptions;
   checks = {
     native-default-unadopted = !(baseline.services.homelab-mcp.settings ? HOMELAB_MCP_ATRIUM_VIEW_POLICY);
     whiskey-default-unadopted = !(baseline.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_CONFIG);
@@ -50,6 +54,20 @@ let
       == "ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf";
     health-via-protected-proxy = models.modules.services.gatus.contributions.litellm.url
       == "https://llm.holthome.net/health/liveliness";
+    actual-regular-health-via-proxy = healthArguments "--health-cmd=" gateway.extraOptions
+      == [ "--health-cmd=${expectedHealth "https://llm.holthome.net/health/liveliness"}" ];
+    actual-startup-health-via-proxy = healthArguments "--health-startup-cmd=" gateway.extraOptions
+      == [ "--health-startup-cmd=${expectedHealth "https://llm.holthome.net/health/liveliness"}" ];
+    unadopted-regular-health-preserved = healthArguments "--health-cmd=" legacyOptions
+      == [ "--health-cmd=${expectedHealth "http://127.0.0.1:4000/health/liveliness"}" ];
+    unadopted-startup-health-preserved = healthArguments "--health-startup-cmd=" legacyOptions
+      == [ "--health-startup-cmd=${expectedHealth "http://127.0.0.1:4000/health/liveliness"}" ];
+    gateway-health-adds-no-firewall-bypass = lib.hasInfix
+      "--dport 4100 -m owner ! --uid-owner 239 -j REJECT"
+      models.networking.firewall.extraCommands
+    && !lib.any
+      (line: lib.hasInfix "--dport 4100" line && lib.hasInfix "--uid-owner 1064" line)
+      (lib.splitString "\n" models.networking.firewall.extraCommands);
     admission-and-bootstrap-installed = gateway.environment.LITELLM_WORKER_STARTUP_HOOKS
       == "atrium_admission.bootstrap:install"
       && models.modules.services.litellm.extraLitellmSettings.callbacks == [ "atrium_admission.hook.admission" ];

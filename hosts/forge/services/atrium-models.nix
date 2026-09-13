@@ -230,6 +230,7 @@ in
         message = "Atrium model adoption requires the pinned shared gateway, no provider fallback, and its explicit private host-network boundary.";
       }];
       modules.services.litellm = {
+        healthUrl = "${runtime.endpoints.models}/health/liveliness";
         publishPort = false;
         internalPort = 4100;
         listenAddress = "127.0.0.1";

@@ -167,7 +167,8 @@ mylib.mkContainerService {
     # out podman's on-failure=kill stopped a perfectly healthy proxy 5 min
     # after start, cleanly enough that nothing alerted (2026-09-04). Probe
     # with the interpreter the image is built on instead.
-    healthCommand = ''python3 -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:${toString containerPort}/health/liveliness', timeout=5).status == 200 else 1)"'';
+    healthCommand = "python3 -c " + lib.escapeShellArg
+      ''import sys, urllib.request; sys.exit(0 if urllib.request.urlopen(${builtins.toJSON config.modules.services.litellm.healthUrl}, timeout=5).status == 200 else 1)'';
     # Prisma migrations run on every start and can take a while.
     startPeriod = "120s";
 
@@ -195,6 +196,11 @@ mylib.mkContainerService {
   };
 
   extraOptions = {
+    healthUrl = mkOption {
+      type = types.str;
+      default = "http://127.0.0.1:${toString containerPort}/health/liveliness";
+      description = "Health URL used by both actual container startup and regular probes; select the canonical proxy when direct loopback access is restricted.";
+    };
     publishPort = mkOption {
       type = types.bool;
       default = true;

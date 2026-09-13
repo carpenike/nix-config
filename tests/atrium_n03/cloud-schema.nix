@@ -2,6 +2,16 @@
 let
   inherit (pkgs) lib;
   forge = inputs.self.nixosConfigurations.forge.config;
+  adopted = (inputs.self.nixosConfigurations.forge.extendModules {
+    modules = [{ services.atriumForge.adoption.models = true; }];
+  }).config;
+  healthCommand = config: prefix:
+    let
+      matches = lib.filter (lib.hasPrefix prefix)
+        config.virtualisation.oci-containers.containers.litellm.extraOptions;
+    in
+    assert builtins.length matches == 1;
+    lib.removePrefix prefix (builtins.head matches);
   registry = forge.services.atrium.registry;
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
   models = import ../../hosts/forge/atrium/models.nix {
@@ -18,6 +28,12 @@ let
   ]);
   data = {
     inherit bootstrap;
+    health_commands = {
+      adopted_regular = healthCommand adopted "--health-cmd=";
+      adopted_startup = healthCommand adopted "--health-startup-cmd=";
+      unadopted_regular = healthCommand forge "--health-cmd=";
+      unadopted_startup = healthCommand forge "--health-startup-cmd=";
+    };
     authority_token_types = lib.mapAttrs (_: authority: authority.tokenType) registry.authorities;
     instance_acls = lib.mapAttrs
       (_: instance: {
@@ -48,10 +64,14 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     python - <<'PY' > "$out"
     import json
     import os
+    import shlex
     import subprocess
     import sys
     from datetime import datetime, timedelta, timezone
     from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from urllib.error import URLError
 
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes
@@ -102,6 +122,31 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert not data["group_evidence"]["unsigned_userinfo_fallback"]
     assert not data["group_evidence"]["identity_carrier_change"]
     assert not data["group_evidence"]["provenance"]["reproduced_by_this_deployment"]
+
+    for phase, command in data["health_commands"].items():
+        words = shlex.split(command)
+        assert len(words) == 3 and words[:2] == ["python3", "-c"]
+        expected = ("https://llm.holthome.net/health/liveliness"
+                    if phase.startswith("adopted_")
+                    else "http://127.0.0.1:4000/health/liveliness")
+        probe = compile(words[2], "<evaluated-container-health-command>", "exec")
+        for status, exit_code in ((200, 0), (503, 1)):
+            with patch("urllib.request.urlopen", return_value=SimpleNamespace(status=status)) as request:
+                try:
+                    exec(probe, {})
+                except SystemExit as error:
+                    assert error.code == exit_code
+                else:
+                    raise AssertionError("health command did not return a status")
+                request.assert_called_once_with(expected, timeout=5)
+        with patch("urllib.request.urlopen", side_effect=URLError("unavailable")) as request:
+            try:
+                exec(probe, {})
+            except URLError:
+                pass
+            else:
+                raise AssertionError("health transport failure became success")
+            request.assert_called_once_with(expected, timeout=5)
 
     root = Path.cwd() / "binding-check"
     root.mkdir(mode=0o700)
@@ -161,6 +206,8 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "identity_carrier_remains_access_token": True,
         "group_carrier_integration": "blocked-pending-c10",
         "native_group_measurements_reproduced": False,
+        "evaluated_container_health_commands_smoked": True,
+        "health_network_boundary_exercised": False,
         "runtime_gate_evidence": False, "live_operations": False,
     }))
     PY

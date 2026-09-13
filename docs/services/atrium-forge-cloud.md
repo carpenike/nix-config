@@ -316,6 +316,16 @@ The adopted gateway now uses an explicit `publishPort = false` setting: an
 empty list could not override the module's forced bridge mapping at the same
 priority. Legacy bridge publication remains unchanged when not adopted.
 
+The subsequent host review found that container probes still used the private
+listener despite the external Gatus/Homepage URLs. The LiteLLM module now
+exposes `healthUrl`, and the existing service factory uses that same command
+for both `--health-startup-cmd` and `--health-cmd`. Adopted probes use
+`https://llm.holthome.net/health/liveliness`; unadopted probes retain
+`http://127.0.0.1:4000/health/liveliness`. UID1064 receives no firewall bypass.
+Exact evaluated-command assertions cover both phases and both modes; the
+existing smoke runner checks success, unhealthy status and transport failure.
+These command-level checks are not a live network or native-admission gate.
+
 The corrected app core addresses terminal emergency deny-removal resurrection,
 rollback after native issuance, and the device-required emergency activation/
 proof cycle. No registry or host-setting shape changed; the existing deployment
