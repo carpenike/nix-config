@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.forge-cloud-deployment-evidence",
+  "branch": "atr/N03-c9-cloud",
+  "implementation_commit": "c7271513cc48b22b2908325a8e4a64e20bdee135",
+  "base_commit": "b47cee4dff8d55afc6b111399477ad366c3d0edb",
+  "status": "implemented-awaiting-final-immutable-inputs",
+  "live_operations": false,
+  "new_native_gate_evidence": false,
+  "proposed_amendments": [],
+  "inputs": {
+    "atrium": "840e0777505febefe5a9296ae621451aac70172a",
+    "native": "23de14d586c668e1662294ff1f2a8d5da265cf24",
+    "consumer_revision": "273cf414cac75276492ee849bb3ea257ce47f8de",
+    "litellm_version": "v1.100.1",
+    "litellm_manifest": "a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf",
+    "specification_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "accepted_c9_merge": "21a4df41ccdc52eb2282387816b3e164c1e32c3c"
+  },
+  "registry": {
+    "authoritative_source": "hosts/forge/atrium/registry.nix",
+    "generator": "atrium.lib.renderForGateway",
+    "schema_version": 2,
+    "environment": "production",
+    "phase": 1,
+    "documents": [
+      "registry",
+      "resolver",
+      "home-mcp",
+      "litellm",
+      "whiskey",
+      "sidecar"
+    ],
+    "external_policy_fallback": false,
+    "raw_secrets_required_to_render": false,
+    "human_principals": ["ryan"],
+    "group_observations_seeded": false,
+    "real_child_accounts_created": false,
+    "managed_aliases": {
+      "cc.personal.ryan.sonnet": "anthropic/claude-sonnet-5",
+      "cc.personal.ryan.opus": "anthropic/claude-opus-5",
+      "cc.family.holt.haiku": "anthropic/claude-haiku-4-5-20251001"
+    },
+    "provider_sources": {
+      "personal:ryan": "/run/secrets/atrium-personal-anthropic",
+      "family:holt": "/run/secrets/atrium-family-anthropic"
+    },
+    "provider_account_labels": "new logical purpose/ownership declarations, not discovered billing identities",
+    "client_budget": {"usd": 1, "duration_seconds": 3600, "scope": "per-client-key"},
+    "whiskey_budget": {"usd": 2, "duration_seconds": 86400, "scope": "per-service-key"},
+    "aggregate_monthly_cap_claimed": false
+  },
+  "public_bindings": {
+    "resolver": "https://atrium.holthome.net",
+    "identity_issuer": "https://id.holthome.net",
+    "identity_audience": "https://atrium.holthome.net/resolver",
+    "device_registration": "https://forge.holthome.net:19443",
+    "models": "https://llm.holthome.net",
+    "native": "https://mcp.holthome.net",
+    "whiskey": "https://whiskeywhiskeywhiskey.org/cc/mcp"
+  },
+  "private_bindings": {
+    "resolver": "127.0.0.1:18765",
+    "device_registration": "127.0.0.1:18766",
+    "native_policy": "https://127.0.0.1:18767/v1/native-policy",
+    "native_issuance": "https://127.0.0.1:9200/cc/issue",
+    "adopted_gateway": "127.0.0.1:4100"
+  },
+  "checks": [
+    {
+      "name": "atrium-forge-cloud-schema",
+      "status": "passed",
+      "artifact": "/nix/store/fvfgjzhnga7jbr1bb6vsyw3zvz9nr3sn-atrium-forge-cloud-schema",
+      "scope": "real app schema parsers and runtime public-certificate binding permit/refusal cases"
+    },
+    {
+      "name": "atrium-identity-bootstrap",
+      "status": "passed",
+      "artifact": "/nix/store/d23x7g26s0a03f4frkywqmvnx71dakan-atrium-pocketid-bootstrap",
+      "scope": "actual isolated owner bootstrap, repeat/foreign-authority refusal, no group observations"
+    },
+    {
+      "name": "atrium-n03-units",
+      "status": "passed",
+      "assertions": 29,
+      "artifact": "/nix/store/m0r7wfwd11jyi0q5bscl2ddrm1kr4mq7-atrium-n03-isolated-units.json"
+    },
+    {
+      "name": "atrium-n03-model-preparation",
+      "status": "passed",
+      "assertions": 35,
+      "artifact": "/nix/store/xxbhgkfx97hrg202zgfmm7w21vvaw40x-atrium-n03-model-preparation.json"
+    },
+    {
+      "name": "atrium-forge-caddy",
+      "status": "passed",
+      "artifact": "/nix/store/rigwy1w53bj71n3cxkrzrqkicaj8ax23-atrium-forge-caddy-syntax"
+    },
+    {
+      "name": "protection-manifest",
+      "status": "passed",
+      "artifact": "/nix/store/mfxddgc2ywr9ifqha17670qnc152bvp6-protection-manifest-check"
+    },
+    {
+      "name": "deployment-backup-guard",
+      "status": "evaluation-passed-no-linux-build-on-mac",
+      "derivation": "/nix/store/nqycnyfnfjnrf7778k83230fjk0pzf0l-deployment-backup-guard-check.drv"
+    },
+    {
+      "name": "atrium-forge-preparation",
+      "status": "blocked",
+      "reason": "pinned native catalog lacks atrium-personal-read and atrium-family-read"
+    },
+    {
+      "name": "atrium-forge-adoption-wiring",
+      "status": "blocked",
+      "reason": "restart-trigger validation requires the same complete policy and missing native read exports"
+    }
+  ],
+  "check_execution": {
+    "platform": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "normal_commit_hooks": {
+      "check-json": "passed",
+      "deadnix": "passed",
+      "end-of-file-fixer": "passed",
+      "gitleaks": "passed",
+      "nixpkgs-fmt": "passed",
+      "ruff": "passed",
+      "ruff-format": "passed",
+      "statix": "passed",
+      "trim-trailing-whitespace": "passed",
+      "check-toml": "no matching staged files",
+      "shellcheck": "no matching staged files",
+      "yamllint": "no matching staged files"
+    },
+    "checks_bypassed": false,
+    "setup": "Restored only the ignored worktree-local generated hook configuration; did not reinstall shared hooks or change Git hook settings.",
+    "warnings": [
+      "Existing Nix system/stdenv.hostPlatform.system deprecation warnings",
+      "Garnix DNS/cache availability warning; Nix used its other configured caches",
+      "Concurrent Nix evaluation-cache busy messages were explicitly reported as ignored"
+    ]
+  },
+  "remote_build": {
+    "command": "task -d /Users/ryan/src/nix-config-c9-cloud nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "status": "blocked-at-registry-validation-before-remote-compilation",
+    "task_exit_status": 201,
+    "errors": [
+      "Instance family-home-read: missing, unknown, retired, or inappropriate scope allowlist.",
+      "Instance personal-data-read: missing, unknown, retired, or inappropriate scope allowlist."
+    ],
+    "new_artifact": null,
+    "prior_verified_base_generation": "xw0awhzw7qlkmv62j9d8m4lxhx29mydp",
+    "prior_generation_is_not_this_candidate": true
+  },
+  "protection": {
+    "classified_datasets": 55,
+    "critical_datasets": 15,
+    "snapshot_datasets": 65,
+    "backup_jobs": 73,
+    "guarded_timers": 150,
+    "added_state": ["atrium-reconciler", "atrium-model-gateway"],
+    "named_coverage_assertions": true,
+    "automatic_empty_security_restore": false
+  },
+  "tickets": {
+    "ATR-N02": {
+      "scope": "complete cloud-first concrete Nix registry, explicit owner/group/grant declarations",
+      "new_native_t_cases_passed": [],
+      "blocked": "final native read-only source catalog and C9 runtime qualification"
+    },
+    "ATR-N03": {
+      "scope": "resolver/device/native-policy/issuance, protected transports, custody, bootstrap and recovery",
+      "new_native_t_cases_passed": [],
+      "blocked": "complete-policy and opt-in composition checks plus full remote build await immutable source inputs"
+    },
+    "ATR-N04": {
+      "scope": "real owned controller and live resolver/controller/service-key publication wiring",
+      "new_native_t_cases_passed": [],
+      "blocked": "parent-coordinated real adapter acceptance and explicit operator activation"
+    },
+    "ATR-N05": {
+      "scope": "exact 1.100.1 admission/bootstrap package wiring and private durable history",
+      "new_native_t_cases_passed": [],
+      "blocked": "parent-coordinated native protocol/worker/cache acceptance"
+    },
+    "ATR-N06": {
+      "scope": "conditional Whiskey text/image delivery and explicit address-level egress configuration",
+      "new_native_t_cases_passed": [],
+      "blocked": "reviewed hostname/address-only calendar/media/push/redirect inventory and native permit/deny execution"
+    }
+  },
+  "required_follow_up_inputs": [
+    "Final immutable Atrium runtime revision containing the accepted C9 policy/emergency implementation and verified fresh Pocket ID group evidence flow.",
+    "Explicit immutable MCP revision with source-derived atrium-personal-read and atrium-family-read in tests/fixtures/atrium_catalog.generated.json, preserving legacy writable exports and matching the parent's vendor qualification.",
+    "Any explicitly required accompanying immutable consumer/vendor update; Whiskey stays on the supplied baseline otherwise."
+  ],
+  "operator_prerequisites": [
+    "Separate Pocket ID client/resource authorization and explicit Ryan membership in atrium-personal-ryan and atrium-family; no observations fabricated.",
+    "SOPS provisioning of distinct wing inference sources and separate resolver/controller management credentials.",
+    "Manual identity, signing, TLS, group-bounded grant, real producer and admission-history initialization.",
+    "Explicit native issuer/JWKS continuity, individual refresh mappings and bounded cutover approval.",
+    "Explicit Whiskey UID/state custody, new image credentials, complete reviewed egress bindings and adoption approval.",
+    "Live service-key read/acknowledgement/overlap; no environment or credential snapshot for rotating text keys."
+  ],
+  "preservation": {
+    "primary_worktree_modified_by_this_task": false,
+    "primary_serena_diff_sha256_before": "66ab62cb70445aa02140b3ec9fea28e511e5d5b0d8e540c124c58bdeb0ea9c8d",
+    "primary_serena_diff_sha256_after": "66ab62cb70445aa02140b3ec9fea28e511e5d5b0d8e540c124c58bdeb0ea9c8d",
+    "other_concurrent_primary_edits_left_untouched": [
+      "docs/workarounds.md",
+      "hosts/forge/services/music-assistant.nix",
+      "tests/music-assistant-config.sh"
+    ],
+    "app_mcp_network_repositories_modified_by_this_task": false,
+    "unowned_native_objects_adopted": false,
+    "raw_or_encrypted_secret_material_added": false
+  },
+  "implementation_files": [
+    "docs/services/atrium-forge-cloud.md",
+    "docs/services/atrium-forge-runtime.md",
+    "flake.lock",
+    "flake.nix",
+    "hosts/forge/atrium/bootstrap.nix",
+    "hosts/forge/atrium/configuration.nix",
+    "hosts/forge/atrium/model-bootstrap.py",
+    "hosts/forge/atrium/models.nix",
+    "hosts/forge/atrium/native-bootstrap.py",
+    "hosts/forge/atrium/registry.nix",
+    "hosts/forge/atrium/runtime-bindings.py",
+    "hosts/forge/atrium/runtime.nix",
+    "hosts/forge/atrium/whiskey-bootstrap.mjs",
+    "hosts/forge/services/atrium-adapters.nix",
+    "hosts/forge/services/atrium-models.nix",
+    "hosts/forge/services/atrium.nix",
+    "hosts/forge/services/homelab-mcp.nix",
+    "lib/service-uids.nix",
+    "modules/nixos/services/litellm/default.nix",
+    "tests/atrium_n03/adoption-evaluate.nix",
+    "tests/atrium_n03/cloud-schema.nix",
+    "tests/atrium_n03/forge-evaluate.nix",
+    "tests/atrium_n03/identity-bootstrap.nix",
+    "tests/atrium_n03/pins.json"
+  ]
+}

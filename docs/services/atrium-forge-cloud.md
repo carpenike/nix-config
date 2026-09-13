@@ -4,6 +4,8 @@ This is **build/deployment wiring, not a live activation or completed native
 gate**. It stacks on PR1086 at
 `b47cee4dff8d55afc6b111399477ad366c3d0edb`. The prior foundation evidence is
 retained in [atrium-forge-runtime.json](evidence/atrium-forge-runtime.json).
+The [source-bound cloud receipt](evidence/atrium-forge-cloud.json) records the
+implementation commit, exact artifacts, owner-data preservation and blocked checks.
 
 C9 was accepted by Ryan and merged in Atrium PR40 at
 `21a4df41ccdc52eb2282387816b3e164c1e32c3c`. The locked specification remains
