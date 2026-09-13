@@ -132,7 +132,7 @@
     # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/212be361e2ecabe1e4f85c3127589ffe23be17e4";
+      url = "github:carpenike/atrium/6930938bbc145eab6020844f7e972aaa9a0cab2a";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
