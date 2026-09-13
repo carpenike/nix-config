@@ -135,12 +135,14 @@ accounts/domain ownership, exact models/aliases, budgets, or designated family
 model needed to satisfy that contract. **Missing model information is not an
 empty managed inventory and is not permission to adopt brownfield aliases.**
 
-Therefore the complete registry is not published. The reviewed fragment in
+Therefore the complete registry is not published. The metadata fragment in
 `registry-base.nix` contains real owner/wing/`rymac` eligibility and the pinned
-ordinary native source catalog—not the synthetic M03 catalog. Its bounded
-`hermes` view is correctly labeled read-write: all three current native scopes
-(`admin`, `advisor`, `hermes`) include writes. Public native templates remain
-explicit ceilings, not seeded grants or a migration decision.
+ordinary native source catalog, not the synthetic M03 catalog. It does not
+assign native views or grants: all three existing scopes (`admin`, `advisor`,
+`hermes`) include writes, and a scope name does not establish which wing owns
+its data. Explicit per-wing view/scope ceilings must be supplied before
+publication or native adoption; the shared deployment is not automatically
+assigned to the Family wing.
 
 Both listener units require the initialized identity receipt, existing SQLite
 state, and `/var/lib/atrium-policy/resolver.json` to be present and nonempty

@@ -104,6 +104,7 @@ in
       requirements = [
         "Explicit native issuer signing-key continuity and public JWKS export."
         "Explicit legacy-identity/refresh-family mappings and retained history."
+        "Explicit view/scope ceilings for each wing; native profile names do not establish data ownership."
         "Owner-selected current grants; no email matching or automatic group grants."
         "Reviewed complete N02 policy and initialized native deny history."
       ];
@@ -114,7 +115,7 @@ in
       native_version = "v1.100.1";
       image = "ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf";
       requirements = [
-        "Explicit personal/family provider account and domain credential ownership."
+        "Explicit provider-account and credential ownership for the Personal and Family wings."
         "Approved exact model aliases/backends, budgets and designated family model."
         "Separate new controller/resolver management credentials and cc.* ownership initialization."
         "Live signed resolver/controller publications with distinct producer custody."
@@ -126,7 +127,7 @@ in
       native_resource = "${endpoints.whiskey}/api/mcp";
       requirements = [
         "Explicit adopted LiteLLM text service template and live key/acknowledgement paths."
-        "Domain-owned image-provider credentials and reviewed non-model egress destinations."
+        "Personal wing image-provider credentials and reviewed non-model egress destinations."
         "Native credential plus matching companion on /cc/mcp; native/PAT/session routes unchanged."
       ];
     };

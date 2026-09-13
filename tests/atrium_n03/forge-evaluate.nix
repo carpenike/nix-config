@@ -57,8 +57,8 @@ let
       == inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"
       && nativeCatalog.kind == "atrium.source-catalog"
       && builtins.attrNames nativeCatalog.scopes == [ "admin" "advisor" "hermes" ]
-      && lib.elem "write" nativeCatalog.scopes.hermes.permissions
-      && base.instances.family-home-hermes.access == "read-write";
+      && lib.elem "write" nativeCatalog.scopes.hermes.permissions;
+    no-inferred-native-ceilings = !(base ? instances) && !(base ? routeTemplates);
     reviewed-owner-only = builtins.attrNames base.principals == [ "ryan" ]
       && base.principals == identity.registry.principals
       && builtins.attrNames base.devices == [ "rymac" ]
