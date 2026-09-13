@@ -41,6 +41,9 @@ Only Caddy's existing UID239 can open the resolver loopback listener; only the
 registration forwarder's UID1062 can open the registration loopback listener.
 The host keeps its existing iptables firewall. IPv4 destination-port/UID checks
 are not hostname or model-provider egress proof.
+Both listeners require successful firewall startup, and their generated
+settings files are explicit restart triggers so configuration changes do not
+leave a process using an older authority or certificate-lifetime setting.
 
 ## Custody and persistence
 

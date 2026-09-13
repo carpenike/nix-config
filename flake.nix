@@ -826,6 +826,7 @@
                 postgresql = manifest.datasets."tank/services/postgresql";
                 prometheus = manifest.datasets."tank/services/prometheus";
                 signalApi = manifest.datasets."tank/services/signal-api";
+                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" ];
                 failClosedUnits = {
                   actual = "actual";
                   apprise = "podman-apprise";
@@ -911,11 +912,10 @@
               in
               assert manifest.schemaVersion == 1;
               assert manifest.summary.total >= 60;
-              # 2026-09-04, 48 -> 50: copilot-api (new) and litellm (re-enabled)
-              # both declare a `standard` protection policy.
-              assert manifest.summary.classified == 50;
+              # 2026-09-12: three new Atrium authorization/trust datasets are critical.
+              assert manifest.summary.classified == 53;
               assert manifest.summary.byClass == {
-                critical = 10;
+                critical = 13;
                 ephemeral = 21;
                 # 15 since 2026-08-17: lading gained a declared dataset. It
                 # had been running on the impermanence-rolled-back root with
@@ -1019,6 +1019,14 @@
               assert signalApi.policy.allowEmptyBootstrap;
               assert !(builtins.hasAttr "signal-api" failClosedUnits);
               assert builtins.all
+                (name:
+                  let dataset = manifest.datasets."tank/services/${name}"; in
+                  dataset.classification == "critical"
+                    && dataset.missingRequiredTiers == [ ]
+                    && !dataset.policy.allowEmptyBootstrap
+                    && !dataset.coverage.automatedRestore)
+                atriumStateNames;
+              assert builtins.all
                 (path:
                   manifest.datasets.${path}.classification == "ephemeral"
                     && manifest.datasets.${path}.missingRequiredTiers == [ ])
@@ -1053,6 +1061,14 @@
                   forge.modules.services.backup._internal.allJobs;
                 snapshotMetricsScript = forge.systemd.services.zfs-snapshot-metrics.script;
                 pgBackRestMetricsScript = forge.systemd.services.pgbackrest-metrics.script;
+                atriumStateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" ];
+                atriumTimers = pkgs.lib.concatMap
+                  (name: [
+                    "restic-backup-${name}.timer"
+                    "restic-backup-${name}-offsite.timer"
+                    "syncoid-tank-services-${name}.timer"
+                  ])
+                  atriumStateNames;
                 requiredAlerts = [
                   "deployment-backup-guard-abandoned"
                   "deployment-backup-guard-monitoring-stale"
@@ -1096,16 +1112,25 @@
                 # off since 2026-06-01) each bring a restic job
                 # (restic-backup-service-<name>.timer) and a replicated dataset
                 # (syncoid-tank-services-<name>.timer).
-              assert builtins.length expectedTimers == 135;
+                # 2026-09-12: each Atrium dataset adds replication and two encrypted backups.
+              assert builtins.length expectedTimers == 144;
+              assert builtins.all (name: builtins.elem name expectedTimers) atriumTimers;
               assert builtins.elem "pgbackrest-incr-backup.timer" expectedTimers;
               assert builtins.elem "restic-backup-service-plex.timer" expectedTimers;
               assert builtins.elem "sanoid.timer" expectedTimers;
               assert builtins.elem "syncoid-tank-services-plex.timer" expectedTimers;
               assert forge.systemd.timers.nixos-deploy-backup-guard-metrics.wantedBy == [ "timers.target" ];
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredAlerts;
-              assert builtins.length (builtins.attrNames snapshotDatasets) == 60;
+              assert builtins.length (builtins.attrNames snapshotDatasets) == 63;
+              assert builtins.all
+                (name: builtins.hasAttr "tank/services/${name}" snapshotDatasets)
+                atriumStateNames;
               assert !(builtins.hasAttr "tank/services" snapshotDatasets);
-              assert builtins.length (builtins.attrNames enabledResticJobs) == 63;
+              assert builtins.length (builtins.attrNames enabledResticJobs) == 69;
+              assert builtins.all
+                (name: builtins.hasAttr name enabledResticJobs
+                  && builtins.hasAttr "${name}-offsite" enabledResticJobs)
+                atriumStateNames;
               assert builtins.all (name: builtins.hasAttr name forge.modules.alerting.rules) requiredFreshnessAlerts;
               assert pkgs.lib.hasInfix "zfs_snapshot_dataset_info" snapshotMetricsScript;
               assert pkgs.lib.hasInfix "zfs_snapshot_latest_timestamp" snapshotMetricsScript;

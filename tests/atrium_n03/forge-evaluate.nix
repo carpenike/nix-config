@@ -73,6 +73,14 @@ let
     && lib.hasSuffix "serve --port 18765" units.atrium-resolver.serviceConfig.ExecStart
     && lib.hasSuffix "serve-devices --port 18766"
       units.atrium-device-registration.serviceConfig.ExecStart;
+    runtime-settings-restart-services = lib.all
+      (name: units.${name}.restartTriggers
+        == [ c.environment.etc."atrium/runtime/${name}.json".source ])
+      [ "atrium-resolver" "atrium-device-registration" ];
+    firewall-startup-is-required = lib.all
+      (name: lib.elem "firewall.service" units.${name}.requires
+        && lib.elem "firewall.service" units.${name}.after)
+      [ "atrium-resolver" "atrium-device-registration" ];
     explicit-missing-state-refusal = lib.all
       (name: units.${name}.unitConfig.AssertPathExists == [
         "${runtime.paths.resolver}/foundation.initialized"

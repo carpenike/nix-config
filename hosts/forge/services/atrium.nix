@@ -53,7 +53,9 @@ let
     description = "Atrium ${command} with explicit identity and policy initialization";
     wantedBy = [ "multi-user.target" ];
     wants = [ "network-online.target" ];
+    requires = [ "zfs-service-datasets.service" "firewall.service" ];
     after = [ "zfs-service-datasets.service" "network-online.target" "firewall.service" ];
+    restartTriggers = [ config.environment.etc."atrium/runtime/${unit}.json".source ];
     unitConfig = {
       RequiresMountsFor = [ runtime.paths.resolver runtime.paths.trust runtime.paths.policy ];
       AssertPathExists = [
