@@ -132,7 +132,7 @@
     # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/840e0777505febefe5a9296ae621451aac70172a";
+      url = "github:carpenike/atrium/212be361e2ecabe1e4f85c3127589ffe23be17e4";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -155,7 +155,7 @@
     # Self-hosted React + Fastify + SQLite + MCP app served from one Node process.
     # https://github.com/carpenike/whiskey-whiskey-whiskey
     whiskey-whiskey-whiskey = {
-      url = "github:carpenike/whiskey-whiskey-whiskey";
+      url = "github:carpenike/whiskey-whiskey-whiskey/472f877952a363321c76ce580ce41dd0810e08b8";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -194,7 +194,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      url = "github:carpenike/mcp/23de14d586c668e1662294ff1f2a8d5da265cf24";
+      # Explicit provisional read-catalog candidate; final C9 vendor/native
+      # qualification is supplied separately before any native adoption.
+      url = "github:carpenike/mcp/ab9ff6aacb8d8c259eb0b01ad251fdc93c9d0c93";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -520,6 +522,30 @@
             };
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
+            atrium-forge-adopted-caddy =
+              let
+                adopted = (inputs.self.nixosConfigurations.forge.extendModules {
+                  modules = [{ services.atriumForge.adoption.native = true; }];
+                }).config;
+                native = adopted.modules.services.caddy.virtualHosts.homelab-mcp;
+                caddyfile = pkgs.writeText "atrium-forge-adopted-Caddyfile" ''
+                  {
+                    admin off
+                    auto_https off
+                  }
+                  http://127.0.0.1:18446 {
+                    ${native.extraConfig}
+                    reverse_proxy ${native.backend.host}:${toString native.backend.port} {
+                      ${native.reverseProxyBlock}
+                    }
+                  }
+                '';
+              in
+              pkgs.runCommand "atrium-forge-adopted-caddy-syntax"
+                { nativeBuildInputs = [ pkgs.caddy ]; }
+                ''
+                  caddy adapt --adapter caddyfile --config ${caddyfile} > "$out"
+                '';
             atrium-forge-caddy = pkgs.runCommand "atrium-forge-caddy-syntax"
               { nativeBuildInputs = [ pkgs.caddy ]; }
               (

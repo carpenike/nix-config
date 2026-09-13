@@ -34,7 +34,7 @@ let
   }).config;
   checks = {
     selected-application-pin = inputs.atrium.rev == pins.atrium;
-    native-pins-unchanged = inputs.homelab-mcp.rev == pins.native
+    selected-native-pins = inputs.homelab-mcp.rev == pins.native
       && inputs.whiskey-whiskey-whiskey.rev == pins.consumer;
     explicit-gateway-version = gateway.kind == "atrium.litellm-version-candidate"
       && gateway.native_version == "v1.100.1"
@@ -70,12 +70,19 @@ let
       [ "admin" "advisor" "hermes" "atrium-personal-read" "atrium-family-read" ]
       && lib.elem "write" nativeCatalog.scopes.hermes.permissions
       && nativeCatalog.scopes.atrium-personal-read.permissions == [ "read" ]
-      && nativeCatalog.scopes.atrium-family-read.permissions == [ "read" ];
+      && nativeCatalog.scopes.atrium-family-read.permissions == [ "read" ]
+      && lib.length nativeCatalog.scopes.atrium-personal-read.tools == 20
+      && lib.length nativeCatalog.scopes.atrium-family-read.tools == 9
+      && nativeCatalog.scopes.atrium-personal-read.resources == [ ]
+      && nativeCatalog.scopes.atrium-family-read.resources == [ ];
     explicit-native-read-ceilings =
       registry.instances.personal-data-read.scopes == [ "atrium-personal-read" ]
       && registry.instances.family-home-read.scopes == [ "atrium-family-read" ]
       && registry.instances.personal-data-read.access == "read-only"
       && registry.instances.family-home-read.access == "read-only"
+      && registry.instances.personal-data-read.domain == "personal:ryan"
+      && registry.instances.personal-data-read.ownerPrincipal == "ryan"
+      && registry.instances.personal-data-read.acl.groups == [ "atrium-personal-ryan" ]
       && lib.all
         (template: !lib.elem "admin" template.scopes)
         (builtins.attrValues registry.routeTemplates);

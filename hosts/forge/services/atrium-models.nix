@@ -230,6 +230,7 @@ in
         message = "Atrium model adoption requires the pinned shared gateway, no provider fallback, and its explicit private host-network boundary.";
       }];
       modules.services.litellm = {
+        publishPort = false;
         internalPort = 4100;
         listenAddress = "127.0.0.1";
         nativeDataDir = "${m.private.gateway}/native-data";
@@ -258,7 +259,6 @@ in
         lib.mkForce "${runtime.endpoints.models}/health/liveliness";
       virtualisation.oci-containers.containers.litellm = {
         user = "${toString m.roles.gateway.uid}:${toString m.roles.gateway.gid}";
-        ports = lib.mkForce [ ];
         volumes = lib.mkAfter [
           "${runtime.paths.policy}:${runtime.paths.policy}:ro"
           "${m.exports.resolver}:${m.exports.resolver}:ro"

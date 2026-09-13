@@ -195,6 +195,11 @@ mylib.mkContainerService {
   };
 
   extraOptions = {
+    publishPort = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Publish the native bridge port on host loopback; disable for an explicitly loopback-bound host-network deployment.";
+    };
     internalPort = mkOption {
       type = types.port;
       default = 4000;
@@ -525,9 +530,8 @@ mylib.mkContainerService {
           LITELLM_CONFIG_PATH = "/app/config.yaml";
         } // cfg.extraEnvironment);
         # Loopback only — the factory default publishes on all interfaces.
-        ports = lib.mkForce [
-          "127.0.0.1:${toString cfg.port}:${toString containerPort}"
-        ];
+        ports = lib.mkForce (optional cfg.publishPort
+          "127.0.0.1:${toString cfg.port}:${toString containerPort}");
       };
 
       systemd.services.${mainServiceName} = {

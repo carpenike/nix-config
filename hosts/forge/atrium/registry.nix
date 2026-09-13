@@ -92,6 +92,8 @@ lib.recursiveUpdate base {
   instances = {
     # At explicit native cutover, the retained public OAuth target is a bounded
     # Personal read view, never an implicit admin/Family entitlement.
+    # Its native datasets are the configured household stores authorized for
+    # Ryan, not per-human data partitions inferred from the scope's name.
     personal-data-read = instance "personal:ryan" "home-mcp" "/mcp"
       "Personal wing data"
       personal // {

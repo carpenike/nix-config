@@ -207,6 +207,7 @@ in
       initialized_by_build = false;
       group_evidence = {
         status = "blocked-pending-c10";
+        proposed_amendment = { pr = 42; revision = "c3089ff"; accepted = false; };
         dependency = "Owner acceptance and qualified implementation of separately verified signed group evidence.";
         provider_version = "Pocket ID 2.14";
         resource_access_jwt_contains_groups = false;
@@ -236,6 +237,7 @@ in
       issuance_endpoint = endpoints.nativeIssue;
       policy_endpoint = endpoints.nativePolicy;
       requirements = [
+        "Final C9-compatible native vendor and real adapter qualification; a read-catalog build alone is not adoption evidence."
         "Explicit native issuer signing-key continuity and public JWKS export."
         "Explicit legacy-identity/refresh-family mappings and retained history."
         "Pinned source-defined atrium-personal-read and atrium-family-read catalogs; writable legacy scopes are not wing views."
