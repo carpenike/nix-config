@@ -6,6 +6,11 @@ gate**. It stacks on PR1086 at
 retained in [atrium-forge-runtime.json](evidence/atrium-forge-runtime.json).
 The [source-bound cloud receipt](evidence/atrium-forge-cloud.json) records the
 implementation commit, exact artifacts, owner-data preservation and blocked checks.
+The later [host-review receipt](evidence/atrium-forge-host-review.json) records
+the independently verified container-health correction and prepared R05
+canonical-identity/private-transport fix. Its final schema/build validation is
+pending the parent-supplied immutable app feature pin; historical build receipts
+are not activation evidence for those corrected paths.
 
 C9 was accepted by Ryan and merged in Atrium PR40 at
 `21a4df41ccdc52eb2282387816b3e164c1e32c3c`. The locked specification remains

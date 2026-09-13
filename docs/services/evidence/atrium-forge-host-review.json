@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.forge-host-review-follow-up",
+  "branch": "atr/N03-c9-cloud",
+  "historical_receipt": "docs/services/evidence/atrium-forge-cloud.json",
+  "historical_build": {
+    "implementation_commit": "c3b2f923ff7e62bb2d6fd330d06eb3e357ef90b4",
+    "artifact": "/nix/store/rq34rsn29nmdw9svpk15rgmp67ss5520-nixos-system-forge-25.11.20260630.b6018f8",
+    "scope": "build and six generated documents only; not activation or proof of reviewed runtime paths"
+  },
+  "health": {
+    "implementation_commit": "254f01b5555c437fdd59395304a31c5850830aec",
+    "status": "fixed-targeted-checks-passed",
+    "defect": "Adopted UID1064 container startup and regular probes targeted the loopback listener restricted to Caddy.",
+    "mechanism": "Explicit modules.services.litellm.healthUrl rendered through the existing service-factory healthCommand for both Podman phases.",
+    "adopted_url": "https://llm.holthome.net/health/liveliness",
+    "unadopted_url": "http://127.0.0.1:4000/health/liveliness",
+    "evaluated_phases": ["--health-startup-cmd", "--health-cmd"],
+    "firewall_uid_bypass_added": false,
+    "unadopted_behavior_changed": false,
+    "checks": [
+      {
+        "name": "atrium-forge-adoption-wiring",
+        "status": "passed",
+        "artifact": "/nix/store/7v3i0rpljfrcszjvkjb67n2fawzjvs2q-atrium-forge-adoption-wiring.json",
+        "scope": "Exact startup/regular command assertions for adopted/unadopted configurations and unchanged Caddy-only firewall."
+      },
+      {
+        "name": "atrium-forge-cloud-schema",
+        "status": "passed-at-health-commit",
+        "artifact": "/nix/store/appqwi90s4q25zs6m8m80gxsc207nhfw-atrium-forge-cloud-schema",
+        "scope": "Execute actual evaluated Python probe commands with controlled response/transport fixtures; 200 succeeds, unhealthy status and transport failure do not."
+      }
+    ],
+    "live_network_boundary_exercised": false,
+    "new_native_t_cases_claimed": false
+  },
+  "r05": {
+    "preparation_commit": "3e04d1a7874184b0749272ae891a99d47b9562f9",
+    "status": "prepared-awaiting-parent-immutable-app-pin",
+    "defect": "Deriving canonical issuer from the loopback endpoint mismatches registry identity before TLS.",
+    "endpoint": "https://mcp.holthome.net/cc/issue",
+    "transport_endpoint": "https://127.0.0.1:9200/cc/issue",
+    "expected_issuer": "https://mcp.holthome.net",
+    "canonical_response_issuer_target_audience_required": true,
+    "certificate_and_verification_inputs_unchanged": true,
+    "redirect_tls_identity_fallback_added": false,
+    "declaration_evaluation": "passed",
+    "declaration_derivation": "/nix/store/rii76df8yxawll2cnhmznak0hy8ckj1f-atrium-forge-adoption-wiring.json.drv",
+    "strict_adopted_broker_schema_assertions_added": true,
+    "final_app_schema_execution": "not run; existing app pin does not contain additive transport_endpoint support",
+    "final_full_forge_build": "not run; awaits parent-supplied immutable app feature revision",
+    "current_app_revision": "6930938bbc145eab6020844f7e972aaa9a0cab2a"
+  },
+  "preserved": {
+    "original_build_receipts": true,
+    "group_only_acls_and_missing_group_refusal": true,
+    "c10_status": "proposed-not-accepted",
+    "private_ci": "account startup restriction; no retries or bypasses",
+    "dataset_ownership_not_inferred_from_scope_names": true,
+    "adoption_defaults_disabled": true,
+    "live_mutations": false,
+    "local_full_linux_closure_build": false,
+    "new_agents_or_peer_messages": false
+  },
+  "next_step": "Consume the parent's immutable transport_endpoint app revision, run the strict adopted broker schema and focused checks, then use only the existing remote Forge Taskfile for final build verification."
+}
