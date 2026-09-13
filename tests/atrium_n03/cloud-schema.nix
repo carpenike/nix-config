@@ -96,6 +96,7 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert broker.endpoint == "https://mcp.holthome.net/cc/issue"
     assert broker.issuer == "https://mcp.holthome.net"
     assert broker.transport_endpoint == "https://127.0.0.1:9200/cc/issue"
+    assert broker.request_endpoint == "https://127.0.0.1:9200/cc/issue"
     assert broker.verification_keys_path == Path("/run/credentials/atrium-resolver.service/native-jwks")
     admission = AdmissionSettings.model_validate_json(json.dumps(data["admission"]))
     enrollment = Bootstrap.model_validate_json(json.dumps(data["bootstrap"]["enrollment"]))
