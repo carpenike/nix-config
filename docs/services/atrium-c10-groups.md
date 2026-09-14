@@ -10,6 +10,8 @@ the primary checkout or app/MCP/network repositories.
 authorizes implementation and isolated qualification, not live provisioning or
 deployment. The locked specification and all historical C9 receipts remain
 unchanged.
+The [source-bound configuration receipt](evidence/atrium-c10-config.json)
+records exact candidate-only checks, metadata findings and deferred inputs.
 
 ## No admitted public client was inferred
 
