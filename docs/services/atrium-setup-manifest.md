@@ -8,6 +8,9 @@ The [source-bound receipt](evidence/atrium-setup-manifest.json) includes the exa
 exported manifest, placeholder contract, commit and check artifacts.
 The [foundation-check correction receipt](evidence/atrium-setup-foundation-check.json)
 records the later read-only unit and its separate source-bound evaluation.
+The [final coordinated build receipt](evidence/atrium-setup-final-build.json)
+records the selected implementations, focused checks and non-activated Forge
+closure without rewriting either earlier receipt.
 
 No live setup, native provisioning, initialization, service restart or
 activation was performed here. The desired client and callback below are
@@ -252,3 +255,22 @@ Deployment validation uses the existing focused Darwin checks with
 `allow-import-from-derivation=false`. The full Forge build runs only after the
 implementation commit, through the existing remote Taskfile. Building a closure
 does not activate it, admit the proposed client or change any adoption flag.
+
+The coordinated input implementation is
+`d851351f64cb9be41b396a977c64d212eb2edf82`. All 12 selected existing Nix checks
+and the setup package passed in one Darwin invocation, including 206 deployment
+assertions. The actual installed setup parser also accepted and round-tripped
+the unchanged exported manifest with all four runtime secret references.
+
+The prescribed remote build completed from that committed implementation:
+
+```text
+/nix/store/6sw88y37qcvawgwsl1bn9brfcxg90j4w-nixos-system-forge-25.11.20260630.b6018f8
+```
+
+Derivation:
+`/nix/store/rnmphrrz9nirrf7iwcw7sgsx8hdyrs65-nixos-system-forge-25.11.20260630.b6018f8.drv`.
+The remote artifact contains the matching setup manifest, six valid policy
+documents, the unchanged read-only foundation unit and missing-client startup
+refusal. Forge's active system remained unchanged. No host initialization,
+client admission, adoption or native setup command was performed.
