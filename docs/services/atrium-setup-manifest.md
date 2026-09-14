@@ -6,6 +6,8 @@ admission import; the app owns the packaged setup frontend, plan/verification
 workflow and qualified Pocket ID adapter.
 The [source-bound receipt](evidence/atrium-setup-manifest.json) includes the exact
 exported manifest, placeholder contract, commit and check artifacts.
+The [foundation-check correction receipt](evidence/atrium-setup-foundation-check.json)
+records the later read-only unit and its separate source-bound evaluation.
 
 No live setup, native provisioning, initialization, service restart or
 activation was performed here. The desired client and callback below are
