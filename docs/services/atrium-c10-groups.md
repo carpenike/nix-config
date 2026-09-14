@@ -96,10 +96,16 @@ history regeneration is added.
 
 ## Candidate versus final deployment inputs
 
-The explicit candidate supplied for schema work is Atrium
-`d7f15342dd515e913ce7554a349241c79060d5df`. Its real Settings parser was used
+The corrected explicit candidate supplied for schema work is Atrium
+`ca621d753529b3ba89e67fef6f3c3f80aade332d`, superseding `d7f1534`.
+Its real Settings parser was used
 with `--override-input atrium ... --no-write-lock-file`. These are configuration
 tests, not actual Pocket ID2.14 qualification.
+The correction preserves valid explicit access-token group observations and
+removals at paired admission, suppressing only absence observations. No host
+configuration shape changed. The parent's 125 related cases and underway
+native/helper qualification are separately attributed, not a native gate
+executed by this branch.
 
 Committed runtime pins remain the final C9 inputs until the parent provides
 qualified immutable C10 core and matching MCP/vendor artifacts. The old app806

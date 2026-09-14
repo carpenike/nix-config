@@ -65,10 +65,13 @@
     "litellm_manifest": "a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf"
   },
   "schema_candidate": {
-    "revision": "d7f15342dd515e913ce7554a349241c79060d5df",
-    "selection": "--override-input atrium github:carpenike/atrium/d7f15342dd515e913ce7554a349241c79060d5df --no-write-lock-file",
+    "revision": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
+    "selection": "--override-input atrium github:carpenike/atrium/ca621d753529b3ba89e67fef6f3c3f80aade332d --no-write-lock-file",
+    "supersedes": "d7f15342dd515e913ce7554a349241c79060d5df",
+    "correction": "Paired endpoint processes valid explicit access-token group observations/removals and suppresses only absence observations.",
+    "host_configuration_shape_changed": false,
     "final_pin_changed": false,
-    "parent_reported_core_cases": 122,
+    "parent_reported_core_cases": 125,
     "parent_core_cases_reproduced_as_native_qualification_here": false
   },
   "checks": [
@@ -91,13 +94,13 @@
     {
       "name": "atrium-forge-c10-schema",
       "status": "passed-with-explicit-candidate-override",
-      "artifact": "/nix/store/6rqhy7rjd8r2bq68kywcck59qgfxmrmb-atrium-forge-c10-schema",
+      "artifact": "/nix/store/9kwgm7hrsljwnycvnpf6rijzmh73jb9z-atrium-forge-c10-schema",
       "scope": "Actual Settings parser with configured/unconfigured authority and wrong selected-authority refusal; synthetic configuration client IDs only."
     },
     {
       "name": "atrium-forge-cloud-schema",
       "status": "passed-with-explicit-candidate-override",
-      "artifact": "/nix/store/mdg0iy5i395hhqcl2jc4wczrlhgb6sq3-atrium-forge-cloud-schema"
+      "artifact": "/nix/store/2g3snsz982yzb8zh5csp3jhgcjxd6vb4-atrium-forge-cloud-schema"
     }
   ],
   "validation_boundary": {
@@ -123,7 +126,7 @@
   },
   "remaining_inputs": [
     "Actual admitted public OAuth client IDs, explicitly supplied/reviewed by the operator; no live provisioning is authorized here.",
-    "Parent-qualified immutable C10 core and matching MCP vendor/native inputs.",
+    "Parent-qualified immutable corrected C10 core and matching MCP vendor/native inputs; use ca621d7 rather than superseded d7 for upcoming consumption.",
     "Parent's actual Pocket ID2.14 token-pair/helper qualification receipt before any native integration claim.",
     "Explicit operator activation/provisioning and existing native data-ownership/egress prerequisites."
   ]
