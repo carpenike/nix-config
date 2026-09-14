@@ -15,6 +15,9 @@ records exact candidate-only checks, metadata findings and deferred inputs.
 The [qualified-core follow-up](evidence/atrium-c10-qualified-core.json) records
 the selected appca input, supplied layered qualification and held MCP/vendor
 integration without overwriting that preparation history.
+The [final coordinated-build receipt](evidence/atrium-c10-final-build.json)
+records the completed source set, checks, remote artifact and still-unconfigured
+operator admission. Earlier failures and preparation receipts remain historical.
 
 ## No admitted public client was inferred
 
@@ -134,14 +137,45 @@ admissions, and does not aggregate all 53 checks into an undifferentiated native
 issuance gate. See network-config's
 `docs/pocketid-atrium-c10-qualification.md` for the source-bound breakdown.
 
-Only the app input is advanced to qualified `ca621d7`. The MCP input remains
-the prior final C9 source until the parent supplies a final coordinated
-C10/vendor result. MCP PR79 candidate `9c66234973ba0b43af8a61b8d229659dcc197ca6`
-is **not** selected: its combined M04 TLS fixture failure is being diagnosed.
-The vendor/app consistency guard is not weakened to hide that incomplete
-pair. Full coordinated checks, final MCP pin and the full remote Forge build
-remain deferred. Consumer runtime and all C9/TLS/health/privacy boundaries are
-unchanged.
+The final coordinated inputs are now selected:
+
+| Component | Immutable revision |
+| --- | --- |
+| App/core | `ca621d753529b3ba89e67fef6f3c3f80aade332d` |
+| MCP PR79 final head | `a1d7322bc600df04ecc928cf2692ea71fb2b9fac` |
+| MCP fix/execution source | `c79bf79b6e712f683e72c710402cd69457737c12` |
+| Consumer runtime, unchanged | `472f877952a363321c76ce580ce41dd0810e08b8` |
+
+MCP vendors exact appca; the existing vendor/app consistency assertion remains
+enabled. The parent reports 625 native cases passing, with the 20 C10 cases
+included rather than additive, and is separately confirming three targeted
+lifecycle cases. These are not executions or extra native gate claims by this
+deployment branch.
+
+The earlier `9c6623` combined M04 failure remains historical evidence. It was
+diagnosed as a fixture **shutdown cancellation orphan**, not a startup or
+production TLS failure. Only test-owned outbound transports are closed after
+the actual graceful lifespan. Budgets, auth, TLS and assertions are unchanged;
+checked runtime/vendor/wire source paths are unchanged. No candidate failure
+or earlier receipt is deleted or relabeled.
+
+The coordinated C10/Forge checks now run on this final pair. Verified full-build
+evidence is recorded separately; no full Linux closure runs on the Mac.
+Consumer runtime and all C9/TLS/health/privacy boundaries remain unchanged.
+
+At implementation commit `e49165f6d4c986c83d63291485c77891e3008b8d`, all
+11 coordinated focused checks passed and the remote Forge Taskfile build
+produced:
+
+```text
+/nix/store/9n482jkxgil2psrx6g49kfprafnhx79v-nixos-system-forge-25.11.20260630.b6018f8
+```
+
+The artifact and all six policy documents were verified in Forge's Nix store.
+The built adoption metadata still contains no admitted client IDs, all adoption
+flags remain disabled, and the resolver/device units retain the unconfigured
+startup refusal. Package output contains two 916-pass/19-skip phases; those are
+not summed into unique or native gate cases. No activation occurred.
 
 Actual operator-verified admitted public OAuth client IDs remain unknown in
 deployment metadata. Upstream qualification does not fill that prerequisite,
@@ -161,7 +195,7 @@ Focused checks use existing Nix/Python runners:
   budgets, per-wing provider references and data-ownership limits.
 
 Fixture client IDs occur only in checks; none is a production declaration or
-native membership observation. For the eventual full build, use only:
+native membership observation. Full builds use only:
 
 ```sh
 task -d /Users/ryan/src/nix-config-c10-groups nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
