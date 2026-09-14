@@ -1,5 +1,10 @@
 # ATR-N03 — Cloud-first Forge registry and adapter wiring
 
+The accepted C10 follow-up is documented in
+[C10 group-evidence configuration](atrium-c10-groups.md). Client admission is
+explicit and currently unconfigured; native qualification and final C10 pins
+remain separate from the completed C9 build history below.
+
 This is **build/deployment wiring, not a live activation or completed native
 gate**. It stacks on PR1086 at
 `b47cee4dff8d55afc6b111399477ad366c3d0edb`. The prior foundation evidence is
@@ -238,8 +243,8 @@ units use actual package interfaces:
 1. `atrium-initialize` and `atrium-trust-initialize`: owner/service enrollment,
    signing, and separate TLS custody. Neither repeats or runs on boot.
 2. `atrium-seed-policy`: ordinary grants only; the seed cannot manufacture group
-   evidence. Group-dependent use stays blocked until C10 is accepted and its
-   verified carrier is implemented and qualified. Requesting `openid groups`
+   evidence. C10 is accepted; group-dependent use still requires explicit
+   admitted public clients and a qualified carrier. Requesting `openid groups`
    alone does not fix the resource access JWT. `atrium-select-opus` remains a
    separate optional adult action, subject to the same group ceiling.
 3. `atrium-model-resolver-initialize`: publish from real initialized resolver
@@ -280,7 +285,7 @@ explicit operator work.
 
 ## Validation and remaining integration
 
-### R01 group-carrier dependency — C10 not accepted
+### R01 group-carrier dependency — accepted C10, explicit admission required
 
 On 2026-09-13 the parent reported verified Pocket ID2.14 measurements from
 network-config PR37 at `4ed8810`, native measurement source `f17c887`:
@@ -299,10 +304,11 @@ fresh verified membership. Identity authentication or a green health endpoint
 does not establish wing eligibility. **Missing group evidence continues to
 refuse group-dependent access.**
 
-The parent is proposing C10 (Atrium PR42, proposal `c3089ff`) for separately
-verified signed group evidence.
-That contract must be accepted, implemented and qualified before this
-integration can be adopted. Do not reinterpret ID tokens as access bearers,
+C10 (Atrium PR42, proposal `c3089ff`, acceptance `e8e4d54`) is accepted for
+separately verified signed group evidence. This branch adds the narrowly typed
+operator admission setting described in the C10 guide. Qualified immutable
+runtime/native inputs and actual admitted public client IDs are still needed
+before activation. Do not reinterpret ID tokens as access bearers,
 use unsigned userinfo as a fallback, seed observations, or add direct human
 principal ACLs to make access succeed. All human instances, route templates
 and client-model templates retain their exact group-only ceilings; the
@@ -310,8 +316,9 @@ cloud-schema check asserts them. No auth/group fallback is implemented here.
 
 This is a runtime authorization/acceptance dependency, not a local-model or
 raw-secret build prerequisite. `/etc/atrium/runtime/adoption.json` reports it
-explicitly as operational metadata; it does not configure a new authentication
-mechanism. Other reference-based cloud/runtime wiring remains in place.
+explicitly as operational metadata. Optional C10 Settings configure only the
+selected authority's signed group-evidence admission; the resource bearer
+authentication contract is unchanged.
 
 ### Build and native-source dependencies
 
@@ -411,8 +418,8 @@ verified in Forge's Nix store without activation. The resolver package pytest
 phase passed 863 cases and skipped 19; this remains package-build evidence,
 not the parent's full native C9 qualification.
 Nine focused checks passed; exact paths and boundaries are in the source-bound
-receipt. No full Linux closure was built on the Mac. C10 acceptance/
-implementation, separately coordinated AS/promotion work, and the documented
+receipt. No full Linux closure was built on the Mac. Qualified C10 inputs and
+explicit public client admission, separately coordinated AS/promotion work, and the documented
 native data-ownership/operator-adoption prerequisites remain activation
 boundaries.
 

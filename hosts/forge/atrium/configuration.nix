@@ -8,6 +8,7 @@ let
   runtime = import ./runtime.nix {
     inherit lib;
     adoption = config.services.atriumForge.adoption;
+    groupEvidence = config.services.atriumForge.groupEvidence;
     modelSettings = models.resolver;
   };
   models = import ./models.nix {

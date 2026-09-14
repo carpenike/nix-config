@@ -3,7 +3,12 @@ let
   inherit (inputs.nixpkgs) lib;
   forge = inputs.self.nixosConfigurations.forge;
   baseline = forge.config;
-  select = module: (forge.extendModules { modules = [ module ]; }).config;
+  select = module: (forge.extendModules {
+    modules = [
+      { services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ]; }
+      module
+    ];
+  }).config;
   models = select { services.atriumForge.adoption.models = true; };
   native = select { services.atriumForge.adoption.native = true; };
   nativeResolver = builtins.fromJSON native.environment.etc."atrium/runtime/atrium-resolver.json".text;

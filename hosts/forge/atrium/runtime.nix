@@ -2,9 +2,22 @@
 , policyPath ? "/etc/atrium/desired-state/resolver.json"
 , adoption ? { models = false; native = false; whiskey = false; whiskeyText = false; }
 , modelSettings ? null
+, groupEvidence ? null
 }:
 let
   identity = import ./identity.nix { inherit lib; };
+  runtimeIdentitySettings = identity.settings // {
+    authorities = map
+      (authority: authority // lib.optionalAttrs
+        (groupEvidence != null && authority.id == identity.authority.id)
+        {
+          group_evidence = {
+            client_ids = groupEvidence.clientIds;
+            max_token_lifetime_seconds = groupEvidence.maxTokenLifetimeSeconds;
+          };
+        })
+      identity.settings.authorities;
+  };
   paths = {
     resolver = identity.settings.state_directory;
     trust = "/var/lib/atrium-trust";
@@ -61,7 +74,7 @@ let
     policy-client-cert = "${paths.trust}/policy-client.crt.pem";
     policy-client-key = "${paths.trust}/policy-client.key.pem";
   };
-  resolverConfig = unit: identity.settings // {
+  resolverConfig = unit: runtimeIdentitySettings // {
     policy_path = policyPath;
     group_authority = identity.authority.id;
     inherit signing;
@@ -101,7 +114,7 @@ in
   registrationAddress = "10.20.0.30";
   registrationInterface = "enp8s0";
   installation = "atrium-forge";
-  bootstrap = identity.settings // {
+  bootstrap = runtimeIdentitySettings // {
     inherit signing;
     policy_path = policyPath;
     group_authority = identity.authority.id;
@@ -208,9 +221,17 @@ in
       enrollment_path = "/etc/atrium/bootstrap/identity.json";
       initialized_by_build = false;
       group_evidence = {
-        status = "blocked-pending-c10";
-        proposed_amendment = { pr = 42; revision = "c3089ff"; accepted = false; };
-        dependency = "Owner acceptance and qualified implementation of separately verified signed group evidence.";
+        status = if groupEvidence == null then "accepted-unconfigured" else "configured-awaiting-native-qualification";
+        amendment = { pr = 42; acceptance_revision = "e8e4d54"; accepted = true; };
+        dependency = "Explicit operator-declared admitted public OAuth clients and qualified immutable C10 runtime/native inputs.";
+        configured = groupEvidence != null;
+        admitted_client_ids = if groupEvidence == null then [ ] else groupEvidence.clientIds;
+        max_token_lifetime_seconds = if groupEvidence == null then null else groupEvidence.maxTokenLifetimeSeconds;
+        admission_path = "/v1/group-evidence";
+        resource_authentication = "access-token-bearer-only";
+        additional_carrier = "paired-signed-id-token-in-explicit-protected-body";
+        live_client_provisioning_performed = false;
+        native_c10_qualification_claimed = false;
         provider_version = "Pocket ID 2.14";
         resource_access_jwt_contains_groups = false;
         signed_id_token_contains_groups = true;
@@ -245,6 +266,7 @@ in
         "Explicit legacy-identity/refresh-family mappings and retained history."
         "Pinned source-defined atrium-personal-read and atrium-family-read catalogs; writable legacy scopes are not wing views."
         "Owner-selected current grants; no email matching or automatic group grants."
+        "Explicit admitted public OAuth clients for accepted C10; no service-client or resource-audience inference."
         "Explicit public /mcp read-only cutover and individually selected refresh grants; no implicit legacy-client adoption."
         "Preserved native deny history and operator adoption receipt."
       ];

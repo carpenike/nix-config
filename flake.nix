@@ -520,6 +520,10 @@
             atrium-forge-cloud-schema = import ./tests/atrium_n03/cloud-schema.nix {
               inherit inputs pkgs;
             };
+            atrium-forge-c10-settings =
+              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
+            atrium-forge-c10-schema =
+              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
             atrium-forge-adopted-caddy =

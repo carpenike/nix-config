@@ -1,5 +1,9 @@
 # Atrium owner identity bootstrap
 
+For accepted C10's separate, explicitly admitted public-client group evidence,
+see [C10 configuration](atrium-c10-groups.md). The identity export below does
+not establish a public OAuth client ID, admission, or group observation.
+
 The owner mapping comes from the live Pocket ID management API using the
 documented tooling in `~/src/network-config`, not a synthetic fixture or an
 email match. Read-only discovery on 2026-09-12 resolved exactly one active
