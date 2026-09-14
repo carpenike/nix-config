@@ -94,29 +94,56 @@ No userinfo fallback, fabricated timestamp, direct human principal ACL,
 administrator-group inference, automatic membership or automatic security
 history regeneration is added.
 
-## Candidate versus final deployment inputs
+## Qualified core and coordinated deployment inputs
 
-The corrected explicit candidate supplied for schema work is Atrium
+The corrected core supplied for schema work and now qualified upstream is Atrium
 `ca621d753529b3ba89e67fef6f3c3f80aade332d`, superseding `d7f1534`.
-Its real Settings parser was used
-with `--override-input atrium ... --no-write-lock-file`. These are configuration
-tests, not actual Pocket ID2.14 qualification.
+Its real Settings parser first passed with a non-writing override and now passes
+as the selected app input. Those checks remain configuration tests, not native
+execution by this branch.
 The correction preserves valid explicit access-token group observations and
 removals at paired admission, suppressing only absence observations. No host
-configuration shape changed. The parent's 125 related cases and underway
-native/helper qualification are separately attributed, not a native gate
-executed by this branch.
+configuration shape changed. The parent reports 125 related cases and a
+corrected package run of 916 passed with 19 separate skips.
 
-Committed runtime pins remain the final C9 inputs until the parent provides
-qualified immutable C10 core and matching MCP/vendor artifacts. The old app806
-does not support configured C10 fields; do not activate a configured client
-list on that old runtime. A strict parser failure is not permission to bypass
-the carrier or weaken the ACLs.
+The actual Pocket ID/helper receipt has now arrived: network-config PR38 head
+`51156b7a11b5e923414df5da31897c7843efeac8`, execution source
+`a2c99ed8f05b647b8566853757889d3e1a0bbb17`, and
+`tests/evidence/pocketid-atrium-c10-ca621d7-20260913-attempt2.json`.
+The receipt records 53 passing checks (51 C10 plus two fixture-bootstrap
+checks), zero production requests, source-clean execution and successful
+cleanup. Nineteen helper tests and owner-qualified lease cleanup are reported
+separately.
 
-The parent owns the operator token-pair helper and real Pocket ID2.14 receipt;
-MCP vendor refresh follows the final core. No native qualification is claimed
-here before that receipt arrives. Final pin updates and the full Forge build
-are deliberately deferred to those inputs.
+Its evidence layers are deliberately different:
+
+* Actual pinned Pocket ID2.14 issuance/JWKS and operator-helper flows establish
+  identity-only/group-only separation, paired admission, native empty removal,
+  replay refusal and original source-time bounds.
+* A real-crypto synthetic authority supplies signed adverse issuer/subject/
+  client/type/hash/group/time cases, conflict/expiry/known-deny cases and
+  endpoint-specific explicit access-token membership/removal ordering.
+  These cases use the real resolver but are not native Pocket ID issuance.
+
+The parent is reviewing this proof independently. This branch records the
+provided receipt, does not rerun it or claim its fixture clients as production
+admissions, and does not aggregate all 53 checks into an undifferentiated native
+issuance gate. See network-config's
+`docs/pocketid-atrium-c10-qualification.md` for the source-bound breakdown.
+
+Only the app input is advanced to qualified `ca621d7`. The MCP input remains
+the prior final C9 source until the parent supplies a final coordinated
+C10/vendor result. MCP PR79 candidate `9c66234973ba0b43af8a61b8d229659dcc197ca6`
+is **not** selected: its combined M04 TLS fixture failure is being diagnosed.
+The vendor/app consistency guard is not weakened to hide that incomplete
+pair. Full coordinated checks, final MCP pin and the full remote Forge build
+remain deferred. Consumer runtime and all C9/TLS/health/privacy boundaries are
+unchanged.
+
+Actual operator-verified admitted public OAuth client IDs remain unknown in
+deployment metadata. Upstream qualification does not fill that prerequisite,
+so the host setting stays `null`, serving/adoption refuse as documented, and
+no live provisioning is authorized. There is no C10 approval blocker.
 
 Focused checks use existing Nix/Python runners:
 

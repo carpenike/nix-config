@@ -86,7 +86,10 @@ let
       && !admission.identity.group_evidence.identity_carrier_change;
     no-inferred-live-client-or-native-proof =
       !admission.identity.group_evidence.live_client_provisioning_performed
-      && !admission.identity.group_evidence.native_c10_qualification_claimed;
+      && !admission.identity.group_evidence.native_c10_qualification_executed_here
+      && admission.identity.group_evidence.supplied_qualification.core_revision
+      == "ca621d753529b3ba89e67fef6f3c3f80aade332d"
+      && !admission.identity.group_evidence.supplied_qualification.proves_live_client_admission;
     empty-client-list-refused = !canEvaluate { clientIds = [ ]; };
     wildcard-client-refused = !canEvaluate { clientIds = [ "*" ]; };
     wildcard-pattern-refused = !canEvaluate { clientIds = [ "fixture-*" ]; };

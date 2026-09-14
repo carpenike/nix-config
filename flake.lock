@@ -43,17 +43,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1789325880,
-        "narHash": "sha256-1BXni8/I64yYLlJti0EJPbn0BFrEVEcXHB6lIFl92OY=",
+        "lastModified": 1789344084,
+        "narHash": "sha256-pXTUrTxHdBWLCTlVBKDpDyLlEGuKvFFrlUrCNhAlYxg=",
         "owner": "carpenike",
         "repo": "atrium",
-        "rev": "806ae19e853ae5614523430f5fc2397786fd9839",
+        "rev": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
         "type": "github"
       },
       "original": {
         "owner": "carpenike",
         "repo": "atrium",
-        "rev": "806ae19e853ae5614523430f5fc2397786fd9839",
+        "rev": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
         "type": "github"
       }
     },

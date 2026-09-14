@@ -2,8 +2,9 @@
 
 The accepted C10 follow-up is documented in
 [C10 group-evidence configuration](atrium-c10-groups.md). Client admission is
-explicit and currently unconfigured; native qualification and final C10 pins
-remain separate from the completed C9 build history below.
+explicit and currently unconfigured. A source-bound native/helper receipt is
+now supplied and qualified appca is selected; final coordinated MCP/vendor
+inputs and the full C10 build remain separate from the C9 history below.
 
 This is **build/deployment wiring, not a live activation or completed native
 gate**. It stacks on PR1086 at
