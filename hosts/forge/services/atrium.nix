@@ -3,7 +3,7 @@ let
   composition = import ../atrium/configuration.nix {
     inherit config inputs pkgs lib mylib;
   };
-  inherit (composition) packages runtime registry bootstrap models;
+  inherit (composition) packages runtime registry bootstrap models setup;
   identity = runtime.identity;
   ids = mylib.serviceUids;
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -110,6 +110,7 @@ in
 {
   imports = [
     inputs.atrium.nixosModules.atrium
+    ../atrium/setup-admission.nix
     ./atrium-models.nix
     ./atrium-adapters.nix
   ];
@@ -194,6 +195,7 @@ in
         "atrium/bootstrap/groups.json".text = json bootstrap.groups;
         "atrium/bootstrap/ordinary-grants.json".text = json bootstrap.ordinary;
         "atrium/bootstrap/opus-selection.json".text = json bootstrap.opus;
+        "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;
         "atrium/runtime/adoption.json".text = json runtime.adoption;

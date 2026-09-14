@@ -524,6 +524,8 @@
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
             atrium-forge-c10-schema =
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
+            atrium-forge-setup = pkgs.writeText "atrium-forge-setup-checks.json"
+              (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit inputs pkgs; }));
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
             atrium-forge-adopted-caddy =
@@ -1225,6 +1227,9 @@
             });
         in
         {
+          lib.atriumSetupConfigs.forge = builtins.fromJSON
+            inputs.self.nixosConfigurations.forge.config.environment.etc."atrium/bootstrap/setup.json".text;
+
           #################### NixOS Configurations ####################
           #
           # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`

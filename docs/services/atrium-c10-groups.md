@@ -1,5 +1,10 @@
 # ATR-N03 — Accepted C10 group-evidence configuration
 
+The app-owned single-command onboarding consumes the
+[setup manifest and managed admission contract](atrium-setup-manifest.md).
+Its desired client is not admitted by the manifest; the tracked fragment stays
+empty until the qualified native workflow verifies a result.
+
 This sibling branch starts at final C9 PR1094 head
 `2572f5bbd375b16df6b63f1e5e9ee6076bef1358`. It changes only Nix configuration,
 deployment guards, documentation and configuration tests. It does not edit
