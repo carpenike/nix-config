@@ -12,6 +12,9 @@ deployment. The locked specification and all historical C9 receipts remain
 unchanged.
 The [source-bound configuration receipt](evidence/atrium-c10-config.json)
 records exact candidate-only checks, metadata findings and deferred inputs.
+The [qualified-core follow-up](evidence/atrium-c10-qualified-core.json) records
+the selected appca input, supplied layered qualification and held MCP/vendor
+integration without overwriting that preparation history.
 
 ## No admitted public client was inferred
 
