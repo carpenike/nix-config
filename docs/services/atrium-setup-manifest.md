@@ -191,8 +191,8 @@ is not resolver signing proof.
 
 The manifest's `initialization.units` remains exactly the three explicit
 initializers. These two fixed checks are not extra arbitrary manifest commands.
-The final app package and runtime execution evidence are still pending the
-parent's immutable input; Nix wiring does not itself prove the new command ran.
+The selected app implementation below supplies the corrected read-only command.
+Nix wiring does not itself prove the command ran or initialize any host state.
 
 ## Validation and handoff
 
@@ -217,7 +217,38 @@ Existing C9/C10 schema/composition/adoption checks remain in use. These are
 configuration/evaluation tests, not native setup execution or live admission
 proof.
 
-The final packaged frontend/adapter input and end-to-end setup qualification
-are parent-owned. No app pin changes or full Forge build are performed until
-that immutable package is supplied. Any eventual full Forge build uses the
-existing remote Taskfile only; there is no full Linux closure build on the Mac.
+## Coordinated setup implementation inputs
+
+The final parent-supplied implementation inputs are pinned together in
+`flake.nix`, generated `flake.lock` and `tests/atrium_n03/pins.json`:
+
+| Component | Immutable implementation |
+| --- | --- |
+| Atrium setup, resolver and shared artifacts | `ec5ecea928a2e845236b4dc26d67f8424ec41436` |
+| MCP tested artifact consumer | `21329a5a5857b801104b17bf6876babd31644559` |
+| Whiskey, unchanged | `472f877952a363321c76ce580ce41dd0810e08b8` |
+
+The full native vendor revision must equal the selected Atrium input. The
+existing assertion is unchanged; later evidence-only heads are not substituted
+for these tested implementations. Earlier C10 qualification metadata and the
+original manifest/foundation receipts retain their original source bindings.
+
+Parent-owned installed setup qualification reports 30 checks over 20 invocations
+against Pocket ID 2.14, including native PKCE and canonical HTTPS C10. Its receipt
+is `operator/tests/evidence/operator-installed-setup-20260914-attempt2.json` in
+Atrium PR46's evidence commit `df7e02c`, with product source identical to the
+selected implementation. MCP PR80's evidence head
+`287f421d507c5d5bfe5a08e1dc2c548c3f066fb7` records 75 fresh installed
+native/shared cases at `docs/evidence/ATR-M04-setup-artifacts.json`. These are
+parent-owned results, not executions by this deployment branch.
+
+The corrected app accepts required-secret names as runtime source paths and
+inspects resolver signing/SQLite state without creating lock files, sidecars or
+history. The read-only host unit is not widened to accommodate the earlier
+defects. No host initializer or native provisioning command is run by Nix
+consumption checks or the build.
+
+Deployment validation uses the existing focused Darwin checks with
+`allow-import-from-derivation=false`. The full Forge build runs only after the
+implementation commit, through the existing remote Taskfile. Building a closure
+does not activate it, admit the proposed client or change any adoption flag.
