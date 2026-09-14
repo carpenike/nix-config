@@ -4,6 +4,8 @@ This branch starts at final C10 PR1099 head
 `3a7fcb6d7737e83c3aa145b1a3326f1c72aaa55c`. Nix owns the host values and
 admission import; the app owns the packaged setup frontend, plan/verification
 workflow and qualified Pocket ID adapter.
+The [source-bound receipt](evidence/atrium-setup-manifest.json) includes the exact
+exported manifest, placeholder contract, commit and check artifacts.
 
 No live setup, native provisioning, initialization, service restart or
 activation was performed here. The desired client and callback below are
