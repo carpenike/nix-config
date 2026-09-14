@@ -194,9 +194,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Final app806-vendored candidate: native execution 8ff9ee2, followed
-      # only by the source-bound evidence update at ec1e796. No activation.
-      url = "github:carpenike/mcp/ec1e796d1ae8bca9d8d16a11f00aebc22b5ba4e7";
+      # Final C10 appca-vendored source: execution c79bf79, followed only
+      # by qualification evidence at a1d7322. No activation or provisioning.
+      url = "github:carpenike/mcp/a1d7322bc600df04ecc928cf2692ea71fb2b9fac";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

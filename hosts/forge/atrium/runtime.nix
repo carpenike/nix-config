@@ -221,9 +221,9 @@ in
       enrollment_path = "/etc/atrium/bootstrap/identity.json";
       initialized_by_build = false;
       group_evidence = {
-        status = if groupEvidence == null then "accepted-unconfigured" else "configured-awaiting-coordinated-mcp-and-adoption";
+        status = if groupEvidence == null then "accepted-unconfigured" else "configured-awaiting-operator-adoption";
         amendment = { pr = 42; acceptance_revision = "e8e4d54"; accepted = true; };
-        dependency = "Explicit operator-declared admitted public OAuth clients, final coordinated MCP/vendor qualification and operator adoption.";
+        dependency = "Explicit operator-declared admitted public OAuth clients and operator provisioning/adoption; qualification fixtures do not supply production admission.";
         configured = groupEvidence != null;
         admitted_client_ids = if groupEvidence == null then [ ] else groupEvidence.clientIds;
         max_token_lifetime_seconds = if groupEvidence == null then null else groupEvidence.maxTokenLifetimeSeconds;
@@ -242,6 +242,15 @@ in
           evidence_layers = [ "actual-pocket-id-2.14-and-helper" "real-crypto-signed-synthetic-adverse-cases" ];
           executed_by_this_deployment = false;
           proves_live_client_admission = false;
+        };
+        coordinated_native = {
+          report_revision = "a1d7322bc600df04ecc928cf2692ea71fb2b9fac";
+          execution_revision = "c79bf79b6e712f683e72c710402cd69457737c12";
+          vendor_revision = "ca621d753529b3ba89e67fef6f3c3f80aade332d";
+          parent_reported_cases = 625;
+          c10_cases_included = 20;
+          executed_by_this_deployment = false;
+          production_activation = false;
         };
         provider_version = "Pocket ID 2.14";
         resource_access_jwt_contains_groups = false;
