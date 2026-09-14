@@ -234,6 +234,25 @@ in
             PrivateNetwork = true;
           };
         };
+        atrium-foundation-check = lib.recursiveUpdate (mounted [ runtime.paths.resolver ]) {
+          description = "Validate existing Atrium resolver identity, deny history and signing custody";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          # A check must not let systemd create/chown state or grant write access.
+          serviceConfig = (builtins.removeAttrs (privateState "atrium-resolver") [
+            "StateDirectory"
+            "StateDirectoryMode"
+            "ReadWritePaths"
+          ]) // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ReadOnlyPaths = [ runtime.paths.resolver ];
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json check-foundation --enrollment /etc/atrium/bootstrap/identity.json --installation ${runtime.installation}";
+            StandardOutput = "null";
+          };
+        };
         atrium-seed-policy = (mounted [ runtime.paths.resolver ]) // {
           description = "Explicit Atrium ordinary grants without seeding group observations";
           unitConfig.AssertFileNotEmpty = [
@@ -378,6 +397,19 @@ in
           atrium-device-registration = "AtriumDeviceRegistration";
           atrium-registration-entry = "AtriumRegistrationEntry";
         } // {
+        atrium-foundation-check-failed = {
+          type = "promql";
+          alertname = "AtriumFoundationCheckFailed";
+          expr = ''node_systemd_unit_state{name="atrium-foundation-check.service",state="failed"} == 1'';
+          for = "2m";
+          severity = "high";
+          labels = { service = "atrium-resolver"; category = "security"; };
+          annotations = {
+            summary = "Atrium resolver foundation or signing custody is invalid";
+            description = "Use the independent Forge operator path; never erase, migrate or regenerate state to make a check pass.";
+            command = "systemctl status atrium-foundation-check.service";
+          };
+        };
         atrium-trust-check-failed = {
           type = "promql";
           alertname = "AtriumTrustCheckFailed";

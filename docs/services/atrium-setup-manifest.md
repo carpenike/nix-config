@@ -100,6 +100,12 @@ memberships and actions before creating native objects. Manifest presence is
 not evidence of registration, native permission, C10 group freshness or
 successful verification.
 
+Before even invoking the native adapter's plan or apply operation, the frontend
+must confirm the exact admission file is Git-tracked in the selected deployment
+checkout. An ignored or untracked lookalike is not acceptable; setup must not
+force-stage it. The Nix placeholder is already tracked. Native test fixtures
+must initialize a Git repository and add their safe placeholder explicitly.
+
 Only after the qualified native workflow verifies the created client may the
 frontend replace the managed admission fragment with the narrow result:
 
@@ -152,6 +158,40 @@ the frontend's known-owned result under its explicit ownership contract.
 No unrelated file, primary checkout or existing owner configuration is changed
 by the manifest exporter.
 
+## Existing foundation checks and explicit initialization
+
+The optional app-owned `--initialize-host` flow first verifies that the deployed
+resolver configuration has the expected issuer, resource and verified client
+admission. The operator must therefore apply the generated Nix configuration
+before this flow can initialize the host; setup does not deploy it automatically.
+
+`atrium-foundation-check.service` runs the fixed command:
+
+```sh
+atrium-resolver --config /etc/atrium/bootstrap/foundation.json check-foundation \
+  --enrollment /etc/atrium/bootstrap/identity.json --installation atrium-forge
+```
+
+The installation argument comes from `runtime.installation`, not the frontend.
+This manual, network-isolated oneshot uses resolver UID1060 and the initializer's
+private hardening. It requires the existing resolver mount, database and
+foundation marker. Its state tree is read-only, with no `StateDirectory`
+creation/chowning or writable state exception. It has no timer, boot dependency,
+initialization command or cached successful state. A failed check has a named
+high-severity alert; it does not cause repair, migration or regeneration.
+
+The parent-owned command validates existing SQL integrity, exact migration
+hashes, configured authority/enrollment/bootstrap, deny generation and actual
+resolver signing keyring. Before marking first initialization complete, and on
+a known repeat, the frontend must run this check followed by the existing
+`atrium-trust-check.service` under its separate TLS UID1061. A TLS check alone
+is not resolver signing proof.
+
+The manifest's `initialization.units` remains exactly the three explicit
+initializers. These two fixed checks are not extra arbitrary manifest commands.
+The final app package and runtime execution evidence are still pending the
+parent's immutable input; Nix wiring does not itself prove the new command ran.
+
 ## Validation and handoff
 
 `atrium-forge-setup` uses the existing Nix check runner. It checks exact root
@@ -165,6 +205,11 @@ explicit fixture client, removes only the missing-client preflight, and
 preserves registry/budgets/provider references, grants, identity enrollment,
 group-observation declarations, adoption flags and TLS/firewall behavior.
 All three initialization units remain manual, not boot dependencies.
+
+Foundation-check assertions cover the exact command, existing mount/state
+requirements, initializer hardening parity, resolver/TLS UID separation,
+read-only state without directory creation, repeatable network-free execution,
+manual invocation, failure alert and existing backup protection.
 
 Existing C9/C10 schema/composition/adoption checks remain in use. These are
 configuration/evaluation tests, not native setup execution or live admission

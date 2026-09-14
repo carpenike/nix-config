@@ -33,6 +33,11 @@ let
   configuredManifest = builtins.fromJSON configured.environment.etc."atrium/bootstrap/setup.json".text;
   configuredSettings = builtins.fromJSON configured.environment.etc."atrium/runtime/atrium-resolver.json".text;
   unconfiguredSettings = builtins.fromJSON baseline.environment.etc."atrium/runtime/atrium-resolver.json".text;
+  units = baseline.systemd.services;
+  foundationCheck = units.atrium-foundation-check;
+  foundationService = foundationCheck.serviceConfig;
+  resolverState = unconfiguredSettings.state_directory;
+  resolverPackage = inputs.atrium.packages.${baseline.nixpkgs.hostPlatform.system}.resolver;
   startup = config: unit: config.systemd.services.${unit}.serviceConfig.ExecStartPre or [ ];
   expectedGroups = map
     (name: {
@@ -132,6 +137,70 @@ let
       (name: baseline.systemd.services.${name}.wantedBy == [ ]
         && !lib.elem "${name}.service" baseline.systemd.services.atrium-resolver.requires)
       exported.initialization.units;
+    foundation-exact-check-command = foundationService.ExecStart
+      == "${lib.getExe resolverPackage} --config /etc/atrium/bootstrap/foundation.json check-foundation --enrollment /etc/atrium/bootstrap/identity.json --installation ${exported.installation}"
+      && foundationCheck.script == ""
+      && (foundationService.ExecStartPre or [ ]) == [ ]
+      && (foundationService.ExecStartPost or [ ]) == [ ];
+    foundation-reuses-private-protections =
+      builtins.removeAttrs foundationService [ "ExecStart" "ReadOnlyPaths" "StandardOutput" ]
+      == builtins.removeAttrs units.atrium-initialize.serviceConfig [
+        "ExecStart"
+        "StateDirectory"
+        "StateDirectoryMode"
+        "ReadWritePaths"
+      ];
+    foundation-resolver-custody-not-tls = foundationService.User == "atrium-resolver"
+      && foundationService.Group == "atrium-resolver"
+      && baseline.users.users.atrium-resolver.uid == 1060
+      && units.atrium-trust-check.serviceConfig.User == "atrium-trust"
+      && baseline.users.users.atrium-trust.uid == 1061
+      && !(foundationService ? LoadCredential)
+      && lib.hasSuffix "tls --plan /etc/atrium/bootstrap/tls-plan.json status"
+      units.atrium-trust-check.serviceConfig.ExecStart;
+    foundation-requires-existing-mount-and-state =
+      foundationCheck.requires == [ "zfs-service-datasets.service" ]
+      && foundationCheck.after == [ "zfs-service-datasets.service" ]
+      && foundationCheck.unitConfig.RequiresMountsFor == [ resolverState ]
+      && foundationCheck.unitConfig.AssertFileNotEmpty == [
+        "${resolverState}/foundation.initialized"
+        "${resolverState}/resolver.sqlite3"
+      ];
+    foundation-no-state-creation-or-write-grant =
+      !(foundationService ? StateDirectory) && !(foundationService ? StateDirectoryMode)
+      && (foundationService.ReadWritePaths or [ ]) == [ ]
+      && foundationService.ReadOnlyPaths == [ resolverState ]
+      && (foundationService.RuntimeDirectory or [ ]) == [ ]
+      && (foundationService.CacheDirectory or [ ]) == [ ]
+      && (foundationService.LogsDirectory or [ ]) == [ ];
+    foundation-network-free-repeatable-oneshot =
+      foundationService.Type == "oneshot" && foundationService.PrivateNetwork
+      && !(foundationService.RemainAfterExit or false)
+      && (foundationService.Restart or "no") == "no"
+      && foundationService.StandardOutput == "null";
+    foundation-manual-not-an-initializer =
+      foundationCheck.wantedBy == [ ] && foundationCheck.requiredBy == [ ]
+      && foundationCheck.wants == [ ]
+      && !(baseline.systemd.timers ? atrium-foundation-check)
+      && !lib.elem "atrium-foundation-check" exported.initialization.units
+      && !lib.elem "atrium-trust-check" exported.initialization.units
+      && lib.all
+        (name: !lib.elem "atrium-foundation-check.service" (units.${name}.requires ++ units.${name}.wants))
+        (exported.initialization.units ++ [ "atrium-resolver" "atrium-device-registration" ]);
+    foundation-configured-admission-does-not-change-custody =
+      configured.systemd.services.atrium-foundation-check.serviceConfig == foundationService
+      && configured.systemd.services.atrium-foundation-check.unitConfig == foundationCheck.unitConfig;
+    foundation-check-failure-alert =
+      baseline.modules.alerting.rules.atrium-foundation-check-failed.expr
+      == ''node_systemd_unit_state{name="atrium-foundation-check.service",state="failed"} == 1''
+      && baseline.modules.alerting.rules.atrium-foundation-check-failed.severity == "high";
+    foundation-existing-protection-coverage =
+      baseline.modules.storage.datasets.services.atrium-resolver.owner == foundationService.User
+      && baseline.modules.storage.datasets.services.atrium-resolver.mode == "0700"
+      && !baseline.modules.storage.datasets.services.atrium-resolver.protection.allowEmptyBootstrap
+      && baseline.modules.services.backup.restic.jobs.atrium-resolver.paths == [ resolverState ]
+      && baseline.modules.services.backup.restic.jobs.atrium-resolver-offsite.paths == [ resolverState ]
+      && !(baseline.modules.storage.datasets.services ? atrium-foundation-check);
     secret-references-match-real-wiring =
       lib.sort builtins.lessThan (map (secret: secret.name) exported.required_secrets)
       == lib.sort builtins.lessThan secretSources
@@ -160,5 +229,6 @@ assert lib.assertMsg (lib.all (value: value) (builtins.attrValues checks))
   fixture_admission_only = true;
   live_objects_created = false;
   native_setup_command_executed = false;
+  foundation_check_executed = false;
   placeholder_sha256 = builtins.hashString "sha256" placeholder;
 }
