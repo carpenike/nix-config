@@ -137,6 +137,42 @@ Neither reuses an inference credential or silently adopts `litellm/master_key`.
 Use the existing SOPS provisioning mechanism; absent material is an operator
 prerequisite, not a reason to weaken or externalize the Nix policy.
 
+### Fill the prepared SOPS fields
+
+Open `hosts/forge/secrets.sops.yaml` with the SOPS editor from this checkout:
+
+```sh
+sops hosts/forge/secrets.sops.yaml
+```
+
+The `atrium` section is pre-created with intentionally empty strings:
+
+```yaml
+atrium:
+  personal_anthropic_api_key: ""
+  family_anthropic_api_key: ""
+  litellm_resolver_management_key: ""
+  litellm_controller_management_key: ""
+```
+
+Replace each empty value with the appropriate credential only inside the SOPS
+editor. The first two are distinct Anthropic platform API keys; the last two
+are separate, appropriately scoped LiteLLM management credentials. Do not paste
+values into chat, shell arguments, documentation or an unencrypted file, and do
+not reuse `litellm/master_key` or another application's provider key implicitly.
+
+`hosts/forge/secrets.nix` maps these keys to the four flat `/run/secrets/atrium-*`
+paths above with root-only `0400` custody. They are declared when the Atrium
+foundation is enabled, independently of model adoption, so real values can be
+staged before explicit model initialization. Empty values are not working keys.
+
+The scaffold does not enable any adoption switch, initialize model state, or
+create/update native keys, teams or aliases. Secret updates do not restart any
+service while model adoption is off. Once models are explicitly adopted,
+updates restart only the matching resolver or reconciler consumer; initializer
+units are never automatic restart targets. Existing secret entries and service
+bindings remain separate.
+
 ## Public and private bindings
 
 | Surface | Binding |
