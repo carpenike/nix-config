@@ -526,6 +526,8 @@
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
             atrium-forge-setup = pkgs.writeText "atrium-forge-setup-checks.json"
               (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit inputs pkgs; }));
+            atrium-forge-model-secrets = pkgs.writeText "atrium-forge-model-secrets.json"
+              (builtins.toJSON (import ./tests/atrium_n03/model-secrets.nix { inherit inputs; }));
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
