@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.forge-runtime-deployment-evidence",
+  "ticket": "ATR-N03",
+  "branch": "atr/N03-forge-runtime",
+  "pull_request": "https://github.com/carpenike/nix-config/pull/1086",
+  "implementation_commit": "0ebc1b2c93153555702d652914f304e2ca96d4b0",
+  "initial_implementation_commit": "ec0d8e26824389ac26cb6cf4b2c623e2748e9ddb",
+  "nonempty_state_commit": "f0ff83f7ba558d7a2ba6a986d535e75f3b549618",
+  "authoritative_spec_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+  "inputs": {
+    "atrium": "279bcfc186d7de674678fe41c344edf2147f341c",
+    "atrium_dependency_pr": "https://github.com/carpenike/atrium/pull/39",
+    "native": "23de14d586c668e1662294ff1f2a8d5da265cf24",
+    "consumer_revision": "273cf414cac75276492ee849bb3ea257ce47f8de",
+    "litellm": "ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf"
+  },
+  "deployment_checks": {
+    "system": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "status": "passed",
+    "composition_assertions": 35,
+    "selector_prefix": "nix build --no-link --no-write-lock-file --print-out-paths --option allow-import-from-derivation false",
+    "checks": [
+      {
+        "selector": ".#checks.aarch64-darwin.atrium-forge-preparation",
+        "output": "/nix/store/xy7cg7dmmdmajwjzzzi7b4313nxyq0nz-atrium-forge-preparation.json",
+        "sha256": "3506dda62204921eaa7f05cccdc5dd43860b6a7cc091a4f92d865efa97f9bf42"
+      },
+      {
+        "selector": ".#checks.aarch64-darwin.atrium-forge-caddy",
+        "output": "/nix/store/rigwy1w53bj71n3cxkrzrqkicaj8ax23-atrium-forge-caddy-syntax",
+        "sha256": "840efea66d438ca221dcce8bfcb5f3131438e4f0face7f211545a237fe3fd59c"
+      },
+      {
+        "selector": ".#checks.aarch64-darwin.atrium-identity-bootstrap",
+        "output": "/nix/store/x1779almcnqdsnh0nacy164cq0wi2nyh-atrium-pocketid-bootstrap",
+        "sha256": "2343647b9dbbe7013424ce53ed740a1689b149481947f3a1e05d1a57682ad7f1"
+      },
+      {
+        "selector": ".#checks.aarch64-darwin.atrium-n03-units",
+        "output": "/nix/store/m0r7wfwd11jyi0q5bscl2ddrm1kr4mq7-atrium-n03-isolated-units.json",
+        "sha256": "05a7c82f23802d5f76a24a1aa6718a5f8f8a7b44562cd872854d1696f4dfed61"
+      },
+      {
+        "selector": ".#checks.aarch64-darwin.atrium-n03-model-preparation",
+        "output": "/nix/store/ima142gmqwsy6jfswyf6rg8918k6ij48-atrium-n03-model-preparation.json",
+        "sha256": "b035d215291a4abfc0efaa8438cbb2efcb506d93567b8b10da2c7e54999122ee"
+      }
+    ],
+    "observations": [
+      "Actual packaged identity bootstrap permits the reviewed binding and refuses repeat initialization and a foreign authority.",
+      "Actual app settings and TLS-plan schemas accept the concrete non-secret references.",
+      "Actual Caddy adaptation covers resolver, Home MCP and Whiskey vhost fragments.",
+      "Private resolver/native paths have explicit 404 matchers; native authorization and companion carriage remain intact.",
+      "Missing or empty initialization, database and policy files prevent listener startup.",
+      "No policy/model/native adoption or runtime gate is inferred from these checks."
+    ],
+    "logs": {
+      "five_check_run_sha256": "cb9239b754168d45f40434a8193d0f678ac2afd3404ee91c3ba9727cc24ff8b1",
+      "nonempty_state_check_sha256": "7d9c124cb6d686e2cd93c4e490a392d1e2dcde7c4b279b7c6bcb94c846215706",
+      "final_provenance_check_sha256": "4e4dee2376d36d949b2de9fd50e7b5b12ce55f080abea9774995210526d22f90"
+    }
+  },
+  "full_forge_build": {
+    "command": "task -d /Users/ryan/src/nix-config nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "source": "0ebc1b2c93153555702d652914f304e2ca96d4b0",
+    "builder": "ssh://ryan@forge.holthome.net",
+    "status": "passed",
+    "exit_code": 0,
+    "artifact": "/nix/store/jr9vfda6cnq74pafg5w0b30jzbcwg0w1-nixos-system-forge-25.11.20260630.b6018f8",
+    "final_build_log_sha256": "498b8dd52457691b8de87e678846debbfa8e222d041df360dad982539a3ea20c",
+    "activated": false,
+    "local_linux_closure_built": false,
+    "additional_gc_root_created": false,
+    "immutable_unit_inspection": {
+      "live_current_system_inspected": false,
+      "resolver_package": "/nix/store/4bbh34wg9iryq77fz76rf33gibip2rr7-atrium-resolver-0.1.0",
+      "nonempty_startup_guards": 3,
+      "service_user": "atrium-resolver",
+      "credential_references": ["device-ca", "device-ca-key", "registration-cert", "registration-key"]
+    },
+    "earlier_builds": [
+      {
+        "source": "ec0d8e26824389ac26cb6cf4b2c623e2748e9ddb",
+        "status": "passed",
+        "artifact": "/nix/store/55qjs74jpnaasxjiz6n7j0xrz6yb4j23-nixos-system-forge-25.11.20260630.b6018f8",
+        "log_sha256": "bd1dd327d6c88f896b5651d2f8b31d49d48a99efb49d42b471e8d03f7be0efdc"
+      },
+      {
+        "source": "f0ff83f7ba558d7a2ba6a986d535e75f3b549618",
+        "status": "passed",
+        "artifact": "/nix/store/jr9vfda6cnq74pafg5w0b30jzbcwg0w1-nixos-system-forge-25.11.20260630.b6018f8",
+        "log_sha256": "dd1c1360e1f632b676844b004d27464b5c921a6fe779af2cc207ce89234043bb"
+      }
+    ],
+    "app_package_tests": {
+      "platform": "linux",
+      "passed": 726,
+      "skipped": 19,
+      "seconds": 461.57,
+      "scope": "App-owned package regression tests, not a new deployed N03 gate; skips remain skips."
+    }
+  },
+  "ci": {
+    "source": "ec0d8e26824389ac26cb6cf4b2c623e2748e9ddb",
+    "observed_success": {
+      "atrium-foundation-checks": "https://github.com/carpenike/nix-config/actions/runs/34724586782/job/103636385341",
+      "atrium-admission-checks": "https://github.com/carpenike/nix-config/actions/runs/34724586782/job/103636385356",
+      "nix-build-heavy-forge": "https://github.com/carpenike/nix-config/actions/runs/34724586782/job/103636385322",
+      "lint": "https://github.com/carpenike/nix-config/actions/runs/34724586794/job/103636373773",
+      "n03-forge-and-n04-consumption": "https://github.com/carpenike/nix-config/actions/runs/34724586800/job/103636373637",
+      "n06-deployment": "https://github.com/carpenike/nix-config/actions/runs/34724586774/job/103636373523"
+    },
+    "later_head_ci_claimed": false
+  },
+  "preserved_diagnostics": {
+    "evidence_commit_scan": "The initial receipt commit was refused by Gitleaks because an ambiguous consumer field name matched its generic-key heuristic around a public Git revision. Renamed the metadata field to consumer_revision; no hook bypass or scanner allowlist was added.",
+    "initial_uncommitted_evaluation": "Failed with an infinite recursion in the service-enable guard; corrected using the Forge-specific enable switch before the initial source commit.",
+    "nonfatal_cache_warning": "Garnix cache DNS resolution failed; focused checks completed using available cache/build paths.",
+    "nonfatal_existing_build_warnings": "Existing ZFS completion collisions and Nix deprecations remained; unrelated configuration was not changed.",
+    "resolved_policy_warning": "Root-owned policy dataset warning was resolved by explicit rootOwnedReason, not by granting policy write access to the resolver.",
+    "artifact_retention": "The prescribed build did not create an additional GC root; the task's GC warning is retained."
+  },
+  "limits": {
+    "native_n03_t_cases_passed": [],
+    "native_n03_t_cases_unexecuted": ["T1", "T4", "T8", "T15", "T20", "T26"],
+    "live_initialization_or_adoption": false,
+    "pocketid_mutations": false,
+    "paid_or_live_provider_calls": false,
+    "real_child_identities": false,
+    "locked_spec_modified": false,
+    "owner_serena_edit_staged": false,
+    "owner_serena_edit_numstat_preserved": [154, 53],
+    "proposed_amendments": []
+  },
+  "operational_blockers": [
+    "Reviewed provider account/wing ownership, approved exact aliases/backends, budgets and designated family model are not supplied; the required complete N02 registry is not fabricated.",
+    "Dedicated Pocket ID client/API resource authorization remains an independent explicit operator action owned by network-config.",
+    "Home MCP issuer-key continuity, explicit identity/refresh-family adoption, retained history and current grants must precede native-profile startup.",
+    "Real model producer publication/management custody and Whiskey live key/acknowledgement, image credential ownership and complete non-model egress adoption remain unconfigured.",
+    "This is a built foundation with strict missing-state refusal, not permission to activate or a completed N03/N07 native gate."
+  ]
+}

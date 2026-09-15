@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.setup-manifest-integration-evidence",
+  "branch": "atr/N03-setup-manifest",
+  "implementation_commit": "dc38d58035a66ac20b4468af47ea3cf117f0acda",
+  "base_pr": 1099,
+  "base_commit": "3a7fcb6d7737e83c3aa145b1a3326f1c72aaa55c",
+  "export": "lib.atriumSetupConfigs.forge",
+  "installed_path": "/etc/atrium/bootstrap/setup.json",
+  "evaluation_command": "nix eval --json --option allow-import-from-derivation false .#lib.atriumSetupConfigs.forge",
+  "manifest": {
+    "schema_version": 1,
+    "host": "forge",
+    "installation": "atrium-forge",
+    "pocket_id": {
+      "issuer": "https://id.holthome.net",
+      "resource": "https://atrium.holthome.net/resolver",
+      "principal": "ryan",
+      "subject": "9853582c-b3fe-4e47-8cd9-56174ecba18e",
+      "client_id": "cc.atrium.operator",
+      "redirect_uri": "http://127.0.0.1:18889/callback",
+      "access_token_minutes": 14,
+      "refresh_token_minutes": 60,
+      "groups": [
+        {
+          "name": "atrium-personal-ryan",
+          "friendly_name": "Ryan's Personal wing",
+          "member_subjects": ["9853582c-b3fe-4e47-8cd9-56174ecba18e"]
+        },
+        {
+          "name": "atrium-family",
+          "friendly_name": "Family wing",
+          "member_subjects": ["9853582c-b3fe-4e47-8cd9-56174ecba18e"]
+        }
+      ]
+    },
+    "deployment": {
+      "admission_file": "hosts/forge/atrium/setup-admission.nix"
+    },
+    "initialization": {
+      "ssh_target": "ryan@forge.holthome.net",
+      "units": ["atrium-initialize", "atrium-trust-initialize", "atrium-seed-policy"]
+    },
+    "required_secrets": [
+      {
+        "name": "/run/secrets/atrium-litellm-resolver-management",
+        "purpose": "Resolver-only model management credential before explicit model adoption; not provisioned by setup."
+      },
+      {
+        "name": "/run/secrets/atrium-litellm-controller-management",
+        "purpose": "Controller-only model management credential before explicit model adoption; never an inference credential."
+      },
+      {
+        "name": "/run/secrets/atrium-personal-anthropic",
+        "purpose": "Personal wing provider credential before explicit model adoption; distinct from Family and never copied to it."
+      },
+      {
+        "name": "/run/secrets/atrium-family-anthropic",
+        "purpose": "Family wing provider credential before explicit model adoption; no shared client bearer."
+      }
+    ]
+  },
+  "manifest_semantics": {
+    "client_and_callback": "explicit desired setup defaults, not registered/admitted objects",
+    "groups": "desired operator membership plan from authoritative bootstrap and registry, not group observations",
+    "required_secrets_shape": "array of exactly {name,purpose}; name is a runtime source reference, never a value",
+    "required_secrets_stage": "later explicit model-plane adoption; not automatically provisioned by setup",
+    "no_worktree_or_nix_store_path_in_manifest": true,
+    "show_plan_before_native_creation": true
+  },
+  "managed_admission": {
+    "path": "hosts/forge/atrium/setup-admission.nix",
+    "tracked": true,
+    "imported_by": "hosts/forge/services/atrium.nix",
+    "exact_safe_placeholder": "# Managed by atrium setup; no client is admitted until verified.\n{ ... }: { }\n",
+    "bytes": 78,
+    "sha256": "2a268c80ad7c1bd389b7ed6bd85f9f9101603a5126e07591c303b64589705125",
+    "default_group_evidence": null,
+    "default_startup_adoption_refusal_preserved": true,
+    "proposed_client_is_not_automatically_admitted": true,
+    "frontend_replacement_scope": "only groupEvidence.clientIds with the native-verified created client",
+    "frontend_path_contract": "relative under selected deployment repository; no symlinks or unrelated/owner-edited overwrite",
+    "automatic_commit": false,
+    "flags_grants_or_permission_widening": false
+  },
+  "checks": [
+    {"name": "atrium-forge-setup", "status": "passed", "assertions": 23, "artifact": "/nix/store/8y8lmmd4v50lzavbv2xcv13dpjswq8kx-atrium-forge-setup-checks.json"},
+    {"name": "atrium-forge-c10-settings", "status": "passed", "artifact": "/nix/store/22ga6gv9qfz5g5jac389d5nrbfsms5lr-atrium-forge-c10-settings.json"},
+    {"name": "atrium-forge-c10-schema", "status": "passed", "artifact": "/nix/store/9kwgm7hrsljwnycvnpf6rijzmh73jb9z-atrium-forge-c10-schema"},
+    {"name": "atrium-forge-preparation", "status": "passed", "artifact": "/nix/store/qwdra0w5sf4439z4mwz5msn3w4ch3wkr-atrium-forge-preparation.json"},
+    {"name": "atrium-forge-adoption-wiring", "status": "passed", "artifact": "/nix/store/g3qskg1ganfwkqf294jrfgllvlbpqsrp-atrium-forge-adoption-wiring.json"},
+    {"name": "atrium-forge-cloud-schema", "status": "passed", "artifact": "/nix/store/hd3pa6bhd25855bpaz2hai94j5217qdl-atrium-forge-cloud-schema"}
+  ],
+  "validation_boundary": {
+    "platform": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "normal_commit_hooks": "passed without bypasses",
+    "configured_admission_is_test_fixture_only": true,
+    "native_setup_execution": false,
+    "live_mutations": false,
+    "full_linux_closure_built_on_mac": false,
+    "new_native_or_as_conformance_claimed": false
+  },
+  "preserved_inputs": {
+    "atrium": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
+    "native": "a1d7322bc600df04ecc928cf2692ea71fb2b9fac",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
+    "new_app_pin_selected": false,
+    "primary_owner_edit_and_locked_spec_unchanged": true,
+    "base_c10_worktree_unchanged": true,
+    "other_repositories_modified": false
+  },
+  "remaining": [
+    "Parent-supplied immutable packaged setup frontend and qualified migrated Pocket ID adapter.",
+    "Frontend native verification and owner-safe admission replacement tests; no operation was executed by this branch.",
+    "Final app pin/full Forge build after package supply, using only the existing remote Taskfile.",
+    "Explicit operator plan review and authorization before native creation, admission write or initialization; no automatic Git commit."
+  ]
+}

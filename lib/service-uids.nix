@@ -47,6 +47,45 @@
 { ... }:
 
 {
+  atrium-resolver = {
+    uid = 1060;
+    gid = 1060;
+    description = "Forge Atrium resolver, identity, signing and deny-state custody";
+    extraGroups = [ ];
+  };
+  atrium-trust = {
+    uid = 1061;
+    gid = 1061;
+    description = "Forge Atrium explicit TLS authority provisioning";
+    extraGroups = [ ];
+  };
+  atrium-registration = {
+    uid = 1062;
+    gid = 1062;
+    description = "Forge Atrium registration TLS-byte forwarding only";
+    extraGroups = [ ];
+  };
+  atrium-reconciler = {
+    uid = 1063;
+    gid = 1063;
+    description = "Forge Atrium owned model controller and private ownership ledger";
+    extraGroups = [ "atrium-model-metadata" "atrium-whiskey-delivery" ];
+  };
+  atrium-model-gateway = {
+    uid = 1064;
+    gid = 1064;
+    description = "Forge LiteLLM admission history, without producer-private custody";
+    extraGroups = [ "atrium-model-metadata" ];
+  };
+  atrium-model-metadata = { gid = 1065; };
+  atrium-whiskey-delivery = { gid = 1066; };
+  atrium-whiskey = {
+    uid = 1067;
+    gid = 1067;
+    description = "Explicitly adopted Whiskey live-key reader and acknowledgement publisher";
+    extraGroups = [ "atrium-whiskey-delivery" ];
+  };
+
   # Reserved only for the opt-in ATR-N04 isolated host; no live host imports it.
   atrium-reconciler-fixture = {
     uid = 65430;

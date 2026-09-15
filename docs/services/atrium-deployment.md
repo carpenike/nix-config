@@ -6,6 +6,11 @@ wiring. Atrium owns controller/admission runtime, behavior/security/rotation and
 version-compatibility tests, native helpers, orchestration and canonical evidence.
 Home MCP and Whiskey implementations remain in their respective repositories.
 
+The [Forge runtime foundation](atrium-forge-runtime.md) adds concrete protected
+listeners, private custody, explicit bootstrap units and health/backup wiring.
+It remains fail-closed on missing reviewed policy/native/model inputs and does
+not activate or silently adopt production state.
+
 ## Package and helper contract
 
 The Atrium input must provide:
@@ -42,7 +47,10 @@ The following Nix checks test consumption and host wiring, not product behavior:
 * `atrium-n06-units` checks namespace/path selection and service composition,
   including explicit capability resets and rejected stronger overrides.
 
-Ordinary host configuration builds remain unchanged. Building an app package may
+The Forge foundation is covered by `atrium-forge-preparation`,
+`atrium-forge-caddy`, and `atrium-identity-bootstrap`. These distinguish missing
+policy/adoption from readiness and preserve retained native services.
+Building an app package may
 run tests defined by that app's own package expression; nix-config does not copy
 or invoke a parallel controller/admission/product pytest suite.
 
@@ -104,10 +112,10 @@ Those product results are referenced, not copied into this deployment repo.
 The earlier failed N03 cohorts and22-of-27 result remain historical. This
 ownership correction neither promotes them nor authorizes another native run.
 
-The current input advances only Atrium to immutable
+The earlier alias-convergence slice advanced only Atrium to immutable
 `df39edf4e783222700e658951088b0651f65d02a`, containing the accepted
 [native alias-convergence correction and current publication qualification](https://github.com/carpenike/atrium/blob/df39edf4e783222700e658951088b0651f65d02a/harness/evidence/ATR-N04-alias-handoff.json).
-All other lock inputs and host policy values are unchanged by that update.
+All other lock inputs and host policy values were unchanged by that update.
 Its217-case/UID/model evidence supersedes the old controller qualification,
 not the historical receipts themselves. N03's integrated acceptance and any
 production activation remain separate gates.

@@ -14,11 +14,12 @@ rustPlatform.buildRustPackage {
   # Affects: cooklang-federation (search/filter for RSS-sourced recipes)
   # Upstream: not filed (https://github.com/cooklang/federation — repo has no
   #   issue tracker enabled).
-  # Check: re-evaluate when upstream `Crawler` gains a `search_index` field or
-  #   when `index_recipes()` is called from `crawl_feed()`. As of upstream HEAD
-  #   5d900752 (2026-07-12), only the GitHub indexer writes to Tantivy, so RSS
-  #   recipes are invisible to `/search` without this patch. The patch also
-  #   adds the INDEXED flag to `servings`/`total_time` so range queries work.
+  # Refreshed against 29ab812 (2026-09-14): RSS indexing and numeric INDEXED
+  #   flags are still absent upstream. Its commit() now reloads readers, so
+  #   reuse that helper for RSS/rebuild visibility instead of duplicating it.
+  # Check: compare each hunk at source bumps; remove only proven redundancy.
+  #   Preserve field-query normalization, clamped pagination, numeric ranges,
+  #   RSS new/update indexing and startup rebuilds.
   # See: docs/workarounds.md
   patches = [
     ./patches/cooklang-federation-normalize-field-query.patch

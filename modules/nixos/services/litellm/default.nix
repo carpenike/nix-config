@@ -64,7 +64,7 @@ let
   inherit (lib) mkOption mkEnableOption types optional optionalAttrs optionalString;
 
   serviceName = "litellm";
-  containerPort = 4000;
+  containerPort = config.modules.services.litellm.internalPort;
   backend = config.virtualisation.oci-containers.backend;
   mainServiceName = "${backend}-${serviceName}";
   mainServiceUnit = "${mainServiceName}.service";
@@ -91,7 +91,7 @@ let
   renderConfig = cfg: yamlFormat.generate "litellm-config.yaml" {
     model_list = map mkModel cfg.models;
     router_settings = cfg.routerSettings;
-    litellm_settings = cfg.litellmSettings;
+    litellm_settings = cfg.litellmSettings // cfg.extraLitellmSettings;
     general_settings =
       { master_key = "os.environ/LITELLM_MASTER_KEY"; }
       // optionalAttrs cfg.sso.adminUi.enable { ui_access_mode = "all"; }
@@ -167,7 +167,8 @@ mylib.mkContainerService {
     # out podman's on-failure=kill stopped a perfectly healthy proxy 5 min
     # after start, cleanly enough that nothing alerted (2026-09-04). Probe
     # with the interpreter the image is built on instead.
-    healthCommand = ''python3 -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:${toString containerPort}/health/liveliness', timeout=5).status == 200 else 1)"'';
+    healthCommand = "python3 -c " + lib.escapeShellArg
+      ''import sys, urllib.request; sys.exit(0 if urllib.request.urlopen(${builtins.toJSON config.modules.services.litellm.healthUrl}, timeout=5).status == 200 else 1)'';
     # Prisma migrations run on every start and can take a while.
     startPeriod = "120s";
 
@@ -187,7 +188,7 @@ mylib.mkContainerService {
     skipDefaultConfigMount = true;
     volumes = cfg: [
       "${renderConfig cfg}:/app/config.yaml:ro"
-      "${cfg.dataDir}/data:/app/data:rw"
+      "${cfg.nativeDataDir}:/app/data:rw"
     ];
 
     extraOptions = { cfg, ... }:
@@ -195,6 +196,51 @@ mylib.mkContainerService {
   };
 
   extraOptions = {
+    healthUrl = mkOption {
+      type = types.str;
+      default = "http://127.0.0.1:${toString containerPort}/health/liveliness";
+      description = "Health URL used by both actual container startup and regular probes; select the canonical proxy when direct loopback access is restricted.";
+    };
+    publishPort = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Publish the native bridge port on host loopback; disable for an explicitly loopback-bound host-network deployment.";
+    };
+    internalPort = mkOption {
+      type = types.port;
+      default = 4000;
+      description = "Native listener and health-probe port; independent of the bridge publication port.";
+    };
+    listenAddress = mkOption {
+      type = types.str;
+      default = "0.0.0.0";
+      description = "Native listener address; host-network deployments must select loopback explicitly.";
+    };
+    extraEnvironment = mkOption {
+      type = types.attrsOf types.str;
+      default = { };
+      description = "Additional non-secret native process settings.";
+    };
+    extraLitellmSettings = mkOption {
+      type = types.attrsOf types.anything;
+      default = { };
+      description = "Explicit integration settings merged without replacing the gateway defaults.";
+    };
+    nativeDataDir = mkOption {
+      type = types.str;
+      default = "${config.modules.services.litellm.dataDir}/data";
+      description = "Native writable data mount; a UID change requires explicit operator-reviewed custody.";
+    };
+    nativeDataOwner = mkOption {
+      type = types.str;
+      default = "root";
+      description = "Owner of the native writable data mount.";
+    };
+    nativeDataGroup = mkOption {
+      type = types.str;
+      default = "root";
+      description = "Group of the native writable data mount.";
+    };
     models = mkOption {
       type = types.listOf modelSubmodule;
       default = [ ];
@@ -481,18 +527,17 @@ mylib.mkContainerService {
 
       virtualisation.oci-containers.containers.${serviceName} = {
         # The image CMD does not pass --config; be explicit.
-        cmd = [ "--config" "/app/config.yaml" "--port" (toString containerPort) ];
+        cmd = [ "--config" "/app/config.yaml" "--host" cfg.listenAddress "--port" (toString containerPort) ];
         environmentFiles = [ envFile ];
         # Drop the PUID/PGID/UMASK the factory injects for runAsRoot images;
         # LiteLLM does not use them.
-        environment = lib.mkForce {
+        environment = lib.mkForce ({
           TZ = cfg.timezone;
           LITELLM_CONFIG_PATH = "/app/config.yaml";
-        };
+        } // cfg.extraEnvironment);
         # Loopback only — the factory default publishes on all interfaces.
-        ports = lib.mkForce [
-          "127.0.0.1:${toString cfg.port}:${toString containerPort}"
-        ];
+        ports = lib.mkForce (optional cfg.publishPort
+          "127.0.0.1:${toString cfg.port}:${toString containerPort}");
       };
 
       systemd.services.${mainServiceName} = {
@@ -507,7 +552,8 @@ mylib.mkContainerService {
           RestartSec = "10s";
         };
         preStart = ''
-          install -d -o root -g root -m 0750 ${cfg.dataDir}/data
+          install -d -o ${lib.escapeShellArg cfg.nativeDataOwner} \
+            -g ${lib.escapeShellArg cfg.nativeDataGroup} -m 0750 ${lib.escapeShellArg cfg.nativeDataDir}
         '';
       };
 

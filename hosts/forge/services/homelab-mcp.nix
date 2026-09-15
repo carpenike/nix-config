@@ -74,6 +74,10 @@ let
   financeGrafanaRole = "grafana-household-finance";
   financeSchema = "household_finance";
   financeDashboards = import ./household-finance-dashboards.nix { inherit pkgs; };
+  atriumReadScopes = lib.optionalAttrs (config.services.atriumForge.adoption.native or false)
+    (lib.getAttrs [ "atrium-personal-read" "atrium-family-read" ]
+      (builtins.fromJSON (builtins.readFile
+        (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"))).scopes);
 in
 {
   imports = [
@@ -135,9 +139,9 @@ in
           # claim). Empty upstream default = any PocketID user. Parsed as
           # JSON by pydantic, so this must be a JSON array literal.
           HOMELAB_MCP_OAUTH_USER_ALLOWLIST = ''["ryan@ryanholt.net", "stefanie@stefanieholt.com"]'';
-          HOMELAB_MCP_RESTRICTED_SCOPE_RESOURCES = builtins.toJSON {
+          HOMELAB_MCP_RESTRICTED_SCOPE_RESOURCES = builtins.toJSON ({
             advisor = [ "finances://" ];
-          };
+          } // lib.mapAttrs (_: scope: scope.resources) atriumReadScopes);
           # Actual account name -> that card's last four digits, for the
           # amazon_* matcher. The key must be the account name EXACTLY as the
           # ledger spells it; the lookup is exact-match after lowercasing.
@@ -163,7 +167,7 @@ in
           # Hermes v0.19 requests every advertised OAuth scope, so both local
           # aliases share this bounded read-only scope; platform_toolsets and
           # each alias's tools.include enforce their disjoint per-gateway views.
-          HOMELAB_MCP_RESTRICTED_SCOPES = builtins.toJSON {
+          HOMELAB_MCP_RESTRICTED_SCOPES = builtins.toJSON ({
             advisor = [
               "finances_sync_status"
               "finances_monthly_summary"
@@ -283,7 +287,7 @@ in
               "finances_sentinel"
               "homelab_list_status"
             ];
-          };
+          } // lib.mapAttrs (_: scope: scope.tools) atriumReadScopes);
         };
 
         # Sops-managed env file containing at minimum:
