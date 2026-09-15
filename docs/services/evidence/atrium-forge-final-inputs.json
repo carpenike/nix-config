@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.forge-final-inputs-build",
+  "branch": "atr/N03-c9-cloud",
+  "implementation_commit": "471e7e7407ad4ca95f6e901ca0903671bcf73e46",
+  "status": "final-coordinated-inputs-built-no-activation",
+  "historical_receipts_unchanged": [
+    "docs/services/evidence/atrium-forge-runtime.json",
+    "docs/services/evidence/atrium-forge-cloud.json",
+    "docs/services/evidence/atrium-forge-host-review.json"
+  ],
+  "inputs": {
+    "atrium": "806ae19e853ae5614523430f5fc2397786fd9839",
+    "native": "ec1e796d1ae8bca9d8d16a11f00aebc22b5ba4e7",
+    "native_execution_source": "8ff9ee2ff1889fe0cfba5c21a702f1a9f1323789",
+    "native_vendor": "806ae19e853ae5614523430f5fc2397786fd9839",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
+    "litellm_version": "v1.100.1",
+    "litellm_manifest": "a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf"
+  },
+  "native_provenance": {
+    "pr": 78,
+    "head_after_execution_is_evidence_only": true,
+    "runtime_src_and_nix_diff_8ff_to_ec1": "empty",
+    "vendor_repository": "https://github.com/carpenike/atrium",
+    "vendor_archive": "atrium-source-806ae19e853a.tar.gz",
+    "vendor_git_archive_sha256": "274cb42eb6b03714e60c0067442e5ad04c7114e6f2e6606a712514489f085009",
+    "evaluated_vendor_matches_app": true,
+    "catalog_source_revision": "scope_definitions.py:sha256:82acf5c9f4e4ae551754465d07eb8465d88c96658f08ce4ae71141337a6842d9",
+    "profiles": {
+      "atrium-personal-read": {"tools": 20, "resources": 0, "permissions": ["read"]},
+      "atrium-family-read": {"tools": 9, "resources": 0, "permissions": ["read"]}
+    },
+    "legacy_admin_advisor_hermes_unchanged": true,
+    "profile_ids_imply_per_human_dataset_ownership": false,
+    "b1_fix": "Retains original emergency grant ID in existing private public-access/refresh bindings; no JWT wire change."
+  },
+  "parent_reported_native_qualification": {
+    "native_cases": 59,
+    "exact_upstream_r05_cases": 5,
+    "scope": [
+      "canonical/private TLS routing",
+      "wrong CA and hostname",
+      "no fallback",
+      "physical issuer/audience/target refusal",
+      "revoke-after-issue association and denial"
+    ],
+    "runtime_files_reviewed_by_parent": 5,
+    "executed_by_this_deployment": false,
+    "not_a_group_backed_production_activation": true
+  },
+  "checks": [
+    {"name": "atrium-forge-preparation", "status": "passed", "assertions": 55, "artifact": "/nix/store/qwdra0w5sf4439z4mwz5msn3w4ch3wkr-atrium-forge-preparation.json"},
+    {"name": "atrium-forge-adoption-wiring", "status": "passed", "assertions": 32, "artifact": "/nix/store/g3qskg1ganfwkqf294jrfgllvlbpqsrp-atrium-forge-adoption-wiring.json"},
+    {"name": "atrium-forge-cloud-schema", "status": "passed", "artifact": "/nix/store/p9l9hdcpwl89ip31qfrm8bgd0i3x1d2w-atrium-forge-cloud-schema"},
+    {"name": "atrium-identity-bootstrap", "status": "passed", "artifact": "/nix/store/w627iiaibjicixb7igz90vzi545wq54j-atrium-pocketid-bootstrap"},
+    {"name": "atrium-n03-units", "status": "passed", "artifact": "/nix/store/m0r7wfwd11jyi0q5bscl2ddrm1kr4mq7-atrium-n03-isolated-units.json"},
+    {"name": "atrium-n03-model-preparation", "status": "passed", "artifact": "/nix/store/z5fj8wkcarhchj04j3ihvn2zk5vgxmmg-atrium-n03-model-preparation.json"},
+    {"name": "atrium-forge-caddy", "status": "passed", "artifact": "/nix/store/rigwy1w53bj71n3cxkrzrqkicaj8ax23-atrium-forge-caddy-syntax"},
+    {"name": "atrium-forge-adopted-caddy", "status": "passed", "artifact": "/nix/store/ify71x4802iyspr3vl92b0ycc0z0h5q7-atrium-forge-adopted-caddy-syntax"},
+    {"name": "protection-manifest", "status": "passed", "artifact": "/nix/store/mfxddgc2ywr9ifqha17670qnc152bvp6-protection-manifest-check"}
+  ],
+  "check_scope": {
+    "platform": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "health_command_smoke_is_not_live_network_proof": true,
+    "group_only_acl_and_missing_group_refusal_preserved": true,
+    "canonical_r05_issuer_and_private_transport_schema_verified": true,
+    "caddy_only_health_firewall_preserved": true,
+    "normal_commit_hooks": "passed without bypasses",
+    "backup_guard": "evaluation passed; no local full Linux closure build"
+  },
+  "remote_build": {
+    "command": "task -d /Users/ryan/src/nix-config-c9-cloud nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "implementation_commit": "471e7e7407ad4ca95f6e901ca0903671bcf73e46",
+    "status": "passed-build-only",
+    "exit_status": 0,
+    "artifact": "/nix/store/wp6blpsrpph0cxzhgw2sa4zsj3pxyhwz-nixos-system-forge-25.11.20260630.b6018f8",
+    "derivation": "/nix/store/0x3q9qczzxlwpxgyl7bss7x2hlsp3rya-nixos-system-forge-25.11.20260630.b6018f8.drv",
+    "native_package": "/nix/store/rgz6dqkccm2qvkn57y60yx3rb0bypqpp-homelab-mcp-0.25.0",
+    "remote_artifact_six_policy_files_and_native_binary_verified": true,
+    "observed_package_test_summaries": [
+      {"passed": 116, "duration_seconds": 1.29},
+      {"passed": 877, "skipped": 19, "duration_seconds": 503.94}
+    ],
+    "package_results_are_not_native_or_as_conformance": true,
+    "activation": false
+  },
+  "as_conformance": {
+    "owner": "parent",
+    "executed_by_this_deployment": false,
+    "status": "handled separately; no result claimed here"
+  },
+  "remaining_boundaries": {
+    "app_consumer_source_dependency": "none for this scoped final build",
+    "c10": "proposed-not-accepted; group-backed production access remains denied",
+    "private_ci": "account startup restriction; no retries or bypasses",
+    "operator": "Explicit provisioning, initialization, native refresh/adoption approval and reviewed Whiskey egress bindings remain required",
+    "data_ownership": "Read-only profile names do not create per-human datasets or permit automatic child/Family access to Personal data",
+    "activation_or_full_deployment_gate_claimed": false
+  },
+  "preservation": {
+    "primary_owner_edit_modified": false,
+    "locked_spec_modified": false,
+    "other_repositories_modified": false,
+    "live_mutations": false,
+    "new_agents_or_peer_messages": false,
+    "full_linux_closure_built_on_mac": false
+  }
+}

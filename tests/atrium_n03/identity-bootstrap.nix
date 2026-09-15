@@ -52,8 +52,9 @@ pkgs.runCommand "atrium-pocketid-bootstrap"
     tls = TLSBootstrapPlan.model_validate_json(${builtins.toJSON (builtins.toJSON runtime.tlsPlan)})
     assert runtime.isolated_harness is False and registration.isolated_harness is False
     assert runtime.signing == registration.signing == foundation.signing
-    assert runtime.policy_path == registration.policy_path == Path("/var/lib/atrium-policy/resolver.json")
-    assert foundation.policy_path is None
+    assert runtime.policy_path == registration.policy_path == Path("/etc/atrium/desired-state/resolver.json")
+    assert foundation.policy_path == runtime.policy_path
+    assert foundation.group_authority == "pocketid"
     assert runtime.home_mcp is None and runtime.litellm is None
     assert runtime.devices.ca_private_key_path.parent == Path("/run/credentials/atrium-resolver.service")
     assert registration.devices.ca_private_key_path.parent == Path("/run/credentials/atrium-device-registration.service")

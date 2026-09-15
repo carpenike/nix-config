@@ -11,22 +11,41 @@ let
     homelabMcp = inputs.homelab-mcp;
   };
   ids = import ../../lib/service-uids.nix { };
+  registry = c.services.atrium.registry;
+  bootstrap = import ../../hosts/forge/atrium/bootstrap.nix { inherit lib registry; };
+  models = import ../../hosts/forge/atrium/models.nix { inherit lib ids runtime registry; };
   disabled = (inputs.self.nixosConfigurations.forge.extendModules {
     modules = [{ services.atriumForge.enable = lib.mkForce false; }];
   }).config;
   gateway = builtins.fromJSON (builtins.readFile
     (inputs.atrium + "/harness/version-candidates/litellm-1.100.1.json"));
   gatewayDocuments = inputs.atrium.lib.renderForGateway {
-    registry = import ../atrium/registry.nix { atrium = inputs.atrium; };
+    inherit registry;
     nativeVersion = c.services.atrium.litellmVersion;
   };
   units = c.systemd.services;
   nativeCatalog = builtins.fromJSON (builtins.readFile base.catalogs.home-mcp.source);
-  stateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" ];
+  nativeVendor = builtins.fromJSON (builtins.readFile
+    (inputs.homelab-mcp + "/vendor/atrium-artifacts.lock.json"));
+  stateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
+  modelAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
+    modules = [{
+      services.atriumForge.adoption.models = true;
+      services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
+    }];
+  }).config;
+  nativeAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
+    modules = [{
+      services.atriumForge.adoption.native = true;
+      services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
+    }];
+  }).config;
   checks = {
     selected-application-pin = inputs.atrium.rev == pins.atrium;
-    native-pins-unchanged = inputs.homelab-mcp.rev == pins.native
+    selected-native-pins = inputs.homelab-mcp.rev == pins.native
       && inputs.whiskey-whiskey-whiskey.rev == pins.consumer;
+    native-vendor-matches-app = nativeVendor.revision == inputs.atrium.rev
+      && nativeVendor.repository == "https://github.com/carpenike/atrium";
     explicit-gateway-version = gateway.kind == "atrium.litellm-version-candidate"
       && gateway.native_version == "v1.100.1"
       && c.services.atrium.litellmVersion == gateway.native_version;
@@ -40,8 +59,9 @@ let
     actual-component-packages = c.services.atrium.runtime.resolver.package == packages.resolver
       && c.services.atrium.runtime.reconciler.package == packages.atrium-litellm-controller;
     explicit-identity-bootstrap-installed =
-      builtins.fromJSON (builtins.readFile c.environment.etc."atrium/bootstrap/identity.json".source)
-      == identity.bootstrap;
+      builtins.fromJSON c.environment.etc."atrium/bootstrap/identity.json".text
+      == bootstrap.enrollment
+      && bootstrap.enrollment.identities == identity.bootstrap.identities;
     explicit-bootstrap-authority =
       builtins.fromJSON c.environment.etc."atrium/bootstrap/resolver.json".text == identity.settings
       && !identity.settings.isolated_harness
@@ -56,18 +76,81 @@ let
     source-native-catalog = base.catalogs.home-mcp.source
       == inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"
       && nativeCatalog.kind == "atrium.source-catalog"
-      && builtins.attrNames nativeCatalog.scopes == [ "admin" "advisor" "hermes" ]
-      && lib.elem "write" nativeCatalog.scopes.hermes.permissions;
-    no-inferred-native-ceilings = !(base ? instances) && !(base ? routeTemplates);
+      && lib.all (scope: nativeCatalog.scopes ? ${scope})
+      [ "admin" "advisor" "hermes" "atrium-personal-read" "atrium-family-read" ]
+      && lib.elem "write" nativeCatalog.scopes.hermes.permissions
+      && nativeCatalog.scopes.atrium-personal-read.permissions == [ "read" ]
+      && nativeCatalog.scopes.atrium-family-read.permissions == [ "read" ]
+      && lib.length nativeCatalog.scopes.atrium-personal-read.tools == 20
+      && lib.length nativeCatalog.scopes.atrium-family-read.tools == 9
+      && nativeCatalog.scopes.atrium-personal-read.resources == [ ]
+      && nativeCatalog.scopes.atrium-family-read.resources == [ ];
+    explicit-native-read-ceilings =
+      registry.instances.personal-data-read.scopes == [ "atrium-personal-read" ]
+      && registry.instances.family-home-read.scopes == [ "atrium-family-read" ]
+      && registry.instances.personal-data-read.access == "read-only"
+      && registry.instances.family-home-read.access == "read-only"
+      && registry.instances.personal-data-read.domain == "personal:ryan"
+      && registry.instances.personal-data-read.ownerPrincipal == "ryan"
+      && registry.instances.personal-data-read.acl.groups == [ "atrium-personal-ryan" ]
+      && lib.all
+        (template: !lib.elem "admin" template.scopes)
+        (builtins.attrValues registry.routeTemplates);
     reviewed-owner-only = builtins.attrNames base.principals == [ "ryan" ]
       && base.principals == identity.registry.principals
       && builtins.attrNames base.devices == [ "rymac" ]
       && base.devices.rymac.domains == [ "personal:ryan" "family:holt" ];
-    incomplete-registry-not-published = !c.services.atrium.enable
-      && c.services.atrium.registry == null
-      && c.services.atrium.generated == { }
-      && !(c.environment.etc ? "atrium/desired-state/resolver.json")
-      && !(base ? teams) && !(base ? modelBackends) && !(base ? serviceCredentials);
+    complete-nix-registry-published = c.services.atrium.enable
+      && registry.environment == "production"
+      && builtins.length (builtins.attrNames c.services.atrium.generated) == 6
+      && c.environment.etc ? "atrium/desired-state/resolver.json"
+      && !(c.environment.etc ? "atrium/bootstrap/registry-base.json")
+      && runtime.resolver.policy_path == "/etc/atrium/desired-state/resolver.json";
+    groups-are-eligibility-not-observations =
+      builtins.attrNames registry.groups == [ "atrium-family" "atrium-personal-ryan" ]
+      && registry.principals.ryan.groups == [ "atrium-personal-ryan" "atrium-family" ]
+      && registry.instances.personal-data-read.acl.principals == [ ]
+      && registry.instances.family-home-read.acl.principals == [ ]
+      && !bootstrap.groups.memberships_created && !bootstrap.groups.observations_seeded
+      && gatewayDocuments.resolver.group_membership.nix_membership == "ceiling-only";
+    no-real-child-or-extra-human = builtins.attrNames
+      (lib.filterAttrs (_: principal: principal.kind == "human") registry.principals) == [ "ryan" ];
+    ordinary-whiskey-native-ceiling = registry.instances.personal-whiskey.permissions == [ "read" "write" ]
+      && registry.routeTemplates."cc.personal.ryan.whiskey".permissions == [ "read" "write" ]
+      && gatewayDocuments.whiskey.operation_ceiling == "companion-intersect-native-per-operation"
+      && !gatewayDocuments.whiskey.host_implies_write;
+    explicit-adult-opus-selection = !lib.any
+      (grant: grant.request.template_id == "cc.personal.ryan.opus-client")
+      bootstrap.ordinary.grants
+    && (builtins.head bootstrap.opus.grants).request.models == [ "cc.personal.ryan.opus" ]
+    && units.atrium-select-opus.wantedBy == [ ]
+    && lib.hasInfix "seed-policy --append" units.atrium-select-opus.serviceConfig.ExecStart;
+    declared-cloud-models-only =
+      registry.modelBackends."cc.personal.ryan.sonnet".model == "anthropic/claude-sonnet-5"
+      && registry.modelBackends."cc.personal.ryan.opus".model == "anthropic/claude-opus-5"
+      && registry.modelBackends."cc.family.holt.haiku".model == "anthropic/claude-haiku-4-5-20251001"
+      && lib.all (alias: alias.fallbacks == [ ] && lib.length alias.backends == 1)
+        (builtins.attrValues registry.aliases);
+    new-owned-objects-only = lib.all (lib.hasPrefix "cc.")
+      (builtins.attrNames registry.teams ++ builtins.attrNames registry.aliases
+        ++ builtins.attrNames registry.modelTemplates ++ builtins.attrNames registry.modelBackends)
+    && gatewayDocuments.litellm.ownership.unowned_objects == "leave-unchanged"
+    && lib.all (model: !(lib.hasPrefix "cc." model.name)) c.modules.services.litellm.models;
+    distinct-wing-provider-references =
+      registry.serviceCredentials."cc.personal.ryan.anthropic".runtimePath
+      != registry.serviceCredentials."cc.family.holt.anthropic".runtimePath
+      && registry.serviceCredentials."cc.personal.ryan.anthropic".account == "atrium-personal-ryan-anthropic"
+      && registry.serviceCredentials."cc.family.holt.anthropic".account == "atrium-family-holt-anthropic"
+      && models.controllerCredentials.personal-anthropic != models.controllerCredentials.family-anthropic;
+    approved-per-key-budget-periods = lib.all
+      (template:
+        if template.credentialKind == "client"
+        then template.budget == { usd = 1; durationSeconds = 3600; }
+          && template.maxLifetimeSeconds == 3600
+        else template.budget == { usd = 2; durationSeconds = 86400; })
+      (builtins.attrValues registry.modelTemplates);
+    no-shell-filesystem-or-household-writes = !(registry.deployments ? sidecar)
+      && lib.all (instance: instance.affinity == "remote") (builtins.attrValues registry.instances);
     real-runtime-commands = lib.hasPrefix "${lib.getExe packages.resolver} --config"
       units.atrium-resolver.serviceConfig.ExecStart
     && lib.hasSuffix "serve --port 18765" units.atrium-resolver.serviceConfig.ExecStart
@@ -75,7 +158,7 @@ let
       units.atrium-device-registration.serviceConfig.ExecStart;
     runtime-settings-restart-services = lib.all
       (name: units.${name}.restartTriggers
-        == [ c.environment.etc."atrium/runtime/${name}.json".source ])
+        == [ c.environment.etc."atrium/runtime/${name}.json".source c.services.atrium.generated.resolver ])
       [ "atrium-resolver" "atrium-device-registration" ];
     firewall-startup-is-required = lib.all
       (name: lib.elem "firewall.service" units.${name}.requires
@@ -96,6 +179,14 @@ let
       && units.atrium-trust-initialize.wantedBy == [ ]
       && !lib.elem "atrium-initialize.service" units.atrium-resolver.requires
       && !lib.elem "atrium-trust-initialize.service" units.atrium-resolver.requires;
+    model-initialization-is-manual = lib.all
+      (name: units.${name}.wantedBy == [ ])
+      [
+        "atrium-model-resolver-initialize"
+        "atrium-model-controller-initialize"
+        "atrium-model-admission-initialize"
+        "atrium-seed-policy"
+      ];
     initialization-never-resets = lib.hasInfix "test ! -e ${runtime.paths.resolver}/resolver.sqlite3"
       units.atrium-initialize.script
     && lib.hasInfix "--enrollment /etc/atrium/bootstrap/identity.json" units.atrium-initialize.script
@@ -170,6 +261,50 @@ let
       c.environment.etc."atrium/runtime/adoption.json".text == runtime.adoption
     && !runtime.adoption.home_mcp.enabled && !runtime.adoption.models.enabled
     && !runtime.adoption.whiskey.enabled;
+    model-private-custody = modelAdopted.systemd.services.atrium-reconciler.serviceConfig.User == "atrium-reconciler"
+      && modelAdopted.virtualisation.oci-containers.containers.litellm.user == "1064:1064"
+      && modelAdopted.users.users.atrium-model-gateway.extraGroups == [ "atrium-model-metadata" ]
+      && !lib.elem "atrium-whiskey-delivery" modelAdopted.users.users.atrium-model-gateway.extraGroups
+      && lib.all
+      (volume: !(lib.hasInfix "${models.private.controller}:" volume)
+        && !(lib.hasInfix "${runtime.paths.resolver}:" volume)
+        && !(lib.hasInfix "/run/atrium-delivery/" volume))
+      modelAdopted.virtualisation.oci-containers.containers.litellm.volumes;
+    live-producer-publications = models.resolver.publication_directory == models.exports.resolver
+      && models.controller.association_snapshot == "${models.exports.resolver}/associations.json"
+      && models.resolver.controller_inventory_file == "${models.exports.controller}/native-bindings.json"
+      && models.admission.producers == [
+      { id = "resolver"; kind = "resolver"; path = "${models.exports.resolver}/admission-associations.json"; publisher_uid = 1060; }
+      { id = "controller-services"; kind = "controller-service"; path = "${models.exports.controller}/service-associations.json"; publisher_uid = 1063; }
+    ]
+      && models.metadataGroup.gid != models.deliveryGroup.gid
+      && lib.hasInfix " --no-rotate" modelAdopted.systemd.services.atrium-reconciler.serviceConfig.ExecStart;
+    gateway-private-transport = modelAdopted.modules.services.litellm.listenAddress == "127.0.0.1"
+      && modelAdopted.modules.services.litellm.internalPort == 4100
+      && modelAdopted.virtualisation.oci-containers.containers.litellm.ports == [ ]
+      && lib.elem "--network=host" modelAdopted.virtualisation.oci-containers.containers.litellm.extraOptions
+      && lib.elem "firewall.service" modelAdopted.systemd.services.podman-litellm.requires
+      && modelAdopted.modules.services.litellm.models == c.modules.services.litellm.models
+      && modelAdopted.modules.services.litellm.image == c.modules.services.litellm.image;
+    exact-native-mtls-wiring =
+      lib.hasInfix "serve-native-policy --port 18767"
+        nativeAdopted.systemd.services.atrium-native-policy.serviceConfig.ExecStart
+      && lib.hasInfix "native-policy --template"
+        nativeAdopted.systemd.services.atrium-native-policy.serviceConfig.ExecStartPre
+      && lib.elem "/run/atrium-native-mcp/native.env"
+        nativeAdopted.systemd.services.homelab-mcp.serviceConfig.EnvironmentFile
+      && lib.hasInfix "tls_trust_pool file /run/credentials/caddy.service/atrium-native-ca"
+        nativeAdopted.modules.services.caddy.virtualHosts.homelab-mcp.reverseProxyBlock
+      && nativeAdopted.systemd.services.atrium-native-deny-initialize.wantedBy == [ ];
+    native-deny-history-is-not-reinitialized = lib.all
+      (path: lib.elem path nativeAdopted.systemd.services.homelab-mcp.unitConfig.AssertFileNotEmpty)
+      [ "/var/lib/homelab-mcp/denial/owner.json" "/var/lib/homelab-mcp/denial/denial.sqlite" ];
+    legacy-native-scope-maps-preserved =
+      let
+        original = builtins.fromJSON c.services.homelab-mcp.settings.HOMELAB_MCP_RESTRICTED_SCOPES;
+        adopted = builtins.fromJSON nativeAdopted.services.homelab-mcp.settings.HOMELAB_MCP_RESTRICTED_SCOPES;
+      in
+      lib.all (name: original.${name} == adopted.${name}) (builtins.attrNames original);
     persistent-state-no-empty-restore = lib.all
       (name: c.modules.storage.datasets.services.${name}.mountpoint == "/var/lib/${name}"
         && !c.modules.storage.datasets.services.${name}.protection.allowEmptyBootstrap)
