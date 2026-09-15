@@ -67,8 +67,75 @@ Production identities are centrally allocated in `lib/service-uids.nix`:
 * `/var/lib/atrium-policy`: root-owned policy provenance. No empty policy is
   generated, copied from a fixture or inferred from absent state.
 
-Runtime listeners receive only four needed device-CA/registration files through
-systemd `LoadCredential`. Resolver signing stays live in its own private ring.
+Runtime listeners receive the four needed device-CA/registration files through
+systemd `LoadCredential`. Only the resolver additionally receives the four
+native broker files and/or `model-management` when those adoption flags are
+explicitly enabled. Resolver signing stays live in its own private ring.
+
+### Foundation credential projection
+
+Systemd 258 supplies these credentials inside each service's private mount
+namespace: a root-owned `0550` directory and `0440` files on read-only tmpfs,
+with a POSIX ACL granting only root and the resolver UID access. The group
+mode bits are the ACL mask, not a grant to the root group. This is valid
+systemd custody, but it is not the service-owned private-file contract required
+by Atrium's existing readers. Host-global `/run/credentials` visibility cannot
+diagnose a private service namespace.
+
+The two foundation units therefore project their fixed `LoadCredential` sets,
+as the existing resolver UID1060, before starting the application:
+
+| Unit | Volatile `RuntimeDirectory` | Application material directory |
+| --- | --- | --- |
+| `atrium-resolver` | `/run/atrium-resolver-credentials` | `material/` |
+| `atrium-device-registration` | `/run/atrium-device-registration-credentials` | `material/` |
+
+Both directories are service-owned `0700`; copied files are `0400`. The
+projector verifies the exact root/service-only source ACL and read-only mount,
+opens directories and files without following symlinks, bounds reads, creates
+files exclusively, and atomically publishes a complete directory. Unexpected
+names, partial native sets, nonempty destinations, unsafe metadata and failed
+copies stop startup. Failed staging is cleaned; `RuntimeDirectoryPreserve=no`
+also removes all volatile copies on stop, failure or restart. No existing key
+is regenerated, changed in place, relabeled or copied into durable state.
+
+The same selected credential map drives `LoadCredential` and projection.
+Every configured consumer on these two units points to that unit's material
+directory:
+
+| Names | Consumer |
+| --- | --- |
+| `device-ca`, `device-ca-key` | Real `DeviceCertificateAuthority` |
+| `registration-cert`, `registration-key`, `device-ca` | Direct registration TLS configuration |
+| `native-ca`, `native-client-cert`, `native-client-key`, `native-jwks` | Optional resolver `home_mcp_native.transport_context` |
+| `model-management` | Optional resolver `litellm_native.read_controller_key` |
+
+Shared `private_directory`, `private_open`, CA profile, key-pair and validity
+checks remain unchanged. Native-policy, Home MCP, controller, model initializer,
+Caddy and Whiskey credential paths are not redirected. Provider references,
+adoption flags, UID separation, persistent signing/deny state, public issuer,
+ports and the admitted `cc.atrium.operator` client are unchanged.
+
+`atrium-forge-credential-projection` checks all four native/model adoption
+combinations and both units. `atrium-forge-credential-systemd` is a bounded
+NixOS test guest using actual systemd `LoadCredential`, the production
+projector, actual CA/TLS/native/model readers and the current TLS bootstrap
+profile. It generates synthetic keys only in guest `/run`, tests paired
+custody/profile/key/expiry refusals, failed-copy cleanup and restart cleanup.
+Its execution status must be reported separately from evaluation; preparing
+this fixture is not an executed N03 gate or a full resolver-policy test.
+
+The [2026-09-15 deployment receipt](evidence/atrium-credential-projection.json)
+records actual execution at `6b6c1eda`: two real `LoadCredential` reproductions,
+two permits through the real readers, 17 denials and 12 cleanup checks, in
+116.4 seconds. The owned guest was terminated and its exact PIDs checked absent;
+the qualified fixture lease was released afterward. Earlier dependency/build
+timeouts remain recorded as failures, not relabeled passes. All six focused
+checks and whole-flake evaluation for every system pass at `e88262df`.
+Projection and runtime-fixture sources are unchanged between those revisions.
+This proves the startup-custody correction, not live Forge startup, full
+T1/T4/T8/T15/T20/T26 policy/adapter gates, native adoption or deployment.
+
 The six TLS roots separately authorize enrolled devices, registration servers,
 native servers, resolver issuance clients, native-policy servers and
 native-policy clients. Server/client purposes and exact SANs are explicit.

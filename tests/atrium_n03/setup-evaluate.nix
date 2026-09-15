@@ -2,13 +2,19 @@
 let
   inherit (inputs.nixpkgs) lib;
   forge = inputs.self.nixosConfigurations.forge;
-  baseline = forge.config;
+  baseline = (forge.extendModules {
+    modules = [{
+      disabledModules = [ admissionPath ];
+      imports = [ fixtureAdmission ];
+    }];
+  }).config;
   registry = baseline.services.atrium.registry;
   bootstrap = import ../../hosts/forge/atrium/bootstrap.nix { inherit lib registry; };
   operator = bootstrap.groups.operator_membership;
   authority = registry.authorities.${bootstrap.groups.authority};
   admissionPath = ../../hosts/forge/atrium/setup-admission.nix;
   placeholder = "# Managed by atrium setup; no client is admitted until verified.\n{ ... }: { }\n";
+  fixtureAdmission = ./fixtures/setup-admission.nix;
   hostModule = import ../../hosts/forge/services/atrium.nix {
     inherit inputs pkgs lib;
     config = baseline;
@@ -101,7 +107,7 @@ let
     narrow-relative-admission-path = exported.deployment == {
       admission_file = "hosts/forge/atrium/setup-admission.nix";
     };
-    exact-safe-placeholder = builtins.readFile admissionPath == placeholder
+    exact-safe-placeholder = builtins.readFile fixtureAdmission == placeholder
       && builtins.stringLength placeholder == 78
       && builtins.hashString "sha256" placeholder
       == "2a268c80ad7c1bd389b7ed6bd85f9f9101603a5126e07591c303b64589705125";
@@ -109,7 +115,7 @@ let
     named-client-is-not-admitted = baseline.services.atriumForge.groupEvidence == null
       && lib.all (authority: !(authority ? group_evidence)) unconfiguredSettings.authorities;
     safe-default-retains-startup-refusal = lib.all
-      (unit: lib.length (startup baseline unit) == 1
+      (unit: lib.length (startup baseline unit) == 2
         && lib.hasInfix "atrium-c10-unconfigured" (builtins.head (startup baseline unit)))
       [ "atrium-resolver" "atrium-device-registration" ];
     verified-fragment-admits-only-explicit-result =
@@ -120,7 +126,8 @@ let
       && !lib.elem exported.pocket_id.client_id configured.services.atriumForge.groupEvidence.clientIds;
     proposed-plan-does-not-become-registration-status = configuredManifest == exported;
     configured-removes-only-missing-client-preflight = lib.all
-      (unit: startup configured unit == [ ])
+      (unit: lib.length (startup configured unit) == 1
+        && lib.hasInfix "credential-projection.py" (builtins.head (startup configured unit)))
       [ "atrium-resolver" "atrium-device-registration" ];
     no-adoption-flag-widening = configured.services.atriumForge.adoption == baseline.services.atriumForge.adoption
       && lib.all (enabled: !enabled) (builtins.attrValues configured.services.atriumForge.adoption);

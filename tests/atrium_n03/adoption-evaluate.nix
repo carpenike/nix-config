@@ -122,10 +122,10 @@ let
       && native.services.atrium.registry.deployments.home-mcp.endpoint == "https://mcp.holthome.net";
     separate-private-native-issuance-transport = nativeBroker.transport_endpoint
       == "https://127.0.0.1:9200/cc/issue"
-      && nativeBroker.ca_certificate_path == "/run/credentials/atrium-resolver.service/native-ca"
-      && nativeBroker.client_certificate_path == "/run/credentials/atrium-resolver.service/native-client-cert"
-      && nativeBroker.client_private_key_path == "/run/credentials/atrium-resolver.service/native-client-key"
-      && nativeBroker.verification_keys_path == "/run/credentials/atrium-resolver.service/native-jwks";
+      && nativeBroker.ca_certificate_path == "/run/atrium-resolver-credentials/material/native-ca"
+      && nativeBroker.client_certificate_path == "/run/atrium-resolver-credentials/material/native-client-cert"
+      && nativeBroker.client_private_key_path == "/run/atrium-resolver-credentials/material/native-client-key"
+      && nativeBroker.verification_keys_path == "/run/atrium-resolver-credentials/material/native-jwks";
     direct-native-tls = lib.hasInfix "serve-native-policy --port 18767"
       native.systemd.services.atrium-native-policy.serviceConfig.ExecStart
     && lib.hasInfix "tls_trust_pool file /run/credentials/caddy.service/atrium-native-ca"

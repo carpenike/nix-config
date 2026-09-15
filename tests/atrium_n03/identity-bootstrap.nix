@@ -56,8 +56,8 @@ pkgs.runCommand "atrium-pocketid-bootstrap"
     assert foundation.policy_path == runtime.policy_path
     assert foundation.group_authority == "pocketid"
     assert runtime.home_mcp is None and runtime.litellm is None
-    assert runtime.devices.ca_private_key_path.parent == Path("/run/credentials/atrium-resolver.service")
-    assert registration.devices.ca_private_key_path.parent == Path("/run/credentials/atrium-device-registration.service")
+    assert runtime.devices.ca_private_key_path.parent == Path("/run/atrium-resolver-credentials/material")
+    assert registration.devices.ca_private_key_path.parent == Path("/run/atrium-device-registration-credentials/material")
     assert len(tls.authorities) == 6 and len(tls.certificates) == 5
     assert {cert.id: cert.authority for cert in tls.certificates} == {
         "registration-server": "registration-ca", "native-server": "native-ca",

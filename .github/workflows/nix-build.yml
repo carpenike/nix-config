@@ -123,6 +123,10 @@ jobs:
               - 'flake.lock'
               - 'lib/service-uids.nix'
               - 'lib/host-defaults.nix'
+              - 'hosts/forge/services/atrium.nix'
+              - 'hosts/forge/atrium/runtime.nix'
+              - 'hosts/forge/atrium/models.nix'
+              - 'hosts/forge/atrium/credential-projection.*'
               - 'tests/atrium_n03/**'
               - '.github/workflows/nix-build.yml'
             global:
@@ -256,6 +260,24 @@ jobs:
             .#checks.x86_64-linux.atrium-n03-caddy \
             .#checks.x86_64-linux.atrium-n03-model-preparation \
             .#checks.x86_64-linux.atrium-n03-model-caddy-preview
+
+      - name: Prepare private credential validation dependencies
+        timeout-minutes: 30
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-forge-credential-projection \
+            .#checks.x86_64-linux.atrium-forge-c10-settings \
+            .#checks.x86_64-linux.atrium-forge-c10-schema \
+            .#checks.x86_64-linux.atrium-forge-adoption-wiring \
+            .#checks.x86_64-linux.atrium-forge-credential-systemd.driver
+
+      - name: Validate private credential projection through actual systemd
+        timeout-minutes: 10
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-forge-credential-systemd
 
   nix-build:
     needs: changes
