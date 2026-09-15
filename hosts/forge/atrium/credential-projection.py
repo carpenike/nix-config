@@ -7,8 +7,12 @@ import struct
 from contextlib import ExitStack
 
 UNITS = ("atrium-resolver", "atrium-device-registration")
-DEVICE = frozenset(("device-ca", "device-ca-key", "registration-cert", "registration-key"))
-NATIVE = frozenset(("native-ca", "native-client-cert", "native-client-key", "native-jwks"))
+DEVICE = frozenset(
+    ("device-ca", "device-ca-key", "registration-cert", "registration-key")
+)
+NATIVE = frozenset(
+    ("native-ca", "native-client-cert", "native-client-key", "native-jwks")
+)
 MODEL = frozenset(("model-management",))
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -65,6 +69,7 @@ def project(unit, names):
     ):
         raise ValueError("invalid credential selection")
     with ExitStack() as descriptors:
+
         def opened(path, flags, *, parent=None, mode=0o400):
             descriptor = os.open(path, flags, mode, dir_fd=parent)
             descriptors.callback(os.close, descriptor)
@@ -89,7 +94,8 @@ def project(unit, names):
                 limit = 4096 if name == "model-management" else 32768
                 with ExitStack() as files:
                     reader = os.open(
-                        name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        name,
+                        os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC,
                         dir_fd=source,
                     )
                     files.callback(os.close, reader)
@@ -99,8 +105,14 @@ def project(unit, names):
                     if not material or len(material) > limit:
                         raise ValueError("invalid credential size")
                     writer = os.open(
-                        name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
-                        0o400, dir_fd=pending,
+                        name,
+                        os.O_WRONLY
+                        | os.O_CREAT
+                        | os.O_EXCL
+                        | os.O_NOFOLLOW
+                        | os.O_CLOEXEC,
+                        0o400,
+                        dir_fd=pending,
                     )
                     created.append(name)
                     files.callback(os.close, writer)
@@ -123,7 +135,9 @@ def project(unit, names):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("unit", choices=UNITS)
-    parser.add_argument("credentials", nargs="+", choices=sorted(DEVICE | NATIVE | MODEL))
+    parser.add_argument(
+        "credentials", nargs="+", choices=sorted(DEVICE | NATIVE | MODEL)
+    )
     args = parser.parse_args()
     try:
         project(args.unit, args.credentials)
