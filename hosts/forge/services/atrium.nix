@@ -22,6 +22,7 @@ let
   resolver = lib.getExe packages.resolver;
   json = value: builtins.toJSON value;
   loadCredentials = values: lib.mapAttrsToList (name: path: "${name}:${path}") values;
+  credentialProjection = import ../atrium/credential-projection.nix { inherit lib; };
   hardened = {
     NoNewPrivileges = true;
     PrivateTmp = true;
@@ -52,47 +53,52 @@ let
     StateDirectoryMode = "0700";
     ReadWritePaths = [ "/var/lib/${user}" ];
   };
-  serve = unit: command: port: (mounted [
-    runtime.paths.resolver
-    runtime.paths.trust
-    runtime.paths.policy
-  ]) // {
-    description = "Atrium ${command} with explicit identity and policy initialization";
-    wantedBy = [ "multi-user.target" ];
-    wants = [ "network-online.target" ];
-    requires = [ "zfs-service-datasets.service" "firewall.service" ];
-    after = [ "zfs-service-datasets.service" "network-online.target" "firewall.service" ];
-    restartTriggers = [
-      config.environment.etc."atrium/runtime/${unit}.json".source
-      config.services.atrium.generated.resolver
-    ];
-    unitConfig = {
-      RequiresMountsFor = [ runtime.paths.resolver runtime.paths.trust runtime.paths.policy ];
-      AssertPathExists = [
-        "${runtime.paths.resolver}/foundation.initialized"
-        "${runtime.paths.resolver}/resolver.sqlite3"
-        runtime.resolver.policy_path
-      ];
-      AssertFileNotEmpty = [
-        "${runtime.paths.resolver}/foundation.initialized"
-        "${runtime.paths.resolver}/resolver.sqlite3"
-        runtime.resolver.policy_path
-      ];
-    };
-    serviceConfig = (privateState "atrium-resolver") // {
-      ExecStart = "${resolver} --config /etc/atrium/runtime/${unit}.json ${command} --port ${toString port}";
-      LoadCredential = loadCredentials (runtime.deviceCredentials
+  serve = unit: command: port:
+    let
+      credentials = runtime.deviceCredentials
         // lib.optionalAttrs (unit == "atrium-resolver" && config.services.atriumForge.adoption.native)
         runtime.brokerCredentials
         // lib.optionalAttrs (unit == "atrium-resolver" && config.services.atriumForge.adoption.models)
-        models.resolverCredentials);
-      ReadOnlyPaths = [ runtime.paths.policy ];
-      Restart = "on-failure";
-      RestartSec = "10s";
-    } // lib.optionalAttrs (!groupEvidenceConfigured) {
-      ExecStartPre = [ groupEvidenceRefusal ];
+        models.resolverCredentials;
+      projection = credentialProjection.serviceConfig { inherit pkgs unit credentials; };
+    in
+    (mounted [
+      runtime.paths.resolver
+      runtime.paths.trust
+      runtime.paths.policy
+    ]) // {
+      description = "Atrium ${command} with explicit identity and policy initialization";
+      wantedBy = [ "multi-user.target" ];
+      wants = [ "network-online.target" ];
+      requires = [ "zfs-service-datasets.service" "firewall.service" ];
+      after = [ "zfs-service-datasets.service" "network-online.target" "firewall.service" ];
+      restartTriggers = [
+        config.environment.etc."atrium/runtime/${unit}.json".source
+        config.services.atrium.generated.resolver
+      ];
+      unitConfig = {
+        RequiresMountsFor = [ runtime.paths.resolver runtime.paths.trust runtime.paths.policy ];
+        AssertPathExists = [
+          "${runtime.paths.resolver}/foundation.initialized"
+          "${runtime.paths.resolver}/resolver.sqlite3"
+          runtime.resolver.policy_path
+        ];
+        AssertFileNotEmpty = [
+          "${runtime.paths.resolver}/foundation.initialized"
+          "${runtime.paths.resolver}/resolver.sqlite3"
+          runtime.resolver.policy_path
+        ];
+      };
+      serviceConfig = (privateState "atrium-resolver") // projection // {
+        ExecStart = "${resolver} --config /etc/atrium/runtime/${unit}.json ${command} --port ${toString port}";
+        LoadCredential = loadCredentials credentials;
+        ExecStartPre = lib.optional (!groupEvidenceConfigured) groupEvidenceRefusal
+        ++ projection.ExecStartPre;
+        ReadOnlyPaths = [ runtime.paths.policy ];
+        Restart = "on-failure";
+        RestartSec = "10s";
+      };
     };
-  };
   outputRule = port: uid:
     "-o lo -d 127.0.0.1 -p tcp --dport ${toString port} -m owner ! --uid-owner ${toString uid} -j REJECT --reject-with tcp-reset";
   outputRules = [

@@ -1,5 +1,6 @@
 { lib, ids, runtime, registry }:
 let
+  projection = import ./credential-projection.nix { inherit lib; };
   roles = {
     resolver = { name = "atrium-resolver"; inherit (ids.atrium-resolver) uid gid; };
     controller = { name = "atrium-reconciler"; inherit (ids.atrium-reconciler) uid gid; };
@@ -52,7 +53,7 @@ in
     native_version = "v1.100.1";
     inherit (runtime) installation;
     runtime_directory = private.resolver;
-    controller_key_file = credential "atrium-resolver" "model-management";
+    controller_key_file = projection.path "atrium-resolver" "model-management";
     controller_inventory_file = "${exports.controller}/native-bindings.json";
     controller_desired_state_path = "/etc/atrium/desired-state/litellm.json";
     controller_publisher_uid = roles.controller.uid;

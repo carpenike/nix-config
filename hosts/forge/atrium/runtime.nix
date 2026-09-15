@@ -6,6 +6,7 @@
 }:
 let
   identity = import ./identity.nix { inherit lib; };
+  projection = import ./credential-projection.nix { inherit lib; };
   runtimeIdentitySettings = identity.settings // {
     authorities = map
       (authority: authority // lib.optionalAttrs
@@ -79,10 +80,10 @@ let
     group_authority = identity.authority.id;
     inherit signing;
     devices = {
-      ca_certificate_path = credential unit "device-ca";
-      ca_private_key_path = credential unit "device-ca-key";
-      server_certificate_path = credential unit "registration-cert";
-      server_private_key_path = credential unit "registration-key";
+      ca_certificate_path = projection.path unit "device-ca";
+      ca_private_key_path = projection.path unit "device-ca-key";
+      server_certificate_path = projection.path unit "registration-cert";
+      server_private_key_path = projection.path unit "registration-key";
       certificate_lifetime_seconds = 86400;
       max_challenges_per_principal = 32;
     };
@@ -90,10 +91,10 @@ let
       deployments.home-mcp = {
         endpoint = endpoints.nativeIssue;
         transport_endpoint = endpoints.nativeIssueTransport;
-        ca_certificate_path = credential unit "native-ca";
-        client_certificate_path = credential unit "native-client-cert";
-        client_private_key_path = credential unit "native-client-key";
-        verification_keys_path = credential unit "native-jwks";
+        ca_certificate_path = projection.path unit "native-ca";
+        client_certificate_path = projection.path unit "native-client-cert";
+        client_private_key_path = projection.path unit "native-client-key";
+        verification_keys_path = projection.path unit "native-jwks";
         timeout_seconds = 5;
       };
     };

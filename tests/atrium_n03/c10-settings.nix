@@ -2,21 +2,27 @@
 let
   inherit (pkgs) lib;
   forge = inputs.self.nixosConfigurations.forge;
-  baseline = forge.config;
+  # Exercise the deliberately unconfigured state, not the owner's admitted client.
+  baseline = (forge.extendModules {
+    modules = [{ services.atriumForge.groupEvidence = lib.mkForce null; }];
+  }).config;
   # Configuration fixtures only: not discovered or provisioned provider clients.
   fixtureClients = [ "fixture-c10-public-client" "fixture-c10-public-client-2" ];
   configured = (forge.extendModules {
     modules = [{
-      services.atriumForge.groupEvidence.clientIds = fixtureClients;
+      services.atriumForge.groupEvidence.clientIds = lib.mkForce fixtureClients;
     }];
   }).config;
   adoptedWithoutClients = (forge.extendModules {
-    modules = [{ services.atriumForge.adoption.models = true; }];
+    modules = [{
+      services.atriumForge.adoption.models = true;
+      services.atriumForge.groupEvidence = lib.mkForce null;
+    }];
   }).config;
   configuredNative = (forge.extendModules {
     modules = [{
       services.atriumForge = {
-        groupEvidence.clientIds = fixtureClients;
+        groupEvidence.clientIds = lib.mkForce fixtureClients;
         adoption.native = true;
       };
     }];
@@ -28,7 +34,7 @@ let
   withoutAdmission = parse baseline "runtime/adoption";
   canEvaluate = value: (builtins.tryEval (builtins.deepSeq
     (forge.extendModules {
-      modules = [{ services.atriumForge.groupEvidence = value; }];
+      modules = [{ services.atriumForge.groupEvidence = lib.mkForce value; }];
     }).config.services.atriumForge.groupEvidence
     true)).success;
   adoptionChecks = lib.filter
@@ -46,13 +52,14 @@ let
       (authority: !(authority ? group_evidence))
       unconfigured.authorities;
     unconfigured-startup-refuses = lib.all
-      (unit: lib.length (startup baseline unit) == 1
+      (unit: lib.length (startup baseline unit) == 2
         && lib.hasInfix "atrium-c10-unconfigured" (builtins.head (startup baseline unit)))
       [ "atrium-resolver" "atrium-device-registration" ];
     unconfigured-adoption-refuses = lib.length adoptionChecks == 1
       && !(builtins.head adoptionChecks).assertion;
     configured-startup-removes-only-missing-config-refusal = lib.all
-      (unit: startup configured unit == [ ])
+      (unit: lib.length (startup configured unit) == 1
+        && lib.hasInfix "credential-projection.py" (builtins.head (startup configured unit)))
       [ "atrium-resolver" "atrium-device-registration" ];
     explicit-exact-client-list = settings.group_authority == "pocketid"
       && (builtins.head settings.authorities).group_evidence == {
