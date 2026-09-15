@@ -14,7 +14,7 @@ let
   authority = registry.authorities.${bootstrap.groups.authority};
   admissionPath = ../../hosts/forge/atrium/setup-admission.nix;
   placeholder = "# Managed by atrium setup; no client is admitted until verified.\n{ ... }: { }\n";
-  fixtureAdmission = builtins.toFile "atrium-fixture-empty-admission.nix" placeholder;
+  fixtureAdmission = ./fixtures/setup-admission.nix;
   hostModule = import ../../hosts/forge/services/atrium.nix {
     inherit inputs pkgs lib;
     config = baseline;
