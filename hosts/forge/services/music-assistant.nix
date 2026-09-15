@@ -18,7 +18,7 @@
 # Architecture:
 #   browser ─► Caddy (TLS + PocketID SSO) ──► MA web UI/API (127.0.0.1:8095)
 #
-#   Home Assistant ─(WebSocket API)─► MA server (127.0.0.1:8095)
+#   Home Assistant ─(WebSocket API)─► MA server (10.20.0.30:8095)
 #                       via the core `music_assistant` integration, whose
 #                       Python dep `music-assistant-client` is already wired
 #                       into HA (see services/home-assistant.nix extraPackages).
@@ -28,7 +28,7 @@
 #   Ports (from the upstream module / docs):
 #     * 8095/tcp — web UI + WebSocket API (what humans and HA connect to).
 #                  NOT opened in the firewall; reached only via Caddy (humans)
-#                  or loopback (HA on the same box).
+#                  or a host-local connection to Forge's LAN IP (HA).
 #     * 8097/tcp — audio stream server; players fetch the rendered stream here.
 #                  Opened on the LAN manually below so players can reach it.
 #                  (The pinned nixpkgs module has no `openFirewall` option, so
@@ -39,9 +39,9 @@
 #   Music Assistant 2.9 has built-in account/token authentication. Caddy adds a
 #   second PocketID gate for the human-facing UI (caddySecurity.home requires the
 #   "home" group). The HA integration and players bypass Caddy: HA connects over
-#   loopback with its MA token, and players pull audio from the LAN stream port.
-#   The web UI port (8095) remains outside the firewall, so the only browser path
-#   is through the authenticated Caddy vhost.
+#   Forge's LAN IP with its MA token, and players pull audio from the LAN stream
+#   port. Port 8095 is not opened to remote clients by this module; human access
+#   remains through the authenticated Caddy vhost.
 #
 # Providers:
 #   Music/player providers are configured at runtime in the MA web UI and stored
@@ -74,8 +74,8 @@
 #   * Add household members to the PocketID "home" group (caddySecurity.home),
 #     otherwise the edge denies them.
 #   * After deploy: in Home Assistant add the "Music Assistant" integration and
-#     point it at the server URL `http://127.0.0.1:8095` (co-located) — or let
-#     it auto-discover via mDNS.
+#     point it at `http://10.20.0.30:8095` (co-located). For an existing entry,
+#     update its URL without deleting the entry or replacing its MA token.
 
 { config
 , lib
@@ -92,6 +92,7 @@ let
 
   listenAddr = "127.0.0.1";
   webPort = 8095; # MA web UI + WebSocket API (upstream default)
+  internalBaseUrl = "http://10.20.0.30:${toString webPort}";
 
   # bgutil PO-token provider (required by the YouTube Music provider, see the
   # "YouTube Music PO tokens" note in the header). Stateless HTTP server, default
@@ -219,7 +220,7 @@ in
       # Open the LAN-facing audio stream port so players can fetch the rendered
       # stream. The pinned nixpkgs module opens no ports itself. The web UI port
       # (8095) is deliberately NOT opened — humans go through Caddy, HA goes
-      # through loopback. Add provider-specific ports here if you enable them
+      # through a host-local connection to Forge's LAN IP. Add ports if needed
       # (e.g. snapcast 1780/tcp, slimproto 3483/9000/9090).
       networking.firewall.allowedTCPPorts = [ 8097 ];
 
@@ -238,11 +239,12 @@ in
         "@pkey"
       ];
 
-      # Keep the reverse-proxy URL distinct from MA's unprivileged internal
-      # listener. Also migrate the legacy Spotify token key atomically. Once the
-      # managed values are correct, subsequent starts are no-ops.
+      # Advertise the internal API URL so HA reconnects without PocketID's
+      # browser login redirect. The public URL belongs only to Caddy below.
+      # Preserve the unprivileged port and atomic legacy Spotify token migration;
+      # subsequent starts are no-ops once the managed values are correct.
       systemd.services.music-assistant.preStart = lib.mkBefore ''
-        ${configureMusicAssistant} ${dataDir}/settings.json https://${serviceDomain} ${toString webPort}
+        ${configureMusicAssistant} ${dataDir}/settings.json ${internalBaseUrl} ${toString webPort}
       '';
 
       # Caddy edge: TLS + PocketID SSO in front of MA's authenticated web UI.

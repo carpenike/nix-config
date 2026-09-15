@@ -3,10 +3,16 @@ let
   inherit (pkgs) lib;
   forge = inputs.self.nixosConfigurations.forge.config;
   adopted = (inputs.self.nixosConfigurations.forge.extendModules {
-    modules = [{ services.atriumForge.adoption.models = true; }];
+    modules = [{
+      services.atriumForge.adoption.models = true;
+      services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
+    }];
   }).config;
   nativeAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
-    modules = [{ services.atriumForge.adoption.native = true; }];
+    modules = [{
+      services.atriumForge.adoption.native = true;
+      services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
+    }];
   }).config;
   healthCommand = config: prefix:
     let
@@ -127,7 +133,10 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         assert template["acl"]["groups"] == required_groups[template["domain"]]
     assert set(data["authority_token_types"].values()) == {"access_token"}
     assert settings.group_authority == "pocketid"
-    assert data["group_evidence"]["status"] == "blocked-pending-c10"
+    assert data["group_evidence"]["status"] == "accepted-unconfigured"
+    assert data["group_evidence"]["amendment"]["accepted"] is True
+    assert data["group_evidence"]["configured"] is False
+    assert data["group_evidence"]["admitted_client_ids"] == []
     assert data["group_evidence"]["missing_groups"] == "deny"
     assert not data["group_evidence"]["principal_acl_fallback"]
     assert not data["group_evidence"]["unsigned_userinfo_fallback"]
@@ -215,7 +224,7 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "wrong_certificate_refused": True, "wrong_native_target_refused": True,
         "all_human_acls_remain_group_only": True,
         "identity_carrier_remains_access_token": True,
-        "group_carrier_integration": "blocked-pending-c10",
+        "group_carrier_integration": "accepted-unconfigured",
         "native_group_measurements_reproduced": False,
         "evaluated_container_health_commands_smoked": True,
         "health_network_boundary_exercised": False,

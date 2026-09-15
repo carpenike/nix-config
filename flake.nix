@@ -132,7 +132,7 @@
     # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/806ae19e853ae5614523430f5fc2397786fd9839";
+      url = "github:carpenike/atrium/1762ecb82cccc9c3aef3545f119ffe0f4e9e1682";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -194,9 +194,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Final app806-vendored candidate: native execution 8ff9ee2, followed
-      # only by the source-bound evidence update at ec1e796. No activation.
-      url = "github:carpenike/mcp/ec1e796d1ae8bca9d8d16a11f00aebc22b5ba4e7";
+      # Tested setup-artifact implementation vendors the exact app input.
+      # Later evidence-only commits are not runtime pins. No activation.
+      url = "github:carpenike/mcp/8523ee680e4531dd33e132435c36666464e2174c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -520,6 +520,12 @@
             atrium-forge-cloud-schema = import ./tests/atrium_n03/cloud-schema.nix {
               inherit inputs pkgs;
             };
+            atrium-forge-c10-settings =
+              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
+            atrium-forge-c10-schema =
+              (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
+            atrium-forge-setup = pkgs.writeText "atrium-forge-setup-checks.json"
+              (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit inputs pkgs; }));
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
             atrium-forge-adopted-caddy =
@@ -1221,6 +1227,9 @@
             });
         in
         {
+          lib.atriumSetupConfigs.forge = builtins.fromJSON
+            inputs.self.nixosConfigurations.forge.config.environment.etc."atrium/bootstrap/setup.json".text;
+
           #################### NixOS Configurations ####################
           #
           # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`

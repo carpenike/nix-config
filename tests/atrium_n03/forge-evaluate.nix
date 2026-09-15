@@ -29,10 +29,16 @@ let
     (inputs.homelab-mcp + "/vendor/atrium-artifacts.lock.json"));
   stateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
   modelAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
-    modules = [{ services.atriumForge.adoption.models = true; }];
+    modules = [{
+      services.atriumForge.adoption.models = true;
+      services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
+    }];
   }).config;
   nativeAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
-    modules = [{ services.atriumForge.adoption.native = true; }];
+    modules = [{
+      services.atriumForge.adoption.native = true;
+      services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
+    }];
   }).config;
   checks = {
     selected-application-pin = inputs.atrium.rev == pins.atrium;

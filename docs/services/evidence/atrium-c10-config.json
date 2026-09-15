@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.c10-config-preparation",
+  "branch": "atr/N03-c10-group-evidence",
+  "worktree": "/Users/ryan/src/nix-config-c10-groups",
+  "base_pr": 1094,
+  "base_commit": "2572f5bbd375b16df6b63f1e5e9ee6076bef1358",
+  "implementation_commit": "2b190760c73625d0faf4ee11573edb9362844d8c",
+  "contract": {
+    "amendment": "C10",
+    "status": "accepted",
+    "pr": 42,
+    "acceptance_revision": "e8e4d54",
+    "owner_direction": "move out with what you recommend",
+    "approval_question_pending": false
+  },
+  "operator_admission": {
+    "option": "services.atriumForge.groupEvidence",
+    "default": null,
+    "actual_public_client_ids_declared": [],
+    "client_id_inference_or_wildcard": false,
+    "no_verified_client_id_in_inspected_metadata": true,
+    "does_not_claim_live_provider_has_no_clients": true,
+    "inspected_nonsecret_metadata": [
+      "nix-config/hosts/forge/atrium/identity-bootstrap.json",
+      "nix-config/hosts/forge/atrium/pocketid-authority.json",
+      "nix-config/docs/services/atrium-identity-bootstrap.md",
+      "network-config/docs/pocketid.md#atrium-identity-bootstrap-export",
+      "network-config/docs/pocketid-site-holthome.md"
+    ],
+    "finding": "Owner subject and resource audience are established; recorded discovery found no Atrium client/resource registration. Existing native/consumer client names and synthetic fixture IDs are not admitted public OAuth clients.",
+    "live_audit_or_provisioning_performed": false,
+    "typed_limits": {
+      "client_count_min": 1,
+      "client_count_max": 64,
+      "client_id_max_bytes": 512,
+      "duplicates_allowed": false,
+      "whitespace_control_or_wildcard_allowed": false,
+      "max_token_lifetime_seconds": 3600
+    }
+  },
+  "settings": {
+    "selected_group_authority": "pocketid",
+    "configured_shape": "Authority.group_evidence={client_ids:explicit-operator-list,max_token_lifetime_seconds:3600}",
+    "unconfigured_shape": "group_evidence omitted",
+    "applies_to": [
+      "resolver",
+      "device-registration",
+      "native-policy",
+      "foundation"
+    ],
+    "identity_only_bootstrap_unchanged": true,
+    "resource_bearer_only": true,
+    "registry_acl_or_grant_widening": false,
+    "group_observations_seeded": false,
+    "unconfigured_serving": "explicit failing startup preflight",
+    "unconfigured_adoption": "Nix assertion refusal",
+    "configuration_is_not_native_qualification": true
+  },
+  "committed_runtime_inputs_unchanged": {
+    "atrium": "806ae19e853ae5614523430f5fc2397786fd9839",
+    "native": "ec1e796d1ae8bca9d8d16a11f00aebc22b5ba4e7",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
+    "litellm_version": "v1.100.1",
+    "litellm_manifest": "a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf"
+  },
+  "schema_candidate": {
+    "revision": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
+    "selection": "--override-input atrium github:carpenike/atrium/ca621d753529b3ba89e67fef6f3c3f80aade332d --no-write-lock-file",
+    "supersedes": "d7f15342dd515e913ce7554a349241c79060d5df",
+    "correction": "Paired endpoint processes valid explicit access-token group observations/removals and suppresses only absence observations.",
+    "host_configuration_shape_changed": false,
+    "final_pin_changed": false,
+    "parent_reported_core_cases": 125,
+    "parent_core_cases_reproduced_as_native_qualification_here": false
+  },
+  "checks": [
+    {
+      "name": "atrium-forge-c10-settings",
+      "status": "passed",
+      "assertions": 22,
+      "artifact": "/nix/store/22ga6gv9qfz5g5jac389d5nrbfsms5lr-atrium-forge-c10-settings.json"
+    },
+    {
+      "name": "atrium-forge-adoption-wiring",
+      "status": "passed",
+      "artifact": "/nix/store/g3qskg1ganfwkqf294jrfgllvlbpqsrp-atrium-forge-adoption-wiring.json"
+    },
+    {
+      "name": "atrium-forge-preparation",
+      "status": "passed",
+      "artifact": "/nix/store/qwdra0w5sf4439z4mwz5msn3w4ch3wkr-atrium-forge-preparation.json"
+    },
+    {
+      "name": "atrium-forge-c10-schema",
+      "status": "passed-with-explicit-candidate-override",
+      "artifact": "/nix/store/9kwgm7hrsljwnycvnpf6rijzmh73jb9z-atrium-forge-c10-schema",
+      "scope": "Actual Settings parser with configured/unconfigured authority and wrong selected-authority refusal; synthetic configuration client IDs only."
+    },
+    {
+      "name": "atrium-forge-cloud-schema",
+      "status": "passed-with-explicit-candidate-override",
+      "artifact": "/nix/store/2g3snsz982yzb8zh5csp3jhgcjxd6vb4-atrium-forge-cloud-schema"
+    }
+  ],
+  "validation_boundary": {
+    "platform": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "normal_commit_hooks": "passed without bypasses",
+    "native_pocketid_2_14_qualification": "not claimed; awaits parent receipt",
+    "full_forge_build": "deferred until qualified immutable runtime and matching native vendor inputs are supplied",
+    "full_build_command": "task -d /Users/ryan/src/nix-config-c10-groups nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "new_native_t_cases_claimed": false,
+    "live_operations": false
+  },
+  "preserved": {
+    "c9_budgets_and_per_wing_credentials": true,
+    "health_caddy_only_firewall": true,
+    "canonical_private_mcp_transport": true,
+    "scope_ids_do_not_imply_dataset_ownership": true,
+    "disabled_adoption_defaults": true,
+    "historical_c9_receipts_unchanged": true,
+    "primary_checkout_and_owner_edit_untouched": true,
+    "app_mcp_network_repositories_not_modified": true,
+    "no_new_agents_or_peer_messages": true
+  },
+  "remaining_inputs": [
+    "Actual admitted public OAuth client IDs, explicitly supplied/reviewed by the operator; no live provisioning is authorized here.",
+    "Parent-qualified immutable corrected C10 core and matching MCP vendor/native inputs; use ca621d7 rather than superseded d7 for upcoming consumption.",
+    "Parent's actual Pocket ID2.14 token-pair/helper qualification receipt before any native integration claim.",
+    "Explicit operator activation/provisioning and existing native data-ownership/egress prerequisites."
+  ]
+}

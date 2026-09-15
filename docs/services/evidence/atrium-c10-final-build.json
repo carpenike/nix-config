@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.c10-final-coordinated-build",
+  "branch": "atr/N03-c10-group-evidence",
+  "implementation_commit": "e49165f6d4c986c83d63291485c77891e3008b8d",
+  "status": "coordinated-c10-build-passed-operator-admission-unconfigured",
+  "contract": {
+    "c10_accepted": true,
+    "acceptance_revision": "e8e4d54a9888c895b665c6e4eb4c0a5d4d7bf53e",
+    "approval_blocker": false
+  },
+  "inputs": {
+    "atrium": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
+    "native": "a1d7322bc600df04ecc928cf2692ea71fb2b9fac",
+    "native_fix_execution_source": "c79bf79b6e712f683e72c710402cd69457737c12",
+    "native_vendor": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
+    "litellm_version": "v1.100.1",
+    "litellm_manifest": "a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf"
+  },
+  "native_qualification": {
+    "owner": "parent",
+    "pr": 79,
+    "reported_passed_cases": 625,
+    "c10_cases_included": 20,
+    "c10_cases_are_additive": false,
+    "three_targeted_lifecycle_cases": "parent confirmation handled separately; not claimed executed here",
+    "runtime_nix_vendor_diff_candidate_to_execution": "empty",
+    "runtime_nix_vendor_diff_execution_to_head": "empty",
+    "historical_failure": {
+      "candidate": "9c66234973ba0b43af8a61b8d229659dcc197ca6",
+      "preserved": true,
+      "diagnosis": "fixture shutdown cancellation orphan, not startup",
+      "correction": "Close only test-owned outbound transports after actual graceful lifespan.",
+      "auth_tls_budgets_assertions_changed": false,
+      "production_runtime_vendor_wire_changed": false
+    },
+    "executed_by_this_deployment": false
+  },
+  "pocketid_helper_qualification": {
+    "source_receipt": "docs/services/evidence/atrium-c10-qualified-core.json",
+    "network_report_revision": "51156b7a11b5e923414df5da31897c7843efeac8",
+    "network_execution_revision": "a2c99ed8f05b647b8566853757889d3e1a0bbb17",
+    "passed_checks": 53,
+    "helper_tests": 19,
+    "actual_native_and_signed_synthetic_layers_preserved": true,
+    "executed_by_this_deployment": false,
+    "qualification_fixture_clients_are_production_admissions": false
+  },
+  "checks": [
+    {"name": "atrium-forge-c10-settings", "status": "passed", "assertions": 22, "artifact": "/nix/store/22ga6gv9qfz5g5jac389d5nrbfsms5lr-atrium-forge-c10-settings.json"},
+    {"name": "atrium-forge-c10-schema", "status": "passed", "artifact": "/nix/store/9kwgm7hrsljwnycvnpf6rijzmh73jb9z-atrium-forge-c10-schema"},
+    {"name": "atrium-forge-preparation", "status": "passed", "assertions": 55, "artifact": "/nix/store/qwdra0w5sf4439z4mwz5msn3w4ch3wkr-atrium-forge-preparation.json"},
+    {"name": "atrium-forge-adoption-wiring", "status": "passed", "assertions": 32, "artifact": "/nix/store/g3qskg1ganfwkqf294jrfgllvlbpqsrp-atrium-forge-adoption-wiring.json"},
+    {"name": "atrium-forge-cloud-schema", "status": "passed", "artifact": "/nix/store/hd3pa6bhd25855bpaz2hai94j5217qdl-atrium-forge-cloud-schema"},
+    {"name": "atrium-identity-bootstrap", "status": "passed", "artifact": "/nix/store/lmc5v3n0zmi534qdm49j00937xxpj2sh-atrium-pocketid-bootstrap"},
+    {"name": "atrium-n03-units", "status": "passed", "artifact": "/nix/store/m0r7wfwd11jyi0q5bscl2ddrm1kr4mq7-atrium-n03-isolated-units.json"},
+    {"name": "atrium-n03-model-preparation", "status": "passed", "artifact": "/nix/store/yc0k1v8hi85izcnkk8ymwdhksmm5705a-atrium-n03-model-preparation.json"},
+    {"name": "atrium-forge-caddy", "status": "passed", "artifact": "/nix/store/rigwy1w53bj71n3cxkrzrqkicaj8ax23-atrium-forge-caddy-syntax"},
+    {"name": "atrium-forge-adopted-caddy", "status": "passed", "artifact": "/nix/store/ify71x4802iyspr3vl92b0ycc0z0h5q7-atrium-forge-adopted-caddy-syntax"},
+    {"name": "protection-manifest", "status": "passed", "artifact": "/nix/store/mfxddgc2ywr9ifqha17670qnc152bvp6-protection-manifest-check"}
+  ],
+  "check_scope": {
+    "platform": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "test_client_ids_are_explicit_fixtures_only": true,
+    "backup_guard": "evaluation passed without a local full Linux build",
+    "normal_commit_hooks": "passed without bypasses",
+    "new_native_or_as_conformance_claimed": false
+  },
+  "remote_build": {
+    "command": "task -d /Users/ryan/src/nix-config-c10-groups nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "implementation_commit": "e49165f6d4c986c83d63291485c77891e3008b8d",
+    "status": "passed-build-only",
+    "exit_status": 0,
+    "artifact": "/nix/store/9n482jkxgil2psrx6g49kfprafnhx79v-nixos-system-forge-25.11.20260630.b6018f8",
+    "derivation": "/nix/store/ldxmnhckv6i00hhqw75saw3x89vm94m1-nixos-system-forge-25.11.20260630.b6018f8.drv",
+    "remote_artifact_and_six_policy_documents_verified": true,
+    "built_empty_client_admission_verified": true,
+    "built_disabled_adoption_flags_verified": true,
+    "built_resolver_and_device_startup_refusal_verified": true,
+    "package_phase_summaries": [
+      {"passed": 916, "skipped": 19, "duration_seconds": 523.88},
+      {"passed": 916, "skipped": 19, "duration_seconds": 525.20}
+    ],
+    "repeated_package_phases_are_not_additive_unique_or_native_cases": true,
+    "activation": false,
+    "full_linux_closure_built_on_mac": false
+  },
+  "operator_requirements": {
+    "group_evidence_setting": null,
+    "actual_admitted_public_client_ids": [],
+    "unconfigured_serving_and_adoption_refusal": true,
+    "remaining": [
+      "Explicit operator-verified actual public OAuth client IDs admitted to the Atrium resource; no inference from helper fixtures or existing service names.",
+      "Authorized provider/controller credential provisioning and explicit identity, signing, TLS and admission-history initialization.",
+      "Explicit native refresh/client adoption approval and reviewed Whiskey egress bindings.",
+      "Native dataset ownership and per-human resource authorization; read-only profile IDs do not create private datasets.",
+      "Operator promotion/activation decision; no automatic live provisioning or deployment."
+    ]
+  },
+  "preserved": {
+    "historical_c9_c10_receipts_and_failures": true,
+    "group_only_acls_and_resource_bearer_identity": true,
+    "c9_budgets_and_per_wing_credentials": true,
+    "health_caddy_only_firewall": true,
+    "canonical_private_mcp_transport": true,
+    "primary_owner_edit_and_locked_spec": true,
+    "live_client_group_or_service_mutations": false,
+    "ci_retry_or_bypass": false,
+    "new_agents_or_peer_messages": false
+  }
+}

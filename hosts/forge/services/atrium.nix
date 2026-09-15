@@ -3,11 +3,22 @@ let
   composition = import ../atrium/configuration.nix {
     inherit config inputs pkgs lib mylib;
   };
-  inherit (composition) packages runtime registry bootstrap models;
+  inherit (composition) packages runtime registry bootstrap models setup;
   identity = runtime.identity;
   ids = mylib.serviceUids;
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   enabled = config.services.atriumForge.enable;
+  groupEvidenceConfigured = config.services.atriumForge.groupEvidence != null;
+  publicClientId = lib.types.addCheck lib.types.str
+    (value: value != "" && builtins.stringLength value <= 512
+      && builtins.match ".*[[:space:][:cntrl:]*?].*" value == null);
+  admittedClients = lib.types.addCheck (lib.types.listOf publicClientId)
+    (values: values != [ ] && lib.length values <= 64
+      && lib.length (lib.unique values) == lib.length values);
+  groupEvidenceRefusal = pkgs.writeShellScript "atrium-c10-unconfigured" ''
+    printf '%s\n' 'Atrium startup refused: explicitly declare admitted public OAuth client IDs for signed group evidence.' >&2
+    exit 1
+  '';
   resolver = lib.getExe packages.resolver;
   json = value: builtins.toJSON value;
   loadCredentials = values: lib.mapAttrsToList (name: path: "${name}:${path}") values;
@@ -78,6 +89,8 @@ let
       ReadOnlyPaths = [ runtime.paths.policy ];
       Restart = "on-failure";
       RestartSec = "10s";
+    } // lib.optionalAttrs (!groupEvidenceConfigured) {
+      ExecStartPre = [ groupEvidenceRefusal ];
     };
   };
   outputRule = port: uid:
@@ -97,11 +110,29 @@ in
 {
   imports = [
     inputs.atrium.nixosModules.atrium
+    ../atrium/setup-admission.nix
     ./atrium-models.nix
     ./atrium-adapters.nix
   ];
   options.services.atriumForge = {
     enable = lib.mkEnableOption "Forge's Atrium foundation custody and protected entrypoints";
+    groupEvidence = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule {
+        options = {
+          clientIds = lib.mkOption {
+            type = admittedClients;
+            description = "Exact operator-verified public OAuth client IDs admitted to the Atrium resource. No defaults, wildcards, client-name inference or live provisioning.";
+          };
+          maxTokenLifetimeSeconds = lib.mkOption {
+            type = lib.types.enum [ 3600 ];
+            default = 3600;
+            description = "Maximum original signed group-token source lifetime; fixed to the approved 3600-second deployment ceiling.";
+          };
+        };
+      });
+      default = null;
+      description = "Accepted C10's explicit client-admission declaration for the selected group authority. Null omits group_evidence and refuses serving/adoption; it does not grant or seed membership.";
+    };
     adoption = {
       models = lib.mkEnableOption "explicit new cc.* reconciliation and shared-gateway admission";
       native = lib.mkEnableOption "explicit Home MCP native-profile and selected-refresh cutover";
@@ -145,6 +176,11 @@ in
           assertion = config.networking.firewall.enable && !config.networking.nftables.enable;
           message = "Atrium's scoped loopback boundary uses Forge's existing iptables firewall.";
         }
+        {
+          assertion = groupEvidenceConfigured
+            || lib.all (adopted: !adopted) (builtins.attrValues config.services.atriumForge.adoption);
+          message = "Atrium adoption requires explicit operator-verified admitted public OAuth client IDs for C10; no inferred client or group fallback is permitted.";
+        }
       ];
 
       environment.systemPackages = [
@@ -159,6 +195,7 @@ in
         "atrium/bootstrap/groups.json".text = json bootstrap.groups;
         "atrium/bootstrap/ordinary-grants.json".text = json bootstrap.ordinary;
         "atrium/bootstrap/opus-selection.json".text = json bootstrap.opus;
+        "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;
         "atrium/runtime/adoption.json".text = json runtime.adoption;
@@ -195,6 +232,25 @@ in
           serviceConfig = (privateState "atrium-resolver") // {
             Type = "oneshot";
             PrivateNetwork = true;
+          };
+        };
+        atrium-foundation-check = lib.recursiveUpdate (mounted [ runtime.paths.resolver ]) {
+          description = "Validate existing Atrium resolver identity, deny history and signing custody";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          # A check must not let systemd create/chown state or grant write access.
+          serviceConfig = (builtins.removeAttrs (privateState "atrium-resolver") [
+            "StateDirectory"
+            "StateDirectoryMode"
+            "ReadWritePaths"
+          ]) // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ReadOnlyPaths = [ runtime.paths.resolver ];
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json check-foundation --enrollment /etc/atrium/bootstrap/identity.json --installation ${runtime.installation}";
+            StandardOutput = "null";
           };
         };
         atrium-seed-policy = (mounted [ runtime.paths.resolver ]) // {
@@ -341,6 +397,19 @@ in
           atrium-device-registration = "AtriumDeviceRegistration";
           atrium-registration-entry = "AtriumRegistrationEntry";
         } // {
+        atrium-foundation-check-failed = {
+          type = "promql";
+          alertname = "AtriumFoundationCheckFailed";
+          expr = ''node_systemd_unit_state{name="atrium-foundation-check.service",state="failed"} == 1'';
+          for = "2m";
+          severity = "high";
+          labels = { service = "atrium-resolver"; category = "security"; };
+          annotations = {
+            summary = "Atrium resolver foundation or signing custody is invalid";
+            description = "Use the independent Forge operator path; never erase, migrate or regenerate state to make a check pass.";
+            command = "systemctl status atrium-foundation-check.service";
+          };
+        };
         atrium-trust-check-failed = {
           type = "promql";
           alertname = "AtriumTrustCheckFailed";
