@@ -238,28 +238,16 @@ in
               options = {
                 enable = lib.mkEnableOption "Pushover alerting";
 
-                # One env file, not two secret files. Gatus 5.x substitutes
-                # only $VAR / ${VAR} in its config — it has no file-based
-                # secret loading — so the values have to arrive as real
-                # environment variables of the gatus process itself.
-                #
-                # The previous shape took two raw secret paths, loaded them
-                # with LoadCredential and `export`ed them from preStart. That
-                # cannot work: preStart is its own process, and its exports
-                # die with it. Gatus interpolated empty strings and refused
-                # every alert with "the provider wasn't configured properly"
-                # for months, across every endpoint, while the dashboard kept
-                # showing green.
-                environmentFile = lib.mkOption {
+                applicationTokenFile = lib.mkOption {
                   type = lib.types.nullOr lib.types.path;
                   default = null;
-                  example = "config.sops.templates.\"gatus-pushover-env\".path";
-                  description = ''
-                    Path to an EnvironmentFile defining GATUS_PUSHOVER_TOKEN
-                    and GATUS_PUSHOVER_USER. Read by systemd as root before
-                    dropping to the gatus user, so it must not be world
-                    readable and must never be in the Nix store.
-                  '';
+                  description = "Path to file containing Pushover application token";
+                };
+
+                userKeyFile = lib.mkOption {
+                  type = lib.types.nullOr lib.types.path;
+                  default = null;
+                  description = "Path to file containing Pushover user key";
                 };
 
                 priority = lib.mkOption {
@@ -421,28 +409,9 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Fail the build rather than repeat the silent version of this. Alerting
-    # that cannot send looks exactly like alerting with nothing to say, and
-    # that is precisely how the previous breakage survived unnoticed.
-    assertions = [{
-      assertion = !cfg.alerting.pushover.enable
-        || cfg.alerting.pushover.environmentFile != null;
-      message = ''
-        modules.services.gatus.alerting.pushover.environmentFile must be set
-        when Pushover alerting is enabled. Gatus substitutes only environment
-        variables, so GATUS_PUSHOVER_TOKEN and GATUS_PUSHOVER_USER have to be
-        delivered to the process through an EnvironmentFile.
-      '';
-    }];
-
     # Use native NixOS Gatus service
     services.gatus = {
       enable = true;
-
-      # Upstream sets EnvironmentFile= from this, so GATUS_PUSHOVER_TOKEN and
-      # GATUS_PUSHOVER_USER exist in gatus's own environment when it expands
-      # ${...} in the alerting config below.
-      environmentFile = cfg.alerting.pushover.environmentFile;
 
       settings = lib.mkMerge [
         # Core settings
@@ -493,7 +462,7 @@ in
       ];
     };
 
-    # Override systemd service for ZFS integration
+    # Override systemd service for ZFS integration and secrets
     systemd.services.gatus = {
       # Wait for ZFS datasets
       after = [ "local-fs.target" "zfs-mount.service" ];
@@ -505,14 +474,22 @@ in
         User = serviceName;
         Group = serviceName;
 
+        # Load credentials for secrets
+        LoadCredential = lib.optionals cfg.alerting.pushover.enable [
+          "pushover-token:${cfg.alerting.pushover.applicationTokenFile}"
+          "pushover-user:${cfg.alerting.pushover.userKeyFile}"
+        ];
+
         # Security hardening
         ReadWritePaths = [ cfg.dataDir ];
       };
 
-      # No preStart. Secrets reach gatus through services.gatus.environmentFile
-      # below, which upstream turns into EnvironmentFile= on this unit — the
-      # only mechanism that puts a variable in the environment of the process
-      # that actually reads it.
+      # Export credentials as environment variables for Gatus config interpolation
+      preStart = lib.mkIf cfg.alerting.pushover.enable ''
+        # Set up Pushover credentials from systemd credentials
+        export GATUS_PUSHOVER_TOKEN="$(cat $CREDENTIALS_DIRECTORY/pushover-token)"
+        export GATUS_PUSHOVER_USER="$(cat $CREDENTIALS_DIRECTORY/pushover-user)"
+      '';
     };
 
     # Create gatus user/group

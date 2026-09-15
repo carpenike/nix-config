@@ -31,17 +31,11 @@ in
           path = "/var/lib/gatus/data.db";
         };
 
-        # Pushover alerting configuration.
-        #
-        # One rendered env file rather than two raw secret paths: gatus can
-        # only read secrets as environment variables of its own process, and
-        # the previous shape exported them from preStart, which is a separate
-        # process whose exports never reached it. Every alert on this host was
-        # refused as "provider wasn't configured properly" while the status
-        # page stayed green.
+        # Pushover alerting configuration
         alerting.pushover = {
           enable = true;
-          environmentFile = config.sops.templates."gatus-pushover-env".path;
+          applicationTokenFile = config.sops.secrets."pushover/token".path;
+          userKeyFile = config.sops.secrets."pushover/user-key".path;
           priority = 1;
           sound = "siren";
           resolvedPriority = 0;
