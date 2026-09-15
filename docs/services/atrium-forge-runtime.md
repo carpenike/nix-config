@@ -125,6 +125,17 @@ custody/profile/key/expiry refusals, failed-copy cleanup and restart cleanup.
 Its execution status must be reported separately from evaluation; preparing
 this fixture is not an executed N03 gate or a full resolver-policy test.
 
+The [2026-09-15 deployment receipt](evidence/atrium-credential-projection.json)
+records actual execution at `6b6c1eda`: two real `LoadCredential` reproductions,
+two permits through the real readers, 17 denials and 12 cleanup checks, in
+116.4 seconds. The owned guest was terminated and its exact PIDs checked absent;
+the qualified fixture lease was released afterward. Earlier dependency/build
+timeouts remain recorded as failures, not relabeled passes. All six focused
+checks and whole-flake evaluation for every system pass at `e88262df`.
+Projection and runtime-fixture sources are unchanged between those revisions.
+This proves the startup-custody correction, not live Forge startup, full
+T1/T4/T8/T15/T20/T26 policy/adapter gates, native adoption or deployment.
+
 The six TLS roots separately authorize enrolled devices, registration servers,
 native servers, resolver issuance clients, native-policy servers and
 native-policy clients. Server/client purposes and exact SANs are explicit.
