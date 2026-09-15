@@ -66,13 +66,13 @@
   };
   usage-cli = {
     pname = "usage-cli";
-    version = "v6.9.0";
+    version = "v6.9.1";
     src = fetchFromGitHub {
       owner = "jdx";
       repo = "usage";
-      rev = "v6.9.0";
+      rev = "v6.9.1";
       fetchSubmodules = false;
-      sha256 = "sha256-LMgvgmh32CkbKzC6h/F6oYdI5iK2gdaCuoY2dVJrQp0=";
+      sha256 = "sha256-A8i6haTrCGoyr0whJITSfOS7KuDhQkH0N4ZXGKZz+hM=";
     };
   };
 }
