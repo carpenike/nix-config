@@ -220,9 +220,9 @@ Existing C9/C10 schema/composition/adoption checks remain in use. These are
 configuration/evaluation tests, not native setup execution or live admission
 proof.
 
-## Coordinated setup implementation inputs
+## First coordinated setup implementation inputs
 
-The final parent-supplied implementation inputs are pinned together in
+The first fully built parent-supplied implementation inputs were pinned together in
 `flake.nix`, generated `flake.lock` and `tests/atrium_n03/pins.json`:
 
 | Component | Immutable implementation |
@@ -256,7 +256,7 @@ Deployment validation uses the existing focused Darwin checks with
 implementation commit, through the existing remote Taskfile. Building a closure
 does not activate it, admit the proposed client or change any adoption flag.
 
-The coordinated input implementation is
+That coordinated input implementation is
 `d851351f64cb9be41b396a977c64d212eb2edf82`. All 12 selected existing Nix checks
 and the setup package passed in one Darwin invocation, including 206 deployment
 assertions. The actual installed setup parser also accepted and round-tripped
@@ -274,3 +274,27 @@ The remote artifact contains the matching setup manifest, six valid policy
 documents, the unchanged read-only foundation unit and missing-client startup
 refusal. Forge's active system remained unchanged. No host initialization,
 client admission, adoption or native setup command was performed.
+
+## Merge-candidate inputs and required public CI
+
+After preserving current main `a51bdca9ed9d139e3bb0e076968b574ba1181f33` in
+merge `fe3140e6340de9152da60d204a8487c593b1f525`, the promotion candidate pins:
+
+| Component | Immutable implementation |
+| --- | --- |
+| Atrium | `1762ecb82cccc9c3aef3545f119ffe0f4e9e1682` |
+| MCP artifacts | `8523ee680e4531dd33e132435c36666464e2174c` |
+| Whiskey, unchanged | `472f877952a363321c76ce580ce41dd0810e08b8` |
+
+The app change corrects a device-challenge expiry test to use each challenge's
+own expiry, including the one-second creation gap; it does not change runtime
+behavior. The parent reports 44 device-challenge cases passing and byte-identical
+shared payload members and six MCP exports. The full native-vendor/app equality
+assertion, policy/adoption defaults and concurrent upstream updates remain intact.
+
+Promotion requires actual GitHub `Lint` and `Nix Build Successful` success on the
+fixed PR head. The earlier remote artifact and receipts above remain bound to
+their original source; they do not replace these required statuses. CI evidence
+is retained on the PR without changing its head after the workflow starts. No
+rule bypass, automatic upgrade timer change, activation or service restart is
+part of this work.

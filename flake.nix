@@ -132,7 +132,7 @@
     # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/ec5ecea928a2e845236b4dc26d67f8424ec41436";
+      url = "github:carpenike/atrium/1762ecb82cccc9c3aef3545f119ffe0f4e9e1682";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -196,7 +196,7 @@
     homelab-mcp = {
       # Tested setup-artifact implementation vendors the exact app input.
       # Later evidence-only commits are not runtime pins. No activation.
-      url = "github:carpenike/mcp/21329a5a5857b801104b17bf6876babd31644559";
+      url = "github:carpenike/mcp/8523ee680e4531dd33e132435c36666464e2174c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
