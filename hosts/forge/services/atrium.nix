@@ -3,7 +3,7 @@ let
   composition = import ../atrium/configuration.nix {
     inherit config inputs pkgs lib mylib;
   };
-  inherit (composition) packages runtime registry bootstrap models;
+  inherit (composition) packages runtime registry bootstrap models setup;
   identity = runtime.identity;
   ids = mylib.serviceUids;
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
@@ -110,6 +110,7 @@ in
 {
   imports = [
     inputs.atrium.nixosModules.atrium
+    ../atrium/setup-admission.nix
     ./atrium-models.nix
     ./atrium-adapters.nix
   ];
@@ -194,6 +195,7 @@ in
         "atrium/bootstrap/groups.json".text = json bootstrap.groups;
         "atrium/bootstrap/ordinary-grants.json".text = json bootstrap.ordinary;
         "atrium/bootstrap/opus-selection.json".text = json bootstrap.opus;
+        "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;
         "atrium/runtime/adoption.json".text = json runtime.adoption;
@@ -230,6 +232,25 @@ in
           serviceConfig = (privateState "atrium-resolver") // {
             Type = "oneshot";
             PrivateNetwork = true;
+          };
+        };
+        atrium-foundation-check = lib.recursiveUpdate (mounted [ runtime.paths.resolver ]) {
+          description = "Validate existing Atrium resolver identity, deny history and signing custody";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          # A check must not let systemd create/chown state or grant write access.
+          serviceConfig = (builtins.removeAttrs (privateState "atrium-resolver") [
+            "StateDirectory"
+            "StateDirectoryMode"
+            "ReadWritePaths"
+          ]) // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ReadOnlyPaths = [ runtime.paths.resolver ];
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json check-foundation --enrollment /etc/atrium/bootstrap/identity.json --installation ${runtime.installation}";
+            StandardOutput = "null";
           };
         };
         atrium-seed-policy = (mounted [ runtime.paths.resolver ]) // {
@@ -376,6 +397,19 @@ in
           atrium-device-registration = "AtriumDeviceRegistration";
           atrium-registration-entry = "AtriumRegistrationEntry";
         } // {
+        atrium-foundation-check-failed = {
+          type = "promql";
+          alertname = "AtriumFoundationCheckFailed";
+          expr = ''node_systemd_unit_state{name="atrium-foundation-check.service",state="failed"} == 1'';
+          for = "2m";
+          severity = "high";
+          labels = { service = "atrium-resolver"; category = "security"; };
+          annotations = {
+            summary = "Atrium resolver foundation or signing custody is invalid";
+            description = "Use the independent Forge operator path; never erase, migrate or regenerate state to make a check pass.";
+            command = "systemctl status atrium-foundation-check.service";
+          };
+        };
         atrium-trust-check-failed = {
           type = "promql";
           alertname = "AtriumTrustCheckFailed";

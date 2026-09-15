@@ -132,7 +132,7 @@
     # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/ca621d753529b3ba89e67fef6f3c3f80aade332d";
+      url = "github:carpenike/atrium/1762ecb82cccc9c3aef3545f119ffe0f4e9e1682";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -194,9 +194,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Final C10 appca-vendored source: execution c79bf79, followed only
-      # by qualification evidence at a1d7322. No activation or provisioning.
-      url = "github:carpenike/mcp/a1d7322bc600df04ecc928cf2692ea71fb2b9fac";
+      # Tested setup-artifact implementation vendors the exact app input.
+      # Later evidence-only commits are not runtime pins. No activation.
+      url = "github:carpenike/mcp/8523ee680e4531dd33e132435c36666464e2174c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -524,6 +524,8 @@
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).evaluation;
             atrium-forge-c10-schema =
               (import ./tests/atrium_n03/c10-settings.nix { inherit inputs pkgs; }).schema;
+            atrium-forge-setup = pkgs.writeText "atrium-forge-setup-checks.json"
+              (builtins.toJSON (import ./tests/atrium_n03/setup-evaluate.nix { inherit inputs pkgs; }));
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
             atrium-forge-adopted-caddy =
@@ -1225,6 +1227,9 @@
             });
         in
         {
+          lib.atriumSetupConfigs.forge = builtins.fromJSON
+            inputs.self.nixosConfigurations.forge.config.environment.etc."atrium/bootstrap/setup.json".text;
+
           #################### NixOS Configurations ####################
           #
           # Building configurations available through `just rebuild` or `nixos-rebuild --flake .#hostname`

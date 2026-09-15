@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.setup-foundation-check-wiring-evidence",
+  "branch": "atr/N03-setup-manifest",
+  "pull_request": 1104,
+  "implementation_commit": "174f937a6289fe53dac0c195bd9ba914ad7064df",
+  "manifest_implementation_commit": "dc38d58035a66ac20b4468af47ea3cf117f0acda",
+  "prior_evidence_commit": "6384325de033c0ba4c51e31706cae0085330f729",
+  "unit": {
+    "name": "atrium-foundation-check.service",
+    "command": "atrium-resolver --config /etc/atrium/bootstrap/foundation.json check-foundation --enrollment /etc/atrium/bootstrap/identity.json --installation atrium-forge",
+    "executable_source": "lib.getExe of the pinned Atrium resolver package",
+    "installation_source": "runtime.installation",
+    "type": "oneshot",
+    "user": "atrium-resolver",
+    "group": "atrium-resolver",
+    "uid": 1060,
+    "private_network": true,
+    "private_hardening": "same as atrium-initialize, without StateDirectory, StateDirectoryMode or ReadWritePaths",
+    "requires": ["zfs-service-datasets.service"],
+    "requires_mounts_for": ["/var/lib/atrium-resolver"],
+    "assert_file_not_empty": [
+      "/var/lib/atrium-resolver/foundation.initialized",
+      "/var/lib/atrium-resolver/resolver.sqlite3"
+    ],
+    "read_only_paths": ["/var/lib/atrium-resolver"],
+    "state_directory_creation_or_chown": false,
+    "writable_state_exception": false,
+    "credential_copies": false,
+    "boot_or_timer_activation": false,
+    "automatic_initialization_or_repair": false,
+    "cached_success_or_automatic_retry": false,
+    "standard_output": "null",
+    "failure_alert": "AtriumFoundationCheckFailed",
+    "failure_alert_severity": "high",
+    "new_state_or_backup_job": false,
+    "existing_resolver_backup_and_protection_coverage_asserted": true
+  },
+  "frontend_contract": {
+    "existing_state_validation": "SQL integrity, exact migration hashes, configured authority/enrollment/bootstrap, deny generation and actual resolver signing keyring",
+    "first_completion_and_known_repeat_checks": [
+      "atrium-foundation-check.service",
+      "atrium-trust-check.service"
+    ],
+    "tls_check_user": "atrium-trust",
+    "tls_check_uid": 1061,
+    "tls_status_is_resolver_signing_proof": false,
+    "deployed_config_must_match_before_optional_initialization": true,
+    "operator_applies_generated_config_first": true,
+    "git_tracked_admission_required_before_native_plan_or_apply": true,
+    "force_staging_or_automatic_commit": false,
+    "frontend_behavior_executed_here": false
+  },
+  "preserved_manifest": {
+    "export": "lib.atriumSetupConfigs.forge",
+    "installed_path": "/etc/atrium/bootstrap/setup.json",
+    "equal_to_prior_receipt_manifest": true,
+    "initialization_units": [
+      "atrium-initialize",
+      "atrium-trust-initialize",
+      "atrium-seed-policy"
+    ],
+    "extra_arbitrary_commands": false,
+    "admission_path": "hosts/forge/atrium/setup-admission.nix",
+    "admission_git_tracked": true,
+    "placeholder_bytes": 78,
+    "placeholder_sha256": "2a268c80ad7c1bd389b7ed6bd85f9f9101603a5126e07591c303b64589705125",
+    "group_evidence": null,
+    "desired_client_admitted": false,
+    "startup_and_adoption_refusal_preserved": true
+  },
+  "checks": [
+    {"name": "atrium-forge-setup", "status": "passed", "assertions": 33, "new_foundation_assertions": 10, "artifact": "/nix/store/pmjqh8rklmvaq4gh9x8hsqrvg17c2am8-atrium-forge-setup-checks.json"},
+    {"name": "atrium-forge-c10-settings", "status": "passed", "artifact": "/nix/store/22ga6gv9qfz5g5jac389d5nrbfsms5lr-atrium-forge-c10-settings.json"},
+    {"name": "atrium-forge-c10-schema", "status": "passed", "artifact": "/nix/store/9kwgm7hrsljwnycvnpf6rijzmh73jb9z-atrium-forge-c10-schema"},
+    {"name": "atrium-forge-preparation", "status": "passed", "artifact": "/nix/store/qwdra0w5sf4439z4mwz5msn3w4ch3wkr-atrium-forge-preparation.json"},
+    {"name": "atrium-forge-adoption-wiring", "status": "passed", "artifact": "/nix/store/g3qskg1ganfwkqf294jrfgllvlbpqsrp-atrium-forge-adoption-wiring.json"},
+    {"name": "atrium-forge-cloud-schema", "status": "passed", "artifact": "/nix/store/hd3pa6bhd25855bpaz2hai94j5217qdl-atrium-forge-cloud-schema"}
+  ],
+  "validation_boundary": {
+    "platform": "aarch64-darwin",
+    "allow_import_from_derivation": false,
+    "rendered_systemd_unit_inspected": true,
+    "normal_commit_hooks": "passed without bypasses",
+    "foundation_command_executed": false,
+    "native_setup_or_t_cases_executed": false,
+    "full_forge_build_performed": false,
+    "live_mutations_or_secret_reads": false,
+    "primary_owner_edit_and_locked_spec_unchanged": true,
+    "historical_receipts_unchanged": true
+  },
+  "source_boundary": {
+    "inherited_app": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
+    "inherited_native": "a1d7322bc600df04ecc928cf2692ea71fb2b9fac",
+    "parent_frontend_candidate_not_pinned": "e617c02aa70677b906868547109ff192db092167",
+    "pins_changed": false,
+    "remaining": "Parent must supply the final packaged foundation-check/setup/adapter source and qualification. Then consume coordinated immutable inputs and build Forge through the existing remote Taskfile; this receipt proves host wiring only."
+  }
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "atrium": "ca621d753529b3ba89e67fef6f3c3f80aade332d",
-  "native": "a1d7322bc600df04ecc928cf2692ea71fb2b9fac",
+  "atrium": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+  "native": "8523ee680e4531dd33e132435c36666464e2174c",
   "consumer": "472f877952a363321c76ce580ce41dd0810e08b8",
   "native_runtime_extra": {
     "python": "3.13",
