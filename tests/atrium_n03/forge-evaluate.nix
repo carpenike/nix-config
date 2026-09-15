@@ -5,7 +5,10 @@ let
   packages = inputs.atrium.packages.${c.nixpkgs.hostPlatform.system};
   pins = builtins.fromJSON (builtins.readFile ./pins.json);
   identity = import ../../hosts/forge/atrium/identity.nix { inherit lib; };
-  runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
+  runtime = import ../../hosts/forge/atrium/runtime.nix {
+    inherit lib;
+    groupEvidence = c.services.atriumForge.groupEvidence;
+  };
   base = import ../../hosts/forge/atrium/registry-base.nix {
     inherit lib;
     homelabMcp = inputs.homelab-mcp;
@@ -70,7 +73,8 @@ let
       builtins.fromJSON c.environment.etc."atrium/runtime/atrium-resolver.json".text == runtime.resolver
       && builtins.fromJSON c.environment.etc."atrium/runtime/atrium-device-registration.json".text
       == runtime.registration
-      && runtime.resolver.authorities == [ identity.authority ]
+      && map (authority: builtins.removeAttrs authority [ "group_evidence" ])
+        runtime.resolver.authorities == [ identity.authority ]
       && !runtime.resolver.isolated_harness
       && runtime.resolver.signing.issuer == "https://atrium.holthome.net";
     source-native-catalog = base.catalogs.home-mcp.source
