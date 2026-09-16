@@ -162,10 +162,10 @@ let
                 except ControllerError as error:
                     assert name != "model-management" and error.code == "untrusted_file"
                 else:
-                    from atrium_resolver.device_certificates import DeviceCertificateAuthority
-
                     raise AssertionError("actual model reader accepted root-owned credentials directly")
         else:
+            from atrium_resolver.device_certificates import DeviceCertificateAuthority
+
             try:
                 DeviceCertificateAuthority(device_settings(source))
             except ProfileError as error:
