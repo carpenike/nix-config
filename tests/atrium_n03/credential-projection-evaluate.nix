@@ -1,7 +1,7 @@
 { inputs }:
 let
   inherit (inputs.nixpkgs) lib;
-  forge = inputs.self.nixosConfigurations.forge;
+  forge = import ./pre-adoption.nix { inherit inputs; };
   baseline = forge.config;
   projection = import ../../hosts/forge/atrium/credential-projection.nix { inherit lib; };
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
@@ -73,13 +73,13 @@ let
     in
     service.LoadCredential == expected.sources
     && sorted (modelConsumers config unit) == sorted (map (projection.path unit) expected.names)
-    && lib.all (name: lib.hasInfix (lib.escapeShellArg name) (lib.last service.ExecStartPre)) expected.names
+    && lib.all (name: lib.hasInfix (lib.escapeShellArg name) (lib.head service.ExecStartPre)) expected.names
     && service.RuntimeDirectory == "${unit}-credentials"
     && service.RuntimeDirectoryMode == "0700"
     && service.RuntimeDirectoryPreserve == "no"
     && service.User == expected.user && service.Group == expected.user
     && service.ProtectSystem == "strict"
-    && lib.hasInfix "python -I -B" (lib.last service.ExecStartPre)
+    && lib.hasInfix "python -I -B" (lib.head service.ExecStartPre)
     && !(lib.elem "/run/credentials" (service.ReadWritePaths or [ ]));
   variantChecks = flags:
     let

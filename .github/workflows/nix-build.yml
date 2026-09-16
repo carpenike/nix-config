@@ -124,8 +124,11 @@ jobs:
               - 'lib/service-uids.nix'
               - 'lib/host-defaults.nix'
               - 'hosts/forge/services/atrium.nix'
+              - 'hosts/forge/services/atrium-models.nix'
+              - 'hosts/forge/atrium/adoption.nix'
               - 'hosts/forge/atrium/runtime.nix'
               - 'hosts/forge/atrium/models.nix'
+              - 'hosts/forge/atrium/model-bootstrap.py'
               - 'hosts/forge/atrium/credential-projection.*'
               - 'tests/atrium_n03/**'
               - '.github/workflows/nix-build.yml'
@@ -270,7 +273,8 @@ jobs:
             .#checks.x86_64-linux.atrium-forge-c10-settings \
             .#checks.x86_64-linux.atrium-forge-c10-schema \
             .#checks.x86_64-linux.atrium-forge-adoption-wiring \
-            .#checks.x86_64-linux.atrium-forge-credential-systemd.driver
+            .#checks.x86_64-linux.atrium-forge-credential-systemd.driver \
+            .#checks.x86_64-linux.atrium-forge-controller-publication.driver
 
       - name: Validate private credential projection through actual systemd
         timeout-minutes: 10
@@ -278,6 +282,13 @@ jobs:
           nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
             --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-forge-credential-systemd
+
+      - name: Validate retained controller publication before model startup
+        timeout-minutes: 10
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-forge-controller-publication
 
   nix-build:
     needs: changes

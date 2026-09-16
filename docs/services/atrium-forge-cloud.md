@@ -226,7 +226,11 @@ before enabling it. Until then, the existing native service behavior is unchange
 ## Adoption, custody and live publications
 
 All four `services.atriumForge.adoption` switches default to false:
-`models`, `native`, `whiskey`, `whiskeyText`. Static configuration/reference
+`models`, `native`, `whiskey`, `whiskeyText`. The owner-selected
+[`adoption.nix`](../../hosts/forge/atrium/adoption.nix) now opts Forge into
+**models only**; Home MCP, Whiskey routes and Whiskey text remain off.
+Removing that concrete selection still exercises the actual unadopted module
+defaults in the preparation checks. Static configuration/reference
 documents and foundation/model preparation commands exist without adoption.
 Native/Whiskey first-use units appear with their selected configuration but
 remain manual-only; normal startup refuses missing security history.
@@ -259,6 +263,14 @@ Resolver and controller own separate mode2750 publication directories under
 No root/chown relay, shared signer UID or systemd credential snapshot publishes
 these documents. The gateway mounts neither producer-private state nor delivery
 tokens. Controller bindings appear only after actual native reconciliation/readback.
+
+Before each reconciliation, the controller republishes its retained service
+associations through the actual N04 ledger/publisher under UID1063. This follows
+credential projection and precedes native management calls, which themselves
+need fresh admission publications. It advances the publication generation, not
+credential expiry or permissions. Missing, corrupt or mismatched history fails;
+the pre-start path never initializes an empty replacement. The resolver is an
+explicit startup dependency and publishes its own associations independently.
 
 Whiskey reads `/run/atrium-delivery/whiskey/key.json` live and publishes successful
 delivery acknowledgements to `/run/atrium-acknowledgements/whiskey/key.json`.
@@ -319,6 +331,76 @@ units use actual package interfaces:
 6. Model activation requires durable `model-adoption.approved`. Removing the
    adoption switch while that marker remains refuses gateway startup rather
    than silently running owned keys without admission.
+
+### Owner-run model-only activation
+
+The owner approved preparing model-only activation on 2026-09-16 and reported
+that this is a new environment with no other clients. No direct-client
+migration is needed for that inventory. Existing native objects are still
+unadopted; matching names are not permission to overwrite or delete them.
+The completed resolver/controller/admission initialization must be preserved.
+
+After reviewing and merging the activation PR, pull the deployment checkout.
+Before `naf` or the automatic upgrade consumes this selection, explicitly
+record approval on Forge. This is a non-secret operator receipt, not a token,
+a generated grant or an automatic Nix activation artifact. The command refuses
+an existing receipt and checks the initialized prerequisites; it does not
+initialize, reset, reconcile or call a provider.
+
+From a Bash/Zsh terminal in `~/src/nix-config`:
+
+```sh
+nix eval --json .#nixosConfigurations.forge.config.services.atriumForge.adoption |
+  jq -e '. == {models: true, native: false, whiskey: false, whiskeyText: false}' &&
+ssh forge 'sudo -n sh -eu' <<'SH'
+grep -qx atrium-forge /var/lib/atrium-resolver/models/initialized
+for path in \
+  /var/lib/atrium-resolver/models/associations.json \
+  /var/lib/atrium-resolver/models/admission-associations.json \
+  /var/lib/atrium-reconciler/ownership.json \
+  /var/lib/atrium-model-gateway/admission/initialized \
+  /var/lib/atrium-model-gateway/admission/admission-state.json; do
+  test -s "$path"
+done
+receipt=/var/lib/atrium-policy/model-adoption.approved
+test ! -e "$receipt"
+test ! -L "$receipt"
+umask 077
+set -C
+printf '%s\n' \
+  'installation=atrium-forge' \
+  'operator_approval=models-only' \
+  'native_objects=controller-created-cc-only' \
+  'home_mcp=false whiskey=false whiskey_text=false' \
+  "approved_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$receipt"
+sync -f "$receipt"
+SH
+```
+
+Only after that command succeeds, deploy from the usual shell:
+
+```sh
+naf
+```
+
+Activation enables the broker, owned-object reconciler and admission hook.
+It can create the declared new teams, aliases and provider bindings. Client
+keys are issued only through their templates; the unadopted Whiskey text
+service is still not issued a rotating key. Use `https://llm.holthome.net`,
+not a direct container/loopback endpoint.
+
+Do not repeat the initializers to refresh expired publications: normal
+producers now do that from retained history. If activation fails, preserve the
+receipt and all history rather than clearing them or switching to an
+unprotected gateway. Fresh operator login/group evidence is still needed for
+subsequent authorized client requests; this approval does not grant it.
+
+The [source-bound activation receipt](evidence/atrium-model-activation.json)
+records the selected/default configuration checks and the real N04/N05
+retained-publication regression at `c800a7c7`. It covers stale-source refusal,
+refresh from unchanged initialized history, preserved expiry/revocation, and
+missing/corrupt/mismatched-history refusals. It is not a native LiteLLM HTTP
+authentication gate or evidence that this configuration has been activated.
 
 These are operator commands, **not commands executed by this change**. Existing,
 partial or mismatched security state is a recovery condition, never permission

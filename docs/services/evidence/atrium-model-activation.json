@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.forge-model-only-activation-preparation",
+  "ticket": "ATR-N03",
+  "implementation_revision": "c800a7c796bebbc1fd5ff4e7bdb8a6a8d51585ee",
+  "atrium_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+  "owner_selection": {
+    "models": true,
+    "native": false,
+    "whiskey": false,
+    "whiskeyText": false,
+    "client_inventory": "owner reports a new environment with no other clients",
+    "destruction_required_or_performed": false
+  },
+  "source_files": [
+    {
+      "path": "hosts/forge/atrium/adoption.nix",
+      "sha256": "58b613c4f20f230963efa9b0c012fb07e5cd9d42273d739aa75e3e77c2c8ebe9"
+    },
+    {
+      "path": "hosts/forge/atrium/model-bootstrap.py",
+      "sha256": "06b88a477cae1b74ca5305019415342068967d83e3041f8b33559991f18a0c1a"
+    },
+    {
+      "path": "hosts/forge/services/atrium-models.nix",
+      "sha256": "f5bbc338019d6f6f750cefd52b4b9b9116965b4b9426088b8820692c837dcec7"
+    },
+    {
+      "path": "tests/atrium_n03/controller-publication.nix",
+      "sha256": "301271805e03111579c639eab144f4123eb65d331d9b4d0bcaa8df9b938234bd"
+    },
+    {
+      "path": "tests/atrium_n03/adoption-evaluate.nix",
+      "sha256": "f93086e485cc5456f77dddd65f7f709cd8d8c6c2e5b8238206af1bdce6857041"
+    }
+  ],
+  "runtime_regression": {
+    "status": "passed",
+    "scope": "actual N04 retained ledger/publisher and N05 admission engine; not native LiteLLM HTTP authentication or a full T-case gate",
+    "host_system": "x86_64-linux",
+    "guest_system": "x86_64-linux",
+    "driver_derivation": "/nix/store/mx51brxvxgdq4wgia11jryv8khlxmbnn-nixos-test-driver-atrium-forge-controller-publication.drv",
+    "derivation": "/nix/store/214mr3vkpnv6cyhnbzq5rd054rrw0pkp-vm-test-run-atrium-forge-controller-publication.drv",
+    "output": "/nix/store/567rd6pv2arnnyhaaxphpy6gsdkcnbi7-vm-test-run-atrium-forge-controller-publication",
+    "test_script_seconds": 24.32,
+    "guest_timeout_seconds": 300,
+    "publication_permits": 3,
+    "admission_engine_unowned_management_identity_permits": 3,
+    "stale_source_denials": 2,
+    "bootstrap_history_and_confirmation_denials": 8,
+    "owned_expiry_revocation_and_management_denials": 12,
+    "retained_records": 4,
+    "records_and_credential_expiry_preserved": true,
+    "initialized_history_and_lock_identity_preserved": true,
+    "publication_generation_advanced": true,
+    "missing_resolver_does_not_prevent_own_history_publication": true,
+    "missing_corrupt_or_mismatched_history_replacement": false,
+    "actual_systemd_LoadCredential_projection": true,
+    "ip_sockets_forbidden": true,
+    "synthetic_credentials_only_in_guest_run": true,
+    "credential_leaks": 0,
+    "native_writes": false,
+    "guest_cleanup_completed": true
+  },
+  "static_validation": {
+    "system": "aarch64-darwin",
+    "focused_checks": [
+      "atrium-forge-adoption-wiring",
+      "atrium-forge-model-secrets",
+      "atrium-forge-credential-projection",
+      "atrium-forge-preparation",
+      "atrium-forge-setup",
+      "atrium-forge-c10-settings",
+      "atrium-forge-c10-schema",
+      "atrium-forge-cloud-schema"
+    ],
+    "focused_check_builds": "passed",
+    "module_default_and_selected_configuration_checked_separately": true,
+    "selected_forge_toplevel_evaluation": "passed",
+    "selected_forge_toplevel_derivation": "/nix/store/d2ax8llxgxp9b4zdy12p52lh3x106bxs-nixos-system-forge-25.11.20260630.b6018f8.drv",
+    "full_forge_system_built": false,
+    "linux_closure_realized_on_mac": false,
+    "owner_recipe_bash_syntax_and_shellcheck": "passed without execution",
+    "repository_commit_hooks": "passed"
+  },
+  "boundaries": {
+    "owner_approval_receipt_created": false,
+    "production_deployment_or_activation_performed": false,
+    "production_keys_teams_or_aliases_mutated": false,
+    "existing_history_reset": false,
+    "shared_admission_or_credential_profiles_changed": false,
+    "pinned_runtime_inputs_changed": false,
+    "full_ticket_cases_not_rerun": ["T1", "T4", "T8", "T15", "T20", "T26"],
+    "amendment_required": false
+  }
+}

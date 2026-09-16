@@ -1,7 +1,8 @@
 { inputs }:
 let
   inherit (inputs.nixpkgs) lib;
-  c = inputs.self.nixosConfigurations.forge.config;
+  forge = import ./pre-adoption.nix { inherit inputs; };
+  c = forge.config;
   packages = inputs.atrium.packages.${c.nixpkgs.hostPlatform.system};
   pins = builtins.fromJSON (builtins.readFile ./pins.json);
   identity = import ../../hosts/forge/atrium/identity.nix { inherit lib; };
@@ -17,7 +18,7 @@ let
   registry = c.services.atrium.registry;
   bootstrap = import ../../hosts/forge/atrium/bootstrap.nix { inherit lib registry; };
   models = import ../../hosts/forge/atrium/models.nix { inherit lib ids runtime registry; };
-  disabled = (inputs.self.nixosConfigurations.forge.extendModules {
+  disabled = (forge.extendModules {
     modules = [{ services.atriumForge.enable = lib.mkForce false; }];
   }).config;
   gateway = builtins.fromJSON (builtins.readFile
@@ -31,13 +32,13 @@ let
   nativeVendor = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/vendor/atrium-artifacts.lock.json"));
   stateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
-  modelAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
+  modelAdopted = (forge.extendModules {
     modules = [{
       services.atriumForge.adoption.models = true;
       services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
     }];
   }).config;
-  nativeAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
+  nativeAdopted = (forge.extendModules {
     modules = [{
       services.atriumForge.adoption.native = true;
       services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];

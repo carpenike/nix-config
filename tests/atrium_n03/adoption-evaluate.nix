@@ -1,8 +1,9 @@
 { inputs }:
 let
   inherit (inputs.nixpkgs) lib;
-  forge = inputs.self.nixosConfigurations.forge;
+  forge = import ./pre-adoption.nix { inherit inputs; };
   baseline = forge.config;
+  selected = inputs.self.nixosConfigurations.forge.config;
   select = module: (forge.extendModules {
     modules = [
       { services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ]; }
@@ -40,6 +41,44 @@ let
   healthArguments = prefix: options: lib.filter (lib.hasPrefix prefix) options;
   legacyOptions = baseline.virtualisation.oci-containers.containers.litellm.extraOptions;
   checks = {
+    owner-selected-models-only = selected.services.atriumForge.adoption == {
+      models = true;
+      native = false;
+      whiskey = false;
+      whiskeyText = false;
+    };
+    module-defaults-remain-unadopted = lib.all (enabled: !enabled)
+      (builtins.attrValues baseline.services.atriumForge.adoption);
+    selected-runtime-matches-model-variant =
+      selected.systemd.services.atrium-reconciler.serviceConfig == controller.serviceConfig
+      && selected.virtualisation.oci-containers.containers.litellm == gateway;
+    selected-other-planes-remain-unadopted =
+      !(selected.services.homelab-mcp.settings ? HOMELAB_MCP_ATRIUM_VIEW_POLICY)
+      && !(selected.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_CONFIG)
+      && !(selected.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_MODEL_CONFIG);
+    selected-startup-requires-owner-approval = lib.all
+      (unit: lib.elem "/var/lib/atrium-policy/model-adoption.approved"
+        selected.systemd.services.${unit}.unitConfig.AssertFileNotEmpty)
+      [ "podman-litellm" "atrium-reconciler" ];
+    selected-initializers-remain-manual = lib.all
+      (unit:
+        let service = selected.systemd.services.${unit};
+        in service.wantedBy == [ ] && service.requiredBy == [ ]
+          && !(builtins.hasAttr unit selected.systemd.timers)
+          && !lib.elem "${unit}.service" selected.systemd.services.atrium-resolver.requires
+          && !lib.elem "${unit}.service" selected.systemd.services.atrium-reconciler.requires)
+      [ "atrium-model-resolver-initialize" "atrium-model-controller-initialize" "atrium-model-admission-initialize" ];
+    owner-approval-is-not-generated = !lib.any
+      (rule: lib.hasInfix "model-adoption.approved" rule)
+      selected.systemd.tmpfiles.rules;
+    controller-refreshes-retained-publication-first =
+      lib.length controller.serviceConfig.ExecStartPre == 2
+      && lib.hasInfix "credential-projection.py" (lib.head controller.serviceConfig.ExecStartPre)
+      && lib.hasInfix "controller-publication --config /etc/atrium/runtime/model-controller.json --confirm-existing-installation atrium-forge"
+        (lib.last controller.serviceConfig.ExecStartPre)
+      && !(lib.hasInfix "--confirm-new-installation" (lib.last controller.serviceConfig.ExecStartPre))
+      && lib.elem "atrium-resolver.service" controller.requires
+      && lib.elem "atrium-resolver.service" controller.after;
     native-default-unadopted = !(baseline.services.homelab-mcp.settings ? HOMELAB_MCP_ATRIUM_VIEW_POLICY);
     whiskey-default-unadopted = !(baseline.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_CONFIG);
     model-downgrade-refused = lib.elem "!/var/lib/atrium-policy/model-adoption.approved"
@@ -162,6 +201,7 @@ assert lib.assertMsg (lib.all (value: value) (builtins.attrValues checks))
 {
   inherit checks;
   kind = "atrium.forge-adoption-wiring";
+  selected_model_configuration = selected.services.atriumForge.adoption.models;
   synthetic_egress_bindings = true;
   complete_policy_validation = false;
   runtime_gate_evidence = false;

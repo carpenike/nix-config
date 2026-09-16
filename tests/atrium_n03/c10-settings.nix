@@ -1,7 +1,7 @@
 { inputs, pkgs }:
 let
   inherit (pkgs) lib;
-  forge = inputs.self.nixosConfigurations.forge;
+  forge = import ./pre-adoption.nix { inherit inputs; };
   # Exercise the deliberately unconfigured state, not the owner's admitted client.
   baseline = (forge.extendModules {
     modules = [{ services.atriumForge.groupEvidence = lib.mkForce null; }];

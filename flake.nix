@@ -543,6 +543,16 @@
                 resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
                 controllerPackage = inputs.atrium.packages.${guestSystem}.atrium-litellm-controller;
               };
+            atrium-forge-controller-publication =
+              let
+                guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
+              in
+              import ./tests/atrium_n03/controller-publication.nix {
+                hostPkgs = pkgs;
+                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
+                import inputs.nixpkgs { system = guestSystem; };
+                atrium = inputs.atrium;
+              };
             atrium-forge-adopted-caddy =
               let
                 adopted = (inputs.self.nixosConfigurations.forge.extendModules {
