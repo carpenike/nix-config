@@ -137,6 +137,20 @@ Neither reuses an inference credential or silently adopts `litellm/master_key`.
 Use the existing SOPS provisioning mechanism; absent material is an operator
 prerequisite, not a reason to weaken or externalize the Nix policy.
 
+On the pinned LiteLLM version, the **Management** key preset grants
+`management_routes` but omits `/credentials` and `/router/settings`, both
+required by the controller. Its allowlist must include those two explicit
+paths alongside `management_routes`; do not substitute unrestricted inference
+or master-key access. The resolver needs `/key/generate`, `/key/info`,
+`/team/info` and `/key/delete`, which are included in `management_routes`.
+The key's native owner must also have the required administrative authority:
+the route preset does not grant an owner role. The isolated qualification uses
+separate native `proxy_admin` control identities, never the end user's
+inference key.
+
+Changing an existing key's route permissions does not change its bearer value.
+Update SOPS only if the native key itself is replaced or rotated.
+
 ### Fill the prepared SOPS fields
 
 Open `hosts/forge/secrets.sops.yaml` with the SOPS editor from this checkout:
@@ -288,6 +302,13 @@ units use actual package interfaces:
    state. `atrium-model-controller-initialize`: initialize the actual ledger
    and its real initial service publication. `atrium-model-admission-initialize`:
    initialize actual admission history. None performs native management writes.
+   The resolver and controller initializers project only their own management
+   credential before entering the bootstrap program. The adopted reconciler
+   separately projects its controller credential and the two wing provider
+   credentials. All use service-owned `0700` volatile directories and `0400`
+   files, with cleanup on stop/failure; the strict application readers and
+   persistent initialization/refusal history are unchanged. See
+   [credential custody](atrium-forge-runtime.md#foundation-and-model-credential-projection).
 4. Native adoption additionally needs operator-owned `native-profile.json`,
    native/resolver public JWKS continuity and a `native-adoption.approved`
    receipt in `/var/lib/atrium-policy`. `atrium-native-deny-initialize` invokes

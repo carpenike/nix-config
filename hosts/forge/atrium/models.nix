@@ -19,7 +19,6 @@ let
     gateway = "/var/lib/atrium-model-gateway";
   };
   acknowledgementPath = "/run/atrium-acknowledgements/whiskey/key.json";
-  credential = unit: name: "/run/credentials/${unit}.service/${name}";
   controllerFor = unit: {
     schema_version = 1;
     environment = "production";
@@ -33,7 +32,7 @@ let
     publication_reader_gid = metadataGroup.gid;
     bindings_snapshot = "${exports.controller}/native-bindings.json";
     service_association_snapshot = "${exports.controller}/service-associations.json";
-    management_key_file = credential unit "management";
+    management_key_file = projection.path unit "management";
     backend_transports = lib.mapAttrs (_: _: { api_base = "https://api.anthropic.com"; })
       registry.modelBackends;
     service_delivery."cc.personal.ryan.whiskey-service" = {

@@ -1,4 +1,4 @@
-"""Project only the two foundation units' systemd credentials into private /run custody."""
+"""Project declared foundation and model credentials into per-unit private /run custody."""
 
 import argparse
 import os
@@ -6,7 +6,6 @@ import stat
 import struct
 from contextlib import ExitStack
 
-UNITS = ("atrium-resolver", "atrium-device-registration")
 DEVICE = frozenset(
     ("device-ca", "device-ca-key", "registration-cert", "registration-key")
 )
@@ -14,6 +13,19 @@ NATIVE = frozenset(
     ("native-ca", "native-client-cert", "native-client-key", "native-jwks")
 )
 MODEL = frozenset(("model-management",))
+CONTROLLER = frozenset(("management", "personal-anthropic", "family-anthropic"))
+CREDENTIAL_SETS = {
+    "atrium-resolver": (
+        DEVICE,
+        DEVICE | NATIVE,
+        DEVICE | MODEL,
+        DEVICE | NATIVE | MODEL,
+    ),
+    "atrium-device-registration": (DEVICE,),
+    "atrium-model-resolver-initialize": (MODEL,),
+    "atrium-model-controller-initialize": (frozenset(("management",)),),
+    "atrium-reconciler": (CONTROLLER,),
+}
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
 
@@ -61,11 +73,9 @@ def project(unit, names):
     selected = frozenset(names)
     if (
         os.geteuid() == 0
-        or unit not in UNITS
+        or unit not in CREDENTIAL_SETS
         or len(names) != len(selected)
-        or not DEVICE <= selected <= DEVICE | NATIVE | MODEL
-        or (selected & NATIVE and not NATIVE <= selected)
-        or (unit != "atrium-resolver" and selected != DEVICE)
+        or selected not in CREDENTIAL_SETS[unit]
     ):
         raise ValueError("invalid credential selection")
     with ExitStack() as descriptors:
@@ -91,7 +101,13 @@ def project(unit, names):
         try:
             private_metadata(pending, directory=True)
             for name in sorted(selected):
-                limit = 4096 if name == "model-management" else 32768
+                limit = (
+                    4096
+                    if name == "model-management"
+                    else 16384
+                    if name in CONTROLLER
+                    else 32768
+                )
                 with ExitStack() as files:
                     reader = os.open(
                         name,
@@ -134,9 +150,9 @@ def project(unit, names):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("unit", choices=UNITS)
+    parser.add_argument("unit", choices=tuple(CREDENTIAL_SETS))
     parser.add_argument(
-        "credentials", nargs="+", choices=sorted(DEVICE | NATIVE | MODEL)
+        "credentials", nargs="+", choices=sorted(DEVICE | NATIVE | MODEL | CONTROLLER)
     )
     args = parser.parse_args()
     try:
