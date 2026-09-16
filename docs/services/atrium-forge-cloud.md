@@ -395,6 +395,13 @@ receipt and all history rather than clearing them or switching to an
 unprotected gateway. Fresh operator login/group evidence is still needed for
 subsequent authorized client requests; this approval does not grant it.
 
+The [source-bound activation receipt](evidence/atrium-model-activation.json)
+records the selected/default configuration checks and the real N04/N05
+retained-publication regression at `c800a7c7`. It covers stale-source refusal,
+refresh from unchanged initialized history, preserved expiry/revocation, and
+missing/corrupt/mismatched-history refusals. It is not a native LiteLLM HTTP
+authentication gate or evidence that this configuration has been activated.
+
 These are operator commands, **not commands executed by this change**. Existing,
 partial or mismatched security state is a recovery condition, never permission
 to initialize an empty replacement. Normal units assert the actual private
