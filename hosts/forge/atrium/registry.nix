@@ -1,6 +1,7 @@
 { lib, homelabMcp, cloudInventory }:
 let
   base = import ./registry-base.nix { inherit lib homelabMcp; };
+  projection = import ./credential-projection.nix { inherit lib; };
   acl = principals: groups: { inherit principals groups; };
   personal = acl [ ] [ "atrium-personal-ryan" ];
   family = acl [ ] [ "atrium-family" ];
@@ -138,14 +139,14 @@ lib.recursiveUpdate base {
       principal = "atrium-personal-models";
       provider = "anthropic";
       account = "atrium-personal-ryan-anthropic";
-      runtimePath = "/run/credentials/atrium-reconciler.service/personal-anthropic";
+      runtimePath = projection.path "atrium-reconciler" "personal-anthropic";
     };
     "cc.family.holt.anthropic" = {
       domain = "family:holt";
       principal = "atrium-family-models";
       provider = "anthropic";
       account = "atrium-family-holt-anthropic";
-      runtimePath = "/run/credentials/atrium-reconciler.service/family-anthropic";
+      runtimePath = projection.path "atrium-reconciler" "family-anthropic";
     };
   } // lib.mapAttrs'
     (provider: _: lib.nameValuePair "cc.personal.ryan.whiskey-${provider}" {

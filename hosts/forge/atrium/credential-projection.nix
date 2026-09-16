@@ -1,10 +1,22 @@
 { lib }:
 let
-  units = [ "atrium-resolver" "atrium-device-registration" ];
   deviceNames = [ "device-ca" "device-ca-key" "registration-cert" "registration-key" ];
   nativeNames = [ "native-ca" "native-client-cert" "native-client-key" "native-jwks" ];
+  credentialSets = {
+    atrium-resolver = [
+      deviceNames
+      (deviceNames ++ nativeNames)
+      (deviceNames ++ [ "model-management" ])
+      (deviceNames ++ nativeNames ++ [ "model-management" ])
+    ];
+    atrium-device-registration = [ deviceNames ];
+    atrium-model-resolver-initialize = [ [ "model-management" ] ];
+    atrium-model-controller-initialize = [ [ "management" ] ];
+    atrium-reconciler = [ [ "management" "personal-anthropic" "family-anthropic" ] ];
+  };
   runtimeName = unit:
-    assert lib.assertMsg (lib.elem unit units) "Only the two Atrium foundation listeners project credentials.";
+    assert lib.assertMsg (builtins.hasAttr unit credentialSets)
+      "Only declared Atrium foundation and model units project credentials.";
     "${unit}-credentials";
   directory = unit: "/run/${runtimeName unit}";
 in
@@ -14,15 +26,11 @@ in
   serviceConfig = { pkgs, unit, credentials }:
     let
       names = builtins.attrNames credentials;
-      allowed = deviceNames ++ lib.optionals (unit == "atrium-resolver")
-        (nativeNames ++ [ "model-management" ]);
-      nativeSelected = lib.filter (name: lib.elem name names) nativeNames;
     in
     assert lib.assertMsg
-      (lib.all (name: lib.elem name names) deviceNames
-        && lib.all (name: lib.elem name allowed) names
-        && (nativeSelected == [ ] || lib.length nativeSelected == lib.length nativeNames))
-      "Atrium credential projection requires the exact declared device/native/model credential sets.";
+      (builtins.hasAttr unit credentialSets
+        && lib.elem names (map (lib.sort builtins.lessThan) credentialSets.${unit}))
+      "Atrium credential projection requires the exact credential set declared for its unit.";
     {
       RuntimeDirectory = runtimeName unit;
       RuntimeDirectoryMode = "0700";

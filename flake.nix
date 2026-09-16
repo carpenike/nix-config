@@ -541,6 +541,7 @@
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
                 resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
+                controllerPackage = inputs.atrium.packages.${guestSystem}.atrium-litellm-controller;
               };
             atrium-forge-adopted-caddy =
               let

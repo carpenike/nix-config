@@ -72,25 +72,31 @@ systemd `LoadCredential`. Only the resolver additionally receives the four
 native broker files and/or `model-management` when those adoption flags are
 explicitly enabled. Resolver signing stays live in its own private ring.
 
-### Foundation credential projection
+### Foundation and model credential projection
 
 Systemd 258 supplies these credentials inside each service's private mount
 namespace: a root-owned `0550` directory and `0440` files on read-only tmpfs,
-with a POSIX ACL granting only root and the resolver UID access. The group
+with a POSIX ACL granting only root and the consuming service UID access. The group
 mode bits are the ACL mask, not a grant to the root group. This is valid
 systemd custody, but it is not the service-owned private-file contract required
 by Atrium's existing readers. Host-global `/run/credentials` visibility cannot
 diagnose a private service namespace.
 
-The two foundation units therefore project their fixed `LoadCredential` sets,
-as the existing resolver UID1060, before starting the application:
+The foundation listeners and model units therefore project their fixed
+`LoadCredential` sets as their existing service UID before starting the
+application. Initializer projections finish before the bootstrap program can
+write persistent state:
 
-| Unit | Volatile `RuntimeDirectory` | Application material directory |
+| Unit | UID | Volatile material directory |
 | --- | --- | --- |
-| `atrium-resolver` | `/run/atrium-resolver-credentials` | `material/` |
-| `atrium-device-registration` | `/run/atrium-device-registration-credentials` | `material/` |
+| `atrium-resolver` | 1060 | `/run/atrium-resolver-credentials/material/` |
+| `atrium-device-registration` | 1060 | `/run/atrium-device-registration-credentials/material/` |
+| `atrium-model-resolver-initialize` | 1060 | `/run/atrium-model-resolver-initialize-credentials/material/` |
+| `atrium-model-controller-initialize` | 1063 | `/run/atrium-model-controller-initialize-credentials/material/` |
+| `atrium-reconciler` | 1063 | `/run/atrium-reconciler-credentials/material/` |
 
-Both directories are service-owned `0700`; copied files are `0400`. The
+Each runtime directory and its material directory are service-owned `0700`;
+copied files are `0400`. The
 projector verifies the exact root/service-only source ACL and read-only mount,
 opens directories and files without following symlinks, bounds reads, creates
 files exclusively, and atomically publishes a complete directory. Unexpected
@@ -100,7 +106,7 @@ also removes all volatile copies on stop, failure or restart. No existing key
 is regenerated, changed in place, relabeled or copied into durable state.
 
 The same selected credential map drives `LoadCredential` and projection.
-Every configured consumer on these two units points to that unit's material
+Every configured consumer on these units points to that unit's material
 directory:
 
 | Names | Consumer |
@@ -108,20 +114,33 @@ directory:
 | `device-ca`, `device-ca-key` | Real `DeviceCertificateAuthority` |
 | `registration-cert`, `registration-key`, `device-ca` | Direct registration TLS configuration |
 | `native-ca`, `native-client-cert`, `native-client-key`, `native-jwks` | Optional resolver `home_mcp_native.transport_context` |
-| `model-management` | Optional resolver `litellm_native.read_controller_key` |
+| `model-management` | Resolver or model resolver initializer `litellm_native.read_controller_key` |
+| `management` | Controller initializer or reconciler `atrium_litellm.files.read_bytes` |
+| `personal-anthropic`, `family-anthropic` | Reconciler `atrium_litellm.controller.read_provider_credential` |
 
 Shared `private_directory`, `private_open`, CA profile, key-pair and validity
-checks remain unchanged. Native-policy, Home MCP, controller, model initializer,
-Caddy and Whiskey credential paths are not redirected. Provider references,
-adoption flags, UID separation, persistent signing/deny state, public issuer,
+checks, and the controller's protected-file reader, remain unchanged.
+The two model initializers each receive exactly one management credential;
+the reconciler receives exactly its management credential and both provider
+credentials. Foundation listeners never receive the controller/provider set.
+Provider runtime references point to the reconciler's projection; their wing,
+principal, account, backend and source-secret bindings are unchanged.
+Native-policy, Home MCP, Caddy and Whiskey credential paths are not redirected.
+Adoption flags, UID separation, persistent signing/deny state, public issuer,
 ports and the admitted `cc.atrium.operator` client are unchanged.
 
 `atrium-forge-credential-projection` checks all four native/model adoption
-combinations and both units. `atrium-forge-credential-systemd` is a bounded
+combinations, the listeners, both manual model initializers and the opted-in
+reconciler. It also refuses incomplete or cross-role credential sets.
+`atrium-forge-credential-systemd` is a bounded
 NixOS test guest using actual systemd `LoadCredential`, the production
 projector, actual CA/TLS/native/model readers and the current TLS bootstrap
 profile. It generates synthetic keys only in guest `/run`, tests paired
 custody/profile/key/expiry refusals, failed-copy cleanup and restart cleanup.
+The model cases additionally exercise the actual controller management/provider
+readers under UID1063, root-owned input rejection, writable/foreign/symlinked/
+hard-linked material rejection, and empty/oversize input cleanup for every model
+unit. No native model management or inference request is made by this fixture.
 Its execution status must be reported separately from evaluation; preparing
 this fixture is not an executed N03 gate or a full resolver-policy test.
 

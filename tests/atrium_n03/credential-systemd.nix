@@ -1,10 +1,13 @@
-{ pkgs, resolverPackage, hostPkgs ? pkgs }:
+{ pkgs, resolverPackage, controllerPackage, hostPkgs ? pkgs }:
 let
   inherit (pkgs) lib;
   projection = import ../../hosts/forge/atrium/credential-projection.nix { inherit lib; };
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
   ids = import ../../lib/service-uids.nix { };
-  python = pkgs.python312.withPackages (ps: [ (ps.toPythonModule resolverPackage) ]);
+  python = pkgs.python312.withPackages (ps: [
+    (ps.toPythonModule resolverPackage)
+    (ps.toPythonModule controllerPackage)
+  ]);
   trust = "/run/atrium-credential-fixture-trust";
   sources = {
     device-ca = "${trust}/device-ca.crt.pem";
@@ -19,6 +22,19 @@ let
     native-jwks = "${trust}/native-jwks";
     model-management = "${trust}/model-management";
   };
+  modelSources = {
+    atrium-model-resolver-initialize = {
+      inherit (optionalSources) model-management;
+    };
+    atrium-model-controller-initialize = {
+      management = "${trust}/management";
+    };
+    atrium-reconciler = {
+      management = "${trust}/management";
+      personal-anthropic = "${trust}/personal-anthropic";
+      family-anthropic = "${trust}/family-anthropic";
+    };
+  };
   program = pkgs.writeText "atrium-credential-systemd-fixture.py" ''
     import argparse
     import importlib.util
@@ -29,6 +45,9 @@ let
     from datetime import UTC, datetime, timedelta
     from pathlib import Path
 
+    from atrium_litellm.controller import read_provider_credential
+    from atrium_litellm.errors import ControllerError
+    from atrium_litellm.files import read_bytes
     from atrium_profiles import ProfileError
     from atrium_profiles.crypto import public_jwk
     from atrium_profiles.runtime import private_directory, private_open
@@ -44,7 +63,9 @@ let
     from cryptography.hazmat.primitives import hashes, serialization
 
     TRUST = Path("${trust}")
-    UNITS = ("atrium-resolver", "atrium-device-registration")
+    FOUNDATION_UNITS = ("atrium-resolver", "atrium-device-registration")
+    MODEL_SOURCES = json.loads(${builtins.toJSON (builtins.toJSON modelSources)})
+    UNITS = FOUNDATION_UNITS + tuple(MODEL_SOURCES)
     PLAN = json.loads(${builtins.toJSON (builtins.toJSON runtime.tlsPlan)})
 
     def write_new(path, contents, mode=0o600):
@@ -100,6 +121,16 @@ let
             "keys": [public_jwk(ca.public_key(), "fixture-native")]
         }).encode())
         write_new(TRUST / "model-management", ("sk-" + os.urandom(24).hex()).encode())
+        for name in ("management", "personal-anthropic", "family-anthropic"):
+            write_new(TRUST / name, ("sk-" + os.urandom(24).hex()).encode())
+
+    def model_credential(directory, name):
+        path = directory / name
+        if name == "model-management":
+            return read_controller_key(path).get_secret_value()
+        if name == "management":
+            return read_bytes(path, secret=True, limit=16384).decode().strip()
+        return read_provider_credential(name, {"runtime_path": str(path)})
 
     def reproduction(unit):
         source = Path(f"/run/credentials/{unit}.service")
@@ -116,12 +147,23 @@ let
             assert os.fstatvfs(descriptor).f_flag & os.ST_RDONLY
         finally:
             os.close(descriptor)
-        try:
-            DeviceCertificateAuthority(device_settings(source))
-        except ProfileError as error:
-            assert error.code == "insecure_runtime_directory"
+        if unit in MODEL_SOURCES:
+            for name in MODEL_SOURCES[unit]:
+                try:
+                    model_credential(source, name)
+                except ProfileError as error:
+                    assert name == "model-management" and error.code == "insecure_runtime_directory"
+                except ControllerError as error:
+                    assert name != "model-management" and error.code == "untrusted_file"
+                else:
+                    raise AssertionError("actual model reader accepted root-owned credentials directly")
         else:
-            raise AssertionError("actual systemd credential custody unexpectedly accepted directly")
+            try:
+                DeviceCertificateAuthority(device_settings(source))
+            except ProfileError as error:
+                assert error.code == "insecure_runtime_directory"
+            else:
+                raise AssertionError("actual systemd credential custody unexpectedly accepted directly")
         write_new(Path(f"/run/{unit}-fixture/reproduction.json"), json.dumps({
             "real_LoadCredential": True, "root_owned_acl_source": True,
             "read_only_source": True, "direct_reader_rejected": True,
@@ -136,6 +178,21 @@ let
                 assert stat.S_IMODE(os.fstat(descriptor).st_mode) == 0o400
             finally:
                 os.close(descriptor)
+        if unit in MODEL_SOURCES:
+            source = Path(f"/run/credentials/{unit}.service")
+            values = []
+            for name in MODEL_SOURCES[unit]:
+                assert (directory / name).read_bytes() == (source / name).read_bytes()
+                value = model_credential(directory, name)
+                assert value and value.encode() == (source / name).read_bytes()
+                values.append(value)
+            assert len(values) == len(set(values))
+            write_new(Path(f"/run/{unit}-fixture/permit.json"), json.dumps({
+                "private_projection_accepted": True,
+                "real_model_readers": True, "exact_source_bytes": True,
+                "uid": os.geteuid(), "credentials": sorted(MODEL_SOURCES[unit]),
+            }).encode())
+            return
         authority = DeviceCertificateAuthority(device_settings(directory))
         tls = registration_server_config(settings(unit, directory), port=0)
         assert tls.ssl.verify_mode == ssl.CERT_REQUIRED
@@ -167,6 +224,14 @@ let
 
     def negative(unit, fault):
         directory = Path(f"/run/{unit}-credentials/material")
+        if unit in MODEL_SOURCES:
+            assert fault == "custody"
+            name = sorted(MODEL_SOURCES[unit])[0]
+            try:
+                model_credential(directory, name)
+            except (ProfileError, ControllerError, OSError):
+                return
+            raise AssertionError("unsafe model credential custody accepted")
         device = device_settings(directory)
         if fault == "custody":
             try:
@@ -224,12 +289,24 @@ let
             assert not (parent / ".pending").exists()
             assert not (parent / "material").exists()
 
+    def model_input(unit, fault):
+        name = sorted(MODEL_SOURCES[unit])[-1]
+        path = Path(MODEL_SOURCES[unit][name])
+        saved = path.with_name(path.name + ".saved")
+        if fault == "restore":
+            path.unlink()
+            os.rename(saved, path)
+        else:
+            limit = 4096 if name == "model-management" else 16384
+            os.rename(path, saved)
+            write_new(path, b"" if fault == "empty" else b"x" * (limit + 1))
+
     parser = argparse.ArgumentParser()
     parser.add_argument("phase", choices=(
-        "initialize", "reproduce", "permit", "negative", "failed-cleanup", "oversize", "restore",
+        "initialize", "reproduce", "permit", "negative", "failed-cleanup", "oversize", "restore", "model-input",
     ))
     parser.add_argument("unit", nargs="?", choices=UNITS)
-    parser.add_argument("fault", nargs="?", choices=("custody", "ca-pair", "server-pair", "expired", "not-ca"))
+    parser.add_argument("fault", nargs="?", choices=("custody", "ca-pair", "server-pair", "expired", "not-ca", "empty", "oversize", "restore"))
     args = parser.parse_args()
     try:
         if args.phase == "initialize":
@@ -242,6 +319,8 @@ let
             negative(args.unit, args.fault)
         elif args.phase == "failed-cleanup":
             failed_cleanup(args.unit)
+        elif args.phase == "model-input":
+            model_input(args.unit, args.fault)
         elif args.phase == "oversize":
             os.rename(TRUST / "native-jwks", TRUST / "native-jwks.saved")
             write_new(TRUST / "native-jwks", b"x" * 32769)
@@ -254,17 +333,22 @@ let
   command = "${python}/bin/python -I -B ${program}";
   service = unit:
     let
-      credentials = sources // lib.optionalAttrs (unit == "atrium-resolver") optionalSources;
+      credentials = modelSources.${unit} or
+        (sources // lib.optionalAttrs (unit == "atrium-resolver") optionalSources);
+      user =
+        if lib.elem unit [ "atrium-model-controller-initialize" "atrium-reconciler" ]
+        then "atrium-reconciler" else "atrium-resolver";
       projected = projection.serviceConfig { inherit pkgs unit credentials; };
     in
     {
       requires = [ "atrium-credential-fixture-trust.service" ];
       after = [ "atrium-credential-fixture-trust.service" ];
+      unitConfig.StartLimitIntervalSec = 0;
       serviceConfig = projected // {
         Type = "oneshot";
         RemainAfterExit = true;
-        User = "atrium-resolver";
-        Group = "atrium-resolver";
+        User = user;
+        Group = user;
         RuntimeDirectory = [ projected.RuntimeDirectory "${unit}-fixture" ];
         LoadCredential = lib.mapAttrsToList (name: path: "${name}:${path}") credentials;
         ExecStartPre = [ "${command} reproduce ${unit}" ] ++ projected.ExecStartPre;
@@ -287,7 +371,7 @@ let
     };
 in
 hostPkgs.testers.runNixOSTest {
-  name = "atrium-foundation-credential-projection";
+  name = "atrium-credential-projection";
   globalTimeout = 300;
   node.pkgs = lib.mkForce pkgs;
   nodes.machine = {
@@ -300,6 +384,7 @@ hostPkgs.testers.runNixOSTest {
     networking.useDHCP = false;
     users.groups.atrium-resolver.gid = ids.atrium-resolver.gid;
     users.groups.atrium-trust.gid = ids.atrium-trust.gid;
+    users.groups.atrium-reconciler.gid = ids.atrium-reconciler.gid;
     users.users.atrium-resolver = {
       isSystemUser = true;
       uid = ids.atrium-resolver.uid;
@@ -310,10 +395,18 @@ hostPkgs.testers.runNixOSTest {
       uid = ids.atrium-trust.uid;
       group = "atrium-trust";
     };
+    users.users.atrium-reconciler = {
+      isSystemUser = true;
+      uid = ids.atrium-reconciler.uid;
+      group = "atrium-reconciler";
+    };
     environment.systemPackages = [ pkgs.util-linux ];
     systemd.services = {
       atrium-resolver = service "atrium-resolver";
       atrium-device-registration = service "atrium-device-registration";
+      atrium-model-resolver-initialize = service "atrium-model-resolver-initialize";
+      atrium-model-controller-initialize = service "atrium-model-controller-initialize";
+      atrium-reconciler = service "atrium-reconciler";
       atrium-credential-fixture-trust.serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -376,13 +469,60 @@ hostPkgs.testers.runNixOSTest {
     counts["cleanup"] += 1
     machine.succeed(f"{trust_probe} restore")
     machine.succeed("systemctl start atrium-resolver; systemctl stop atrium-resolver")
+
+    model_counts = {"reproduction": 0, "permit": 0, "deny": 0, "cleanup": 0}
+    for unit, uid, name in (
+        ("atrium-model-resolver-initialize", 1060, "model-management"),
+        ("atrium-model-controller-initialize", 1063, "management"),
+        ("atrium-reconciler", 1063, "family-anthropic"),
+    ):
+        root = f"/run/{unit}-credentials"
+        model_probe = f"setpriv --reuid {uid} --regid {uid} --clear-groups -- ${command}"
+        machine.succeed(f"systemctl start {unit}")
+        reproduction = json.loads(machine.succeed(f"cat /run/{unit}-fixture/reproduction.json"))
+        receipt = json.loads(machine.succeed(f"cat /run/{unit}-fixture/permit.json"))
+        assert all(reproduction.values())
+        assert receipt["real_model_readers"] and receipt["exact_source_bytes"]
+        assert receipt["uid"] == uid
+        model_counts["reproduction"] += 1
+        model_counts["permit"] += 1
+        for mutation in (
+            f"chown 1061:1061 {root}/material/{name}",
+            f"chmod 0660 {root}/material/{name}",
+            f"chmod 0770 {root}/material",
+            f"mv {root}/material/{name} {root}/material/held-key; "
+            f"ln -s held-key {root}/material/{name}",
+            f"ln {root}/material/{name} {root}/material/linked-key",
+        ):
+            machine.succeed(mutation)
+            machine.succeed(f"{model_probe} negative {unit} custody")
+            model_counts["deny"] += 1
+            machine.succeed(f"systemctl stop {unit}; test ! -e {root}")
+            model_counts["cleanup"] += 1
+            machine.succeed(f"systemctl start {unit}")
+            repeated = json.loads(machine.succeed(f"cat /run/{unit}-fixture/permit.json"))
+            assert repeated == receipt
+        machine.succeed(f"systemctl stop {unit}; test ! -e {root}")
+        model_counts["cleanup"] += 1
+        for fault in ("empty", "oversize"):
+            machine.succeed(f"{trust_probe} model-input {unit} {fault}")
+            machine.fail(f"systemctl start {unit}")
+            machine.succeed(f"systemctl show --value -p ExecStopPost {unit} | grep 'status=0'")
+            machine.succeed(f"test ! -e {root}")
+            model_counts["deny"] += 1
+            model_counts["cleanup"] += 1
+            machine.succeed(f"{trust_probe} model-input {unit} restore")
+        machine.succeed(f"systemctl start {unit}; systemctl stop {unit}; test ! -e {root}")
+
     machine.succeed("systemctl stop atrium-credential-fixture-trust")
     machine.succeed("test ! -e ${trust}; test ! -e /run/atrium-resolver-credentials")
     counts["cleanup"] += 1
     assert counts == {"reproduction": 2, "permit": 2, "deny": 17, "cleanup": 12}
+    assert model_counts == {"reproduction": 3, "permit": 3, "deny": 21, "cleanup": 24}
     print(json.dumps({
-        "kind": "atrium.foundation-credential-systemd",
-        "counts": counts, "actual_systemd_LoadCredential": True,
+        "kind": "atrium.credential-systemd",
+        "foundation_counts": counts, "model_counts": model_counts,
+        "actual_systemd_LoadCredential": True,
         "private_keys_confined_to_guest_run": True,
         "full_resolver_policy_gate": False, "live_operations": False,
     }, sort_keys=True))

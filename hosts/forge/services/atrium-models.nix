@@ -6,7 +6,12 @@ let
   m = composition.models;
   enabled = cfg.enable;
   adopted = enabled && cfg.adoption.models;
+  projection = import ../atrium/credential-projection.nix { inherit lib; };
   credentials = values: lib.mapAttrsToList (name: path: "${name}:${path}") values;
+  projectedCredentials = unit: values:
+    (projection.serviceConfig { inherit pkgs unit; credentials = values; }) // {
+      LoadCredential = credentials values;
+    };
   python = pkgs.python312.withPackages (ps: [
     (ps.toPythonModule packages.resolver)
     (ps.toPythonModule packages.credential-profiles)
@@ -22,7 +27,7 @@ let
     home_mcp = null;
     native_policy = null;
     litellm = m.resolver // {
-      controller_key_file = "/run/credentials/atrium-model-resolver-initialize.service/model-management";
+      controller_key_file = projection.path "atrium-model-resolver-initialize" "model-management";
     };
   };
   hardened = {
@@ -173,24 +178,23 @@ in
             "${runtime.paths.resolver}/foundation.initialized"
             "${runtime.paths.resolver}/resolver.sqlite3"
           ];
-          serviceConfig = {
+          serviceConfig = projectedCredentials "atrium-model-resolver-initialize" m.resolverCredentials // {
             Type = "oneshot";
             PrivateNetwork = true;
             ReadWritePaths = [ runtime.paths.resolver m.exports.resolver ];
-            LoadCredential = credentials m.resolverCredentials;
             ExecStart = "${bootstrapProgram} resolver --config ${resolverInitializeConfig} --confirm-new-installation ${runtime.installation}";
           };
         };
         atrium-model-controller-initialize = lib.recursiveUpdate (stateUnit m.roles.controller) {
           description = "Explicit first-use N04 ownership ledger and real service publication";
           unitConfig.AssertFileNotEmpty = [ "${m.exports.resolver}/associations.json" ];
-          serviceConfig = {
+          serviceConfig = projectedCredentials "atrium-model-controller-initialize"
+            { inherit (m.controllerCredentials) management; } // {
             Type = "oneshot";
             PrivateNetwork = true;
             SupplementaryGroups = [ m.metadataGroup.name m.deliveryGroup.name ];
             ReadWritePaths = [ m.private.controller m.exports.controller ];
             ReadOnlyPaths = [ m.exports.resolver ];
-            LoadCredential = credentials { inherit (m.controllerCredentials) management; };
             ExecStart = "${bootstrapProgram} controller --config ${controllerInitializeConfig} --confirm-new-installation ${runtime.installation}";
           };
         };
@@ -303,10 +307,9 @@ in
             "${m.private.controller}/ownership.json"
             "${runtime.paths.policy}/model-adoption.approved"
           ];
-          serviceConfig = {
+          serviceConfig = projectedCredentials "atrium-reconciler" m.controllerCredentials // {
             Type = "oneshot";
             SupplementaryGroups = [ m.metadataGroup.name m.deliveryGroup.name ];
-            LoadCredential = credentials m.controllerCredentials;
             ReadWritePaths = [ m.private.controller m.exports.controller "/run/atrium-delivery/whiskey" ];
             ReadOnlyPaths = [ m.exports.resolver "-/run/atrium-acknowledgements/whiskey" ];
             ExecStart = "${management} reconcile --config ${controllerConfig}"
