@@ -68,6 +68,14 @@ let
     UNITS = FOUNDATION_UNITS + tuple(MODEL_SOURCES)
     PLAN = json.loads(${builtins.toJSON (builtins.toJSON runtime.tlsPlan)})
 
+    def projector():
+        spec = importlib.util.spec_from_file_location(
+            "projection", "${../../hosts/forge/atrium/credential-projection.py}",
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     def write_new(path, contents, mode=0o600):
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
         with os.fdopen(descriptor, "wb") as stream:
@@ -134,11 +142,7 @@ let
 
     def reproduction(unit):
         source = Path(f"/run/credentials/{unit}.service")
-        spec = importlib.util.spec_from_file_location(
-            "projection", "${../../hosts/forge/atrium/credential-projection.py}",
-        )
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = projector()
         descriptor = os.open(source, module.DIRECTORY_FLAGS)
         try:
             module.source_metadata(descriptor, directory=True)
@@ -171,10 +175,12 @@ let
 
     def permit(unit):
         directory = Path(f"/run/{unit}-credentials/material")
+        module = projector()
         private_directory(directory, create=False)
         for path in directory.iterdir():
             descriptor = private_open(path, os.O_RDONLY)
             try:
+                module.private_metadata(descriptor, directory=False)
                 assert stat.S_IMODE(os.fstat(descriptor).st_mode) == 0o400
             finally:
                 os.close(descriptor)
@@ -225,8 +231,24 @@ let
     def negative(unit, fault):
         directory = Path(f"/run/{unit}-credentials/material")
         if unit in MODEL_SOURCES:
-            assert fault == "custody"
             name = sorted(MODEL_SOURCES[unit])[0]
+            if fault == "projection-link":
+                descriptor = os.open(directory / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                try:
+                    try:
+                        projector().private_metadata(descriptor, directory=False)
+                    except ValueError as error:
+                        assert str(error) == "invalid private projection custody"
+                    else:
+                        raise AssertionError("projector accepted a hard-linked credential")
+                finally:
+                    os.close(descriptor)
+                # The shared resolver reader has no single-link contract;
+                # the projector and controller reader enforce that invariant.
+                if name == "model-management":
+                    return
+            else:
+                assert fault == "custody"
             try:
                 model_credential(directory, name)
             except (ProfileError, ControllerError, OSError):
@@ -306,7 +328,7 @@ let
         "initialize", "reproduce", "permit", "negative", "failed-cleanup", "oversize", "restore", "model-input",
     ))
     parser.add_argument("unit", nargs="?", choices=UNITS)
-    parser.add_argument("fault", nargs="?", choices=("custody", "ca-pair", "server-pair", "expired", "not-ca", "empty", "oversize", "restore"))
+    parser.add_argument("fault", nargs="?", choices=("custody", "projection-link", "ca-pair", "server-pair", "expired", "not-ca", "empty", "oversize", "restore"))
     args = parser.parse_args()
     try:
         if args.phase == "initialize":
@@ -471,6 +493,7 @@ hostPkgs.testers.runNixOSTest {
     machine.succeed("systemctl start atrium-resolver; systemctl stop atrium-resolver")
 
     model_counts = {"reproduction": 0, "permit": 0, "deny": 0, "cleanup": 0}
+    link_counts = {"projector": 0, "controller_reader": 0}
     for unit, uid, name in (
         ("atrium-model-resolver-initialize", 1060, "model-management"),
         ("atrium-model-controller-initialize", 1063, "management"),
@@ -486,17 +509,21 @@ hostPkgs.testers.runNixOSTest {
         assert receipt["uid"] == uid
         model_counts["reproduction"] += 1
         model_counts["permit"] += 1
-        for mutation in (
-            f"chown 1061:1061 {root}/material/{name}",
-            f"chmod 0660 {root}/material/{name}",
-            f"chmod 0770 {root}/material",
-            f"mv {root}/material/{name} {root}/material/held-key; "
-            f"ln -s held-key {root}/material/{name}",
-            f"ln {root}/material/{name} {root}/material/linked-key",
+        for fault, mutation in (
+            ("custody", f"chown 1061:1061 {root}/material/{name}"),
+            ("custody", f"chmod 0660 {root}/material/{name}"),
+            ("custody", f"chmod 0770 {root}/material"),
+            ("custody", f"mv {root}/material/{name} {root}/material/held-key; "
+             f"ln -s held-key {root}/material/{name}"),
+            ("projection-link", f"ln {root}/material/{name} {root}/material/linked-key"),
         ):
             machine.succeed(mutation)
-            machine.succeed(f"{model_probe} negative {unit} custody")
+            machine.succeed(f"{model_probe} negative {unit} {fault}")
             model_counts["deny"] += 1
+            if fault == "projection-link":
+                link_counts["projector"] += 1
+                if name != "model-management":
+                    link_counts["controller_reader"] += 1
             machine.succeed(f"systemctl stop {unit}; test ! -e {root}")
             model_counts["cleanup"] += 1
             machine.succeed(f"systemctl start {unit}")
@@ -519,9 +546,11 @@ hostPkgs.testers.runNixOSTest {
     counts["cleanup"] += 1
     assert counts == {"reproduction": 2, "permit": 2, "deny": 17, "cleanup": 12}
     assert model_counts == {"reproduction": 3, "permit": 3, "deny": 21, "cleanup": 24}
+    assert link_counts == {"projector": 3, "controller_reader": 2}
     print(json.dumps({
         "kind": "atrium.credential-systemd",
         "foundation_counts": counts, "model_counts": model_counts,
+        "model_link_refusals": link_counts,
         "actual_systemd_LoadCredential": True,
         "private_keys_confined_to_guest_run": True,
         "full_resolver_policy_gate": False, "live_operations": False,

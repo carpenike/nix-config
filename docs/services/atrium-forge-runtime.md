@@ -138,9 +138,12 @@ projector, actual CA/TLS/native/model readers and the current TLS bootstrap
 profile. It generates synthetic keys only in guest `/run`, tests paired
 custody/profile/key/expiry refusals, failed-copy cleanup and restart cleanup.
 The model cases additionally exercise the actual controller management/provider
-readers under UID1063, root-owned input rejection, writable/foreign/symlinked/
-hard-linked material rejection, and empty/oversize input cleanup for every model
-unit. No native model management or inference request is made by this fixture.
+readers under UID1063, root-owned input rejection, writable/foreign/symlinked
+material rejection, and empty/oversize input cleanup for every model unit.
+Hard-link refusals exercise the projector's single-link invariant for all model
+units and the controller reader's additional single-link check. The shared
+resolver reader does not claim that extra invariant and remains unchanged.
+No native model management or inference request is made by this fixture.
 Its execution status must be reported separately from evaluation; preparing
 this fixture is not an executed N03 gate or a full resolver-policy test.
 
