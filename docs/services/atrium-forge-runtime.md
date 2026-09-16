@@ -158,6 +158,15 @@ Projection and runtime-fixture sources are unchanged between those revisions.
 This proves the startup-custody correction, not live Forge startup, full
 T1/T4/T8/T15/T20/T26 policy/adapter gates, native adoption or deployment.
 
+The [model-unit extension receipt](evidence/atrium-model-credential-projection.json)
+records the later run at `0fb141f0`: the original 2/2/17/12 foundation cases plus
+3 model reproductions, 3 permits, 21 denials and 24 cleanup checks. The
+x86_64-linux guest completed in 215.75 seconds within the unchanged 300-second
+deadline. The initial fixture failure and its correction remain recorded;
+application verifiers were not changed to satisfy a new test assumption.
+This is credential-loading evidence, not executed production initialization,
+model adoption, inference or a new full-ticket T-case claim.
+
 The six TLS roots separately authorize enrolled devices, registration servers,
 native servers, resolver issuance clients, native-policy servers and
 native-policy clients. Server/client purposes and exact SANs are explicit.
