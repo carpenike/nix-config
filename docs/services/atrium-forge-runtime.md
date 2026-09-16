@@ -1,5 +1,10 @@
 # ATR-N03 — Forge runtime foundation
 
+**Historical foundation reference.** Use the
+[2026-09-16 operator checkpoint](atrium-operator-handoff.md) for current pins,
+deployed state and next work. Foundation/model initialization and model-only
+adoption are already complete; do not repeat the old setup sequence below.
+
 **Follow-up:** [Cloud-first registry and adapter wiring](atrium-forge-cloud.md)
 replaces the missing-policy stopgap below with complete Nix values and explicit
 conditional adoption. This page and its receipt describe the prior verified
