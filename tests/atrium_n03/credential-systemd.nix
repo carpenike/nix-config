@@ -40,28 +40,12 @@ let
     import importlib.util
     import json
     import os
-    import ssl
     import stat
     from datetime import UTC, datetime, timedelta
     from pathlib import Path
 
-    from atrium_litellm.controller import read_provider_credential
-    from atrium_litellm.errors import ControllerError
-    from atrium_litellm.files import read_bytes
-    from atrium_profiles import ProfileError
-    from atrium_profiles.crypto import public_jwk
-    from atrium_profiles.runtime import private_directory, private_open
-    from atrium_resolver.config import Settings
-    from atrium_resolver.device_certificates import DeviceCertificateAuthority
-    from atrium_resolver.device_config import DeviceSettings
-    from atrium_resolver.device_tls import registration_server_config
-    from atrium_resolver.home_mcp_config import HomeMCPDeployment
-    from atrium_resolver.home_mcp_native import transport_context
-    from atrium_resolver.litellm_native import read_controller_key
-    from atrium_resolver.tls_bootstrap import TLSBootstrapPlan, initialize_tls
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-
+    # Import actual application readers only in phases that exercise them;
+    # repeated unit cleanup and input staging stay stdlib-only.
     TRUST = Path("${trust}")
     FOUNDATION_UNITS = ("atrium-resolver", "atrium-device-registration")
     MODEL_SOURCES = json.loads(${builtins.toJSON (builtins.toJSON modelSources)})
@@ -92,6 +76,8 @@ let
             pending.unlink(missing_ok=True)
 
     def device_settings(directory):
+        from atrium_resolver.device_config import DeviceSettings
+
         return DeviceSettings(
             ca_certificate_path=directory / "device-ca",
             ca_private_key_path=directory / "device-ca-key",
@@ -102,6 +88,8 @@ let
         )
 
     def settings(unit, directory):
+        from atrium_resolver.config import Settings
+
         return Settings.model_validate_json(json.dumps({
             "authorities": [{
                 "id": "fixture", "issuer": "https://identity.atrium.invalid",
@@ -115,6 +103,10 @@ let
         }))
 
     def initialization():
+        from atrium_profiles.crypto import public_jwk
+        from atrium_resolver.tls_bootstrap import TLSBootstrapPlan, initialize_tls
+        from cryptography import x509
+
         PLAN["directory"] = str(TRUST)
         for entry in PLAN["authorities"] + PLAN["certificates"]:
             entry["common_name"] = "Synthetic " + entry["id"]
@@ -135,12 +127,20 @@ let
     def model_credential(directory, name):
         path = directory / name
         if name == "model-management":
+            from atrium_resolver.litellm_native import read_controller_key
+
             return read_controller_key(path).get_secret_value()
         if name == "management":
+            from atrium_litellm.files import read_bytes
+
             return read_bytes(path, secret=True, limit=16384).decode().strip()
+        from atrium_litellm.controller import read_provider_credential
+
         return read_provider_credential(name, {"runtime_path": str(path)})
 
     def reproduction(unit):
+        from atrium_profiles import ProfileError
+
         source = Path(f"/run/credentials/{unit}.service")
         module = projector()
         descriptor = os.open(source, module.DIRECTORY_FLAGS)
@@ -152,6 +152,8 @@ let
         finally:
             os.close(descriptor)
         if unit in MODEL_SOURCES:
+            from atrium_litellm.errors import ControllerError
+
             for name in MODEL_SOURCES[unit]:
                 try:
                     model_credential(source, name)
@@ -160,6 +162,8 @@ let
                 except ControllerError as error:
                     assert name != "model-management" and error.code == "untrusted_file"
                 else:
+                    from atrium_resolver.device_certificates import DeviceCertificateAuthority
+
                     raise AssertionError("actual model reader accepted root-owned credentials directly")
         else:
             try:
@@ -174,6 +178,8 @@ let
         }).encode())
 
     def permit(unit):
+        from atrium_profiles.runtime import private_directory, private_open
+
         directory = Path(f"/run/{unit}-credentials/material")
         module = projector()
         private_directory(directory, create=False)
@@ -199,11 +205,22 @@ let
                 "uid": os.geteuid(), "credentials": sorted(MODEL_SOURCES[unit]),
             }).encode())
             return
+        import ssl
+
+        from atrium_resolver.device_certificates import DeviceCertificateAuthority
+        from atrium_resolver.device_tls import registration_server_config
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+
         authority = DeviceCertificateAuthority(device_settings(directory))
         tls = registration_server_config(settings(unit, directory), port=0)
         assert tls.ssl.verify_mode == ssl.CERT_REQUIRED
         assert tls.ssl.minimum_version == ssl.TLSVersion.TLSv1_2
         if unit == "atrium-resolver":
+            from atrium_resolver.home_mcp_config import HomeMCPDeployment
+            from atrium_resolver.home_mcp_native import transport_context
+            from atrium_resolver.litellm_native import read_controller_key
+
             native = HomeMCPDeployment(
                 endpoint="https://native.atrium.invalid/cc/issue",
                 ca_certificate_path=directory / "native-ca",
@@ -249,11 +266,22 @@ let
                     return
             else:
                 assert fault == "custody"
+            from atrium_litellm.errors import ControllerError
+            from atrium_profiles import ProfileError
+
             try:
                 model_credential(directory, name)
             except (ProfileError, ControllerError, OSError):
                 return
             raise AssertionError("unsafe model credential custody accepted")
+        import ssl
+
+        from atrium_profiles import ProfileError
+        from atrium_resolver.device_certificates import DeviceCertificateAuthority
+        from atrium_resolver.device_tls import registration_server_config
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+
         device = device_settings(directory)
         if fault == "custody":
             try:
