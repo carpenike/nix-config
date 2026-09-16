@@ -111,6 +111,18 @@ templates also use new `cc.*` identifiers. Each client template allows only
 one alias. Opus is absent from the ordinary seed and has a separate target and
 explicit `atrium-select-opus` operator action. No alias has fallback edges.
 
+Model adoption explicitly sets the full routing contract required by the pinned
+controller: `num_retries = 0`, `max_fallbacks = 0`, and empty `fallbacks`,
+`context_window_fallbacks` and `content_policy_fallbacks` lists. A zero fallback
+limit alone is insufficient; missing lists and the ordinary two-retry default
+are refused as `unsafe_native_routing`. The deployment check reads the actual
+container-mounted YAML and compares it to the application's `SAFE_ROUTER`.
+Ordinary pre-adoption routing, strategy and timeout remain unchanged.
+The [routing contract receipt](evidence/atrium-router-contract.json) records
+the real pinned 1.100.1 refusal/permit readbacks and the host-rendered YAML
+comparison. A correction to these settings requires deployment, not new keys,
+another approval receipt, or repeated initialization.
+
 Client keys: **USD1 per key per 3600 seconds**, native lifetime at most
 3600 seconds. Whiskey's service key: **USD2 per 86400 seconds**, native lifetime
 604800 seconds, rotation interval 86400 seconds, acknowledged overlap

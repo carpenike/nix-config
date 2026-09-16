@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.adopted-gateway-router-contract",
+  "ticket": "ATR-N03",
+  "implementation_revision": "aed634b4d5b81702769d2a712adb5a628ec62479",
+  "atrium_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+  "source_files": [
+    {
+      "path": "hosts/forge/atrium/models.nix",
+      "sha256": "44b9e75bda6100a279a094b98849522c79ae91d5b0106d9d13bbf27d5b186135"
+    },
+    {
+      "path": "hosts/forge/services/atrium-models.nix",
+      "sha256": "80a6c6a022f2b8ec5c0760b768b1d13d1a43b998c50e4de3c325cbc211304bfe"
+    },
+    {
+      "path": "tests/atrium_n03/cloud-schema.nix",
+      "sha256": "c689e2ad00c7e79692abe636197df20d68f1306ca3102a8fc078811ab49c0b23"
+    }
+  ],
+  "native_qualification": {
+    "status": "passed",
+    "scope": "actual pinned Native.inspect_gateway and native LiteLLM router readback; not a full T-case gate",
+    "requested_image": "ghcr.io/berriai/litellm@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf",
+    "platform": "linux/arm64",
+    "verified_platform_manifest": "sha256:9b3c5a90347054cb25e8a4f834c09a6f21e7313438f5438ced959b7d08bbdb45",
+    "verified_package_version": "1.100.1",
+    "native_source_sha256": "712626b768fcdd4bb2a63cb4e8c1068a0901fdb2391819516c7a1242904e2da1",
+    "executed_native_and_harness_match_atrium_revision": true,
+    "guard_unchanged_and_not_mocked": true,
+    "old_configuration": {
+      "num_retries": 2,
+      "max_fallbacks": 0,
+      "fallbacks": null,
+      "context_window_fallbacks": null,
+      "content_policy_fallbacks": null,
+      "routing_strategy": "simple-shuffle",
+      "timeout": 600
+    },
+    "old_result": "unsafe_native_routing",
+    "old_denial_is_not_an_http_authentication_failure": true,
+    "corrected_configuration": {
+      "num_retries": 0,
+      "max_fallbacks": 0,
+      "fallbacks": [],
+      "context_window_fallbacks": [],
+      "content_policy_fallbacks": [],
+      "routing_strategy": "simple-shuffle",
+      "timeout": 600
+    },
+    "corrected_result": "permitted",
+    "native_readbacks_match_before_and_after_guard": true,
+    "corrected_values_match_evaluated_host_configuration": true,
+    "gateway_methods": ["GET"],
+    "gateway_paths": ["/v1/models", "/health/readiness", "/openapi.json", "/router/settings"],
+    "all_native_inspection_http_statuses": [200],
+    "downstream_provider_calls": 0,
+    "synthetic_credentials_only": true,
+    "native_management_mutations": false,
+    "owned_containers_removed": 8,
+    "owned_networks_removed": 2,
+    "task_acquired_image_removed": true,
+    "preexisting_resource_inventories_restored": true,
+    "fixture_lease_released": true,
+    "private_driver_environment_and_cache_removed": true
+  },
+  "deployment_validation": {
+    "system": "x86_64-linux",
+    "actual_container_mounted_yaml_checked": true,
+    "router_values_compared_to_imported_SAFE_ROUTER": true,
+    "unadopted_retry_default_and_unrelated_settings_preserved": true,
+    "checks": [
+      "atrium-forge-cloud-schema",
+      "atrium-forge-adoption-wiring",
+      "atrium-forge-credential-projection",
+      "atrium-forge-model-secrets"
+    ],
+    "status": "passed on Forge",
+    "schema_output": "/nix/store/yccfaxghl6h1llaqn7jxrp4k2d57srig-atrium-forge-cloud-schema",
+    "selected_forge_toplevel_evaluation": "passed",
+    "selected_forge_toplevel_derivation": "/nix/store/npvnk1nap3i9hg7r36c6vh2m5njc75pp-nixos-system-forge-25.11.20260630.b6018f8.drv",
+    "full_forge_system_built": false,
+    "rendered_linux_config_requires_linux_builder": true
+  },
+  "boundaries": {
+    "production_routing_modified": false,
+    "production_services_restarted": false,
+    "production_secrets_or_approval_receipt_changed": false,
+    "initialization_or_history_reset": false,
+    "merge_or_deployment_performed": false,
+    "full_t_cases_claimed": [],
+    "amendment_required": false
+  }
+}

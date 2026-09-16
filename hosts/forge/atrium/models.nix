@@ -45,6 +45,13 @@ let
 in
 {
   inherit roles metadataGroup deliveryGroup exports private acknowledgementPath controllerFor;
+  routerSettings = {
+    num_retries = 0;
+    max_fallbacks = 0;
+    fallbacks = [ ];
+    context_window_fallbacks = [ ];
+    content_policy_fallbacks = [ ];
+  };
   policyPath = "/var/lib/atrium-policy/model-policy.json";
   admissionSettingsPath = "${private.gateway}/config/admission.json";
   resolver = {
