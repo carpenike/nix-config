@@ -1,4 +1,4 @@
-"""Explicit local initialization using the real R06/N04 producer implementations."""
+"""Local model initialization and retained N04 publication using actual producers."""
 
 import argparse
 import json
@@ -9,11 +9,24 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("producer", choices=("resolver", "controller"))
+    parser.add_argument(
+        "producer", choices=("resolver", "controller", "controller-publication")
+    )
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--confirm-new-installation", required=True)
+    confirmation = parser.add_mutually_exclusive_group(required=True)
+    confirmation.add_argument("--confirm-new-installation")
+    confirmation.add_argument("--confirm-existing-installation")
     args = parser.parse_args()
+    publication = args.producer == "controller-publication"
     try:
+        if publication:
+            if args.confirm_existing_installation is None:
+                raise ValueError("explicit existing model installation required")
+            installation = args.confirm_existing_installation
+        else:
+            if args.confirm_new_installation is None:
+                raise ValueError("explicit new model installation required")
+            installation = args.confirm_new_installation
         if args.producer == "resolver":
             from atrium_resolver.config import load_settings
             from atrium_resolver.litellm_broker import LiteLLMBroker
@@ -23,7 +36,7 @@ def main():
             settings = load_settings(args.config)
             if (
                 settings.litellm is None
-                or settings.litellm.installation != args.confirm_new_installation
+                or settings.litellm.installation != installation
             ):
                 raise ValueError("explicit model installation required")
             directory = settings.litellm.runtime_directory
@@ -36,7 +49,7 @@ def main():
             )
             # Leave a refusal marker even if initialization fails partway through.
             with os.fdopen(descriptor, "w") as stream:
-                stream.write(args.confirm_new_installation + "\n")
+                stream.write(installation + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
             state = State(settings.state_directory)
@@ -53,7 +66,7 @@ def main():
                 0o600,
             )
             with os.fdopen(descriptor, "w") as stream:
-                stream.write(args.confirm_new_installation + "\n")
+                stream.write(installation + "\n")
                 stream.flush()
                 os.fsync(stream.fileno())
         else:
@@ -65,7 +78,7 @@ def main():
             from atrium_litellm.native import Native
 
             config = json.loads(args.config.read_bytes())
-            if config["installation"] != args.confirm_new_installation:
+            if config["installation"] != installation:
                 raise ValueError("explicit controller installation required")
             desired = Desired.read(Path(config["desired_state"]))
             if desired.document["environment"] != config["environment"]:
@@ -79,7 +92,10 @@ def main():
                 config["issuer"],
                 config["association_publisher_uid"],
             )
-            source.read(int(time.time()))
+            # Retained service publication must not depend on the other producer
+            # or on management requests that require this publication to be fresh.
+            if not publication:
+                source.read(int(time.time()))
             ledger = Ledger(
                 Path(config["ownership_directory"]),
                 config["installation"],
@@ -105,15 +121,26 @@ def main():
                 bindings_snapshot=Path(config["bindings_snapshot"]),
                 publication_reader_gid=config["publication_reader_gid"],
             )
-            ledger.initialize()
+            if not publication:
+                ledger.initialize()
             with ledger.locked():
                 ledger.save()
                 controller.publish_service_associations(int(time.time()))
             # Native bindings are published only after real reconciliation/readback,
             # never invented during this zero-adoption local initialization.
-        print(json.dumps({"initialized": args.producer, "native_writes": False}))
+        result = (
+            {"published": "controller"}
+            if publication
+            else {"initialized": args.producer}
+        )
+        print(json.dumps({**result, "native_writes": False}))
     except Exception:
-        raise SystemExit("atrium_model_initialization_rejected") from None
+        code = (
+            "atrium_model_publication_rejected"
+            if publication
+            else "atrium_model_initialization_rejected"
+        )
+        raise SystemExit(code) from None
 
 
 if __name__ == "__main__":

@@ -1,14 +1,15 @@
 { inputs, pkgs }:
 let
   inherit (pkgs) lib;
-  forge = inputs.self.nixosConfigurations.forge.config;
-  adopted = (inputs.self.nixosConfigurations.forge.extendModules {
+  configuration = import ./pre-adoption.nix { inherit inputs; };
+  forge = configuration.config;
+  adopted = (configuration.extendModules {
     modules = [{
       services.atriumForge.adoption.models = true;
       services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
     }];
   }).config;
-  nativeAdopted = (inputs.self.nixosConfigurations.forge.extendModules {
+  nativeAdopted = (configuration.extendModules {
     modules = [{
       services.atriumForge.adoption.native = true;
       services.atriumForge.groupEvidence.clientIds = [ "fixture-c10-public-client" ];
@@ -103,7 +104,7 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert broker.issuer == "https://mcp.holthome.net"
     assert broker.transport_endpoint == "https://127.0.0.1:9200/cc/issue"
     assert broker.request_endpoint == "https://127.0.0.1:9200/cc/issue"
-    assert broker.verification_keys_path == Path("/run/credentials/atrium-resolver.service/native-jwks")
+    assert broker.verification_keys_path == Path("/run/atrium-resolver-credentials/material/native-jwks")
     admission = AdmissionSettings.model_validate_json(json.dumps(data["admission"]))
     enrollment = Bootstrap.model_validate_json(json.dumps(data["bootstrap"]["enrollment"]))
     ordinary = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["ordinary"]))

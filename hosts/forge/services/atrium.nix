@@ -116,6 +116,7 @@ in
 {
   imports = [
     inputs.atrium.nixosModules.atrium
+    ../atrium/adoption.nix
     ../atrium/setup-admission.nix
     ./atrium-models.nix
     ./atrium-adapters.nix

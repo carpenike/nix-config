@@ -12,6 +12,7 @@ let
     (projection.serviceConfig { inherit pkgs unit; credentials = values; }) // {
       LoadCredential = credentials values;
     };
+  reconcilerProjection = projectedCredentials "atrium-reconciler" m.controllerCredentials;
   python = pkgs.python312.withPackages (ps: [
     (ps.toPythonModule packages.resolver)
     (ps.toPythonModule packages.credential-profiles)
@@ -297,8 +298,9 @@ in
         atrium-reconciler = lib.recursiveUpdate (stateUnit m.roles.controller) {
           description = "Reconcile only new cc.* model objects with live producer publications";
           wantedBy = [ "multi-user.target" ];
-          after = [ "zfs-service-datasets.service" "network-online.target" "firewall.service" "podman-litellm.service" ];
-          requires = [ "zfs-service-datasets.service" "firewall.service" "podman-litellm.service" ];
+          wants = [ "network-online.target" ];
+          after = [ "zfs-service-datasets.service" "network-online.target" "firewall.service" "atrium-resolver.service" "podman-litellm.service" ];
+          requires = [ "zfs-service-datasets.service" "firewall.service" "atrium-resolver.service" "podman-litellm.service" ];
           restartTriggers = [
             config.services.atrium.generated.litellm
             config.environment.etc."atrium/runtime/model-controller.json".source
@@ -307,11 +309,14 @@ in
             "${m.private.controller}/ownership.json"
             "${runtime.paths.policy}/model-adoption.approved"
           ];
-          serviceConfig = projectedCredentials "atrium-reconciler" m.controllerCredentials // {
+          serviceConfig = reconcilerProjection // {
             Type = "oneshot";
             SupplementaryGroups = [ m.metadataGroup.name m.deliveryGroup.name ];
             ReadWritePaths = [ m.private.controller m.exports.controller "/run/atrium-delivery/whiskey" ];
             ReadOnlyPaths = [ m.exports.resolver "-/run/atrium-acknowledgements/whiskey" ];
+            ExecStartPre = reconcilerProjection.ExecStartPre ++ [
+              "${bootstrapProgram} controller-publication --config ${controllerConfig} --confirm-existing-installation ${runtime.installation}"
+            ];
             ExecStart = "${management} reconcile --config ${controllerConfig}"
               + lib.optionalString (!cfg.adoption.whiskeyText) " --no-rotate";
           };

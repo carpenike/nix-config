@@ -1,7 +1,7 @@
 { inputs, pkgs }:
 let
   inherit (inputs.nixpkgs) lib;
-  forge = inputs.self.nixosConfigurations.forge;
+  forge = import ./pre-adoption.nix { inherit inputs; };
   baseline = (forge.extendModules {
     modules = [{
       disabledModules = [ admissionPath ];
