@@ -231,10 +231,13 @@ in
         assertion = config.modules.services.litellm.enable
           && config.modules.services.litellm.image == runtime.adoption.models.image
           && config.modules.services.litellm.podmanNetwork == null
-          && config.modules.services.litellm.routerSettings.max_fallbacks == 0;
-        message = "Atrium model adoption requires the pinned shared gateway, no provider fallback, and its explicit private host-network boundary.";
+          && lib.all
+          (name: config.modules.services.litellm.routerSettings.${name} == m.routerSettings.${name})
+          (builtins.attrNames m.routerSettings);
+        message = "Atrium model adoption requires the pinned shared gateway, the complete controller routing contract, and its explicit private host-network boundary.";
       }];
       modules.services.litellm = {
+        routerSettings = lib.mapAttrs (_: value: lib.mkForce value) m.routerSettings;
         healthUrl = "${runtime.endpoints.models}/health/liveliness";
         publishPort = false;
         internalPort = 4100;

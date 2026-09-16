@@ -22,6 +22,14 @@ let
     in
     assert builtins.length matches == 1;
     lib.removePrefix prefix (builtins.head matches);
+  gatewayConfig = config:
+    let
+      suffix = ":/app/config.yaml:ro";
+      matches = lib.filter (lib.hasSuffix suffix)
+        config.virtualisation.oci-containers.containers.litellm.volumes;
+    in
+    assert builtins.length matches == 1;
+    lib.removeSuffix suffix (builtins.head matches);
   registry = forge.services.atrium.registry;
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
   models = import ../../hosts/forge/atrium/models.nix {
@@ -30,14 +38,18 @@ let
   };
   bootstrap = import ../../hosts/forge/atrium/bootstrap.nix { inherit lib registry; };
   packages = inputs.atrium.packages.${pkgs.stdenv.hostPlatform.system};
-  python = pkgs.python312.withPackages (ps: map ps.toPythonModule [
+  python = pkgs.python312.withPackages (ps: (map ps.toPythonModule [
     packages.resolver
     packages.credential-profiles
     packages.atrium-litellm-controller
     packages.atrium-litellm-admission
-  ]);
+  ]) ++ [ ps.pyyaml ]);
   data = {
     inherit bootstrap;
+    gateway_configs = {
+      adopted = gatewayConfig adopted;
+      unadopted = gatewayConfig forge;
+    };
     health_commands = {
       adopted_regular = healthCommand adopted "--health-cmd=";
       adopted_startup = healthCommand adopted "--health-startup-cmd=";
@@ -84,6 +96,7 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     from unittest.mock import patch
     from urllib.error import URLError
 
+    import yaml
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -95,8 +108,19 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     from atrium_admission.models import Settings as AdmissionSettings
     from atrium_litellm.controller import Controller
     from atrium_litellm.ledger import Ledger
+    from atrium_litellm.native import SAFE_ROUTER
 
     data = json.loads(${builtins.toJSON (builtins.toJSON data)})
+    gateway_configs = {
+        name: yaml.safe_load(Path(path).read_bytes())
+        for name, path in data["gateway_configs"].items()
+    }
+    adopted_router = gateway_configs["adopted"]["router_settings"]
+    for name, expected in SAFE_ROUTER.items():
+        assert adopted_router.get(name) == expected, "rendered gateway violates controller routing contract"
+    assert gateway_configs["unadopted"]["router_settings"]["num_retries"] == 2
+    assert adopted_router["routing_strategy"] == gateway_configs["unadopted"]["router_settings"]["routing_strategy"]
+    assert adopted_router["timeout"] == gateway_configs["unadopted"]["router_settings"]["timeout"]
     settings = Settings.model_validate_json(json.dumps(data["resolver"]))
     broker_settings = Settings.model_validate_json(json.dumps(data["broker_resolver"]))
     broker = broker_settings.home_mcp.deployments["home-mcp"]
