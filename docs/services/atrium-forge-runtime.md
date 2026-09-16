@@ -167,6 +167,14 @@ application verifiers were not changed to satisfy a new test assumption.
 This is credential-loading evidence, not executed production initialization,
 model adoption, inference or a new full-ticket T-case claim.
 
+The same receipt separately preserves the hosted CI timeout at `951843ea`.
+The fixture-only follow-up at `bee72953` moves application imports out of
+filesystem-only cleanup/input-staging phases. Its non-import Python AST,
+test script, unit wiring, cases and deadlines are unchanged. All recorded
+foundation/model cases then passed in 135.54 seconds on the isolated Linux
+guest. Fresh public CI for the PR head remains an independent merge condition;
+neither the earlier local pass nor this timing improvement bypasses it.
+
 The six TLS roots separately authorize enrolled devices, registration servers,
 native servers, resolver issuance clients, native-policy servers and
 native-policy clients. Server/client purposes and exact SANs are explicit.
