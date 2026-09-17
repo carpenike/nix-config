@@ -13,10 +13,28 @@ let
     atrium-model-resolver-initialize = [ [ "model-management" ] ];
     atrium-model-controller-initialize = [ [ "management" ] ];
     atrium-reconciler = [ [ "management" "personal-anthropic" "family-anthropic" ] ];
+    atrium-native-policy = [
+      [ "policy-server-cert" "policy-server-key" "policy-client-ca" "policy-client-cert" ]
+    ];
+    atrium-native-settings = [ [ "native-profile" "resolver-client-cert" ] ];
+    homelab-mcp = [
+      [
+        "server-cert"
+        "server-key"
+        "resolver-client-ca"
+        "resolver-client-cert"
+        "resolver-jwks"
+        "native-profile"
+        "public-ca"
+        "policy-ca"
+        "policy-client-cert"
+        "policy-client-key"
+      ]
+    ];
   };
   runtimeName = unit:
     assert lib.assertMsg (builtins.hasAttr unit credentialSets)
-      "Only declared Atrium foundation and model units project credentials.";
+      "Only declared Atrium foundation, model and native units project credentials.";
     "${unit}-credentials";
   directory = unit: "/run/${runtimeName unit}";
 in

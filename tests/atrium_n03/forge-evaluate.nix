@@ -320,7 +320,7 @@ let
       lib.hasInfix "serve-native-policy --port 18767"
         nativeAdopted.systemd.services.atrium-native-policy.serviceConfig.ExecStart
       && lib.hasInfix "native-policy --template"
-        nativeAdopted.systemd.services.atrium-native-policy.serviceConfig.ExecStartPre
+        (lib.last nativeAdopted.systemd.services.atrium-native-policy.serviceConfig.ExecStartPre)
       && lib.elem "/run/atrium-native-mcp/native.env"
         nativeAdopted.systemd.services.homelab-mcp.serviceConfig.EnvironmentFile
       && lib.hasInfix "tls_trust_pool file /run/credentials/caddy.service/atrium-native-ca"

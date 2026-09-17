@@ -125,7 +125,8 @@ the reconciler receives exactly its management credential and both provider
 credentials. Foundation listeners never receive the controller/provider set.
 Provider runtime references point to the reconciler's projection; their wing,
 principal, account, backend and source-secret bindings are unchanged.
-Native-policy, Home MCP, Caddy and Whiskey credential paths are not redirected.
+The native extension below leaves these foundation/model sets unchanged.
+Caddy and Whiskey credential paths are not redirected.
 Adoption flags, UID separation, persistent signing/deny state, public issuer,
 ports and the admitted `cc.atrium.operator` client are unchanged.
 
@@ -174,6 +175,113 @@ test script, unit wiring, cases and deadlines are unchanged. All recorded
 foundation/model cases then passed in 135.54 seconds on the isolated Linux
 guest. Fresh public CI for the PR head remains an independent merge condition;
 neither the earlier local pass nor this timing improvement bypasses it.
+
+### Native credential projection (pre-adoption)
+
+The same host projector now covers the conditional native units. This corrects
+pre-adoption wiring: native adoption remains **off**, and it is not evidence of
+a failed live native service. At Atrium `370d275ac57ed4ca7a4c324e86353f950993a6ce`,
+`native_policy_server_config` calls `device_certificates.read_material`, which
+requires service-owned private directories/files. Home MCP
+`8523ee680e4531dd33e132435c36666464e2174c` likewise uses strict custody in
+`NativePolicyClient`, its issuance TLS loader, and `deny_store.read_private`.
+Direct root-owned systemd credential paths do not satisfy those contracts.
+
+| Unit | Existing identity | Exact projected set |
+| --- | --- | --- |
+| `atrium-native-policy` | `atrium-resolver` | `policy-server-cert`, `policy-server-key`, `policy-client-ca`, `policy-client-cert` |
+| `atrium-native-settings` | `homelab-mcp` | `native-profile`, `resolver-client-cert` |
+| `homelab-mcp` | `homelab-mcp` | `server-cert`, `server-key`, `resolver-client-ca`, `resolver-client-cert`, `resolver-jwks`, `native-profile`, `public-ca`, `policy-ca`, `policy-client-cert`, `policy-client-key` |
+
+Each unit publishes only to `/run/<unit>-credentials/material/`, using the
+unchanged root/read-only/exact-ACL input checks and service-owned `0700`/`0400`
+output custody. The credential map still drives both `LoadCredential` and
+projection. Native policy projects before rendering its fingerprint-bound
+settings, retaining `/run/atrium-native-policy/settings.json`. Native settings
+projects before rendering `/run/atrium-native-mcp/native.env`; its existing
+oneshot lifetime, `PartOf`, and Home MCP startup ordering are preserved.
+The renderer itself previously used ordinary reads: projecting its inputs
+provides consistent bounded custody, rather than fixing a strict-reader error
+in that script.
+
+Only `native-profile` and `public-ca` receive a **1 MiB** projection bound:
+the renderer already admits 1 MiB JSON, and the complete public CA bundle is
+not an individual certificate. Individual certificates, private keys, and JWKS
+retain the projector's **32 KiB** limit; existing model-specific bounds are
+unchanged. The `public-ca` source remains
+`/etc/ssl/certs/ca-certificates.crt`, without curating or replacing its trust set.
+
+The parent reports a metadata-only bundle size of **464,268 bytes**; this change
+does not read its contents or recreate existing live trust. At the unchanged
+Home MCP pin, the deny poller still reads this bundle with the **64 KiB**
+document/token budget and will reject it. Reviewed candidate
+`f414de23accf8fe973aef62d600a2907737d5423` changes the actual
+`NativeDenial.start()` CA load to its separate `MAX_CA_BUNDLE_BYTES = 1048576`,
+without changing token/feed limits. Tracked production pins remain unchanged;
+candidate evaluation uses an explicit input override. Coordinated pin adoption
+and Linux execution remain with the parent.
+
+No unrelated SOPS environment secret is projected. Existing Home MCP
+environment files, signing-key path, refresh database, deny history, identities,
+hardening and approval guards are preserved. Policy remains required-mTLS;
+native public TLS retains optional client certificates with the unchanged
+exact-peer issuance authorization. JWKS roles and all original source owners
+remain separate and unchanged. Native and Whiskey adoption remain disabled.
+
+The pinned deny-store binding hashes the configured CA path as well as the
+other trust settings. A store previously initialized with the old raw
+`/run/credentials/homelab-mcp.service/public-ca` reference will therefore reject
+the projected-path binding. No existing history is read, rewritten, migrated,
+or reset by this change. Any such previously initialized binding is an explicit
+pre-adoption compatibility blocker for the owner, not permission to remove
+`owner.json`, recreate the deny database, or bypass the application's refusal.
+
+`atrium-forge-credential-projection` checks exact native sets and consumer paths
+alongside the existing four native/model combinations. The new
+`atrium-forge-native-credential-systemd` check uses a network-isolated NixOS
+guest, actual `LoadCredential`, the unchanged pinned application readers/TLS
+loaders, and the production projector/renderer. Synthetic private keys exist
+only in guest `/run`. Cases cover raw-root custody rejection, projected TLS
+contexts, systemd-parsed rendered environment, exact source bytes, tampered
+ownership/modes/links, mismatched TLS keys, incomplete/foreign selections,
+renderer target/certificate failures, failed staging, and restart cleanup.
+Profiles larger than 64 KiB and a synthetic 464,268-byte CA bundle test the
+distinct projection bounds without using live material. CA permits and the
+maximum/oversize pair invoke the selected application's real
+`NativeDenial.start()` with a real, synthetic guest-local `DenyStore`. No raised
+`read_private` argument, loader substitution, or transport mock supplies the
+permit. Its mandatory poll targets only unused guest-loopback port 1 and must
+fail closed; the test then closes the real client, tasks, and store. The 64 KiB
+document budget must still reject the large bundle. Raw-source ownership denial
+also goes through that real startup path. No existing native history is used.
+The renderer and CA-loader maximum-size cases are tested independently of
+systemd's aggregate credential-size cap.
+
+Linux execution must be reported separately; preparing/evaluating this fixture
+does not execute the N03 T1/T4/T8/T15/T20/T26 gate or authorize adoption.
+Run only on the parent's isolated Linux test runner with the pinned packages,
+QEMU and usable guest virtualization:
+
+```sh
+nix build --no-link --no-write-lock-file --print-build-logs \
+  .#checks.x86_64-linux.atrium-forge-native-credential-systemd
+```
+
+Until the reviewed MCP fix is merged and pinned, this test requires that
+candidate through an explicit, non-persisting override; the old pin cannot
+qualify its CA loader. On the isolated runner, add:
+
+```sh
+--override-input homelab-mcp \
+  'git+file:///absolute/path/to/reviewed-mcp?rev=f414de23accf8fe973aef62d600a2907737d5423'
+```
+
+The repository path must contain that committed candidate. This override is
+qualification-only, not authorization to update `flake.lock` or deploy.
+
+The existing `atrium-forge-credential-systemd` foundation/model regression check
+is unchanged and remains a separate Linux target. Neither command deploys Forge
+or starts its live units.
 
 The six TLS roots separately authorize enrolled devices, registration servers,
 native servers, resolver issuance clients, native-policy servers and

@@ -27,6 +27,23 @@ let
       ];
     };
   };
+  nativeUnits = {
+    atrium-native-policy = {
+      user = "atrium-resolver";
+      credentials = runtime.policyCredentials;
+      rendererDirectories = [ "atrium-native-policy" ];
+    };
+    atrium-native-settings = {
+      user = "homelab-mcp";
+      credentials = lib.getAttrs [ "native-profile" "resolver-client-cert" ] runtime.nativeCredentials;
+      rendererDirectories = [ "atrium-native-mcp" ];
+    };
+    homelab-mcp = {
+      user = "homelab-mcp";
+      credentials = runtime.nativeCredentials;
+      rendererDirectories = [ ];
+    };
+  };
   deviceNames = builtins.attrNames runtime.deviceCredentials;
   variants = lib.cartesianProduct { native = [ false true ]; models = [ false true ]; };
   configured = flags: (forge.extendModules {
@@ -81,6 +98,27 @@ let
     && service.ProtectSystem == "strict"
     && lib.hasInfix "python -I -B" (lib.head service.ExecStartPre)
     && !(lib.elem "/run/credentials" (service.ReadWritePaths or [ ]));
+  checkNativeUnit = config: unit:
+    let
+      service = config.systemd.services.${unit}.serviceConfig;
+      expected = nativeUnits.${unit};
+      names = builtins.attrNames expected.credentials;
+    in
+    service.LoadCredential == lib.mapAttrsToList
+      (name: path: "${name}:${path}")
+      expected.credentials
+    && sorted (lib.toList service.RuntimeDirectory)
+    == sorted ([ "${unit}-credentials" ] ++ expected.rendererDirectories)
+    && service.RuntimeDirectoryMode == "0700"
+    && service.RuntimeDirectoryPreserve == "no"
+    && service.User == expected.user && service.Group == expected.user
+    && service.ProtectSystem == "strict"
+    && lib.hasInfix "python -I -B" (lib.head service.ExecStartPre)
+    && lib.hasInfix "credential-projection.py" (lib.head service.ExecStartPre)
+    && lib.all
+      (name: lib.hasInfix (lib.escapeShellArg name) (lib.head service.ExecStartPre))
+      names
+    && !(lib.elem "/run/credentials" (service.ReadWritePaths or [ ]));
   variantChecks = flags:
     let
       config = configured flags;
@@ -108,7 +146,16 @@ let
     lib.all checkUnit units
     && lib.all (checkModelUnit config)
       ([ "atrium-model-resolver-initialize" "atrium-model-controller-initialize" ]
-      ++ lib.optional flags.models "atrium-reconciler");
+      ++ lib.optional flags.models "atrium-reconciler")
+    && (if flags.native then
+      lib.all (checkNativeUnit config) (builtins.attrNames nativeUnits)
+    else
+      !(config.systemd.services ? atrium-native-policy)
+      && !(config.systemd.services ? atrium-native-settings)
+      && config.systemd.services.homelab-mcp.serviceConfig
+      == baseline.systemd.services.homelab-mcp.serviceConfig
+      && config.systemd.services.homelab-mcp.environment
+      == baseline.systemd.services.homelab-mcp.environment);
   rejectedFor = unit: credentials: !(builtins.tryEval (builtins.deepSeq
     (projection.serviceConfig {
       pkgs = baseline.nixpkgs.pkgs;
@@ -121,8 +168,24 @@ let
     personal-anthropic = "/run/secrets/atrium-personal-anthropic";
     family-anthropic = "/run/secrets/atrium-family-anthropic";
   };
+  native = (configured { native = true; models = false; }).systemd.services;
+  nativePolicy = native.atrium-native-policy.serviceConfig;
+  nativeSettings = native.atrium-native-settings.serviceConfig;
+  nativeService = native.homelab-mcp.serviceConfig;
+  nativePaths = [
+    runtime.native.profile_path
+    runtime.native.issuance.resolver_jwks
+    runtime.native.issuance.tls.server_certificate
+    runtime.native.issuance.tls.server_private_key
+    runtime.native.issuance.tls.client_ca
+    runtime.native.policy.resolver_jwks
+    runtime.native.policy.ca_certificate_path
+    runtime.native.policy.client_certificate_path
+    runtime.native.policy.client_private_key_path
+    runtime.native.deny.ca_bundle
+  ];
   checks = {
-    all-foundation-and-model-consumers-match-projection = lib.all variantChecks variants;
+    all-foundation-model-and-native-units-match-projection = lib.all variantChecks variants;
     unchanged-device-sources = lib.all
       (unit: baseline.systemd.services.${unit}.serviceConfig.LoadCredential
         == lib.mapAttrsToList (name: path: "${name}:${path}") runtime.deviceCredentials)
@@ -140,6 +203,22 @@ let
       (builtins.removeAttrs modelCredentials [ "family-anthropic" ]);
     reconciler-resolver-key-refused = rejectedFor "atrium-reconciler"
       (modelCredentials // { model-management = "/run/secrets/atrium-litellm-resolver-management"; });
+    incomplete-native-unit-sets-refused = lib.all
+      (unit: rejectedFor unit (builtins.removeAttrs nativeUnits.${unit}.credentials
+        [ (lib.head (builtins.attrNames nativeUnits.${unit}.credentials)) ]))
+      (builtins.attrNames nativeUnits);
+    native-unrelated-environment-secret-refused = lib.all
+      (unit: rejectedFor unit (nativeUnits.${unit}.credentials // {
+        environment = "/run/secrets/homelab-mcp/env";
+      }))
+      (builtins.attrNames nativeUnits);
+    native-model-credentials-refused = lib.all
+      (unit: rejectedFor unit modelCredentials)
+      (builtins.attrNames nativeUnits);
+    native-cross-role-sets-refused =
+      rejectedFor "atrium-native-policy" runtime.nativeCredentials
+      && rejectedFor "homelab-mcp" runtime.policyCredentials
+      && rejectedFor "atrium-native-settings" runtime.nativeCredentials;
     current-client-admission-preserved =
       baseline.services.atriumForge.groupEvidence.clientIds == [ "cc.atrium.operator" ]
       && (builtins.head (document baseline "atrium-resolver").authorities).group_evidence.client_ids
@@ -155,11 +234,80 @@ let
           && (builtins.head settings.authorities).issuer == "https://id.holthome.net"
           && (builtins.head settings.authorities).audience == "https://atrium.holthome.net/resolver")
       units;
-    unrelated-native-paths-unchanged =
-      runtime.nativePolicyTemplate.native_policy.server_private_key_path
-      == "/run/credentials/atrium-native-policy.service/policy-server-key"
-      && runtime.native.issuance.tls.server_private_key
-      == "/run/credentials/homelab-mcp.service/server-key";
+    native-policy-consumers-match-projection =
+      (map (field: runtime.nativePolicyTemplate.native_policy.${field}) [
+        "server_certificate_path"
+        "server_private_key_path"
+        "client_ca_path"
+      ]) == map (projection.path "atrium-native-policy")
+        [ "policy-server-cert" "policy-server-key" "policy-client-ca" ];
+    native-consumers-match-projection = nativePaths == map (projection.path "homelab-mcp") [
+      "native-profile"
+      "resolver-jwks"
+      "server-cert"
+      "server-key"
+      "resolver-client-ca"
+      "resolver-jwks"
+      "policy-ca"
+      "policy-client-cert"
+      "policy-client-key"
+      "public-ca"
+    ];
+    native-renderer-order-and-paths =
+      lib.length nativePolicy.ExecStartPre == 2
+      && lib.hasInfix
+        "--client-certificate ${projection.path "atrium-native-policy" "policy-client-cert"}"
+        (lib.last nativePolicy.ExecStartPre)
+      && lib.hasInfix "--output /run/atrium-native-policy/settings.json"
+        (lib.last nativePolicy.ExecStartPre)
+      && lib.hasInfix "--config /run/atrium-native-policy/settings.json"
+        nativePolicy.ExecStart
+      && lib.length nativeSettings.ExecStartPre == 1
+      && lib.hasInfix "--profile ${projection.path "atrium-native-settings" "native-profile"}"
+        nativeSettings.ExecStart
+      && lib.hasInfix
+        "--client-certificate ${projection.path "atrium-native-settings" "resolver-client-cert"}"
+        nativeSettings.ExecStart
+      && lib.hasInfix "--output /run/atrium-native-mcp/native.env" nativeSettings.ExecStart
+      && nativeSettings.RemainAfterExit && nativeSettings.PrivateNetwork
+      && lib.elem "homelab-mcp.service" native.atrium-native-settings.partOf
+      && lib.all
+        (unit: lib.elem unit native.homelab-mcp.requires && lib.elem unit native.homelab-mcp.after)
+        [ "firewall.service" "atrium-native-settings.service" "atrium-native-policy.service" ];
+    native-existing-environment-preserved =
+      nativeService.EnvironmentFile
+      == baseline.systemd.services.homelab-mcp.serviceConfig.EnvironmentFile
+      ++ [ "/run/atrium-native-mcp/native.env" ];
+    native-state-and-hardening-preserved = lib.all
+      (field: nativeService.${field}
+        == baseline.systemd.services.homelab-mcp.serviceConfig.${field})
+      [
+        "User"
+        "Group"
+        "StateDirectory"
+        "StateDirectoryMode"
+        "ReadWritePaths"
+        "ProtectSystem"
+        "ProtectHome"
+        "PrivateTmp"
+        "PrivateDevices"
+        "NoNewPrivileges"
+        "CapabilityBoundingSet"
+        "SystemCallFilter"
+        "MemoryDenyWriteExecute"
+        "RestrictAddressFamilies"
+        "ExecStart"
+      ];
+    native-signing-and-refresh-paths-preserved =
+      native.homelab-mcp.environment.HOMELAB_MCP_OAUTH_SIGNING_KEY_PATH
+      == "/var/lib/homelab-mcp/signing-key.pem"
+      && native.homelab-mcp.environment.HOMELAB_MCP_OAUTH_STATE_DB_PATH
+      == "/var/lib/homelab-mcp/state.db"
+      && runtime.native.deny.state_directory == "/var/lib/homelab-mcp/denial";
+    native-adoption-still-required = lib.all
+      (unit: lib.elem "/var/lib/atrium-policy/native-adoption.approved"
+        native.${unit}.unitConfig.AssertFileNotEmpty)
+      (builtins.attrNames nativeUnits);
     model-initializers-remain-manual = lib.all
       (unit:
         let service = baseline.systemd.services.${unit};

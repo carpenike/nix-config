@@ -40,7 +40,7 @@ let
     registrationEntry = 19443;
     nativePolicy = 18767;
   };
-  credential = unit: name: "/run/credentials/${unit}.service/${name}";
+  credential = projection.path;
   signing = {
     directory = "${paths.resolver}/signing";
     issuer = endpoints.resolver;

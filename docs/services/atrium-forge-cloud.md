@@ -437,6 +437,49 @@ explicit operator work.
 
 ## Validation and remaining integration
 
+### Home MCP pre-adoption inventory - 2026-09-17
+
+The [read-only native inventory](evidence/atrium-native-readiness.json) found
+**11 registered clients and seven unexpired legacy refresh families across
+four clients**, plus 1,905 consumed-refresh tombstones. Native-profile cutover,
+native issuance/access associations and native deny adoption are not yet
+initialized. The earlier "no other clients" model inventory does not describe
+this native OAuth database.
+
+The seven live refresh grants include three `advisor`, two `hermes`, one
+missing-authorization-scope and one other-review-required selection. Do not
+silently migrate them all to the new public read-only target, preserve their
+old permissions by default, or erase their consumption history. Exact grant
+selection or deliberate client reauthentication/reconfiguration remains an
+owner action.
+
+Public native discovery and its one-key RS256 JWKS are available over verified
+HTTPS. The native signing-key file and all 12 expected native TLS source files
+already exist in private custody; this is not a reason to reinitialize trust.
+File presence alone is not key-pair/expiry or served-signer continuity proof.
+The native profile, public JWKS export files, adoption receipt and native deny
+store remain absent, consistent with `adoption.native = false`.
+
+Three source-level blockers are being qualified before adoption: native units
+need the existing service-owned credential projection rather than direct
+root-owned systemd credential paths, and adopted native login needs to request
+Pocket ID's `groups` scope before it can receive the signed group observation
+its C8 callback already supports. The native deny poller also needs a separate
+bounded CA-bundle input limit: the configured public bundle is 464,268 bytes,
+larger than its current 65,536-byte JWT/feed limit, which must remain unchanged.
+The existing operator client
+`cc.atrium.operator`, its group admission and the model foundation are complete;
+the native upstream client `mcp` is a separate path, not missing operator setup.
+Read-only resolver queries also confirmed one active ordinary grant for each
+of the declared Personal and Family read templates and one canonical identity
+binding. Do not reseed them to solve client or custody prerequisites.
+
+The bounded Personal catalog has 20 read-only shopping/Fidelity/Paperless tools;
+Family has nine Home Assistant/Cooklang read tools. Neither exposes resources
+in this catalog, and neither label proves private per-human datasets. No data,
+raw credentials, client identifiers or token hashes were collected. No live
+adoption, token migration, service restart or model call was performed.
+
 ### R01 group-carrier dependency — accepted C10, explicit admission required
 
 On 2026-09-13 the parent reported verified Pocket ID2.14 measurements from
