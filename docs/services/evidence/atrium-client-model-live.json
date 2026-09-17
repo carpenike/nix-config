@@ -11,6 +11,8 @@
   "sources": {
     "owner_run_atrium_revision": "370d275ac57ed4ca7a4c324e86353f950993a6ce",
     "deployed_atrium_revision_during_execution": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+    "native_vendor_atrium_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+    "native_vendor_content_matches_desired_atrium": true,
     "desired_pin_commit": "bbad3c80f3b9578016dda1d030b9e554e84ad5cc",
     "desired_pin_tree": "bd7f12cc312e931b41dee8a83b2520ae0684bc4e",
     "desired_atrium_revision": "370d275ac57ed4ca7a4c324e86353f950993a6ce",

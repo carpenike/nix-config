@@ -31,6 +31,29 @@ let
   nativeCatalog = builtins.fromJSON (builtins.readFile base.catalogs.home-mcp.source);
   nativeVendor = builtins.fromJSON (builtins.readFile
     (inputs.homelab-mcp + "/vendor/atrium-artifacts.lock.json"));
+  nativeSourceHashes =
+    let
+      walk = prefix: directory:
+        let entries = builtins.readDir directory;
+        in lib.foldl'
+          (result: name:
+            let
+              kind = entries.${name};
+              path = directory + "/${name}";
+              relative = "${prefix}/${name}";
+            in
+            if kind == "directory" then result // walk relative path
+            else if kind == "regular" then result // {
+              "${relative}" = builtins.hashFile "sha256" path;
+            }
+            else throw "Atrium native vendor compatibility requires regular files and directories.")
+          { }
+          (builtins.attrNames entries);
+    in
+    lib.foldl'
+      (result: name: result // walk name (inputs.atrium + "/${name}"))
+      { }
+      [ "nix" "profiles" "resolver" ];
   stateNames = [ "atrium-resolver" "atrium-trust" "atrium-policy" "atrium-reconciler" "atrium-model-gateway" ];
   modelAdopted = (forge.extendModules {
     modules = [{
@@ -48,8 +71,10 @@ let
     selected-application-pin = inputs.atrium.rev == pins.atrium;
     selected-native-pins = inputs.homelab-mcp.rev == pins.native
       && inputs.whiskey-whiskey-whiskey.rev == pins.consumer;
-    native-vendor-matches-app = nativeVendor.revision == inputs.atrium.rev
+    native-vendor-source-pinned = nativeVendor.revision == pins.atrium_native_vendor_source
       && nativeVendor.repository == "https://github.com/carpenike/atrium";
+    native-vendor-content-matches-app =
+      nativeVendor.source_file_sha256 == nativeSourceHashes;
     explicit-gateway-version = gateway.kind == "atrium.litellm-version-candidate"
       && gateway.native_version == "v1.100.1"
       && c.services.atrium.litellmVersion == gateway.native_version;
