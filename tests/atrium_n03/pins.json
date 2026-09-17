@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
-  "atrium": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+  "atrium": "370d275ac57ed4ca7a4c324e86353f950993a6ce",
+  "atrium_native_vendor_source": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
   "native": "8523ee680e4531dd33e132435c36666464e2174c",
   "consumer": "472f877952a363321c76ce580ce41dd0810e08b8",
   "native_runtime_extra": {

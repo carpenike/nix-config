@@ -129,10 +129,10 @@
 
     #################### Personal Repositories ####################
 
-    # ATR-N05: qualified 1.100.1 compatibility, production metadata and recovery.
+    # ATR-N05/R06: qualified 1.100.1 admission plus bounded client issuance/use.
     # Host service activation is configured separately.
     atrium = {
-      url = "github:carpenike/atrium/1762ecb82cccc9c3aef3545f119ffe0f4e9e1682";
+      url = "github:carpenike/atrium/370d275ac57ed4ca7a4c324e86353f950993a6ce";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

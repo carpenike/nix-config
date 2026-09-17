@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.live-client-model-pair",
+  "status": "owner-run-deny-and-permit-passed-pin-not-deployed",
+  "observed_at": "2026-09-17T10:23:09-04:00",
+  "tickets": [
+    "ATR-R03",
+    "ATR-R06",
+    "ATR-N05"
+  ],
+  "sources": {
+    "owner_run_atrium_revision": "370d275ac57ed4ca7a4c324e86353f950993a6ce",
+    "deployed_atrium_revision_during_execution": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+    "native_vendor_atrium_revision": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682",
+    "native_vendor_content_matches_desired_atrium": true,
+    "desired_pin_commit": "bbad3c80f3b9578016dda1d030b9e554e84ad5cc",
+    "desired_pin_tree": "bd7f12cc312e931b41dee8a83b2520ae0684bc4e",
+    "desired_atrium_revision": "370d275ac57ed4ca7a4c324e86353f950993a6ce",
+    "desired_pin_deployed": false
+  },
+  "authentication": {
+    "flow": "existing operator public-client PKCE plus paired signed group evidence",
+    "principal": "ryan",
+    "authority": "pocketid",
+    "group_evidence_observed": true,
+    "access_issued_at": 1789654673,
+    "access_expires_at": 1789655513,
+    "id_token_saved": false,
+    "refresh_token_saved": false,
+    "host_initialization_requested": false,
+    "identity_or_policy_reinitialized": false
+  },
+  "owner_run_requests": [
+    {
+      "case": "personal-key-family-alias-deny",
+      "wing": "Personal wing",
+      "connection": "Personal wing Sonnet",
+      "model": "cc.family.holt.haiku",
+      "expected": "deny",
+      "manifest_http_status": 200,
+      "redemption_http_status": 200,
+      "model_http_status": 403,
+      "status": "denied",
+      "model_credential_persisted": false,
+      "model_response_content_emitted": false
+    },
+    {
+      "case": "personal-key-personal-alias-permit",
+      "wing": "Personal wing",
+      "connection": "Personal wing Sonnet",
+      "model": "cc.personal.ryan.sonnet",
+      "expected": "permit",
+      "manifest_http_status": 200,
+      "redemption_http_status": 200,
+      "model_http_status": 200,
+      "status": "permitted",
+      "model_credential_persisted": false,
+      "model_response_content_emitted": false
+    }
+  ],
+  "bounded_forge_observation": {
+    "resolver": {
+      "active_state": "active",
+      "sub_state": "running",
+      "result": "success",
+      "exec_main_status": 0
+    },
+    "reconciler": {
+      "active_state": "inactive",
+      "sub_state": "dead",
+      "result": "success",
+      "exec_main_status": 0,
+      "started_at": "2026-09-17T10:23:02-04:00",
+      "finished_at": "2026-09-17T10:23:09-04:00"
+    },
+    "model_health": {
+      "active_state": "inactive",
+      "sub_state": "dead",
+      "result": "success",
+      "exec_main_status": 0,
+      "started_at": "2026-09-17T10:23:03-04:00",
+      "finished_at": "2026-09-17T10:23:04-04:00"
+    },
+    "resolver_model_associations": {
+      "issuer": "https://llm.holthome.net",
+      "since_owner_login": 2,
+      "delivered": 2,
+      "unexpired_at_inspection": 2
+    },
+    "admission": {
+      "history_entries": 2,
+      "producer_snapshots": 2,
+      "feed_present": true,
+      "feed_error": null,
+      "state_file_regular": true,
+      "state_file_mode": "0600"
+    }
+  },
+  "evidence_handling": {
+    "raw_access_tokens_read": false,
+    "raw_model_credentials_read": false,
+    "model_response_content_read": false,
+    "raw_service_logs_read": false,
+    "unfiltered_management_responses_read": false,
+    "credential_ids_or_hashes_recorded": false
+  },
+  "claims": {
+    "live_client_manifest_and_redemption": "passed",
+    "live_cross_wing_model_alias_denial": "passed",
+    "live_permitted_model_request": "passed",
+    "paid_provider_request_authorized_by_owner": true,
+    "provider_billing_telemetry_independently_observed": false,
+    "denial_zero_provider_effect_proved_by_live_status_alone": false,
+    "canonical_zero-effect_denial_evidence": "atrium@370d275 harness/evidence/ATR-R06-client-model-11001-handoff.json",
+    "full_n05_gate_claimed": false,
+    "full_phase_gate_claimed": false,
+    "amendment_required": false
+  },
+  "boundaries": {
+    "production_configuration_modified_during_requests": false,
+    "production_services_restarted": false,
+    "production_secrets_or_approval_changed": false,
+    "native_or_whiskey_adoption_changed": false,
+    "deployment_performed_by_pin_commit": false,
+    "owner_local_serena_change_preserved": true
+  }
+}
