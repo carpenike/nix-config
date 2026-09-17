@@ -6,9 +6,9 @@ tests and acceptance evidence. This repository imports
 values: service identity, namespace and binding paths, model configuration,
 credential references and the selected network policy.
 
-[`tests/atrium_n06/fixture.nix`](../../tests/atrium_n06/fixture.nix) generates those
+[`tests/atrium_n06/fixture.nix`](https://github.com/carpenike/nix-config/blob/main/tests/atrium_n06/fixture.nix) generates those
 synthetic deployment values from the retained Nix registry.
-[`evaluate.nix`](../../tests/atrium_n06/evaluate.nix) checks consumption and module
+[`evaluate.nix`](https://github.com/carpenike/nix-config/blob/main/tests/atrium_n06/evaluate.nix) checks consumption and module
 composition, including configured namespace/path references and explicit
 capability resets. `checks.<system>.atrium-n06-units` evaluates these assertions
 without activating a service or claiming native egress behavior.

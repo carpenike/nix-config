@@ -160,6 +160,9 @@ nav:
       - PostgreSQL Preseed Fix: postgresql-preseed-marker-fix.md
   - Services:
       - AI Gateway (LiteLLM + copilot-api): services/ai-gateway.md
+      - Atrium Operator Checkpoint: services/atrium-operator-handoff.md
+      - Atrium Cloud Model Wiring: services/atrium-forge-cloud.md
+      - Atrium Foundation History: services/atrium-forge-runtime.md
       - Atrium Brownfield Inventory (ATR-N01): services/atrium-brownfield-inventory.md
       - Atrium Ownership and Adoption: services/atrium-ownership.md
       - Arr Services Implementation: services/arr-services-implementation.md

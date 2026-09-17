@@ -1,13 +1,20 @@
 # ATR-N03 — Cloud-first Forge registry and adapter wiring
 
+**Current checkpoint:** identity/client admission, model initialization and
+model-only adoption are complete. The owner deployed the routing correction
+in PR1127; resolver/gateway, reconciliation and model health were healthy at
+13:31 EDT on 2026-09-16. Home MCP and Whiskey remain unadopted. Continue with
+the client credential/model request path in the
+[operator handoff](atrium-operator-handoff.md), not the first-use procedures.
+
 The accepted C10 follow-up is documented in
 [C10 group-evidence configuration](atrium-c10-groups.md). Client admission is
-explicit and currently unconfigured. A source-bound native/helper receipt is
-now supplied and qualified appca is selected; final coordinated MCP/vendor
-inputs and the full C10 build remain separate from the C9 history below.
+explicit; `cc.atrium.operator` is configured. Fresh paired signed evidence is
+still required for group-dependent access. The source-bound native/helper and
+coordinated input records below remain separate from the C9 history.
 
-This is **build/deployment wiring, not a live activation or completed native
-gate**. It stacks on PR1086 at
+The original **build/deployment wiring was not live activation or a completed
+native gate**. It stacked on PR1086 at
 `b47cee4dff8d55afc6b111399477ad366c3d0edb`. The prior foundation evidence is
 retained in [atrium-forge-runtime.json](evidence/atrium-forge-runtime.json).
 The [source-bound cloud receipt](evidence/atrium-forge-cloud.json) records the
@@ -29,7 +36,7 @@ it is neither modified nor copied here. There is **no local-model prerequisite**
 
 ## Authoritative declarations
 
-[`hosts/forge/atrium/registry.nix`](../../hosts/forge/atrium/registry.nix)
+[`hosts/forge/atrium/registry.nix`](https://github.com/carpenike/nix-config/blob/main/hosts/forge/atrium/registry.nix)
 is the complete concrete permission ceiling. It consumes the actual cloud
 inventory in `hosts/forge/services/litellm.nix` and the pinned Home MCP
 source-exported catalog. It never creates a parallel tool catalog.
@@ -239,7 +246,7 @@ before enabling it. Until then, the existing native service behavior is unchange
 
 All four `services.atriumForge.adoption` switches default to false:
 `models`, `native`, `whiskey`, `whiskeyText`. The owner-selected
-[`adoption.nix`](../../hosts/forge/atrium/adoption.nix) now opts Forge into
+[`adoption.nix`](https://github.com/carpenike/nix-config/blob/main/hosts/forge/atrium/adoption.nix) now opts Forge into
 **models only**; Home MCP, Whiskey routes and Whiskey text remain off.
 Removing that concrete selection still exercises the actual unadopted module
 defaults in the preparation checks. Static configuration/reference
@@ -312,6 +319,10 @@ reviewed bindings. Native N06 permit/deny evidence remains required.
 
 ## Explicit initialization and recovery
 
+**First-use reference only:** the current installation has already completed
+foundation/model initialization and model approval. Do not repeat this sequence
+or recreate its history. See the operator handoff for the next client task.
+
 After separately authorized deployment/provisioning, the installed manual-only
 units use actual package interfaces:
 
@@ -345,6 +356,9 @@ units use actual package interfaces:
    than silently running owned keys without admission.
 
 ### Owner-run model-only activation
+
+**Completed on the current installation.** Retain this procedure for a
+separately reviewed first adoption, not as a restart or troubleshooting recipe.
 
 The owner approved preparing model-only activation on 2026-09-16 and reported
 that this is a new environment with no other clients. No direct-client
@@ -437,7 +451,7 @@ explicit operator work.
 
 ## Validation and remaining integration
 
-### R01 group-carrier dependency — accepted C10, explicit admission required
+### Historical group-carrier dependency — resolved by accepted C10
 
 On 2026-09-13 the parent reported verified Pocket ID2.14 measurements from
 network-config PR37 at `4ed8810`, native measurement source `f17c887`:
@@ -451,16 +465,17 @@ The resource access JWT contains no groups, including when requesting
 an `at_hash` binding to the exact access token. Userinfo contains live but
 unsigned group data without source `iat`/`exp`.
 
-The current access-token group carrier therefore cannot supply the required
-fresh verified membership. Identity authentication or a green health endpoint
+Those measurements showed that the access token alone could not supply the
+required fresh verified membership. Identity authentication or a green health endpoint
 does not establish wing eligibility. **Missing group evidence continues to
 refuse group-dependent access.**
 
 C10 (Atrium PR42, proposal `c3089ff`, acceptance `e8e4d54`) is accepted for
-separately verified signed group evidence. This branch adds the narrowly typed
-operator admission setting described in the C10 guide. Qualified immutable
-runtime/native inputs and actual admitted public client IDs are still needed
-before activation. Do not reinterpret ID tokens as access bearers,
+separately verified signed group evidence. The implementation added the narrowly
+typed operator admission setting described in the C10 guide. Qualified inputs
+and the actual admitted operator client are now configured; see the current
+handoff for their pins. Fresh evidence is still needed for authorization.
+Do not reinterpret ID tokens as access bearers,
 use unsigned userinfo as a fallback, seed observations, or add direct human
 principal ACLs to make access succeed. All human instances, route templates
 and client-model templates retain their exact group-only ceilings; the
@@ -472,7 +487,7 @@ explicitly as operational metadata. Optional C10 Settings configure only the
 selected authority's signed group-evidence admission; the resource bearer
 authentication contract is unchanged.
 
-### Build and native-source dependencies
+### Historical build and native-source dependencies
 
 Focused checks use the existing Nix runner with
 `--option allow-import-from-derivation false`: identity bootstrap, cloud schema/
@@ -480,7 +495,7 @@ real certificate binding refusals and group-only ACL preservation, N03 fixture
 composition, Caddy syntax and protection coverage. They are not new native
 T-cases or evidence of C10 integration.
 
-The current explicit candidates are:
+The then-selected candidates were (historical, not the current runtime pins):
 
 | Component | Immutable revision | Qualification boundary |
 | --- | --- | --- |
@@ -606,13 +621,15 @@ separately classified build/native evidence are in the final-input receipt.
 No historic artifact was replaced or relabeled, no activation occurred, and
 AS conformance was not executed by this deployment branch.
 
-Full Forge compilation uses only:
+For new full Forge compilation, use the intended current checkout rather than
+the historical worktree named in the original build records:
 
 ```sh
-task -d /Users/ryan/src/nix-config-c9-cloud nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
+task -d ~/src/nix-config nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net
 ```
 
-No `naf`, apply/switch, Pocket ID write, production key/team operation, native
-refresh migration, household restart or paid model call is authorized here.
-ATR-N02/N03/N04/N05/N06 native paired gates and C9 native acceptance remain
-the parent's integration work; this deployment branch does not claim them done.
+Historical build records authorize no new `naf`, apply/switch, identity write,
+native migration, household restart or paid model call. The owner subsequently
+performed the setup and model-only rollout recorded in the current handoff.
+Remaining client/native/Whiskey work and full paired gates must be reported
+separately; do not treat accumulated historical counts as their completion.
