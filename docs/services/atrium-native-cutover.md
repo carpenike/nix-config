@@ -74,3 +74,8 @@ migration window, or roll back to legacy admission to make a check green.
 
 Code, isolated qualification and a successful host build are not a live client
 sign-in result. Actual preparation, deployment and sign-in are owner operations.
+
+The adopted Caddy backend is explicitly `https://127.0.0.1:9200`, with the
+native CA and `mcp.holthome.net` TLS server name. Keeping an explicit `http://`
+upstream while enabling TLS transport makes Caddy reject its whole configuration.
+The deployment check uses the scheme-bearing URL and includes that rejection.
