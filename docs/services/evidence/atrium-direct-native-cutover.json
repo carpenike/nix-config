@@ -85,6 +85,25 @@
       "activated": false
     }
   },
+  "cold_evaluation_followup": {
+    "base_commit": "65fd26b3da3ae31dea2c4b4d10a43b947a73f1e5",
+    "failed_ci_jobs": [
+      "https://github.com/carpenike/nix-config/actions/runs/35356936985/job/105639061235",
+      "https://github.com/carpenike/nix-config/actions/runs/35356936985/job/105656029414"
+    ],
+    "cause": "No-build evaluation computes filtered package.src without materializing it; the catalog reader then requires an invalid store registration. Warm/build evaluation masked the source-accessor difference.",
+    "correction": "Pass the pinned native source-exported catalog path, not the package's filtered src.",
+    "catalog_sha256_before_and_after": "4fed02cabc2ec4eba159bb89011b9738692d73fcaa951c8d2422f3d383cc75a0",
+    "guest_derivation_before_and_after": "/nix/store/a73cwdk0ihqr5vxna4v6xacpkf3b6lqz-vm-test-run-atrium-owner-native-cutover.drv",
+    "isolated_cold_positive": "passed",
+    "original_binding_negative_control": "same invalid-path refusal, including after the positive case",
+    "native_source_registrations_after_both_controls": 0,
+    "local_nix_version": "2.31.5",
+    "whole_flake_all_systems_after_fix": "passed",
+    "runtime_or_catalog_content_changed": false,
+    "independent_review": "no significant issues",
+    "new_native_gate_claimed": false
+  },
   "gate_scope": {
     "covered_portions": ["T3", "T10", "T11", "T26", "T28"],
     "scope": "Owner preparation, explicit grants, fixed fresh-sign-in cutover, preserved custody/history and real retained replay behavior. Not a new full client/dispatch or phase-1 gate.",

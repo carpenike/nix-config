@@ -547,6 +547,9 @@
                 import inputs.nixpkgs { system = guestSystem; };
                 resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
                 nativePackage = inputs.homelab-mcp.packages.${guestSystem}.default;
+                nativeCatalog = (import (inputs.homelab-mcp + "/tests/atrium_fixture.nix") {
+                  atriumSrc = inputs.atrium;
+                }).catalogs.native.source;
                 atrium = inputs.atrium;
               };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"

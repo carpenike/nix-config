@@ -1,4 +1,4 @@
-{ pkgs, resolverPackage, nativePackage, atrium, hostPkgs ? pkgs }:
+{ pkgs, resolverPackage, nativePackage, nativeCatalog, atrium, hostPkgs ? pkgs }:
 let
   inherit (pkgs) lib;
   runtime = import ../../hosts/forge/atrium/runtime.nix { inherit lib; };
@@ -74,7 +74,9 @@ let
     };
     catalogs.home-mcp = {
       adapter = "home-mcp";
-      source = nativePackage.src + "/tests/fixtures/atrium_catalog.generated.json";
+      # Keep the source-exported path: the package's filtered src need not be
+      # materialized during `flake check --no-build`.
+      source = nativeCatalog;
     };
     deployments.home-mcp = {
       adapter = "home-mcp";
