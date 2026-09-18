@@ -52,7 +52,7 @@ The Forge foundation is covered by `atrium-forge-preparation`,
 policy/adoption from readiness and preserve retained native services.
 `atrium-forge-client-views` checks the separate finance/scribe/status declarations,
 manual grant append, unchanged unadopted Hermes configuration and exact-target
-adopted aliases. See [bounded native clients](atrium-forge-cloud.md#bounded-native-finance-clients-prepared-not-adopted);
+adopted aliases. See [bounded native clients](atrium-forge-cloud.md#bounded-native-finance-clients);
 it neither applies grants nor migrates credentials.
 Building an app package may
 run tests defined by that app's own package expression; nix-config does not copy

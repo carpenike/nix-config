@@ -1,5 +1,11 @@
 # ATR-N03 — Cloud-first Forge registry and adapter wiring
 
+The owner-selected native follow-up uses a
+[direct cutover with fresh client sign-ins](atrium-native-cutover.md).
+Run its build-and-prepare task before applying the native selection; do not
+repeat foundation or model setup. Historical receipts below retain their
+original preparation/adoption scope.
+
 The accepted C10 follow-up is documented in
 [C10 group-evidence configuration](atrium-c10-groups.md). Client admission is
 explicit and currently unconfigured. A source-bound native/helper receipt is
@@ -98,12 +104,12 @@ provisioning description. Ordinary grants are nondelegating, subordinate
 standing grants; each credential remains lifetime/budget/native-rights bounded.
 Nothing applies them at boot.
 
-### Bounded native finance clients (prepared, not adopted)
+### Bounded native finance clients
 
 The owner's 2026-09-17 implementation decision adds three separate Personal
-views. It does **not** widen either ordinary read-only view or enable native
-adoption. The source-defined profiles come from the selected Home MCP catalog,
-not a second tool inventory in Nix.
+views without widening either ordinary read-only view. The subsequent direct
+cutover selects native adoption separately. The source-defined profiles come
+from the selected Home MCP catalog, not a second tool inventory in Nix.
 
 | View path | Exact scope | Capability | Eligibility |
 | --- | --- | --- | --- |
@@ -335,8 +341,10 @@ before enabling it. Until then, the existing native service behavior is unchange
 
 All four `services.atriumForge.adoption` switches default to false:
 `models`, `native`, `whiskey`, `whiskeyText`. The owner-selected
-[`adoption.nix`](../../hosts/forge/atrium/adoption.nix) now opts Forge into
-**models only**; Home MCP, Whiskey routes and Whiskey text remain off.
+[`adoption.nix`](../../hosts/forge/atrium/adoption.nix) now selects
+**models and Home MCP**; Whiskey routes and Whiskey text remain off.
+Native preparation is an explicit owner command before applying this selection,
+not an activation-time initializer.
 Removing that concrete selection still exercises the actual unadopted module
 defaults in the preparation checks. Static configuration/reference
 documents and foundation/model preparation commands exist without adoption.

@@ -59,6 +59,35 @@ tasks:
       - sh: which nix
         msg: "nix not found"
 
+  prepare-atrium-native:
+    desc: Build Forge and explicitly prepare native cutover artifacts and bounded grants
+    silent: true
+    summary: |
+      Owner-run preparation before native activation. Retains existing signing,
+      OAuth and deny history; old clients will need fresh per-view sign-in.
+      Builds on Forge, prepares the selected runtime, but does not activate it.
+      Run the normal apply command afterward. Do not repeat foundation setup.
+    cmds:
+      - task: build-nixos
+        vars:
+          host: forge
+          NIXOS_DOMAIN: holthome.net
+      - |
+        set -euo pipefail
+        package="$(nix eval --raw "{{.ROOT_DIR}}/#nixosConfigurations.forge.config.system.build.atriumNativePreparation")"
+        if ! printf '%s\n' "$package" | grep -Eq '^/nix/store/[a-z0-9]{32}-atrium-native-prepare$'; then
+          echo "Unexpected Atrium preparation package path" >&2
+          exit 1
+        fi
+        ssh ryan@forge.holthome.net \
+          sudo -n "$package/bin/atrium-native-prepare" \
+          --apply --confirm-installation atrium-forge
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+      - sh: which ssh
+        msg: "ssh not found"
+
   apply-nixos:
     desc: Build and apply nixos configuration
     silent: true
