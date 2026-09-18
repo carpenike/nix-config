@@ -7,6 +7,9 @@ signers, refresh/reuse history and deny records are retained.
 
 Models stay enabled. Whiskey remains unadopted. Foundation, trust and model
 initializers are not repeated.
+The [commit-bound preparation receipt](evidence/atrium-direct-native-cutover.json)
+records the executed 17-group isolated Linux qualification, review corrections,
+and full remote Forge build. It is not evidence of a live cutover.
 
 ## Owner command sequence
 
