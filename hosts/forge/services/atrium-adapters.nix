@@ -22,6 +22,46 @@ let
   nativePython = pkgs.python313.withPackages (ps: [
     (ps.toPythonModule config.services.homelab-mcp.package)
   ]);
+  jsonFile = name: value: pkgs.writeText name (builtins.toJSON value);
+  nativePreparationTemplate = runtime.native // {
+    issuance = runtime.native.issuance // {
+      policy_path = config.services.atrium.generated.resolver;
+    };
+  };
+  nativePreparationPlan = jsonFile "atrium-native-preparation.json" {
+    schema_version = 1;
+    inherit (runtime) installation;
+    native_template = jsonFile "atrium-native-preparation-template.json" nativePreparationTemplate;
+    resolver_config = jsonFile "atrium-native-preparation-resolver.json" (runtime.bootstrap // {
+      policy_path = config.services.atrium.generated.resolver;
+    });
+    enrollment = jsonFile "atrium-native-preparation-enrollment.json" composition.bootstrap.enrollment;
+    tls_plan = jsonFile "atrium-native-preparation-tls.json" runtime.tlsPlan;
+    policy_directory = runtime.paths.policy;
+    native_signing_key = config.systemd.services.homelab-mcp.environment.HOMELAB_MCP_OAUTH_SIGNING_KEY_PATH;
+    native_oauth_database = config.systemd.services.homelab-mcp.environment.HOMELAB_MCP_OAUTH_STATE_DB_PATH;
+    native_identity = config.systemd.services.homelab-mcp.serviceConfig.User;
+    resolver_identity = lib.getAttrs [ "uid" "gid" ] mylib.serviceUids.atrium-resolver;
+    trust_identity = lib.getAttrs [ "uid" "gid" ] mylib.serviceUids.atrium-trust;
+    resolver_command = resolver;
+    native_bootstrap = ../atrium/native-bootstrap.py;
+    native_bootstrap_config = jsonFile "atrium-native-preparation-deny.json" {
+      inherit (runtime) installation;
+      native_issuer = runtime.endpoints.native;
+      inherit (runtime.native) deny;
+    };
+    finance_grants = jsonFile "atrium-native-preparation-grants.json" composition.bootstrap.financeClients;
+    native_issuer = runtime.endpoints.native;
+    native_jwks_url = "${runtime.endpoints.native}/oauth/jwks.json";
+    resolver_jwks_url = "${runtime.endpoints.resolver}/.well-known/jwks.json";
+  };
+  nativePreparation = pkgs.writeShellApplication {
+    name = "atrium-native-prepare";
+    runtimeInputs = [ nativePython ];
+    text = ''
+      exec ${nativePython}/bin/python -I -B ${../atrium/native-cutover.py} "$@" --config ${nativePreparationPlan}
+    '';
+  };
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   securityProtection = {
     class = "critical";
@@ -132,6 +172,8 @@ in
   };
   config = lib.mkMerge [
     (lib.mkIf enabled {
+      system.build.atriumNativePreparation = nativePreparation;
+      environment.systemPackages = [ nativePreparation ];
       assertions = [
         {
           assertion = !cfg.adoption.whiskey || cfg.adoption.whiskeyText;
@@ -143,6 +185,7 @@ in
         }
       ];
       environment.etc = {
+        "atrium/bootstrap/native-cutover.json".text = nativePreparationPlan.text;
         "atrium/runtime/native-policy.template.json".text = builtins.toJSON runtime.nativePolicyTemplate;
         "atrium/runtime/native.template.json".text = builtins.toJSON runtime.native;
         "atrium/runtime/whiskey.json".text = builtins.toJSON runtime.whiskey;

@@ -41,9 +41,9 @@ let
   healthArguments = prefix: options: lib.filter (lib.hasPrefix prefix) options;
   legacyOptions = baseline.virtualisation.oci-containers.containers.litellm.extraOptions;
   checks = {
-    owner-selected-models-only = selected.services.atriumForge.adoption == {
+    owner-selected-models-and-native = selected.services.atriumForge.adoption == {
       models = true;
-      native = false;
+      native = true;
       whiskey = false;
       whiskeyText = false;
     };
@@ -52,9 +52,13 @@ let
     selected-runtime-matches-model-variant =
       selected.systemd.services.atrium-reconciler.serviceConfig == controller.serviceConfig
       && selected.virtualisation.oci-containers.containers.litellm == gateway;
-    selected-other-planes-remain-unadopted =
-      !(selected.services.homelab-mcp.settings ? HOMELAB_MCP_ATRIUM_VIEW_POLICY)
-      && !(selected.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_CONFIG)
+    selected-native-policy-is-explicit =
+      selected.services.homelab-mcp.settings.HOMELAB_MCP_ATRIUM_VIEW_POLICY
+      == "/etc/atrium/desired-state/resolver.json"
+      && lib.elem "/var/lib/atrium-policy/native-adoption.approved"
+        selected.systemd.services.homelab-mcp.unitConfig.AssertFileNotEmpty;
+    selected-whiskey-remains-unadopted =
+      !(selected.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_CONFIG)
       && !(selected.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_MODEL_CONFIG);
     selected-startup-requires-owner-approval = lib.all
       (unit: lib.elem "/var/lib/atrium-policy/model-adoption.approved"

@@ -535,6 +535,23 @@
             atrium-hermes-config-transition = import ./tests/atrium_n03/hermes-transition.nix {
               inherit inputs pkgs;
             };
+            atrium-native-cutover-wiring = pkgs.writeText "atrium-native-cutover-wiring.json"
+              (builtins.toJSON (import ./tests/atrium_n03/native-cutover-evaluate.nix { inherit inputs; }));
+            atrium-native-cutover =
+              let
+                guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
+              in
+              import ./tests/atrium_n03/native-cutover.nix {
+                hostPkgs = pkgs;
+                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
+                import inputs.nixpkgs { system = guestSystem; };
+                resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
+                nativePackage = inputs.homelab-mcp.packages.${guestSystem}.default;
+                nativeCatalog = (import (inputs.homelab-mcp + "/tests/atrium_fixture.nix") {
+                  atriumSrc = inputs.atrium;
+                }).catalogs.native.source;
+                atrium = inputs.atrium;
+              };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
               (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));
             atrium-forge-credential-systemd =

@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.direct-native-cutover-preparation",
+  "ticket": "ATR-N03",
+  "source_commit": "c9e81560553e0ecc1487ead80652bd4c6c326e5b",
+  "implementation_commit": "3a3de27a9ebd62029d5f10c5e6d5f31a01a01e6f",
+  "owner_decision": "carpenike/atrium#54",
+  "owner_decision_revision": "fe43346a24ce158248c21c8c1470fdf24613aac3",
+  "status": "isolated-owner-preparation-passed",
+  "selected_native_revision": "2de099be8af58805a79d03872708e9fd7fb85c5d",
+  "selected_resolver_revision": "370d275ac57ed4ca7a4c324e86353f950993a6ce",
+  "workflow": ["remote candidate build", "explicit owner preparation", "normal owner apply", "fresh per-view client sign-in"],
+  "native_selection": true,
+  "model_selection_unchanged": true,
+  "whiskey_selection_unchanged": true,
+  "legacy_migration": "disabled; deadline equals original cutover timestamp and mappings are empty",
+  "linux_guest": {
+    "source_commit": "c9e81560553e0ecc1487ead80652bd4c6c326e5b",
+    "derivation": "/nix/store/a73cwdk0ihqr5vxna4v6xacpkf3b6lqz-vm-test-run-atrium-owner-native-cutover.drv",
+    "result": "/nix/store/zamz1arnxf4agih5aammxl488hjb4z6v-vm-test-run-atrium-owner-native-cutover",
+    "elapsed_seconds": 299.47,
+    "exit_code": 0,
+    "execution": "Committed derivations and source closure copied to the Forge Nix builder; actual root/service-UID operations ran only inside its network-isolated NixOS guest.",
+    "paired_groups": [
+      "read-only-plan-and-consent",
+      "named-identity-plan-and-refusals",
+      "public-jwks-refusals",
+      "current-nix-binding",
+      "unsafe-input-custody",
+      "partial-history-refusal",
+      "missing-native-history-schema",
+      "failed-grant-append-no-approval",
+      "fresh-preparation",
+      "resuming-completed-preparation-artifacts",
+      "matching-retry-preserves-history",
+      "existing-original-cutover-time",
+      "existing-public-conflicts",
+      "partial-and-mismatched-grants",
+      "retained-deny-conflicts",
+      "retained-native-adoption-conflict",
+      "retained-replay-after-reopen"
+    ],
+    "native_oauth_history_preserved": true,
+    "real_policy_and_deny_implementations": true,
+    "replay_revokes_successor_after_reopen": true,
+    "signers_rotated": false,
+    "guest_cleanup_completed": true
+  },
+  "review": {
+    "independent": true,
+    "remaining_findings": 0,
+    "corrected_findings": [
+      "Resolve the existing native account by bounded NSS name instead of nullable Nix allocation IDs; never assign replacement IDs.",
+      "Derive the complete required OAuth history schema from the pinned implementation in memory and validate retained state read-only before publication.",
+      "Keep fixture readiness/diagnostic files outside the exact TLS generation."
+    ]
+  },
+  "failed_attempts": [
+    {
+      "source_commit": "3a3de27a9ebd62029d5f10c5e6d5f31a01a01e6f",
+      "result": "fixture setup failed before qualification"
+    },
+    {
+      "source_commit": "1d6ddb775e563a5a27837071c9dbb2613fcb27f4",
+      "result": "Safe exception coordinates identified the native-history fixture process exiting before readiness.",
+      "correction": "Supply required synthetic Pocket ID settings; keep OAuth required, generate the synthetic secret only in memory, and preserve all application validation."
+    }
+  ],
+  "prior_successful_guest": {
+    "source_commit": "697ba7f81b9d0022753032165c7558533f03102e",
+    "elapsed_seconds": 309.75,
+    "result": "passed; the later source also asserts and prints the structured result"
+  },
+  "deployment_validation": {
+    "host_wiring_assertions": 11,
+    "adoption_and_client_view_checks": "passed",
+    "foundation_cloud_schema_credential_projection_and_c10_checks": "passed",
+    "whole_flake_all_systems_evaluation": "passed",
+    "precommit": "passed",
+    "full_forge_build": {
+      "source_commit": "3a3de27a9ebd62029d5f10c5e6d5f31a01a01e6f",
+      "command": "task -d /Users/ryan/src/nix-config nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+      "result": "/nix/store/4qz0zkxdkn4hgbp6igif679wnsj67j2d-nixos-system-forge-25.11.20260630.b6018f8",
+      "exit_code": 0,
+      "activated": false
+    }
+  },
+  "cold_evaluation_followup": {
+    "base_commit": "65fd26b3da3ae31dea2c4b4d10a43b947a73f1e5",
+    "failed_ci_jobs": [
+      "https://github.com/carpenike/nix-config/actions/runs/35356936985/job/105639061235",
+      "https://github.com/carpenike/nix-config/actions/runs/35356936985/job/105656029414"
+    ],
+    "cause": "No-build evaluation computes filtered package.src without materializing it; the catalog reader then requires an invalid store registration. Warm/build evaluation masked the source-accessor difference.",
+    "correction": "Pass the pinned native source-exported catalog path, not the package's filtered src.",
+    "catalog_sha256_before_and_after": "4fed02cabc2ec4eba159bb89011b9738692d73fcaa951c8d2422f3d383cc75a0",
+    "guest_derivation_before_and_after": "/nix/store/a73cwdk0ihqr5vxna4v6xacpkf3b6lqz-vm-test-run-atrium-owner-native-cutover.drv",
+    "isolated_cold_positive": "passed",
+    "original_binding_negative_control": "same invalid-path refusal, including after the positive case",
+    "native_source_registrations_after_both_controls": 0,
+    "local_nix_version": "2.31.5",
+    "whole_flake_all_systems_after_fix": "passed",
+    "runtime_or_catalog_content_changed": false,
+    "independent_review": "no significant issues",
+    "new_native_gate_claimed": false
+  },
+  "gate_scope": {
+    "covered_portions": ["T3", "T10", "T11", "T26", "T28"],
+    "scope": "Owner preparation, explicit grants, fixed fresh-sign-in cutover, preserved custody/history and real retained replay behavior. Not a new full client/dispatch or phase-1 gate.",
+    "native_client_dispatch_evidence": "carpenike/mcp#82, docs/evidence/ATR-M01-M03-bounded-finance.json",
+    "full_gate_claimed": false,
+    "amendment_required": false
+  },
+  "boundaries": {
+    "production_operations": false,
+    "live_native_preparation_or_adoption": false,
+    "live_grant_or_refresh_mutation": false,
+    "raw_credentials_or_private_keys_logged": false,
+    "owner_spec_preserved_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "owner_serena_preserved_sha256": "c252d14319f1d6f5320b0b3e12765a451fe2e2951f651be70915048844960e87",
+    "remaining": ["Require clean final-head CI before merging.", "Owner runs preparation before applying native selection, then completes fresh per-view sign-ins."]
+  }
+}

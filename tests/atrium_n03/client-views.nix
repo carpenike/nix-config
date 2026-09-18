@@ -191,9 +191,9 @@ let
     };
     model-and-scribe-guard-unchanged = clients.settings.model == legacy.settings.model
       && clients.settings.plugins == legacy.settings.plugins;
-    selected-host-still-unadopted = !selected.services.atriumForge.adoption.native
-      && selected.services.hermes-agent.mcpServers == legacy.mcpServers
-      && selected.services.hermes-agent.settings.platform_toolsets == legacy.settings.platform_toolsets;
+    selected-host-uses-bounded-native-clients = selected.services.atriumForge.adoption.native
+      && selected.services.hermes-agent.mcpServers == clients.mcpServers
+      && selected.services.hermes-agent.settings.platform_toolsets == clients.settings.platform_toolsets;
   };
 in
 assert lib.assertMsg (lib.all (value: value) (builtins.attrValues checks))
