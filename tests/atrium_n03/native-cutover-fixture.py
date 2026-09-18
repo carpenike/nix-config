@@ -136,6 +136,9 @@ def native_history(configuration):
             _env_file=None,
             public_base_url=configuration["native_issuer"],
             oauth_signing_key_path=configuration["native_signing_key"],
+            pocketid_issuer="https://identity.atrium.invalid",
+            pocketid_client_id="synthetic-native",
+            pocketid_client_secret=secrets.token_urlsafe(32),
         )
     )
     write(native / "public-jwks.json", {"keys": [signing.public_jwk]}, mode=0o600)
