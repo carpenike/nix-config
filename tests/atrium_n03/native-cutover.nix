@@ -251,8 +251,18 @@ hostPkgs.testers.runNixOSTest {
     system.stateVersion = "25.11";
   };
   testScript = ''
+    import json
+
     machine.start()
     machine.wait_for_unit("multi-user.target")
-    machine.succeed("${python}/bin/python -I -B ${fixtureProgram} --fixture ${fixture}", timeout=540)
+    result = json.loads(machine.succeed(
+        "${python}/bin/python -I -B ${fixtureProgram} --fixture ${fixture}",
+        timeout=540,
+    ))
+    assert result["kind"] == "atrium.native-cutover-fixture"
+    assert result["native_oauth_history_preserved"]
+    assert result["real_policy_and_deny_implementations"]
+    assert not result["signers_rotated"] and not result["production_operations"]
+    print(json.dumps(result, sort_keys=True))
   '';
 }
