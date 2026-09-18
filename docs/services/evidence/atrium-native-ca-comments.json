@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.native-ca-comments-recovery",
+  "ticket": "ATR-M04",
+  "native_source": "5a2a893ec8858b392e6566c5541bc79f5b30c602",
+  "native_merge": "b8bb6865fb4993ee1176725238a0b0ff6ab0270a",
+  "deployment_source": "49a3acee9b80f5a0c8d9d68d1de43e181e1456c2",
+  "symptom": "Native deny startup decoded a valid CA bundle as ASCII and rejected non-ASCII annotations before polling.",
+  "correction": "Bounded private bytes are loaded unchanged via an anonymous OpenSSL CA-file snapshot, preserving ordinary and TRUSTED CERTIFICATE AUX trust/reject metadata.",
+  "public_nss_bundle": {
+    "package": "nss-cacert-3.123",
+    "bytes": 464268,
+    "pem_blocks": 288,
+    "ordinary_certificate_blocks": 121,
+    "trusted_certificate_blocks": 167,
+    "unique_roots": 167,
+    "trust_equivalence_to_openssl_file_loader": true
+  },
+  "validation": {
+    "source_cases_per_interpreter": 121,
+    "source_ca_cases": 86,
+    "source_native_and_version_controls": 35,
+    "interpreters": ["Python 3.12 / cryptography 50", "Python 3.13 / cryptography 46"],
+    "installed_native_cases": 196,
+    "installed_result": "/nix/store/m63k8ak9lwgws2rl4kpddm4wwv6aqiym-homelab-mcp-atrium-native-check",
+    "installed_seconds": 193.89,
+    "actual_linux_systemd": {
+      "result": "/nix/store/sryv6k0ldfrzm3c68llzir764ysgbz46-vm-test-run-atrium-native-credential-projection",
+      "seconds": 131.80,
+      "service_owned_projection": true,
+      "non_ascii_annotations": true,
+      "public_nss_trusted_certificates_preserved": true,
+      "maximum_and_oversize_boundaries": true,
+      "private_custody_refusals": true,
+      "guest_cleanup_completed": true
+    },
+    "full_remote_forge_build": "/nix/store/igp01f1r4kvif9w28sk8rwg68q1j2c72-nixos-system-forge-25.11.20260630.b6018f8",
+    "native_required_ci": "https://github.com/carpenike/mcp/actions/runs/35383734928",
+    "native_required_ci_result": "passed"
+  },
+  "preserved": {
+    "ca_byte_limit": 1048576,
+    "token_feed_jwks_byte_limit": 65536,
+    "exact_certificate_and_aux_trust": true,
+    "strict_custody_and_tls_verification": true,
+    "no_original_path_reread": true,
+    "anonymous_snapshot_closed_before_polling": true,
+    "signer_grant_refresh_and_deny_history": true
+  },
+  "rejected_intermediate_approach": "Ordinary-X509-only canonicalization omitted TRUSTED CERTIFICATE AUX semantics; it was rejected against the actual public bundle before any deployment.",
+  "boundaries": {
+    "covered_portions": ["T15", "T20", "T24", "T26"],
+    "full_native_gate_claimed": false,
+    "production_changes": false,
+    "live_activation": false,
+    "amendment_required": false
+  }
+}
