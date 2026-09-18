@@ -537,6 +537,16 @@
             };
             atrium-native-cutover-wiring = pkgs.writeText "atrium-native-cutover-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/native-cutover-evaluate.nix { inherit inputs; }));
+            atrium-whiskey-cutover-wiring = pkgs.writeText "atrium-whiskey-cutover-wiring.json"
+              (builtins.toJSON (import ./tests/atrium_n03/whiskey-cutover-evaluate.nix { inherit inputs; }));
+            atrium-whiskey-cutover =
+              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
+              import ./tests/atrium_n03/whiskey-cutover.nix {
+                hostPkgs = pkgs;
+                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
+                import inputs.nixpkgs { system = guestSystem; };
+                whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
+              };
             atrium-native-cutover =
               let
                 guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
@@ -651,6 +661,7 @@
                         ${whiskey.reverseProxyBlock}
                       }
                     }
+                    ${inputs.self.nixosConfigurations.forge.config.modules.services.caddy.extraConfig}
                   '';
                 in
                 ''

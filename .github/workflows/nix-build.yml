@@ -279,9 +279,11 @@ jobs:
             .#checks.x86_64-linux.atrium-forge-caddy \
             .#checks.x86_64-linux.atrium-forge-cloud-schema \
             .#checks.x86_64-linux.atrium-native-cutover-wiring \
+            .#checks.x86_64-linux.atrium-whiskey-cutover-wiring \
             .#checks.x86_64-linux.atrium-forge-credential-systemd.driver \
             .#checks.x86_64-linux.atrium-forge-native-credential-systemd.driver \
             .#checks.x86_64-linux.atrium-native-cutover.driver \
+            .#checks.x86_64-linux.atrium-whiskey-cutover.driver \
             .#checks.x86_64-linux.atrium-forge-controller-publication.driver
 
       - name: Validate private credential projection through actual systemd
@@ -311,6 +313,13 @@ jobs:
           nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 900 \
             --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-native-cutover
+
+      - name: Validate owner-run Whiskey cutover and network boundary
+        timeout-minutes: 15
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 900 \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-whiskey-cutover
 
   nix-build:
     needs: changes

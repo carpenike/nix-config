@@ -39,6 +39,7 @@ let
     registration = 18766;
     registrationEntry = 19443;
     nativePolicy = 18767;
+    whiskeyMetrics = 13417;
   };
   credential = projection.path;
   signing = {
@@ -195,7 +196,7 @@ in
     isolated_harness = false;
     deny = {
       feed_uri = "${endpoints.resolver}/v1/deny-feed";
-      state_directory = "/var/lib/whiskey-whiskey-whiskey/atrium-admission";
+      state_directory = "${paths.policy}/whiskey-admission";
     };
   };
   tlsPlan = {

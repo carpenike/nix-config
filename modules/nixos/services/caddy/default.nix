@@ -304,6 +304,12 @@ in
       description = "Base domain for auto-generated virtual hosts (legacy support). The 'hostName' option in each virtual host is now preferred.";
     };
 
+    extraConfig = mkOption {
+      type = types.lines;
+      default = "";
+      description = "Additional top-level Caddyfile site blocks, without the managed virtual-host TLS and security template.";
+    };
+
     bindAddresses = mkOption {
       type = types.listOf types.str;
       default = [ ];
@@ -1205,7 +1211,7 @@ in
               )
               cfg.virtualHosts);
           in
-          concatStringsSep "\n\n" (filter (s: s != "") ([ globalOptionsBlock ] ++ vhostConfigs));
+          concatStringsSep "\n\n" (filter (s: s != "") ([ globalOptionsBlock ] ++ vhostConfigs ++ [ cfg.extraConfig ]));
       in
       {
         enable = true;

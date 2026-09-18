@@ -9,8 +9,8 @@ let
     explicit-native-selection = c.services.atriumForge.adoption == {
       models = true;
       native = true;
-      whiskey = false;
-      whiskeyText = false;
+      whiskey = true;
+      whiskeyText = true;
     };
     owner-package-in-candidate-closure = package.name == "atrium-native-prepare"
       && lib.elem package c.environment.systemPackages;
