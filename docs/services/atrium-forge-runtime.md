@@ -211,15 +211,13 @@ retain the projector's **32 KiB** limit; existing model-specific bounds are
 unchanged. The `public-ca` source remains
 `/etc/ssl/certs/ca-certificates.crt`, without curating or replacing its trust set.
 
-The parent reports a metadata-only bundle size of **464,268 bytes**; this change
-does not read its contents or recreate existing live trust. At the unchanged
-Home MCP pin, the deny poller still reads this bundle with the **64 KiB**
-document/token budget and will reject it. Reviewed candidate
-`f414de23accf8fe973aef62d600a2907737d5423` changes the actual
-`NativeDenial.start()` CA load to its separate `MAX_CA_BUNDLE_BYTES = 1048576`,
-without changing token/feed limits. Tracked production pins remain unchanged;
-candidate evaluation uses an explicit input override. Coordinated pin adoption
-and Linux execution remain with the parent.
+The metadata-only bundle measurement was **464,268 bytes**; this change does
+not read its live contents or recreate trust. The prior Home MCP pin used the
+**64 KiB** document/token budget for this CA input and would reject it.
+The reviewed correction at `f414de23accf8fe973aef62d600a2907737d5423`, merged as
+`14368deab8902fdcd2de564d3be8818b8c3e7212` in carpenike/mcp#81, is now selected.
+Its actual `NativeDenial.start()` uses the separate
+`MAX_CA_BUNDLE_BYTES = 1048576`; token/feed/JWKS bounds remain unchanged.
 
 No unrelated SOPS environment secret is projected. Existing Home MCP
 environment files, signing-key path, refresh database, deny history, identities,
@@ -257,31 +255,29 @@ also goes through that real startup path. No existing native history is used.
 The renderer and CA-loader maximum-size cases are tested independently of
 systemd's aggregate credential-size cap.
 
-Linux execution must be reported separately; preparing/evaluating this fixture
-does not execute the N03 T1/T4/T8/T15/T20/T26 gate or authorize adoption.
-Run only on the parent's isolated Linux test runner with the pinned packages,
-QEMU and usable guest virtualization:
+The [Linux receipt](evidence/atrium-native-credential-projection.json) records
+execution at committed source `657e9d2ed282c51eb209591bb6850f9b01a83e92`, using
+the selected merged native package. Five actual root-custody reader refusals
+and all three projected-unit permits pass, with 15 custody, three TLS-key,
+three renderer, 12 exact-selection and six failed-copy refusals. Maximum and
+oversized CA/profile cases and 24 cleanup checks also pass.
+
+This does not execute the full N03 T1/T4/T8/T15/T20/T26 authorization gate or
+authorize adoption. Repeat only on an isolated Linux test runner with the
+pinned packages, QEMU and usable guest virtualization:
 
 ```sh
 nix build --no-link --no-write-lock-file --print-build-logs \
   .#checks.x86_64-linux.atrium-forge-native-credential-systemd
 ```
 
-Until the reviewed MCP fix is merged and pinned, this test requires that
-candidate through an explicit, non-persisting override; the old pin cannot
-qualify its CA loader. On the isolated runner, add:
-
-```sh
---override-input homelab-mcp \
-  'git+file:///absolute/path/to/reviewed-mcp?rev=f414de23accf8fe973aef62d600a2907737d5423'
-```
-
-The repository path must contain that committed candidate. This override is
-qualification-only, not authorization to update `flake.lock` or deploy.
-
-The existing `atrium-forge-credential-systemd` foundation/model regression check
-is unchanged and remains a separate Linux target. Neither command deploys Forge
-or starts its live units.
+No candidate override is required with this coordinated pin. The unchanged
+`atrium-forge-credential-systemd` foundation/model regression target also
+passed in its separate Linux guest: two foundation and three model permits,
+17 foundation and 21 model denials, plus their cleanup cases. Test derivations
+and source closures were transferred to the Linux builder; no Linux output
+closure was built or downloaded on the Mac. Neither test deployed Forge or
+started its live units.
 
 The six TLS roots separately authorize enrolled devices, registration servers,
 native servers, resolver issuance clients, native-policy servers and

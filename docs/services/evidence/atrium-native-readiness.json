@@ -191,6 +191,18 @@
     "Preserve the actual native signer, publish and verify matching public JWKS exports, choose the bounded native cutover/migration window and private profile, then initialize only the new native deny custody through its existing explicit interface.",
     "Keep the current model/foundation history and all existing live native grants intact until the owner performs the selected adoption. No new C8/C9/C10 decision or model approval is needed."
   ],
+  "subsequent_source_resolution": {
+    "observation_source_above_unchanged": true,
+    "native_application_merge": "14368deab8902fdcd2de564d3be8818b8c3e7212",
+    "native_application_version": "0.25.1",
+    "native_application_cases": 229,
+    "unchanged_as_conformance_checks": 35,
+    "native_projection_implementation": "657e9d2ed282c51eb209591bb6850f9b01a83e92",
+    "actual_linux_systemd_qualification": "passed",
+    "projection_evidence": "docs/services/evidence/atrium-native-credential-projection.json",
+    "original_live_native_state_migrated": false,
+    "source_resolution_is_live_adoption": false
+  },
   "full_native_gate_claimed": false,
   "production_configuration_or_credentials_changed": false,
   "paid_requests": false

@@ -460,13 +460,16 @@ File presence alone is not key-pair/expiry or served-signer continuity proof.
 The native profile, public JWKS export files, adoption receipt and native deny
 store remain absent, consistent with `adoption.native = false`.
 
-Three source-level blockers are being qualified before adoption: native units
-need the existing service-owned credential projection rather than direct
-root-owned systemd credential paths, and adopted native login needs to request
-Pocket ID's `groups` scope before it can receive the signed group observation
-its C8 callback already supports. The native deny poller also needs a separate
-bounded CA-bundle input limit: the configured public bundle is 464,268 bytes,
-larger than its current 65,536-byte JWT/feed limit, which must remain unchanged.
+The three source-level blockers now have coordinated corrections. Native units
+use the existing service-owned credential projection rather than direct
+root-owned systemd credential paths. Home MCP `0.25.1`, merged in
+carpenike/mcp#81, requests Pocket ID's `groups` scope only for adopted native
+login and gives CA input a separate 1 MiB bound. The configured public bundle
+is 464,268 bytes; the token/feed/JWKS limit remains 65,536 bytes.
+The [isolated Linux systemd receipt](evidence/atrium-native-credential-projection.json)
+records five actual raw-custody refusals, all three native projection permits,
+paired custody/key/size/renderer failures and unchanged foundation/model tests.
+These are pre-adoption fixes, not permission to reset or migrate live state.
 The existing operator client
 `cc.atrium.operator`, its group admission and the model foundation are complete;
 the native upstream client `mcp` is a separate path, not missing operator setup.
