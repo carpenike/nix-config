@@ -100,6 +100,10 @@ The public `/metrics` path remains 404.
 
 ## Qualification
 
+The [source-bound host receipt](evidence/atrium-whiskey-cutover.json) records the
+executed preparation and host groups, the original failed identity transition,
+its correction, and the independent boot-order review finding and regression.
+
 `atrium-whiskey-cutover-wiring` checks the actual Forge selection, identities,
 secret references, live-reader paths, maintenance unit, network refresh,
 approval guards and the generated Caddy/Prometheus routing.
