@@ -279,6 +279,11 @@ and source closures were transferred to the Linux builder; no Linux output
 closure was built or downloaded on the Mac. Neither test deployed Forge or
 started its live units.
 
+The prescribed remote Forge build also passed at source `54c44746`, producing
+`/nix/store/c9150hbcq2mm2w6lb4djmlwlv484z27f-nixos-system-forge-25.11.20260630.b6018f8`.
+The active generation and native service PID were unchanged afterward.
+This remains a build-only candidate with native adoption disabled.
+
 The six TLS roots separately authorize enrolled devices, registration servers,
 native servers, resolver issuance clients, native-policy servers and
 native-policy clients. Server/client purposes and exact SANs are explicit.
