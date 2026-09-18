@@ -9,6 +9,14 @@ let
   whiskey = enabled && (cfg.adoption.whiskey || cfg.adoption.whiskeyText);
   text = enabled && cfg.adoption.whiskeyText;
   credentials = values: lib.mapAttrsToList (name: path: "${name}:${path}") values;
+  projection = import ../atrium/credential-projection.nix { inherit lib; };
+  projected = unit: values:
+    (projection.serviceConfig { inherit pkgs unit; credentials = values; }) // {
+      LoadCredential = credentials values;
+    };
+  policyProjection = projected "atrium-native-policy" runtime.policyCredentials;
+  settingsProjection = projected "atrium-native-settings"
+    (lib.getAttrs [ "native-profile" "resolver-client-cert" ] runtime.nativeCredentials);
   python = pkgs.python312.withPackages (ps: [ ps.cryptography ]);
   renderer = "${python}/bin/python ${../atrium/runtime-bindings.py}";
   nativePython = pkgs.python313.withPackages (ps: [
@@ -218,16 +226,16 @@ in
               "${runtime.paths.policy}/native-adoption.approved"
             ];
           };
-          serviceConfig = hardened // {
+          serviceConfig = hardened // policyProjection // {
             User = "atrium-resolver";
             Group = "atrium-resolver";
             StateDirectory = "atrium-resolver";
             StateDirectoryMode = "0700";
-            RuntimeDirectory = "atrium-native-policy";
-            RuntimeDirectoryMode = "0700";
+            RuntimeDirectory = [ "atrium-native-policy" policyProjection.RuntimeDirectory ];
             ReadWritePaths = [ runtime.paths.resolver ];
-            LoadCredential = credentials runtime.policyCredentials;
-            ExecStartPre = "${renderer} native-policy --template /etc/atrium/runtime/native-policy.template.json --client-certificate /run/credentials/atrium-native-policy.service/policy-client-cert --output /run/atrium-native-policy/settings.json";
+            ExecStartPre = policyProjection.ExecStartPre ++ [
+              "${renderer} native-policy --template /etc/atrium/runtime/native-policy.template.json --client-certificate ${projection.path "atrium-native-policy" "policy-client-cert"} --output /run/atrium-native-policy/settings.json"
+            ];
             ExecStart = "${resolver} --config /run/atrium-native-policy/settings.json serve-native-policy --port ${toString runtime.ports.nativePolicy}";
             Restart = "on-failure";
             RestartSec = "10s";
@@ -246,15 +254,13 @@ in
             RequiresMountsFor = [ runtime.paths.policy runtime.paths.trust "/var/lib/homelab-mcp" ];
             AssertFileNotEmpty = [ "${runtime.paths.policy}/native-adoption.approved" ];
           };
-          serviceConfig = hardened // {
+          serviceConfig = hardened // settingsProjection // {
             Type = "oneshot";
             RemainAfterExit = true;
             User = "homelab-mcp";
             Group = "homelab-mcp";
-            RuntimeDirectory = "atrium-native-mcp";
-            RuntimeDirectoryMode = "0700";
-            LoadCredential = credentials (lib.getAttrs [ "native-profile" "resolver-client-cert" ] runtime.nativeCredentials);
-            ExecStart = "${renderer} native-environment --template /etc/atrium/runtime/native.template.json --profile /run/credentials/atrium-native-settings.service/native-profile --client-certificate /run/credentials/atrium-native-settings.service/resolver-client-cert --output /run/atrium-native-mcp/native.env";
+            RuntimeDirectory = [ "atrium-native-mcp" settingsProjection.RuntimeDirectory ];
+            ExecStart = "${renderer} native-environment --template /etc/atrium/runtime/native.template.json --profile ${projection.path "atrium-native-settings" "native-profile"} --client-certificate ${projection.path "atrium-native-settings" "resolver-client-cert"} --output /run/atrium-native-mcp/native.env";
             PrivateNetwork = true;
           };
         };
@@ -267,8 +273,7 @@ in
             "${runtime.native.deny.state_directory}/owner.json"
             "${runtime.native.deny.state_directory}/denial.sqlite"
           ];
-          serviceConfig = {
-            LoadCredential = credentials runtime.nativeCredentials;
+          serviceConfig = (projected "homelab-mcp" runtime.nativeCredentials) // {
             EnvironmentFile = lib.mkForce (lib.mkAfter [ "/run/atrium-native-mcp/native.env" ]);
             UnsetEnvironment = [ "SSLKEYLOGFILE" "HTTP_PROXY" "HTTPS_PROXY" "ALL_PROXY" ];
           };

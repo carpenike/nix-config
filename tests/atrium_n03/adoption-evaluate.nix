@@ -154,8 +154,8 @@ let
       && lib.all (file: lib.elem file native.systemd.services.homelab-mcp.serviceConfig.EnvironmentFile)
       baseline.systemd.services.homelab-mcp.serviceConfig.EnvironmentFile;
     real-native-fingerprint-source = lib.hasInfix
-      "--client-certificate /run/credentials/atrium-native-policy.service/policy-client-cert"
-      native.systemd.services.atrium-native-policy.serviceConfig.ExecStartPre;
+      "--client-certificate /run/atrium-native-policy-credentials/material/policy-client-cert"
+      (lib.last native.systemd.services.atrium-native-policy.serviceConfig.ExecStartPre);
     canonical-native-issuance-identity = nativeBroker.endpoint
       == "https://mcp.holthome.net/cc/issue"
       && native.services.atrium.registry.deployments.home-mcp.endpoint == "https://mcp.holthome.net";

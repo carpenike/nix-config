@@ -125,11 +125,13 @@ jobs:
               - 'lib/host-defaults.nix'
               - 'hosts/forge/services/atrium.nix'
               - 'hosts/forge/services/atrium-models.nix'
+              - 'hosts/forge/services/atrium-adapters.nix'
               - 'hosts/forge/atrium/adoption.nix'
               - 'hosts/forge/atrium/runtime.nix'
               - 'hosts/forge/atrium/models.nix'
               - 'hosts/forge/atrium/model-bootstrap.py'
               - 'hosts/forge/atrium/credential-projection.*'
+              - 'hosts/forge/atrium/runtime-bindings.py'
               - 'tests/atrium_n03/**'
               - '.github/workflows/nix-build.yml'
             global:
@@ -275,6 +277,7 @@ jobs:
             .#checks.x86_64-linux.atrium-forge-adoption-wiring \
             .#checks.x86_64-linux.atrium-forge-cloud-schema \
             .#checks.x86_64-linux.atrium-forge-credential-systemd.driver \
+            .#checks.x86_64-linux.atrium-forge-native-credential-systemd.driver \
             .#checks.x86_64-linux.atrium-forge-controller-publication.driver
 
       - name: Validate private credential projection through actual systemd
@@ -290,6 +293,13 @@ jobs:
           nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
             --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-forge-controller-publication
+
+      - name: Validate native credential custody through actual systemd
+        timeout-minutes: 10
+        run: |
+          nix build --no-link --builders '' --max-jobs 1 --cores 2 --timeout 600 \
+            --option allow-import-from-derivation false \
+            .#checks.x86_64-linux.atrium-forge-native-credential-systemd
 
   nix-build:
     needs: changes

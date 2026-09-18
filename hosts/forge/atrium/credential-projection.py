@@ -1,4 +1,4 @@
-"""Project declared foundation and model credentials into per-unit private /run custody."""
+"""Project declared foundation, model and native credentials into private /run custody."""
 
 import argparse
 import os
@@ -14,6 +14,29 @@ NATIVE = frozenset(
 )
 MODEL = frozenset(("model-management",))
 CONTROLLER = frozenset(("management", "personal-anthropic", "family-anthropic"))
+NATIVE_POLICY = frozenset(
+    (
+        "policy-server-cert",
+        "policy-server-key",
+        "policy-client-ca",
+        "policy-client-cert",
+    )
+)
+NATIVE_SETTINGS = frozenset(("native-profile", "resolver-client-cert"))
+HOME_MCP = frozenset(
+    (
+        "server-cert",
+        "server-key",
+        "resolver-client-ca",
+        "resolver-client-cert",
+        "resolver-jwks",
+        "native-profile",
+        "public-ca",
+        "policy-ca",
+        "policy-client-cert",
+        "policy-client-key",
+    )
+)
 CREDENTIAL_SETS = {
     "atrium-resolver": (
         DEVICE,
@@ -25,6 +48,9 @@ CREDENTIAL_SETS = {
     "atrium-model-resolver-initialize": (MODEL,),
     "atrium-model-controller-initialize": (frozenset(("management",)),),
     "atrium-reconciler": (CONTROLLER,),
+    "atrium-native-policy": (NATIVE_POLICY,),
+    "atrium-native-settings": (NATIVE_SETTINGS,),
+    "homelab-mcp": (HOME_MCP,),
 }
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 
@@ -101,8 +127,12 @@ def project(unit, names):
         try:
             private_metadata(pending, directory=True)
             for name in sorted(selected):
+                # Only the public CA bundle and renderer JSON need 1 MiB.
+                # Individual certificates, keys and JWKS retain their bounds.
                 limit = (
-                    4096
+                    1024 * 1024
+                    if name in ("native-profile", "public-ca")
+                    else 4096
                     if name == "model-management"
                     else 16384
                     if name in CONTROLLER
@@ -152,7 +182,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("unit", choices=tuple(CREDENTIAL_SETS))
     parser.add_argument(
-        "credentials", nargs="+", choices=sorted(DEVICE | NATIVE | MODEL | CONTROLLER)
+        "credentials",
+        nargs="+",
+        choices=sorted(DEVICE | NATIVE | MODEL | CONTROLLER | NATIVE_POLICY | HOME_MCP),
     )
     args = parser.parse_args()
     try:

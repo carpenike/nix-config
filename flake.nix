@@ -194,9 +194,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Tested setup-artifact implementation vendors the exact app input.
-      # Later evidence-only commits are not runtime pins. No activation.
-      url = "github:carpenike/mcp/8523ee680e4531dd33e132435c36666464e2174c";
+      # Native group acquisition and bounded CA loading; adoption remains separate.
+      # Vendored Atrium content is checked against the selected app input.
+      url = "github:carpenike/mcp/14368deab8902fdcd2de564d3be8818b8c3e7212";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -542,6 +542,17 @@
                 import inputs.nixpkgs { system = guestSystem; };
                 resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
                 controllerPackage = inputs.atrium.packages.${guestSystem}.atrium-litellm-controller;
+              };
+            atrium-forge-native-credential-systemd =
+              let
+                guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
+              in
+              import ./tests/atrium_n03/native-credential-systemd.nix {
+                hostPkgs = pkgs;
+                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
+                import inputs.nixpkgs { system = guestSystem; };
+                resolverPackage = inputs.atrium.packages.${guestSystem}.resolver;
+                nativePackage = inputs.homelab-mcp.packages.${guestSystem}.default;
               };
             atrium-forge-controller-publication =
               let
