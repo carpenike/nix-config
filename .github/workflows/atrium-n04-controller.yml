@@ -6,12 +6,19 @@ name: Atrium controller deployment
     paths:
       - hosts/forge/default.nix
       - hosts/forge/services/atrium.nix
+      - hosts/forge/services/hermes-agent.nix
+      - hosts/forge/services/homelab-mcp.nix
       - hosts/forge/services/litellm.nix
       - hosts/forge/atrium/identity.nix
+      - hosts/forge/atrium/registry.nix
+      - hosts/forge/atrium/bootstrap.nix
+      - hosts/forge/atrium/runtime.nix
       - hosts/forge/atrium/identity-bootstrap.json
       - hosts/forge/atrium/pocketid-authority.json
       - hosts/forge/atrium/litellm-controller-isolated.nix
       - tests/atrium_n03/forge-evaluate.nix
+      - tests/atrium_n03/client-views.nix
+      - tests/atrium_n03/hermes-transition.nix
       - tests/atrium_n03/identity-bootstrap.nix
       - tests/atrium_n03/pins.json
       - tests/atrium_n04/*.nix
@@ -44,5 +51,7 @@ jobs:
             --option allow-import-from-derivation false \
             .#checks.x86_64-linux.atrium-identity-bootstrap \
             .#checks.x86_64-linux.atrium-forge-preparation \
+            .#checks.x86_64-linux.atrium-forge-client-views \
+            .#checks.x86_64-linux.atrium-hermes-config-transition \
             .#checks.x86_64-linux.atrium-n04-package-smoke \
             .#checks.x86_64-linux.atrium-n04-units

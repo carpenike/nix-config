@@ -50,6 +50,10 @@ The following Nix checks test consumption and host wiring, not product behavior:
 The Forge foundation is covered by `atrium-forge-preparation`,
 `atrium-forge-caddy`, and `atrium-identity-bootstrap`. These distinguish missing
 policy/adoption from readiness and preserve retained native services.
+`atrium-forge-client-views` checks the separate finance/scribe/status declarations,
+manual grant append, unchanged unadopted Hermes configuration and exact-target
+adopted aliases. See [bounded native clients](atrium-forge-cloud.md#bounded-native-finance-clients-prepared-not-adopted);
+it neither applies grants nor migrates credentials.
 Building an app package may
 run tests defined by that app's own package expression; nix-config does not copy
 or invoke a parallel controller/admission/product pytest suite.

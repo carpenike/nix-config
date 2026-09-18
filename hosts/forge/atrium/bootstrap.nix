@@ -51,6 +51,11 @@ in
     "cc.family.holt.haiku-client"
   ];
   opus = seed [ "cc.personal.ryan.opus-client" ];
+  financeClients = seed [
+    "cc.personal.ryan.finance"
+    "cc.personal.ryan.scribe"
+    "cc.personal.ryan.status"
+  ];
   groups = {
     schema_version = 1;
     authority = identity.authority.id;

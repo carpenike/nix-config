@@ -133,6 +133,7 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     enrollment = Bootstrap.model_validate_json(json.dumps(data["bootstrap"]["enrollment"]))
     ordinary = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["ordinary"]))
     opus = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["opus"]))
+    finance = PolicySeed.model_validate_json(json.dumps(data["bootstrap"]["financeClients"]))
     assert settings.isolated_harness is False
     assert settings.litellm.native_version == admission.native_version == "v1.100.1"
     assert admission.environment == "production" and not admission.isolated
@@ -142,6 +143,15 @@ pkgs.runCommand "atrium-forge-cloud-schema"
     assert all(not grant.can_delegate for grant in ordinary.grants)
     assert all(grant.request.models != ("cc.personal.ryan.opus",) for grant in ordinary.grants)
     assert opus.grants[0].request.models == ("cc.personal.ryan.opus",)
+    assert {grant.request.template_id for grant in finance.grants} == {
+        "cc.personal.ryan.finance", "cc.personal.ryan.scribe", "cc.personal.ryan.status",
+    }
+    assert len(finance.grants) == 3
+    assert all(
+        grant.principal == "ryan" and not grant.can_delegate
+        and grant.request.lifetime_seconds == 900
+        for grant in finance.grants
+    )
     assert data["controller"]["association_publisher_uid"] != admission.producers[1].publisher_uid
     assert hasattr(Controller, "publish_service_associations") and hasattr(Ledger, "initialize")
 
@@ -150,12 +160,25 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "personal:ryan": ["atrium-personal-ryan"],
         "family:holt": ["atrium-family"],
     }
-    for instance in data["instance_acls"].values():
-        assert not human_ids.intersection(instance["acl"]["principals"]), "human principal ACL bypass"
-        assert instance["acl"]["groups"] == required_groups[instance["domain"]]
-    for template in data["human_template_acls"].values():
-        assert template["acl"]["principals"] == [], "human template bypasses group evidence"
-        assert template["acl"]["groups"] == required_groups[template["domain"]]
+    automation_instances = {"personal-scribe", "personal-status"}
+    automation_templates = {"cc.personal.ryan.scribe", "cc.personal.ryan.status"}
+    assert automation_instances <= data["instance_acls"].keys()
+    assert automation_templates <= data["human_template_acls"].keys()
+    explicit_automation_acl = {"principals": ["ryan"], "groups": []}
+    for name, instance in data["instance_acls"].items():
+        if name in automation_instances:
+            assert instance["domain"] == "personal:ryan"
+            assert instance["acl"] == explicit_automation_acl
+        else:
+            assert not human_ids.intersection(instance["acl"]["principals"]), "human principal ACL bypass"
+            assert instance["acl"]["groups"] == required_groups[instance["domain"]]
+    for name, template in data["human_template_acls"].items():
+        if name in automation_templates:
+            assert template["domain"] == "personal:ryan"
+            assert template["acl"] == explicit_automation_acl
+        else:
+            assert template["acl"]["principals"] == [], "human template bypasses group evidence"
+            assert template["acl"]["groups"] == required_groups[template["domain"]]
     assert set(data["authority_token_types"].values()) == {"access_token"}
     assert settings.group_authority == "pocketid"
     assert data["group_evidence"]["status"] == "accepted-unconfigured"
@@ -247,7 +270,9 @@ pkgs.runCommand "atrium-forge-cloud-schema"
         "kind": "atrium.forge-cloud-schema", "status": "passed",
         "real_runtime_schema_parsers": True, "certificate_derived_bindings": True,
         "wrong_certificate_refused": True, "wrong_native_target_refused": True,
-        "all_human_acls_remain_group_only": True,
+        "ordinary_human_acls_remain_group_only": True,
+        "explicit_automation_principal_acls": ["personal-scribe", "personal-status"],
+        "separate_bounded_finance_grants_parsed": True,
         "identity_carrier_remains_access_token": True,
         "group_carrier_integration": "accepted-unconfigured",
         "native_group_measurements_reproduced": False,

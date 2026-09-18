@@ -202,6 +202,7 @@ in
         "atrium/bootstrap/groups.json".text = json bootstrap.groups;
         "atrium/bootstrap/ordinary-grants.json".text = json bootstrap.ordinary;
         "atrium/bootstrap/opus-selection.json".text = json bootstrap.opus;
+        "atrium/bootstrap/finance-clients.json".text = json bootstrap.financeClients;
         "atrium/bootstrap/setup.json".text = json setup;
         "atrium/runtime/atrium-resolver.json".text = json runtime.resolver;
         "atrium/runtime/atrium-device-registration.json".text = json runtime.registration;
@@ -282,6 +283,18 @@ in
             Type = "oneshot";
             PrivateNetwork = true;
             ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json seed-policy --append --grants /etc/atrium/bootstrap/opus-selection.json";
+          };
+        };
+        atrium-grant-finance-clients = (mounted [ runtime.paths.resolver ]) // {
+          description = "Explicit bounded finance and automation grants without native activation";
+          unitConfig.AssertFileNotEmpty = [
+            "${runtime.paths.resolver}/foundation.initialized"
+            "${runtime.paths.resolver}/resolver.sqlite3"
+          ];
+          serviceConfig = (privateState "atrium-resolver") // {
+            Type = "oneshot";
+            PrivateNetwork = true;
+            ExecStart = "${resolver} --config /etc/atrium/bootstrap/foundation.json seed-policy --append --grants /etc/atrium/bootstrap/finance-clients.json";
           };
         };
         atrium-trust-initialize = (mounted [ runtime.paths.trust ]) // {

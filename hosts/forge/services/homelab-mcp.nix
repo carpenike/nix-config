@@ -74,8 +74,14 @@ let
   financeGrafanaRole = "grafana-household-finance";
   financeSchema = "household_finance";
   financeDashboards = import ./household-finance-dashboards.nix { inherit pkgs; };
-  atriumReadScopes = lib.optionalAttrs (config.services.atriumForge.adoption.native or false)
-    (lib.getAttrs [ "atrium-personal-read" "atrium-family-read" ]
+  atriumScopes = lib.optionalAttrs (config.services.atriumForge.adoption.native or false)
+    (lib.getAttrs [
+      "atrium-personal-read"
+      "atrium-family-read"
+      "atrium-personal-finance"
+      "atrium-personal-scribe"
+      "atrium-personal-status"
+    ]
       (builtins.fromJSON (builtins.readFile
         (inputs.homelab-mcp + "/tests/fixtures/atrium_catalog.generated.json"))).scopes);
 in
@@ -141,7 +147,7 @@ in
           HOMELAB_MCP_OAUTH_USER_ALLOWLIST = ''["ryan@ryanholt.net", "stefanie@stefanieholt.com"]'';
           HOMELAB_MCP_RESTRICTED_SCOPE_RESOURCES = builtins.toJSON ({
             advisor = [ "finances://" ];
-          } // lib.mapAttrs (_: scope: scope.resources) atriumReadScopes);
+          } // lib.mapAttrs (_: scope: scope.resources) atriumScopes);
           # Actual account name -> that card's last four digits, for the
           # amazon_* matcher. The key must be the account name EXACTLY as the
           # ledger spells it; the lookup is exact-match after lowercasing.
@@ -164,9 +170,9 @@ in
           HOMELAB_MCP_OAUTH_ACCESS_TOKEN_LIFETIME_SECONDS = 15 * 60;
           # Server-side dispatch boundary for Hermes. Its local include list
           # mirrors this for UX, but this middleware allowlist is authoritative.
-          # Hermes v0.19 requests every advertised OAuth scope, so both local
-          # aliases share this bounded read-only scope; platform_toolsets and
-          # each alias's tools.include enforce their disjoint per-gateway views.
+          # Before adoption both aliases explicitly request legacy hermes.
+          # After adoption, exact-resource credentials and source-defined
+          # scribe/status scopes enforce separate server-side boundaries.
           HOMELAB_MCP_RESTRICTED_SCOPES = builtins.toJSON ({
             advisor = [
               "finances_sync_status"
@@ -287,7 +293,7 @@ in
               "finances_sentinel"
               "homelab_list_status"
             ];
-          } // lib.mapAttrs (_: scope: scope.tools) atriumReadScopes);
+          } // lib.mapAttrs (_: scope: scope.tools) atriumScopes);
         };
 
         # Sops-managed env file containing at minimum:

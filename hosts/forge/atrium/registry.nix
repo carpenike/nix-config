@@ -5,6 +5,7 @@ let
   acl = principals: groups: { inherit principals groups; };
   personal = acl [ ] [ "atrium-personal-ryan" ];
   family = acl [ ] [ "atrium-family" ];
+  automation = acl [ "ryan" ] [ ];
   configuredModel = name:
     let matches = builtins.filter (model: model.name == name) cloudInventory; in
     assert lib.assertMsg (builtins.length matches == 1)
@@ -105,6 +106,23 @@ lib.recursiveUpdate base {
       family // {
       scopes = [ "atrium-family-read" ];
     };
+    personal-finance = instance "personal:ryan" "home-mcp" "/cc/views/personal-finance"
+      "Personal wing finance"
+      personal // {
+      access = "read-write";
+      scopes = [ "atrium-personal-finance" ];
+    };
+    personal-scribe = instance "personal:ryan" "home-mcp" "/cc/views/personal-scribe"
+      "Personal wing finance summaries and notes"
+      automation // {
+      access = "read-write";
+      scopes = [ "atrium-personal-scribe" ];
+    };
+    personal-status = instance "personal:ryan" "home-mcp" "/cc/views/personal-status"
+      "Personal wing service status"
+      automation // {
+      scopes = [ "atrium-personal-status" ];
+    };
     personal-whiskey = instance "personal:ryan" "whiskey" "/cc/mcp"
       "Personal wing Whiskey"
       personal // {
@@ -127,6 +145,12 @@ lib.recursiveUpdate base {
       personal [ "atrium-personal-read" ] [ ];
     "cc.family.holt.home-read" = routeTemplate "family:holt" "family-home-read"
       family [ "atrium-family-read" ] [ ];
+    "cc.personal.ryan.finance" = routeTemplate "personal:ryan" "personal-finance"
+      personal [ "atrium-personal-finance" ] [ ];
+    "cc.personal.ryan.scribe" = routeTemplate "personal:ryan" "personal-scribe"
+      automation [ "atrium-personal-scribe" ] [ ];
+    "cc.personal.ryan.status" = routeTemplate "personal:ryan" "personal-status"
+      automation [ "atrium-personal-status" ] [ ];
     "cc.personal.ryan.whiskey" = routeTemplate "personal:ryan" "personal-whiskey"
       personal [ ] [ "read" "write" ];
   };

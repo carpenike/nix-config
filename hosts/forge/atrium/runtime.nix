@@ -134,7 +134,13 @@ in
         native_issuer = endpoints.native;
         deployment = "home-mcp";
         authorities.${identity.authority.id} = "mcp";
-        views = [ "personal-data-read" "family-home-read" ];
+        views = [
+          "personal-data-read"
+          "family-home-read"
+          "personal-finance"
+          "personal-scribe"
+          "personal-status"
+        ];
         # Replaced by the actual nominated public leaf's fingerprint at runtime.
         certificates = [ ];
       }];
@@ -287,6 +293,9 @@ in
         "Explicit legacy-identity/refresh-family mappings and retained history."
         "Pinned source-defined atrium-personal-read and atrium-family-read catalogs; writable legacy scopes are not wing views."
         "Owner-selected current grants; no email matching or automatic group grants."
+        "Separate manual finance-client grants; ordinary read-only grants are not widened."
+        "Exact-resource OAuth for finance/scribe/status; fresh client sign-in without deleting old token caches or refresh history."
+        "Scribe/status use explicit Ryan principal grants; group removal alone does not revoke those automation grants."
         "Explicit admitted public OAuth clients for accepted C10; no service-client or resource-audience inference."
         "Explicit public /mcp read-only cutover and individually selected refresh grants; no implicit legacy-client adoption."
         "Preserved native deny history and operator adoption receipt."
