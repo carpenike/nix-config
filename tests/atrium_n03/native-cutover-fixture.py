@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import time
+import traceback
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -1163,7 +1164,25 @@ def main():
             TypeError,
             sqlite3.Error,
             subprocess.TimeoutExpired,
-        ):
+        ) as error:
+            print(
+                json.dumps(
+                    {
+                        "stage": STEP,
+                        "exception_type": type(error).__name__,
+                        "frames": [
+                            {
+                                "file": Path(frame.filename).name,
+                                "line": frame.lineno,
+                                "function": frame.name,
+                            }
+                            for frame in traceback.extract_tb(error.__traceback__)[-4:]
+                        ],
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
             raise SystemExit("atrium_native_cutover_fixture_failed:" + STEP) from None
 
 
