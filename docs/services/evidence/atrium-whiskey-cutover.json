@@ -11,6 +11,18 @@
     "home_mcp": "b8bb6865fb4993ee1176725238a0b0ff6ab0270a",
     "litellm": "1.100.1"
   },
+  "selected_consumer_release": {
+    "repository": "carpenike/whiskey-whiskey-whiskey",
+    "pr": 95,
+    "qualified_head": "79b64ebf277a6ffc0c1335a540057b965ff34014",
+    "merge_commit": "4aac8d822a1dfe8a9875c41131cdde88075bdf80",
+    "identical_head_and_merge_tree": "1be06038a22e033b91bbf040dcc21120962757c7",
+    "runtime_unchanged_from_recorded_input": [
+      "server", "src", "package.json", "package-lock.json",
+      "nix/package.nix", "nix/module.nix", "vendor"
+    ],
+    "original_receipt_source_not_relabelled": true
+  },
   "linux_guest": {
     "derivation": "/nix/store/jyn59p0crbdckad1b0cn6difxk47pcih-vm-test-run-atrium-owner-whiskey-cutover.drv",
     "system": "x86_64-linux",

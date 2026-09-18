@@ -100,6 +100,11 @@ The public `/metrics` path remains 404.
 
 ## Qualification
 
+The selected application is carpenike/whiskey-whiskey-whiskey#95, merged at
+`4aac8d822a1dfe8a9875c41131cdde88075bdf80`. Its runtime and dependency files
+remain unchanged from the separately recorded `472f877` application input;
+the original receipts retain their actual source IDs.
+
 The [source-bound host receipt](evidence/atrium-whiskey-cutover.json) records the
 executed preparation and host groups, the original failed identity transition,
 its correction, and the independent boot-order review finding and regression.
@@ -118,3 +123,14 @@ replacement and DNS-failure recovery.
 Its execution receipt is separate from the application-owned W01-W03/N06
 credential, text-caller and LiteLLM qualification; neither is a live deployment
 claim.
+
+The application-owned
+[W01-W03 receipt](https://github.com/carpenike/whiskey-whiskey-whiskey/blob/4aac8d822a1dfe8a9875c41131cdde88075bdf80/docs/evidence/ATR-W01-W03-adoption-ad23136.json)
+records 180 classified source cases and nine actual Node 22/LiteLLM 1.100.1
+groups, including 40 same-process rotation requests. The separate
+[current W03/N06 receipt](https://github.com/carpenike/atrium/blob/15ae109b79f4d459d1badf0ee78aea4f39e0df14/harness/evidence/ATR-N07-W03-current-adoption-handoff.json)
+records 44 bounded native groups: all 12 text callers, image and required
+non-model integrations, and additional publication/read/rotation/alias/backend
+pairs. That larger cohort uses the image's Node 26 on Linux arm64, not the
+installed Nix Node 22 runtime; its exact environment and exclusions are recorded.
+These overlapping cohorts are not added into a synthetic total.
