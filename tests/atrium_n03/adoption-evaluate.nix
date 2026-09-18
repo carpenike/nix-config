@@ -171,6 +171,8 @@ let
       && nativeBroker.verification_keys_path == "/run/atrium-resolver-credentials/material/native-jwks";
     direct-native-tls = lib.hasInfix "serve-native-policy --port 18767"
       native.systemd.services.atrium-native-policy.serviceConfig.ExecStart
+    && native.modules.services.caddy.virtualHosts.homelab-mcp.backend.scheme == "https"
+    && baseline.modules.services.caddy.virtualHosts.homelab-mcp.backend.scheme == "http"
     && lib.hasInfix "tls_trust_pool file /run/credentials/caddy.service/atrium-native-ca"
       native.modules.services.caddy.virtualHosts.homelab-mcp.reverseProxyBlock;
     native-history-required = lib.all

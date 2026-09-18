@@ -325,6 +325,7 @@ in
           "atrium-native-ca:${runtime.paths.trust}/native-ca.crt.pem"
         ];
       };
+      modules.services.caddy.virtualHosts.homelab-mcp.backend.scheme = "https";
       modules.services.caddy.virtualHosts.homelab-mcp.reverseProxyBlock = lib.mkAfter ''
         transport http {
           tls

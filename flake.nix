@@ -599,16 +599,25 @@
                   }
                   http://127.0.0.1:18446 {
                     ${native.extraConfig}
-                    reverse_proxy ${native.backend.host}:${toString native.backend.port} {
+                    reverse_proxy ${native.backend.scheme}://${native.backend.host}:${toString native.backend.port} {
                       ${native.reverseProxyBlock}
                     }
                   }
                 '';
               in
+              assert pkgs.lib.hasInfix
+                "reverse_proxy https://${native.backend.host}:${toString native.backend.port}"
+                adopted.services.caddy.configFile.text;
               pkgs.runCommand "atrium-forge-adopted-caddy-syntax"
                 { nativeBuildInputs = [ pkgs.caddy ]; }
                 ''
                   caddy adapt --adapter caddyfile --config ${caddyfile} > "$out"
+                  sed 's#reverse_proxy https://#reverse_proxy http://#' ${caddyfile} > invalid.Caddyfile
+                  if caddy adapt --adapter caddyfile --config invalid.Caddyfile > invalid.json 2> invalid.log; then
+                    echo "Caddy accepted an HTTP upstream with TLS transport" >&2
+                    exit 1
+                  fi
+                  grep -Fq 'upstream address scheme is HTTP but transport is configured for HTTP+TLS' invalid.log
                 '';
             atrium-forge-caddy = pkgs.runCommand "atrium-forge-caddy-syntax"
               { nativeBuildInputs = [ pkgs.caddy ]; }
@@ -632,7 +641,7 @@
                     }
                     http://127.0.0.1:18446 {
                       ${native.extraConfig}
-                      reverse_proxy ${native.backend.host}:${toString native.backend.port} {
+                      reverse_proxy ${native.backend.scheme}://${native.backend.host}:${toString native.backend.port} {
                         ${native.reverseProxyBlock}
                       }
                     }
