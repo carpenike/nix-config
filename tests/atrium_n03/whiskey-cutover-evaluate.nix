@@ -54,6 +54,8 @@ let
       && lib.hasInfix "whiskey-network.py" refresh.serviceConfig.ExecStart
       && refresh.serviceConfig.CapabilityBoundingSet == [ "CAP_NET_ADMIN" ]
       && c.systemd.timers.atrium-whiskey-egress-refresh.timerConfig.OnUnitActiveSec == "1m";
+    network-before-initial-egress = lib.elem "network-online.target" network.wants
+      && lib.elem "network-online.target" network.after;
     backend-remains-caddy-only = lib.hasInfix
       "--dport 3417 -m owner ! --uid-owner 239 -j REJECT"
       c.networking.firewall.extraCommands;

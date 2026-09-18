@@ -1,4 +1,4 @@
-{ pkgs, whiskeyPackage, hostPkgs ? pkgs }:
+{ pkgs, whiskeyPackage, egressOrdering, hostPkgs ? pkgs }:
 let
   inherit (pkgs) lib;
   root = "/run/atrium-whiskey-cutover";
@@ -99,7 +99,7 @@ hostPkgs.testers.runNixOSTest {
       hostName = "atrium-whiskey-cutover-fixture";
       useDHCP = false;
       hosts."198.51.100.10" = [ "gateway.whiskey.invalid" ];
-      firewall.enable = false;
+      firewall.enable = true;
     };
     users.groups = {
       whiskey-fixture.gid = 1067;
@@ -120,8 +120,37 @@ hostPkgs.testers.runNixOSTest {
       '';
     };
     systemd.services = {
+      whiskey-network-ready-fixture = {
+        wantedBy = [ "network-online.target" ];
+        before = [ "network-online.target" ];
+        script = ''
+          sleep 2
+          ${pkgs.iproute2}/bin/ip address add 198.51.100.10/32 dev lo
+          ${pkgs.iproute2}/bin/ip address add 198.51.100.11/32 dev lo
+          touch /run/whiskey-network-ready
+        '';
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+      };
+      whiskey-egress-fixture = egressOrdering // {
+        wantedBy = [ "multi-user.target" ];
+        script = ''
+          test -f /run/whiskey-network-ready
+          exec ${networkCommand}
+        '';
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          NoNewPrivileges = true;
+          CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+        };
+      };
       whiskey-backend-fixture = {
         wantedBy = [ "multi-user.target" ];
+        requires = [ "whiskey-egress-fixture.service" ];
+        after = [ "whiskey-egress-fixture.service" ];
         serviceConfig = {
           User = "whiskey-fixture";
           ExecStart = "${pkgs.python312}/bin/python ${http} 127.0.0.1 3417";
@@ -167,6 +196,8 @@ hostPkgs.testers.runNixOSTest {
 
     machine.start()
     machine.wait_for_unit("multi-user.target")
+    machine.wait_for_unit("whiskey-egress-fixture")
+    machine.wait_for_unit("whiskey-backend-fixture")
     result = json.loads(machine.succeed(
         "${pkgs.python312}/bin/python -I -B ${./whiskey-cutover-fixture.py} ${fixture}",
         timeout=300,
@@ -181,8 +212,6 @@ hostPkgs.testers.runNixOSTest {
     machine.succeed("test -s /var/lib/whiskey-application-fixture/retained-state-verified")
     machine.wait_for_open_port(3417)
     machine.wait_for_open_port(13417)
-    machine.succeed("ip address add 198.51.100.10/32 dev lo")
-    machine.succeed("ip address add 198.51.100.11/32 dev lo")
     machine.succeed("${networkCommand}")
     client = "setpriv --reuid=1067 --regid=1066 --clear-groups curl --noproxy '*' --silent --show-error --max-time 3 "
     machine.succeed(client + "http://198.51.100.10:443")
@@ -208,6 +237,7 @@ hostPkgs.testers.runNixOSTest {
     machine.succeed("cp /run/whiskey-fixture-hosts /etc/hosts")
     machine.succeed("${networkCommand}")
     result["host_groups"] = [
+        "network-online-before-egress-and-consumer-start",
         "preallocated-uid-retains-idmapped-state-and-native-deny-access",
         "declared-egress-permits-and-foreign-address-refuses",
         "other-service-egress-unchanged",

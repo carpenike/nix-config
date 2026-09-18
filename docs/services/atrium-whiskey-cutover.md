@@ -79,8 +79,9 @@ No calendar capability URL, push subscription endpoint, key or personal row is
 included. A new external reference site or push-provider hostname needs an
 explicit configuration update.
 
-The root network unit resolves only these declared names and atomically installs
-their IPv4/TCP-443 bindings, plus the exact DNS resolver on UDP/TCP 53. A separate
+After `network-online.target`, the root network unit resolves only these declared
+names and atomically installs their IPv4/TCP-443 bindings, plus the exact DNS
+resolver on UDP/TCP 53. A separate
 oneshot refreshes addresses every minute so CDN address changes do not require
 redeployment. Resolution must complete before rules change; an error is reported
 and leaves the previous complete address boundary in place. There is no wildcard
@@ -108,7 +109,8 @@ Whiskey deny store, actual systemd transition to a preallocated UID while
 retaining ID-mapped state,
 Caddy and kernel iptables. Preparation refusals have recovery twins; network
 cases cover permitted and forbidden addresses, unchanged unrelated-service
-egress, metrics-only ingress, address replacement and DNS-failure recovery.
+egress, delayed-network startup ordering, metrics-only ingress, address
+replacement and DNS-failure recovery.
 Its execution receipt is separate from the application-owned W01-W03/N06
 credential, text-caller and LiteLLM qualification; neither is a live deployment
 claim.

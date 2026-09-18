@@ -546,6 +546,8 @@
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
                 whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
+                egressOrdering = pkgs.lib.getAttrs [ "wants" "requires" "after" ]
+                  inputs.self.nixosConfigurations.forge.config.systemd.services.atrium-whiskey-egress;
               };
             atrium-native-cutover =
               let

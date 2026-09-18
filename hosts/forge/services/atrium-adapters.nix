@@ -190,8 +190,7 @@ in
   config = lib.mkMerge [
     (lib.mkIf enabled {
       system.build.atriumNativePreparation = nativePreparation;
-      system.build.atriumWhiskeyPreparation = whiskeyPreparation;
-      environment.systemPackages = [ nativePreparation whiskeyPreparation ];
+      environment.systemPackages = [ nativePreparation ];
       assertions = [
         {
           assertion = !cfg.adoption.whiskey || cfg.adoption.whiskeyText;
@@ -204,7 +203,6 @@ in
       ];
       environment.etc = {
         "atrium/bootstrap/native-cutover.json".text = nativePreparationPlan.text;
-        "atrium/bootstrap/whiskey-cutover.json".text = whiskeyPreparationPlan.text;
         "atrium/runtime/native-policy.template.json".text = builtins.toJSON runtime.nativePolicyTemplate;
         "atrium/runtime/native.template.json".text = builtins.toJSON runtime.native;
         "atrium/runtime/whiskey.json".text = builtins.toJSON runtime.whiskey;
@@ -364,6 +362,9 @@ in
         };
     })
     (lib.mkIf whiskey {
+      system.build.atriumWhiskeyPreparation = whiskeyPreparation;
+      environment.systemPackages = [ whiskeyPreparation ];
+      environment.etc."atrium/bootstrap/whiskey-cutover.json".text = whiskeyPreparationPlan.text;
       users.groups.whiskey-whiskey-whiskey.gid = m.roles.whiskey.gid;
       users.users.whiskey-whiskey-whiskey = {
         isSystemUser = true;
@@ -467,7 +468,8 @@ in
         atrium-whiskey-egress = {
           description = "Install the explicitly reviewed Whiskey IPv4 destination/port ceiling";
           requires = [ "firewall.service" ];
-          after = [ "firewall.service" ];
+          wants = [ "network-online.target" ];
+          after = [ "firewall.service" "network-online.target" ];
           before = [ "whiskey-whiskey-whiskey.service" ];
           restartTriggers = [ config.environment.etc."atrium/runtime/whiskey-egress.json".source ];
           script = ''

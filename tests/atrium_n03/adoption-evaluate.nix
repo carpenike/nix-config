@@ -44,6 +44,9 @@ let
     };
     module-defaults-remain-unadopted = lib.all (enabled: !enabled)
       (builtins.attrValues baseline.services.atriumForge.adoption);
+    unadopted-whiskey-has-no-secret-preparation-dependency =
+      !(baseline.system.build ? atriumWhiskeyPreparation)
+      && !(baseline.environment.etc ? "atrium/bootstrap/whiskey-cutover.json");
     selected-runtime-matches-model-variant =
       selected.systemd.services.atrium-reconciler.serviceConfig == whiskey.systemd.services.atrium-reconciler.serviceConfig
       && selected.virtualisation.oci-containers.containers.litellm == gateway;
