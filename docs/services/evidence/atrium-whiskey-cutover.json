@@ -23,6 +23,19 @@
     ],
     "original_receipt_source_not_relabelled": true
   },
+  "final_selected_source_requalification": {
+    "deployment_source": "a67592820f16a3691430eb0c812e707aa573b070",
+    "consumer_revision": "4aac8d822a1dfe8a9875c41131cdde88075bdf80",
+    "system": "x86_64-linux",
+    "node": "22.22.2",
+    "guest_derivation": "/nix/store/dshh8jmyfczbw67xy1dzkz9f27qj918z-vm-test-run-atrium-owner-whiskey-cutover.drv",
+    "test_script_seconds": 36.33,
+    "same_nine_preparation_and_seven_host_groups": "passed",
+    "full_forge_build": "/nix/store/mkj155y1prbd6z08wx34z8b91icf905v-nixos-system-forge-25.11.20260630.b6018f8",
+    "build_command": "task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "activation_performed": false,
+    "guest_cleanup": "Exact guest QEMU process terminated by the test driver."
+  },
   "linux_guest": {
     "derivation": "/nix/store/jyn59p0crbdckad1b0cn6difxk47pcih-vm-test-run-atrium-owner-whiskey-cutover.drv",
     "system": "x86_64-linux",
