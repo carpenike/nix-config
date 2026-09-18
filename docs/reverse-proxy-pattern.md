@@ -107,6 +107,16 @@ options.modules.services.myservice = {
 
 ## Caddy Module Options Reference
 
+### Private listeners outside the public virtual-host template
+
+For an explicitly private HTTP listener, `modules.services.caddy.extraConfig`
+adds complete top-level site blocks to the generated Caddyfile without the
+public virtual hosts' ACME and security-header template. Bind the address
+explicitly; a site hostname alone does not restrict the listening interface.
+For example, Atrium's Whiskey metrics listener uses `bind 127.0.0.1` and
+forwards only `GET /metrics`. Public services should keep using the structured
+`virtualHosts` pattern above.
+
 ### Complete Option Structure
 
 ```nix

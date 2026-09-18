@@ -155,7 +155,7 @@
     # Self-hosted React + Fastify + SQLite + MCP app served from one Node process.
     # https://github.com/carpenike/whiskey-whiskey-whiskey
     whiskey-whiskey-whiskey = {
-      url = "github:carpenike/whiskey-whiskey-whiskey/472f877952a363321c76ce580ce41dd0810e08b8";
+      url = "github:carpenike/whiskey-whiskey-whiskey/4aac8d822a1dfe8a9875c41131cdde88075bdf80";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -537,6 +537,18 @@
             };
             atrium-native-cutover-wiring = pkgs.writeText "atrium-native-cutover-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/native-cutover-evaluate.nix { inherit inputs; }));
+            atrium-whiskey-cutover-wiring = pkgs.writeText "atrium-whiskey-cutover-wiring.json"
+              (builtins.toJSON (import ./tests/atrium_n03/whiskey-cutover-evaluate.nix { inherit inputs; }));
+            atrium-whiskey-cutover =
+              let guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system; in
+              import ./tests/atrium_n03/whiskey-cutover.nix {
+                hostPkgs = pkgs;
+                pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
+                import inputs.nixpkgs { system = guestSystem; };
+                whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
+                egressOrdering = pkgs.lib.getAttrs [ "wants" "requires" "after" ]
+                  inputs.self.nixosConfigurations.forge.config.systemd.services.atrium-whiskey-egress;
+              };
             atrium-native-cutover =
               let
                 guestSystem = builtins.replaceStrings [ "-darwin" ] [ "-linux" ] system;
@@ -651,6 +663,7 @@
                         ${whiskey.reverseProxyBlock}
                       }
                     }
+                    ${inputs.self.nixosConfigurations.forge.config.modules.services.caddy.extraConfig}
                   '';
                 in
                 ''

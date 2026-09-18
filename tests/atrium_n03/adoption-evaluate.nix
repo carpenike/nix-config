@@ -14,9 +14,7 @@ let
   native = select { services.atriumForge.adoption.native = true; };
   nativeResolver = builtins.fromJSON native.environment.etc."atrium/runtime/atrium-resolver.json".text;
   nativeBroker = nativeResolver.home_mcp.deployments.home-mcp;
-  egress = builtins.fromJSON baseline.environment.etc."atrium/runtime/whiskey-egress.json".text;
-  # These are test-only RFC5737 bindings. They are never host inventory or
-  # deployed policy, and this check performs no network/native request.
+  # Test-only hosts: this check performs no DNS or native request.
   dynamic = {
     calendar = [ "calendar.atrium.invalid" ];
     media = [ "media.atrium.invalid" ];
@@ -28,9 +26,6 @@ let
       whiskeyEgress = {
         dynamicHosts = dynamic;
         dnsAddresses = [ "192.0.2.53" ];
-        addresses = lib.genAttrs
-          (egress.required_fixed_hosts ++ lib.concatLists (builtins.attrValues dynamic))
-          (_: [ "198.51.100.10" ]);
       };
     };
   };
@@ -41,25 +36,30 @@ let
   healthArguments = prefix: options: lib.filter (lib.hasPrefix prefix) options;
   legacyOptions = baseline.virtualisation.oci-containers.containers.litellm.extraOptions;
   checks = {
-    owner-selected-models-and-native = selected.services.atriumForge.adoption == {
+    owner-selected-all-adapters = selected.services.atriumForge.adoption == {
       models = true;
       native = true;
-      whiskey = false;
-      whiskeyText = false;
+      whiskey = true;
+      whiskeyText = true;
     };
     module-defaults-remain-unadopted = lib.all (enabled: !enabled)
       (builtins.attrValues baseline.services.atriumForge.adoption);
+    unadopted-whiskey-has-no-secret-preparation-dependency =
+      !(baseline.system.build ? atriumWhiskeyPreparation)
+      && !(baseline.environment.etc ? "atrium/bootstrap/whiskey-cutover.json");
     selected-runtime-matches-model-variant =
-      selected.systemd.services.atrium-reconciler.serviceConfig == controller.serviceConfig
+      selected.systemd.services.atrium-reconciler.serviceConfig == whiskey.systemd.services.atrium-reconciler.serviceConfig
       && selected.virtualisation.oci-containers.containers.litellm == gateway;
     selected-native-policy-is-explicit =
       selected.services.homelab-mcp.settings.HOMELAB_MCP_ATRIUM_VIEW_POLICY
       == "/etc/atrium/desired-state/resolver.json"
       && lib.elem "/var/lib/atrium-policy/native-adoption.approved"
         selected.systemd.services.homelab-mcp.unitConfig.AssertFileNotEmpty;
-    selected-whiskey-remains-unadopted =
-      !(selected.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_CONFIG)
-      && !(selected.services.whiskey-whiskey-whiskey.settings ? WWW_ATRIUM_MODEL_CONFIG);
+    selected-whiskey-explicitly-adopted =
+      selected.services.whiskey-whiskey-whiskey.settings.WWW_ATRIUM_CONFIG
+      == "/etc/atrium/runtime/whiskey.json"
+      && selected.services.whiskey-whiskey-whiskey.settings.WWW_ATRIUM_MODEL_CONFIG
+      == "/etc/atrium/runtime/whiskey-model.json";
     selected-startup-requires-owner-approval = lib.all
       (unit: lib.elem "/var/lib/atrium-policy/model-adoption.approved"
         selected.systemd.services.${unit}.unitConfig.AssertFileNotEmpty)
@@ -146,7 +146,7 @@ let
       (whiskey.systemd.services.whiskey-whiskey-whiskey.serviceConfig.LoadCredential or [ ]);
     acknowledgement-custody = whiskey.users.users.whiskey-whiskey-whiskey.uid == 1067
       && whiskey.systemd.services.whiskey-whiskey-whiskey.serviceConfig.Group == "atrium-whiskey-delivery"
-      && !whiskey.systemd.services.whiskey-whiskey-whiskey.serviceConfig.DynamicUser
+      && whiskey.systemd.services.whiskey-whiskey-whiskey.serviceConfig.DynamicUser
       && !lib.elem "atrium-model-metadata" whiskey.users.users.whiskey-whiskey-whiskey.extraGroups;
     provider-text-fallback-removed = lib.elem "ANTHROPIC_API_KEY"
       whiskey.systemd.services.whiskey-whiskey-whiskey.serviceConfig.UnsetEnvironment
@@ -181,8 +181,8 @@ let
     whiskey-history-required = lib.all
       (file: lib.elem file whiskey.systemd.services.whiskey-whiskey-whiskey.unitConfig.AssertFileNotEmpty)
       [
-        "/var/lib/whiskey-whiskey-whiskey/atrium-admission/owner.json"
-        "/var/lib/whiskey-whiskey-whiskey/atrium-admission/admission.sqlite"
+        "/var/lib/atrium-policy/whiskey-admission/owner.json"
+        "/var/lib/atrium-policy/whiskey-admission/admission.sqlite"
       ]
     && whiskey.systemd.services.atrium-whiskey-deny-initialize.wantedBy == [ ];
     image-and-native-settings-refresh = lib.elem "homelab-mcp.service"
@@ -190,10 +190,11 @@ let
     && lib.elem "whiskey-whiskey-whiskey.service" whiskey.systemd.services.atrium-whiskey-images.partOf
     && lib.elem "/run/atrium-whiskey-images/images.env"
       whiskey.systemd.services.whiskey-whiskey-whiskey.serviceConfig.EnvironmentFile;
-    atomic-scoped-egress = lib.hasInfix "iptables-restore --wait --noflush"
+    atomic-scoped-egress = lib.hasInfix "whiskey-network.py"
       whiskey.systemd.services.atrium-whiskey-egress.script
     && lib.elem "atrium-whiskey-egress.service"
-      whiskey.systemd.services.whiskey-whiskey-whiskey.requires;
+      whiskey.systemd.services.whiskey-whiskey-whiskey.requires
+    && whiskey.systemd.timers.atrium-whiskey-egress-refresh.timerConfig.OnUnitActiveSec == "1m";
     security-history-protection = native.modules.storage.datasets.services.homelab-mcp.protection.class == "critical"
       && !native.modules.storage.datasets.services.homelab-mcp.protection.allowEmptyBootstrap
       && native.modules.services.backup.restic.jobs.atrium-native-security-offsite.repository == "r2-offsite"

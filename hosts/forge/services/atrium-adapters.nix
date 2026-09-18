@@ -62,6 +62,38 @@ let
       exec ${nativePython}/bin/python -I -B ${../atrium/native-cutover.py} "$@" --config ${nativePreparationPlan}
     '';
   };
+  whiskeyPreparationPlan = jsonFile "atrium-whiskey-preparation.json" {
+    schema_version = 1;
+    inherit (runtime) installation;
+    policy_directory = runtime.paths.policy;
+    legacy_deny_directory = "/var/lib/whiskey-whiskey-whiskey/atrium-admission";
+    settings = runtime.whiskey;
+    model = m.whiskey;
+    identity = {
+      uid = m.roles.whiskey.uid;
+      gid = m.deliveryGroup.gid;
+      user = m.roles.whiskey.name;
+      group = m.deliveryGroup.name;
+    };
+    image_credentials = imageCredentials;
+    egress = whiskeyNetwork;
+    network_helper = ../atrium/whiskey-network.py;
+    model_approval = "${runtime.paths.policy}/model-adoption.approved";
+    node = "${pkgs.nodejs_22}/bin/node";
+    bootstrap = ../atrium/whiskey-bootstrap.mjs;
+    bootstrap_config = jsonFile "atrium-whiskey-preparation-deny.json" {
+      inherit (runtime) installation;
+      settings = runtime.whiskey;
+      store_module = "${config.services.whiskey-whiskey-whiskey.package}/share/whiskey-whiskey-whiskey/dist/server/lib/atrium-deny-store.js";
+    };
+  };
+  whiskeyPreparation = pkgs.writeShellApplication {
+    name = "atrium-whiskey-prepare";
+    runtimeInputs = [ pkgs.python312 ];
+    text = ''
+      exec ${pkgs.python312}/bin/python -I -B ${../atrium/whiskey-cutover.py} "$@" --config ${whiskeyPreparationPlan}
+    '';
+  };
   forgeDefaults = import ../lib/defaults.nix { inherit config lib; };
   securityProtection = {
     class = "critical";
@@ -90,9 +122,9 @@ let
     UnsetEnvironment = [ "SSLKEYLOGFILE" "HTTP_PROXY" "HTTPS_PROXY" "ALL_PROXY" ];
   };
   imageCredentials = {
-    image-openai = "/run/secrets/atrium-whiskey-openai-image";
-    image-gemini = "/run/secrets/atrium-whiskey-gemini-image";
-    image-openrouter = "/run/secrets/atrium-whiskey-openrouter-image";
+    image-openai = config.sops.secrets."whiskey-whiskey-whiskey/openai_api_key".path;
+    image-gemini = config.sops.secrets."whiskey-whiskey-whiskey/gemini_api_key".path;
+    image-openrouter = config.sops.secrets."whiskey-whiskey-whiskey/openrouter_api_key".path;
   };
   outputRules = lib.optionals native [
     "-o lo -d 127.0.0.1 -p tcp --dport ${toString runtime.ports.nativePolicy} -m owner ! --uid-owner homelab-mcp -j REJECT --reject-with tcp-reset"
@@ -124,35 +156,20 @@ let
     -A ATRIUM-NATIVE -j REJECT --reject-with tcp-reset
     COMMIT
   '';
-  egressHosts = fixedWhiskeyHosts ++ lib.concatLists (builtins.attrValues cfg.whiskeyEgress.dynamicHosts);
-  egressRules = lib.concatMapStringsSep "\n"
-    (host: lib.concatMapStringsSep "\n"
-      (address: "-A ATRIUM-WHISKEY -p tcp -d ${address} --dport 443 -j RETURN")
-      cfg.whiskeyEgress.addresses.${host})
-    egressHosts;
-  dnsRules = lib.concatMapStringsSep "\n"
-    (address: lib.concatMapStringsSep "\n"
-      (protocol: "-A ATRIUM-WHISKEY -p ${protocol} -d ${address} --dport 53 -j RETURN")
-      [ "udp" "tcp" ])
-    cfg.whiskeyEgress.dnsAddresses;
-  egressPolicy = pkgs.writeText "atrium-whiskey-egress.rules" ''
-    *filter
-    :ATRIUM-WHISKEY - [0:0]
-    -F ATRIUM-WHISKEY
-    -A ATRIUM-WHISKEY -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
-    ${egressRules}
-    ${dnsRules}
-    -A ATRIUM-WHISKEY -j REJECT
-    COMMIT
-  '';
+  egressHosts = lib.unique (fixedWhiskeyHosts ++ lib.concatLists (builtins.attrValues cfg.whiskeyEgress.dynamicHosts));
+  whiskeyNetwork = {
+    hosts = egressHosts;
+    dns_addresses = cfg.whiskeyEgress.dnsAddresses;
+    uid = m.roles.whiskey.uid;
+  };
+  networkCommand = "${pkgs.python312}/bin/python -I -B ${../atrium/whiskey-network.py}"
+    + " --config ${jsonFile "atrium-whiskey-network.json" whiskeyNetwork}"
+    + " --iptables-restore ${pkgs.iptables}/bin/iptables-restore"
+    + " --iptables ${pkgs.iptables}/bin/iptables"
+    + " --ip6tables ${pkgs.iptables}/bin/ip6tables";
 in
 {
   options.services.atriumForge.whiskeyEgress = {
-    addresses = lib.mkOption {
-      type = lib.types.attrsOf (lib.types.listOf (lib.types.strMatching "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+"));
-      default = { };
-      description = "Explicit reviewed IPv4 addresses per exact Nix-declared hostname; address-level enforcement, not hostname attestation.";
-    };
     dnsAddresses = lib.mkOption {
       type = lib.types.listOf (lib.types.strMatching "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+");
       default = [ ];
@@ -196,9 +213,10 @@ in
           enforcement = "ipv4-address-and-port";
           required_fixed_hosts = fixedWhiskeyHosts;
           dynamic_hosts = cfg.whiskeyEgress.dynamicHosts;
-          addresses = cfg.whiskeyEgress.addresses;
           dns_addresses = cfg.whiskeyEgress.dnsAddresses;
-          automatic_dns_widening = false;
+          address_binding = "complete-dns-resolution-of-declared-hosts-only";
+          address_refresh_seconds = 60;
+          automatic_hostname_widening = false;
           undeclared_egress = "deny";
         };
       };
@@ -344,6 +362,9 @@ in
         };
     })
     (lib.mkIf whiskey {
+      system.build.atriumWhiskeyPreparation = whiskeyPreparation;
+      environment.systemPackages = [ whiskeyPreparation ];
+      environment.etc."atrium/bootstrap/whiskey-cutover.json".text = whiskeyPreparationPlan.text;
       users.groups.whiskey-whiskey-whiskey.gid = m.roles.whiskey.gid;
       users.users.whiskey-whiskey-whiskey = {
         isSystemUser = true;
@@ -356,13 +377,24 @@ in
         after = [ "firewall.service" ];
         unitConfig.AssertFileNotEmpty = [ "${runtime.paths.policy}/whiskey-adoption.approved" ];
         serviceConfig = {
-          DynamicUser = lib.mkForce false;
+          # A declared NSS account fixes the UID while retaining the existing
+          # private/id-mapped StateDirectory layout and its application data.
+          DynamicUser = lib.mkForce true;
           Group = m.deliveryGroup.name;
           NoNewPrivileges = true;
           CapabilityBoundingSet = lib.mkForce [ "" ];
           AmbientCapabilities = lib.mkForce [ "" ];
         };
       };
+      systemd.services."whiskey-www-maintenance@".serviceConfig = {
+        DynamicUser = lib.mkForce true;
+        Group = m.deliveryGroup.name;
+      };
+      modules.services.caddy.extraConfig = ''
+        http://127.0.0.1:${toString runtime.ports.whiskeyMetrics} {
+          ${import ../atrium/whiskey-metrics.nix { }}
+        }
+      '';
     })
     (lib.mkIf (enabled && cfg.adoption.whiskey) {
       services.whiskey-whiskey-whiskey.settings.WWW_ATRIUM_CONFIG = "/etc/atrium/runtime/whiskey.json";
@@ -380,13 +412,16 @@ in
           Type = "oneshot";
           User = m.roles.whiskey.name;
           Group = m.deliveryGroup.name;
-          ReadWritePaths = [ "/var/lib/whiskey-whiskey-whiskey" ];
+          ReadWritePaths = [ runtime.whiskey.deny.state_directory ];
           PrivateNetwork = true;
           ExecStart = "${pkgs.nodejs_22}/bin/node ${../atrium/whiskey-bootstrap.mjs} --config /etc/atrium/bootstrap/whiskey-deny.json --confirm-new-installation ${runtime.installation}";
         };
       };
       systemd.services.whiskey-whiskey-whiskey.restartTriggers = [
         config.environment.etc."atrium/runtime/whiskey.json".source
+      ];
+      systemd.services.whiskey-whiskey-whiskey.serviceConfig.ReadWritePaths = [
+        runtime.whiskey.deny.state_directory
       ];
       systemd.services.whiskey-whiskey-whiskey.unitConfig.AssertFileNotEmpty = [
         "${runtime.whiskey.deny.state_directory}/owner.json"
@@ -401,14 +436,8 @@ in
     })
     (lib.mkIf text {
       assertions = [{
-        assertion = lib.all
-          (hosts: hosts != [ ])
-          (builtins.attrValues cfg.whiskeyEgress.dynamicHosts)
-        && cfg.whiskeyEgress.dnsAddresses != [ ]
-        && lib.all (host: cfg.whiskeyEgress.addresses.${host} or [ ] != [ ]) egressHosts
-        && lib.sort builtins.lessThan (builtins.attrNames cfg.whiskeyEgress.addresses)
-          == lib.sort builtins.lessThan (lib.unique egressHosts);
-        message = "Whiskey text adoption needs exact reviewed address bindings for all declared provider, identity, calendar, media, push and non-model hosts; no wildcard or missing-destination fallback.";
+        assertion = cfg.whiskeyEgress.dnsAddresses != [ ];
+        message = "Whiskey text adoption needs reviewed DNS resolvers and exact configured destination hostnames; inactive destination classes may be empty, never wildcarded.";
       }];
       services.whiskey-whiskey-whiskey.settings.WWW_ATRIUM_MODEL_CONFIG = "/etc/atrium/runtime/whiskey-model.json";
       systemd.tmpfiles.rules = [
@@ -439,16 +468,12 @@ in
         atrium-whiskey-egress = {
           description = "Install the explicitly reviewed Whiskey IPv4 destination/port ceiling";
           requires = [ "firewall.service" ];
-          after = [ "firewall.service" ];
+          wants = [ "network-online.target" ];
+          after = [ "firewall.service" "network-online.target" ];
           before = [ "whiskey-whiskey-whiskey.service" ];
           restartTriggers = [ config.environment.etc."atrium/runtime/whiskey-egress.json".source ];
           script = ''
-            set -eu
-            ${pkgs.iptables}/bin/iptables-restore --wait --noflush < ${egressPolicy}
-            ${pkgs.iptables}/bin/iptables -C OUTPUT -m owner --uid-owner ${toString m.roles.whiskey.uid} -j ATRIUM-WHISKEY 2>/dev/null \
-              || ${pkgs.iptables}/bin/iptables -I OUTPUT -m owner --uid-owner ${toString m.roles.whiskey.uid} -j ATRIUM-WHISKEY
-            ${pkgs.iptables}/bin/ip6tables -C OUTPUT -m owner --uid-owner ${toString m.roles.whiskey.uid} -j REJECT 2>/dev/null \
-              || ${pkgs.iptables}/bin/ip6tables -I OUTPUT -m owner --uid-owner ${toString m.roles.whiskey.uid} -j REJECT
+            exec ${networkCommand}
           '';
           preStop = ''
             ${pkgs.iptables}/bin/iptables -D OUTPUT -m owner --uid-owner ${toString m.roles.whiskey.uid} -j ATRIUM-WHISKEY 2>/dev/null || true
@@ -460,6 +485,16 @@ in
             Type = "oneshot";
             RemainAfterExit = true;
             NoNewPrivileges = true;
+            CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+          };
+        };
+        atrium-whiskey-egress-refresh = {
+          description = "Refresh addresses for declared Whiskey destinations without widening hostnames";
+          requires = [ "atrium-whiskey-egress.service" ];
+          after = [ "atrium-whiskey-egress.service" ];
+          serviceConfig = hardened // {
+            Type = "oneshot";
+            ExecStart = networkCommand;
             CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
           };
         };
@@ -476,6 +511,24 @@ in
             ReadOnlyPaths = [ "/run/atrium-delivery/whiskey" ];
             ReadWritePaths = [ "/run/atrium-acknowledgements/whiskey" ];
           };
+        };
+        "whiskey-www-maintenance@" = {
+          requires = [ "atrium-whiskey-egress.service" ];
+          after = [ "atrium-whiskey-egress.service" ];
+          environment.WWW_ATRIUM_MODEL_CONFIG = "/etc/atrium/runtime/whiskey-model.json";
+          serviceConfig = {
+            UnsetEnvironment = [ "ANTHROPIC_API_KEY" "ANTHROPIC_MODEL" "SSLKEYLOGFILE" "HTTP_PROXY" "HTTPS_PROXY" "ALL_PROXY" ];
+            ReadOnlyPaths = [ "/run/atrium-delivery/whiskey" ];
+            ReadWritePaths = [ "/run/atrium-acknowledgements/whiskey" ];
+          };
+        };
+      };
+      systemd.timers.atrium-whiskey-egress-refresh = {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnBootSec = "1m";
+          OnUnitActiveSec = "1m";
+          Unit = "atrium-whiskey-egress-refresh.service";
         };
       };
     })

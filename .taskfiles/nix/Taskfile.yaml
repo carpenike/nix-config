@@ -88,6 +88,35 @@ tasks:
       - sh: which ssh
         msg: "ssh not found"
 
+  prepare-atrium-whiskey:
+    desc: Build Forge and prepare the selected Whiskey route and text adoption
+    silent: true
+    summary: |
+      Owner-run preparation, without service activation or model-key issuance.
+      Checks the existing image credentials and reviewed network destinations,
+      preserves native application state, and initializes only new deny history.
+      Run the normal apply command afterward. Do not repeat foundation setup.
+    cmds:
+      - task: build-nixos
+        vars:
+          host: forge
+          NIXOS_DOMAIN: holthome.net
+      - |
+        set -euo pipefail
+        package="$(nix eval --raw "{{.ROOT_DIR}}/#nixosConfigurations.forge.config.system.build.atriumWhiskeyPreparation")"
+        if ! printf '%s\n' "$package" | grep -Eq '^/nix/store/[a-z0-9]{32}-atrium-whiskey-prepare$'; then
+          echo "Unexpected Atrium Whiskey preparation package path" >&2
+          exit 1
+        fi
+        ssh ryan@forge.holthome.net \
+          sudo -n "$package/bin/atrium-whiskey-prepare" \
+          --apply --confirm-installation atrium-forge
+    preconditions:
+      - sh: which nix
+        msg: "nix not found"
+      - sh: which ssh
+        msg: "ssh not found"
+
   apply-nixos:
     desc: Build and apply nixos configuration
     silent: true

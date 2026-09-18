@@ -339,13 +339,19 @@ in
       # Operation W.W.W. — server-side RED metrics (request rate, error rate,
       # duration histogram) labelled by route pattern. The browser telemetry
       # next door says a page was slow; this says whether the API behind it
-      # was. Scraped on the app's own port, NOT through Caddy, which returns
-      # 404 for /metrics publicly (see services/whiskeywhiskeywhiskey.nix).
-      # Port must match `listenPort` there.
+      # was. Adopted Whiskey permits only Caddy to reach the backend; its
+      # separate loopback metrics listener never forwards application routes.
+      # The public site continues to return 404 for /metrics.
       {
         job_name = "whiskeywhiskeywhiskey";
         static_configs = [
-          { targets = [ "127.0.0.1:3417" ]; labels = { instance = "forge.holthome.net"; host = "forge"; service = "whiskeywhiskeywhiskey"; }; }
+          {
+            targets = [
+              (if config.services.atriumForge.adoption.whiskey || config.services.atriumForge.adoption.whiskeyText
+              then "127.0.0.1:13417" else "127.0.0.1:3417")
+            ];
+            labels = { instance = "forge.holthome.net"; host = "forge"; service = "whiskeywhiskeywhiskey"; };
+          }
         ];
       }
 

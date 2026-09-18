@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.whiskey-deployment-qualification",
+  "tickets": ["ATR-N03", "ATR-N06"],
+  "status": "scoped-host-integration-passed",
+  "source_commit": "1ab8f23dd85724d81a35a5e0c1b30e9e01aa73bb",
+  "inputs": {
+    "atrium": "370d275ac57ed4ca7a4c324e86353f950993a6ce",
+    "consumer_repository": "carpenike/whiskey-whiskey-whiskey",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
+    "home_mcp": "b8bb6865fb4993ee1176725238a0b0ff6ab0270a",
+    "litellm": "1.100.1"
+  },
+  "selected_consumer_release": {
+    "repository": "carpenike/whiskey-whiskey-whiskey",
+    "pr": 95,
+    "qualified_head": "79b64ebf277a6ffc0c1335a540057b965ff34014",
+    "merge_commit": "4aac8d822a1dfe8a9875c41131cdde88075bdf80",
+    "identical_head_and_merge_tree": "1be06038a22e033b91bbf040dcc21120962757c7",
+    "runtime_unchanged_from_recorded_input": [
+      "server", "src", "package.json", "package-lock.json",
+      "nix/package.nix", "nix/module.nix", "vendor"
+    ],
+    "original_receipt_source_not_relabelled": true
+  },
+  "final_selected_source_requalification": {
+    "deployment_source": "a67592820f16a3691430eb0c812e707aa573b070",
+    "consumer_revision": "4aac8d822a1dfe8a9875c41131cdde88075bdf80",
+    "system": "x86_64-linux",
+    "node": "22.22.2",
+    "guest_derivation": "/nix/store/dshh8jmyfczbw67xy1dzkz9f27qj918z-vm-test-run-atrium-owner-whiskey-cutover.drv",
+    "test_script_seconds": 36.33,
+    "same_nine_preparation_and_seven_host_groups": "passed",
+    "full_forge_build": "/nix/store/mkj155y1prbd6z08wx34z8b91icf905v-nixos-system-forge-25.11.20260630.b6018f8",
+    "build_command": "task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "activation_performed": false,
+    "guest_cleanup": "Exact guest QEMU process terminated by the test driver."
+  },
+  "linux_guest": {
+    "derivation": "/nix/store/jyn59p0crbdckad1b0cn6difxk47pcih-vm-test-run-atrium-owner-whiskey-cutover.drv",
+    "system": "x86_64-linux",
+    "test_script_seconds": 35.77,
+    "preparation_paired_groups": [
+      "read-only-plan-confirmed-native-initialize-and-identical-retry",
+      "missing-model-approval",
+      "foreign-private-image-custody",
+      "public-private-image-custody",
+      "partial-deny-history",
+      "legacy-deny-history-is-not-reset",
+      "missing-alert-history-refused-before-native-reopen",
+      "failed-native-initialization-never-publishes-approval",
+      "conflicting-approval-refused"
+    ],
+    "host_groups": [
+      "network-online-before-egress-and-consumer-start",
+      "preallocated-uid-retains-idmapped-state-and-native-deny-access",
+      "declared-egress-permits-and-foreign-address-refuses",
+      "other-service-egress-unchanged",
+      "backend-only-caddy-with-metrics-only-proxy",
+      "dns-address-refresh-retires-old-address",
+      "failed-resolution-retains-complete-boundary-and-recovers"
+    ],
+    "native_deny_store": "Installed selected Whiskey package, not a substitute store.",
+    "boot_ordering": "The guest inherits Wants/Requires/After from the selected Forge egress unit, delays network readiness, and starts the real unit/consumer dependency chain.",
+    "native_state": "Existing synthetic application SQLite rows survive the change to a preallocated UID while DynamicUser directory management and ID mapping remain enabled.",
+    "ingress": "Actual Caddy and kernel UID filtering: backend refused to non-Caddy callers; loopback GET /metrics permits; other routes, methods and non-loopback connections refuse.",
+    "egress": "Actual kernel IPv4 destination/port rules permit declared addresses, refuse another listening address, preserve unrelated UIDs, retire old DNS bindings and retain the prior complete boundary on failed resolution.",
+    "model_or_household_calls": false,
+    "production_operations": false,
+    "cleanup": "The test driver terminated its exact guest QEMU process."
+  },
+  "preserved_failed_attempt": {
+    "derivation": "/nix/store/2vxwfgv74gyycdbbqf17qiq6fi04jmhr-vm-test-run-atrium-owner-whiskey-cutover.drv",
+    "status": "failed-after-preparation-groups",
+    "failure": "Disabling DynamicUser migrated the private StateDirectory pathname but left the existing ID-mapped SQLite data inaccessible.",
+    "correction": "Retain DynamicUser=yes with the explicitly preallocated NSS UID/GID, preserve the existing directory layout, and verify native deny access inside the service namespace.",
+    "no_live_transition_performed": true
+  },
+  "review": {
+    "resolved_finding": "Initial DNS-dependent egress lacked network-online ordering, which could strand the consumer after a dependency-start failure.",
+    "correction": "Explicit Wants/After network-online.target and an executed delayed-network dependency-chain regression."
+  },
+  "read_only_live_preflight": {
+    "mode": "plan",
+    "deny_history": "initialize",
+    "approved": false,
+    "model_key_minted": false,
+    "native_application_state_changed": false,
+    "service_started": false,
+    "observed_generation": "/nix/store/nbpywsca8db3d2g0672zscswhr55rx99-nixos-system-forge-25.11.20260630.b6018f8",
+    "whiskey_pid_before_and_after": 2715658,
+    "whiskey_adoption_approval_remains_absent": true
+  },
+  "limits": [
+    "This is host preparation, state-custody, ingress and egress evidence, not a new complete N03/N06 or all-adapter gate.",
+    "W01-W03 native credential, operation, deny, model and caller qualification remains separately source-bound in the application repositories.",
+    "The guest uses synthetic state and a non-actuating HTTP backend; it does not claim a live Whiskey database migration or paid model request.",
+    "DNS-derived IPv4 address/port enforcement is not hostname attestation or image-only provider isolation.",
+    "Ordinary Desktop /api/mcp access remains native-authorized; the /cc/mcp route requires a separate resolver-signed companion.",
+    "Preparation and activation remain owner-operated. No live keys, grants, signers, sessions or household services were mutated."
+  ],
+  "proposed_amendment": null
+}
