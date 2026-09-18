@@ -134,10 +134,12 @@ let
         }).encode())
         pem = (TRUST / "native-ca.crt.pem").read_bytes()
         # Match the parent's metadata-only size measurement, not live CA bytes.
-        bundle = (pem * (CA_BUNDLE_FIXTURE_BYTES // len(pem))).ljust(
+        annotated = b"# Synthetic CA label: \xc5\x81\xc3\xb3d\xc5\xba\n" + pem
+        bundle = (annotated * (CA_BUNDLE_FIXTURE_BYTES // len(annotated))).ljust(
             CA_BUNDLE_FIXTURE_BYTES, b"\n"
         )
         assert 65536 < len(bundle) < CA_BUNDLE_MAX_BYTES
+        assert any(value > 127 for value in bundle)
         write_new(TRUST / "ca-certificates.crt", bundle)
         profile = json.dumps({
             "resource": NATIVE["resource"], "cutover_at": now,
@@ -500,6 +502,16 @@ let
                 assert error.code == "native_deny_state_invalid"
             else:
                 raise AssertionError("oversized CA bundle accepted")
+            public_bundle = Path("${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt")
+            public_bytes = public_bundle.read_bytes()
+            assert len(public_bytes) <= CA_BUNDLE_MAX_BYTES
+            assert any(value > 127 for value in public_bytes)
+            assert b"-----BEGIN TRUSTED CERTIFICATE-----" in public_bytes
+            replace(path, public_bytes)
+            actual = deny_tls()
+            expected = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            expected.load_verify_locations(cafile=str(public_bundle))
+            assert set(actual.get_ca_certs(binary_form=True)) == set(expected.get_ca_certs(binary_form=True))
         finally:
             replace(path, original)
 
@@ -739,6 +751,8 @@ hostPkgs.testers.runNixOSTest {
         "application_tls_loaders_unchanged": True, "native_resource_requests": False,
         "deny_poll_target": "isolated-unused-loopback-port-1",
         "ca_bundle_fixture_bytes": 464268,
+        "ca_bundle_contains_non_ascii_annotations": True,
+        "public_nss_bundle_trusted_certificates_preserved": True,
         "selected_application_deny_ca_loader_exercised": True,
         "full_native_policy_gate": False, "live_operations": False,
     }, sort_keys=True))

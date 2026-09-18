@@ -196,7 +196,7 @@
     homelab-mcp = {
       # Exact-resource OAuth and bounded finance clients; adoption remains separate.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/2de099be8af58805a79d03872708e9fd7fb85c5d";
+      url = "github:carpenike/mcp/5a2a893ec8858b392e6566c5541bc79f5b30c602";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
