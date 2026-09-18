@@ -188,6 +188,11 @@ when explicit disable entries are omitted. Those checks
 are configuration evidence, not live client sign-in or an executed native
 permit/deny gate. Deployment, finance-grant application and native cutover
 remain explicit owner-operated steps; this change performs none of them.
+The [source-bound deployment receipt](evidence/atrium-bounded-native-clients.json)
+records the candidate's full Forge CI build, actual configuration-transition
+checks, merged native qualification and the separate SSH signing refusal on
+the direct build path. Native permit/deny evidence belongs to the selected
+Home MCP receipt, not to these host configuration assertions.
 
 ### Cloud bindings and budgets
 
