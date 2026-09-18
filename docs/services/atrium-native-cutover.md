@@ -79,3 +79,10 @@ The adopted Caddy backend is explicitly `https://127.0.0.1:9200`, with the
 native CA and `mcp.holthome.net` TLS server name. Keeping an explicit `http://`
 upstream while enabling TLS transport makes Caddy reject its whole configuration.
 The deployment check uses the scheme-bearing URL and includes that rejection.
+
+Home MCP 0.26.1 also fixes native startup with the selected public CA bundle's
+non-ASCII annotations and OpenSSL trusted-certificate metadata. This is a normal
+package update: retain prepared runtime artifacts and use `naf`; do not repeat
+preparation or clear native history. The
+[CA recovery receipt](evidence/atrium-native-ca-comments.json) records the exact
+trust-set, auxiliary-purpose and service-owned loading checks.
