@@ -194,9 +194,9 @@
     # registry pattern.
     # https://github.com/carpenike/mcp
     homelab-mcp = {
-      # Native group acquisition and bounded CA loading; adoption remains separate.
+      # Exact-resource OAuth and bounded finance clients; adoption remains separate.
       # Vendored Atrium content is checked against the selected app input.
-      url = "github:carpenike/mcp/14368deab8902fdcd2de564d3be8818b8c3e7212";
+      url = "github:carpenike/mcp/2de099be8af58805a79d03872708e9fd7fb85c5d";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -530,6 +530,11 @@
               (builtins.toJSON (import ./tests/atrium_n03/model-secrets.nix { inherit inputs; }));
             atrium-forge-adoption-wiring = pkgs.writeText "atrium-forge-adoption-wiring.json"
               (builtins.toJSON (import ./tests/atrium_n03/adoption-evaluate.nix { inherit inputs; }));
+            atrium-forge-client-views = pkgs.writeText "atrium-forge-client-views.json"
+              (builtins.toJSON (import ./tests/atrium_n03/client-views.nix { inherit inputs; }));
+            atrium-hermes-config-transition = import ./tests/atrium_n03/hermes-transition.nix {
+              inherit inputs pkgs;
+            };
             atrium-forge-credential-projection = pkgs.writeText "atrium-forge-credential-projection.json"
               (builtins.toJSON (import ./tests/atrium_n03/credential-projection-evaluate.nix { inherit inputs; }));
             atrium-forge-credential-systemd =

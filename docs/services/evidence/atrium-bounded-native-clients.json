@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.bounded-native-client-deployment",
+  "ticket": "ATR-N03",
+  "source_commit": "55cd5f2608d7d89c15d773d75778b95654d4c88d",
+  "status": "candidate-qualified-and-merged-native-input-selected",
+  "source_inputs": {
+    "atrium": "370d275ac57ed4ca7a4c324e86353f950993a6ce",
+    "native_candidate": "7f44bb173eed6831f79f6424e927cafc6c056410",
+    "native_merged": "2de099be8af58805a79d03872708e9fd7fb85c5d",
+    "hermes": "9dfd2fc325f60d24d349ad47a5cf571899cede3c",
+    "consumer_revision": "472f877952a363321c76ce580ce41dd0810e08b8",
+    "native_vendor_source": "1762ecb82cccc9c3aef3545f119ffe0f4e9e1682"
+  },
+  "implementation": {
+    "views": [
+      {"id": "personal-finance", "scope": "atrium-personal-finance", "access": "read-write", "eligibility": "fresh-personal-group"},
+      {"id": "personal-scribe", "scope": "atrium-personal-scribe", "access": "read-write", "eligibility": "explicit-ryan-principal"},
+      {"id": "personal-status", "scope": "atrium-personal-status", "access": "read-only", "eligibility": "explicit-ryan-principal"}
+    ],
+    "ordinary_read_profiles_and_grants_unchanged": true,
+    "grant_unit": "atrium-grant-finance-clients",
+    "grant_application": "manual seed-policy --append only",
+    "nondelegable_grants": 3,
+    "maximum_credential_seconds": 900,
+    "default_native_resource_unchanged": true,
+    "adopted_hermes_aliases": ["atrium-finance", "atrium-status"],
+    "legacy_active_aliases_before_adoption": ["holthome", "holthome-telegram"],
+    "inactive_managed_aliases_explicitly_disabled": true,
+    "existing_token_caches_and_unrelated_config_preserved": true,
+    "existing_settings_restart_trigger_preserved": true,
+    "native_startup_probes": "verified HTTPS through existing Caddy route",
+    "legacy_startup_probes_unchanged": true,
+    "native_adoption": false,
+    "models_adoption": true,
+    "whiskey_adoption": false,
+    "whiskey_text_adoption": false
+  },
+  "local_validation": {
+    "host_wiring_assertions": 25,
+    "actual_pinned_hermes_config_merger": {
+      "transition_and_idempotence_runs": 6,
+      "omitted_disable_regressions_detected": 2,
+      "synthetic_cache_files_preserved": 15,
+      "unrelated_configuration_preserved": true
+    },
+    "passed_checks": [
+      "atrium-forge-client-views",
+      "atrium-hermes-config-transition",
+      "atrium-forge-preparation",
+      "atrium-forge-cloud-schema",
+      "atrium-forge-adoption-wiring",
+      "atrium-forge-credential-projection",
+      "atrium-forge-c10-settings",
+      "atrium-forge-c10-schema",
+      "homelab-mcp-deployment"
+    ],
+    "whole_flake_evaluation": {
+      "command": "nix flake check --no-build --all-systems --no-write-lock-file",
+      "exit_code": 0
+    },
+    "precommit": "passed",
+    "independent_review": "two deployment findings corrected and re-reviewed clean"
+  },
+  "candidate_ci": {
+    "source_commit": "55cd5f2608d7d89c15d773d75778b95654d4c88d",
+    "all_reported_checks": "passed",
+    "full_forge_build": {
+      "url": "https://github.com/carpenike/nix-config/actions/runs/35302383962/job/105467552064",
+      "result": "passed",
+      "elapsed": "8m49s",
+      "activation": false
+    },
+    "foundation_and_actual_systemd_checks": {
+      "url": "https://github.com/carpenike/nix-config/actions/runs/35302383962/job/105467552019",
+      "result": "passed",
+      "elapsed": "28m45s"
+    },
+    "required_rollup": {
+      "url": "https://github.com/carpenike/nix-config/actions/runs/35302383962/job/105472907492",
+      "result": "passed"
+    }
+  },
+  "remote_build_attempt": {
+    "command": "task -d /Users/ryan/src/nix-config nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "result": "blocked-before-remote-build",
+    "reason": "Configured hardware-backed SSH agent refused signing; no usable alternative identity was present.",
+    "not_relabelled_as_success": true,
+    "alternative_full_host_build": "Existing source-bound GitHub Forge CI above; no Linux closure built or downloaded on the Mac."
+  },
+  "merged_native_qualification": {
+    "pull_request": "carpenike/mcp#82",
+    "qualified_head": "b5ecee5cca5fa735aa4f1e6996903e114aa20662",
+    "merge_commit": "2de099be8af58805a79d03872708e9fd7fb85c5d",
+    "runtime_profiles_catalogs_vendor_and_module_package_code_equal_to_candidate": true,
+    "all_required_checks": "passed",
+    "linux_native_guest": {
+      "url": "https://github.com/carpenike/mcp/actions/runs/35307140344/job/105481543040",
+      "cases": 110,
+      "test_script_seconds": 402.05,
+      "private_runtime_cleanup": "passed",
+      "network": "isolated guest, no VLAN or DHCP",
+      "application_custody_or_tls_checks_relaxed": false
+    },
+    "python_and_pinned_client": "https://github.com/carpenike/mcp/actions/runs/35307140344/job/105481542808",
+    "installed_as_conformance": "https://github.com/carpenike/mcp/actions/runs/35307140344/job/105481542967",
+    "native_receipt": "docs/evidence/ATR-M01-M03-bounded-finance.json"
+  },
+  "boundaries": {
+    "runtime_gate_evidence": false,
+    "full_n03_gate_claimed": false,
+    "production_service_or_credential_mutations": false,
+    "native_grant_application_or_signin": false,
+    "refresh_or_deny_history_changed": false,
+    "model_inference_or_provider_credentials_changed": false,
+    "owner_spec_preserved_sha256": "7948bf3e47a1098db984bfd23e0b660d8fd0b818c317611e4de30d824536939e",
+    "owner_serena_preserved_sha256": "c252d14319f1d6f5320b0b3e12765a451fe2e2951f651be70915048844960e87",
+    "amendment_required": false,
+    "remaining": ["Clean final-head deployment checks remain mandatory; candidate evidence is not silently relabeled as a later run.", "Deployment, grant application, native cutover and fresh per-alias sign-in remain owner-operated; no repeated foundation initialization is required."]
+  }
+}

@@ -98,6 +98,102 @@ provisioning description. Ordinary grants are nondelegating, subordinate
 standing grants; each credential remains lifetime/budget/native-rights bounded.
 Nothing applies them at boot.
 
+### Bounded native finance clients (prepared, not adopted)
+
+The owner's 2026-09-17 implementation decision adds three separate Personal
+views. It does **not** widen either ordinary read-only view or enable native
+adoption. The source-defined profiles come from the selected Home MCP catalog,
+not a second tool inventory in Nix.
+
+| View path | Exact scope | Capability | Eligibility |
+| --- | --- | --- | --- |
+| `/cc/views/personal-finance` | `atrium-personal-finance` | Advisor's 52 finance/document/purchase tools and finance resources; read/write | Fresh Personal group evidence |
+| `/cc/views/personal-scribe` | `atrium-personal-scribe` | Hermes's 12 finance-summary/context tools; read/write | Explicit Ryan principal grant |
+| `/cc/views/personal-status` | `atrium-personal-status` | Only `homelab_list_status`; read-only | Explicit Ryan principal grant |
+
+Finance excludes messaging, infrastructure deployment and general service
+status. Scribe excludes purchase history, Fidelity/net-worth detail and
+ledger/rule/payee/loan mutations; its explicit note writer, provider sync and
+maintenance are not mislabeled read-only. No view reclassifies household
+finance data as Family data or claims per-human row isolation. Existing
+`advisor`/`hermes` definitions, ordinary Personal/Family scopes, model provider
+configuration and Signal-sharing policy are unchanged.
+
+The new non-delegable grants are a **separate** `financeClients` seed, exported
+as `/etc/atrium/bootstrap/finance-clients.json`. The manual-only
+`atrium-grant-finance-clients.service` uses the existing `seed-policy --append`
+operation against the retained foundation. It has no startup target, timer or
+activation dependency. Nothing re-seeds ordinary grants, enrolls an identity
+or fabricates a group observation. Each template limits credentials to 900
+seconds and one exact scope/target. Native validity, current grants and
+templates, enrollment and denies still apply on renewal and use.
+**Group removal alone does not revoke the two explicit automation grants.**
+Revoke their grants or use the existing principal/credential/device deny
+controls instead; native refresh must not invent fresher group evidence.
+
+Public `/mcp` remains the ordinary Personal read-only default. The native
+issuer must resolve each requested resource to the current declared view and
+bind authorization codes, access/refresh credentials and sessions to that
+exact target. A new connection cannot silently inherit a legacy/default
+resource's credential. Do not substitute an administrator scope or credential.
+
+Before adoption Hermes retains both original aliases, `/mcp` URLs, explicit
+`hermes` scope, confidential client and callback configuration. Conditional
+adoption switches only these MCP connections:
+
+| Platform | New alias | Target |
+| --- | --- | --- |
+| Signal and cron | `atrium-finance` | `/cc/views/personal-scribe` |
+| Telegram | `atrium-status` | `/cc/views/personal-status` |
+
+The aliases are deliberately new: the pinned Hermes client keys its persisted
+token cache by server name, not URL or scope. Use fresh sign-in for each new
+alias, with the existing registered client and callback, rather than replacing
+the URL behind an old cache. Activation explicitly sets only the inactive
+managed aliases to `enabled: false`, in both directions: Hermes's deep merge
+would otherwise retain them as live connections. Unrelated client settings and
+all token-cache files remain intact. The existing settings-triggered gateway
+restart ensures already connected inactive aliases are disconnected.
+Preserve all legacy token-cache files, refresh
+families, consumed-token history, signing material and deny records. Advisor
+likewise needs a fresh connection to its exact finance URL. Any selected C4
+legacy migration remains a separate, default-resource-only owner operation
+within the original cutover window.
+
+After explicit owner-operated native cutover and grant application, use the
+existing Forge-managed Hermes CLI environment to sign in sequentially:
+
+```sh
+hermes mcp login atrium-finance
+hermes mcp login atrium-status
+```
+
+The pinned CLI's `mcp login <name>` already requests fresh named-alias
+authentication; no `--force` option or broad token-cache deletion is needed.
+These commands are not part of activation and have not been run against Forge.
+
+When native mode is selected, Hermes's existing startup probes use the
+verified HTTPS Caddy endpoint, not the private native listener, whose firewall
+admits only Caddy and the resolver. Legacy mode retains its loopback probes.
+Liveness and unauthenticated construction checks still do not prove an
+authenticated tool call or replace the existing failure/heartbeat handling.
+
+`atrium-forge-client-views` checks the host's exact profiles, eligibility,
+manual append-only wiring, unchanged unadopted clients, source-matched tool
+filters, distinct adopted aliases, startup transport and platform separation.
+`atrium-hermes-config-transition` runs the pinned module's actual merge script
+through adoption, rollback and re-adoption, including idempotence, preserved
+synthetic cache files/unrelated settings, and the reproduced stale-alias failure
+when explicit disable entries are omitted. Those checks
+are configuration evidence, not live client sign-in or an executed native
+permit/deny gate. Deployment, finance-grant application and native cutover
+remain explicit owner-operated steps; this change performs none of them.
+The [source-bound deployment receipt](evidence/atrium-bounded-native-clients.json)
+records the candidate's full Forge CI build, actual configuration-transition
+checks, merged native qualification and the separate SSH signing refusal on
+the direct build path. Native permit/deny evidence belongs to the selected
+Home MCP receipt, not to these host configuration assertions.
+
 ### Cloud bindings and budgets
 
 | New managed alias | Exact configured backend | Use |
