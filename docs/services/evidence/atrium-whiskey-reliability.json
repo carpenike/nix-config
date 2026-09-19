@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "kind": "atrium.whiskey-reliability-deployment",
+  "date": "2026-09-19",
+  "tickets": ["ATR-N03", "ATR-W03"],
+  "status": "scoped-installed-and-host-qualification-passed",
+  "deployment_revision": "a837fcbb36c7b7fb8d129871525d9f79546d3449",
+  "application": {
+    "repository": "carpenike/whiskey-whiskey-whiskey",
+    "pr": 96,
+    "implementation_revision": "164cb32ad9e84b4e325baa4f5e0e7f2ad3fade12",
+    "reviewed_head": "38274ceeda26f4732853e7dc3e8857c321bd9032",
+    "merge_revision": "d58aca900bd804e7b0de8d480fe8c64f3d2719c5",
+    "identical_reviewed_and_merge_tree": "76baeada72f0ed765f9cc2afc58e64d7d244f26c",
+    "source_receipt": "docs/evidence/ATR-W03-generation-reliability-164cb32.json",
+    "source_receipt_sha256": "5aac65f17b003922668fdd84aeea2ced27336ece9105226244fada01803fa7fe",
+    "classified_cases_passed": 318,
+    "baseline_control": "21 failures from 25 selected cases against unchanged4aac8d8, retained in the source receipt.",
+    "caller_scope": "All12 shared-helper callers, actual PAT-authenticated REST/MCP, local HTTP/TLS doubles and scratch SQLite failure/recovery pairs.",
+    "independent_review": "No outstanding findings at the exact reviewed head.",
+    "ci": "Exact reviewed head passed the complete gates job in4m10s."
+  },
+  "installed_linux": {
+    "derivation": "/nix/store/85xvl5cvwk0xrdh7cww05vjrbax9xfiz-vm-test-run-atrium-owner-whiskey-cutover.drv",
+    "system": "x86_64-linux",
+    "node": "22.22.2",
+    "synthetic_uid": 1070,
+    "test_script_seconds": 32.88,
+    "runner": "Application-owned scripts/check-installed-generation.mjs from the selected immutable source.",
+    "manifest": "scripts/generation-runtime-manifest.json",
+    "manifest_sha256": "628c0cbaca019da2289fe1dd1580938336ed8f6e3c0575413732dfa7b792865a",
+    "compiled_module_hashes_matched": 16,
+    "cases": [
+      "compiled-module-byte-equivalence",
+      "reset",
+      "read-reset",
+      "max_tokens",
+      "refusal",
+      "native-http-refusal",
+      "explicit-recovery",
+      "cancellation",
+      "custom-and-default-prompt-rules"
+    ],
+    "synthetic_local_requests": 6,
+    "runtime_custody_pair": "0755 runtime directory refused before fixture creation;0700 recovery succeeds and leaves the parent empty.",
+    "original_preparation_paired_groups_passed": 9,
+    "original_host_groups_passed": 7,
+    "credential_contract": "Native parsed success still acknowledges its publication; caller output acceptance separately rejects max_tokens/refusal. HTTP refusal and transport failure do not acknowledge.",
+    "business_state": "Installed probe never opens the app database; the larger caller/SQLite matrix remains separately application-owned.",
+    "cleanup": "Probe private child removed and server closed; exact guest QEMU process terminated by the test driver."
+  },
+  "alert_contract": {
+    "change": "Actionable first-use/idle-rotation description, bounded journal command and owner runbook.",
+    "failure_expression_unchanged": true,
+    "severity": "high",
+    "acknowledgement_timeout_seconds": 60,
+    "success_exit_override_added": false,
+    "controller_runtime_changed": false,
+    "expiry_or_retirement_rules_changed": false,
+    "paid_keepalive_or_forced_acknowledgement": false
+  },
+  "build": {
+    "forge_command": "task nix:build-nixos host=forge NIXOS_DOMAIN=holthome.net",
+    "forge_result": "/nix/store/vn8l9r67alix4xmki1rjr83wgcznkrlk-nixos-system-forge-25.11.20260630.b6018f8",
+    "all_system_no_build_evaluation": "passed",
+    "targeted_adoption_and_pin_checks": "passed",
+    "repository_pre_commit_checks": "passed",
+    "activation_performed": false
+  },
+  "limits": [
+    "No live model request, credential/state mutation, service restart or activation was performed.",
+    "The historical fetch failure's exact cause and historical stop_reason were not observed.",
+    "Deterministic prompt construction and scripted upstream responses do not prove real model adherence.",
+    "Local provider doubles qualify error/completion handling, not a new live or complete LiteLLM protocol/admission/rotation gate.",
+    "Original source, installed and host cohorts overlap and are not added into a synthetic total.",
+    "The observed Hermes sentinel-heartbeat and transient Podman healthcheck failures remain separate, uninvestigated observations in the deployment checkpoint."
+  ],
+  "full_phase_gate_claimed": false,
+  "proposed_amendment": null
+}

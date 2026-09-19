@@ -149,6 +149,11 @@ accepting a finished draft: successful native inference may acknowledge a key
 even when a caller rejects its token-limited or refused output. There is no new
 automatic request retry or direct-provider fallback.
 
+The [reliability receipt](evidence/atrium-whiskey-reliability.json) binds this
+follow-up to its application source cases, installed Linux probe and full Forge
+build. For an already-adopted installation, apply normally with `naf`; do not
+repeat preparation or clear existing acknowledgements.
+
 The [source-bound host receipt](evidence/atrium-whiskey-cutover.json) records the
 executed preparation and host groups, the original failed identity transition,
 its correction, and the independent boot-order review finding and regression.
