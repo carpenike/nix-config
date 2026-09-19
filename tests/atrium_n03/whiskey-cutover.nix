@@ -1,4 +1,4 @@
-{ pkgs, whiskeyPackage, egressOrdering, hostPkgs ? pkgs }:
+{ pkgs, whiskeyPackage, whiskeySource, egressOrdering, hostPkgs ? pkgs }:
 let
   inherit (pkgs) lib;
   root = "/run/atrium-whiskey-cutover";
@@ -204,6 +204,29 @@ hostPkgs.testers.runNixOSTest {
     ))
     assert result["groups_passed"] == 9
     assert result["real_installed_deny_store"] and not result["production_operations"]
+    generation_runtime = "/run/atrium-whiskey-installed-generation"
+    machine.succeed(f"install -d -o unrelated-fixture -g unrelated-fixture -m 0755 {generation_runtime}")
+    generation_command = (
+        "setpriv --reuid=1070 --regid=1070 --clear-groups env -i HOME=/ LANG=C.UTF-8 "
+        "${pkgs.nodejs_22}/bin/node ${whiskeySource}/scripts/check-installed-generation.mjs "
+        "${whiskeyPackage}/share/whiskey-whiskey-whiskey "
+        + generation_runtime
+    )
+    status, output = machine.execute(generation_command)
+    refusal = json.loads(output)
+    assert status == 1 and refusal["code"] == "empty_private_owned_runtime_required"
+    machine.succeed(f"test -z \"$(ls -A {generation_runtime})\"")
+    machine.succeed(f"chmod 0700 {generation_runtime}")
+    generation = json.loads(machine.succeed(generation_command, timeout=60))
+    assert generation["status"] == "passed" and generation["cleanup"] == "passed"
+    assert generation["nix_store_application"] and generation["platform"] == "linux"
+    assert generation["node"] == "22.22.2" and generation["uid"] == 1070
+    assert len(generation["compiled_modules"]) == 16 and len(generation["cases"]) == 9
+    assert generation["requests"] == 6
+    machine.succeed(f"test -z \"$(ls -A {generation_runtime})\"")
+    result["no_live_model_or_household_calls"] = result.pop("no_model_or_household_calls")
+    result["installed_generation"] = generation
+    result["installed_generation_runtime_refusal"] = refusal["code"]
     machine.succeed("systemctl start whiskey-legacy-state-fixture")
     machine.succeed("test -L /var/lib/whiskey-application-fixture")
     machine.succeed("systemctl stop whiskey-legacy-state-fixture")

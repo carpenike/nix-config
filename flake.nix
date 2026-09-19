@@ -155,7 +155,7 @@
     # Self-hosted React + Fastify + SQLite + MCP app served from one Node process.
     # https://github.com/carpenike/whiskey-whiskey-whiskey
     whiskey-whiskey-whiskey = {
-      url = "github:carpenike/whiskey-whiskey-whiskey/4aac8d822a1dfe8a9875c41131cdde88075bdf80";
+      url = "github:carpenike/whiskey-whiskey-whiskey/d58aca900bd804e7b0de8d480fe8c64f3d2719c5";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -546,6 +546,7 @@
                 pkgs = if pkgs.stdenv.hostPlatform.isLinux then pkgs else
                 import inputs.nixpkgs { system = guestSystem; };
                 whiskeyPackage = inputs.whiskey-whiskey-whiskey.packages.${guestSystem}.default;
+                whiskeySource = inputs.whiskey-whiskey-whiskey;
                 egressOrdering = pkgs.lib.getAttrs [ "wants" "requires" "after" ]
                   inputs.self.nixosConfigurations.forge.config.systemd.services.atrium-whiskey-egress;
               };

@@ -45,6 +45,41 @@ remains root-owned; Whiskey cannot change its permission ceiling or approval.
 The existing policy dataset's snapshots and local/offsite backup jobs cover
 this history.
 
+## First-use and idle-rotation alerts
+
+`service_ack_timeout` means Whiskey has not yet confirmed successful inference
+with the published key. It is not a missing-file diagnosis or proof that the
+application is down. The same alert can occur after the first deployment or a
+later daily rotation while no one is using Whiskey's generation features.
+
+Only an actual successful server-side model request writes the acknowledgement.
+A Claude answer based on MCP data, a readable key, an HTTP 200 MCP envelope,
+or a health check does not establish that. For an intended first-use check, have
+Claude call the native Whiskey `draft_dispatch` tool for an existing operation,
+with `kind: custom`, `include_history: false`, and an explicit short instruction.
+Do not save or transmit the draft. This makes a real model request and can incur
+provider charges; no automatic keepalive or background paid probe is installed.
+
+If the tool fails, inspect its actual result rather than blindly retrying. Once
+Whiskey writes a valid acknowledgement, the next existing reconciler timer run
+can accept it even after the acknowledgement deadline. Confirm with:
+
+```sh
+systemctl show atrium-reconciler.service -p Result -p ExecMainStatus
+```
+
+An inactive/dead oneshot with `Result=success` and `ExecMainStatus=0` is normal.
+The timer runs again after 20 seconds of inactivity. No restart, reauthentication
+or repeated preparation is needed just because a first-use acknowledgement was
+late.
+
+The timeout remains a real reported failure: it must not be suppressed with
+`SuccessExitStatus`, converted to a successful rotation, or bypassed by writing
+an acknowledgement manually. A previously working key is not retired until the
+replacement is acknowledged and its overlap elapses; native key expiry still
+applies. Missing, unreadable, denied and expired credentials need their actual
+cause fixed, not a reset of ownership or deny history.
+
 ## What changes
 
 Text generation uses the existing `cc.personal.ryan.whiskey-service` template
@@ -100,10 +135,24 @@ The public `/metrics` path remains 404.
 
 ## Qualification
 
-The selected application is carpenike/whiskey-whiskey-whiskey#95, merged at
+The original adoption application was carpenike/whiskey-whiskey-whiskey#95, merged at
 `4aac8d822a1dfe8a9875c41131cdde88075bdf80`. Its runtime and dependency files
 remain unchanged from the separately recorded `472f877` application input;
 the original receipts retain their actual source IDs.
+
+The follow-up in carpenike/whiskey-whiskey-whiskey#96 adds bounded transport
+errors, caller-side rejection of incomplete drafts, and explicit custom-format
+precedence. The selected release is
+`d58aca900bd804e7b0de8d480fe8c64f3d2719c5`, with the exact reviewed
+`38274ce` tree. The shared helper's native acknowledgement remains distinct from
+accepting a finished draft: successful native inference may acknowledge a key
+even when a caller rejects its token-limited or refused output. There is no new
+automatic request retry or direct-provider fallback.
+
+The [reliability receipt](evidence/atrium-whiskey-reliability.json) binds this
+follow-up to its application source cases, installed Linux probe and full Forge
+build. For an already-adopted installation, apply normally with `naf`; do not
+repeat preparation or clear existing acknowledgements.
 
 The [source-bound host receipt](evidence/atrium-whiskey-cutover.json) records the
 executed preparation and host groups, the original failed identity transition,
@@ -123,6 +172,15 @@ replacement and DNS-failure recovery.
 Its execution receipt is separate from the application-owned W01-W03/N06
 credential, text-caller and LiteLLM qualification; neither is a live deployment
 claim.
+
+That guest also invokes the selected application's own
+`scripts/check-installed-generation.mjs`, not a deployment-owned replacement
+for the helper or acceptance logic. The probe runs as an unprivileged synthetic
+user against the installed Node 22.22.2 package, verifies all 16 changed compiled
+modules, exercises nine bounded local cases, and removes its private fixture
+state. The host wrapper additionally refuses an unsafe runtime directory before
+allowing the private-directory recovery. Scripted provider responses and prompt
+construction checks do not prove a real model will obey every formatting request.
 
 The application-owned
 [W01-W03 receipt](https://github.com/carpenike/whiskey-whiskey-whiskey/blob/4aac8d822a1dfe8a9875c41131cdde88075bdf80/docs/evidence/ATR-W01-W03-adoption-ad23136.json)
