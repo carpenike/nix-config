@@ -13,12 +13,12 @@
             "name": null,
             "owner": "cooklang",
             "repo": "CookCLI",
-            "rev": "v0.35.0",
-            "sha256": "sha256-d2sO25QtElhAATgUeyDQaYMN2ZC7r6Nj8IH9xe+pabs=",
+            "rev": "v0.36.0",
+            "sha256": "sha256-ihsVvlyp//A4pNlt1+DlYWyz52enHVeU6uST7bxcwqw=",
             "sparseCheckout": [],
             "type": "github"
         },
-        "version": "v0.35.0"
+        "version": "v0.36.0"
     },
     "cooklang-federation": {
         "cargoLock": null,
