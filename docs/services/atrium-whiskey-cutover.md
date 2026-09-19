@@ -135,10 +135,19 @@ The public `/metrics` path remains 404.
 
 ## Qualification
 
-The selected application is carpenike/whiskey-whiskey-whiskey#95, merged at
+The original adoption application was carpenike/whiskey-whiskey-whiskey#95, merged at
 `4aac8d822a1dfe8a9875c41131cdde88075bdf80`. Its runtime and dependency files
 remain unchanged from the separately recorded `472f877` application input;
 the original receipts retain their actual source IDs.
+
+The follow-up in carpenike/whiskey-whiskey-whiskey#96 adds bounded transport
+errors, caller-side rejection of incomplete drafts, and explicit custom-format
+precedence. The selected release is
+`d58aca900bd804e7b0de8d480fe8c64f3d2719c5`, with the exact reviewed
+`38274ce` tree. The shared helper's native acknowledgement remains distinct from
+accepting a finished draft: successful native inference may acknowledge a key
+even when a caller rejects its token-limited or refused output. There is no new
+automatic request retry or direct-provider fallback.
 
 The [source-bound host receipt](evidence/atrium-whiskey-cutover.json) records the
 executed preparation and host groups, the original failed identity transition,
@@ -158,6 +167,15 @@ replacement and DNS-failure recovery.
 Its execution receipt is separate from the application-owned W01-W03/N06
 credential, text-caller and LiteLLM qualification; neither is a live deployment
 claim.
+
+That guest also invokes the selected application's own
+`scripts/check-installed-generation.mjs`, not a deployment-owned replacement
+for the helper or acceptance logic. The probe runs as an unprivileged synthetic
+user against the installed Node 22.22.2 package, verifies all 16 changed compiled
+modules, exercises nine bounded local cases, and removes its private fixture
+state. The host wrapper additionally refuses an unsafe runtime directory before
+allowing the private-directory recovery. Scripted provider responses and prompt
+construction checks do not prove a real model will obey every formatting request.
 
 The application-owned
 [W01-W03 receipt](https://github.com/carpenike/whiskey-whiskey-whiskey/blob/4aac8d822a1dfe8a9875c41131cdde88075bdf80/docs/evidence/ATR-W01-W03-adoption-ad23136.json)
